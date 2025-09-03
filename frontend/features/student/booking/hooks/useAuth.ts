@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_ENDPOINTS } from '@/lib/api';
+import { withApiBase } from '@/lib/apiBase';
 import { httpGet, ApiError } from '@/lib/http';
 import { logger } from '@/lib/logger';
 
@@ -51,7 +52,7 @@ export function useAuth(): UseAuthReturn {
 
     try {
       logger.info('Checking authentication status');
-      const data = (await httpGet(API_ENDPOINTS.ME)) as User;
+      const data = (await httpGet(withApiBase(API_ENDPOINTS.ME))) as User;
       logger.info('User authenticated', {
         userId: data?.id,
         roles: data?.roles,

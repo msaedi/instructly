@@ -44,7 +44,7 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
     const generateLowQuality = (url: string | null): string | null => {
       if (!url) return null;
       const match = url.match(/\/cdn-cgi\/image\/[^/]+(\/.+)$/);
-      if (match) {
+      if (match && match[1]) {
         const originalPath = match[1];
         return getLowQualityUrl(originalPath);
       }

@@ -276,8 +276,10 @@ function findSlotsToAdd(
  * @returns true if slot contains bookings
  */
 function hasBookingInSlot(slot: TimeSlot, date: string, bookedSlots: BookedSlotPreview[]): boolean {
-  const startHour = parseInt(slot.start_time.split(':')[0]);
-  const endHour = parseInt(slot.end_time.split(':')[0]);
+  const startTimeParts = slot.start_time.split(':');
+  const endTimeParts = slot.end_time.split(':');
+  const startHour = parseInt(startTimeParts[0] || '0');
+  const endHour = parseInt(endTimeParts[0] || '0');
 
   for (let hour = startHour; hour < endHour; hour++) {
     if (isSlotBooked(date, hour, bookedSlots)) {

@@ -28,7 +28,7 @@ export default function MemoryUsageChart({ stats }: MemoryUsageChartProps) {
     const match = value.match(/(\d+\.?\d*)/);
     if (!match) return 0;
 
-    const num = parseFloat(match[1]);
+    const num = parseFloat(match[1] || '0');
     if (value.includes('G')) return num * 1024;
     if (value.includes('M')) return num;
     if (value.includes('K')) return num / 1024;
@@ -36,7 +36,7 @@ export default function MemoryUsageChart({ stats }: MemoryUsageChartProps) {
   };
 
   const maxMemory = parseMemory(stats.memory.maxmemory_human || '256M');
-  const usedMemory = parseMemory(stats.memory.used_memory_human);
+  const usedMemory = parseMemory(stats.memory.used_memory_human || '0M');
   const usedPercentage = maxMemory > 0 ? (usedMemory / maxMemory) * 100 : 0;
 
   return (

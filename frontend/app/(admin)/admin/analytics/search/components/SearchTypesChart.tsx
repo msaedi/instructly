@@ -3,6 +3,7 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import type { SearchAnalyticsSummary } from '@/lib/analyticsApi';
+import { at } from '@/lib/ts/safe';
 
 interface SearchTypesChartProps {
   summary: SearchAnalyticsSummary | null;
@@ -61,12 +62,12 @@ export function SearchTypesChart({ summary, loading }: SearchTypesChartProps) {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
-          <p className="font-medium text-gray-900 dark:text-gray-100">{payload[0].name}</p>
+          <p className="font-medium text-gray-900 dark:text-gray-100">{at(payload, 0)?.name}</p>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Count: {payload[0].value.toLocaleString()}
+            Count: {at(payload, 0)?.value.toLocaleString()}
           </p>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            {payload[0].payload.percentage.toFixed(1)}%
+            {at(payload, 0)?.payload.percentage.toFixed(1)}%
           </p>
         </div>
       );

@@ -17,10 +17,10 @@ export function useSaveInstructor(instructorId: string) {
   const { isAuthenticated } = useAuth();
   const [isSaved, setIsSaved] = useState(false);
 
-  // Check if instructor is saved (localStorage for non-authenticated users)
+  // Check if instructor is saved (sessionStorage for non-authenticated users)
   useEffect(() => {
     if (!isAuthenticated) {
-      const savedInstructors = localStorage.getItem('savedInstructors');
+      const savedInstructors = sessionStorage.getItem('savedInstructors');
       if (savedInstructors) {
         const saved = JSON.parse(savedInstructors) as string[];
         setIsSaved(saved.includes(instructorId));
@@ -84,8 +84,8 @@ export function useSaveInstructor(instructorId: string) {
   // Toggle save state
   const toggleSave = () => {
     if (!isAuthenticated) {
-      // Handle localStorage for non-authenticated users
-      const savedInstructors = localStorage.getItem('savedInstructors');
+      // Handle sessionStorage for non-authenticated users
+      const savedInstructors = sessionStorage.getItem('savedInstructors');
       let saved: string[] = savedInstructors ? JSON.parse(savedInstructors) : [];
 
       if (isSaved) {
@@ -94,7 +94,7 @@ export function useSaveInstructor(instructorId: string) {
         saved.push(instructorId);
       }
 
-      localStorage.setItem('savedInstructors', JSON.stringify(saved));
+      sessionStorage.setItem('savedInstructors', JSON.stringify(saved));
       setIsSaved(!isSaved);
 
       // Optionally show a toast to prompt login

@@ -12,6 +12,7 @@
 
 import { WeekDateInfo, AVAILABILITY_CONSTANTS } from '@/types/availability';
 import { logger } from '@/lib/logger';
+import { at } from '@/lib/ts/safe';
 
 /**
  * Format a Date object to API format (YYYY-MM-DD)
@@ -86,15 +87,15 @@ export function getWeekDates(weekStart: Date): WeekDateInfo[] {
     dates.push({
       date,
       dateStr: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      dayOfWeek: AVAILABILITY_CONSTANTS.DAYS_OF_WEEK[i],
+      dayOfWeek: at(AVAILABILITY_CONSTANTS.DAYS_OF_WEEK, i) as 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday',
       fullDate: formatDateForAPI(date),
     });
   }
 
   logger.debug('Generated week dates', {
     weekStart: formatDateForAPI(weekStart),
-    firstDate: dates[0].fullDate,
-    lastDate: dates[6].fullDate,
+    firstDate: at(dates, 0)?.fullDate,
+    lastDate: at(dates, 6)?.fullDate,
   });
 
   return dates;
@@ -116,7 +117,10 @@ export function getWeekDates(weekStart: Date): WeekDateInfo[] {
  * ```
  */
 export function isTimeSlotInPast(dateStr: string, hour: number): boolean {
-  const [year, month, day] = dateStr.split('-').map((num) => parseInt(num));
+  const parts = dateStr.split('-');
+  const year = parseInt(at(parts, 0) || '0');
+  const month = parseInt(at(parts, 1) || '0');
+  const day = parseInt(at(parts, 2) || '0');
   const slotDateTime = new Date(year, month - 1, day, hour, 0, 0, 0);
   const now = new Date();
 
@@ -301,7 +305,9 @@ export function getNextMonday(date: Date): Date {
  * ```
  */
 export function parseTimeString(timeStr: string): { hours: number; minutes: number } {
-  const [hours, minutes] = timeStr.split(':').map((n) => parseInt(n));
+  const parts = timeStr.split(':');
+  const hours = parseInt(at(parts, 0) || '0');
+  const minutes = parseInt(at(parts, 1) || '0');
   return { hours, minutes };
 }
 

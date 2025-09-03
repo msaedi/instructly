@@ -55,16 +55,15 @@ export default function InstructorDashboard() {
    * Handles 404 case for instructors without profiles
    */
   const fetchProfile = useCallback(async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      logger.warn('No access token found, redirecting to login');
-      router.push('/login?redirect=/dashboard/instructor');
-      return;
-    }
-
     try {
       logger.info('Fetching instructor profile');
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+
+      if (response.status === 401) {
+        logger.warn('Not authenticated, redirecting to login');
+        router.push('/login?redirect=/dashboard/instructor');
+        return;
+      }
 
       if (response.status === 404) {
         logger.warn('No instructor profile found');

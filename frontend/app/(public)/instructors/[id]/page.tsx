@@ -30,6 +30,7 @@ import { format } from 'date-fns';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { getString, getNumber, isRecord } from '@/lib/typesafe';
+import { at } from '@/lib/ts/safe';
 
 // Booking intent helpers
 function storeBookingIntent(bookingIntent: {
@@ -94,7 +95,8 @@ function InstructorProfileContent() {
     const isRateLimited = /hamsters|Too Many Requests|rate limit/i.test(message);
     if (!isRateLimited) return;
     const m = message.match(/(\d+)s/);
-    const seconds = m ? parseInt(m[1], 10) : 3;
+    const secondStr = m ? at(m, 1) : undefined;
+    const seconds = secondStr ? parseInt(secondStr, 10) : 3;
     setRateSecs(seconds);
     const interval = setInterval(() => {
       setRateSecs((prev) => {
@@ -145,13 +147,12 @@ function InstructorProfileContent() {
 
   // Helper function to handle booking - checks auth and redirects if needed
   const handleBookingClick = (service?: Record<string, unknown>, serviceDuration?: number) => {
-    const token = localStorage.getItem('access_token');
     const selectedService = service || instructor?.services[0]; // Use provided service or default to first
     const duration = serviceDuration || 60; // Use provided duration or default
 
     // If no slot is selected OR slot was auto-selected (not user-selected), open the booking modal
     if (!selectedSlot || !isSlotUserSelected) {
-      if (!token) {
+      if (typeof window !== 'undefined') {
         // User not authenticated - redirect to login first
         const returnUrl = `/instructors/${instructor?.user_id}`;
         nextRouter.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
@@ -209,7 +210,7 @@ function InstructorProfileContent() {
         // availableDuration will be recalculated on restore
       }, 'profile');
 
-      if (!token) {
+      if (typeof window !== 'undefined') {
         // User not authenticated - store booking intent and redirect to login
         storeBookingIntent({
           instructorId: instructor.user_id,
@@ -244,8 +245,12 @@ function InstructorProfileContent() {
     if (!availability || !availability.availability_by_date || !weekStart) return;
     const dates = Object.keys(availability.availability_by_date).sort();
     if (dates.length === 0) return;
-    const earliest = dates[0];
-    const [y, m, d] = earliest.split('-').map(Number);
+    const earliest = at(dates, 0);
+    if (!earliest) return;
+    const dateParts = earliest.split('-');
+    const y = Number(at(dateParts, 0) || 0);
+    const m = Number(at(dateParts, 1) || 1);
+    const d = Number(at(dateParts, 2) || 1);
     const earliestDate = new Date(y, (m || 1) - 1, d || 1);
 
     // If earliest available is after current week window end, shift weekStart to earliest
@@ -296,8 +301,7 @@ function InstructorProfileContent() {
         setIsSlotUserSelected(true); // Booking intent slots are considered user-selected
         setHasRestoredIntent(true);
 
-        const token = localStorage.getItem('access_token');
-        if (token) {
+        if (typeof window !== 'undefined') {
           bookingModal.openBookingModal({
             date: bookingIntent.date,
             time: bookingIntent.time,
@@ -317,18 +321,30 @@ function InstructorProfileContent() {
       const dayData = availability.availability_by_date?.[selectedSlot.date];
       if (dayData?.available_slots) {
         // Parse the start hour from the time string
-        const startHour = parseInt(selectedSlot.time.split(':')[0]);
+        const timeParts = selectedSlot.time.split(':');
+        const startHourStr = at(timeParts, 0);
+        if (!startHourStr) return;
+        const startHour = parseInt(startHourStr);
 
         // Find the slot that contains this start time
         const containingSlot = dayData.available_slots.find((slot: Record<string, unknown>) => {
-          const slotStart = getString(slot, 'start_time') ? parseInt(getString(slot, 'start_time').split(':')[0]) : 0;
-          const slotEnd = getString(slot, 'end_time') ? parseInt(getString(slot, 'end_time').split(':')[0]) : 0;
+          const startTimeStr = getString(slot, 'start_time');
+          const endTimeStr = getString(slot, 'end_time');
+          if (!startTimeStr || !endTimeStr) return false;
+          const startParts = startTimeStr.split(':');
+          const endParts = endTimeStr.split(':');
+          const slotStartStr = at(startParts, 0);
+          const slotEndStr = at(endParts, 0);
+          if (!slotStartStr || !slotEndStr) return false;
+          const slotStart = parseInt(slotStartStr);
+          const slotEnd = parseInt(slotEndStr);
           return startHour >= slotStart && startHour < slotEnd;
         });
 
         if (containingSlot) {
           // Calculate how many minutes are available from the start time to the end of the slot
-          const slotEndHour = parseInt(containingSlot.end_time.split(':')[0]);
+          const slotEndTime = containingSlot.end_time.split(':');
+          const slotEndHour = parseInt(slotEndTime[0] || '0');
           const availableHours = slotEndHour - startHour;
           const calculatedDuration = availableHours * 60;
 
@@ -361,7 +377,7 @@ function InstructorProfileContent() {
       const dates = Object.keys(availability.availability_by_date).sort();
       for (const date of dates) {
         const dayData = availability.availability_by_date[date];
-        if (!dayData.is_blackout && dayData.available_slots.length > 0) {
+        if (dayData && !dayData.is_blackout && dayData.available_slots.length > 0 && dayData.available_slots[0]) {
           const autoSelectedSlot = {
             date,
             time: dayData.available_slots[0].start_time,
@@ -586,7 +602,6 @@ function InstructorProfileContent() {
             const selectedService = instructor?.services[0]; // Use first service as default
             if (selectedService) {
               // Create booking data directly since we have all the info
-              const token = localStorage.getItem('access_token');
               const bookingDate = new Date(newSlot.date + 'T' + newSlot.time);
               const hourlyRate = selectedService.hourly_rate;
               const totalPrice = hourlyRate * (newSlot.duration / 60);
@@ -628,7 +643,7 @@ function InstructorProfileContent() {
                 instructorId
               }, 'profile');
 
-              if (!token) {
+              if (typeof window !== 'undefined') {
                 // User not authenticated - store booking intent and redirect to login
                 storeBookingIntent({
                   instructorId: instructor.user_id,

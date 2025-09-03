@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { queryFn } from '@/lib/react-query/api';
 import { logger } from '@/lib/logger';
+import { at } from '@/lib/ts/safe';
 import { useAuth, type User as AuthUser } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName } from '@/types/enums';
@@ -199,7 +200,9 @@ function StudentDashboardContent() {
     if (!ulid || ulid.length < 10) return null;
     let ts = 0;
     for (let i = 0; i < 10; i++) {
-      const v = ALPH.indexOf(ulid[i]);
+      const char = ulid.charAt(i);
+      if (!char) return null;
+      const v = ALPH.indexOf(char);
       if (v === -1) return null;
       ts = ts * 32 + v;
     }
@@ -1200,7 +1203,9 @@ function NotificationsTab() {
   // Custom Time Picker Component
   const CustomTimePicker = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [hour, minute] = value.split(':');
+    const parts = value.split(':');
+    const hour = at(parts, 0) || '0';
+    const minute = at(parts, 1) || '0';
     const hourNum = parseInt(hour) || 0;
     const displayHour = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
     const period = hourNum >= 12 ? 'PM' : 'AM';

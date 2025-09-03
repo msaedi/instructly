@@ -9,6 +9,7 @@ import { navigationStateManager } from '@/lib/navigation/navigationStateManager'
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { at } from '@/lib/ts/safe';
 
 export default function BookingConfirmationPage() {
   const [bookingData, setBookingData] = useState<BookingPayment | null>(null);
@@ -75,7 +76,9 @@ export default function BookingConfirmationPage() {
           };
 
           const startTime = toStartTime(rd.time);
-          const [sh, sm] = startTime.split(':').map((v: string) => parseInt(v, 10));
+          const parts = startTime.split(':');
+          const sh = parseInt(at(parts, 0) || '0', 10);
+          const sm = parseInt(at(parts, 1) || '0', 10);
           const duration = parseInt(String(rd.duration || 0), 10) || 0;
           const endTotal = sh * 60 + (sm || 0) + duration;
           const endHour = Math.floor(endTotal / 60);
@@ -166,7 +169,7 @@ export default function BookingConfirmationPage() {
         : String(bookingData.date).split('T')[0];
 
       const bookingFlowData = {
-        date: dateString,
+        date: dateString || '',
         time: bookingData.startTime,
         duration: bookingData.duration,
         instructorId: bookingData.instructorId,

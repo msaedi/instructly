@@ -29,6 +29,7 @@ import {
 } from '@/legacy-patterns/operationGenerator';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { logger } from '@/lib/logger';
+import { at } from '@/lib/ts/safe';
 
 /**
  * Hook return type with operation management functionality
@@ -405,8 +406,10 @@ export function useAvailabilityOperations(deps: {
       // Get current week's booked slots to preserve them
       const bookedHours = new Set<string>();
       bookedSlots.forEach((slot) => {
-        const startHour = parseInt(slot.start_time.split(':')[0]);
-        const endHour = parseInt(slot.end_time.split(':')[0]);
+        const startParts = slot.start_time.split(':');
+        const endParts = slot.end_time.split(':');
+        const startHour = parseInt(at(startParts, 0) || '0');
+        const endHour = parseInt(at(endParts, 0) || '0');
         for (let hour = startHour; hour < endHour; hour++) {
           bookedHours.add(`${slot.date}-${hour}`);
         }
@@ -433,8 +436,10 @@ export function useAvailabilityOperations(deps: {
 
           // Keep slots that contain bookings
           existingSlots.forEach((slot) => {
-            const slotStartHour = parseInt(slot.start_time.split(':')[0]);
-            const slotEndHour = parseInt(slot.end_time.split(':')[0]);
+            const slotStartParts = slot.start_time.split(':');
+            const slotEndParts = slot.end_time.split(':');
+            const slotStartHour = parseInt(at(slotStartParts, 0) || '0');
+            const slotEndHour = parseInt(at(slotEndParts, 0) || '0');
 
             let hasBookingInSlot = false;
             for (let hour = slotStartHour; hour < slotEndHour; hour++) {
@@ -453,8 +458,10 @@ export function useAvailabilityOperations(deps: {
           // Add non-conflicting slots from previous week
           if (previousWeekData[prevDateStr]) {
             previousWeekData[prevDateStr].forEach((prevSlot: TimeSlot) => {
-              const prevStartHour = parseInt(prevSlot.start_time.split(':')[0]);
-              const prevEndHour = parseInt(prevSlot.end_time.split(':')[0]);
+              const prevStartParts = prevSlot.start_time.split(':');
+              const prevEndParts = prevSlot.end_time.split(':');
+              const prevStartHour = parseInt(at(prevStartParts, 0) || '0');
+              const prevEndHour = parseInt(at(prevEndParts, 0) || '0');
 
               let conflictsWithBooking = false;
               for (let hour = prevStartHour; hour < prevEndHour; hour++) {

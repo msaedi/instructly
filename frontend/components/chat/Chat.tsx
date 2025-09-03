@@ -482,7 +482,7 @@ export function Chat({
           logger.warn(`Message ${message.id} has ${myReactions.length} reactions, cleaning up to keep only: ${myReactions[0]}`);
           cleanupMessages.push({
             messageId: message.id,
-            keepEmoji: myReactions[0],
+            keepEmoji: myReactions[0] || '',
             removeEmojis: myReactions.slice(1)
           });
         }
@@ -689,7 +689,7 @@ export function Chat({
                   </div>
                   <div className="relative flex justify-center">
                     <span className="bg-white px-3 py-1 text-xs text-gray-600 rounded-full shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800">
-                      {getDateSeparator(messages[0].created_at)}
+                      {getDateSeparator(messages[0]?.created_at || '')}
                     </span>
                   </div>
                 </div>
@@ -698,7 +698,7 @@ export function Chat({
                 {messages.map((message, index) => {
                   const isOwn = message.sender_id === currentUserId;
                   const showSender = index === 0 ||
-                    messages[index - 1].sender_id !== message.sender_id;
+                    messages[index - 1]?.sender_id !== message.sender_id;
 
                   return (
                     <div
@@ -908,7 +908,8 @@ export function Chat({
                         {isOwn && message.id === lastOwnReadMessageId && (mergedReadReceipts[message.id]?.length ?? 0) > 0 && (
                           <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 text-right pr-1">
                             {(() => {
-                              const readAt = new Date(mergedReadReceipts[message.id][0].read_at);
+                              const firstReceipt = mergedReadReceipts[message.id]?.[0];
+                              const readAt = new Date(firstReceipt?.read_at || '');
                               if (isToday(readAt)) return `Read at ${format(readAt, 'h:mm a')}`;
                               if (isYesterday(readAt)) return `Read yesterday at ${format(readAt, 'h:mm a')}`;
                               return `Read on ${format(readAt, 'MMM d')} at ${format(readAt, 'h:mm a')}`;

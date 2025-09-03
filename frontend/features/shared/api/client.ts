@@ -76,13 +76,17 @@ function getAnalyticsHeaders(): Record<string, string> {
 }
 
 /**
- * Get guest session ID from localStorage
+ * Get guest session ID from cookie (preferred) or sessionStorage fallback
  */
 function getGuestSessionId(): string | null {
-  if (typeof window === 'undefined') return null;
-
-  const guestSessionId = localStorage.getItem('guest_session_id');
-  return guestSessionId;
+  if (typeof document === 'undefined') return null;
+  const fromCookie = document.cookie.split('; ').find(c => c.startsWith('guest_id='));
+  if (fromCookie) return decodeURIComponent(fromCookie.split('=')[1] || '');
+  try {
+    return sessionStorage.getItem('guest_session_id');
+  } catch {
+    return null;
+  }
 }
 
 /**

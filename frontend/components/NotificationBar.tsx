@@ -66,7 +66,10 @@ export function NotificationBar() {
     // Select highest priority notification
     if (notifications.length > 0) {
       const sorted = notifications.sort((a, b) => a.priority - b.priority);
-      setCurrentNotification(sorted[0]);
+      const firstNotification = sorted[0];
+      if (firstNotification) {
+        setCurrentNotification(firstNotification);
+      }
     }
   }, [isAuthenticated, user, isDismissed]);
 
@@ -85,10 +88,10 @@ export function NotificationBar() {
   useEffect(() => {
     if (currentNotification) {
       const dismissed = JSON.parse(sessionStorage.getItem('dismissedNotifications') || '{}');
-      const dismissedTime = dismissed[currentNotification.id];
+      const dismissedTime = dismissed[currentNotification.id] as number | undefined;
 
       // Hide if dismissed within last 24 hours
-      if (dismissedTime && Date.now() - dismissedTime < 24 * 60 * 60 * 1000) {
+      if (typeof dismissedTime === 'number' && Date.now() - dismissedTime < 24 * 60 * 60 * 1000) {
         setIsDismissed(true);
       }
     }

@@ -50,7 +50,9 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
   };
 
   const formatTime = (timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':');
+    const timeParts = timeStr.split(':');
+    const hours = timeParts[0] || '0';
+    const minutes = timeParts[1] || '00';
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;

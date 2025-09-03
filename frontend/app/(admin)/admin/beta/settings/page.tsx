@@ -6,7 +6,7 @@ import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { getBetaSettings, updateBetaSettings, type BetaSettings } from '@/lib/betaApi';
-import { API_URL } from '@/lib/api';
+import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
 import * as Switch from '@radix-ui/react-switch';
 import * as Select from '@radix-ui/react-select';
@@ -171,7 +171,7 @@ function BetaPhaseInfo() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/health`, { cache: 'no-store' });
+        const res = await fetch(withApiBase('/health'), { cache: 'no-store', credentials: 'include' });
         const header = res.headers.get('x-beta-phase');
         setPhase(header);
       } catch {

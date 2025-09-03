@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { Booking, getLocationTypeIcon } from '@/types/booking';
 import { logger } from '@/lib/logger';
+import { requireString } from '@/lib/ts/safe';
 
 /**
  * BookingDetailsPage Component
@@ -36,7 +37,7 @@ export default function BookingDetailsPage() {
     try {
       logger.debug('Fetching booking details', { bookingId });
 
-      const response = await fetchWithAuth(`${API_ENDPOINTS.BOOKINGS}/${bookingId}`);
+      const response = await fetchWithAuth(`${API_ENDPOINTS.BOOKINGS}/${requireString(bookingId)}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch booking details');
@@ -69,7 +70,9 @@ export default function BookingDetailsPage() {
    * Format time string to 12-hour format
    */
   const formatTime = (timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':');
+    const timeParts = timeStr.split(':');
+    const hours = timeParts[0] || '0';
+    const minutes = timeParts[1] || '00';
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;

@@ -77,10 +77,12 @@ export const BookingCard: React.FC<BookingCardProps> = ({
    */
   const formatTime = (timeStr: string): string => {
     try {
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      const period = hours >= 12 ? 'PM' : 'AM';
-      const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+      const timeParts = timeStr.split(':');
+      const hours = parseInt(timeParts[0] || '0', 10);
+      const minutes = parseInt(timeParts[1] || '0', 10);
+      const period = (hours || 0) >= 12 ? 'PM' : 'AM';
+      const displayHours = (hours || 0) === 0 ? 12 : (hours || 0) > 12 ? (hours || 0) - 12 : (hours || 0);
+      return `${displayHours}:${(minutes || 0).toString().padStart(2, '0')} ${period}`;
     } catch (error) {
       logger.error('Failed to format time', error, { timeStr });
       return timeStr;

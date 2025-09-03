@@ -44,19 +44,16 @@ export default function Dashboard() {
     const checkUserRoleAndRedirect = async () => {
       logger.info('Dashboard: Checking user role for redirect');
 
-      // Check for authentication token
-      const token = localStorage.getItem('access_token');
-
-      if (!token) {
-        logger.warn('Dashboard: No access token found, redirecting to login');
-        router.push('/login');
-        return;
-      }
-
       try {
         logger.time('fetchUserData');
         const response = await fetchWithAuth(API_ENDPOINTS.ME);
         logger.timeEnd('fetchUserData');
+
+        if (response.status === 401) {
+          logger.warn('Dashboard: Not authenticated, redirecting to login');
+          router.push('/login');
+          return;
+        }
 
         if (!response.ok) {
           logger.warn('Dashboard: Failed to fetch user data', {
@@ -64,8 +61,6 @@ export default function Dashboard() {
             statusText: response.statusText,
           });
 
-          // Clear invalid token
-          localStorage.removeItem('access_token');
           router.push('/login');
           return;
         }

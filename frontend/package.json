@@ -11,11 +11,13 @@
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "lint:ci": "eslint . --max-warnings=0",
+    "lint:ci": "next lint --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
+    "typecheck:strict:log": "npm run typecheck:strict 2>&1 | tee .artifacts/ts-noUncheckedIndexedAccess.log",
     "build:log": "mkdir -p .artifacts && NEXT_TELEMETRY_DISABLED=1 next build 2>&1 | tee .artifacts/next-build.log",
     "build:warn-check": "node scripts/check-next-warnings.js",
-    "precommit": "next lint",
+    "prepare": "husky",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -80,6 +82,8 @@
     "vercel": "^44.7.3"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": "eslint --max-warnings=0 --fix"
+    "*.{ts,tsx}": [
+      "eslint --fix --max-warnings=0"
+    ]
   }
 }

@@ -227,19 +227,11 @@ export function useSSEMessages({
     updateConnectionStatus(ConnectionStatus.CONNECTING);
 
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        logger.warn('No auth token available for SSE connection');
-        updateConnectionStatus(ConnectionStatus.ERROR);
-        return;
-      }
-
-      // Create EventSource with auth token in URL as query parameter
+      // Cookie-based session: connect without localStorage token
       const apiUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
-      const url = `${apiUrl}/api/messages/stream/${bookingId}?token=${encodeURIComponent(token)}`;
+      const url = `${apiUrl}/api/messages/stream/${bookingId}`;
 
-      // Don't use withCredentials when token is in URL - can cause browser issues
-      const eventSource = new EventSource(url);
+      const eventSource = new EventSource(url, { withCredentials: true } as EventSourceInit);
       eventSourceRef.current = eventSource;
 
       // Connection opened
@@ -405,20 +397,13 @@ export function useSSEMessages({
         return;
       }
 
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        logger.warn('No auth token available for SSE connection');
-        updateConnectionStatus(ConnectionStatus.ERROR);
-        return;
-      }
-
       updateConnectionStatus(ConnectionStatus.CONNECTING);
 
       const apiUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
-      const url = `${apiUrl}/api/messages/stream/${bookingId}?token=${encodeURIComponent(token)}`;
+      const url = `${apiUrl}/api/messages/stream/${bookingId}`;
 
-      // Create new EventSource
-      localEventSource = new EventSource(url);
+      // Create new EventSource with credentials
+      localEventSource = new EventSource(url, { withCredentials: true } as EventSourceInit);
       eventSourceRef.current = localEventSource;
 
       localEventSource.onopen = () => {

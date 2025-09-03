@@ -533,15 +533,18 @@ export interface InstructorProfileResponse {
 // Date/Time Helpers
 
 export function formatDate(date: Date): DateType {
-  return date.toISOString().split('T')[0];
+  return date.toISOString().split('T')[0] || '';
 }
 
 export function formatTime(date: Date): TimeType {
-  return date.toTimeString().split(' ')[0];
+  return date.toTimeString().split(' ')[0] || '';
 }
 
 export function parseTime(timeStr: TimeType): Date {
-  const [hours, minutes, seconds] = timeStr.split(':').map(Number);
+  const timeParts = timeStr.split(':');
+  const hours = parseInt(timeParts[0] || '0', 10);
+  const minutes = parseInt(timeParts[1] || '0', 10);
+  const seconds = parseInt(timeParts[2] || '0', 10);
   const date = new Date();
   date.setHours(hours, minutes, seconds || 0, 0);
   return date;

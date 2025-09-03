@@ -2,6 +2,7 @@
 /**
  * Export data to CSV file
  */
+import { at } from '@/lib/ts/safe';
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string) {
   if (!data || data.length === 0) {
@@ -10,7 +11,9 @@ export function exportToCSV(data: Record<string, unknown>[], filename: string) {
   }
 
   // Get headers from first object
-  const headers = Object.keys(data[0]);
+  const firstRow = at(data, 0);
+  if (!firstRow) return;
+  const headers = Object.keys(firstRow);
 
   // Create CSV content
   const csvContent = [

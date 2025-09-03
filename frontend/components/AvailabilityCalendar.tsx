@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { Instructor } from '@/features/student/booking/types';
 import { getBookingIntent, clearBookingIntent } from '@/features/student/booking';
+import { at } from '@/lib/ts/safe';
 
 interface TimeSlot {
   start_time: string;
@@ -76,7 +77,7 @@ export default function AvailabilityCalendar({
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       days.push({
-        date: date.toISOString().split('T')[0],
+        date: at(date.toISOString().split('T'), 0) || '',
         dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
         dayNumber: date.getDate(),
         isToday: i === 0,
@@ -124,8 +125,13 @@ export default function AvailabilityCalendar({
       setLoading(true);
       setError(null);
       try {
-        const startDate = next14Days[0].date;
-        const endDate = next14Days[next14Days.length - 1].date;
+        const firstDay = at(next14Days, 0);
+        const lastDay = at(next14Days, next14Days.length - 1);
+        if (!firstDay || !lastDay) {
+          throw new Error('Invalid date range');
+        }
+        const startDate = firstDay.date;
+        const endDate = lastDay.date;
 
         logger.info('Fetching availability for instructor', { instructorId, startDate, endDate });
 
@@ -162,10 +168,14 @@ export default function AvailabilityCalendar({
           }
 
           // Create availability data for all 14 days
-          const availabilityData: AvailabilityDay[] = next14Days.map((day) => ({
-            date: day.date,
-            slots: availabilityMap.get(day.date) || [],
-          }));
+          const availabilityData: AvailabilityDay[] = next14Days.map((day) => {
+            const date = day?.date;
+            if (!date) return { date: '', slots: [] };
+            return {
+              date,
+              slots: availabilityMap.get(date) || [],
+            };
+          }).filter(day => day.date !== '') as AvailabilityDay[];
 
           setAvailability(availabilityData);
           logger.info('Availability data processed successfully', {
@@ -175,7 +185,7 @@ export default function AvailabilityCalendar({
         } else {
           setError(response.error || 'Failed to load availability');
           // Fall back to empty availability
-          setAvailability(next14Days.map((day) => ({ date: day.date, slots: [] })));
+          setAvailability(next14Days.map((day) => ({ date: day?.date || '', slots: [] })).filter(day => day.date !== ''));
         }
       } catch (error) {
         logger.error('Failed to fetch availability', error, { instructorId });
@@ -208,17 +218,26 @@ export default function AvailabilityCalendar({
 
   const groupSlotsByTimeOfDay = (slots: TimeSlot[]) => {
     const morning = slots.filter((slot) => {
-      const hour = parseInt(slot.start_time.split(':')[0]);
+      const timeParts = slot.start_time.split(':');
+      const hourStr = at(timeParts, 0);
+      if (!hourStr) return false;
+      const hour = parseInt(hourStr);
       return hour < 12;
     });
 
     const afternoon = slots.filter((slot) => {
-      const hour = parseInt(slot.start_time.split(':')[0]);
+      const timeParts = slot.start_time.split(':');
+      const hourStr = at(timeParts, 0);
+      if (!hourStr) return false;
+      const hour = parseInt(hourStr);
       return hour >= 12 && hour < 17;
     });
 
     const evening = slots.filter((slot) => {
-      const hour = parseInt(slot.start_time.split(':')[0]);
+      const timeParts = slot.start_time.split(':');
+      const hourStr = at(timeParts, 0);
+      if (!hourStr) return false;
+      const hour = parseInt(hourStr);
       return hour >= 17;
     });
 
@@ -226,7 +245,10 @@ export default function AvailabilityCalendar({
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
+    const timeParts = time.split(':');
+    const hours = at(timeParts, 0);
+    const minutes = at(timeParts, 1);
+    if (!hours || !minutes) return '';
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;

@@ -114,9 +114,9 @@ export async function mockBookingCreation(page: Page) {
           id: 123,
           instructorId: testData.mockInstructor.id,
           studentId: 1,
-          date: testData.mockAvailability[0].date,
-          startTime: testData.mockAvailability[0].startTime,
-          endTime: testData.mockAvailability[0].endTime,
+          date: testData.mockAvailability[0]?.date || '',
+          startTime: testData.mockAvailability[0]?.startTime || '',
+          endTime: testData.mockAvailability[0]?.endTime || '',
           status: 'confirmed',
           createdAt: new Date().toISOString(),
         }),
@@ -618,7 +618,10 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     const mon = addDaysDyn(5);
     const tue = addDaysDyn(6);
 
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const formatDate = (date: Date): string => {
+      const parts = date.toISOString().split('T');
+      return parts[0] || '';
+    };
 
     // Always return a successful response with availability data
     // This prevents "Instructor not found" errors
@@ -699,7 +702,10 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     const fri = addDaysDyn(2);
     const mon = addDaysDyn(5);
     const tue = addDaysDyn(6);
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const formatDate = (date: Date): string => {
+      const parts = date.toISOString().split('T');
+      return parts[0] || '';
+    };
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
       status: 200,
@@ -949,7 +955,10 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     const fri = addDaysDyn(2);
     const mon = addDaysDyn(5);
     const tue = addDaysDyn(6);
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const formatDate = (date: Date): string => {
+      const parts = date.toISOString().split('T');
+      return parts[0] || '';
+    };
 
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
@@ -1004,7 +1013,10 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     const fri = addDaysDyn(2);
     const mon = addDaysDyn(5);
     const tue = addDaysDyn(6);
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const formatDate = (date: Date): string => {
+      const parts = date.toISOString().split('T');
+      return parts[0] || '';
+    };
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
       status: 200,

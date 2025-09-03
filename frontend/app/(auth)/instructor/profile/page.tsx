@@ -29,7 +29,10 @@ function toTitle(s: string): string {
     .toLowerCase()
     .split(' ')
     .filter(Boolean)
-    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .map((w) => {
+      const firstChar = w.charAt(0);
+      return firstChar ? firstChar.toUpperCase() + w.slice(1) : w;
+    })
     .join(' ');
 }
 

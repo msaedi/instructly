@@ -301,7 +301,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
 
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
     const items = itemsOverride || boroughNeighborhoods[borough] || [];
-    const ids = items.map((i) => i.neighborhood_id || i.id).filter(Boolean) as string[];
+    const ids = items.map((i) => i.neighborhood_id || i.id).filter((id): id is string => typeof id === 'string');
     setSelectedNeighborhoods((prev) => {
       const next = new Set(prev);
       if (value) ids.forEach((id) => next.add(id));
@@ -358,7 +358,8 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         const addrRes = await fetchWithAuth('/api/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
-          const def = (list.items || []).find((a: AddressItem) => a.is_default) || (list.items || [])[0];
+          const items = list.items || [];
+          const def = items.find((a: AddressItem) => a.is_default) || (items.length > 0 ? items[0] : null);
           postalCode = def?.postal_code || '';
         }
       } catch {}
@@ -415,9 +416,9 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         if (addrRes.ok) {
           const list = await addrRes.json();
           const items = (list.items || []) as AddressItem[];
-          const def = items.find((a) => a.is_default) || items[0];
+          const def = items.find((a) => a.is_default) || (items.length > 0 ? items[0] : null);
           const newZip = (profileData.postal_code || '').trim();
-          if (def) {
+          if (def && def.id) {
             if (newZip && newZip !== (def.postal_code || '')) {
               await fetchWithAuth(`/api/addresses/me/${def.id}`, {
                 method: 'PATCH',
@@ -503,7 +504,8 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
    */
   const removeService = (index: number) => {
     const serviceToRemove = profileData.services[index];
-    logger.info('Removing service', { index, skill: serviceToRemove?.skill });
+    if (!serviceToRemove) return;
+    logger.info('Removing service', { index, skill: serviceToRemove.skill });
 
     setProfileData({
       ...profileData,
@@ -518,7 +520,9 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
     logger.debug('Updating service', { index, field, value });
 
     const updatedServices = [...profileData.services];
-    updatedServices[index] = { ...updatedServices[index], [field]: value };
+    const serviceToUpdate = updatedServices[index];
+    if (!serviceToUpdate) return;
+    updatedServices[index] = { ...serviceToUpdate, [field]: value };
     setProfileData({ ...profileData, services: updatedServices });
   };
 
@@ -565,9 +569,9 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         if (addrRes.ok) {
           const list = await addrRes.json();
           const items = (list.items || []) as AddressItem[];
-          const def = items.find((a) => a.is_default) || items[0];
+          const def = items.find((a) => a.is_default) || (items.length > 0 ? items[0] : null);
           const newZip = (profileData.postal_code || '').trim();
-          if (def) {
+          if (def && def.id) {
             if (newZip && newZip !== (def.postal_code || '')) {
               await fetchWithAuth(`/api/addresses/me/${def.id}`, {
                 method: 'PATCH',
@@ -914,7 +918,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                                 .toLowerCase()
                                 .split(' ')
                                 .filter(Boolean)
-                                .map((w) => w[0].toUpperCase() + w.slice(1))
+                                .map((w) => w.length > 0 ? w[0]!.toUpperCase() + w.slice(1) : '')
                                 .join(' ');
                               return (
                                 <button

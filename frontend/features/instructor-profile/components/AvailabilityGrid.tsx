@@ -6,6 +6,7 @@ import { useInstructorAvailability } from '../hooks/useInstructorAvailability';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
+import { at } from '@/lib/ts/safe';
 import { useRef, useEffect, useState, useMemo } from 'react';
 import type { PublicInstructorAvailability } from '@/src/types/api';
 
@@ -68,7 +69,9 @@ export function AvailabilityGrid({
 
   // Generate 7 consecutive days starting from actualStartDate
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(actualStartDate, i));
-  const weekLabel = `${format(weekDays[0], 'MMM d')} - ${format(weekDays[6], 'MMM d')}`;
+  const firstDay = at(weekDays, 0);
+  const lastDay = at(weekDays, 6);
+  const weekLabel = firstDay && lastDay ? `${format(firstDay, 'MMM d')} - ${format(lastDay, 'MMM d')}` : '';
 
   // Mock data fallback
   const useMockData = error || (!isLoading && !data?.availability_by_date);
@@ -82,8 +85,11 @@ export function AvailabilityGrid({
     if (/^\d{2}:\d{2}$/.test(label)) return label; // already HH:MM
     const match = label.match(/(\d+)(am|pm)/i);
     if (!match) return label;
-    let hour = parseInt(match[1]);
-    const isPm = match[2].toLowerCase() === 'pm';
+    const hourStr = at(match, 1);
+    const amPm = at(match, 2);
+    if (!hourStr || !amPm) return label;
+    let hour = parseInt(hourStr);
+    const isPm = amPm.toLowerCase() === 'pm';
     if (isPm && hour !== 12) hour += 12;
     if (!isPm && hour === 12) hour = 0;
     return `${hour.toString().padStart(2, '0')}:00`;
@@ -100,19 +106,30 @@ export function AvailabilityGrid({
     if (!dayData?.available_slots) return 60;
 
     // Parse the start hour from the time string (format: "HH:00")
-    const startHour = parseInt(startTime.split(':')[0]);
+    const timeParts = startTime.split(':');
+    const hourPart = at(timeParts, 0);
+    if (!hourPart) return 60;
+    const startHour = parseInt(hourPart);
 
     // Find the slot that contains this start time
     const containingSlot = dayData.available_slots.find((slot: AvailabilitySlot) => {
-      const slotStart = parseInt(slot.start_time.split(':')[0]);
-      const slotEnd = parseInt(slot.end_time.split(':')[0]);
+      const slotStartParts = slot.start_time.split(':');
+      const slotEndParts = slot.end_time.split(':');
+      const slotStartHour = at(slotStartParts, 0);
+      const slotEndHour = at(slotEndParts, 0);
+      if (!slotStartHour || !slotEndHour) return false;
+      const slotStart = parseInt(slotStartHour);
+      const slotEnd = parseInt(slotEndHour);
       return startHour >= slotStart && startHour < slotEnd;
     });
 
     if (!containingSlot) return 60;
 
     // Calculate how many minutes are available from the start time to the end of the slot
-    const slotEndHour = parseInt(containingSlot.end_time.split(':')[0]);
+    const endTimeParts = containingSlot.end_time.split(':');
+    const endHourPart = at(endTimeParts, 0);
+    if (!endHourPart) return 60;
+    const slotEndHour = parseInt(endHourPart);
     const availableHours = slotEndHour - startHour;
     return availableHours * 60;
   };
@@ -137,8 +154,13 @@ export function AvailabilityGrid({
       Object.values(data.availability_by_date).forEach((dayData: { available_slots: AvailabilitySlot[] }) => {
         if (dayData.available_slots) {
           dayData.available_slots.forEach((slot: AvailabilitySlot) => {
-            const startHour = parseInt(slot.start_time.split(':')[0]);
-            const endHour = parseInt(slot.end_time.split(':')[0]);
+            const startTimeParts = slot.start_time.split(':');
+            const endTimeParts = slot.end_time.split(':');
+            const startHourPart = at(startTimeParts, 0);
+            const endHourPart = at(endTimeParts, 0);
+            if (!startHourPart || !endHourPart) return;
+            const startHour = parseInt(startHourPart);
+            const endHour = parseInt(endHourPart);
 
             // Add all hours from start to end (exclusive)
             for (let hour = startHour; hour < endHour; hour++) {
@@ -199,9 +221,14 @@ export function AvailabilityGrid({
     });
 
     if (!hasAnyInRange) {
-      const earliest = availableDates.sort()[0];
-      const [y, m, d] = earliest.split('-').map(Number);
-      const earliestDate = new Date(y, (m || 1) - 1, d || 1);
+      const sortedDates = availableDates.sort();
+      const earliest = at(sortedDates, 0);
+      if (!earliest) return;
+      const dateParts = earliest.split('-').map(Number);
+      const y = at(dateParts, 0) ?? 2024;
+      const m = at(dateParts, 1) ?? 1;
+      const d = at(dateParts, 2) ?? 1;
+      const earliestDate = new Date(y, m - 1, d);
       onWeekChange(earliestDate);
     }
   }, [data, onWeekChange, weekDays]);
@@ -349,7 +376,8 @@ export function AvailabilityGrid({
 
                   if (useMockData) {
                     // Use mock data
-                    hasSlot = mockAvailability[dayName]?.includes(time) || false;
+                    const daySlots = mockAvailability[dayName];
+                    hasSlot = daySlots?.includes(time) || false;
                     timeStr = time;
                   } else {
                     // Use real data
@@ -366,8 +394,13 @@ export function AvailabilityGrid({
                     // Check if this hour falls within any available slot range
                     hasSlot = !isBlackout && availableSlots.some(s => {
                       // Parse start and end hours from the slots
-                      const startHour = parseInt(s.start_time.split(':')[0]);
-                      const endHour = parseInt(s.end_time.split(':')[0]);
+                      const startTimeParts = s.start_time.split(':');
+                      const endTimeParts = s.end_time.split(':');
+                      const startHourPart = at(startTimeParts, 0);
+                      const endHourPart = at(endTimeParts, 0);
+                      if (!startHourPart || !endHourPart) return false;
+                      const startHour = parseInt(startHourPart);
+                      const endHour = parseInt(endHourPart);
                       const checkHour = parseInt(targetHour);
 
                       // Check if the current hour is within the slot range (inclusive of start, exclusive of end)
@@ -391,11 +424,24 @@ export function AvailabilityGrid({
                       : parseInt(time);
                   } else {
                     // Handle format like "17:00"
-                    hour = parseInt(timeForCheck.split(':')[0]);
+                    const timeParts = timeForCheck.split(':');
+                    const hourPart = at(timeParts, 0);
+                    if (!hourPart) {
+                      // Skip this slot if we can't parse the hour
+                      return (
+                        <td key={`${dateStr}-${time}`} className="p-1 text-center align-middle">
+                          <span className="text-xs text-muted-foreground">-</span>
+                        </td>
+                      );
+                    }
+                    hour = parseInt(hourPart);
                   }
 
                   // Create date from the string properly - dateStr is like "2025-08-04"
-                  const [year, month, dayNum] = dateStr.split('-').map(Number);
+                  const dateParts = dateStr.split('-').map(Number);
+                  const year = at(dateParts, 0) ?? 2024;
+                  const month = at(dateParts, 1) ?? 1;
+                  const dayNum = at(dateParts, 2) ?? 1;
                   const slotDateTime = new Date(year, month - 1, dayNum, hour, 0, 0);
 
                   const isPastDate = slotDateTime <= now;

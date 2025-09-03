@@ -77,8 +77,11 @@ export function UpcomingLessons() {
 
   const formatDate = (dateStr: string) => {
     // Parse the date string properly (assuming YYYY-MM-DD format from backend)
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const bookingDate = new Date(year, month - 1, day); // month is 0-indexed
+    const dateParts = dateStr.split('-');
+    const year = parseInt(dateParts[0] || '0', 10);
+    const month = parseInt(dateParts[1] || '0', 10);
+    const day = parseInt(dateParts[2] || '0', 10);
+    const bookingDate = new Date(year, (month || 1) - 1, day); // month is 0-indexed
 
     const today = new Date();
     const tomorrow = new Date(today);
@@ -103,7 +106,9 @@ export function UpcomingLessons() {
   };
 
   const formatTime = (timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':');
+    const timeParts = timeStr.split(':');
+    const hours = timeParts[0] || '0';
+    const minutes = timeParts[1] || '00';
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'pm' : 'am';
     const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;

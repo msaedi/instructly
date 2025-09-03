@@ -97,7 +97,7 @@ describe('useMyLessons hooks', () => {
       });
 
       expect(result.current.data?.items).toHaveLength(1);
-      expect(result.current.data?.items[0].status).toBe('CONFIRMED');
+      expect(result.current.data?.items?.[0]?.status).toBe('CONFIRMED');
     });
 
     it('uses correct cache time', () => {

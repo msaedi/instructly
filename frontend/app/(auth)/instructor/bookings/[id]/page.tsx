@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { Booking, getLocationTypeIcon } from '@/types/booking';
 import { logger } from '@/lib/logger';
+import { at } from '@/lib/ts/safe';
 
 export default function BookingDetailsPage() {
   const params = useParams();
@@ -38,7 +39,10 @@ export default function BookingDetailsPage() {
   }, [bookingId, fetchBookingDetails]);
 
   const formatTime = (timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':');
+    const parts = timeStr.split(':');
+    const hours = at(parts, 0);
+    const minutes = at(parts, 1);
+    if (!hours || !minutes) return timeStr;
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;

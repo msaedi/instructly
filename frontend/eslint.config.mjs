@@ -69,14 +69,22 @@ const eslintConfig = [
       'features/**/*',
       'components/**/*',
       'app/(admin)/**/*',
+      'app/(auth)/**/*',
+      'app/(public)/**/*',
+      'app/dashboard/**/*',
       'app/api/proxy/**/*',
       'lib/apiBase.ts',
       'lib/betaApi.ts',
       'lib/react-query/**/*',
+      'lib/api.ts',
+      'lib/http.ts',
+      'hooks/**/*',
     ],
     rules: {
       'no-restricted-syntax': [
         'error',
+        { selector: "Identifier[name='localStorage']", message: 'Use cookie-based session; localStorage is banned.' },
+        { selector: "MemberExpression[object.name='window'][property.name='localStorage']", message: 'Use cookie-based session; localStorage is banned.' },
         {
           selector: "CallExpression[callee.object.name='localStorage'][callee.property.name='getItem'][arguments.0.value='access_token']",
           message: 'Auth must use cookies; localStorage access_token is forbidden.',
@@ -98,9 +106,10 @@ const eslintConfig = [
   },
   // Allow console in e2e/tests and mock fixtures
   {
-    files: ['e2e/**/*', '__tests__/**/*', 'e2e/**/*.ts'],
+    files: ['e2e/**/*', 'e2e/**/*.ts', '**/__tests__/**', '**/__tests__/**/*'],
     rules: {
       'no-console': 'off',
+      'no-restricted-syntax': 'off',
     },
   },
   // Allow console and CommonJS requires in Node/CLI files

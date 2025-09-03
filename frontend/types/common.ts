@@ -344,7 +344,9 @@ export function formatDate(dateStr: string, options?: Intl.DateTimeFormatOptions
  * @returns Formatted time (12-hour format)
  */
 export function formatTime(timeStr: string): string {
-  const [hours, minutes] = timeStr.split(':');
+  const timeParts = timeStr.split(':');
+  const hours = timeParts[0] || '0';
+  const minutes = timeParts[1] || '00';
   const hour = parseInt(hours);
   const ampm = hour >= 12 ? 'PM' : 'AM';
   const displayHour = hour % 12 || 12;
@@ -369,8 +371,8 @@ export function getCurrentWeekRange(startOfWeek: number = 1): DateRange {
   sunday.setDate(monday.getDate() + 6);
 
   return {
-    start_date: monday.toISOString().split('T')[0],
-    end_date: sunday.toISOString().split('T')[0],
+    start_date: monday.toISOString().split('T')[0] || '',
+    end_date: sunday.toISOString().split('T')[0] || '',
   };
 }
 

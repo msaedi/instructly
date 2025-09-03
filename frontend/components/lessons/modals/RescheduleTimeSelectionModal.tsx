@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { logger } from '@/lib/logger';
+import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import Calendar from '@/features/student/booking/components/TimeSelectionModal/Calendar';
@@ -75,7 +76,7 @@ export default function RescheduleTimeSelectionModal({
 
   // Get duration options from the service
   const getDurationOptions = useCallback(() => {
-    const selectedService = instructor.services[0];
+    const selectedService = at(instructor.services, 0);
     const durations = selectedService?.duration_options || [30, 60, 90, 120];
     const hourlyRate = selectedService?.hourly_rate || 100;
 
@@ -133,14 +134,19 @@ export default function RescheduleTimeSelectionModal({
         const availabilityByDate = response.data.availability_by_date;
         const datesWithSlots: string[] = [];
         Object.keys(availabilityByDate).forEach((date) => {
-          const slots = availabilityByDate[date].available_slots || [];
+          const dateData = availabilityByDate[date];
+          if (!dateData) return;
+          const slots = dateData.available_slots || [];
           const now = new Date();
           const nowLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
           const isToday = date === nowLocalStr;
 
           const validSlots = slots.filter((slot: AvailabilitySlot) => {
             if (!isToday) return true;
-            const [hours, minutes] = slot.start_time.split(':');
+            const parts = slot.start_time.split(':');
+            const hours = at(parts, 0);
+            const minutes = at(parts, 1);
+            if (!hours || !minutes) return false;
             const slotTime = new Date();
             slotTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
             return slotTime > now;
@@ -156,18 +162,25 @@ export default function RescheduleTimeSelectionModal({
         setAvailableDates(datesWithSlots);
 
         if (datesWithSlots.length > 0) {
-          const firstDate = datesWithSlots[0];
-          const slots = availabilityByDate[firstDate].available_slots || [];
+          const firstDate = at(datesWithSlots, 0);
+          if (!firstDate) return;
+          const firstDateData = availabilityByDate[firstDate];
+          if (!firstDateData) return;
+          const slots = firstDateData.available_slots || [];
           const expandDiscreteStarts = (
             start: string,
             end: string,
             stepMinutes: number,
             requiredMinutes: number
           ): string[] => {
-            const [sh, sm] = start.split(':').map((v: string) => parseInt(v, 10));
-            const [eh, em] = end.split(':').map((v: string) => parseInt(v, 10));
-            const startTotal = sh * 60 + (sm || 0);
-            const endTotal = eh * 60 + (em || 0);
+            const startParts = start.split(':');
+            const endParts = end.split(':');
+            const sh = parseInt(at(startParts, 0) || '0', 10);
+            const sm = parseInt(at(startParts, 1) || '0', 10);
+            const eh = parseInt(at(endParts, 0) || '0', 10);
+            const em = parseInt(at(endParts, 1) || '0', 10);
+            const startTotal = sh * 60 + sm;
+            const endTotal = eh * 60 + em;
 
             const times: string[] = [];
             for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
@@ -188,7 +201,8 @@ export default function RescheduleTimeSelectionModal({
           setShowTimeDropdown(true);
           setTimeSlots(formattedSlots);
           if (formattedSlots.length > 0) {
-            setSelectedTime(formattedSlots[0]);
+            const firstSlot = at(formattedSlots, 0);
+            if (firstSlot) setSelectedTime(firstSlot);
           }
         }
       }
@@ -214,8 +228,9 @@ export default function RescheduleTimeSelectionModal({
       setSelectedTime(null);
       setLoadingTimeSlots(true);
 
-      if (availabilityData && availabilityData[date]) {
-        const slots = availabilityData[date].available_slots || [];
+      const dateData = availabilityData?.[date];
+      if (availabilityData && dateData) {
+        const slots = dateData.available_slots || [];
 
         const expandDiscreteStarts = (
           start: string,
@@ -223,10 +238,14 @@ export default function RescheduleTimeSelectionModal({
           stepMinutes: number,
           requiredMinutes: number
         ): string[] => {
-          const [sh, sm] = start.split(':').map((v: string) => parseInt(v, 10));
-          const [eh, em] = end.split(':').map((v: string) => parseInt(v, 10));
-          const startTotal = sh * 60 + (sm || 0);
-          const endTotal = eh * 60 + (em || 0);
+          const startParts = start.split(':');
+          const endParts = end.split(':');
+          const sh = parseInt(at(startParts, 0) || '0', 10);
+          const sm = parseInt(at(startParts, 1) || '0', 10);
+          const eh = parseInt(at(endParts, 0) || '0', 10);
+          const em = parseInt(at(endParts, 1) || '0', 10);
+          const startTotal = sh * 60 + sm;
+          const endTotal = eh * 60 + em;
 
           const times: string[] = [];
           for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
@@ -245,7 +264,8 @@ export default function RescheduleTimeSelectionModal({
 
         setTimeSlots(formattedSlots);
         if (formattedSlots.length > 0) {
-          setSelectedTime(formattedSlots[0]);
+          const firstSlot = at(formattedSlots, 0);
+          if (firstSlot) setSelectedTime(firstSlot);
         }
       }
 
@@ -312,7 +332,7 @@ export default function RescheduleTimeSelectionModal({
 
   // Calculate price
   const getCurrentPrice = () => {
-    const service = instructor.services[0];
+    const service = at(instructor.services, 0);
     const hourlyRate = service?.hourly_rate || 100;
     return Math.round((hourlyRate * selectedDuration) / 60);
   };

@@ -13,6 +13,7 @@ import { useUser, useIsAuthenticated } from '@/hooks/queries/useUser';
 import { useAuth } from '@/hooks/queries/useAuth';
 import { queryFn, mutationFn } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
+import { requireString } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 
@@ -95,9 +96,14 @@ function InstructorAvailability({ instructorId }: { instructorId: string }) {
 
   useQuery({
     queryKey: queryKeys.instructors.availability(instructorId, today),
-    queryFn: queryFn(`/api/public/instructors/${instructorId}/availability`, {
-      params: { start_date: today, end_date: nextWeek },
-    }),
+    queryFn: () => {
+      requireString(instructorId, 'instructorId');
+      requireString(today, 'today');
+      requireString(nextWeek, 'nextWeek');
+      return queryFn(`/api/public/instructors/${instructorId}/availability`, {
+        params: { start_date: today, end_date: nextWeek },
+      });
+    },
     staleTime: CACHE_TIMES.REALTIME, // 1 minute for real-time data
     refetchInterval: 60000, // Refetch every minute for live updates
   });

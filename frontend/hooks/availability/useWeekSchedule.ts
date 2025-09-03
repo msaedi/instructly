@@ -141,6 +141,7 @@ export function useWeekSchedule(
         const saved = savedSlots[i];
 
         if (
+          !current ||
           !saved ||
           current.start_time !== saved.start_time ||
           current.end_time !== saved.end_time

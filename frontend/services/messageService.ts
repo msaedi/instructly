@@ -291,14 +291,10 @@ class MessageService {
    * by the calling component/hook for proper cleanup
    */
   createMessageStream(bookingId: string): EventSource {
-    const token = localStorage.getItem('access_token');
     const url = `${API_URL}${this.baseUrl}/stream/${bookingId}`;
-
-    // EventSource doesn't support custom headers, so we pass token as query param
-    const urlWithAuth = `${url}?token=${encodeURIComponent(token || '')}`;
-
+    // Use cookie-based session for SSE; include credentials
     logger.info('Creating SSE connection', { booking_id: bookingId });
-    return new EventSource(urlWithAuth);
+    return new EventSource(url, { withCredentials: true } as EventSourceInit);
   }
 }
 

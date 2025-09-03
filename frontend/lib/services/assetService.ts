@@ -451,7 +451,7 @@ function getRotatedVariant(
   enableRotation: boolean,
   rotationIntervalMs: number,
 ): string {
-  if (variants.length <= 1) return variants[0];
+  if (variants.length <= 1) return variants[0] || '';
 
   // Ensure rotation state is hydrated
   if (typeof window !== 'undefined' && currentVariantIndex.size === 0) initializeRotation();
@@ -476,7 +476,7 @@ function getRotatedVariant(
     }
   }
 
-  return variants[idx];
+  return variants[idx] || '';
 }
 
 /**

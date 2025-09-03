@@ -5,6 +5,7 @@ import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { protectedApi } from '@/features/shared/api/client';
 import type { Booking } from '@/types/booking';
+import { at } from '@/lib/ts/safe';
 
 function BookingConfirmationContent() {
   const searchParams = useSearchParams();
@@ -107,7 +108,10 @@ END:VCALENDAR`;
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
+    const parts = time.split(':');
+    const hours = at(parts, 0);
+    const minutes = at(parts, 1);
+    if (!hours || !minutes) return time;
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
@@ -215,8 +219,12 @@ END:VCALENDAR`;
                 <p className="text-sm text-gray-500 dark:text-gray-400">Duration</p>
                 <p className="font-medium text-gray-900 dark:text-white">
                   {(() => {
-                    const [startHours, startMinutes] = booking.start_time.split(':').map(Number);
-                    const [endHours, endMinutes] = booking.end_time.split(':').map(Number);
+                    const startParts = booking.start_time.split(':');
+                    const endParts = booking.end_time.split(':');
+                    const startHours = Number(at(startParts, 0) || 0);
+                    const startMinutes = Number(at(startParts, 1) || 0);
+                    const endHours = Number(at(endParts, 0) || 0);
+                    const endMinutes = Number(at(endParts, 1) || 0);
                     const totalMinutes =
                       endHours * 60 + endMinutes - (startHours * 60 + startMinutes);
                     const hours = Math.floor(totalMinutes / 60);

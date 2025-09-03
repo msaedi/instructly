@@ -43,12 +43,10 @@ export const API_URL = API_BASE;
  * ```
  */
 export const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
-  const token = localStorage.getItem('access_token');
   const method = options.method || 'GET';
 
   // Log the API call
   logger.info(`API ${method} ${endpoint}`, {
-    hasToken: !!token,
     hasBody: !!options.body,
   });
 
@@ -57,15 +55,13 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
   logger.time(timerLabel);
 
   try {
-    const needsCookies = endpoint.startsWith('/auth/') || endpoint.startsWith('/api/auth/2fa');
-    const response = await fetch(withApiBase(endpoint), {
+    const url = withApiBase(endpoint);
+    const baseHeaders = { ...(options.headers || {}) } as Record<string, string>;
+    const response = await fetch(url, {
       ...options,
-      // Ensure trust/delete cookies flow for auth endpoints
-      credentials: options.credentials ?? (needsCookies ? 'include' : 'same-origin'),
-      headers: {
-        ...options.headers,
-        Authorization: token ? `Bearer ${token}` : '',
-      },
+      // Always include credentials to support cookie-based sessions across all endpoints
+      credentials: 'include',
+      headers: baseHeaders,
     });
 
     // Log response details

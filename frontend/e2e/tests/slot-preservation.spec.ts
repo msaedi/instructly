@@ -38,21 +38,28 @@ test.describe('Slot Preservation on Back Navigation', () => {
 
     // 4. Click the FIRST slot (more predictable for testing)
     const firstSlot = allSlots[0];
+    if (!firstSlot) {
+      console.log('No first slot available');
+      return;
+    }
     const firstSlotIdAttr = await firstSlot.getAttribute('data-testid');
     console.log('Selecting slot:', firstSlotIdAttr);
 
     // Parse the slot ID to extract day and time
     // Format is like: time-slot-Thu-10am
     const parts = (firstSlotIdAttr || '').split('-');
-    const slotDay = parts[2] || 'Thu';
-    const slotTimeDisplay = parts[3] || '10am';
+    const slotDay = parts.length > 2 ? parts[2]! : 'Thu';
+    const slotTimeDisplay = parts.length > 3 ? parts[3]! : '10am';
 
     // Convert display time (9am) to 24-hour format (09:00) for storage
     const convertTo24Hour = (timeStr: string) => {
       const match = timeStr.match(/(\d+)(am|pm)/i);
-      if (!match) return timeStr;
-      let hour = parseInt(match[1]);
-      const isPM = match[2].toLowerCase() === 'pm';
+      if (!match || match.length < 3) return timeStr;
+      const hourStr = match[1];
+      const amPm = match[2];
+      if (!hourStr || !amPm) return timeStr;
+      let hour = parseInt(hourStr);
+      const isPM = amPm.toLowerCase() === 'pm';
       if (isPM && hour !== 12) hour += 12;
       if (!isPM && hour === 12) hour = 0;
       return `${hour.toString().padStart(2, '0')}:00`;
@@ -80,7 +87,7 @@ test.describe('Slot Preservation on Back Navigation', () => {
         'Fri': '2025-08-15'
       };
 
-      const slotDate = dayToDateMap[slotInfo.day] || '2025-08-13';
+      const slotDate = dayToDateMap[slotInfo.day] ?? '2025-08-13';
       const targetDate = new Date(slotDate);
 
       const bookingData = {
@@ -152,10 +159,14 @@ test.describe('Slot Preservation on Back Navigation', () => {
     console.log(`Found ${allSlotsAfterNav.length} slots after navigation`);
 
     // 13. Verify the original slot exists again (value-based, not class-based)
-    const restored = allSlotsAfterNav.find(async (slot) => {
+    let restored = null;
+    for (const slot of allSlotsAfterNav) {
       const slotId = await slot.getAttribute('data-testid');
-      return slotId === originalSlotInfo;
-    });
+      if (slotId === originalSlotInfo) {
+        restored = slot;
+        break;
+      }
+    }
     const exists = !!restored;
     expect(exists).toBe(true);
     console.log('Slot preservation check:', exists ? 'PASSED' : 'FAILED');

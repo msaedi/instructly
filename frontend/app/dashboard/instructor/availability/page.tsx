@@ -3,6 +3,8 @@
 // Kept for backward compatibility and historical reference. New work should live under (auth)/instructor/*.
 'use client';
 
+import { at } from '@/lib/ts/safe';
+
 /**
  * AvailabilityPage Component
  *
@@ -155,8 +157,13 @@ export default function AvailabilityPage(): React.ReactElement {
 
       const daySlots = weekSchedule[date] || [];
       const isCurrentlyAvailable = daySlots.some((slot) => {
-        const startHour = parseInt(slot.start_time.split(':')[0]);
-        const endHour = parseInt(slot.end_time.split(':')[0]);
+        const startParts = slot.start_time.split(':');
+        const endParts = slot.end_time.split(':');
+        const startHourStr = at(startParts, 0);
+        const endHourStr = at(endParts, 0);
+        if (!startHourStr || !endHourStr) return false;
+        const startHour = parseInt(startHourStr);
+        const endHour = parseInt(endHourStr);
         return hour >= startHour && hour < endHour;
       });
 
@@ -195,8 +202,13 @@ export default function AvailabilityPage(): React.ReactElement {
     const newSlots: TimeSlot[] = [];
 
     slots.forEach((slot) => {
-      const startHour = parseInt(slot.start_time.split(':')[0]);
-      const endHour = parseInt(slot.end_time.split(':')[0]);
+      const startParts = slot.start_time.split(':');
+      const endParts = slot.end_time.split(':');
+      const startHourStr = at(startParts, 0);
+      const endHourStr = at(endParts, 0);
+      if (!startHourStr || !endHourStr) return;
+      const startHour = parseInt(startHourStr);
+      const endHour = parseInt(endHourStr);
 
       if (hour < startHour || hour >= endHour) {
         // Hour is outside this slot
@@ -358,14 +370,21 @@ export default function AvailabilityPage(): React.ReactElement {
     const isPastSlot = isTimeSlotInPast(date, hour);
     const isAvailable =
       weekSchedule[date]?.some((slot) => {
-        const startHour = parseInt(slot.start_time.split(':')[0]);
-        const endHour = parseInt(slot.end_time.split(':')[0]);
+        const startParts = slot.start_time.split(':');
+        const endParts = slot.end_time.split(':');
+        const startHourStr = at(startParts, 0);
+        const endHourStr = at(endParts, 0);
+        if (!startHourStr || !endHourStr) return false;
+        const startHour = parseInt(startHourStr);
+        const endHour = parseInt(endHourStr);
         return hour >= startHour && hour < endHour;
       }) || false;
 
     const booking = getBookingForSlot(date, hour);
     const isBooked = !!booking;
-    const isFirstSlot = !!(booking && parseInt(booking.start_time.split(':')[0]) === hour);
+    const startTimeParts = booking?.start_time?.split(':');
+    const bookingStartHour = startTimeParts ? at(startTimeParts, 0) : null;
+    const isFirstSlot = !!(booking && bookingStartHour && parseInt(bookingStartHour) === hour);
 
     if (isBooked && booking) {
       return (
@@ -395,14 +414,21 @@ export default function AvailabilityPage(): React.ReactElement {
     const isPastSlot = isTimeSlotInPast(date, hour);
     const isAvailable =
       weekSchedule[date]?.some((slot) => {
-        const startHour = parseInt(slot.start_time.split(':')[0]);
-        const endHour = parseInt(slot.end_time.split(':')[0]);
+        const startParts = slot.start_time.split(':');
+        const endParts = slot.end_time.split(':');
+        const startHourStr = at(startParts, 0);
+        const endHourStr = at(endParts, 0);
+        if (!startHourStr || !endHourStr) return false;
+        const startHour = parseInt(startHourStr);
+        const endHour = parseInt(endHourStr);
         return hour >= startHour && hour < endHour;
       }) || false;
 
     const booking = getBookingForSlot(date, hour);
     const isBooked = !!booking;
-    const isFirstSlot = !!(booking && parseInt(booking.start_time.split(':')[0]) === hour);
+    const mobileStartTimeParts = booking?.start_time?.split(':');
+    const mobileBookingStartHour = mobileStartTimeParts ? at(mobileStartTimeParts, 0) : null;
+    const isFirstSlot = !!(booking && mobileBookingStartHour && parseInt(mobileBookingStartHour) === hour);
 
     if (isBooked && booking) {
       return (
@@ -528,7 +554,7 @@ export default function AvailabilityPage(): React.ReactElement {
         isOpen={showApplyModal}
         onClose={() => setShowApplyModal(false)}
         onConfirm={handleApplyToFuture}
-        hasAvailability={Object.keys(weekSchedule).some((date) => weekSchedule[date].length > 0)}
+        hasAvailability={Object.keys(weekSchedule).some((date) => (weekSchedule[date] ?? []).length > 0)}
         currentWeekStart={currentWeekStart}
       />
 

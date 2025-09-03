@@ -73,7 +73,7 @@ export default function TimeDropdown({
 
   // Auto-select if only one time available
   useEffect(() => {
-    if (timeSlots.length === 1 && !selectedTime) {
+    if (timeSlots.length === 1 && !selectedTime && timeSlots[0]) {
       onTimeSelect(timeSlots[0]);
     }
   }, [timeSlots, selectedTime, onTimeSelect]);

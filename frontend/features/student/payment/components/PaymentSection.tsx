@@ -9,6 +9,7 @@ import PaymentConfirmation from './PaymentConfirmation';
 import PaymentProcessing from './PaymentProcessing';
 import PaymentSuccess from './PaymentSuccess';
 import { logger } from '@/lib/logger';
+import { requireString } from '@/lib/ts/safe';
 import { useCreateBooking } from '@/features/student/booking';
 import { paymentService } from '@/services/api/payments';
 import { protectedApi } from '@/features/shared/api/client';
@@ -214,6 +215,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       });
 
       // Step 1: Create booking via API
+      requireString(bookingDate, 'bookingDate');
       const booking = await createBooking({
         instructor_id: instructorId,
         instructor_service_id: serviceId, // Changed to match backend schema

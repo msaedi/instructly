@@ -24,6 +24,7 @@ function BookingConfirmationContent() {
       }
 
       try {
+        if (!bookingId) throw new Error('No booking ID provided');
         const response = await protectedApi.getBooking(bookingId);
         if (response.error) {
           throw new Error(response.error);
@@ -104,7 +105,9 @@ END:VCALENDAR`;
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
+    const timeParts = time.split(':');
+    const hours = timeParts[0] || '0';
+    const minutes = timeParts[1] || '00';
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
@@ -211,10 +214,14 @@ END:VCALENDAR`;
                 <p className="text-sm text-gray-500 dark:text-gray-400">Duration</p>
                 <p className="font-medium text-gray-900 dark:text-white">
                   {(() => {
-                    const [startHours, startMinutes] = booking.start_time.split(':').map(Number);
-                    const [endHours, endMinutes] = booking.end_time.split(':').map(Number);
+                    const startTimeParts = booking.start_time.split(':');
+                    const endTimeParts = booking.end_time.split(':');
+                    const startHours = parseInt(startTimeParts[0] || '0', 10);
+                    const startMinutes = parseInt(startTimeParts[1] || '0', 10);
+                    const endHours = parseInt(endTimeParts[0] || '0', 10);
+                    const endMinutes = parseInt(endTimeParts[1] || '0', 10);
                     const totalMinutes =
-                      endHours * 60 + endMinutes - (startHours * 60 + startMinutes);
+                      (endHours || 0) * 60 + (endMinutes || 0) - ((startHours || 0) * 60 + (startMinutes || 0));
                     const hours = Math.floor(totalMinutes / 60);
                     const minutes = totalMinutes % 60;
                     return hours > 0

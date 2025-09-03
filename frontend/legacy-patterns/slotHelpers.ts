@@ -15,6 +15,7 @@
 import { TimeSlot, WeekSchedule, ExistingSlot } from '@/types/availability';
 import { BookedSlotPreview } from '@/types/booking';
 import { logger } from '@/lib/logger';
+import { at, invariant, isPresent } from '@/lib/ts/safe';
 
 /**
  * Check if a specific time slot has a booking
@@ -38,8 +39,18 @@ export function isSlotBooked(
   const hasBooking = bookedSlots.some((slot) => {
     if (slot.date !== date) return false;
 
-    const slotStartHour = parseInt(slot.start_time.split(':')[0]);
-    const slotEndHour = parseInt(slot.end_time.split(':')[0]);
+    const startParts = slot.start_time.split(':');
+    const endParts = slot.end_time.split(':');
+    const startHourStr = at(startParts, 0);
+    const endHourStr = at(endParts, 0);
+
+    if (!isPresent(startHourStr) || !isPresent(endHourStr)) {
+      logger.warn('Invalid time format in booked slot', { slot });
+      return false;
+    }
+
+    const slotStartHour = parseInt(startHourStr, 10);
+    const slotEndHour = parseInt(endHourStr, 10);
 
     return hour >= slotStartHour && hour < slotEndHour;
   });
@@ -74,8 +85,18 @@ export function isHourInTimeRange(date: string, hour: number, schedule: WeekSche
 
   // If slot exists for this hour, it's available
   const inRange = daySlots.some((range) => {
-    const startHour = parseInt(range.start_time.split(':')[0]);
-    const endHour = parseInt(range.end_time.split(':')[0]);
+    const startParts = range.start_time.split(':');
+    const endParts = range.end_time.split(':');
+    const startHourStr = at(startParts, 0);
+    const endHourStr = at(endParts, 0);
+
+    if (!isPresent(startHourStr) || !isPresent(endHourStr)) {
+      logger.warn('Invalid time format in range', { range });
+      return false;
+    }
+
+    const startHour = parseInt(startHourStr, 10);
+    const endHour = parseInt(endHourStr, 10);
     return hour >= startHour && hour < endHour;
   });
 
@@ -113,8 +134,18 @@ export function getBookingForSlot(
   const booking = bookedSlots.find((slot) => {
     if (slot.date !== date) return false;
 
-    const slotStartHour = parseInt(slot.start_time.split(':')[0]);
-    const slotEndHour = parseInt(slot.end_time.split(':')[0]);
+    const startParts = slot.start_time.split(':');
+    const endParts = slot.end_time.split(':');
+    const startHourStr = at(startParts, 0);
+    const endHourStr = at(endParts, 0);
+
+    if (!isPresent(startHourStr) || !isPresent(endHourStr)) {
+      logger.warn('Invalid time format in booked slot', { slot });
+      return false;
+    }
+
+    const slotStartHour = parseInt(startHourStr, 10);
+    const slotEndHour = parseInt(endHourStr, 10);
 
     return hour >= slotStartHour && hour < slotEndHour;
   });
@@ -157,12 +188,26 @@ export function mergeAdjacentSlots(
   const sorted = [...slots].sort((a, b) => a.start_time.localeCompare(b.start_time));
 
   const merged: TimeSlot[] = [];
-  let current = { ...sorted[0] };
+  const firstSlot = at(sorted, 0);
+  invariant(firstSlot, 'Expected at least one slot after filtering');
+  let current = { ...firstSlot };
 
   for (let i = 1; i < sorted.length; i++) {
-    const next = sorted[i];
-    const currentEndHour = parseInt(current.end_time.split(':')[0]);
-    const nextStartHour = parseInt(next.start_time.split(':')[0]);
+    const next = at(sorted, i);
+    invariant(next, `Expected slot at index ${i}`);
+
+    const currentEndParts = current.end_time.split(':');
+    const nextStartParts = next.start_time.split(':');
+    const currentEndHourStr = at(currentEndParts, 0);
+    const nextStartHourStr = at(nextStartParts, 0);
+
+    if (!isPresent(currentEndHourStr) || !isPresent(nextStartHourStr)) {
+      logger.warn('Invalid time format during merge', { current, next });
+      continue;
+    }
+
+    const currentEndHour = parseInt(currentEndHourStr, 10);
+    const nextStartHour = parseInt(nextStartHourStr, 10);
 
     // Check if there's a booking between current and next
     let hasBookingBetween = false;
@@ -266,8 +311,18 @@ export function findOverlappingSlots(
  * ```
  */
 export function splitSlotAtHour(slot: TimeSlot, hour: number): TimeSlot[] {
-  const startHour = parseInt(slot.start_time.split(':')[0]);
-  const endHour = parseInt(slot.end_time.split(':')[0]);
+  const startParts = slot.start_time.split(':');
+  const endParts = slot.end_time.split(':');
+  const startHourStr = at(startParts, 0);
+  const endHourStr = at(endParts, 0);
+
+  if (!isPresent(startHourStr) || !isPresent(endHourStr)) {
+    logger.warn('Invalid time format in slot to split', { slot });
+    return [slot]; // Return original slot if invalid format
+  }
+
+  const startHour = parseInt(startHourStr, 10);
+  const endHour = parseInt(endHourStr, 10);
 
   if (hour <= startHour || hour >= endHour) {
     return [slot]; // No split needed
@@ -346,8 +401,18 @@ export function createBookedHoursMap(bookedSlots: BookedSlotPreview[]): Set<stri
   const bookedHours = new Set<string>();
 
   bookedSlots.forEach((slot) => {
-    const startHour = parseInt(slot.start_time.split(':')[0]);
-    const endHour = parseInt(slot.end_time.split(':')[0]);
+    const startParts = slot.start_time.split(':');
+    const endParts = slot.end_time.split(':');
+    const startHourStr = at(startParts, 0);
+    const endHourStr = at(endParts, 0);
+
+    if (!isPresent(startHourStr) || !isPresent(endHourStr)) {
+      logger.warn('Invalid time format in booked slot for hours map', { slot });
+      return; // Skip this slot
+    }
+
+    const startHour = parseInt(startHourStr, 10);
+    const endHour = parseInt(endHourStr, 10);
 
     for (let hour = startHour; hour < endHour; hour++) {
       bookedHours.add(`${slot.date}-${hour}`);
@@ -369,8 +434,17 @@ export function createBookedHoursMap(bookedSlots: BookedSlotPreview[]): Set<stri
  * @returns true if valid
  */
 export function isValidTimeSlot(slot: TimeSlot): boolean {
-  const startHour = parseInt(slot.start_time.split(':')[0]);
-  const endHour = parseInt(slot.end_time.split(':')[0]);
+  const startParts = slot.start_time.split(':');
+  const endParts = slot.end_time.split(':');
+  const startHourStr = at(startParts, 0);
+  const endHourStr = at(endParts, 0);
+
+  if (!isPresent(startHourStr) || !isPresent(endHourStr)) {
+    return false; // Invalid format
+  }
+
+  const startHour = parseInt(startHourStr, 10);
+  const endHour = parseInt(endHourStr, 10);
 
   return startHour >= 0 && startHour <= 23 && endHour >= 0 && endHour <= 24 && startHour < endHour;
 }

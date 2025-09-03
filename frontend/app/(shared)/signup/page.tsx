@@ -430,11 +430,9 @@ function SignUpForm() {
 
       logger.info('Auto-login successful, fetching user data and updating auth context');
 
-      // Fetch user data to determine redirect
+      // Session is cookie-based; fetch user data without storing tokens client-side
       const userResponse = await fetch(`${API_URL}${API_ENDPOINTS.ME}`, {
-        headers: {
-          Authorization: `Bearer ${authData.access_token}`,
-        },
+        credentials: 'include',
       });
 
       if (userResponse.ok) {

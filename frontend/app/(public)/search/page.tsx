@@ -405,7 +405,7 @@ function SearchPageContent() {
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+        if (entries[0]?.isIntersecting && hasMore && !loadingMore && !loading) {
           const nextPage = page + 1;
           setPage(nextPage);
           fetchResults(nextPage, true);
@@ -457,6 +457,8 @@ function SearchPageContent() {
                 if (day?.is_blackout || !day?.available_slots?.length) continue;
 
                 const firstSlot = day.available_slots[0];
+                if (!firstSlot) continue;
+
                 const date = new Date(d);
 
                 // Skip if the date is in the past
@@ -464,13 +466,15 @@ function SearchPageContent() {
                 now.setHours(0, 0, 0, 0);
                 if (date < now) continue;
 
-                const [hours, minutes] = firstSlot.start_time.split(':').map(Number);
+                const timeParts = firstSlot.start_time.split(':');
+                const hours = parseInt(timeParts[0] || '0', 10);
+                const minutes = parseInt(timeParts[1] || '0', 10);
 
                 // If it's today, check if the time has already passed
                 if (date.toDateString() === now.toDateString()) {
                   const currentTime = new Date();
                   const slotTime = new Date();
-                  slotTime.setHours(hours, minutes, 0, 0);
+                  slotTime.setHours(hours || 0, minutes || 0, 0, 0);
                   if (slotTime <= currentTime) continue;
                 }
                 const dateStr = date.toLocaleDateString('en-US', {
@@ -478,7 +482,7 @@ function SearchPageContent() {
                   month: 'short',
                   day: 'numeric'
                 });
-                const timeStr = new Date(2000, 0, 1, hours, minutes).toLocaleTimeString('en-US', {
+                const timeStr = new Date(2000, 0, 1, hours || 0, minutes || 0).toLocaleTimeString('en-US', {
                   hour: 'numeric',
                   minute: '2-digit',
                   hour12: true

@@ -24,7 +24,7 @@ export interface HttpOptions extends RequestInit {
   auth?: boolean; // allow Authorization header if token is present
 }
 
-export async function http(method: HttpMethod, url: string, options: HttpOptions = {}) {
+export async function http<T = unknown>(method: HttpMethod, url: string, options: HttpOptions = {}): Promise<T> {
   const { headers = {}, query, body, auth, ...rest } = options;
 
   const u = new URL(url, typeof window !== 'undefined' ? window.location.origin : undefined);
@@ -41,15 +41,12 @@ export async function http(method: HttpMethod, url: string, options: HttpOptions
     finalHeaders['Content-Type'] = 'application/json';
   }
 
-  // Attach Authorization only when requested by caller
-  if (auth && typeof window !== 'undefined') {
-    const token = localStorage.getItem('access_token');
-    if (token) finalHeaders['Authorization'] = `Bearer ${token}`;
-  }
+  // Authorization header intentionally omitted; cookie-based sessions are the source of truth
 
   // Always include credentials for cookie-based auth
   const init: RequestInit = {
     method,
+    // Always include credentials to support cookie-based sessions
     credentials: 'include',
     headers: finalHeaders,
     ...rest,
@@ -81,14 +78,14 @@ export async function http(method: HttpMethod, url: string, options: HttpOptions
     throw new ApiError(message, status, data);
   }
 
-  return data;
+  return data as T;
 }
 
-export const httpGet = (url: string, options?: HttpOptions) => http('GET', url, options);
-export const httpPost = (url: string, body?: unknown, options?: HttpOptions) =>
-  http('POST', url, { ...(options || {}), body: body as BodyInit });
-export const httpPut = (url: string, body?: unknown, options?: HttpOptions) =>
-  http('PUT', url, { ...(options || {}), body: body as BodyInit });
-export const httpPatch = (url: string, body?: unknown, options?: HttpOptions) =>
-  http('PATCH', url, { ...(options || {}), body: body as BodyInit });
-export const httpDelete = (url: string, options?: HttpOptions) => http('DELETE', url, options);
+export const httpGet = <T = unknown>(url: string, options?: HttpOptions) => http<T>('GET', url, options);
+export const httpPost = <T = unknown>(url: string, body?: unknown, options?: HttpOptions) =>
+  http<T>('POST', url, { ...(options || {}), body: body as BodyInit });
+export const httpPut = <T = unknown>(url: string, body?: unknown, options?: HttpOptions) =>
+  http<T>('PUT', url, { ...(options || {}), body: body as BodyInit });
+export const httpPatch = <T = unknown>(url: string, body?: unknown, options?: HttpOptions) =>
+  http<T>('PATCH', url, { ...(options || {}), body: body as BodyInit });
+export const httpDelete = <T = unknown>(url: string, options?: HttpOptions) => http<T>('DELETE', url, options);

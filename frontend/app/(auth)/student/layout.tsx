@@ -20,10 +20,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       return;
     }
 
-    // Check if we have a token even if user data is still loading
-    const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('access_token');
-
-    if (!isAuthenticated && !hasToken) {
+    if (!isAuthenticated) {
       const ret = encodeURIComponent(pathname || '/');
       router.replace(`/login?redirect=${ret}`);
       return;

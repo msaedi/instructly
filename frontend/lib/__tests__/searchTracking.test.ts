@@ -140,6 +140,7 @@ describe('Search Tracking', () => {
 
       // Verify body separately for more flexible matching
       const callArgs = mockFetch.mock.calls[0];
+      if (!callArgs) throw new Error('Expected mock call not found');
       const requestInit = callArgs[1] as RequestInit;
       const body = JSON.parse(requestInit.body as string);
       expect(body.search_query).toBe('piano lessons');
@@ -180,6 +181,7 @@ describe('Search Tracking', () => {
       expect(mockFetch).toHaveBeenCalled();
 
       const callArgs = mockFetch.mock.calls[0];
+      if (!callArgs) throw new Error('Expected mock call not found');
       const requestInit = callArgs[1] as RequestInit;
       const body = JSON.parse(requestInit.body as string);
       expect(body.search_query).toBe('Music lessons');
@@ -214,6 +216,7 @@ describe('Search Tracking', () => {
       expect(mockFetch).toHaveBeenCalled();
 
       const callArgs = mockFetch.mock.calls[0];
+      if (!callArgs) throw new Error('Expected mock call not found');
       const requestInit = callArgs[1] as RequestInit;
       const body = JSON.parse(requestInit.body as string);
       expect(body.search_query).toBe('Piano');
@@ -246,6 +249,7 @@ describe('Search Tracking', () => {
       expect(mockFetch).toHaveBeenCalled();
 
       const callArgs = mockFetch.mock.calls[0];
+      if (!callArgs) throw new Error('Expected mock call not found');
       const requestInit = callArgs[1] as RequestInit;
       const body = JSON.parse(requestInit.body as string);
       expect(body.search_query).toBe('guitar lessons');
@@ -323,6 +327,7 @@ describe('Search Tracking', () => {
 
       // Verify no guest session header for authenticated users
       const callArgs = mockFetch.mock.calls[0];
+      if (!callArgs) throw new Error('Expected mock call not found');
       const requestInit = callArgs[1] as RequestInit;
       const headers = requestInit.headers as Record<string, string>;
       expect(headers['X-Guest-Session-ID']).toBeUndefined();
@@ -372,6 +377,7 @@ describe('Search Tracking', () => {
       );
 
       const callArgs = mockFetch.mock.calls[0];
+      if (!callArgs) throw new Error('Expected mock call not found');
       const requestInit = callArgs[1] as RequestInit;
       const body = JSON.parse(requestInit.body as string);
       expect(body.search_event_id).toBe(123);
@@ -398,6 +404,7 @@ describe('Search Tracking', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
 
       const callArgs = mockFetch.mock.calls[0];
+      if (!callArgs) throw new Error('Expected mock call not found');
       const requestInit = callArgs[1] as RequestInit;
       const body = JSON.parse(requestInit.body as string);
       expect(body.search_event_id).toBe(123);

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { WeekDateInfo, WeekSchedule, TimeSlot } from '@/types/availability';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
+import { at } from '@/lib/ts/safe';
 
 type BookedPreview = {
   date: string; // YYYY-MM-DD
@@ -31,7 +32,11 @@ function _toCellIndex(hour: number, halfIndex: 0 | 1) {
 }
 
 function parseHHMMSS(t: string) {
-  const [h, m] = t.split(':').map((n) => parseInt(n, 10));
+  const parts = t.split(':');
+  const hStr = at(parts, 0);
+  const mStr = at(parts, 1);
+  const h = hStr ? parseInt(hStr, 10) : 0;
+  const m = mStr ? parseInt(mStr, 10) : 0;
   return { h, m };
 }
 
@@ -61,10 +66,13 @@ function cellsToSlots(cells: Set<number>, startHour: number): TimeSlot[] {
   if (cells.size === 0) return [];
   const indices = Array.from(cells).sort((a, b) => a - b);
   const result: TimeSlot[] = [];
-  let runStart = indices[0];
-  let prev = indices[0];
+  const firstIdx = at(indices, 0);
+  if (firstIdx === undefined) return [];
+  let runStart = firstIdx;
+  let prev = firstIdx;
   for (let i = 1; i < indices.length; i++) {
-    const idx = indices[i];
+    const idx = at(indices, i);
+    if (idx === undefined) continue;
     if (idx !== prev + 1) {
       // flush
       const startH = Math.floor(runStart / HALF_HOURS_PER_HOUR) + startHour;
@@ -78,12 +86,14 @@ function cellsToSlots(cells: Set<number>, startHour: number): TimeSlot[] {
     prev = idx;
   }
   // flush last
-  const startH = Math.floor(runStart / HALF_HOURS_PER_HOUR) + startHour;
-  const startM = runStart % 2 === 1 ? 30 : 0;
-  const endCell = prev + 1;
-  const endH = Math.floor(endCell / HALF_HOURS_PER_HOUR) + startHour;
-  const endM = endCell % 2 === 1 ? 30 : 0;
-  result.push({ start_time: toHHMMSS(startH, startM), end_time: toHHMMSS(endH, endM) });
+  if (runStart !== undefined && prev !== undefined) {
+    const startH = Math.floor(runStart / HALF_HOURS_PER_HOUR) + startHour;
+    const startM = runStart % 2 === 1 ? 30 : 0;
+    const endCell = prev + 1;
+    const endH = Math.floor(endCell / HALF_HOURS_PER_HOUR) + startHour;
+    const endM = endCell % 2 === 1 ? 30 : 0;
+    result.push({ start_time: toHHMMSS(startH, startM), end_time: toHHMMSS(endH, endM) });
+  }
   return result;
 }
 
@@ -275,11 +285,11 @@ export default function InteractiveGrid({
     let tracking = false;
     const onTouchStart = (e: TouchEvent) => {
       tracking = true;
-      startX = e.touches[0].clientX;
+      startX = e.touches[0]?.clientX || 0;
     };
     const onTouchEnd = (e: TouchEvent) => {
       if (!tracking) return;
-      const dx = (e.changedTouches[0].clientX || 0) - startX;
+      const dx = (e.changedTouches[0]?.clientX || 0) - startX;
       if (Math.abs(dx) > 40) {
         const delta = dx > 0 ? -1 : 1;
         const idx = Math.max(0, Math.min(weekDates.length - 1, (activeDayIndex || 0) + delta));
@@ -408,7 +418,9 @@ export default function InteractiveGrid({
   const dayColumns = useMemo(() => {
     if (isMobile) {
       const idx = activeDayIndex || 0;
-      return [renderColumn(weekDates[idx], idx)];
+      const dayInfo = weekDates[idx];
+      if (!dayInfo) return [];
+      return [renderColumn(dayInfo, idx)];
     }
     return weekDates.map((d, i) => renderColumn(d, i));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- all dependencies are used in renderColumn function

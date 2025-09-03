@@ -160,7 +160,7 @@ export function ServiceCards({ services, selectedSlot, onBookService, searchedSe
   const serviceCards = services.map(service => {
     // Get the default duration (first available option)
     const defaultDuration = Array.isArray(service.duration_options) && service.duration_options.length > 0
-      ? service.duration_options[0]
+      ? service.duration_options[0]!
       : 60;
 
     return { service, duration: defaultDuration };

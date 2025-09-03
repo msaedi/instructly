@@ -19,8 +19,10 @@ function createBookedHoursMapLocal(booked: BookedSlotPreview[]): Map<string, tru
   const map = new Map<string, true>();
   for (const b of booked) {
     // Mark each covered hour within the booking range
-    const startHour = parseInt(String(b.start_time).split(':')[0]);
-    const endHour = parseInt(String(b.end_time).split(':')[0]);
+    const startTimeParts = String(b.start_time).split(':');
+    const endTimeParts = String(b.end_time).split(':');
+    const startHour = parseInt(startTimeParts[0] || '0');
+    const endHour = parseInt(endTimeParts[0] || '0');
     for (let h = startHour; h < endHour; h++) {
       map.set(`${b.date}-${h}`, true);
     }
@@ -31,8 +33,10 @@ function createBookedHoursMapLocal(booked: BookedSlotPreview[]): Map<string, tru
 function findBookingForSlotLocal(date: string, hour: number, booked: BookedSlotPreview[]): BookedSlotPreview | null {
   for (const b of booked) {
     if (b.date !== date) continue;
-    const sh = parseInt(String(b.start_time).split(':')[0]);
-    const eh = parseInt(String(b.end_time).split(':')[0]);
+    const startTimeParts = String(b.start_time).split(':');
+    const endTimeParts = String(b.end_time).split(':');
+    const sh = parseInt(startTimeParts[0] || '0');
+    const eh = parseInt(endTimeParts[0] || '0');
     if (hour >= sh && hour < eh) return b;
   }
   return null;

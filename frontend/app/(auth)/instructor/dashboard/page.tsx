@@ -53,16 +53,15 @@ export default function InstructorDashboardNew() {
   const [bgFileInfo, setBgFileInfo] = useState<{ name: string; size: number } | null>(null);
 
   const fetchProfile = useCallback(async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      logger.warn('No access token found, redirecting to login');
-      router.push('/login?redirect=/instructor/dashboard');
-      return;
-    }
-
     try {
       logger.info('Fetching instructor profile');
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+
+      if (response.status === 401) {
+        logger.warn('Not authenticated, redirecting to login');
+        router.push('/login?redirect=/instructor/dashboard');
+        return;
+      }
 
       if (response.status === 404) {
         logger.warn('No instructor profile found');

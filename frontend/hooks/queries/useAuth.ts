@@ -70,7 +70,8 @@ export function useAuth() {
     staleTime: CACHE_TIMES.SESSION,
     gcTime: CACHE_TIMES.SESSION,
     retry: false,
-    enabled: typeof window !== 'undefined' && !!localStorage.getItem('access_token'),
+    // Enable unconditionally; cookie-based sessions are the source of truth
+    enabled: true,
   });
 
   // Login mutation
@@ -105,9 +106,8 @@ export function useAuth() {
 
       return response.json();
     },
-    onSuccess: async (data) => {
-      // Store token
-      localStorage.setItem('access_token', data.access_token);
+    onSuccess: async (_data) => {
+      // Token is cookie-based; no localStorage writes
 
       // Transfer guest searches if applicable
       const guestSessionId = getGuestSessionId();
@@ -125,9 +125,6 @@ export function useAuth() {
 
   // Logout function
   const logout = () => {
-    // Clear auth token
-    localStorage.removeItem('access_token');
-
     // Clear user data from cache
     queryClient.setQueryData(queryKeys.user, null);
     queryClient.removeQueries({ queryKey: queryKeys.user });
@@ -181,13 +178,11 @@ export function useAuth() {
  * Useful for navigation bars and conditional rendering
  */
 export function useAuthStatus() {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-
   const { data: user, isLoading } = useQuery<User>({
     queryKey: queryKeys.user,
     queryFn: queryFn<User>('/auth/me', { requireAuth: true }),
     staleTime: CACHE_TIMES.SESSION,
-    enabled: !!token,
+    enabled: true,
     retry: false,
     throwOnError: false,
   });

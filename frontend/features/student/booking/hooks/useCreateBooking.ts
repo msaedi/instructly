@@ -146,8 +146,8 @@ export function calculateEndTime(startTime: string, durationMinutes: number): st
     throw new Error('Invalid time format. Expected HH:MM');
   }
 
-  const hours = parseInt(timeParts[0]) || 0;
-  const minutes = parseInt(timeParts[1]) || 0;
+  const hours = parseInt(timeParts[0] || '0') || 0;
+  const minutes = parseInt(timeParts[1] || '0') || 0;
 
   const totalMinutes = hours * 60 + minutes + durationMinutes;
 

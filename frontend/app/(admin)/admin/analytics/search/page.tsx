@@ -14,6 +14,7 @@ import Link from 'next/link';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { ZeroResultSearch, SearchReferrer, ServicePillPerformance } from '@/lib/analyticsApi';
+import { at } from '@/lib/ts/safe';
 
 export default function SearchAnalyticsDashboard() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
@@ -111,7 +112,7 @@ export default function SearchAnalyticsDashboard() {
                         <Dialog.Close className="text-sm text-gray-600 hover:underline">Close</Dialog.Close>
                       </div>
                       <div className="p-4 text-sm space-y-2">
-                        <div>Most searched: {data.popularSearches?.[0]?.query ?? 'n/a'} ({data.popularSearches?.[0]?.search_count ?? 0})</div>
+                        <div>Most searched: {at(data.popularSearches || [], 0)?.query ?? 'n/a'} ({at(data.popularSearches || [], 0)?.search_count ?? 0})</div>
                         <div>Guest→User CVR: {data.summary.conversions?.guest_sessions?.conversion_rate ? (data.summary.conversions.guest_sessions.conversion_rate * 100).toFixed(1) + '%' : 'n/a'}</div>
                         <div>Zero-result rate: {data.summary.performance?.zero_result_rate ? (data.summary.performance.zero_result_rate * 100).toFixed(1) + '%' : 'n/a'}</div>
                       </div>
@@ -123,8 +124,8 @@ export default function SearchAnalyticsDashboard() {
             <ul className="space-y-2 text-blue-800 dark:text-blue-200">
               {data.popularSearches && data.popularSearches.length > 0 && (
                 <li>
-                  • &quot;{data.popularSearches[0].query}&quot; is your most searched service (
-                  {data.popularSearches[0].search_count} searches)
+                  • &quot;{at(data.popularSearches, 0)?.query}&quot; is your most searched service (
+                  {at(data.popularSearches, 0)?.search_count} searches)
                 </li>
               )}
               {data.summary.conversions?.guest_sessions?.conversion_rate && (
@@ -142,14 +143,14 @@ export default function SearchAnalyticsDashboard() {
               {data.trends && data.trends.length > 1 && (
                 <li>
                   • Search volume{' '}
-                  {data.trends[data.trends.length - 1].total_searches >
-                  data.trends[0].total_searches
+                  {(at(data.trends, data.trends.length - 1)?.total_searches ?? 0) >
+                  (at(data.trends, 0)?.total_searches ?? 0)
                     ? 'increased'
                     : 'decreased'}{' '}
                   {Math.abs(
-                    ((data.trends[data.trends.length - 1].total_searches -
-                      data.trends[0].total_searches) /
-                      data.trends[0].total_searches) *
+                    (((at(data.trends, data.trends.length - 1)?.total_searches ?? 0) -
+                      (at(data.trends, 0)?.total_searches ?? 0)) /
+                      (at(data.trends, 0)?.total_searches ?? 1)) *
                       100
                   ).toFixed(0)}
                   % over the period

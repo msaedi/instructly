@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger';
 import { formatFullName } from '@/utils/nameDisplay';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
 import { calculateEndTime } from '../hooks/useCreateBooking';
+import { at } from '@/lib/ts/safe';
 import {
   BookingPayment,
   BookingType,
@@ -42,7 +43,8 @@ export default function BookingModal({
   // Initialize with first service if multiple, or use the only service
   useEffect(() => {
     if (instructor.services.length > 0 && !selectedService) {
-      const firstService = instructor.services[0];
+      const firstService = at(instructor.services, 0);
+      if (!firstService) return;
       setSelectedService(firstService);
       setDuration(firstService.duration);
       setTotalPrice(firstService.hourly_rate * (firstService.duration / 60));
@@ -65,8 +67,11 @@ export default function BookingModal({
     if (isOpen) {
       // Set initial service if not set
       if (!selectedService && instructor.services.length > 0) {
-        setSelectedService(instructor.services[0]);
-        setDuration(instructor.services[0].duration);
+        const firstService = at(instructor.services, 0);
+        if (firstService) {
+          setSelectedService(firstService);
+          setDuration(firstService.duration);
+        }
       }
 
       // For authenticated users, show the booking form directly
@@ -115,7 +120,10 @@ export default function BookingModal({
   };
 
   const formatTime = (timeString: string) => {
-    const [hours, minutes] = timeString.split(':');
+    const parts = timeString.split(':');
+    const hours = at(parts, 0);
+    const minutes = at(parts, 1);
+    if (!hours || !minutes) return 'Invalid time';
     const time = new Date();
     time.setHours(parseInt(hours), parseInt(minutes));
     return time.toLocaleTimeString('en-US', {
@@ -162,7 +170,7 @@ export default function BookingModal({
         startTime: selectedTime,
         endTime: calculateEndTime(selectedTime, duration),
         duration,
-        location: instructor.areas_of_service[0] || 'NYC',
+        location: at(instructor.areas_of_service, 0) || 'NYC',
         basePrice,
         serviceFee,
         totalAmount,
@@ -250,7 +258,7 @@ export default function BookingModal({
       startTime: selectedTime,
       endTime: calculateEndTime(selectedTime, duration),
       duration,
-      location: instructor.areas_of_service[0] || 'NYC',
+      location: at(instructor.areas_of_service, 0) || 'NYC',
       basePrice,
       serviceFee,
       totalAmount,
@@ -539,7 +547,7 @@ export default function BookingModal({
                     {instructor.user.first_name}&apos;s Studio
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {instructor.areas_of_service[0]} • Location details will be provided after
+                    {at(instructor.areas_of_service, 0)} • Location details will be provided after
                     booking
                   </div>
                 </div>

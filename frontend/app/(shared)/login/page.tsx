@@ -144,8 +144,7 @@ function LoginForm() {
         return;
       }
 
-      // No 2FA: complete login using existing flow
-      localStorage.setItem('access_token', data.access_token);
+      // No 2FA: cookie-based session; do not write tokens to localStorage
 
       // Transfer guest searches if we had a guest session
       const transferGuestSession = getGuestSessionId();
@@ -231,10 +230,10 @@ function LoginForm() {
         setIsVerifying2FA(false);
         return;
       }
-      const data = await res.json();
-      // Persist token and optional trust flag
-      localStorage.setItem('access_token', data.access_token);
-      if (trustThisBrowser) localStorage.setItem('tfa_trusted', 'true');
+      // Cookie-based session; do not write tokens to localStorage
+      if (trustThisBrowser) {
+        try { sessionStorage.setItem('tfa_trusted', 'true'); } catch {}
+      }
       await checkAuth();
       // Decide post-login route after 2FA
       try {

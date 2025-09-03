@@ -18,8 +18,8 @@ export function useAdminAuth() {
     // Don't redirect while loading
     if (isLoading) return;
 
-    // Only redirect if we're definitely not authenticated (no token in localStorage)
-    if (!isAuthenticated && !localStorage.getItem('access_token')) {
+    // Redirect to login when not authenticated (cookie-based sessions)
+    if (!isAuthenticated) {
       const currentPath =
         typeof window !== 'undefined' ? window.location.pathname + window.location.search : '';
       // Encode only when using an actual current path; leave default unencoded to satisfy tests
@@ -30,8 +30,11 @@ export function useAdminAuth() {
 
     // Check for admin permissions using RBAC
     if (user && !hasPermission(PermissionName.VIEW_SYSTEM_ANALYTICS)) {
-      // Redirect to home page for non-admins
-      router.push('/');
+      // Redirect non-admins to login to allow switching to an admin account
+      const currentPath =
+        typeof window !== 'undefined' ? window.location.pathname + window.location.search : '';
+      const redirectParam = currentPath && currentPath !== '/' ? encodeURIComponent(currentPath) : '/admin/analytics/search';
+      router.push(`/login?redirect=${redirectParam}`);
     }
   }, [user, isAuthenticated, isLoading, router, hasPermission]);
 

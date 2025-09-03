@@ -201,7 +201,11 @@ describe('RescheduleModal', () => {
 
     const dayEls = await screen.findAllByText(tomorrowDay);
     const clickable = (dayEls as HTMLElement[]).find((el: HTMLElement) => !(el as HTMLButtonElement).disabled);
-    fireEvent.click(clickable || dayEls[0]);
+    if (clickable) {
+      fireEvent.click(clickable);
+    } else if (dayEls[0]) {
+      fireEvent.click(dayEls[0]);
+    }
 
     // Confirm should be enabled after auto-selecting first time
     await waitFor(() => {
@@ -227,7 +231,11 @@ describe('RescheduleModal', () => {
     });
     const dayButtons = await screen.findAllByText(tomorrowDay);
     const clickable = (dayButtons as HTMLElement[]).find((el: HTMLElement) => !(el as HTMLButtonElement).disabled);
-    fireEvent.click(clickable || dayButtons[0]);
+    if (clickable) {
+      fireEvent.click(clickable);
+    } else if (dayButtons[0]) {
+      fireEvent.click(dayButtons[0]);
+    }
 
     // Auto-selected time should enable confirm
     await waitFor(() => {
@@ -279,7 +287,11 @@ describe('RescheduleModal', () => {
     await waitFor(() => {
       const dateButtons = screen.getAllByText(tomorrowDay) as HTMLElement[];
       const clickableBtn = dateButtons.find((el) => !(el as HTMLButtonElement).disabled);
-      fireEvent.click(clickableBtn || dateButtons[0]);
+      if (clickableBtn) {
+        fireEvent.click(clickableBtn);
+      } else if (dateButtons[0]) {
+        fireEvent.click(dateButtons[0]);
+      }
     });
 
     // Time is auto-selected; proceed
@@ -287,7 +299,9 @@ describe('RescheduleModal', () => {
     // Click confirm (pick the first button instance)
     const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
     await act(async () => {
-      fireEvent.click(confirmButtons[0]);
+      if (confirmButtons[0]) {
+        fireEvent.click(confirmButtons[0]);
+      }
       await Promise.resolve();
     });
 

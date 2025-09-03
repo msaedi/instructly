@@ -107,7 +107,9 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
    */
   const formatTime = (timeStr: string): string => {
     try {
-      const [hours, minutes] = timeStr.split(':');
+      const timeParts = timeStr.split(':');
+      const hours = timeParts[0] || '0';
+      const minutes = timeParts[1] || '0';
       const date = new Date();
       date.setHours(parseInt(hours), parseInt(minutes));
       return date.toLocaleTimeString('en-US', {

@@ -48,7 +48,7 @@ const getCardBrandDisplay = (brand: string): string => {
     unionpay: 'UnionPay',
     unknown: 'Card',
   };
-  return brandNames[brand.toLowerCase()] || brandNames.unknown;
+  return brandNames[brand.toLowerCase()] || brandNames['unknown']!
 };
 
 // Add Card Form Component

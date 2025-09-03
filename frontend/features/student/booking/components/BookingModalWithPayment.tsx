@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { X, MapPin, Clock, DollarSign, ChevronLeft } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
 import { logger } from '@/lib/logger';
+import { at } from '@/lib/ts/safe';
 import { formatFullName } from '@/utils/nameDisplay';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
 import { calculateEndTime } from '../hooks/useCreateBooking';
@@ -62,10 +63,12 @@ export default function BookingModalWithPayment({
   // Initialize with first service if multiple, or use the only service
   useEffect(() => {
     if (instructor.services.length > 0 && !selectedService) {
-      const firstService = instructor.services[0];
-      setSelectedService(firstService);
-      setDuration(firstService.duration);
-      setTotalPrice(firstService.hourly_rate * (firstService.duration / 60));
+      const firstService = at(instructor.services, 0);
+      if (firstService) {
+        setSelectedService(firstService);
+        setDuration(firstService.duration);
+        setTotalPrice(firstService.hourly_rate * (firstService.duration / 60));
+      }
     }
   }, [instructor.services, selectedService]);
 
@@ -88,8 +91,11 @@ export default function BookingModalWithPayment({
 
       // Set initial service if not set
       if (!selectedService && instructor.services.length > 0) {
-        setSelectedService(instructor.services[0]);
-        setDuration(instructor.services[0].duration);
+        const firstService = at(instructor.services, 0);
+        if (firstService) {
+          setSelectedService(firstService);
+          setDuration(firstService.duration);
+        }
       }
 
       // For authenticated users, show the booking form directly

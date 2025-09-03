@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
   responseHeaders.set('x-beta-site', effectiveConfig.site);
   responseHeaders.set('x-beta-phase', effectivePhase);
   const hostHeader = request.headers.get('host') || '';
-  const hostOnly = hostHeader.split(':')[0].toLowerCase();
+  const hostOnly = (hostHeader.split(':')[0] || '').toLowerCase();
   const isLocalHost = hostOnly === 'localhost' || hostOnly === '127.0.0.1' || hostOnly === '::1';
 
   // Skip protection for public assets and login page

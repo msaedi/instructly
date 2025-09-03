@@ -5,13 +5,13 @@ export function getUserInitials(user: { first_name?: string; last_name?: string;
   if (!user) return '';
 
   // Handle both last_initial (instructor public view) and last_name (own profile)
-  const lastChar = user.last_initial || (user.last_name ? user.last_name[0] : '');
-  if (user.first_name && lastChar) {
-    return `${user.first_name[0]}${lastChar}`.toUpperCase();
-  } else if (user.first_name) {
-    return user.first_name[0].toUpperCase();
-  } else if (user.email) {
-    return user.email[0].toUpperCase();
+  const lastChar = user.last_initial || (user.last_name && user.last_name.length > 0 ? user.last_name[0] : '');
+  if (user.first_name && user.first_name.length > 0 && lastChar) {
+    return `${user.first_name[0]!}${lastChar}`.toUpperCase();
+  } else if (user.first_name && user.first_name.length > 0) {
+    return user.first_name[0]!.toUpperCase();
+  } else if (user.email && user.email.length > 0) {
+    return user.email[0]!.toUpperCase();
   }
 
   return '';
@@ -32,7 +32,8 @@ export function getAvatarColor(userId: string): string {
 
   // Use the first few characters of the ULID to generate a hash
   const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return colors[hash % colors.length];
+  const colorIndex = hash % colors.length;
+  return colors[colorIndex]!;
 }
 
 // Helper function to check if user has a specific role
@@ -56,5 +57,5 @@ export function hasPermission(user: User | null, permission: string): boolean {
 // Helper function to get the primary role (first role in the array)
 export function getPrimaryRole(user: User | null): string | null {
   if (!user || !user.roles || user.roles.length === 0) return null;
-  return user.roles[0];
+  return user.roles[0] || null;
 }

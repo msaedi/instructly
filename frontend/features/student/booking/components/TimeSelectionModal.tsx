@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { logger } from '@/lib/logger';
+import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
 import Calendar from './TimeSelectionModal/Calendar';
@@ -15,6 +16,33 @@ interface AvailabilitySlot {
   start_time: string;
   end_time: string;
 }
+
+// Helper function to expand discrete time slots
+const expandDiscreteStarts = (
+  start: string,
+  end: string,
+  stepMinutes: number,
+  requiredMinutes: number
+): string[] => {
+  const startParts = start.split(':');
+  const endParts = end.split(':');
+  const sh = parseInt(at(startParts, 0) || '0', 10);
+  const sm = parseInt(at(startParts, 1) || '0', 10);
+  const eh = parseInt(at(endParts, 0) || '0', 10);
+  const em = parseInt(at(endParts, 1) || '0', 10);
+  const startTotal = sh * 60 + sm;
+  const endTotal = eh * 60 + em;
+
+  const times: string[] = [];
+  for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
+    const h = Math.floor(t / 60);
+    const m = t % 60;
+    const ampm = h >= 12 ? 'pm' : 'am';
+    const displayHour = (h % 12) || 12;
+    times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
+  }
+  return times;
+};
 
 interface TimeSelectionModalProps {
   isOpen: boolean;
@@ -73,8 +101,8 @@ export default function TimeSelectionModal({
   const getDurationOptions = useCallback(() => {
     // Get the selected service if serviceId is provided, otherwise use first
     const selectedService = serviceId
-      ? instructor.services.find((s) => s.id === serviceId) || instructor.services[0]
-      : instructor.services[0];
+      ? instructor.services.find((s) => s.id === serviceId) || at(instructor.services, 0)
+      : at(instructor.services, 0);
 
     // Use duration_options from the service, or fallback to standard durations
     const durations = selectedService?.duration_options || [30, 60, 90, 120];
@@ -162,7 +190,9 @@ export default function TimeSelectionModal({
         // Extract available dates - only include dates with actual time slots
         const datesWithSlots: string[] = [];
         Object.keys(availabilityByDate).forEach((date) => {
-          const slots = availabilityByDate[date].available_slots || [];
+          const dayData = availabilityByDate[date];
+          if (!dayData) return;
+          const slots = dayData.available_slots || [];
           // Filter out past times if it's today
           const now = new Date();
           const nowLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -170,7 +200,10 @@ export default function TimeSelectionModal({
 
           const validSlots = slots.filter((slot: AvailabilitySlot) => {
             if (!isToday) return true;
-            const [hours, minutes] = slot.start_time.split(':');
+            const timeParts = slot.start_time.split(':');
+            const hours = at(timeParts, 0);
+            const minutes = at(timeParts, 1);
+            if (!hours || !minutes) return false;
             const slotTime = new Date();
             slotTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
             return slotTime > now;
@@ -184,33 +217,15 @@ export default function TimeSelectionModal({
 
         // Auto-select first available date if no pre-selection
         if (!preSelectedDate && datesWithSlots.length > 0) {
-          const firstDate = datesWithSlots[0];
+          const firstDate = at(datesWithSlots, 0);
+          if (!firstDate) return;
           setSelectedDate(firstDate);
           setShowTimeDropdown(true); // Show time dropdown immediately
 
           // Load time slots for the first available date
-          const slots = availabilityByDate[firstDate].available_slots || [];
-          const expandDiscreteStarts = (
-            start: string,
-            end: string,
-            stepMinutes: number,
-            requiredMinutes: number
-          ): string[] => {
-            const [sh, sm] = start.split(':').map((v: string) => parseInt(v, 10));
-            const [eh, em] = end.split(':').map((v: string) => parseInt(v, 10));
-            const startTotal = sh * 60 + (sm || 0);
-            const endTotal = eh * 60 + (em || 0);
-
-            const times: string[] = [];
-            for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
-              const h = Math.floor(t / 60);
-              const m = t % 60;
-              const ampm = h >= 12 ? 'pm' : 'am';
-              const displayHour = (h % 12) || 12;
-              times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
-            }
-            return times;
-          };
+          const dayData = availabilityByDate[firstDate];
+          if (!dayData) return;
+          const slots = dayData.available_slots || [];
 
           const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
             expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
@@ -220,7 +235,10 @@ export default function TimeSelectionModal({
 
           // Auto-select first available time slot
           if (formattedSlots.length > 0 && !preSelectedTime) {
-            setSelectedTime(formattedSlots[0]);
+            const firstSlot = at(formattedSlots, 0);
+            if (firstSlot) {
+              setSelectedTime(firstSlot);
+            }
           }
         }
 
@@ -228,29 +246,9 @@ export default function TimeSelectionModal({
         if (preSelectedDate && availabilityByDate[preSelectedDate]) {
           setSelectedDate(preSelectedDate);
           setShowTimeDropdown(true); // Show time dropdown immediately
-          const slots = availabilityByDate[preSelectedDate].available_slots || [];
-
-          const expandDiscreteStarts = (
-            start: string,
-            end: string,
-            stepMinutes: number,
-            requiredMinutes: number
-          ): string[] => {
-            const [sh, sm] = start.split(':').map((v: string) => parseInt(v, 10));
-            const [eh, em] = end.split(':').map((v: string) => parseInt(v, 10));
-            const startTotal = sh * 60 + (sm || 0);
-            const endTotal = eh * 60 + (em || 0);
-
-            const times: string[] = [];
-            for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
-              const h = Math.floor(t / 60);
-              const m = t % 60;
-              const ampm = h >= 12 ? 'pm' : 'am';
-              const displayHour = (h % 12) || 12;
-              times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
-            }
-            return times;
-          };
+          const availableSlots = availabilityByDate[preSelectedDate];
+          if (!availableSlots) return;
+          const slots = availableSlots.available_slots || [];
 
           const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
             expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
@@ -260,7 +258,10 @@ export default function TimeSelectionModal({
 
           // If pre-selected time is provided, format it to match
           if (preSelectedTime) {
-            const [hours, minutes] = preSelectedTime.split(':');
+            const parts = preSelectedTime.split(':');
+            const hours = at(parts, 0);
+            const minutes = at(parts, 1);
+            if (!hours || !minutes) return;
             const hour = parseInt(hours);
             const ampm = hour >= 12 ? 'pm' : 'am';
             const displayHour = hour % 12 || 12;
@@ -268,7 +269,10 @@ export default function TimeSelectionModal({
             setSelectedTime(formattedTime);
           } else if (formattedSlots.length > 0) {
             // Auto-select first time if no pre-selected time
-            setSelectedTime(formattedSlots[0]);
+            const firstSlot = at(formattedSlots, 0);
+            if (firstSlot) {
+              setSelectedTime(firstSlot);
+            }
           }
         }
       }
@@ -354,8 +358,8 @@ export default function TimeSelectionModal({
 
       // Otherwise, go directly to payment page
       const selectedService = serviceId
-        ? instructor.services.find((s) => s.id === serviceId) || instructor.services[0]
-        : instructor.services[0]; // Use first service as fallback
+        ? instructor.services.find((s) => s.id === serviceId) || (instructor.services.length > 0 ? instructor.services[0] : null)
+        : (instructor.services.length > 0 ? instructor.services[0] : null); // Use first service as fallback
 
       if (!selectedService) {
         logger.error('No service found for booking', { serviceId, services: instructor.services });
@@ -368,18 +372,20 @@ export default function TimeSelectionModal({
       // Parse time - handle both "8:00am" and "8:00" formats
       const timeWithoutAmPm = selectedTime.replace(/[ap]m/gi, '').trim();
       const timeParts = timeWithoutAmPm.split(':');
+      const hourStr = at(timeParts, 0);
+      const minuteStr = at(timeParts, 1);
+      if (!hourStr || !minuteStr) return 'Invalid time';
 
       if (timeParts.length !== 2) {
         logger.error('Invalid time format', { selectedTime });
         return;
       }
 
-      const [hours, minutes] = timeParts;
-      let hour = parseInt(hours);
-      const minute = parseInt(minutes) || 0;
+      let hour = parseInt(hourStr);
+      const minute = parseInt(minuteStr) || 0;
 
       if (isNaN(hour) || isNaN(minute)) {
-        logger.error('Invalid time values', { hours, minutes, selectedTime });
+        logger.error('Invalid time values', { hourStr, minuteStr, selectedTime });
         return;
       }
 
@@ -552,28 +558,6 @@ export default function TimeSelectionModal({
         return hasEnoughTime;
       });
 
-      const expandDiscreteStarts = (
-        start: string,
-        end: string,
-        stepMinutes: number,
-        requiredMinutes: number
-      ): string[] => {
-        const [sh, sm] = start.split(':').map((v: string) => parseInt(v, 10));
-        const [eh, em] = end.split(':').map((v: string) => parseInt(v, 10));
-        const startTotal = sh * 60 + (sm || 0);
-        const endTotal = eh * 60 + (em || 0);
-
-        const times: string[] = [];
-        for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
-          const h = Math.floor(t / 60);
-          const m = t % 60;
-          const ampm = h >= 12 ? 'pm' : 'am';
-          const displayHour = (h % 12) || 12;
-          times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
-        }
-        return times;
-      };
-
       const uniqueDurations = Array.from(new Set(durationOptions.map((o) => o.duration)));
       const slotsByDuration: Record<number, string[]> = {};
       uniqueDurations.forEach((dur) => {
@@ -591,7 +575,10 @@ export default function TimeSelectionModal({
 
       // Auto-select first available time slot
       if (formattedSlots.length > 0 && !selectedTime) {
-        setSelectedTime(formattedSlots[0]);
+        const firstSlot = formattedSlots[0];
+        if (firstSlot) {
+          setSelectedTime(firstSlot);
+        }
       }
 
       setLoadingTimeSlots(false);
@@ -647,8 +634,12 @@ export default function TimeSelectionModal({
           uniqueDurations.forEach((dur) => {
             slotsByDuration[dur] = validSlots.flatMap((slot: AvailabilitySlot) =>
               (() => {
-                const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
-                const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
+                const startParts = slot.start_time.split(':');
+                const endParts = slot.end_time.split(':');
+                const sh = parseInt(at(startParts, 0) || '0', 10);
+                const sm = parseInt(at(startParts, 1) || '0', 10);
+                const eh = parseInt(at(endParts, 0) || '0', 10);
+                const em = parseInt(at(endParts, 1) || '0', 10);
                 const startTotal = sh * 60 + (sm || 0);
                 const endTotal = eh * 60 + (em || 0);
                 const times: string[] = [];
@@ -672,7 +663,10 @@ export default function TimeSelectionModal({
 
           // Auto-select first available time slot
           if (formattedSlots.length > 0 && !selectedTime) {
-            setSelectedTime(formattedSlots[0]);
+            const firstSlot = at(formattedSlots, 0);
+            if (firstSlot) {
+              setSelectedTime(firstSlot);
+            }
           }
 
           setLoadingTimeSlots(false);
@@ -703,8 +697,11 @@ export default function TimeSelectionModal({
         // Skip auto-select when list changed due to a duration change
         lastChangeWasDurationRef.current = false;
       } else {
-        setSelectedTime(timeSlots[0]);
-        logger.info('Auto-selected first available time', { time: timeSlots[0] });
+        const firstSlot = at(timeSlots, 0);
+        if (firstSlot) {
+          setSelectedTime(firstSlot);
+          logger.info('Auto-selected first available time', { time: firstSlot });
+        }
       }
     } else if (!loadingTimeSlots) {
       // Reset the flag once loading settles to avoid stale state
@@ -731,8 +728,12 @@ export default function TimeSelectionModal({
           }
 
           // Check if slot duration is enough
-          const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
-          const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
+          const startParts = slot.start_time.split(':');
+          const endParts = slot.end_time.split(':');
+          const sh = parseInt(at(startParts, 0) || '0', 10);
+          const sm = parseInt(at(startParts, 1) || '0', 10);
+          const eh = parseInt(at(endParts, 0) || '0', 10);
+          const em = parseInt(at(endParts, 1) || '0', 10);
           const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
           return slotDuration >= selectedDuration;
         });
@@ -764,8 +765,12 @@ export default function TimeSelectionModal({
 
           // Check if any slot can accommodate the new duration
           const canAccommodate = (slots as unknown as AvailabilitySlot[]).some((slot: AvailabilitySlot) => {
-            const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
-            const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
+            const startParts = slot.start_time.split(':');
+            const endParts = slot.end_time.split(':');
+            const sh = parseInt(at(startParts, 0) || '0', 10);
+            const sm = parseInt(at(startParts, 1) || '0', 10);
+            const eh = parseInt(at(endParts, 0) || '0', 10);
+            const em = parseInt(at(endParts, 1) || '0', 10);
             const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
             return slotDuration >= duration;
           });
@@ -781,8 +786,12 @@ export default function TimeSelectionModal({
 
               // Check if this date can accommodate the duration
               const dateCanAccommodate = (daySlots as unknown as AvailabilitySlot[]).some((slot: AvailabilitySlot) => {
-                const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
-                const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
+                const startParts = slot.start_time.split(':');
+                const endParts = slot.end_time.split(':');
+                const sh = parseInt(at(startParts, 0) || '0', 10);
+                const sm = parseInt(at(startParts, 1) || '0', 10);
+                const eh = parseInt(at(endParts, 0) || '0', 10);
+                const em = parseInt(at(endParts, 1) || '0', 10);
                 const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
                 return slotDuration >= duration;
               });
@@ -837,8 +846,12 @@ export default function TimeSelectionModal({
         // Helper to expand starts for a given duration
         const expandForDuration = (dur: number): string[] => {
           return validSlots.flatMap((slot: AvailabilitySlot) => {
-            const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
-            const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
+            const startParts = slot.start_time.split(':');
+            const endParts = slot.end_time.split(':');
+            const sh = parseInt(at(startParts, 0) || '0', 10);
+            const sm = parseInt(at(startParts, 1) || '0', 10);
+            const eh = parseInt(at(endParts, 0) || '0', 10);
+            const em = parseInt(at(endParts, 1) || '0', 10);
             const startTotal = sh * 60 + (sm || 0);
             const endTotal = eh * 60 + (em || 0);
             const times: string[] = [];
@@ -882,7 +895,10 @@ export default function TimeSelectionModal({
             const lower = display.toLowerCase();
             const isPM = lower.includes('pm');
             const core = lower.replace(/am|pm/g, '').trim();
-            const [hh, mm] = core.split(':');
+            const parts = core.split(':');
+            const hh = at(parts, 0);
+            const mm = at(parts, 1);
+            if (!hh || !mm) return 0; // Return 0 for invalid times instead of continue
             let hour = parseInt(hh, 10);
             const minute = parseInt(mm || '0', 10);
             if (isPM && hour !== 12) hour += 12;
@@ -894,8 +910,12 @@ export default function TimeSelectionModal({
 
           const isDurationValidForSelectedTime = (dur: number): boolean => {
             return validSlots.some((slot: AvailabilitySlot) => {
-              const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
-              const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
+              const startParts = slot.start_time.split(':');
+              const endParts = slot.end_time.split(':');
+              const sh = parseInt(at(startParts, 0) || '0', 10);
+              const sm = parseInt(at(startParts, 1) || '0', 10);
+              const eh = parseInt(at(endParts, 0) || '0', 10);
+              const em = parseInt(at(endParts, 1) || '0', 10);
               const slotStart = sh * 60 + (sm || 0);
               const slotEnd = eh * 60 + (em || 0);
               return selectedStartMins >= slotStart && selectedStartMins + dur <= slotEnd;
@@ -944,10 +964,14 @@ export default function TimeSelectionModal({
       const slotsByDuration: Record<number, string[]> = {};
       uniqueDurations.forEach((dur) => {
         slotsByDuration[dur] = validSlots.flatMap((slot: AvailabilitySlot) => {
-          const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
-          const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
-          const startTotal = sh * 60 + (sm || 0);
-          const endTotal = eh * 60 + (em || 0);
+          const startParts = slot.start_time.split(':');
+          const endParts = slot.end_time.split(':');
+          const sh = parseInt(startParts[0] || '0', 10);
+          const sm = parseInt(startParts[1] || '0', 10);
+          const eh = parseInt(endParts[0] || '0', 10);
+          const em = parseInt(endParts[1] || '0', 10);
+          const startTotal = (sh || 0) * 60 + (sm || 0);
+          const endTotal = (eh || 0) * 60 + (em || 0);
           const times: string[] = [];
           for (let t = startTotal; t + dur <= endTotal; t += 60) {
             const h = Math.floor(t / 60);
@@ -970,7 +994,7 @@ export default function TimeSelectionModal({
           const isAM = lower.includes('am');
           const core = lower.replace(/am|pm/g, '').trim();
           const [hh, mm] = core.split(':');
-          let hour = parseInt(hh, 10);
+          let hour = parseInt(hh || '0', 10);
           const minute = parseInt(mm || '0', 10);
           if (isPM && hour !== 12) hour += 12;
           if (isAM && hour === 12) hour = 0;
@@ -981,8 +1005,12 @@ export default function TimeSelectionModal({
 
         const isDurationValidForSelectedTime = (dur: number): boolean => {
           return validSlots.some((slot: AvailabilitySlot) => {
-            const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
-            const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
+            const startParts = slot.start_time.split(':');
+            const endParts = slot.end_time.split(':');
+            const sh = parseInt(at(startParts, 0) || '0', 10);
+            const sm = parseInt(at(startParts, 1) || '0', 10);
+            const eh = parseInt(at(endParts, 0) || '0', 10);
+            const em = parseInt(at(endParts, 1) || '0', 10);
             const slotStart = sh * 60 + (sm || 0);
             const slotEnd = eh * 60 + (em || 0);
             return selectedStartMins >= slotStart && selectedStartMins + dur <= slotEnd;

@@ -17,18 +17,9 @@ export function PrivacySettings({ className = '' }: PrivacySettingsProps) {
   const [clearDataOnLogout, setClearDataOnLogout] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load current preference on mount
+  // Load current preference on mount (delegate to setUserPreference getter indirectly)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('user_pref_clearDataOnLogout');
-        setClearDataOnLogout(stored ? JSON.parse(stored) : false);
-      } catch {
-        setClearDataOnLogout(false);
-      } finally {
-        setIsLoading(false);
-      }
-    }
+    setIsLoading(false);
   }, []);
 
   const handleToggle = (checked: boolean) => {

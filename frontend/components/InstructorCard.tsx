@@ -14,6 +14,7 @@ import { reviewsApi } from '@/services/api/reviews';
 import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import { at } from '@/lib/ts/safe';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
 let catalogCache: ServiceCatalogItem[] | null = null;
@@ -112,7 +113,9 @@ export default function InstructorCard({
 
   // Helper function to calculate end time
   const calculateEndTime = (startTime: string, durationMinutes: number): string => {
-    const [hours, minutes] = startTime.split(':').map(Number);
+    const parts = startTime.split(':');
+    const hours = Number(at(parts, 0) || 0);
+    const minutes = Number(at(parts, 1) || 0);
     const totalMinutes = hours * 60 + minutes + durationMinutes;
     const endHours = Math.floor(totalMinutes / 60);
     const endMinutes = totalMinutes % 60;
@@ -168,7 +171,7 @@ export default function InstructorCard({
   const getBio = () => {
     if (instructor.bio) return instructor.bio;
     const index = instructor.user_id.charCodeAt(0) % mockBios.length;
-    return mockBios[index];
+    return at(mockBios, index) || '';
   };
 
   return (
@@ -315,8 +318,9 @@ export default function InstructorCard({
             <div className={`flex items-center gap-2 ${compact ? 'mb-2' : 'mb-4'}`}>
               <p className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-gray-700`}>Duration:</p>
               <div className={`flex ${compact ? 'gap-2' : 'gap-4'}`}>
-                {instructor.services[0].duration_options.map((duration, index) => {
-                  const price = Math.round((instructor.services[0].hourly_rate * duration) / 60);
+                {at(instructor.services, 0)?.duration_options?.map((duration, index) => {
+                  const service = at(instructor.services, 0);
+                  const price = service ? Math.round((service.hourly_rate * duration) / 60) : 0;
                   return (
                     <label key={duration} className="flex items-center cursor-pointer">
                       <input
@@ -344,7 +348,7 @@ export default function InstructorCard({
                   const bookingData = {
                     instructorId: instructor.user_id,
                     instructorName: `${instructor.user.first_name} ${instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}`,
-                    lessonType: getServiceName(instructor.services[0]?.service_catalog_id) || 'Service',
+                    lessonType: getServiceName(at(instructor.services, 0)?.service_catalog_id || '') || 'Service',
                     date: nextAvailableSlot.date,
                     startTime: nextAvailableSlot.time,
                     endTime: calculateEndTime(nextAvailableSlot.time, instructor.services[0]?.duration_options?.[0] || 60),

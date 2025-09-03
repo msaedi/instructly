@@ -85,7 +85,7 @@ export default function QuickBookingPage() {
           });
 
           // Set default service
-          if (response.data.services.length > 0) {
+          if (response.data.services.length > 0 && response.data.services[0]) {
             setSelectedService(response.data.services[0]);
             // Use first available duration option, default to 60 if none available
             const defaultDuration = response.data.services[0].duration_options?.[0] || 60;
@@ -121,9 +121,13 @@ export default function QuickBookingPage() {
           const endDate = new Date();
           endDate.setDate(endDate.getDate() + 14); // Get 2 weeks of availability
 
+          const startDateStr = startDate.toISOString().split('T')[0] || '';
+          const endDateStr = endDate.toISOString().split('T')[0] || '';
+
+          if (!instructorId) throw new Error('No instructor ID');
           const response = await publicApi.getInstructorAvailability(instructorId, {
-            start_date: startDate.toISOString().split('T')[0],
-            end_date: endDate.toISOString().split('T')[0],
+            start_date: startDateStr,
+            end_date: endDateStr,
           });
 
           if (response.data?.availability_by_date) {
@@ -154,7 +158,7 @@ export default function QuickBookingPage() {
       storeBookingIntent({
         instructorId: instructor.user_id,
         serviceId: selectedService.id,
-        date: selectedDate,
+        date: selectedDate || '',
         time: selectedTime,
         duration,
       });
@@ -201,7 +205,9 @@ export default function QuickBookingPage() {
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
+    const timeParts = time.split(':');
+    const hours = timeParts[0] || '0';
+    const minutes = timeParts[1] || '00';
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
@@ -285,7 +291,7 @@ export default function QuickBookingPage() {
               <div className="space-y-3 text-sm">
                 <div className="flex items-center text-gray-600 dark:text-gray-400">
                   <Clock className="h-4 w-4 mr-2" />
-                  {formatDate(selectedDate)} at {formatTime(selectedTime)}
+                  {formatDate(selectedDate || '')} at {formatTime(selectedTime || '')}
                 </div>
                 <div className="flex items-center text-gray-600 dark:text-gray-400">
                   <MapPin className="h-4 w-4 mr-2" />

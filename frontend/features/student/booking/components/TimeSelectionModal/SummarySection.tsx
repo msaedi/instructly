@@ -21,7 +21,10 @@ export default function SummarySection({
   const formatDate = (dateStr: string, timeStr: string) => {
     // Parse the date string as local date, not UTC
     // Split the date string and create date with local timezone
-    const [year, month, day] = dateStr.split('-').map(Number);
+    const dateParts = dateStr.split('-');
+    const year = parseInt(dateParts[0] || '0', 10);
+    const month = parseInt(dateParts[1] || '0', 10);
+    const day = parseInt(dateParts[2] || '0', 10);
     const date = new Date(year, month - 1, day); // month is 0-indexed
 
     const monthNames = [
@@ -50,7 +53,9 @@ export default function SummarySection({
 
   // Convert 24-hour time to 12-hour format
   const formatTime24to12 = (time24: string) => {
-    const [hours, minutes] = time24.split(':').map(Number);
+    const timeParts = time24.split(':');
+    const hours = parseInt(timeParts[0] || '0', 10);
+    const minutes = parseInt(timeParts[1] || '0', 10);
     const period = hours >= 12 ? 'pm' : 'am';
     const hour12 = hours % 12 || 12;
     return `${hour12}:${minutes.toString().padStart(2, '0')}${period}`;
