@@ -107,6 +107,11 @@ jobs:
           URL="$API$GATED"
           curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i "$URL" | tee /tmp/g.txt
           grep -E " 401| 403" /tmp/g.txt
+      - name: Preview canary (no gates)
+        if: ${{ false }}
+        run: |
+          # Example snippet to enable in preview workflow (kept disabled here for prod smoke)
+          :
       - name: Webhook ignores preview header (only if provided)
         run: |
           set +e

@@ -317,7 +317,7 @@ async def send_reminder_emails(
 @router.get(
     "/",
     response_model=PaginatedResponse[BookingResponse],
-    dependencies=[Depends(require_beta_phase_access("open_beta"))],
+    dependencies=[Depends(require_beta_phase_access())],
 )
 async def get_bookings(
     status: Optional[BookingStatus] = None,
@@ -415,7 +415,7 @@ async def get_bookings(
     "/",
     response_model=BookingCreateResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_beta_phase_access("open_beta"))],
+    dependencies=[Depends(require_beta_phase_access())],
 )
 @rate_limit(
     f"{settings.rate_limit_booking_per_minute}/minute",

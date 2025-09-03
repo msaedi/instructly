@@ -21,7 +21,7 @@ class GatedPingResponse(BaseModel):
 @router.get(
     "/ping",
     response_model=GatedPingResponse,
-    dependencies=[Depends(require_beta_phase_access("open_beta"))],
+    dependencies=[Depends(require_beta_phase_access())],
 )
 async def gated_ping() -> GatedPingResponse:
     return GatedPingResponse(ok=True)

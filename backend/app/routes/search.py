@@ -22,7 +22,7 @@ router = APIRouter()
 @router.get(
     "/instructors",
     response_model=InstructorSearchResponse,
-    dependencies=[Depends(require_beta_phase_access("open_beta"))],
+    dependencies=[Depends(require_beta_phase_access())],
 )
 async def search_instructors(
     q: str = Query(..., description="Search query", min_length=1),

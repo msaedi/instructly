@@ -302,26 +302,54 @@ def require_beta_access(role: Optional[str] = None):
     return verify_beta
 
 
-def require_beta_phase_access(expected_phase: Optional[str] = None):
+def require_beta_phase_access(_expected_phase: Optional[str] = None):
+    """Phase gate with preview as unconditional no-op.
+
+    Behavior:
+    - Preview: Always pass (no beta gating on preview).
+    - Testing: If testing bypass active (default in tests), pass unless header x-enforce-beta-checks=1.
+    - If beta is disabled (settings or DB), pass.
+    - If phase is open (open_beta/open/ga), pass.
+    - Else (e.g., instructor_only), require that the current user has a BetaAccess grant.
+    """
+
     async def verify_phase(
         request: Request,
+        current_user: Optional[User] = Depends(get_current_active_user_optional),
         db: Session = Depends(get_db),
     ) -> None:
-        # Preview bypass (staff or proxy-only header)
-        if _preview_bypass(request, None):
+        # 1) Preview means no gates
+        site_mode = os.getenv("SITE_MODE", "").lower().strip() or "prod"
+        if site_mode == "preview":
             return None
 
-        # Testing bypass (independent of SITE_MODE; still overridable via header)
+        # 2) Testing bypass (independent of SITE_MODE; can be disabled per-request)
         if _testing_bypass(request):
             return None
+
+        # 3) Global beta disabled flags
         if getattr(settings, "beta_disabled", False):
             return None
         settings_repo = BetaSettingsRepository(db)
         s = settings_repo.get_singleton()
-        if bool(s.beta_disabled):
+        if s and bool(getattr(s, "beta_disabled", False)):
             return None
-        if expected_phase and str(s.beta_phase) != expected_phase:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Beta phase '{expected_phase}' required")
+
+        # 4) If phase is open, allow
+        current_phase = str(getattr(s, "beta_phase", "instructor_only") or "").lower()
+        if current_phase in {"open_beta", "open", "openbeta", "ga", "general_availability"}:
+            return None
+
+        # 5) Otherwise enforce that user has a BetaAccess grant
+        # If the route also requires auth, current_user will be set; otherwise it may be None.
+        if not current_user:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Beta access required")
+
+        repo = BetaAccessRepository(db)
+        beta = repo.get_latest_for_user(current_user.id)
+        if not beta:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Beta access required")
+
         return None
 
     return verify_phase
