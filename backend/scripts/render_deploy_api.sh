@@ -60,11 +60,11 @@ get_service_name() {
         esac
     else
         case "$typ" in
-            backend) echo "instructly" ;;
-            redis)   echo "instructly-redis" ;;
-            worker)  echo "instructly-celery-worker" ;;
-            beat)    echo "instructly-celery-beat" ;;
-            flower)  echo "instructly-flower" ;;
+            backend) echo "instainstru-api" ;;
+            redis)   echo "redis" ;;
+            worker)  echo "celery-worker" ;;
+            beat)    echo "celery-beat" ;;
+            flower)  echo "flower" ;;
         esac
     fi
 }

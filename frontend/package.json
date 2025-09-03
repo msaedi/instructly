@@ -17,7 +17,7 @@
     "typecheck:strict:log": "npm run typecheck:strict 2>&1 | tee .artifacts/ts-noUncheckedIndexedAccess.log",
     "build:log": "mkdir -p .artifacts && NEXT_TELEMETRY_DISABLED=1 next build 2>&1 | tee .artifacts/next-build.log",
     "build:warn-check": "node scripts/check-next-warnings.js",
-    "prepare": "husky",
+    "prepare": "is-ci || husky",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -79,6 +79,7 @@
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5",
     "husky": "^9.0.11",
+    "is-ci": "^3.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vercel": "^44.7.3"
