@@ -13,14 +13,10 @@ const compat = new FlatCompat({
 const eslintConfig = [
   {
     ignores: [
-      'scripts/**/*',
-      '**/*.js',
+      'coverage/**/*',
       '.next/**/*',
       'out/**/*',
       'node_modules/**/*',
-      'server.js',
-      'jest.config.js',
-      'jest.setup.js',
     ],
   },
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
@@ -105,11 +101,12 @@ const eslintConfig = [
       'no-console': 'off',
     },
   },
-  // Allow console in server.js and logger implementation
+  // Allow console and CommonJS requires in Node/CLI files
   {
-    files: ['server.js', 'lib/logger.ts'],
+    files: ['server.js', 'scripts/**/*.js', 'jest.config.js', 'next.config.js', 'lib/logger.ts'],
     rules: {
       'no-console': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
 ];

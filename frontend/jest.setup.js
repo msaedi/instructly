@@ -34,8 +34,7 @@ beforeEach(() => {
 
 // Provide a minimal global.fetch mock for tests (jsdom doesn't include fetch by default)
 if (typeof global.fetch === 'undefined') {
-  // eslint-disable-next-line no-undef
-  global.fetch = jest.fn(async (input, init) => {
+  global.fetch = jest.fn(async (input, _init) => {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
     // Stub ratings endpoint
     if (/\/api\/reviews\/instructor\/.+\/ratings$/.test(url)) {

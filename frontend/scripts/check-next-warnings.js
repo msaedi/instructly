@@ -18,64 +18,23 @@ if (!fs.existsSync(logPath)) {
 }
 
 const log = fs.readFileSync(logPath, 'utf8');
+
+// Only count canonical Next/React/ESLint warnings. Ignore our app logger output.
+const warningPatterns = [
+  /^\s*warn\s+-\s+/i,     // Next.js "warn  - ..." lines
+  /(^|\s)Warning:/,         // React "Warning: ..." during SSG/SSR
+  /ESLint:\s+warning/i,     // ESLint warnings
+];
+
 const lines = log.split(/\r?\n/);
+const matches = lines.filter((line) => warningPatterns.some((rx) => rx.test(line)));
 
-// Capture lines that clearly indicate warnings
-const warningRegex = /(\bwarn\b|Warning:|ESLint:\s+warning)/i;
-const fileHeaderRegex = /^\.\/.+\.(t|j)sx?/; // lines like ./path/to/file.tsx
-
-let currentFile = null;
-const warnLines = [];
-const ruleCounts = new Map();
-const fileCounts = new Map();
-
-for (const line of lines) {
-  if (fileHeaderRegex.test(line)) {
-    currentFile = line.trim();
-    continue;
-  }
-  if (warningRegex.test(line)) {
-    warnLines.push(line);
-    if (currentFile) {
-      fileCounts.set(currentFile, (fileCounts.get(currentFile) || 0) + 1);
-    }
-    // Heuristically extract rule ids
-    const ruleMatch = line.match(/@?([a-z0-9-]+\/[a-z0-9-]+|@typescript-eslint\/[a-z0-9-]+|react\/[a-z0-9-]+|no-[a-z0-9-]+)/i);
-    if (ruleMatch) {
-      const rule = ruleMatch[0];
-      ruleCounts.set(rule, (ruleCounts.get(rule) || 0) + 1);
-    }
-  }
-}
-
-const total = warnLines.length;
-
-function topN(map, n) {
-  return Array.from(map.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, n);
-}
-
-const topRules = topN(ruleCounts, 5);
-const topFiles = topN(fileCounts, 5);
-
-if (total > budget) {
-  console.error(`\n❌ Build warnings: ${total} (budget ${budget})`);
-  if (topRules.length) {
-    console.error('Top rules:');
-    for (const [r, c] of topRules) console.error(`  ${r}: ${c}`);
-  }
-  if (topFiles.length) {
-    console.error('Top files:');
-    for (const [f, c] of topFiles) console.error(`  ${f}: ${c}`);
-  }
+const count = matches.length;
+if (count > budget) {
+  console.error(`❌ Build warnings: ${count} (budget ${budget})`);
+  // Show first few offending lines for context
+  console.error(matches.slice(0, 20).join('\n'));
   process.exit(1);
-} else {
-  console.log(`\n✅ Build warnings within budget: ${total}/${budget}`);
-  if (total > 0) {
-    console.log('Top rules:');
-    for (const [r, c] of topRules) console.log(`  ${r}: ${c}`);
-    console.log('Top files:');
-    for (const [f, c] of topFiles) console.log(`  ${f}: ${c}`);
-  }
 }
+
+console.log(`✅ Build warnings: ${count} (budget ${budget})`);
