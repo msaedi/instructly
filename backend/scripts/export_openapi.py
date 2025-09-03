@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
+import json
 import sys
 from pathlib import Path
 
-import orjson
+# Try to use orjson for minimal/deterministic output; fallback to stdlib json
+try:
+    import orjson  # type: ignore
+except Exception:
+    orjson = None  # noqa: F841
 
 # Add the backend directory to Python path
 backend_dir = Path(__file__).parent.parent
@@ -22,17 +27,25 @@ def strip_docs(obj):
     return obj
 
 
+def dumps_min(obj: object) -> bytes:
+    """Minified, deterministic JSON dump."""
+    if orjson:
+        return orjson.dumps(obj, option=orjson.OPT_SORT_KEYS)
+    # stdlib fallback: minified, deterministic
+    return json.dumps(obj, separators=(",", ":"), sort_keys=True).encode("utf-8")
+
+
 def main():
     # Generate OpenAPI in-process (no running server)
     spec = app.openapi()
 
     # First: minified deterministic dump
-    data = orjson.dumps(spec, option=orjson.OPT_SORT_KEYS)
+    data = dumps_min(spec)
 
     if len(data) > 500_000:
         # Fallback: strip doc-only fields and re-dump
         spec = strip_docs(spec)
-        data = orjson.dumps(spec, option=orjson.OPT_SORT_KEYS)
+        data = dumps_min(spec)
         print(f"Stripped docs to reduce size: {len(data)} bytes")
 
     # Use absolute path based on script location
