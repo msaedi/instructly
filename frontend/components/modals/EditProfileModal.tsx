@@ -841,7 +841,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                               type="button"
                               onClick={() => toggleNeighborhood(nid)}
                               aria-pressed={checked}
-                              className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
+                              className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 ${
                                 checked ? 'bg-[#6A0DAD] text-white border border-[#6A0DAD]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                               }`}
                             >
@@ -881,7 +881,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              className="text-sm px-3 py-1 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200"
+                              className="text-sm px-3 py-1 rounded-md bg-purple-100 text-[#6A0DAD] hover:bg-purple-200"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -922,7 +922,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                                   type="button"
                                   onClick={() => toggleNeighborhood(nid)}
                                   aria-pressed={checked}
-                                  className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
+                                  className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 ${
                                     checked ? 'bg-[#6A0DAD] text-white border border-[#6A0DAD]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                   }`}
                                 >
@@ -1169,8 +1169,8 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                                     if (exists) setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== svc.id));
                                     else setSelectedServices((prev) => ([...prev, { catalog_service_id: svc.id, name: svc.name, hourly_rate: '', ageGroup: 'adults', description: '', equipment: '', levels_taught: ['beginner','intermediate','advanced'], duration_options: [60], location_types: ['in-person'] }]));
                                   }}
-                                  className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 whitespace-nowrap ${
-                                    isSel ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 whitespace-nowrap ${
+                                    isSel ? 'bg-purple-100 text-[#6A0DAD] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                   }`}
                                   type="button"
                                 >
@@ -1198,7 +1198,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                               <div className="text-base font-medium text-gray-900">{s.name}</div>
                               <div className="flex items-center gap-3 mt-1">
                                 <div className="flex items-center gap-1">
-                                  <span className="text-xl font-bold text-purple-700">${s.hourly_rate || '0'}</span>
+                                  <span className="text-xl font-bold text-[#6A0DAD]">${s.hourly_rate || '0'}</span>
                                   <span className="text-xs text-gray-600">/hour</span>
                                 </div>
                               </div>
@@ -1225,7 +1225,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                                   min={1}
                                   step="1"
                                   inputMode="decimal"
-                                  className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                                  className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 focus:border-purple-500"
                                   placeholder="75"
                                   value={s.hourly_rate}
                                   onChange={(e) => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, hourly_rate: e.target.value } : x))}
@@ -1254,7 +1254,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                                         return { ...x, ageGroup: next };
                                       }))}
                                       className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                                        isSel ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        isSel ? 'bg-purple-100 text-[#6A0DAD] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                       }`}
                                       type="button"
                                     >
@@ -1279,7 +1279,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                                     }))}
                                     className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                       s.location_types.includes(loc)
-                                        ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                                        ? 'bg-purple-100 text-[#6A0DAD] border border-purple-300'
                                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     }`}
                                     type="button"
@@ -1301,7 +1301,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                                     onClick={() => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, levels_taught: x.levels_taught.includes(lvl) ? x.levels_taught.filter((v) => v !== lvl) : [...x.levels_taught, lvl] } : x))}
                                     className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                       s.levels_taught.includes(lvl)
-                                        ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                                        ? 'bg-purple-100 text-[#6A0DAD] border border-purple-300'
                                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     }`}
                                     type="button"
@@ -1325,7 +1325,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                                     }))}
                                     className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                       s.duration_options.includes(d)
-                                        ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                                        ? 'bg-purple-100 text-[#6A0DAD] border border-purple-300'
                                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     }`}
                                     type="button"
@@ -1342,7 +1342,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                               <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Description (Optional)</label>
                               <textarea
                                 rows={2}
-                                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white"
+                                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 focus:border-purple-500 bg-white"
                                 placeholder="Brief description of your teaching style..."
                                 value={s.description || ''}
                                 onChange={(e) => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, description: e.target.value } : x))}
@@ -1352,7 +1352,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                               <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Equipment (Optional)</label>
                               <textarea
                                 rows={2}
-                                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white"
+                                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 focus:border-purple-500 bg-white"
                                 placeholder="Yoga mat, tennis racket..."
                                 value={s.equipment || ''}
                                 onChange={(e) => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, equipment: e.target.value } : x))}

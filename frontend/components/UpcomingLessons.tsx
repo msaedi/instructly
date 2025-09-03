@@ -126,7 +126,7 @@ export function UpcomingLessons() {
     <section className="py-3 bg-white dark:bg-gray-900" style={{ borderTop: '0.5px solid #E0E0E0', borderBottom: '0.5px solid #E0E0E0' }}>
       <div className="max-w-4xl ml-8 px-1 pl-4">
         <div className="flex items-center mb-3">
-          <Calendar className="h-6 w-6 text-purple-700 dark:text-purple-400 mr-2" />
+          <Calendar className="h-6 w-6 text-[#6A0DAD] dark:text-purple-400 mr-2" />
           <h2 className="text-2xl font-bold text-gray-600">
             Your Upcoming Lessons
           </h2>
@@ -168,7 +168,7 @@ export function UpcomingLessons() {
                       ? `/student/lessons/${booking.id}`
                       : `/instructor/bookings/${booking.id}`
                   }
-                  className="text-sm text-purple-700 hover:text-purple-800 flex items-center gap-1 font-medium"
+                  className="text-sm text-[#6A0DAD] hover:text-[#6A0DAD] flex items-center gap-1 font-medium"
                 >
                   See lesson details
                   <ChevronRight className="h-4 w-4" />

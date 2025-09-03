@@ -10,13 +10,16 @@ interface Props {
   size?: number;
   className?: string;
   variant?: 'display' | 'thumb';
+  fallbackBgColor?: string;
+  fallbackTextColor?: string;
 }
 
-export function UserAvatar({ user, size = 40, className, variant = 'thumb' }: Props) {
+export function UserAvatar({ user, size = 40, className, variant = 'thumb', fallbackBgColor, fallbackTextColor }: Props) {
   const [url, setUrl] = useState<string | null>(null);
-  // Keep initials computation available for future variants if needed
-  // Currently unused because we show a glyph fallback per product spec
-  useMemo(() => getUserInitials(user), [user]);
+  const initials = useMemo(() => getUserInitials(user), [user]);
+  // Use brand purple for fallback background
+  const bgColor = fallbackBgColor ?? '#6A0DAD';
+  const textColor = fallbackTextColor ?? '#ffffff';
 
   useEffect(() => {
     let mounted = true;
@@ -48,7 +51,12 @@ export function UserAvatar({ user, size = 40, className, variant = 'thumb' }: Pr
       {url ? (
         <AvatarImage src={url} alt="Avatar" />
       ) : (
-        <AvatarFallback className="bg-purple-100 text-purple-700 font-semibold">👤</AvatarFallback>
+        <AvatarFallback
+          className="flex items-center justify-center font-semibold uppercase"
+          style={{ backgroundColor: bgColor, color: textColor }}
+        >
+          {initials || '👤'}
+        </AvatarFallback>
       )}
     </Avatar>
   );

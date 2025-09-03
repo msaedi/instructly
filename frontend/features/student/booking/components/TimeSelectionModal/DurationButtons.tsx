@@ -54,7 +54,7 @@ export default function DurationButtons({
                   checked={isSelected}
                   onChange={() => !isDisabled && onDurationSelect(option.duration)}
                   disabled={isDisabled}
-                  className="w-4 h-4 text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500"
+                  className="w-4 h-4 text-[#6A0DAD] accent-purple-700 border-gray-300 focus:ring-[#6A0DAD]"
                 />
                 <span className="ml-2 text-sm text-gray-700">
                   {option.duration} min (${option.price})

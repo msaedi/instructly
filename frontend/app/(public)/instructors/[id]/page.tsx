@@ -11,7 +11,6 @@ import { ServiceCards } from '@/features/instructor-profile/components/ServiceCa
 import { ReviewsSection } from '@/features/instructor-profile/components/ReviewsSection';
 import { BookingButton } from '@/features/instructor-profile/components/BookingButton';
 import { InstructorProfileSkeleton } from '@/features/instructor-profile/components/InstructorProfileSkeleton';
-import { AvailabilityGrid } from '@/features/instructor-profile/components/AvailabilityGrid';
 import { useInstructorProfile } from '@/features/instructor-profile/hooks/useInstructorProfile';
 import { useBookingModal } from '@/features/instructor-profile/hooks/useBookingModal';
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
@@ -141,6 +140,8 @@ function InstructorProfileContent() {
   );
 
   const bookingModal = useBookingModal();
+
+
 
   // Helper function to handle booking - checks auth and redirects if needed
   const handleBookingClick = (service?: Record<string, unknown>, serviceDuration?: number) => {
@@ -412,7 +413,7 @@ function InstructorProfileContent() {
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link className="inline-block" href="/">
-              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <Button
               variant="ghost"
@@ -432,7 +433,9 @@ function InstructorProfileContent() {
       <div className="container mx-auto px-4 py-6 max-w-7xl">
         {/* Mobile Layout - unchanged */}
         <div className="lg:hidden space-y-6">
-          <InstructorHeader instructor={instructor} />
+          <div className="flex items-start">
+            <InstructorHeader instructor={instructor} />
+          </div>
 
           <section>
             <h2 className="text-xl font-semibold mb-4">Services & Pricing</h2>
@@ -450,7 +453,9 @@ function InstructorProfileContent() {
         {/* Desktop Layout - Fixed Layout */}
         <div className="hidden lg:block space-y-6">
           {/* Header with integrated Save Button */}
-          <InstructorHeader instructor={instructor} />
+          <div className="flex items-start">
+            <InstructorHeader instructor={instructor} />
+          </div>
 
 
           {/* Services Section */}
@@ -485,7 +490,7 @@ function InstructorProfileContent() {
                           <div>• DUMBO</div>
                           <div>• Long Island City</div>
                           <div>• Astoria</div>
-                          <button className="text-purple-700 hover:text-purple-800 text-xs font-medium mt-1">
+                          <button className="text-[#6A0DAD] hover:text-[#6A0DAD] text-xs font-medium mt-1">
                             See more
                           </button>
                         </div>
@@ -528,19 +533,7 @@ function InstructorProfileContent() {
             </div>
           </div>
 
-          {/* Availability Grid - Desktop only */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <AvailabilityGrid
-              instructorId={availabilityInstructorId}
-              weekStart={weekStart}
-              onWeekChange={(d) => setWeekStart(d)}
-              selectedSlot={selectedSlot}
-              onSelectSlot={(date, time, duration, availableDuration) => {
-                setSelectedSlot({ date, time, duration: duration || 60, availableDuration });
-                setIsSlotUserSelected(true);
-              }}
-            />
-          </div>
+          {/* Availability Grid removed per request */}
           {/* Reviews Section */}
           <div className="bg-white rounded-xl border border-gray-200 p-6" data-reviews-section>
             <ReviewsSection instructorId={instructor.user_id} />

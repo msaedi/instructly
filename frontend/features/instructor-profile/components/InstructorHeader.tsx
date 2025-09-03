@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Star, CheckCircle, Heart } from 'lucide-react';
+import { Star, CheckCircle, Heart, Share2 } from 'lucide-react';
+import { UserAvatar } from '@/components/user/UserAvatar';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -45,6 +46,20 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   };
 
   const displayName = getDisplayName();
+  const [shareCopied, setShareCopied] = useState(false);
+  const handleShare = async () => {
+    try {
+      const url = typeof window !== 'undefined' ? window.location.href : '';
+      const nav = navigator as unknown as { share?: (data: { title: string; url: string }) => Promise<void> };
+      if (nav.share) {
+        await nav.share({ title: displayName, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1500);
+    } catch {}
+  };
 
   const { data: ratingsData } = useInstructorRatingsQuery(instructor.user_id);
   const reviewCount = ratingsData?.overall?.total_reviews;
@@ -92,19 +107,35 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   };
 
 
+  const avatarUser = {
+    id: String(instructor.user_id),
+    first_name: instructor.user?.first_name,
+    // last_name not present in InstructorProfile.user typing; omitted for privacy
+    has_profile_picture: (instructor as unknown as { has_profile_picture?: boolean; user?: { has_profile_picture?: boolean } }).user?.has_profile_picture ?? (instructor as unknown as { has_profile_picture?: boolean }).has_profile_picture,
+    profile_picture_version: (instructor as unknown as { profile_picture_version?: number; user?: { profile_picture_version?: number } }).user?.profile_picture_version ?? (instructor as unknown as { profile_picture_version?: number }).profile_picture_version,
+  } as {
+    id: string;
+    first_name?: string;
+    has_profile_picture?: boolean;
+    profile_picture_version?: number;
+  };
+
   return (
-    <div className="p-6 bg-white rounded-xl border border-gray-200">
+    <div className="w-full p-6 bg-white rounded-xl border border-gray-200">
       <div className="flex gap-8">
         {/* Left section - matching Services & Pricing width */}
         <div className="flex-[1.4] max-w-lg">
           <div className="flex gap-6 items-start">
             {/* Profile Photo */}
             <div className="flex-shrink-0">
-              {/* Replace placeholder with UserAvatar */}
-              <div className="w-56 h-56">
-                {/* @ts-expect-error: local file likely has access to profile data */}
-                {typeof UserAvatar !== 'undefined' ? null : null}
-              </div>
+              <UserAvatar
+                user={avatarUser}
+                size={224}
+                className="rounded-full ring-1 ring-gray-200 overflow-hidden"
+                fallbackBgColor="#F3E8FF"
+                fallbackTextColor="#6A0DAD"
+                variant="display"
+              />
             </div>
 
             {/* Info */}
@@ -112,11 +143,11 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
               <div className="flex flex-col space-y-2">
               {/* Name with Heart Button */}
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl lg:text-3xl font-bold text-purple-700" data-testid="instructor-profile-name">{displayName}</h1>
+                <h1 className="text-2xl lg:text-3xl font-bold text-[#6A0DAD]" data-testid="instructor-profile-name">{displayName}</h1>
                 {instructor.is_verified && (
-                  <CheckCircle className="h-7 w-7 text-purple-700" />
+                  <CheckCircle className="h-7 w-7 text-[#6A0DAD]" />
                 )}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={handleHeartClick}
                     disabled={isLoading}
@@ -130,6 +161,15 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                       fill={isSaved ? '#ff0000' : 'none'}
                       color={isSaved ? '#ff0000' : '#666'}
                     />
+                  </button>
+                  <button
+                    onClick={handleShare}
+                    className="inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-[#6A0DAD]/10 transition-transform cursor-pointer hover:scale-110"
+                    aria-label="Share profile"
+                    title={shareCopied ? 'Link copied' : 'Share profile'}
+                    style={{ background: 'transparent', border: 'none' }}
+                  >
+                    <Share2 className="h-5 w-5 text-[#6A0DAD]" />
                   </button>
                   {favoriteCount > 0 && (
                     <span className="text-sm text-muted-foreground">

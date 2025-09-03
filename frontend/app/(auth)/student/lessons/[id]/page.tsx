@@ -98,7 +98,7 @@ export default function LessonDetailsPage() {
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -110,7 +110,7 @@ export default function LessonDetailsPage() {
             <p className="text-lg text-gray-600 mb-4">Unable to load lesson details</p>
             <Button
               onClick={() => router.push(`/student/lessons?tab=${fromTab}`)}
-              className="bg-purple-700 hover:bg-purple-800 text-white"
+              className="bg-[#6A0DAD] hover:bg-[#6A0DAD] text-white"
             >
               Back to My Lessons
             </Button>
@@ -160,7 +160,7 @@ export default function LessonDetailsPage() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <UserProfileDropdown />
@@ -185,7 +185,7 @@ export default function LessonDetailsPage() {
           {/* Lesson Title and Status */}
           <div className="mb-6">
             <div className="flex items-start justify-between">
-              <h1 className="text-2xl sm:text-3xl font-bold text-purple-700">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#6A0DAD]">
                 {lesson.service_name}
               </h1>
               {isCompleted && (
@@ -235,7 +235,7 @@ export default function LessonDetailsPage() {
             <div className="flex flex-wrap gap-3">
               <Button
                 onClick={() => router.push(`/instructors/${lesson.instructor_id}`)}
-                className="bg-purple-700 hover:bg-purple-800 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
+                className="bg-[#6A0DAD] hover:bg-[#6A0DAD] text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
               >
                 Book Again
               </Button>
@@ -246,7 +246,7 @@ export default function LessonDetailsPage() {
               ) : (
                 <Button
                   onClick={() => router.push(`/student/review/${lesson.id}`)}
-                  className="bg-white text-purple-700 border-2 border-purple-700 hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                  className="bg-white text-[#6A0DAD] border-2 border-[#6A0DAD] hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
                 >
                   Review & tip
                 </Button>
@@ -264,7 +264,7 @@ export default function LessonDetailsPage() {
             <div className="flex flex-wrap gap-3">
               <Button
                 onClick={() => router.push(`/instructors/${lesson.instructor_id}`)}
-                className="bg-purple-700 hover:bg-purple-800 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
+                className="bg-[#6A0DAD] hover:bg-[#6A0DAD] text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
               >
                 Book Again
               </Button>
@@ -295,7 +295,7 @@ export default function LessonDetailsPage() {
                   {isUpcoming && lesson.meeting_location.toLowerCase() !== 'online' && (
                     <Button
                       variant="link"
-                      className="px-0 h-auto text-purple-700 hover:text-purple-800"
+                      className="px-0 h-auto text-[#6A0DAD] hover:text-[#6A0DAD]"
                       onClick={() => logger.info('View map clicked')}
                     >
                       <MapPin className="h-4 w-4 mr-1" />
@@ -333,7 +333,7 @@ export default function LessonDetailsPage() {
                     disabled={!canReschedule}
                     className={`flex-1 sm:flex-initial rounded-lg py-2.5 px-6 text-sm font-medium ${
                       canReschedule
-                        ? 'bg-purple-700 hover:bg-purple-800 text-white border-transparent'
+                        ? 'bg-[#6A0DAD] hover:bg-[#6A0DAD] text-white border-transparent'
                         : 'bg-gray-200 text-gray-400 cursor-not-allowed border-transparent'
                     }`}
                   >
@@ -342,7 +342,7 @@ export default function LessonDetailsPage() {
                   <Button
                     onClick={() => setShowCancelModal(true)}
                     variant="outline"
-                    className="flex-1 sm:flex-initial bg-white text-purple-700 border-2 border-purple-700 hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                    className="flex-1 sm:flex-initial bg-white text-[#6A0DAD] border-2 border-[#6A0DAD] hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
                   >
                     Cancel lesson
                   </Button>
@@ -446,7 +446,7 @@ function LessonDetailsLoading() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <div className="animate-pulse">

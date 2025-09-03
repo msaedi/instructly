@@ -153,7 +153,7 @@ export default function Calendar({
                 ${
                   isAvailable && !isPast
                     ? isSelected
-                      ? 'cursor-pointer bg-purple-700 hover:bg-purple-800 text-white'
+                      ? 'cursor-pointer bg-[#6A0DAD] hover:bg-[#6A0DAD] text-white'
                       : 'cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/20'
                     : 'cursor-not-allowed'
                 }

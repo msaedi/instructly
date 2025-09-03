@@ -267,7 +267,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
         {!addingCard && (
           <Button
             onClick={() => setAddingCard(true)}
-            className="flex items-center space-x-2 bg-purple-700 hover:bg-purple-800 text-white"
+            className="flex items-center space-x-2 bg-[#6A0DAD] hover:bg-[#6A0DAD] text-white"
           >
             <Plus className="h-4 w-4" />
             <span>Add Payment Method</span>

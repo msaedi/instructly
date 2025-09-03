@@ -202,7 +202,7 @@ export default function InstructorCard({
                 e.preventDefault();
                 onViewProfile?.();
               }}
-              className={`text-purple-700 hover:text-purple-800 ${compact ? 'text-sm' : 'text-lg'} font-medium leading-tight cursor-pointer`}
+              className={`text-[#6A0DAD] hover:text-[#6A0DAD] ${compact ? 'text-sm' : 'text-lg'} font-medium leading-tight cursor-pointer`}
               data-testid="instructor-link"
             >
               <div>View Profile</div>
@@ -218,11 +218,11 @@ export default function InstructorCard({
             <div className="flex-1">
               {/* Name with verification badge */}
               <div className="flex items-center">
-                <h2 className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-purple-700`} data-testid="instructor-name">
+                <h2 className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-[#6A0DAD]`} data-testid="instructor-name">
                   {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
                 </h2>
                 {instructor.verified && (
-                  <CheckCircle className={`${compact ? 'h-5 w-5' : 'h-7 w-7'} text-purple-700 ml-2`} />
+                  <CheckCircle className={`${compact ? 'h-5 w-5' : 'h-7 w-7'} text-[#6A0DAD] ml-2`} />
                 )}
               </div>
 
@@ -272,7 +272,7 @@ export default function InstructorCard({
 
             {/* Price in upper right */}
             <div className="flex items-center gap-3">
-              <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-purple-700`} data-testid="instructor-price">
+              <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-[#6A0DAD]`} data-testid="instructor-price">
                 ${instructor.services[0]?.hourly_rate || 0}/hr
               </p>
 
@@ -302,7 +302,7 @@ export default function InstructorCard({
             {getBio().length > 400 && (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="text-purple-700 hover:text-purple-800 text-sm font-medium mt-1 cursor-pointer"
+                className="text-[#6A0DAD] hover:text-[#6A0DAD] text-sm font-medium mt-1 cursor-pointer"
               >
                 {isExpanded ? 'Show less' : 'Read more'}
               </button>
@@ -324,7 +324,7 @@ export default function InstructorCard({
                         name={`duration-${instructor.user_id}`}
                         value={duration}
                         defaultChecked={index === 0}
-                        className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500`}
+                        className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-[#6A0DAD] accent-purple-700 border-gray-300 focus:ring-[#6A0DAD]`}
                       />
                       <span className={`ml-1 ${compact ? 'text-xs' : 'text-sm'} text-gray-700`}>{duration} min (${price})</span>
                     </label>
@@ -367,7 +367,7 @@ export default function InstructorCard({
               disabled={!nextAvailableSlot}
               className={`flex-1 text-center ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium transition-colors ${
                 nextAvailableSlot
-                  ? 'bg-purple-700 text-white hover:bg-purple-800 cursor-pointer'
+                  ? 'bg-[#6A0DAD] text-white hover:bg-[#6A0DAD] cursor-pointer'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >
@@ -381,7 +381,7 @@ export default function InstructorCard({
                 e.preventDefault();
                 onBookNow?.(e);
               }}
-              className={`flex-1 text-center bg-white text-purple-700 ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors cursor-pointer`}
+              className={`flex-1 text-center bg-white text-[#6A0DAD] ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium border-2 border-[#6A0DAD] hover:bg-purple-50 transition-colors cursor-pointer`}
             >
               More options
             </button>

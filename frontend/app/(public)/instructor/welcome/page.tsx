@@ -67,7 +67,7 @@ function WelcomeInner() {
           <div className="mt-8 flex justify-center">
             <Link
               href={signupHref}
-              className="px-6 py-2 rounded-md text-white bg-purple-700 hover:bg-purple-800"
+              className="px-6 py-2 rounded-md text-white bg-[#6A0DAD] hover:bg-[#6A0DAD]"
             >
               Become a Founding Instructor
             </Link>

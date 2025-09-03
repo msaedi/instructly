@@ -206,7 +206,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link className="inline-block" href="/">
-              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <div className="w-9 h-9 bg-gray-200 rounded-full animate-pulse"></div>
@@ -235,7 +235,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link className="inline-block" href="/">
-              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -259,7 +259,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -273,7 +273,7 @@ export default function BookingConfirmationPage() {
             </h2>
             <button
               onClick={() => router.push('/student/lessons')}
-              className="text-purple-700 hover:text-purple-800 hover:underline"
+              className="text-[#6A0DAD] hover:text-[#6A0DAD] hover:underline"
             >
               Back to My Lessons
             </button>
@@ -291,7 +291,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -328,14 +328,14 @@ export default function BookingConfirmationPage() {
               <div className="space-y-3">
                 <button
                   onClick={() => router.push('/student/lessons')}
-                  className="w-full bg-purple-700 text-white py-3 px-6 rounded-lg font-medium hover:bg-purple-800 transition-colors"
+                  className="w-full bg-[#6A0DAD] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#6A0DAD] transition-colors"
                 >
                   View My Lessons
                 </button>
 
                 <button
                   onClick={() => router.push(bookingData?.instructorId ? `/instructors/${bookingData.instructorId}` : '/student/lessons')}
-                  className="w-full bg-white text-purple-700 py-3 px-6 rounded-lg font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors"
+                  className="w-full bg-white text-[#6A0DAD] py-3 px-6 rounded-lg font-medium border-2 border-[#6A0DAD] hover:bg-purple-50 transition-colors"
                 >
                   Book Another Lesson
                 </button>
@@ -357,7 +357,7 @@ export default function BookingConfirmationPage() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <UserProfileDropdown />

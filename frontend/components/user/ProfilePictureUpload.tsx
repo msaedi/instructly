@@ -123,12 +123,12 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
           onClick={onPick}
           disabled={isUploading}
           aria-label={ariaLabel || 'Change profile picture'}
-          className="relative cursor-pointer disabled:cursor-not-allowed"
+          className="relative cursor-pointer disabled:cursor-not-allowed no-hover-effects group"
           title={ariaLabel || 'Change profile picture'}
           style={{ display: 'inline-block' }}
         >
           {/* underlying trigger */}
-          <span className="block">{trigger}</span>
+          <span className="block transition-transform group-hover:scale-105">{trigger}</span>
           {/* optimistic preview overlay */}
           {previewUrl && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -147,9 +147,9 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
         </button>
       ) : (
         // Default camera-only trigger
-        <button type="button" onClick={onPick} disabled={isUploading} title="Choose Image" className="cursor-pointer disabled:cursor-not-allowed">
+        <button type="button" onClick={onPick} disabled={isUploading} title="Choose Image" className="cursor-pointer disabled:cursor-not-allowed no-hover-effects group">
           <div
-            className="rounded-full flex items-center justify-center"
+            className="rounded-full flex items-center justify-center transition-transform group-hover:scale-105 group-hover:shadow-sm"
             style={{ width: size, height: size, backgroundColor: '#ffffff', border: '2px solid #d1d5db' }}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width={Math.max(24, Math.floor(size * 0.4))} height={Math.max(24, Math.floor(size * 0.4))} viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

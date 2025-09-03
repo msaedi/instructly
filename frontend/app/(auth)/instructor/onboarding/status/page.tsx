@@ -197,7 +197,7 @@ export default function OnboardingStatusPage() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered (no walking figure on status page) */}
@@ -208,7 +208,7 @@ export default function OnboardingStatusPage() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/profile'}
-                  className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer"
+                  className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-[#6A0DAD] transition-colors cursor-pointer"
                   title="Step 1: Account Created - Click to edit profile"
                 >
                   <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -228,7 +228,7 @@ export default function OnboardingStatusPage() {
                   className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                     skillsSkipped
                       ? 'bg-purple-300 hover:bg-purple-400'
-                      : 'bg-purple-600 hover:bg-purple-700'
+                      : 'bg-purple-600 hover:bg-[#6A0DAD]'
                   }`}
                   title={skillsSkipped ? "Step 2: Skills & Pricing (Skipped)" : "Step 2: Skills & Pricing"}
                 >
@@ -258,7 +258,7 @@ export default function OnboardingStatusPage() {
                   className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                     verificationSkipped
                       ? 'bg-purple-300 hover:bg-purple-400'
-                      : 'bg-purple-600 hover:bg-purple-700'
+                      : 'bg-purple-600 hover:bg-[#6A0DAD]'
                   }`}
                   title={verificationSkipped ? "Step 3: Verification (Skipped)" : "Step 3: Verification"}
                 >
@@ -286,7 +286,7 @@ export default function OnboardingStatusPage() {
                 <button
                   onClick={() => {/* Already on this page */}}
                   className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                    canGoLive ? 'bg-purple-600 hover:bg-purple-700' : (pendingRequired.length === 0 ? 'bg-purple-600' : 'bg-purple-300 hover:bg-purple-400')
+                    canGoLive ? 'bg-purple-600 hover:bg-[#6A0DAD]' : (pendingRequired.length === 0 ? 'bg-purple-600' : 'bg-purple-300 hover:bg-purple-400')
                   }`}
                   title="Step 4: Payment Setup / Status"
                 >
@@ -320,9 +320,9 @@ export default function OnboardingStatusPage() {
 
         <div className="mt-6 space-y-4">
           {/* 1) Skills & pricing */}
-          <Row label="Skills & pricing" ok={Boolean(profile && ((profile.skills_configured) || (Array.isArray(profile.services) && profile.services.length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-purple-700 hover:underline">Edit</Link>} />
+          <Row label="Skills & pricing" ok={Boolean(profile && ((profile.skills_configured) || (Array.isArray(profile.services) && profile.services.length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-[#6A0DAD] hover:underline">Edit</Link>} />
           {/* 2) ID verification */}
-          <Row label="ID verification" ok={Boolean(profile?.identity_verified_at)} action={profile?.identity_verified_at ? <span className="text-gray-400">Completed</span> : <button onClick={startIdentity} className="text-purple-700 hover:underline">Start</button>} />
+          <Row label="ID verification" ok={Boolean(profile?.identity_verified_at)} action={profile?.identity_verified_at ? <span className="text-gray-400">Completed</span> : <button onClick={startIdentity} className="text-[#6A0DAD] hover:underline">Start</button>} />
           {/* 3) Background check (optional) */}
           <Row
             label="Background check (optional)"
@@ -339,7 +339,7 @@ export default function OnboardingStatusPage() {
                 />
                 <button
                   onClick={() => backgroundInputRef.current?.click()}
-                  className="text-purple-700 hover:underline disabled:text-gray-400"
+                  className="text-[#6A0DAD] hover:underline disabled:text-gray-400"
                   disabled={bgUploading}
                 >
                   {bgUploading ? 'Uploading…' : (profile?.background_check_uploaded_at ? 'Replace' : 'Upload')}
@@ -348,7 +348,7 @@ export default function OnboardingStatusPage() {
             }
           />
           {/* 4) Stripe Connect */}
-          <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={<button onClick={enrollStripeConnect} className="text-purple-700 hover:underline disabled:text-gray-400" disabled={!!connectStatus?.onboarding_completed || connectLoading}>{connectStatus?.onboarding_completed ? 'Completed' : (connectLoading ? 'Opening…' : 'Enroll')}</button>} />
+          <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={<button onClick={enrollStripeConnect} className="text-[#6A0DAD] hover:underline disabled:text-gray-400" disabled={!!connectStatus?.onboarding_completed || connectLoading}>{connectStatus?.onboarding_completed ? 'Completed' : (connectLoading ? 'Opening…' : 'Enroll')}</button>} />
         </div>
 
         <div className="mt-8">

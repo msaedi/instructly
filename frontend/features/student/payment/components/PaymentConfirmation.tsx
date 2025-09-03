@@ -200,7 +200,7 @@ export default function PaymentConfirmation({
                         onChangePaymentMethod();
                       }
                     }}
-                    className="text-sm text-purple-700 hover:text-purple-800"
+                    className="text-sm text-[#6A0DAD] hover:text-[#6A0DAD]"
                   >
                     Change
                   </button>
@@ -367,7 +367,7 @@ export default function PaymentConfirmation({
               <input
                 type="checkbox"
                 id="save-card"
-                className="w-4 h-4 text-purple-700 border-gray-300 rounded focus:ring-purple-500"
+                className="w-4 h-4 text-[#6A0DAD] border-gray-300 rounded focus:ring-[#6A0DAD]"
               />
               <label htmlFor="save-card" className="ml-2 text-sm text-gray-700">
                 Save card for future payments
@@ -387,7 +387,7 @@ export default function PaymentConfirmation({
                   style={{ outline: 'none' }}
                 />
                 <button
-                  className="px-4 py-2.5 bg-purple-700 text-white rounded-lg text-sm font-medium hover:bg-purple-800 transition-colors"
+                  className="px-4 py-2.5 bg-[#6A0DAD] text-white rounded-lg text-sm font-medium hover:bg-[#6A0DAD] transition-colors"
                 >
                   Apply
                 </button>
@@ -499,7 +499,7 @@ export default function PaymentConfirmation({
                   <span className="text-sm font-medium">{booking.location}</span>
                   <p className="text-xs text-gray-500 mt-1">Saved address</p>
                 </div>
-                <button className="text-sm text-purple-700 hover:text-purple-800">Change</button>
+                <button className="text-sm text-[#6A0DAD] hover:text-[#6A0DAD]">Change</button>
               </div>
             </div>
           ) : (
@@ -510,7 +510,7 @@ export default function PaymentConfirmation({
               id="online-lesson"
               checked={isOnlineLesson}
               onChange={(e) => setIsOnlineLesson(e.target.checked)}
-              className="w-4 h-4 text-purple-700 border-gray-300 rounded focus:ring-purple-500"
+              className="w-4 h-4 text-[#6A0DAD] border-gray-300 rounded focus:ring-[#6A0DAD]"
             />
             <label htmlFor="online-lesson" className="ml-2 text-sm font-medium text-gray-700">
               Online
@@ -589,7 +589,7 @@ export default function PaymentConfirmation({
             className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
               hasConflict || isCheckingConflict
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-purple-700 text-white hover:bg-purple-800'
+                : 'bg-[#6A0DAD] text-white hover:bg-[#6A0DAD]'
             }`}
           >
             {isCheckingConflict ? 'Checking availability...' : hasConflict ? 'You have a conflict at this time' : 'Book now!'}
@@ -656,7 +656,7 @@ export default function PaymentConfirmation({
                 // Open the calendar modal to reschedule
                 setIsModalOpen(true);
               }}
-              className="bg-white text-purple-700 py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors"
+              className="bg-white text-[#6A0DAD] py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-[#6A0DAD] hover:bg-purple-50 transition-colors"
             >
               Edit lesson
             </button>

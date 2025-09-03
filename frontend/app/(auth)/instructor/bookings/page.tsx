@@ -8,7 +8,7 @@ export default function InstructorBookingsPage() {
       <h1 className="text-2xl font-semibold text-[#6A0DAD]">Bookings</h1>
       <p className="text-gray-600 mt-1">Upcoming and past bookings will be displayed here.</p>
       <div className="mt-6">
-        <Link href="/instructor/dashboard" className="text-purple-700 hover:underline">Back to dashboard</Link>
+        <Link href="/instructor/dashboard" className="text-[#6A0DAD] hover:underline">Back to dashboard</Link>
       </div>
     </div>
   );

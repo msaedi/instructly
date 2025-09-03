@@ -134,7 +134,7 @@ export default function TimeDropdown({
                 hover:bg-gray-50 active:bg-gray-100
                 ${
                   selectedTime === time
-                    ? 'bg-purple-50 text-purple-700 font-medium'
+                    ? 'bg-purple-50 text-[#6A0DAD] font-medium'
                     : 'text-gray-900'
                 }
                 ${index !== timeSlots.length - 1 ? 'border-b border-gray-100' : ''}
@@ -147,7 +147,7 @@ export default function TimeDropdown({
               <div className="flex items-center justify-between">
                 <span>{time}</span>
                 {selectedTime === time && (
-                  <svg className="w-5 h-5 text-purple-700" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-5 h-5 text-[#6A0DAD]" fill="currentColor" viewBox="0 0 20 20">
                     <path
                       fillRule="evenodd"
                       d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -186,7 +186,7 @@ export default function TimeDropdown({
               : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer'
           }
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
-          ${isOpen ? 'ring-2 ring-purple-700' : ''}
+          ${isOpen ? 'ring-2 ring-[#6A0DAD]' : ''}
         `}
         style={{
           fontSize: '16px',

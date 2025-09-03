@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown } from 'lucide-react';
+import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 
 type Profile = {
   first_name: string;
@@ -53,6 +54,12 @@ export default function InstructorProfileSettingsPage() {
   const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   // Removed selected neighborhoods pills panel state
   const boroughAccordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [preferredAddress, setPreferredAddress] = useState<string>('');
+  const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
+  const [neutralLocations, setNeutralLocations] = useState<string>('');
+  const [neutralPlaces, setNeutralPlaces] = useState<string[]>([]);
+  const [preferredLocationTitles, setPreferredLocationTitles] = useState<Record<string, string>>({});
+  const [bioTouched, setBioTouched] = useState<boolean>(false);
 
   useEffect(() => {
     const load = async () => {
@@ -182,8 +189,9 @@ export default function InstructorProfileSettingsPage() {
   }, [success]);
 
   const canSave = useMemo(() => {
-    return profile.bio.trim().length >= 1;
+    return profile.bio.trim().length >= 400;
   }, [profile]);
+  const bioTooShort = profile.bio.trim().length < 400;
 
 
   // Removed selected neighborhoods panel prefetch effect
@@ -373,14 +381,13 @@ export default function InstructorProfileSettingsPage() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
 
-          {/* Progress Bar - 4 Steps - Absolutely centered */
-          }
+          {/* Progress Bar - 4 Steps - Absolutely centered */}
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
             {/* Walking Stick Figure - profile page variant */}
-            <div className="absolute inst-anim-walk-profile" style={{ top: '-12px', left: '-28px' }}>
+            <div className="absolute inst-anim-walk-profile" style={{ top: '-12px', left: '4px' }}>
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
                 {/* Head */}
                 <circle cx="8" cy="4" r="2.5" stroke="#6A0DAD" strokeWidth="1.2" fill="none" />
@@ -461,16 +468,24 @@ export default function InstructorProfileSettingsPage() {
         )}
         {/* Page Header with subtle purple accent - matching verification page */}
         <div className="bg-white rounded-lg p-6 mb-8 border border-gray-200">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <svg className="w-6 h-6 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-800">Set up your profile</h1>
+                <p className="text-gray-600">Complete your instructor profile to start teaching</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800">Set up your profile</h1>
-              <p className="text-gray-600">Complete your instructor profile to start teaching</p>
-            </div>
+            <ProfilePictureUpload
+              ariaLabel="Upload profile photo"
+              trigger={
+                <div className="flex flex-col items-center">
+                  <div className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
+                    <Camera className="w-6 h-6 text-[#6A0DAD]" />
+                  </div>
+                  <span className="mt-1 text-[10px] text-[#6A0DAD]">Upload photo</span>
+                </div>
+              }
+            />
           </div>
         </div>
 
@@ -484,13 +499,17 @@ export default function InstructorProfileSettingsPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <div className="flex items-center gap-2 text-lg font-medium text-gray-900"><UserIcon className="w-5 h-5 text-purple-700" />Personal Information</div>
+                <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <UserIcon className="w-6 h-6 text-[#6A0DAD]" />
+                  </div>
+                  <span>Personal Information</span>
+                </div>
               </div>
             </div>
-            <div className="rounded-lg border border-gray-200 p-5 hover:shadow-sm transition-shadow">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="p-2">
-                  <label htmlFor="first_name" className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">First Name</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="py-2">
+                  <label htmlFor="first_name" className="text-gray-600 mb-2 block">First Name</label>
                   <input
                     id="first_name"
                     type="text"
@@ -500,8 +519,8 @@ export default function InstructorProfileSettingsPage() {
                     onChange={(e) => setProfile((p) => ({ ...p, first_name: e.target.value }))}
                   />
                 </div>
-                <div className="p-2">
-                  <label htmlFor="last_name" className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Last Name</label>
+                <div className="py-2">
+                  <label htmlFor="last_name" className="text-gray-600 mb-2 block">Last Name</label>
                   <input
                     id="last_name"
                     type="text"
@@ -511,18 +530,27 @@ export default function InstructorProfileSettingsPage() {
                     onChange={(e) => setProfile((p) => ({ ...p, last_name: e.target.value }))}
                   />
                 </div>
-                <div className="p-2">
-                  <label htmlFor="postal_code" className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">ZIP Code</label>
+                <div className="py-2">
+                  <label htmlFor="postal_code" className="text-gray-600 mb-2 block">ZIP Code</label>
                   <input
                     id="postal_code"
                     type="text"
+                    inputMode="numeric"
+                    maxLength={5}
+                    pattern="\\d{5}"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
                     placeholder="10001"
                     value={profile.postal_code}
-                    onChange={(e) => setProfile((p) => ({ ...p, postal_code: e.target.value }))}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 5);
+                      setProfile((p) => ({ ...p, postal_code: digits }));
+                    }}
+                    onKeyDown={(e) => {
+                      const allowed = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End'];
+                      if (!/[0-9]/.test(e.key) && !allowed.includes(e.key)) e.preventDefault();
+                    }}
                   />
                 </div>
-              </div>
             </div>
         </div>
 
@@ -530,19 +558,31 @@ export default function InstructorProfileSettingsPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="flex items-center gap-2 text-lg font-medium text-gray-900"><BookOpen className="w-5 h-5 text-purple-700" />Professional Details</div>
+              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <BookOpen className="w-6 h-6 text-[#6A0DAD]" />
+                </div>
+                <span>Profile Details</span>
+              </div>
             </div>
           </div>
-          <div className="rounded-lg border border-gray-200 p-5 hover:shadow-sm transition-shadow">
-            <div className="p-2">
-              <p className="mb-2 text-sm text-gray-600">Share your experience and teaching preferences</p>
+          <div className="py-2">
+            <p className="text-gray-600 mt-1 mb-2">Introduce Yourself</p>
+            <div className="relative">
               <textarea
                 rows={4}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                placeholder="Tell students about your experience, style, and approach"
+                className={`w-full rounded-md border px-3 py-2 pr-16 pb-6 text-sm focus:outline-none ${bioTouched && bioTooShort ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-purple-500'}`}
+                placeholder="Highlight your experience, favorite teaching methods, and the type of students you enjoy working with."
                 value={profile.bio}
                 onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))}
+                onBlur={() => setBioTouched(true)}
               />
+              <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-gray-500">
+                Minimum 400 characters
+              </div>
+              {bioTouched && bioTooShort && (
+                <div className="mt-1 text-xs text-red-600">Please enter at least 400 characters.</div>
+              )}
             </div>
           </div>
         </div>
@@ -551,25 +591,29 @@ export default function InstructorProfileSettingsPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="flex items-center gap-2 text-lg font-medium text-gray-900"><MapPin className="w-5 h-5 text-purple-700" />Service Areas</div>
+              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <MapPin className="w-6 h-6 text-[#6A0DAD]" />
+                </div>
+                <span>Service Areas</span>
+              </div>
             </div>
           </div>
-          <div className="rounded-lg border border-gray-200 p-5 hover:shadow-sm transition-shadow">
-            <p className="mb-3 text-sm text-gray-600">Select the neighborhoods where you teach</p>
-            {/* Global neighborhood search (no card wrapper) */}
+          <p className="text-gray-600 mt-1 mb-2">Select the neighborhoods where you teach</p>
+          {/* Global neighborhood search (no card wrapper) */}
+          <div className="mb-3">
+            <input
+              type="text"
+              value={globalNeighborhoodFilter}
+              onChange={(e) => setGlobalNeighborhoodFilter(e.target.value)}
+              placeholder="Search neighborhoods..."
+              className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            />
+          </div>
+          {globalNeighborhoodFilter.trim().length > 0 && (
             <div className="mb-3">
-              <input
-                type="text"
-                value={globalNeighborhoodFilter}
-                onChange={(e) => setGlobalNeighborhoodFilter(e.target.value)}
-                placeholder="Search neighborhoods..."
-                className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
-              />
-            </div>
-            {globalNeighborhoodFilter.trim().length > 0 && (
-              <div className="rounded-lg border border-gray-200 bg-white p-3 mb-3">
-                <div className="text-sm text-gray-700 mb-2">Results</div>
-                <div className="flex flex-wrap gap-2">
+              <div className="text-sm text-gray-700 mb-2">Results</div>
+              <div className="flex flex-wrap gap-2">
                   {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
                     .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()))
                     .map((n) => {
@@ -582,8 +626,8 @@ export default function InstructorProfileSettingsPage() {
                           type="button"
                           onClick={() => toggleNeighborhood(nid)}
                           aria-pressed={checked}
-                          className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
-                            checked ? 'bg-[#6A0DAD] text-white border border-[#6A0DAD]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                            checked ? 'bg-[#6A0DAD] text-white border border-[#6A0DAD] hover:bg-[#6A0DAD]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
                           <span className="truncate text-left">{n.name || nid}</span>
@@ -597,11 +641,31 @@ export default function InstructorProfileSettingsPage() {
                     .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase())).length === 0 && (
                       <div className="text-sm text-gray-500">No matches found</div>
                   )}
-                </div>
               </div>
-            )}
-            {isNYC ? (
-            <div className="space-y-3">
+            </div>
+          )}
+          {selectedNeighborhoods.size > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {Array.from(selectedNeighborhoods).map((nid) => {
+                const name = toTitle(idToItem[nid]?.name || String(nid));
+                return (
+                  <span key={`sel-${nid}`} className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0">
+                    <span className="truncate max-w-[14rem]" title={name}>{name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${name}`}
+                      className="ml-auto text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-[#6A0DAD]/10 no-hover-shadow shrink-0"
+                      onClick={() => toggleNeighborhood(nid)}
+                    >
+                      &times;
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          {isNYC ? (
+          <div className="space-y-3">
               {/* Removed top borough pills row */}
               {/* Per-borough accordions like screenshot */}
               <div className="mt-3 space-y-3">
@@ -609,9 +673,9 @@ export default function InstructorProfileSettingsPage() {
                   const isOpen = openBoroughsMain.has(borough);
                   const list = boroughNeighborhoods[borough] || [];
                   return (
-                    <div key={`accordion-${borough}`} ref={(el) => { boroughAccordionRefs.current[borough] = el; }} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                    <div key={`accordion-${borough}`} ref={(el) => { boroughAccordionRefs.current[borough] = el; }} className="rounded-xl bg-white shadow-sm overflow-hidden">
                       <div
-                        className="flex items-center justify-between cursor-pointer"
+                        className="flex items-center justify-between cursor-pointer w-full pl-4 pr-3 md:pl-5 py-2 hover:bg-gray-50 transition-all"
                         onClick={async () => { await toggleMainBoroughOpen(borough); }}
                         aria-expanded={isOpen}
                         role="button"
@@ -625,7 +689,7 @@ export default function InstructorProfileSettingsPage() {
                         <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
-                            className="text-sm px-3 py-1 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200"
+                            className="text-sm px-3 py-1 rounded-md bg-purple-100 text-[#6A0DAD] hover:bg-purple-200"
                             onClick={async (e) => {
                               e.stopPropagation();
                               const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -648,7 +712,7 @@ export default function InstructorProfileSettingsPage() {
                         </div>
                       </div>
                       {isOpen && (
-                        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
+                        <div className="px-3 pb-3 mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
                           {(list || []).map((n) => {
                             const nid = n.neighborhood_id || (n as Record<string, unknown>).id as string;
                             if (!nid) return null;
@@ -660,8 +724,8 @@ export default function InstructorProfileSettingsPage() {
                                 type="button"
                                 onClick={() => toggleNeighborhood(nid)}
                                 aria-pressed={checked}
-                                className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
-                                  checked ? 'bg-[#6A0DAD] text-white border border-[#6A0DAD]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                className={`inline-flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                                  checked ? 'bg-[#6A0DAD] text-white border border-[#6A0DAD] hover:bg-[#6A0DAD]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
                               >
                                 <span className="truncate text-left">{label}</span>
@@ -686,6 +750,114 @@ export default function InstructorProfileSettingsPage() {
               Your city is not yet supported for granular neighborhoods. We’ll add it soon.
             </div>
           )}
+          {/* Preferred Teaching Location */}
+          <div className="mt-6">
+            <p className="text-gray-600 mt-1 mb-2">Preferred Teaching Location</p>
+            <p className="text-xs text-gray-600 mb-2">Add a studio, gym, or home address if you teach from a fixed location.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={preferredAddress}
+                    onChange={(e) => setPreferredAddress(e.target.value)}
+                    placeholder="Type address..."
+                    className="w-full h-10 rounded-md border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:outline-none focus:border-purple-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = preferredAddress.trim();
+                      if (!v) return;
+                      if (preferredLocations.length >= 2) return;
+                      if (!preferredLocations.includes(v)) setPreferredLocations((prev) => [...prev, v]);
+                      setPreferredAddress('');
+                    }}
+                    aria-label="Add address"
+                    disabled={preferredLocations.length >= 2}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-[#6A0DAD]/10 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                  >
+                    <span className="text-base leading-none">+</span>
+                  </button>
+                </div>
+              </div>
+              <div className="min-h-10 flex flex-nowrap items-end gap-4 w-full">
+                {preferredLocations.map((loc) => (
+                  <div key={loc} className="relative w-1/2 min-w-0">
+                    <input
+                      type="text"
+                      placeholder="..."
+                      value={preferredLocationTitles[loc] || ''}
+                      onChange={(e) => setPreferredLocationTitles((prev) => ({ ...prev, [loc]: e.target.value }))}
+                      className="absolute -top-5 left-1 text-xs text-[#6A0DAD] bg-gray-100 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-transparent focus-visible:border-transparent cursor-text"
+                      style={{ outline: 'none', outlineOffset: 0, boxShadow: 'none' }}
+                    />
+                    <span className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0">
+                      <span className="truncate min-w-0" title={loc}>{loc}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${loc}`}
+                        className="ml-auto text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-[#6A0DAD]/10 no-hover-shadow shrink-0"
+                        onClick={() => setPreferredLocations((prev) => prev.filter((x) => x !== loc))}
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Preferred Public Spaces */}
+          <div className="mt-6">
+            <p className="text-gray-600 mt-1 mb-2">Preferred Public Spaces</p>
+            <p className="text-xs text-gray-600 mb-2">Suggest public spaces where you’re comfortable teaching<br />(e.g., library, park, coffee shop).</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={neutralLocations}
+                    onChange={(e) => setNeutralLocations(e.target.value)}
+                    placeholder="Type location..."
+                    className="w-full h-10 rounded-md border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:outline-none focus:border-purple-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = neutralLocations.trim();
+                      if (!v) return;
+                      if (neutralPlaces.length >= 2) return;
+                      if (!neutralPlaces.includes(v)) setNeutralPlaces((prev) => [...prev, v]);
+                      setNeutralLocations('');
+                    }}
+                    aria-label="Add public space"
+                    disabled={neutralPlaces.length >= 2}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-[#6A0DAD]/10 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                  >
+                    <span className="text-base leading-none">+</span>
+                  </button>
+                </div>
+              </div>
+              <div className="min-h-10 flex flex-nowrap items-end gap-4 w-full">
+                {neutralPlaces.map((place) => (
+                  <div key={place} className="relative w-1/2 min-w-0">
+                    <span className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0">
+                      <span className="truncate min-w-0" title={place}>{place}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${place}`}
+                        className="ml-auto text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-[#6A0DAD]/10 no-hover-shadow shrink-0"
+                        onClick={() => setNeutralPlaces((prev) => prev.filter((x) => x !== place))}
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -693,73 +865,88 @@ export default function InstructorProfileSettingsPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="flex items-center gap-2 text-lg font-medium text-gray-900"><SettingsIcon className="w-5 h-5 text-purple-700" />Settings</div>
+              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <SettingsIcon className="w-6 h-6 text-[#6A0DAD]" />
+                </div>
+                <span>Booking Preferences</span>
+              </div>
             </div>
           </div>
-          <div className="rounded-lg border border-gray-200 p-5 hover:shadow-sm transition-shadow">
-            <p className="mb-3 text-sm text-gray-600">Control availability and booking preferences</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
+          <p className="text-gray-600 mt-1 mb-3">Control availability and booking preferences</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white rounded-lg">
                 <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Years of Experience</label>
                 <input
                   type="number"
-                  min={0}
-                  max={50}
+                  min={1}
+                  max={70}
+                  step={1}
+                  inputMode="numeric"
                   value={profile.years_experience}
-                  onChange={(e) => setProfile((p) => ({ ...p, years_experience: Number(e.target.value || 0) }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                  onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
+                  onChange={(e) => {
+                    const n = Math.max(1, Math.min(70, parseInt(e.target.value || '0', 10)));
+                    setProfile((p) => ({ ...p, years_experience: isNaN(n) ? 1 : n }));
+                  }}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 focus:border-purple-500 no-spinner"
                 />
               </div>
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
+              <div className="bg-white rounded-lg">
                 <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Advance Notice (hours)</label>
                 <input
                   type="number"
-                  min={0}
-                  max={168}
+                  min={1}
+                  max={24}
+                  step={1}
+                  inputMode="numeric"
                   value={profile.min_advance_booking_hours ?? 2}
-                  onChange={(e) => setProfile((p) => ({ ...p, min_advance_booking_hours: Number(e.target.value || 0) }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                  onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
+                  onChange={(e) => {
+                    const n = Math.max(1, Math.min(24, parseInt(e.target.value || '0', 10)));
+                    setProfile((p) => ({ ...p, min_advance_booking_hours: isNaN(n) ? 1 : n }));
+                  }}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 focus:border-purple-500 no-spinner"
                 />
               </div>
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
+              <div className="bg-white rounded-lg">
                 <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Buffer Time (minutes)</label>
                 <input
                   type="number"
-                  min={0}
-                  max={60}
+                  min={1}
+                  max={300}
+                  step={1}
+                  inputMode="numeric"
                   value={profile.buffer_time_minutes ?? 0}
-                  onChange={(e) => setProfile((p) => ({ ...p, buffer_time_minutes: Number(e.target.value || 0) }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                  onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
+                  onChange={(e) => {
+                    const n = Math.max(1, Math.min(300, parseInt(e.target.value || '0', 10)));
+                    setProfile((p) => ({ ...p, buffer_time_minutes: isNaN(n) ? 1 : n }));
+                  }}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 focus:border-purple-500 no-spinner"
                 />
               </div>
-            </div>
           </div>
         </div>
 
-      </div>
-        {/* Sticky save bar */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur border-t border-gray-200">
-          <div className="mx-auto max-w-6xl px-8 lg:px-32 py-3 flex items-center justify-between">
-            <div className="text-sm" aria-live="polite">
-              {saving ? (
-                <span className="text-gray-600">Saving…</span>
-              ) : success ? (
-                <span className="text-green-700">Saved</span>
-              ) : error ? (
-                <span className="text-red-700">Save failed</span>
-              ) : (
-                <span className="text-gray-500">Make changes and save</span>
-              )}
-            </div>
-            <button
-              onClick={save}
-              disabled={!canSave || saving}
-              className="px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#5c0a9a] disabled:opacity-50 shadow-sm"
-            >
-              {saving ? 'Saving...' : 'Save & Continue'}
-            </button>
-          </div>
+        {/* Inline actions */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => { window.location.href = '/instructor/onboarding/skill-selection'; }}
+            className="w-40 px-5 py-2.5 rounded-lg text-[#6A0DAD] bg-white hover:bg-[#6A0DAD]/10 transition-colors focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 justify-center"
+          >
+            Skip for now
+          </button>
+          <button
+            onClick={save}
+            disabled={!canSave || saving}
+            className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#6A0DAD]/90 disabled:opacity-50 shadow-sm justify-center"
+          >
+            {saving ? 'Saving...' : 'Save & Continue'}
+          </button>
         </div>
+      </div>
         {/* Success toast */}
         {success && (
           <div className="fixed bottom-20 right-6 rounded-lg bg-green-600 text-white px-4 py-2 shadow-lg" role="alert" aria-live="polite">

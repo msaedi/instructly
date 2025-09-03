@@ -115,7 +115,7 @@ const AddCardFormInner: React.FC<{
         <button
           type="submit"
           disabled={!stripe || loading}
-          className="flex-1 p-2 bg-purple-700 text-white rounded text-sm hover:bg-purple-800 disabled:bg-gray-300"
+          className="flex-1 p-2 bg-[#6A0DAD] text-white rounded text-sm hover:bg-[#6A0DAD] disabled:bg-gray-300"
         >
           {loading ? 'Adding...' : 'Add Card'}
         </button>
@@ -189,7 +189,7 @@ export default function PaymentMethodSelection({
                   key={card.id}
                   className={`flex items-center p-3 bg-white border rounded-lg cursor-pointer transition-colors ${
                     selectedCardId === card.id
-                      ? 'border-purple-700'
+                      ? 'border-[#6A0DAD]'
                       : 'border-gray-200'
                   }`}
                 >
@@ -210,20 +210,20 @@ export default function PaymentMethodSelection({
                       <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">Default</span>
                     )}
                   </div>
-                  {selectedCardId === card.id && <Check className="text-purple-700" size={20} />}
+                  {selectedCardId === card.id && <Check className="text-[#6A0DAD]" size={20} />}
                 </label>
               ))}
 
               {!showNewCardForm ? (
                 <button
                   onClick={() => setShowNewCardForm(true)}
-                  className="w-full p-3 bg-white border border-dashed border-gray-300 rounded-lg hover:border-purple-700 transition-colors flex items-center justify-center text-sm"
+                  className="w-full p-3 bg-white border border-dashed border-gray-300 rounded-lg hover:border-[#6A0DAD] transition-colors flex items-center justify-center text-sm"
                 >
                   <Plus size={18} className="mr-2" />
                   Add New Card
                 </button>
               ) : (
-                <div className="p-3 bg-white border border-purple-700 rounded-lg">
+                <div className="p-3 bg-white border border-[#6A0DAD] rounded-lg">
                   <div className="flex justify-between items-center mb-3">
                     <h5 className="text-sm font-medium">Enter Card Details</h5>
                     <button
@@ -262,7 +262,7 @@ export default function PaymentMethodSelection({
           <div className="mt-6">
             <button
               onClick={handleContinue}
-              className="w-full py-2.5 px-4 bg-purple-700 text-white hover:bg-purple-800 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0"
+              className="w-full py-2.5 px-4 bg-[#6A0DAD] text-white hover:bg-[#6A0DAD] rounded-lg font-medium transition-colors focus:outline-none focus:ring-0"
             >
               {isInlineFlow ? 'Apply payment method' : 'Continue to Confirmation'}
             </button>

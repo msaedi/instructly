@@ -126,7 +126,7 @@ export function LessonCard({
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-2xl sm:text-3xl font-bold text-purple-700">
+              <h3 className="text-2xl sm:text-3xl font-bold text-[#6A0DAD]">
                 {lesson.service_name}
               </h3>
               {/* Show completed badge for completed lessons or past confirmed lessons */}
@@ -148,7 +148,7 @@ export function LessonCard({
               e.stopPropagation();
               onViewDetails();
             }}
-            className="text-sm text-purple-700 hover:text-purple-800 flex items-center gap-1 self-start sm:self-auto cursor-pointer font-medium"
+            className="text-sm text-[#6A0DAD] hover:text-[#6A0DAD] flex items-center gap-1 self-start sm:self-auto cursor-pointer font-medium"
           >
             See lesson details
             <ChevronRight className="h-4 w-4" />

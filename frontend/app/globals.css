@@ -23,15 +23,16 @@
 
 /* Variant for profile page: walk to Account Setup circle and jump, then return */
 @keyframes inst-walk-profile {
-  0% { transform: translateX(0) translateY(0); }
-  25% { transform: translateX(28px) translateY(0); }
-  35% { transform: translateX(28px) translateY(-6px); }
-  45% { transform: translateX(28px) translateY(-14px); }
-  55% { transform: translateX(28px) translateY(-6px); }
-  65% { transform: translateX(28px) translateY(0); }
-  100% { transform: translateX(0) translateY(0); }
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -12px, 0); }
 }
-.inst-anim-walk-profile { animation: inst-walk-profile 6s ease-in-out infinite; }
+.inst-anim-walk-profile { animation: inst-walk-profile 1.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite; will-change: transform; backface-visibility: hidden; }
+/* Disable limb swing in profile variant to avoid perceived jitter */
+.inst-anim-walk-profile .inst-anim-leftArm-fast,
+.inst-anim-walk-profile .inst-anim-rightArm-fast,
+.inst-anim-walk-profile .inst-anim-leftLeg-fast,
+.inst-anim-walk-profile .inst-anim-rightLeg-fast { animation: none !important; }
+.inst-anim-walk-profile svg { shape-rendering: geometricPrecision; }
 
 /* Faster limb swing for short-range profile animation */
 .inst-anim-leftLeg-fast { animation: inst-leftLeg 0.5s linear infinite; }
@@ -316,12 +317,12 @@ select {
 
 /* Scrollbar Styles (Webkit browsers) */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 2px;
+  height: 2px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--background-secondary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -331,6 +332,11 @@ select {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--foreground);
+}
+
+/* Thin scrollbars for Firefox */
+* {
+  scrollbar-width: thin;
 }
 
 /* Skip to Main Content Link (Accessibility) */
@@ -422,6 +428,91 @@ select {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+/* Global interactive conventions */
+/* Cursor: pointer for interactive controls, text for editable fields */
+button:not(:disabled),
+[role="button"],
+a {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  cursor: text;
+}
+
+/* Reusable utility for clickable surfaces (cards, rows) */
+.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  will-change: transform;
+}
+
+.clickable:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transform: translateZ(0) scale(1.02);
+}
+
+.clickable:active {
+  transform: scale(1.0);
+}
+
+/* Buttons: subtle lift + tint */
+button:not(:disabled):hover,
+[role="button"]:not(:disabled):hover {
+  background-color: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transform: translateZ(0) scale(1.02);
+}
+
+/* Disable hover effects utility for circular avatar triggers */
+.no-hover-effects:hover {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Ensure full-pill hover area for neighborhood chips */
+.chip-hover {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Disable only shadow/scale hover (keep background hovers intact) */
+.no-hover-shadow:hover {
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active {
+  transform: scale(1.0);
+}
+
+/* Links: subtle color shift without scaling to avoid layout shift */
+a:hover {
+  filter: brightness(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clickable,
+  button,
+  [role="button"],
+  a {
+    transition: color 0.2s ease-in-out;
+  }
+
+  .clickable:hover,
+  button:hover,
+  [role="button"]:hover {
+    transform: none;
+    box-shadow: none;
+  }
 }
 
 /* Container with Consistent Padding */
@@ -536,11 +627,12 @@ html {
 }
 
 /* Fix Autocomplete in Dark Mode */
+/* Brand autofill background override (light lavender) */
 .autofill-fix:-webkit-autofill,
 .autofill-fix:-webkit-autofill:hover,
 .autofill-fix:-webkit-autofill:focus,
 .autofill-fix:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px white inset !important;
+  -webkit-box-shadow: 0 0 0 1000px #F3E8FF inset !important; /* light lavender */
   -webkit-text-fill-color: #111827 !important;
   transition: background-color 5000s ease-in-out 0s;
 }

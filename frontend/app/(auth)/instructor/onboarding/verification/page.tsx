@@ -14,9 +14,19 @@ export default function Step4Verification() {
   const [uploading, setUploading] = useState(false);
   const [fileInfo, setFileInfo] = useState<{ name: string; size: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [skillsSkipped, setSkillsSkipped] = useState(false);
-  const [verificationComplete, setVerificationComplete] = useState(false);
-  const [verificationSkipped, setVerificationSkipped] = useState(false);
+  const [skillsSkipped, setSkillsSkipped] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('skillsSkipped') === 'true') {
+      return true;
+    }
+    return false;
+  });
+  const [verificationComplete, setVerificationComplete] = useState<boolean>(false);
+  const [verificationSkipped, setVerificationSkipped] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('verificationSkipped') === 'true') {
+      return true;
+    }
+    return false;
+  });
 
   useEffect(() => {
     const load = async () => {
@@ -119,7 +129,7 @@ export default function Step4Verification() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
@@ -142,51 +152,30 @@ export default function Step4Verification() {
               </svg>
             </div>
 
-            {/* Step 1 - Completed */}
+            {/* Step 1 - Previous */}
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/profile'}
-                  className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer"
-                  title="Step 1: Account Created - Click to edit profile"
-                >
-                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
+                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                  title="Step 1: Account Setup"
+                ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
               </div>
-              <div className="w-60 h-0.5 bg-purple-600"></div>
+              <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
-            {/* Step 2 - Completed or Skipped */}
+            {/* Step 2 - Previous */}
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/onboarding/skill-selection'}
-                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                    skillsSkipped
-                      ? 'bg-purple-300 hover:bg-purple-400'
-                      : 'bg-purple-600 hover:bg-purple-700'
-                  }`}
-                  title={skillsSkipped ? "Step 2: Skills & Pricing (Skipped)" : "Step 2: Skills & Pricing"}
-                >
-                  {skillsSkipped ? (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
+                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                  title="Step 2: Skills & Pricing"
+                ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
               </div>
-              <div
-                className={`w-60 h-0.5 ${skillsSkipped ? 'border-t-2 border-dashed border-gray-400' : 'bg-purple-600'}`}
-                style={skillsSkipped ? { borderTopStyle: 'dashed', backgroundColor: 'transparent' } : {}}
-              ></div>
+              <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
             {/* Step 3 - Current (Verification) */}
@@ -194,39 +183,12 @@ export default function Step4Verification() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => {/* Already on this page */}}
-                  className={`w-6 h-6 rounded-full ${
-                    verificationComplete
-                      ? 'bg-purple-600 hover:bg-purple-700'
-                      : verificationSkipped
-                      ? 'bg-purple-300 hover:bg-purple-400'
-                      : 'border-2 border-purple-300 bg-purple-100 hover:border-purple-400'
-                  } transition-colors cursor-pointer flex items-center justify-center`}
-                  title={`Step 3: Verification ${
-                    verificationComplete ? '(Completed)' : verificationSkipped ? '(Skipped)' : '(Current)'
-                  }`}
-                >
-                  {verificationComplete ? (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : verificationSkipped ? (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : null}
-                </button>
+                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                  title="Step 3: Verification (Current)"
+                ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
               </div>
-              <div
-                className={`w-60 h-0.5 ${
-                  verificationComplete
-                    ? 'bg-purple-600'
-                    : verificationSkipped
-                    ? 'border-t-2 border-dashed border-gray-400'
-                    : 'bg-gray-300'
-                }`}
-                style={verificationSkipped ? { borderTopStyle: 'dashed', backgroundColor: 'transparent' } : {}}
-              ></div>
+              <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
             {/* Step 4 - Upcoming */}
@@ -251,16 +213,9 @@ export default function Step4Verification() {
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header with subtle purple accent */}
         <div className="bg-white rounded-lg p-6 mb-8 border border-gray-200">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <svg className="w-6 h-6 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800">Build Trust With Students</h1>
-              <p className="text-gray-600">Complete verification to start teaching on iNSTAiNSTRU</p>
-            </div>
+          <div className="mb-3">
+            <h1 className="text-3xl font-bold text-gray-800">Build Trust With Students</h1>
+            <p className="text-gray-600">Complete verification to start teaching on iNSTAiNSTRU</p>
           </div>
         </div>
 
@@ -273,7 +228,7 @@ export default function Step4Verification() {
           <div className="relative bg-white rounded-xl border-2 border-purple-200 p-6">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#6A0DAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
             </div>
@@ -299,7 +254,7 @@ export default function Step4Verification() {
               <button
                 onClick={startIdentity}
                 disabled={identityLoading}
-                className="mt-5 inline-flex items-center px-5 py-2.5 rounded-lg text-white bg-purple-700 hover:bg-purple-800 disabled:opacity-50 transition-colors font-medium"
+                className="mt-5 inline-flex items-center px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] disabled:opacity-50 transition-colors font-medium"
               >
                 {identityLoading ? (
                   <>
@@ -322,24 +277,24 @@ export default function Step4Verification() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#6A0DAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-gray-900">Background Check</h2>
-              <p className="text-gray-600 mt-1">Upload your background check document (optional)</p>
+              <p className="text-gray-600 mt-1">Upload your background check document (optional){skillsSkipped || verificationSkipped ? ' • You can finish skipped steps later' : ''}</p>
 
               <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-100">
                 <p className="text-sm text-purple-900 font-medium mb-2">Accepted providers:</p>
                 <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-purple-700 border border-purple-200">
+                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#6A0DAD] border border-purple-200">
                     Checkr
                   </span>
-                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-purple-700 border border-purple-200">
+                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#6A0DAD] border border-purple-200">
                     Sterling
                   </span>
-                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-purple-700 border border-purple-200">
+                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#6A0DAD] border border-purple-200">
                     NYC DOE
                   </span>
                 </div>
@@ -352,7 +307,7 @@ export default function Step4Verification() {
               </div>
 
               <div className="mt-5">
-                <label className="inline-flex items-center px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 font-medium hover:bg-purple-100 transition-colors cursor-pointer">
+                <label className="inline-flex items-center px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#6A0DAD] font-medium hover:bg-purple-100 transition-colors cursor-pointer">
                   <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={onFileSelected} disabled={uploading} />
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -381,7 +336,7 @@ export default function Step4Verification() {
           ← Back
         </button>
         <button
-          className="px-6 py-2.5 rounded-lg text-white bg-purple-700 hover:bg-purple-800 transition-colors font-medium shadow-sm"
+          className="px-6 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] transition-colors font-medium shadow-sm"
           onClick={() => {
             // If verification wasn't completed, mark it as skipped
             if (!verificationComplete && typeof window !== 'undefined') {

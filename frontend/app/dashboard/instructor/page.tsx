@@ -155,7 +155,7 @@ export default function InstructorDashboard() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-700"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6A0DAD]"></div>
       </div>
     );
   }
@@ -167,7 +167,7 @@ export default function InstructorDashboard() {
         <nav className="bg-white shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
-              <Link href="/" className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors">
+              <Link href="/" className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors">
                 iNSTAiNSTRU
               </Link>
               <UserProfileDropdown />
@@ -180,7 +180,7 @@ export default function InstructorDashboard() {
             <p className="text-gray-600 mb-6">{error}</p>
             <Link
               href="/become-instructor"
-              className="inline-block px-6 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 transition-colors"
+              className="inline-block px-6 py-2 bg-[#6A0DAD] text-white rounded-md hover:bg-[#6A0DAD] transition-colors"
               onClick={() => logger.debug('Navigating to become-instructor from error state')}
             >
               Complete Profile Setup
@@ -203,7 +203,7 @@ export default function InstructorDashboard() {
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link className="inline-block" href="/">
-              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">
+              <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">
                 {BRAND.name}
               </h1>
             </Link>
@@ -248,7 +248,7 @@ export default function InstructorDashboard() {
               label="ID verification (Stripe Identity)"
               ok={false}
               action={
-                <Link href="/instructor/onboarding/verification" className="text-purple-700 hover:underline">
+                <Link href="/instructor/onboarding/verification" className="text-[#6A0DAD] hover:underline">
                   Start verification
                 </Link>
               }
@@ -257,7 +257,7 @@ export default function InstructorDashboard() {
               label="Background check uploaded"
               ok={false}
               action={
-                <Link href="/instructor/onboarding/verification" className="text-purple-700 hover:underline">
+                <Link href="/instructor/onboarding/verification" className="text-[#6A0DAD] hover:underline">
                   Upload document
                 </Link>
               }
@@ -266,14 +266,14 @@ export default function InstructorDashboard() {
               label="Skills & pricing set"
               ok={(profile.services || []).length > 0}
               action={
-                <Link href="/instructor/onboarding/skill-selection?redirect=%2Fdashboard%2Finstructor" className="text-purple-700 hover:underline">
+                <Link href="/instructor/onboarding/skill-selection?redirect=%2Fdashboard%2Finstructor" className="text-[#6A0DAD] hover:underline">
                   Edit skills
                 </Link>
               }
             />
             <div className="pt-2">
               <button
-                className="px-5 py-2.5 rounded-lg text-white bg-purple-700 hover:bg-purple-800 disabled:opacity-50"
+                className="px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] disabled:opacity-50"
                 disabled={!(connectStatus?.onboarding_completed && (profile.services || []).length > 0)}
                 onClick={() => alert('Please use the new dashboard at /instructor/dashboard')}
               >
@@ -290,17 +290,17 @@ export default function InstructorDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Bookings</h3>
-            <p className="text-3xl font-bold text-purple-700">0</p>
+            <p className="text-3xl font-bold text-[#6A0DAD]">0</p>
             <p className="text-sm text-gray-500 mt-1">Coming soon</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Rating</h3>
-            <p className="text-3xl font-bold text-purple-700">-</p>
+            <p className="text-3xl font-bold text-[#6A0DAD]">-</p>
             <p className="text-sm text-gray-500 mt-1">Not yet available</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Earnings</h3>
-            <p className="text-3xl font-bold text-purple-700">$0</p>
+            <p className="text-3xl font-bold text-[#6A0DAD]">$0</p>
             <p className="text-sm text-gray-500 mt-1">Payment integration pending</p>
           </div>
         </div>
@@ -313,7 +313,7 @@ export default function InstructorDashboard() {
             onClick={() => logger.debug('Navigating to availability management')}
           >
             <div className="flex items-center gap-4">
-              <Calendar className="w-8 h-8 text-purple-700" />
+              <Calendar className="w-8 h-8 text-[#6A0DAD]" />
               <div>
                 <h3 className="text-lg font-semibold">Manage Availability</h3>
                 <p className="text-gray-600">Set your weekly schedule and available hours</p>
@@ -338,7 +338,7 @@ export default function InstructorDashboard() {
                 logger.debug('Opening edit profile modal');
                 setShowEditModal(true);
               }}
-              className="flex items-center px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 transition-colors"
+              className="flex items-center px-4 py-2 bg-[#6A0DAD] text-white rounded-md hover:bg-[#6A0DAD] transition-colors"
             >
               <Edit className="h-4 w-4 mr-2" />
               Edit Profile
@@ -367,7 +367,7 @@ export default function InstructorDashboard() {
                         <p className="text-sm text-gray-600">{service.description}</p>
                       )}
                     </div>
-                    <span className="font-semibold text-purple-700">${service.hourly_rate}/hr</span>
+                    <span className="font-semibold text-[#6A0DAD]">${service.hourly_rate}/hr</span>
                   </div>
                 ))}
               </div>

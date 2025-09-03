@@ -10,8 +10,7 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 export default function Step3PaymentSetup() {
   const [connectLoading, setConnectLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [skillsSkipped, setSkillsSkipped] = useState(false);
-  const [verificationComplete, setVerificationComplete] = useState(false);
+  const [skillsSkipped, setSkillsSkipped] = useState<boolean>(false);
   const [connectStatus, setConnectStatus] = useState<{
     has_account: boolean;
     onboarding_completed: boolean;
@@ -49,7 +48,7 @@ export default function Step3PaymentSetup() {
             }
             // Check if verification is complete
             if (profile.identity_verified_at || profile.identity_verification_session_id) {
-              setVerificationComplete(true);
+              // setVerificationComplete(true); // This line was removed as per the edit hint
             }
           }
         } catch {
@@ -106,7 +105,7 @@ export default function Step3PaymentSetup() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
@@ -129,87 +128,43 @@ export default function Step3PaymentSetup() {
               </svg>
             </div>
 
-            {/* Step 1 - Completed */}
+            {/* Step 1 - Previous */}
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/profile'}
-                  className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer"
-                  title="Step 1: Account Created - Click to edit profile"
-                >
-                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
+                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                  title="Step 1: Account Setup"
+                ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
               </div>
-              <div className="w-60 h-0.5 bg-purple-600"></div>
+              <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
-            {/* Step 2 - Completed or Skipped */}
+            {/* Step 2 - Previous */}
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/onboarding/skill-selection'}
-                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                    skillsSkipped
-                      ? 'bg-purple-300 hover:bg-purple-400'
-                      : 'bg-purple-600 hover:bg-purple-700'
-                  }`}
-                  title={skillsSkipped ? "Step 2: Skills & Pricing (Skipped)" : "Step 2: Skills & Pricing"}
-                >
-                  {skillsSkipped ? (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
+                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                  title="Step 2: Skills & Pricing"
+                ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
               </div>
-              <div
-                className={`w-60 h-0.5 ${skillsSkipped ? 'border-t-2 border-dashed border-gray-400' : 'bg-purple-600'}`}
-                style={skillsSkipped ? { borderTopStyle: 'dashed', backgroundColor: 'transparent' } : {}}
-              ></div>
+              <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
-            {/* Step 3 - Completed or Skipped (Verification) */}
+            {/* Step 3 - Previous (Verification) */}
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/onboarding/verification'}
-                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                    verificationComplete
-                      ? 'bg-purple-600 hover:bg-purple-700'
-                      : 'bg-purple-300 hover:bg-purple-400'
-                  }`}
-                  title={`Step 3: Verification ${
-                    verificationComplete ? '(Completed)' : '(Skipped)'
-                  }`}
-                >
-                  {verificationComplete ? (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  )}
-                </button>
+                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                  title="Step 3: Verification"
+                ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
               </div>
-              <div
-                className={`w-60 h-0.5 ${
-                  verificationComplete
-                    ? 'bg-purple-600'
-                    : 'border-t-2 border-dashed border-gray-400'
-                }`}
-                style={!verificationComplete ? { borderTopStyle: 'dashed', backgroundColor: 'transparent' } : {}}
-              ></div>
+              <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
             {/* Step 4 - Current (Payment Setup) */}
@@ -232,10 +187,12 @@ export default function Step3PaymentSetup() {
       </header>
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        {/* Page Header */}
-        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-          <h1 className="text-3xl font-bold text-gray-600 mb-2">Get Paid for Your Lessons</h1>
-          <p className="text-gray-600">Connect your bank securely through Stripe</p>
+        {/* Page Header - match verification */}
+        <div className="bg-white rounded-lg p-6 mb-8 border border-gray-200">
+          <div className="mb-3">
+            <h1 className="text-3xl font-bold text-gray-800">Get Paid for Your Lessons</h1>
+            <p className="text-gray-600">Connect your bank securely through Stripe{skillsSkipped ? ' • You can add skills later' : ''}</p>
+          </div>
         </div>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 border border-red-200">{error}</div>}
@@ -268,7 +225,7 @@ export default function Step3PaymentSetup() {
 
               {/* Benefits Section */}
               <div className="p-8">
-                <h3 className="text-sm font-semibold text-purple-700 uppercase tracking-wide mb-4">What to expect</h3>
+                <h3 className="text-sm font-semibold text-[#6A0DAD] uppercase tracking-wide mb-4">What to expect</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
                     <div className="flex items-start gap-3">

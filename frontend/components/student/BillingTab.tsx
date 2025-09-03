@@ -236,7 +236,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
         ) : creditBalance ? (
           <div className="rounded-xl border border-gray-200 p-6 bg-purple-50">
             <div className="space-y-2">
-              <p className="text-2xl font-bold text-purple-700">
+              <p className="text-2xl font-bold text-[#6A0DAD]">
                 {formatCurrency(creditBalance.available)}
               </p>
               <p className="text-sm text-purple-600">Available balance</p>
@@ -269,7 +269,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
               value={promoCode}
               onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
               placeholder="Enter code"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/25 focus:border-purple-500"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/25 focus:border-purple-500"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   handleApplyPromoCode();
@@ -279,7 +279,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
             <Button
               onClick={handleApplyPromoCode}
               disabled={isApplyingPromo || !promoCode.trim()}
-              className="bg-purple-700 hover:bg-purple-800 text-white"
+              className="bg-[#6A0DAD] hover:bg-[#6A0DAD] text-white"
             >
               {isApplyingPromo ? (
                 <>
@@ -305,7 +305,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
                 boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
               },
             })}
-            className="w-full sm:w-auto border-purple-700 text-purple-700 hover:bg-purple-50"
+            className="w-full sm:w-auto border-[#6A0DAD] text-[#6A0DAD] hover:bg-purple-50"
           >
             Purchase Credit Package
           </Button>
@@ -322,7 +322,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
             variant="ghost"
             size="sm"
             onClick={handleDownloadHistory}
-            className="text-purple-700 hover:text-purple-800 hover:bg-purple-50"
+            className="text-[#6A0DAD] hover:text-[#6A0DAD] hover:bg-purple-50"
           >
             <Download className="h-4 w-4 mr-2" />
             Download History

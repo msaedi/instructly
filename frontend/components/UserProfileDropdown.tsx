@@ -121,7 +121,7 @@ export default function UserProfileDropdown() {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 hover:bg-gray-100 rounded-full pr-2 pl-1 py-1 transition-colors"
       >
-        <UserAvatar user={user} size={44} />
+        <UserAvatar user={user as { id: string; first_name?: string; last_name?: string; has_profile_picture?: boolean; profile_picture_version?: number } | null} size={48} />
         <ChevronDown className={`h-4 w-4 text-purple-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -155,7 +155,7 @@ export default function UserProfileDropdown() {
                 ) : (
                   <>
                     <AlertCircle className="h-4 w-4 text-purple-600" />
-                    <span className="text-purple-700 font-medium">Finish Onboarding</span>
+                    <span className="text-[#6A0DAD] font-medium">Finish Onboarding</span>
                   </>
                 )}
               </button>
@@ -184,7 +184,7 @@ export default function UserProfileDropdown() {
 
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#6A0DAD] hover:bg-purple-50 transition-colors"
             >
               <LogOut className="h-4 w-4" />
               Sign Out

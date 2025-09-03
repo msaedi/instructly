@@ -113,7 +113,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
 
       {data.total > data.per_page && (
         <button
-          className="mt-4 text-sm text-purple-700 hover:text-purple-800 hover:underline transition-colors"
+          className="mt-4 text-sm text-[#6A0DAD] hover:text-[#6A0DAD] hover:underline transition-colors"
           onClick={() => router.push(`/instructors/${instructorId}/reviews`)}
         >
           See all {data.total} reviews

@@ -106,7 +106,7 @@ export function CancellationConfirmationModal({
             Questions?{' '}
             <button
               onClick={() => logger.info('Contact support clicked')}
-              className="text-purple-700 hover:underline cursor-pointer"
+              className="text-[#6A0DAD] hover:underline cursor-pointer"
             >
               Contact support
             </button>
