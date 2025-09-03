@@ -35,6 +35,12 @@ class TestPreviewNoGates:
         # Should not be gated in preview, auth still required (we provided it)
         assert r.status_code in (200, 204), r.text
 
+    def test_preview_bypasses_beta_for_search(self, monkeypatch, client: TestClient, test_student: User):
+        _set_env("preview", "beta")
+        headers = _auth_headers_for(test_student)
+        r = client.get("/api/search/instructors", params={"q": "piano", "limit": 1}, headers=headers)
+        assert r.status_code in (200, 204), r.text
+
 
 class TestProdPhaseBehavior:
     def test_prod_beta_requires_beta_grant(self, monkeypatch, client: TestClient, test_student: User):
@@ -66,6 +72,12 @@ class TestProdPhaseBehavior:
             "/bookings/?exclude_future_confirmed=true&per_page=1&page=1",
             headers=headers,
         )
+        assert r.status_code in (200, 204), r.text
+
+    def test_prod_open_allows_search(self, monkeypatch, client: TestClient, test_student: User, db):
+        _set_env("prod", "open")
+        headers = _auth_headers_for(test_student)
+        r = client.get("/api/search/instructors", params={"q": "piano", "limit": 1}, headers=headers)
         assert r.status_code in (200, 204), r.text
 
 
