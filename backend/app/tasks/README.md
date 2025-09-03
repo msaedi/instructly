@@ -54,6 +54,30 @@ celery -A app.tasks flower --port=5555
 # Access at http://localhost:5555
 ```
 
+### Aligned startup commands (worker, beat, flower)
+
+Ensure all processes use the same Celery app and the same broker/backend URLs to avoid Flower "inspect" errors.
+
+```bash
+# Terminal 1 – worker (queues: celery,analytics)
+export CELERY_BROKER_URL=redis://localhost:6379/0
+export CELERY_RESULT_BACKEND=$CELERY_BROKER_URL
+celery -A app.tasks.celery_app:celery_app worker -l info -Q celery,analytics -n worker@%h
+
+# Terminal 2 – beat
+export CELERY_BROKER_URL=redis://localhost:6379/0
+export CELERY_RESULT_BACKEND=$CELERY_BROKER_URL
+celery -A app.tasks.celery_app:celery_app beat -l info
+
+# Terminal 3 – flower (same broker/backend)
+export CELERY_BROKER_URL=redis://localhost:6379/0
+export CELERY_RESULT_BACKEND=$CELERY_BROKER_URL
+flower -A app.tasks.celery_app:celery_app \
+  --broker="$CELERY_BROKER_URL" \
+  --result-backend="$CELERY_RESULT_BACKEND" \
+  --address=0.0.0.0 --port=5555
+```
+
 ### Using Docker Compose (recommended for production)
 ```bash
 # Start all services

@@ -176,7 +176,11 @@ def generate_search_insights(self, days_back: int = 7) -> Dict[str, Any]:
             abandonment_rate = round((total_searches - searches_with_interactions) / total_searches * 100, 2)
 
         # Get peak hours using repository
-        peak_hours = search_repo.get_hourly_search_counts(cutoff_time, limit=5)
+        try:
+            peak_hours = search_repo.get_hourly_search_counts(cutoff_time, limit=5)
+        except AttributeError:
+            logger.exception("SearchEventRepository missing get_hourly_search_counts; returning empty peak_hours")
+            peak_hours = []
 
         # Trending searches can be approximated using popular searches
         # In a real implementation, you'd compare time periods
@@ -203,7 +207,7 @@ def generate_search_insights(self, days_back: int = 7) -> Dict[str, Any]:
         return insights
 
     except Exception as exc:
-        logger.error(f"Failed to generate search insights: {exc}")
+        logger.error(f"Failed to generate search insights: {exc}", exc_info=True)
         raise
 
     finally:

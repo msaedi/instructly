@@ -6,6 +6,7 @@ This module sets up the Celery app with Redis as the broker and backend,
 configures task serialization, timezone, and autodiscovery.
 """
 
+import os
 from typing import Any
 
 from celery import Celery
@@ -31,15 +32,21 @@ def create_celery_app() -> Celery:
         Celery: Configured Celery application instance
     """
     # Create Celery instance
+    # Allow environment variables to drive broker/backend for alignment with Flower/worker
+    # Priority: CELERY_BROKER_URL -> REDIS_URL -> settings.redis_url -> default
+    broker_url = (
+        os.getenv("CELERY_BROKER_URL") or os.getenv("REDIS_URL") or settings.redis_url or "redis://localhost:6379"
+    )
     # Ensure Redis URL includes database number
-    redis_url = settings.redis_url or "redis://localhost:6379"
-    if not redis_url.endswith("/0") and not any(redis_url.endswith(f"/{i}") for i in range(16)):
-        redis_url = f"{redis_url}/0"
+    if not broker_url.endswith("/0") and not any(broker_url.endswith(f"/{i}") for i in range(16)):
+        broker_url = f"{broker_url}/0"
+
+    result_backend = os.getenv("CELERY_RESULT_BACKEND") or broker_url
 
     celery_app = Celery(
         "instainstru",
-        broker=redis_url,
-        backend=redis_url,
+        broker=broker_url,
+        backend=result_backend,
     )
 
     # Base configuration
@@ -121,6 +128,7 @@ def create_celery_app() -> Celery:
         "app.tasks.email.*": {"queue": "email"},
         "app.tasks.notifications.*": {"queue": "notifications"},
         "app.tasks.analytics.*": {"queue": "analytics"},
+        "app.tasks.search_analytics.*": {"queue": "analytics"},
         "app.tasks.cleanup.*": {"queue": "maintenance"},
         "app.tasks.payment_tasks.*": {"queue": "payments"},  # Critical payment tasks
     }

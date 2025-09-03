@@ -8,7 +8,7 @@ Handles data access for individual search events used in analytics.
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
-from sqlalchemy import func
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from ..models.search_event import SearchEvent, SearchEventCandidate
@@ -428,3 +428,21 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             SearchEvent or None if not found
         """
         return self.get_by_id(event_id)
+
+    def get_hourly_search_counts(self, since: datetime, limit: int = 5) -> List[Dict]:
+        """
+        Return top hours (most events) since `since`, as:
+        [{"hour_start": <datetime>, "count": <int>}, ...]
+
+        Uses Postgres date_trunc('hour', searched_at) for grouping.
+        """
+        hour_start = func.date_trunc("hour", SearchEvent.searched_at).label("hour_start")
+        query = (
+            self.db.query(hour_start, func.count(SearchEvent.id).label("count"))
+            .filter(SearchEvent.searched_at >= since)
+            .group_by(hour_start)
+            .order_by(desc("count"), desc("hour_start"))
+            .limit(limit)
+        )
+        rows = query.all()
+        return [{"hour_start": r.hour_start, "count": int(r.count)} for r in rows]
