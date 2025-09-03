@@ -17,14 +17,22 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/use-node-frontend
+
+      # Python for OpenAPI export
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install Python deps for OpenAPI export
+          cache: 'pip'
+          cache-dependency-path: |
+            backend/requirements-openapi.txt
+
+      - name: Install backend deps for OpenAPI export
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install -U pip
           pip install -r ../backend/requirements-openapi.txt
+
+      # Node for frontend (use composite action)
+      - uses: ./.github/actions/use-node-frontend
       - name: Install deps (frontend only)
         run: npm ci
       - name: Assert generator pinned

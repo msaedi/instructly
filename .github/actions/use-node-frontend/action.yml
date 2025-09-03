@@ -10,4 +10,13 @@ runs:
         cache-dependency-path: frontend/package-lock.json
     - name: Print Node versions (sanity)
       shell: bash
-      run: node -v && npm -v
+      run: |
+        echo "Node version: $(node -v)"
+        echo "npm version: $(npm -v)"
+        # Fail fast if Node is less than 22
+        NODE_VERSION=$(node -v | sed 's/v//')
+        NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
+        if [ "$NODE_MAJOR" -lt 22 ]; then
+          echo "::error::Node version must be >= 22, got v$NODE_VERSION"
+          exit 1
+        fi
