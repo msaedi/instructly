@@ -123,14 +123,14 @@ export function captureDeviceContext(): DeviceContext {
     touchSupport: 'ontouchstart' in win || nav.maxTouchPoints > 0,
     maxTouchPoints: nav.maxTouchPoints || 0,
     hardwareConcurrency: nav.hardwareConcurrency || 1,
-    deviceMemory: nav.deviceMemory,
+    ...(nav.deviceMemory && { deviceMemory: nav.deviceMemory }),
 
     // Connection information (if available)
-    connectionType: connection?.type,
-    effectiveType: connection?.effectiveType,
-    downlink: connection?.downlink,
-    rtt: connection?.rtt,
-    saveData: connection?.saveData,
+    ...(connection?.type && { connectionType: connection.type }),
+    ...(connection?.effectiveType && { effectiveType: connection.effectiveType }),
+    ...(connection?.downlink && { downlink: connection.downlink }),
+    ...(connection?.rtt && { rtt: connection.rtt }),
+    ...(connection?.saveData !== undefined && { saveData: connection.saveData }),
 
     // Browser features
     cookieEnabled: nav.cookieEnabled,
@@ -138,24 +138,24 @@ export function captureDeviceContext(): DeviceContext {
     language: nav.language,
     languages: nav.languages ? [...nav.languages] : [nav.language],
     // Include deprecated properties for compatibility
-    platform: nav.platform,
-    vendor: nav.vendor,
+    ...(nav.platform && { platform: nav.platform }),
+    ...(nav.vendor && { vendor: nav.vendor }),
     // Include modern User-Agent Client Hints if available
-    userAgentData: nav.userAgentData
-      ? {
-          brands: nav.userAgentData.brands,
-          mobile: nav.userAgentData.mobile,
-          platform: nav.userAgentData.platform,
-        }
-      : undefined,
+    ...(nav.userAgentData && {
+      userAgentData: {
+        brands: nav.userAgentData.brands,
+        mobile: nav.userAgentData.mobile,
+        platform: nav.userAgentData.platform,
+      }
+    }),
 
     // Timing
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     timezoneOffset: new Date().getTimezoneOffset(),
 
     // Performance (Chrome only)
-    jsHeapSizeLimit: performance.memory?.jsHeapSizeLimit,
-    usedJsHeapSize: performance.memory?.usedJSHeapSize,
+    ...(performance.memory?.jsHeapSizeLimit && { jsHeapSizeLimit: performance.memory.jsHeapSizeLimit }),
+    ...(performance.memory?.usedJSHeapSize && { usedJsHeapSize: performance.memory.usedJSHeapSize }),
 
     // Additional context
     referrer: doc.referrer,

@@ -56,7 +56,7 @@ describe('InstructorInfo', () => {
   });
 
   it('returns null when instructor is not provided', () => {
-    const { container } = render(<InstructorInfo instructor={undefined} onChat={mockOnChat} />);
+    const { container } = render(<InstructorInfo onChat={mockOnChat} />);
 
     expect(container.firstChild).toBeNull();
   });

@@ -28,10 +28,6 @@ describe('LessonCard', () => {
     location_type: 'student_home',
     meeting_location: '123 Main St, NYC',
     student_note: 'Looking forward to the lesson!',
-    instructor_note: undefined,
-    cancellation_reason: undefined,
-    cancelled_at: undefined,
-    cancelled_by: undefined,
     instructor_id: '1',
     student_id: '1',
     instructor_service_id: '1',
@@ -176,7 +172,7 @@ describe('LessonCard', () => {
 
     render(
       <LessonCard
-        lesson={bookingWithoutInstructor as Booking}
+        lesson={bookingWithoutInstructor as unknown as Booking}
         isCompleted={false}
         onViewDetails={mockOnViewDetails}
         suppressFetchRating

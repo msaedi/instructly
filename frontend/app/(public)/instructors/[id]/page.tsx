@@ -81,7 +81,7 @@ function InstructorProfileContent() {
   const params = useParams();
   const router = useRouter();
   const nextRouter = useNextRouter();
-  const instructorId = params.id as string;
+  const instructorId = params['id'] as string;
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string; duration: number; availableDuration?: number } | null>(null);
   const [isSlotUserSelected, setIsSlotUserSelected] = useState(false); // Track if slot was manually selected by user
   const [weekStart, setWeekStart] = useState<Date | null>(null);
@@ -155,12 +155,22 @@ function InstructorProfileContent() {
 
     // Always open the booking modal to select a time; authentication is handled after selection
     if (!selectedSlot || !isSlotUserSelected) {
-      bookingModal.openBookingModal({
+      const modalOptions: {
+        date?: string;
+        time?: string;
+        duration?: number;
+        service?: InstructorService;
+      } = {
         date: '',
         time: '',
         duration,
-        service: selectedService,
-      });
+      };
+
+      if (selectedService) {
+        modalOptions.service = selectedService;
+      }
+
+      bookingModal.openBookingModal(modalOptions);
       return;
     }
 
@@ -188,10 +198,9 @@ function InstructorProfileContent() {
         totalAmount,
         bookingType,
         paymentStatus: PaymentStatus.PENDING,
-        freeCancellationUntil:
-          bookingType === BookingType.STANDARD
-            ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
-            : undefined,
+        ...(bookingType === BookingType.STANDARD && {
+          freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+        }),
       };
 
       // Store booking data for payment page
@@ -217,14 +226,27 @@ function InstructorProfileContent() {
 
       if (!isAuthenticated) {
         // User not authenticated - store booking intent and redirect to login
-        storeBookingIntent({
+        const bookingIntent: {
+          instructorId: string;
+          serviceId?: string;
+          date: string;
+          time: string;
+          duration: number;
+          skipModal?: boolean;
+        } = {
           instructorId: instructor.user_id,
-          serviceId: getString(selectedService, 'id') || undefined,
           date: selectedSlot.date,
           time: selectedSlot.time,
           duration,
           skipModal: true,
-        });
+        };
+
+        const serviceId = getString(selectedService, 'id');
+        if (serviceId) {
+          bookingIntent.serviceId = serviceId;
+        }
+
+        storeBookingIntent(bookingIntent);
         const returnUrl = `/student/booking/confirm`;
         nextRouter.replace(`/login?redirect=${encodeURIComponent(returnUrl)}`);
       } else {
@@ -631,10 +653,9 @@ function InstructorProfileContent() {
                 totalAmount,
                 bookingType,
                 paymentStatus: PaymentStatus.PENDING,
-                freeCancellationUntil:
-                  bookingType === BookingType.STANDARD
-                    ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
-                    : undefined,
+                ...(bookingType === BookingType.STANDARD && {
+                  freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+                }),
               };
 
               // Store booking data for payment page
@@ -657,14 +678,27 @@ function InstructorProfileContent() {
 
               if (!isAuthenticated) {
                 // User not authenticated - store booking intent and redirect to login
-                storeBookingIntent({
+                const bookingIntent2: {
+                  instructorId: string;
+                  serviceId?: string;
+                  date: string;
+                  time: string;
+                  duration: number;
+                  skipModal?: boolean;
+                } = {
                   instructorId: instructor.user_id,
-                  serviceId: getString(selectedService, 'id') || undefined,
                   date: newSlot.date,
                   time: newSlot.time,
                   duration: newSlot.duration,
                   skipModal: true,
-                });
+                };
+
+                const serviceId2 = getString(selectedService, 'id');
+                if (serviceId2) {
+                  bookingIntent2.serviceId = serviceId2;
+                }
+
+                storeBookingIntent(bookingIntent2);
                 const returnUrl = `/student/booking/confirm`;
                 nextRouter.replace(`/login?redirect=${encodeURIComponent(returnUrl)}`);
               } else {

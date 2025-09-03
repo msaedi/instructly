@@ -1,5 +1,7 @@
 // frontend/lib/logger.ts
 
+import { env } from '@/lib/env';
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 type LogContext = unknown;
@@ -14,21 +16,21 @@ const getDefaultLogLevel = (): LogLevel => {
   }
 
   // Check environment variable for default level
-  const envLevel = process.env.NEXT_PUBLIC_LOG_LEVEL as LogLevel;
+  const envLevel = env.get('NEXT_PUBLIC_LOG_LEVEL') as LogLevel;
   if (envLevel && ['debug', 'info', 'warn', 'error'].includes(envLevel)) {
     return envLevel;
   }
 
   // Default based on environment
-  if (process.env.NODE_ENV === 'production') {
+  if (env.isProduction()) {
     return 'warn'; // Changed from 'info' to be less verbose in production
   }
   return 'debug';
 };
 
 class Logger {
-  private isDevelopment = process.env.NODE_ENV === 'development';
-  private isEnabled = process.env.NEXT_PUBLIC_ENABLE_LOGGING !== 'false'; // Default to true if not explicitly disabled
+  private isDevelopment = env.isDevelopment();
+  private isEnabled = env.get('NEXT_PUBLIC_ENABLE_LOGGING') !== 'false'; // Default to true if not explicitly disabled
 
   private logLevels: Record<LogLevel, number> = {
     debug: 0,
@@ -80,10 +82,10 @@ class Logger {
       const base: Record<string, unknown> = {};
       if (context && typeof context === 'object') Object.assign(base, context as Record<string, unknown>);
       if (error instanceof Error) {
-        base.errorMessage = error.message;
-        base.errorStack = error.stack;
+        base['errorMessage'] = error.message;
+        base['errorStack'] = error.stack;
       } else if (typeof error !== 'undefined') {
-        base.error = error as unknown as Record<string, unknown>;
+        base['error'] = error as unknown as Record<string, unknown>;
       }
       const errorContext = base;
       console.error(this.formatMessage('error', message, errorContext));
@@ -168,7 +170,7 @@ class Logger {
       enabled: this.isEnabled,
       level: this.currentLevel,
       isDevelopment: this.isDevelopment,
-      envVar: process.env.NEXT_PUBLIC_ENABLE_LOGGING,
+      envVar: env.get('NEXT_PUBLIC_ENABLE_LOGGING'),
     });
   }
 }
@@ -178,10 +180,10 @@ export const logger = new Logger();
 
 // At the bottom, add this for debugging:
 if (typeof window !== 'undefined') {
-  (window as unknown as Record<string, unknown>).logger = logger;
-  (window as unknown as Record<string, unknown>).setLogLevel = (level: LogLevel) => logger.setLevel(level);
-  (window as unknown as Record<string, unknown>).setLoggingEnabled = (enabled: boolean) => logger.setEnabled(enabled);
-  (window as unknown as Record<string, unknown>).getLoggerStatus = () => logger.getStatus();
+  (window as unknown as Record<string, unknown>)['logger'] = logger;
+  (window as unknown as Record<string, unknown>)['setLogLevel'] = (level: LogLevel) => logger.setLevel(level);
+  (window as unknown as Record<string, unknown>)['setLoggingEnabled'] = (enabled: boolean) => logger.setEnabled(enabled);
+  (window as unknown as Record<string, unknown>)['getLoggerStatus'] = () => logger.getStatus();
 }
 
 // Usage examples:

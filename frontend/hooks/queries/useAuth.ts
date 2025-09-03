@@ -11,6 +11,7 @@ import {
   getGuestSessionId,
   clearGuestSession,
 } from '@/lib/searchTracking';
+import { env } from '@/lib/env';
 
 /**
  * Login request type
@@ -87,7 +88,7 @@ export function useAuth() {
         : { username: email, password };
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}${endpoint}`,
+        `${env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000'}${endpoint}`,
         {
           method: 'POST',
           headers: {

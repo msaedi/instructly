@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
   CreditCard,
   CheckCircle,
@@ -23,8 +23,7 @@ interface StripeOnboardingProps {
 }
 
 const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _router = useRouter();
+  // Router hook removed - navigation handled by window.location
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatusResponse | null>(null);

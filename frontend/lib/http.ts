@@ -72,7 +72,7 @@ export async function http<T = unknown>(method: HttpMethod, url: string, options
   if (!resp.ok) {
     const status = resp.status;
     const errorData = data as Record<string, unknown>;
-    const message = errorData?.detail as string || errorData?.message as string || `HTTP ${status}`;
+    const message = errorData?.['detail'] as string || errorData?.['message'] as string || `HTTP ${status}`;
     if (status === 401 || status === 403 || status === 419) throw new AuthError(message, status, data);
     if (status >= 400 && status < 500) throw new ClientError(message, status, data);
     throw new ApiError(message, status, data);

@@ -28,20 +28,30 @@ export function useInstructorReviews(
 ) {
   return useQuery<ReviewsResponse>({
     queryKey: ['instructors', instructorId, 'reviews', { page, limit, opts }],
-    queryFn: async () => {
+    queryFn: async (): Promise<ReviewsResponse> => {
+      const queryOpts: { minRating?: number; withText?: boolean } = {};
+
+      if (opts?.minRating !== undefined) {
+        queryOpts.minRating = opts.minRating;
+      }
+
+      if (opts?.withText !== undefined) {
+        queryOpts.withText = opts.withText;
+      }
+
       const res: ReviewListPageResponse = await reviewsApi.getRecent(
         instructorId,
         opts?.instructorServiceId,
         limit,
         page,
-        { minRating: opts?.minRating, withText: opts?.withText }
+        Object.keys(queryOpts).length > 0 ? queryOpts : undefined
       );
       const items: ApiReviewItem[] = res.reviews || [];
       return {
         reviews: items.map((r) => ({
           id: r.id,
           rating: r.rating,
-          review_text: r.review_text,
+          review_text: r.review_text ?? null,
           created_at: r.created_at,
           instructor_service_id: r.instructor_service_id,
           reviewer_display_name: r.reviewer_display_name ?? null,

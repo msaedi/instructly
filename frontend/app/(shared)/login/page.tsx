@@ -71,9 +71,9 @@ function LoginForm() {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.email.trim()) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Please enter a valid email';
-    if (!formData.password) newErrors.password = 'Password is required';
+    if (!formData['email'].trim()) newErrors['email'] = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(formData['email'])) newErrors['email'] = 'Please enter a valid email';
+    if (!formData['password']) newErrors['password'] = 'Password is required';
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) logger.debug('Login form validation failed', { errors: newErrors });
     return Object.keys(newErrors).length === 0;
@@ -106,11 +106,11 @@ function LoginForm() {
 
       const body = guestSessionId
         ? JSON.stringify({
-            email: formData.email,
-            password: formData.password,
+            email: formData['email'],
+            password: formData['password'],
             guest_session_id: guestSessionId,
           })
-        : new URLSearchParams({ username: formData.email, password: formData.password }).toString();
+        : new URLSearchParams({ username: formData['email'], password: formData['password'] }).toString();
 
       const headers = guestSessionId
         ? { 'Content-Type': 'application/json' }
@@ -294,7 +294,7 @@ function LoginForm() {
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Email</label>
               <div className="mt-1">
                 <input id="email" name="email" type="email" autoComplete="email" required value={formData.email} onChange={handleChange} disabled={isSubmitting} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix" placeholder="you@example.com" />
-                {errors.email && (<p className="mt-1 text-sm text-red-600" role="alert">{errors.email}</p>)}
+                {errors['email'] && (<p className="mt-1 text-sm text-red-600" role="alert">{errors['email']}</p>)}
               </div>
             </div>
             {/* Password Field */}
@@ -307,7 +307,7 @@ function LoginForm() {
                     {showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}
                   </button>
                 </div>
-                {errors.password && (<p className="mt-1 text-sm text-red-600" role="alert">{errors.password}</p>)}
+                {errors['password'] && (<p className="mt-1 text-sm text-red-600" role="alert">{errors['password']}</p>)}
               </div>
             </div>
             {/* Forgot Password */}
@@ -342,7 +342,7 @@ function LoginForm() {
               <input id="trust" type="checkbox" className="h-4 w-4" checked={trustThisBrowser} onChange={(e) => setTrustThisBrowser(e.target.checked)} />
               <label htmlFor="trust" className="text-sm text-gray-700">Trust this browser</label>
             </div>
-            {errors.twofa && (<p className="text-sm text-red-600" role="alert">{errors.twofa}</p>)}
+            {errors['twofa'] && (<p className="text-sm text-red-600" role="alert">{errors['twofa']}</p>)}
             <div>
               <button type="submit" disabled={isVerifying2FA} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6A0DAD] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                 {isVerifying2FA ? 'Verifying…' : 'Verify & Continue'}

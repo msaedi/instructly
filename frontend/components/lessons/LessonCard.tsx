@@ -6,7 +6,7 @@ import { LessonStatus } from './LessonStatus';
 import { InstructorInfo } from './InstructorInfo';
 import { format } from 'date-fns';
 import { Calendar, Clock, DollarSign, ChevronRight } from 'lucide-react';
-import { formatLessonStatus } from '@/hooks/useMyLessons';
+// formatLessonStatus utility available at: '@/hooks/useMyLessons'
 
 interface LessonCardProps {
   lesson: Booking;
@@ -42,8 +42,7 @@ export function LessonCard({
   const formattedDate = format(lessonDate, 'EEE MMM d');
   const formattedTime = format(lessonDate, 'h:mmaaa');
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _displayStatus = formatLessonStatus(lesson.status, lesson.cancelled_at);
+  // Status formatting helper available: formatLessonStatus(lesson.status, lesson.cancelled_at)
 
   useEffect(() => {
     // If a prefetched value is provided, always use it and skip fetching
@@ -131,15 +130,15 @@ export function LessonCard({
               </h3>
               {/* Show completed badge for completed lessons or past confirmed lessons */}
               {(lesson.status === 'COMPLETED' || (isCompleted && lesson.status === 'CONFIRMED')) && (
-                <LessonStatus status="COMPLETED" cancelledAt={lesson.cancelled_at} />
+                <LessonStatus status="COMPLETED" {...(lesson.cancelled_at && { cancelledAt: lesson.cancelled_at })} />
               )}
               {/* Show cancelled badge inline for cancelled lessons */}
               {lesson.status === 'CANCELLED' && (
-                <LessonStatus status="CANCELLED" cancelledAt={lesson.cancelled_at} />
+                <LessonStatus status="CANCELLED" {...(lesson.cancelled_at && { cancelledAt: lesson.cancelled_at })} />
               )}
               {/* Show no-show badge inline for no-show lessons */}
               {lesson.status === 'NO_SHOW' && (
-                <LessonStatus status="NO_SHOW" cancelledAt={lesson.cancelled_at} />
+                <LessonStatus status="NO_SHOW" {...(lesson.cancelled_at && { cancelledAt: lesson.cancelled_at })} />
               )}
             </div>
           </div>
@@ -180,9 +179,9 @@ export function LessonCard({
         {/* Instructor Info */}
         <div className="pt-4 border-t border-gray-300">
           <InstructorInfo
-            instructor={lesson.instructor}
-            rating={rating}
-            reviewCount={reviewCount}
+            {...(lesson.instructor && { instructor: lesson.instructor })}
+            {...(rating && { rating })}
+            {...(reviewCount && { reviewCount })}
             onChat={(e) => {
               e?.stopPropagation?.();
               onChat?.();

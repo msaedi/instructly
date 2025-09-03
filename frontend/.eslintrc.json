@@ -12,6 +12,7 @@
     "**/*.js",
     "server.js",
     "jest.config.js",
-    "jest.setup.js"
+    "jest.setup.js",
+    "next-env.d.ts"
   ]
 }

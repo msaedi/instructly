@@ -279,8 +279,8 @@ function MyLessonsContent() {
                 onChat={() => handleOpenChat(lesson)}
                 onBookAgain={() => router.push(`/instructors/${lesson.instructor_id}`)}
                 onReviewTip={() => router.push(`/student/review/${lesson.id}`)}
-                prefetchedRating={typeof br?.rating === 'number' ? br.rating : undefined}
-                prefetchedReviewCount={typeof br?.review_count === 'number' ? br.review_count : undefined}
+                {...(typeof br?.rating === 'number' && { prefetchedRating: br.rating })}
+                {...(typeof br?.review_count === 'number' && { prefetchedReviewCount: br.review_count })}
                 prefetchedReviewed={!!lessonMeta.reviewed[lesson.id]}
                 suppressFetchRating={true}
                 suppressFetchReviewed={true}

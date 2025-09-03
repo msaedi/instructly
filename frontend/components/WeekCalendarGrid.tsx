@@ -62,7 +62,7 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
   renderCell,
   renderMobileCell,
   onNavigateWeek,
-  currentWeekDisplay,
+  currentWeekDisplay: _currentWeekDisplay, // Available for future week display features
 }) => {
   /**
    * Generate array of hours based on start and end times
@@ -103,20 +103,7 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
     hasNavigation: !!onNavigateWeek,
   });
 
-  /**
-   * Handle week navigation with logging
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _handleNavigateWeek = (direction: 'prev' | 'next') => {
-    logger.info('Week navigation triggered', {
-      direction,
-      currentWeek: currentWeekDisplay || weekDates[0]?.fullDate,
-    });
-
-    if (onNavigateWeek) {
-      onNavigateWeek(direction);
-    }
-  };
+  // Week navigation handler removed - functionality directly in onNavigateWeek prop
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">

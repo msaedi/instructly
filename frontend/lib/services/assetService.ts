@@ -1,6 +1,8 @@
 // frontend/lib/services/assetService.ts
 // R2 asset URL builder and activity background resolver with Cloudflare Image Transformations
 
+import { env } from '@/lib/env';
+
 type Viewport = 'mobile' | 'tablet' | 'desktop';
 
 // Cloudflare Image Transformation options
@@ -15,7 +17,7 @@ export interface ImageTransformOptions {
   dpr?: number; // Device Pixel Ratio for retina displays
 }
 
-const R2_BASE = process.env.NEXT_PUBLIC_R2_URL || '';
+const R2_BASE = env.get('NEXT_PUBLIC_R2_URL') || '';
 
 // Simple in-memory cache (per session)
 const urlCache = new Map<string, string>();

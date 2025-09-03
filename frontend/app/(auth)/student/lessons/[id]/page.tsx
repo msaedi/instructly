@@ -23,7 +23,7 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 export default function LessonDetailsPage() {
   const params = useParams();
   const router = useRouter();
-  const lessonId = params.id as string;
+  const lessonId = params['id'] as string;
   const { isAuthenticated, isLoading: isAuthLoading, redirectToLogin, user } = useAuth();
 
   // Preserve the tab parameter from sessionStorage
@@ -142,12 +142,12 @@ export default function LessonDetailsPage() {
   const formattedDate = format(lessonDateTime, 'EEE MMM d');
   const formattedTime = format(lessonDateTime, 'h:mm a');
   // Reschedule annotation (if this was created from another booking)
-  const rescheduledFrom = (lesson as unknown as Record<string, unknown>).rescheduled_from_booking_id as string | undefined;
+  const rescheduledFrom = (lesson as unknown as Record<string, unknown>)['rescheduled_from_booking_id'] as string | undefined;
   let rescheduledFromText: string | null = null;
-  if (rescheduledFrom && (lesson as unknown as Record<string, unknown>).rescheduled_from) {
+  if (rescheduledFrom && (lesson as unknown as Record<string, unknown>)['rescheduled_from']) {
     try {
-      const prev = (lesson as unknown as Record<string, unknown>).rescheduled_from as Record<string, unknown>;
-      const prevDt = new Date(`${prev.booking_date}T${prev.start_time}`);
+      const prev = (lesson as unknown as Record<string, unknown>)['rescheduled_from'] as Record<string, unknown>;
+      const prevDt = new Date(`${prev['booking_date']}T${prev['start_time']}`);
       rescheduledFromText = `Rescheduled from ${format(prevDt, 'MMM d')}, ${format(prevDt, 'h:mm a')}`;
     } catch {
       rescheduledFromText = null;
@@ -218,12 +218,24 @@ export default function LessonDetailsPage() {
           <InstructorInfo
             instructor={{
               id: lesson.instructor?.id || lesson.instructor_id,
-              first_name: (lesson.instructor as unknown as { first_name?: string })?.first_name,
-              last_name: (lesson.instructor as unknown as { last_name?: string })?.last_name,
-              last_initial: (lesson.instructor as unknown as { last_initial?: string })?.last_initial,
-              email: (lesson.instructor as unknown as { email?: string })?.email,
-              has_profile_picture: (lesson.instructor as unknown as { has_profile_picture?: boolean })?.has_profile_picture,
-              profile_picture_version: (lesson.instructor as unknown as { profile_picture_version?: number })?.profile_picture_version,
+              ...((lesson.instructor as unknown as { first_name?: string })?.first_name && {
+                first_name: (lesson.instructor as unknown as { first_name?: string }).first_name
+              }),
+              ...((lesson.instructor as unknown as { last_name?: string })?.last_name && {
+                last_name: (lesson.instructor as unknown as { last_name?: string }).last_name
+              }),
+              ...((lesson.instructor as unknown as { last_initial?: string })?.last_initial && {
+                last_initial: (lesson.instructor as unknown as { last_initial?: string }).last_initial
+              }),
+              ...((lesson.instructor as unknown as { email?: string })?.email && {
+                email: (lesson.instructor as unknown as { email?: string }).email
+              }),
+              ...((lesson.instructor as unknown as { has_profile_picture?: boolean })?.has_profile_picture !== undefined && {
+                has_profile_picture: (lesson.instructor as unknown as { has_profile_picture?: boolean }).has_profile_picture
+              }),
+              ...((lesson.instructor as unknown as { profile_picture_version?: number })?.profile_picture_version && {
+                profile_picture_version: (lesson.instructor as unknown as { profile_picture_version?: number }).profile_picture_version
+              }),
             }}
           />
         </div>

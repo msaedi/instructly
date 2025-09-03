@@ -82,7 +82,7 @@ export default function InstructorCoverageMap({
     return () => mq.removeEventListener?.('change', handler);
   }, []);
 
-  const jawgToken = process.env.NEXT_PUBLIC_JAWG_TOKEN;
+  const jawgToken = process.env['NEXT_PUBLIC_JAWG_TOKEN'];
   const primaryUrl = jawgToken
     ? isDark
       ? `https://{s}.tile.jawg.io/jawg-dark/{z}/{x}/{y}{r}.png?access-token=${jawgToken}`
@@ -161,11 +161,11 @@ export default function InstructorCoverageMap({
         <CustomControls />
 
         {/* Map bounds tracker */}
-        <MapBoundsTracker onBoundsChange={onBoundsChange} />
+        <MapBoundsTracker {...(onBoundsChange && { onBoundsChange })} />
 
         {/* Search this area button */}
         {showSearchAreaButton && (
-          <SearchAreaButton onSearchArea={onSearchArea} />
+          <SearchAreaButton {...(onSearchArea && { onSearchArea })} />
         )}
       </MapContainer>
     </div>

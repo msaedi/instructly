@@ -1,6 +1,7 @@
 import type { FullConfig } from '@playwright/test';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { env } from '@/lib/env';
 
 interface StorageState {
   cookies: Array<{
@@ -42,7 +43,7 @@ async function readEnvToken(projectRoot: string): Promise<string | null> {
     }
   }
   // Also allow env var directly
-  return process.env.STAFF_ACCESS_TOKEN || process.env.staff_access_token || null;
+  return env.get('STAFF_ACCESS_TOKEN') || env.get('staff_access_token') || null;
 }
 
 async function ensureDir(dirPath: string) {

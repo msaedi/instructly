@@ -5,6 +5,7 @@ import { QueryErrorResetBoundary } from '@tanstack/react-query';
 import { isAuthError, isNetworkError } from '@/lib/react-query/api';
 import { ApiError } from '@/lib/http';
 import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 
 interface ErrorFallbackProps {
   error: Error;
@@ -91,7 +92,7 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
           {action}
         </button>
 
-        {process.env.NODE_ENV === 'development' && (
+        {env.isDevelopment() && (
           <details className="mt-6 text-left">
             <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700">
               Error Details (Development Only)
@@ -173,7 +174,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     logger.error('React Query Error Boundary caught error', error, {
       errorInfo,
       stack: error.stack,
@@ -185,7 +186,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     this.setState({ hasError: false, error: null });
   };
 
-  render() {
+  override render() {
     if (this.state.hasError && this.state.error) {
       return this.props.fallbackRender({
         error: this.state.error,

@@ -227,7 +227,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       // Get instructor ID and service ID from booking data (now strings/ULIDs)
       const instructorId = String(bookingData.instructorId || '');
       // Prefer explicit serviceId (ULID) from metadata; as a fallback, try bookingData.serviceId
-      const serviceId = String((bookingData.metadata?.serviceId || bookingData.serviceId) ?? '');
+      const serviceId = String((bookingData.metadata?.['serviceId'] || bookingData.serviceId) ?? '');
 
       // Normalize times and date
       const formattedStartTime = toHHMM(String(bookingData.startTime ?? ''));
@@ -366,9 +366,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         }
 
         // Provide better error messages for specific failures
-        const errorMessage = (paymentError as Record<string, unknown>)?.message || 'Payment failed';
+        const errorMessage = (paymentError as Record<string, unknown>)?.['message'] || 'Payment failed';
         // If requires_action, instruct UI to perform 3DS confirmation
-        if (errorMessage === 'requires_action' && (paymentError as Record<string, unknown>)?.client_secret) {
+        if (errorMessage === 'requires_action' && (paymentError as Record<string, unknown>)?.['client_secret']) {
           setLocalErrorMessage('Additional authentication required to complete your payment.');
           goToStep(PaymentStep.ERROR);
           // The page embedding PaymentSection can detect this message and call stripe.confirmCardPayment
@@ -462,7 +462,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
                   goToStep(PaymentStep.CONFIRMATION);
                 }
               }}
-              onBack={onBack}
+              {...(onBack && { onBack })}
               onCardAdded={(newCard) => {
                 // Add the new card to the list
                 setUserCards([...userCards, newCard]);
@@ -476,12 +476,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
             <PaymentConfirmation
               booking={updatedBookingData}
               paymentMethod={paymentMethod!}
-              cardLast4={selectedCard?.last4}
-              cardBrand={selectedCard?.brand}
-              isDefaultCard={selectedCard?.isDefault}
+              {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
+              {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
+              {...(selectedCard?.isDefault !== undefined && { isDefaultCard: selectedCard.isDefault })}
               creditsUsed={creditsToUse}
               availableCredits={userCredits.totalAmount}
-              creditEarliestExpiry={userCredits.earliestExpiry}
+              {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
               onConfirm={processPayment}
               onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
               onChangePaymentMethod={() => {
@@ -519,7 +519,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               cards={userCards}
               credits={userCredits}
               onSelectPayment={selectPaymentMethod}
-              onBack={onBack}
+              {...(onBack && { onBack })}
               onCardAdded={(newCard) => {
                 // Add the new card to the list
                 setUserCards([...userCards, newCard]);
@@ -531,12 +531,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
             <PaymentConfirmation
               booking={updatedBookingData}
               paymentMethod={paymentMethod!}
-              cardLast4={selectedCard?.last4}
-              cardBrand={selectedCard?.brand}
-              isDefaultCard={selectedCard?.isDefault}
+              {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
+              {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
+              {...(selectedCard?.isDefault !== undefined && { isDefaultCard: selectedCard.isDefault })}
               creditsUsed={creditsToUse}
               availableCredits={userCredits.totalAmount}
-              creditEarliestExpiry={userCredits.earliestExpiry}
+              {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
               onConfirm={processPayment}
               onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
               onChangePaymentMethod={() => {
@@ -576,7 +576,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         <PaymentSuccess
           booking={updatedBookingData}
           confirmationNumber={confirmationNumber}
-          cardLast4={selectedCard?.last4}
+          {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
         />
       )}
       {currentStep === PaymentStep.ERROR && (

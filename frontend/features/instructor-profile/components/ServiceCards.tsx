@@ -34,7 +34,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
 
   // Calculate price based on selected duration with safety/coercion
   // API may return hourly_rate as a string; coerce to number
-  const hourlyRateRaw = (service as unknown as Record<string, unknown>)?.hourly_rate as unknown;
+  const hourlyRateRaw = (service as unknown as Record<string, unknown>)?.['hourly_rate'] as unknown;
   const hourlyRate = typeof hourlyRateRaw === 'number' ? hourlyRateRaw : parseFloat(String(hourlyRateRaw ?? '0'));
   const price = Math.round(((isNaN(hourlyRate) ? 0 : hourlyRate) * selectedDuration) / 60);
 
@@ -195,7 +195,7 @@ export function ServiceCards({ services, selectedSlot, onBookService, searchedSe
             service={service}
             duration={duration}
             canBook={canBook}
-            selectedSlot={selectedSlot}
+            {...(selectedSlot && { selectedSlot })}
             onBook={(selectedDuration) => {
               if (onBookService && canBook) {
                 onBookService(service, selectedDuration);

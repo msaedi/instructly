@@ -306,6 +306,7 @@ export function useBookedSlots(
 
       return () => clearInterval(interval);
     }
+    return undefined;
   }, [cache, cacheDuration, enableCache]);
 
   return {

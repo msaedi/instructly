@@ -35,7 +35,7 @@ export default function PaymentConfirmation({
   availableCredits = 0,
   creditEarliestExpiry = null,
   onConfirm,
-  onBack, // eslint-disable-line @typescript-eslint/no-unused-vars
+  onBack: _onBack, // Kept for interface compatibility but not used
   onChangePaymentMethod,
   onCreditToggle,
   onCreditAmountChange,
@@ -137,7 +137,7 @@ export default function PaymentConfirmation({
         if (response.data?.services) {
           setInstructorServices(response.data.services.map((service: unknown) => ({
             ...(typeof service === 'object' && service !== null ? service : {}),
-            description: (service as Record<string, unknown>)?.description ?? null
+            description: (service as Record<string, unknown>)?.['description'] ?? null
           } as InstructorService)));
           logger.debug('Fetched instructor services', {
             services: response.data.services,
@@ -743,9 +743,7 @@ export default function PaymentConfirmation({
                 }]
           }}
           // Don't pre-select date/time when editing - let modal default to first available
-          preSelectedDate={undefined}
-          preSelectedTime={undefined}
-          serviceId={sessionStorage.getItem('serviceId') || undefined}
+          {...(sessionStorage.getItem('serviceId') && { serviceId: sessionStorage.getItem('serviceId')! })}
           onTimeSelected={(selection) => {
             // Update booking data with new selection
             const newBookingDate = new Date(selection.date + 'T' + selection.time);
@@ -766,10 +764,9 @@ export default function PaymentConfirmation({
               serviceFee,
               totalAmount,
               bookingType,
-              freeCancellationUntil:
-                bookingType === BookingType.STANDARD
-                  ? new Date(newBookingDate.getTime() - 24 * 60 * 60 * 1000)
-                  : undefined,
+              ...(bookingType === BookingType.STANDARD && {
+                freeCancellationUntil: new Date(newBookingDate.getTime() - 24 * 60 * 60 * 1000)
+              }),
             };
 
             // Store updated booking data

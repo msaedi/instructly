@@ -391,20 +391,20 @@ export function createInitialRequestState<T>(): RequestState<T> {
 export function handleAPIError(error: unknown): string {
   const err = error as Record<string, unknown>;
 
-  if (err?.response && typeof err.response === 'object') {
-    const response = err.response as Record<string, unknown>;
-    if (response?.data && typeof response.data === 'object') {
-      const data = response.data as Record<string, unknown>;
-      if (data?.detail) {
-        return typeof data.detail === 'string'
-          ? data.detail
+  if (err?.['response'] && typeof err['response'] === 'object') {
+    const response = err['response'] as Record<string, unknown>;
+    if (response?.['data'] && typeof response['data'] === 'object') {
+      const data = response['data'] as Record<string, unknown>;
+      if (data?.['detail']) {
+        return typeof data['detail'] === 'string'
+          ? data['detail']
           : 'Validation error occurred';
       }
     }
   }
 
-  if (err?.message && typeof err.message === 'string') {
-    return err.message;
+  if (err?.['message'] && typeof err['message'] === 'string') {
+    return err['message'];
   }
 
   return 'An unexpected error occurred. Please try again.';

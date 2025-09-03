@@ -49,7 +49,7 @@ export default function QuickBookingPage() {
   const router = useRouter();
   const { isAuthenticated, redirectToLogin } = useAuth();
 
-  const instructorId = params.id as string;
+  const instructorId = params['id'] as string;
   const preselectedTime = searchParams.get('time');
   const preselectedDate = searchParams.get('date') || new Date().toISOString().split('T')[0];
 
@@ -194,10 +194,9 @@ export default function QuickBookingPage() {
       totalAmount,
       bookingType,
       paymentStatus: PaymentStatus.PENDING,
-      freeCancellationUntil:
-        bookingType === BookingType.STANDARD
-          ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
-          : undefined,
+      ...(bookingType === BookingType.STANDARD && {
+        freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+      }),
     };
 
     // Navigate to confirmation page with booking data

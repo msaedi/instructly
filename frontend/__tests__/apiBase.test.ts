@@ -11,9 +11,11 @@ describe('API Base Configuration', () => {
     jest.resetModules();
     // Clear environment
     process.env = { ...originalEnv };
-    delete process.env.NEXT_PUBLIC_API_URL;
-    delete process.env.NEXT_PUBLIC_API_BASE;
-    delete process.env.NEXT_PUBLIC_USE_PROXY;
+    // Clear environment variables to simulate missing config
+    const env = process.env as Record<string, string | undefined>;
+    delete env['NEXT_PUBLIC_API_URL'];
+    delete env['NEXT_PUBLIC_API_BASE'];
+    delete env['NEXT_PUBLIC_USE_PROXY'];
   });
 
   afterAll(() => {
@@ -23,8 +25,8 @@ describe('API Base Configuration', () => {
   describe('Phase A.2: Guard against deprecated NEXT_PUBLIC_API_URL', () => {
     it('should throw error in development when NEXT_PUBLIC_API_URL is set', () => {
       process.env = { ...process.env, NODE_ENV: 'development' } as NodeJS.ProcessEnv;
-      process.env.NEXT_PUBLIC_API_URL = 'http://old-api.example.com';
-      process.env.NEXT_PUBLIC_API_BASE = 'http://api.example.com';
+      process.env['NEXT_PUBLIC_API_URL'] = 'http://old-api.example.com';
+      process.env['NEXT_PUBLIC_API_BASE'] = 'http://api.example.com';
 
       expect(() => {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -34,8 +36,8 @@ describe('API Base Configuration', () => {
 
     it('should log error in production when NEXT_PUBLIC_API_URL is set', () => {
       process.env = { ...process.env, NODE_ENV: 'production' } as NodeJS.ProcessEnv;
-      process.env.NEXT_PUBLIC_API_URL = 'http://old-api.example.com';
-      process.env.NEXT_PUBLIC_API_BASE = 'http://api.example.com';
+      process.env['NEXT_PUBLIC_API_URL'] = 'http://old-api.example.com';
+      process.env['NEXT_PUBLIC_API_BASE'] = 'http://api.example.com';
 
       const mockError = jest.spyOn(console, 'error').mockImplementation();
 
@@ -59,7 +61,7 @@ describe('API Base Configuration', () => {
     });
 
     it('should use NEXT_PUBLIC_API_BASE when set', () => {
-      process.env.NEXT_PUBLIC_API_BASE = 'https://api.example.com';
+      process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
 
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { API_BASE } = require('@/lib/apiBase');
@@ -68,7 +70,7 @@ describe('API Base Configuration', () => {
     });
 
     it('should remove trailing slashes from API_BASE', () => {
-      process.env.NEXT_PUBLIC_API_BASE = 'https://api.example.com///';
+      process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com///';
 
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { API_BASE } = require('@/lib/apiBase');
@@ -77,9 +79,9 @@ describe('API Base Configuration', () => {
     });
 
     it('should use proxy path when USE_PROXY is enabled in local env', () => {
-      process.env.NEXT_PUBLIC_APP_ENV = 'local';
-      process.env.NEXT_PUBLIC_USE_PROXY = 'true';
-      process.env.NEXT_PUBLIC_API_BASE = 'http://localhost:8000';
+      process.env['NEXT_PUBLIC_APP_ENV'] = 'local';
+      process.env['NEXT_PUBLIC_USE_PROXY'] = 'true';
+      process.env['NEXT_PUBLIC_API_BASE'] = 'http://localhost:8000';
 
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { API_BASE } = require('@/lib/apiBase');
@@ -88,9 +90,9 @@ describe('API Base Configuration', () => {
     });
 
     it('should not use proxy when USE_PROXY is false', () => {
-      process.env.NEXT_PUBLIC_APP_ENV = 'local';
-      process.env.NEXT_PUBLIC_USE_PROXY = 'false';
-      process.env.NEXT_PUBLIC_API_BASE = 'http://localhost:8000';
+      process.env['NEXT_PUBLIC_APP_ENV'] = 'local';
+      process.env['NEXT_PUBLIC_USE_PROXY'] = 'false';
+      process.env['NEXT_PUBLIC_API_BASE'] = 'http://localhost:8000';
 
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { API_BASE } = require('@/lib/apiBase');
@@ -101,7 +103,7 @@ describe('API Base Configuration', () => {
 
   describe('withApiBase helper', () => {
     beforeEach(() => {
-      process.env.NEXT_PUBLIC_API_BASE = 'https://api.example.com';
+      process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
     });
 
     it('should build correct URL with leading slash', () => {

@@ -240,7 +240,7 @@ export function useHomepageData(): HomepageData {
 
   return {
     upcomingBookings: {
-      data: upcomingQuery.data,
+      ...(upcomingQuery.data && { data: upcomingQuery.data }),
       isLoading: upcomingQuery.isLoading,
       error: upcomingQuery.error,
     },
@@ -250,12 +250,12 @@ export function useHomepageData(): HomepageData {
       error: searchesQuery.error,
     },
     featuredServices: {
-      data: servicesQuery.data,
+      ...(servicesQuery.data && { data: servicesQuery.data }),
       isLoading: servicesQuery.isLoading,
       error: servicesQuery.error,
     },
     bookingHistory: {
-      data: historyQuery.data,
+      ...(historyQuery.data && { data: historyQuery.data }),
       isLoading: historyQuery.isLoading,
       error: historyQuery.error,
     },

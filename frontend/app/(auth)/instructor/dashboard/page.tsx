@@ -901,7 +901,7 @@ export default function InstructorDashboardNew() {
                   setShowVerifyModal(false);
                   const session = await createStripeIdentitySession();
                   try {
-                    const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+                    const pk = process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'];
                     if (pk) {
                       const stripe = await (await import('@stripe/stripe-js')).loadStripe(pk);
                       if (stripe) {

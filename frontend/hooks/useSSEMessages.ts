@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { logger } from '@/lib/logger';
 import { Message } from '@/services/messageService';
+import { env } from '@/lib/env';
 
 // Connection states
 export enum ConnectionStatus {
@@ -150,7 +151,7 @@ export function useSSEMessages({
       }
 
       const data = messageData as Record<string, unknown>;
-      const eventType = data.type || 'message';
+      const eventType = data['type'] || 'message';
 
       if (eventType === 'read_receipt') {
         const { message_id, user_id, read_at } = data;
@@ -190,8 +191,8 @@ export function useSSEMessages({
 
       const message: Message = {
         ...data,
-        created_at: (data.created_at as string) || new Date().toISOString(),
-        updated_at: (data.updated_at as string) || new Date().toISOString(),
+        created_at: (data['created_at'] as string) || new Date().toISOString(),
+        updated_at: (data['updated_at'] as string) || new Date().toISOString(),
       } as Message;
 
       // Add to state
@@ -228,7 +229,7 @@ export function useSSEMessages({
 
     try {
       // Cookie-based session: connect without localStorage token
-      const apiUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+      const apiUrl = env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000';
       const url = `${apiUrl}/api/messages/stream/${bookingId}`;
 
       const eventSource = new EventSource(url, { withCredentials: true } as EventSourceInit);
@@ -399,7 +400,7 @@ export function useSSEMessages({
 
       updateConnectionStatus(ConnectionStatus.CONNECTING);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+      const apiUrl = env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000';
       const url = `${apiUrl}/api/messages/stream/${bookingId}`;
 
       // Create new EventSource with credentials

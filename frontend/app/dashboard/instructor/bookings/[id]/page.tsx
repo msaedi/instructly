@@ -24,7 +24,7 @@ import { requireString } from '@/lib/ts/safe';
  */
 export default function BookingDetailsPage() {
   const params = useParams();
-  const bookingId = params.id as string;
+  const bookingId = params['id'] as string;
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);

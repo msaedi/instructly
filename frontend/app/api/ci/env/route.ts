@@ -6,17 +6,17 @@ export async function GET(request: Request) {
   const headers = request.headers;
   const ciHeader = headers.get('x-ci-check');
 
-  if (process.env.CI !== 'true' || ciHeader !== '1') {
+  if (process.env['CI'] !== 'true' || ciHeader !== '1') {
     return new Response('Not Found', { status: 404 });
   }
 
   // Return ONLY public environment variables (never secrets)
   return Response.json(
     {
-      apiBase: process.env.NEXT_PUBLIC_API_BASE,
-      appEnv: process.env.NEXT_PUBLIC_APP_ENV,
-      useProxy: process.env.NEXT_PUBLIC_USE_PROXY,
-      appUrl: process.env.NEXT_PUBLIC_APP_URL,
+      apiBase: process.env['NEXT_PUBLIC_API_BASE'],
+      appEnv: process.env['NEXT_PUBLIC_APP_ENV'],
+      useProxy: process.env['NEXT_PUBLIC_USE_PROXY'],
+      appUrl: process.env['NEXT_PUBLIC_APP_URL'],
     },
     {
       headers: {

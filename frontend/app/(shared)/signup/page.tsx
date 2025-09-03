@@ -138,14 +138,14 @@ function SignUpForm() {
       const invalid = nextValue.trim().length > 0 && !/\S+@\S+\.\S+/.test(nextValue);
       setErrors((prev) => ({
         ...prev,
-        email: invalid ? 'Please enter a valid email' : undefined,
+        ...(invalid ? { email: 'Please enter a valid email' } : {}),
       }));
     } else if (name === 'phone') {
       const cleaned = nextValue.replace(/\D/g, '');
       const invalid = nextValue.trim().length > 0 && cleaned.length !== 10;
       setErrors((prev) => ({
         ...prev,
-        phone: invalid ? 'Please enter a valid phone number' : undefined,
+        ...(invalid ? { phone: 'Please enter a valid phone number' } : {}),
       }));
     } else if (name === 'zipCode') {
       const len = nextValue.length;
@@ -153,9 +153,9 @@ function SignUpForm() {
       setErrors((prev) => ({
         ...prev,
         // Show generic hint while typing; preserve NYC error if present
-        zipCode: invalidLen
-          ? 'Please enter a valid ZIP code'
-          : (prev.zipCode === 'Please enter a valid ZIP code' ? undefined : prev.zipCode),
+        ...(invalidLen
+          ? { zipCode: 'Please enter a valid ZIP code' }
+          : prev.zipCode === 'Please enter a valid ZIP code' ? {} : { zipCode: prev.zipCode }),
       }));
     } else {
       // Clear error for this field when user types
@@ -179,7 +179,7 @@ function SignUpForm() {
       } else {
         setErrors((prev) => ({
           ...prev,
-          zipCode: prev.zipCode && prev.zipCode.startsWith('Please enter a New York City') ? undefined : prev.zipCode,
+          ...(prev.zipCode && prev.zipCode.startsWith('Please enter a New York City') ? {} : { zipCode: prev.zipCode }),
         }));
       }
     } catch {

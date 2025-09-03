@@ -450,9 +450,9 @@ export default function AvailabilityCalendar({
         isOpen={isTimeSelectionModalOpen}
         onClose={handleCloseTimeSelectionModal}
         instructor={instructor}
-        preSelectedDate={preSelectedDate}
-        preSelectedTime={preSelectedTime}
-        serviceId={preSelectedServiceId}
+        {...(preSelectedDate && { preSelectedDate })}
+        {...(preSelectedTime && { preSelectedTime })}
+        {...(preSelectedServiceId && { serviceId: preSelectedServiceId })}
         // Don't pass onTimeSelected - let TimeSelectionModal handle navigation
       />
     </div>

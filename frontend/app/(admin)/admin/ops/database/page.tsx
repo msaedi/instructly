@@ -83,7 +83,7 @@ export default function DatabaseOpsPage() {
                 {loading ? (
                   <div className="h-64 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" />
                 ) : (
-                  <DatabasePoolStatus pool={data?.pool} />
+                  <DatabasePoolStatus {...(data?.pool && { pool: data.pool })} />
                 )}
               </div>
             </div>

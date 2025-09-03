@@ -197,6 +197,7 @@ export function useWeekSchedule(
 
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [message, messageTimeout]);
 
   /**
@@ -349,7 +350,7 @@ export function useWeekSchedule(
     refreshSchedule,
     isDateInPast,
     currentWeekDisplay,
-    version,
-    lastModified,
+    ...(version && { version }),
+    ...(lastModified && { lastModified }),
   };
 }

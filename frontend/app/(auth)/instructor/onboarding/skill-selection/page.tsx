@@ -90,25 +90,25 @@ function Step3SkillsPricingInner() {
           if (typeof svc !== 'object' || svc === null) return null;
           const service = svc as Record<string, unknown>;
           return {
-            catalog_service_id: String(service.service_catalog_id || ''),
-            name: String(service.name || ''),
-            hourly_rate: String(service.hourly_rate ?? ''),
+            catalog_service_id: String(service['service_catalog_id'] || ''),
+            name: String(service['name'] || ''),
+            hourly_rate: String(service['hourly_rate'] ?? ''),
             ageGroup:
-              Array.isArray(service.age_groups) && service.age_groups.length === 2
+              Array.isArray(service['age_groups']) && service['age_groups'].length === 2
                 ? 'both' as AgeGroup
-                : Array.isArray(service.age_groups) && service.age_groups.includes('kids')
+                : Array.isArray(service['age_groups']) && service['age_groups'].includes('kids')
                 ? 'kids' as AgeGroup
                 : 'adults' as AgeGroup,
-            description: String(service.description || ''),
-            equipment: Array.isArray(service.equipment_required) ? service.equipment_required.join(', ') : '',
+            description: String(service['description'] || ''),
+            equipment: Array.isArray(service['equipment_required']) ? service['equipment_required'].join(', ') : '',
             levels_taught:
-              Array.isArray(service.levels_taught) && service.levels_taught.length
-                ? service.levels_taught as string[]
+              Array.isArray(service['levels_taught']) && service['levels_taught'].length
+                ? service['levels_taught'] as string[]
                 : ['beginner', 'intermediate', 'advanced'],
-            duration_options: Array.isArray(service.duration_options) && service.duration_options.length ? service.duration_options as number[] : [60],
+            duration_options: Array.isArray(service['duration_options']) && service['duration_options'].length ? service['duration_options'] as number[] : [60],
             location_types:
-              Array.isArray(service.location_types) && service.location_types.length
-                ? service.location_types as string[]
+              Array.isArray(service['location_types']) && service['location_types'].length
+                ? service['location_types'] as string[]
                 : ['in-person'],
           };
         }).filter(Boolean) as SelectedService[];

@@ -88,15 +88,15 @@ export default function InstructorProfileSettingsPage() {
         let userZip = '';
         if (userRes.ok) {
           const userData = await userRes.json();
-          firstName = userData.first_name || '';
-          lastName = userData.last_name || '';
-          userZip = userData.zip_code || '';
-          logger.debug('Prefill: /auth/me body', { first_name: firstName, last_name: lastName, id: userData.id, zip_code: userZip });
+          firstName = userData['first_name'] || '';
+          lastName = userData['last_name'] || '';
+          userZip = userData['zip_code'] || '';
+          logger.debug('Prefill: /auth/me body', { first_name: firstName, last_name: lastName, id: userData['id'], zip_code: userZip });
         } else if (data && data.user) {
           // Fallback to instructor payload's embedded user if available
-          firstName = data.user.first_name || '';
-          lastName = data.user.last_name || '';
-          userZip = data.user.zip_code || '';
+          firstName = data.user['first_name'] || '';
+          lastName = data.user['last_name'] || '';
+          userZip = data.user['zip_code'] || '';
           logger.debug('Prefill: using instructor.user fallback', { first_name: firstName, last_name: lastName, zip_code: userZip });
         }
 
@@ -107,9 +107,9 @@ export default function InstructorProfileSettingsPage() {
           logger.debug('Prefill: /api/addresses/me status', { status: addrRes.status });
           if (addrRes.ok) {
             const list = await addrRes.json();
-            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>).is_default) || (list.items || [])[0];
-            postalCode = def?.postal_code || '';
-            logger.debug('Prefill: selected default address', { id: def?.id, postal_code: postalCode });
+            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
+            postalCode = def?.['postal_code'] || '';
+            logger.debug('Prefill: selected default address', { id: def?.['id'], postal_code: postalCode });
           }
         } catch {}
         // if no default address zip, fallback to user zip from /auth/me
@@ -122,13 +122,13 @@ export default function InstructorProfileSettingsPage() {
           first_name: firstName,
           last_name: lastName,
           postal_code: postalCode,
-          bio: data.bio || '',
-          areas_of_service: Array.isArray(data.areas_of_service)
-            ? data.areas_of_service
-            : (data.areas_of_service || '').split(',').map((x: string) => x.trim()).filter((x: string) => x.length),
-          years_experience: data.years_experience ?? 0,
-          min_advance_booking_hours: data.min_advance_booking_hours ?? 2,
-          buffer_time_minutes: data.buffer_time_minutes ?? 0,
+          bio: data['bio'] || '',
+          areas_of_service: Array.isArray(data['areas_of_service'])
+            ? data['areas_of_service']
+            : (data['areas_of_service'] || '').split(',').map((x: string) => x.trim()).filter((x: string) => x.length),
+          years_experience: data['years_experience'] ?? 0,
+          min_advance_booking_hours: data['min_advance_booking_hours'] ?? 2,
+          buffer_time_minutes: data['buffer_time_minutes'] ?? 0,
         });
 
         // Prefill service areas (neighborhoods)
@@ -139,14 +139,14 @@ export default function InstructorProfileSettingsPage() {
             const areas: ServiceAreasResponse = await areasRes.json();
             const items = (areas.items || []) as ServiceAreaItem[];
             const ids = items
-              .map((a) => a.neighborhood_id || (a as Record<string, unknown>).id as string)
+              .map((a) => a['neighborhood_id'] || (a as Record<string, unknown>)['id'] as string)
               .filter((v: string | undefined): v is string => typeof v === 'string');
             setSelectedNeighborhoods(new Set(ids));
             // Prime name map so selections show even before a borough loads
             setIdToItem((prev) => {
               const next = { ...prev } as Record<string, ServiceAreaItem>;
               for (const a of items) {
-                const nid = a.neighborhood_id || (a as Record<string, unknown>).id as string;
+                const nid = a['neighborhood_id'] || (a as Record<string, unknown>)['id'] as string;
                 if (nid) next[nid] = a;
               }
               return next;
@@ -159,14 +159,14 @@ export default function InstructorProfileSettingsPage() {
           const addrRes = await fetchWithAuth('/api/addresses/me');
           if (addrRes.ok) {
             const list = await addrRes.json();
-            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>).is_default) || (list.items || [])[0];
-            const zip = def?.postal_code;
+            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
+            const zip = def?.['postal_code'];
             if (zip) {
-              const nycRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`);
+              const nycRes = await fetch(`${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`);
               logger.debug('Prefill: NYC zip check status', { status: nycRes.status, zip });
               if (nycRes.ok) {
                 const nyc: NYCZipCheck = await nycRes.json();
-                setIsNYC(!!nyc.is_nyc);
+                setIsNYC(!!nyc['is_nyc']);
                 logger.debug('Prefill: NYC zip check body', nyc);
               }
             }
@@ -205,7 +205,7 @@ export default function InstructorProfileSettingsPage() {
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
+      const url = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
       const r = await fetch(url);
       if (r.ok) {
         const data = await r.json();
@@ -215,7 +215,7 @@ export default function InstructorProfileSettingsPage() {
         setIdToItem((prev) => {
           const next = { ...prev } as Record<string, ServiceAreaItem>;
           for (const it of list) {
-            const nid = it.neighborhood_id || (it as Record<string, unknown>).id as string;
+            const nid = it['neighborhood_id'] || (it as Record<string, unknown>)['id'] as string;
             if (nid) next[nid] = it;
           }
           return next;
@@ -299,12 +299,12 @@ export default function InstructorProfileSettingsPage() {
         if (addrRes.ok) {
           const list = await addrRes.json();
           const items = (list.items || []) as Record<string, unknown>[];
-          const def = items.find((a) => a.is_default) || items[0];
+          const def = items.find((a) => a['is_default']) || items[0];
           if (def) {
-            const currentZip = def.postal_code || '';
+            const currentZip = def['postal_code'] || '';
             const newZip = (profile.postal_code || '').trim();
             if (newZip && newZip !== currentZip) {
-              await fetchWithAuth(`/api/addresses/me/${def.id}`, {
+              await fetchWithAuth(`/api/addresses/me/${def['id']}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ postal_code: newZip }),
@@ -340,7 +340,7 @@ export default function InstructorProfileSettingsPage() {
 
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
     const items = itemsOverride || boroughNeighborhoods[borough] || [];
-    const ids = items.map((i) => i.neighborhood_id || (i as Record<string, unknown>).id as string);
+    const ids = items.map((i) => i['neighborhood_id'] || (i as Record<string, unknown>)['id'] as string);
     setSelectedNeighborhoods((prev) => {
       const next = new Set(prev);
       if (value) {
@@ -361,20 +361,7 @@ export default function InstructorProfileSettingsPage() {
     });
   };
 
-  // Compute borough selection status for indeterminate styling
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _getBoroughCounts = (_borough: string) => {
-    const list = boroughNeighborhoods[_borough] || [];
-    const ids = list.map((n) => n.neighborhood_id || (n as Record<string, unknown>).id as string).filter(Boolean) as string[];
-    let selected = 0;
-    if (ids.length) {
-      for (const id of ids) if (selectedNeighborhoods.has(id)) selected++;
-    } else {
-      // Fallback: count by idToItem when list not loaded
-      for (const id of selectedNeighborhoods) if (idToItem[id]?.borough === _borough) selected++;
-    }
-    return { selected, total: ids.length };
-  };
+  // Note: Borough counts helper can be added back if indeterminate styling is needed in the future
 
   // Avoid early return to prevent hydration mismatches; render a lightweight inline loader instead
 
@@ -618,9 +605,9 @@ export default function InstructorProfileSettingsPage() {
               <div className="text-sm text-gray-700 mb-2">Results</div>
               <div className="flex flex-wrap gap-2">
                   {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
-                    .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()))
+                    .filter((n) => (n['name'] || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()))
                     .map((n) => {
-                      const nid = n.neighborhood_id || (n as Record<string, unknown>).id as string;
+                      const nid = n['neighborhood_id'] || (n as Record<string, unknown>)['id'] as string;
                       if (!nid) return null;
                       const checked = selectedNeighborhoods.has(nid);
                       return (
@@ -633,7 +620,7 @@ export default function InstructorProfileSettingsPage() {
                             checked ? 'bg-[#6A0DAD] text-white border border-[#6A0DAD] hover:bg-[#6A0DAD]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
-                          <span className="truncate text-left">{n.name || nid}</span>
+                          <span className="truncate text-left">{n['name'] || nid}</span>
                           <span className="ml-2">{checked ? '✓' : '+'}</span>
                         </button>
                       );
@@ -641,7 +628,7 @@ export default function InstructorProfileSettingsPage() {
                     .filter(Boolean)
                     .slice(0, 200)}
                   {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
-                    .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase())).length === 0 && (
+                    .filter((n) => (n['name'] || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase())).length === 0 && (
                       <div className="text-sm text-gray-500">No matches found</div>
                   )}
               </div>
@@ -650,7 +637,7 @@ export default function InstructorProfileSettingsPage() {
           {selectedNeighborhoods.size > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {Array.from(selectedNeighborhoods).map((nid) => {
-                const name = toTitle(idToItem[nid]?.name || String(nid));
+                const name = toTitle(idToItem[nid]?.['name'] || String(nid));
                 return (
                   <span key={`sel-${nid}`} className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0">
                     <span className="truncate max-w-[14rem]" title={name}>{name}</span>
@@ -717,10 +704,10 @@ export default function InstructorProfileSettingsPage() {
                       {isOpen && (
                         <div className="px-3 pb-3 mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
                           {(list || []).map((n) => {
-                            const nid = n.neighborhood_id || (n as Record<string, unknown>).id as string;
+                            const nid = n['neighborhood_id'] || (n as Record<string, unknown>)['id'] as string;
                             if (!nid) return null;
                             const checked = selectedNeighborhoods.has(nid);
-                            const label = toTitle(n.name || String(nid));
+                            const label = toTitle(n['name'] || String(nid));
                             return (
                               <button
                                 key={`${borough}-${nid}`}

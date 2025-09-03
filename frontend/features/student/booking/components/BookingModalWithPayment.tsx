@@ -151,10 +151,9 @@ export default function BookingModalWithPayment({
         totalAmount,
         bookingType,
         paymentStatus: PaymentStatus.PENDING,
-        freeCancellationUntil:
-          bookingType === BookingType.STANDARD
-            ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
-            : undefined,
+        ...(bookingType === BookingType.STANDARD && {
+          freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+        }),
       };
 
       // Store booking data for after login

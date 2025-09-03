@@ -28,7 +28,7 @@ jest.mock('@/lib/react-query/api', () => ({
     return async () => {
       // Updated: upcoming lessons now use /bookings/upcoming with limit param
       const isUpcoming = typeof endpoint === 'string' && endpoint.includes('/bookings/upcoming');
-      const legacyUpcoming = options?.params?.status === 'CONFIRMED' && options?.params?.upcoming_only === true;
+      const legacyUpcoming = options?.params?.['status'] === 'CONFIRMED' && options?.params?.['upcoming_only'] === true;
       if (isUpcoming || legacyUpcoming) {
         return {
           items: [

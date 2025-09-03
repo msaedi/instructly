@@ -178,10 +178,9 @@ export default function BookingModal({
         totalAmount,
         bookingType,
         paymentStatus: PaymentStatus.PENDING,
-        freeCancellationUntil:
-          bookingType === BookingType.STANDARD
-            ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
-            : undefined,
+        ...(bookingType === BookingType.STANDARD && {
+          freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+        }),
       };
 
       // Store booking data and slot info for after login
@@ -266,10 +265,9 @@ export default function BookingModal({
       totalAmount,
       bookingType,
       paymentStatus: PaymentStatus.PENDING,
-      freeCancellationUntil:
-        bookingType === BookingType.STANDARD
-          ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
-          : undefined,
+      ...(bookingType === BookingType.STANDARD && {
+        freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+      }),
     };
 
     // Store booking data in session storage for the confirmation page

@@ -23,7 +23,7 @@ import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
 
 const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
+  process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || ''
 );
 
 interface Booking {
@@ -309,8 +309,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
   // Calculate fees
   const platformFeePercentage = 0.15; // 15%
   const platformFee = booking.total_price * platformFeePercentage;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _instructorEarnings = booking.total_price - platformFee;
+  // Instructor earnings calculation available if needed: booking.total_price - platformFee
 
   // Load saved payment methods
   useEffect(() => {

@@ -60,7 +60,7 @@ export function useInstructorProfile(instructorId: string) {
 
         return {
           id: (svc.id as string) || (svc.service_catalog_id as string),
-          service_catalog_id: svc.service_catalog_id as string | undefined,
+          ...(svc.service_catalog_id ? { service_catalog_id: svc.service_catalog_id as string } : {}),
           skill: (catalogService?.name as string) || (svc.name as string) || (svc.skill as string) || (svc.service_catalog_id ? `Service ${svc.service_catalog_id}` : 'Service'),
           duration_options: Array.isArray(svc.duration_options) && svc.duration_options.length > 0 ? (svc.duration_options as number[]) : [60],
           hourly_rate: isNaN(hourly_rate) ? 0 : hourly_rate,
@@ -82,10 +82,10 @@ export function useInstructorProfile(instructorId: string) {
         years_experience: instructor.years_experience || 0,
         user: instructor.user || { first_name: 'Unknown', last_initial: '' },
         services: mappedServices,
-        is_verified: instructor.verified,
-        background_check_completed: false, // Not provided by API
         favorited_count: instructor.favorited_count || 0,
-        is_favorited: instructor.is_favorited,
+        // Only include optional properties when they have actual values
+        ...(instructor.verified !== undefined && { is_verified: instructor.verified }),
+        ...(instructor.is_favorited !== undefined && { is_favorited: instructor.is_favorited }),
       };
 
       return instructorProfile;

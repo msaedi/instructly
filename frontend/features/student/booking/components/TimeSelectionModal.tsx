@@ -114,7 +114,7 @@ export default function TimeSelectionModal({
     });
 
     // Coerce hourly rate to a number (API may send string)
-    const hourlyRateRaw = (selectedService as unknown as Record<string, unknown>)?.hourly_rate as unknown;
+    const hourlyRateRaw = (selectedService as unknown as Record<string, unknown>)?.['hourly_rate'] as unknown;
     const hourlyRateParsed = typeof hourlyRateRaw === 'number' ? hourlyRateRaw : parseFloat(String(hourlyRateRaw ?? '100'));
     const hourlyRate = Number.isNaN(hourlyRateParsed) ? 100 : hourlyRateParsed; // fallback to 100
 
@@ -327,6 +327,7 @@ export default function TimeSelectionModal({
         document.body.style.overflow = originalStyle;
       };
     }
+    return undefined;
   }, [isOpen]);
 
   // Handle backdrop click
@@ -453,13 +454,26 @@ export default function TimeSelectionModal({
         logger.info('User not authenticated, storing booking intent and redirecting to login');
 
         // Store booking intent for after login
-        storeBookingIntent({
+        const bookingIntent: {
+          instructorId: string;
+          serviceId?: string;
+          date: string;
+          time: string;
+          duration: number;
+          skipModal?: boolean;
+        } = {
           instructorId: instructor.user_id,
-          serviceId: serviceId || selectedService.id,
           date: selectedDate,
           time: selectedTime,
           duration: selectedDuration,
-        });
+        };
+
+        const finalServiceId = serviceId || selectedService.id;
+        if (finalServiceId) {
+          bookingIntent.serviceId = finalServiceId;
+        }
+
+        storeBookingIntent(bookingIntent);
 
         // Close modal and redirect to login
         // After login, return directly to the confirmation flow
@@ -471,7 +485,7 @@ export default function TimeSelectionModal({
 
       // Prepare booking data for payment page
       // Ensure hourly rate is numeric
-      const selectedRateRaw = (selectedService as unknown as Record<string, unknown>)?.hourly_rate as unknown;
+      const selectedRateRaw = (selectedService as unknown as Record<string, unknown>)?.['hourly_rate'] as unknown;
       const selectedRateParsed = typeof selectedRateRaw === 'number' ? selectedRateRaw : parseFloat(String(selectedRateRaw ?? '0'));
       const selectedHourlyRate = Number.isNaN(selectedRateParsed) ? 0 : selectedRateParsed;
 
@@ -526,6 +540,7 @@ export default function TimeSelectionModal({
         window.location.href = '/student/booking/confirm';
       }, 100);
     }
+    return undefined;
   };
 
   // Get current price based on selected duration
@@ -549,7 +564,7 @@ export default function TimeSelectionModal({
 
     // Get time slots from availability data
     if (availabilityData && availabilityData[date]) {
-      const slots = (availabilityData[date] as Record<string, unknown>)?.available_slots || [];
+      const slots = (availabilityData[date] as Record<string, unknown>)?.['available_slots'] || [];
 
       // Filter out past times if selecting today
       const now = new Date();
@@ -739,7 +754,7 @@ export default function TimeSelectionModal({
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
       Object.keys(availabilityData).forEach((date) => {
-        const slots = (availabilityData[date] as Record<string, unknown>)?.available_slots || [];
+        const slots = (availabilityData[date] as Record<string, unknown>)?.['available_slots'] || [];
 
         // Check if any slot on this date can accommodate the selected duration
         const hasValidSlot = (slots as unknown as AvailabilitySlot[]).some((slot: AvailabilitySlot) => {
@@ -783,7 +798,7 @@ export default function TimeSelectionModal({
         // First check if current date still has availability for new duration
         const currentDateData = availabilityData[selectedDate];
         if (currentDateData) {
-          const slots = (currentDateData as Record<string, unknown>)?.available_slots || [];
+          const slots = (currentDateData as Record<string, unknown>)?.['available_slots'] || [];
 
           // Check if any slot can accommodate the new duration
           const canAccommodate = (slots as unknown as AvailabilitySlot[]).some((slot: AvailabilitySlot) => {
@@ -804,7 +819,7 @@ export default function TimeSelectionModal({
 
             for (const date of sortedDates) {
               const dayData = availabilityData[date];
-              const daySlots = (dayData as Record<string, unknown>)?.available_slots || [];
+              const daySlots = (dayData as Record<string, unknown>)?.['available_slots'] || [];
 
               // Check if this date can accommodate the duration
               const dateCanAccommodate = (daySlots as unknown as AvailabilitySlot[]).some((slot: AvailabilitySlot) => {
@@ -850,7 +865,7 @@ export default function TimeSelectionModal({
         lastChangeWasDurationRef.current = true;
 
         const dayData = availabilityData[selectedDate];
-        const slots = (dayData as Record<string, unknown>)?.available_slots || [];
+        const slots = (dayData as Record<string, unknown>)?.['available_slots'] || [];
 
         const now = new Date();
         const isToday = selectedDate === formatDateInTz(now, studentTimezone);
@@ -968,7 +983,7 @@ export default function TimeSelectionModal({
 
     try {
       const dayData = availabilityData[selectedDate];
-      const slots = (dayData as Record<string, unknown>)?.available_slots || [];
+      const slots = (dayData as Record<string, unknown>)?.['available_slots'] || [];
 
       const now = new Date();
       const isToday = selectedDate === formatDateInTz(now, studentTimezone);
@@ -1100,7 +1115,7 @@ export default function TimeSelectionModal({
             <Calendar
               currentMonth={currentMonth}
               selectedDate={selectedDate}
-              preSelectedDate={preSelectedDate}
+              {...(preSelectedDate && { preSelectedDate })}
               availableDates={availableDates}
               onDateSelect={handleDateSelect}
               onMonthChange={setCurrentMonth}
@@ -1206,7 +1221,7 @@ export default function TimeSelectionModal({
                   <Calendar
                     currentMonth={currentMonth}
                     selectedDate={selectedDate}
-                    preSelectedDate={preSelectedDate}
+                    {...(preSelectedDate && { preSelectedDate })}
                     availableDates={availableDates}
                     onDateSelect={handleDateSelect}
                     onMonthChange={setCurrentMonth}

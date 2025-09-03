@@ -141,7 +141,7 @@ function BookingForm({ instructorId, serviceId }: any) {
 
       return { previousBookings };
     },
-    onError: (err, newBooking, context) => {
+    onError: (_, __, context) => {
       // Rollback on error
       queryClient.setQueryData(queryKeys.bookings.all, context?.previousBookings);
     },

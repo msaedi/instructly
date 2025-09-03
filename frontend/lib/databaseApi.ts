@@ -3,7 +3,9 @@
  * Database monitoring API client for admin dashboard
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+import { env } from '@/lib/env';
+
+const API_BASE_URL = env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000';
 
 export interface DatabasePool {
   size: number;

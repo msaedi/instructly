@@ -1,5 +1,7 @@
 // frontend/app/config/brand.ts
 
+import { env } from '@/lib/env';
+
 /**
  * Centralized Brand Configuration for InstaInstru
  *
@@ -189,7 +191,7 @@ export type EmailType = keyof BrandEmails;
  * ```
  */
 export function getApiUrl(): string {
-  return process.env.NODE_ENV === 'production' ? BRAND.url.api.production : BRAND.url.api.staging;
+  return env.isProduction() ? BRAND.url.api.production : BRAND.url.api.staging;
 }
 
 /**
@@ -205,7 +207,7 @@ export function getApiUrl(): string {
  * ```
  */
 export function getAppUrl(): string {
-  return process.env.NODE_ENV === 'production' ? BRAND.url.production : BRAND.url.staging;
+  return env.isProduction() ? BRAND.url.production : BRAND.url.staging;
 }
 
 /**

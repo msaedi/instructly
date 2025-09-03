@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
-import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles } from 'lucide-react';
+import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles, type LucideProps } from 'lucide-react';
 import { publicApi, type CatalogService } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { getString, getNumber, getBoolean, getStringArray } from '@/lib/typesafe';
@@ -66,7 +66,7 @@ interface CategoryWithServices {
   id: string;
   slug: string;
   name: string;
-  icon: React.ComponentType<{ className?: string }>; // Lucide icon component
+  icon: React.ForwardRefExoticComponent<Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>; // Lucide icon component
   subtitle: string;
   services: CatalogService[];
 }
@@ -171,8 +171,8 @@ export default function AllServicesPage() {
                 requires_certification: getBoolean(service, 'requires_certification', false),
                 is_active: getBoolean(service, 'is_active', true),
                 instructor_count: getNumber(service, 'instructor_count', 0),
-                actual_min_price: getNumber(service, 'actual_min_price') || undefined,
-                actual_max_price: getNumber(service, 'actual_max_price') || undefined,
+                ...(getNumber(service, 'actual_min_price') ? { actual_min_price: getNumber(service, 'actual_min_price') } : {}),
+                ...(getNumber(service, 'actual_max_price') ? { actual_max_price: getNumber(service, 'actual_max_price') } : {}),
               };
             }),
           };
@@ -242,8 +242,8 @@ export default function AllServicesPage() {
                 requires_certification: getBoolean(service, 'requires_certification', false),
                 is_active: getBoolean(service, 'is_active', true),
                 instructor_count: getNumber(service, 'instructor_count', 0),
-                actual_min_price: getNumber(service, 'actual_min_price') || undefined,
-                actual_max_price: getNumber(service, 'actual_max_price') || undefined,
+                ...(getNumber(service, 'actual_min_price') ? { actual_min_price: getNumber(service, 'actual_min_price') } : {}),
+                ...(getNumber(service, 'actual_max_price') ? { actual_max_price: getNumber(service, 'actual_max_price') } : {}),
               };
             }),
           };
@@ -294,8 +294,6 @@ export default function AllServicesPage() {
           requires_certification: false,
           is_active: true,
           instructor_count: 1,
-          actual_min_price: undefined,
-          actual_max_price: undefined,
         }));
       kidsCat.services = [...injected, ...kidsCat.services];
     }

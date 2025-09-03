@@ -119,6 +119,7 @@ export default function InstructorAvailabilityPage() {
       const timer = setTimeout(() => setMessage(null), 2500);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [message, setMessage]);
 
   const header = useMemo(() => (
@@ -282,7 +283,7 @@ export default function InstructorAvailabilityPage() {
           isMobile={isMobile}
           activeDayIndex={activeDay}
           onActiveDayChange={setActiveDay}
-          timezone={userData?.timezone}
+          {...(userData?.timezone && { timezone: userData.timezone })}
           startHour={startHour}
           endHour={endHour}
         />

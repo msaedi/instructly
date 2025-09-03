@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import ImageCropModal from '@/components/modals/ImageCropModal';
@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 import { createSignedUpload, finalizeProfilePicture } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { getUserInitials, getAvatarColor } from '@/features/shared/hooks/useAuth.helpers';
 
 interface Props {
   onCompleted?: () => void;
@@ -23,7 +22,7 @@ interface Props {
 }
 
 export function ProfilePictureUpload({ onCompleted, className, size = 64, trigger, ariaLabel }: Props) {
-  const { user, checkAuth } = useAuth();
+  const { checkAuth } = useAuth(); // user available via hook if needed
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -32,10 +31,8 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showCrop, setShowCrop] = useState(false);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _initials = useMemo(() => getUserInitials(user), [user]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _color = useMemo(() => (user?.id ? getAvatarColor(user.id) : '#999'), [user?.id]);
+  // User initials available via: useMemo(() => getUserInitials(user), [user])
+  // Avatar color available via: useMemo(() => (user?.id ? getAvatarColor(user.id) : '#999'), [user?.id])
 
   const onPick = () => fileInputRef.current?.click();
 
@@ -97,7 +94,7 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
       if (onCompleted) onCompleted();
     } catch (err: unknown) {
       logger.error('Profile picture upload error', err);
-      const msg = (err as Record<string, unknown>)?.message as string || 'Upload failed';
+      const msg = (err as Record<string, unknown>)?.['message'] as string || 'Upload failed';
       setError(msg);
       toast.error(msg);
     } finally {

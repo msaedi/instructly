@@ -189,10 +189,12 @@ export default function InstructorCard({
             user={{
               id: instructor.user_id,
               first_name: instructor.user.first_name,
-              last_name: undefined,
-              email: undefined,
-              has_profile_picture: (instructor.user as { has_profile_picture?: boolean }).has_profile_picture,
-              profile_picture_version: (instructor.user as { profile_picture_version?: number }).profile_picture_version,
+              ...((instructor.user as { has_profile_picture?: boolean }).has_profile_picture !== undefined && {
+                has_profile_picture: (instructor.user as { has_profile_picture?: boolean }).has_profile_picture
+              }),
+              ...((instructor.user as { profile_picture_version?: number }).profile_picture_version && {
+                profile_picture_version: (instructor.user as { profile_picture_version?: number }).profile_picture_version
+              }),
             }}
             size={compact ? 128 : 224}
             className={`${compact ? 'w-32 h-32' : 'w-56 h-56'}`}

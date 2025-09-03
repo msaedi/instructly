@@ -4,11 +4,13 @@
  */
 
 import { logger } from '@/lib/logger';
+import { API_BASE as PUBLIC_API_BASE, USE_PROXY as PUBLIC_USE_PROXY, APP_ENV, IS_DEVELOPMENT } from '@/lib/publicEnv';
 
 // Phase A.2: Guard against deprecated NEXT_PUBLIC_API_URL
-if (process.env.NEXT_PUBLIC_API_URL) {
+// Note: We check this using bracket notation to satisfy TypeScript strict mode
+if (typeof process !== 'undefined' && process.env['NEXT_PUBLIC_API_URL']) {
   // Deliberately crash in dev/preview to catch drift
-  if (process.env.NODE_ENV !== 'production') {
+  if (IS_DEVELOPMENT) {
     throw new Error(
       '[apiBase] NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.'
     );
@@ -17,12 +19,10 @@ if (process.env.NEXT_PUBLIC_API_URL) {
 }
 
 // Phase A.1: Single source of truth
-const rawBase = process.env.NEXT_PUBLIC_API_BASE?.trim() || '';
+const rawBase = (PUBLIC_API_BASE ?? '').trim();
 
 // Optional: allow local proxy only in local env
-const USE_PROXY =
-  process.env.NEXT_PUBLIC_USE_PROXY === 'true' &&
-  (process.env.NEXT_PUBLIC_APP_ENV === 'local' || process.env.NODE_ENV === 'development');
+const USE_PROXY = PUBLIC_USE_PROXY && (APP_ENV === 'local' || IS_DEVELOPMENT);
 
 export const API_BASE = (() => {
   if (USE_PROXY) return '/api/proxy'; // same-origin dev proxy
@@ -50,7 +50,7 @@ export function withApiBase(path: string): string {
 }
 
 // Dev-only logging
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+if (typeof window !== 'undefined' && IS_DEVELOPMENT) {
   logger.info(`[apiBase] API_BASE = ${API_BASE}`);
   logger.info(`[apiBase] USE_PROXY = ${USE_PROXY}`);
   if (USE_PROXY) {

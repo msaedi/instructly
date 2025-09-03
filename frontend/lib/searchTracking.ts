@@ -13,6 +13,7 @@ import { captureDeviceContext, formatDeviceContextForAnalytics } from '@/lib/dev
 
 import { withApiBase } from '@/lib/apiBase';
 import { httpGet, httpPost } from '@/lib/http';
+import { env } from '@/lib/env';
 
 // Build URL using centralized API base resolver
 function buildUrl(path: string): string {
@@ -47,7 +48,7 @@ let guestBootstrapInFlight = false;
 let guestBootstrapDone = false;
 export async function ensureGuestOnce(): Promise<void> {
   // Skip guest bootstrap during unit tests to avoid extra network calls
-  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') return;
+  if (typeof process !== 'undefined' && env.isTest()) return;
   if (typeof document === 'undefined') return;
   // Always trust the cookie first; if absent, we must bootstrap regardless of any local sentinel
   const hasGuest = document.cookie.split('; ').some((c) => c.startsWith('guest_id='));
@@ -224,7 +225,7 @@ export async function recordSearch(
     } = {
       search_query: searchRecord.query,
       search_type: searchRecord.search_type,
-      results_count: searchRecord.results_count,
+      ...(searchRecord.results_count !== undefined && { results_count: searchRecord.results_count }),
       search_context: analyticsContext,
       device_context: deviceInfo,
     };
@@ -245,7 +246,7 @@ export async function recordSearch(
     }
 
     // Return the search event ID for interaction tracking
-    return (data as Record<string, unknown>)?.search_event_id as number || null;
+    return (data as Record<string, unknown>)?.['search_event_id'] as number || null;
   } catch (error) {
     logger.error('Error recording search', error as Error);
 

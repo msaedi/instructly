@@ -25,10 +25,10 @@ export function useBookingModal() {
   }) => {
     setModalState({
       isOpen: true,
-      selectedDate: options?.date,
-      selectedTime: options?.time,
-      selectedService: options?.service,
-      selectedDuration: options?.duration,
+      ...(options?.date !== undefined && { selectedDate: options.date }),
+      ...(options?.time !== undefined && { selectedTime: options.time }),
+      ...(options?.service !== undefined && { selectedService: options.service }),
+      ...(options?.duration !== undefined && { selectedDuration: options.duration }),
     });
   };
 

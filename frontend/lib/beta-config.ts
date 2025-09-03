@@ -1,5 +1,7 @@
 // frontend/lib/beta-config.ts
 
+import { env } from '@/lib/env';
+
 export type BetaPhase = 'instructor_only' | 'alpha' | 'open_beta' | 'production';
 export type StudentAccess = 'hidden' | 'invite_only' | 'public';
 export type BetaSite = 'beta' | 'preview' | 'production';
@@ -27,8 +29,8 @@ export function getBetaConfig(hostname?: string | null): BetaConfig {
 
   // Domains from env to avoid hard-coding
   const PREVIEW_DOMAINS = [
-    (process.env.NEXT_PUBLIC_PREVIEW_DOMAIN || '').toLowerCase().trim(),
-    (process.env.NEXT_PUBLIC_PREVIEW_ALTERNATE_DOMAIN || '').toLowerCase().trim(),
+    (env.get('NEXT_PUBLIC_PREVIEW_DOMAIN') || '').toLowerCase().trim(),
+    (env.get('NEXT_PUBLIC_PREVIEW_ALTERNATE_DOMAIN') || '').toLowerCase().trim(),
     'preview.instainstru.com',
     'instainstru-preview.vercel.app',
     'instructly-ten.vercel.app',

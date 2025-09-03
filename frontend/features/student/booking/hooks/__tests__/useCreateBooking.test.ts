@@ -21,7 +21,6 @@ describe.skip('useCreateBooking', () => {
     it('should handle 409 conflict error for student double-booking', async () => {
       // Mock API response for student conflict
       mockCreateBooking.mockResolvedValueOnce({
-        data: undefined,
         error: 'You already have a booking scheduled at this time',
         status: 409,
       });
@@ -50,7 +49,6 @@ describe.skip('useCreateBooking', () => {
     it('should handle 409 conflict error for instructor unavailability', async () => {
       // Mock API response for instructor conflict
       mockCreateBooking.mockResolvedValueOnce({
-        data: undefined,
         error: 'This time slot conflicts with an existing booking',
         status: 409,
       });
@@ -78,7 +76,6 @@ describe.skip('useCreateBooking', () => {
 
     it('should handle 401 unauthorized error', async () => {
       mockCreateBooking.mockResolvedValueOnce({
-        data: undefined,
         error: 'Unauthorized',
         status: 401,
       });
@@ -103,7 +100,6 @@ describe.skip('useCreateBooking', () => {
 
     it('should handle validation errors with advance booking message', async () => {
       mockCreateBooking.mockResolvedValueOnce({
-        data: undefined,
         error: 'Bookings must be made at least 24 hours in advance',
         status: 400,
       });
@@ -131,7 +127,6 @@ describe.skip('useCreateBooking', () => {
     it('should reset error when calling reset', async () => {
       // Mock error first
       mockCreateBooking.mockResolvedValueOnce({
-        data: undefined,
         error: 'Some error',
         status: 400,
       });
@@ -190,7 +185,6 @@ describe.skip('useCreateBooking', () => {
 
       mockCreateBooking.mockResolvedValueOnce({
         data: { ...booking } as Booking,
-        error: undefined,
         status: 200,
       });
 

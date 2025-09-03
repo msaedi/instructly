@@ -71,7 +71,7 @@ export default function Step4Verification() {
       const session = await createStripeIdentitySession();
       // Prefer Stripe.js modal to avoid brittle hosted-link flows
       try {
-        const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+        const publishableKey = process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'];
         if (publishableKey) {
           const stripe = await loadStripe(publishableKey);
           if (!stripe) throw new Error('Failed to load Stripe.js');

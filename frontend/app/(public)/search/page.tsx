@@ -122,9 +122,9 @@ function SearchPageContent() {
         } else if (nlResponse.data) {
           instructorsData = nlResponse.data.results.map(
             (result: unknown) => {
-              const instructor = isRecord(result) ? result.instructor : undefined;
-              const service = isRecord(result) ? result.service : undefined;
-              const offering = isRecord(result) ? result.offering : undefined;
+              const instructor = isRecord(result) ? result['instructor'] : undefined;
+              const service = isRecord(result) ? result['service'] : undefined;
+              const offering = isRecord(result) ? result['offering'] : undefined;
 
               return {
                 id: getString(instructor, 'id', ''),
@@ -256,7 +256,7 @@ function SearchPageContent() {
           return;
         }
         const params = new URLSearchParams({ ids: ids.join(',') });
-        const apiUrl = process.env.NEXT_PUBLIC_API_BASE || '';
+        const apiUrl = process.env['NEXT_PUBLIC_API_BASE'] || '';
         const res = await fetch(`${apiUrl}/api/addresses/coverage/bulk?${params.toString()}`);
         if (!res.ok) {
           setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
@@ -630,7 +630,7 @@ function SearchPageContent() {
                       >
                         <InstructorCard
                           instructor={enhancedInstructor}
-                          nextAvailableSlot={nextAvailableByInstructor[instructor.user_id]}
+                          {...(nextAvailableByInstructor[instructor.user_id] && { nextAvailableSlot: nextAvailableByInstructor[instructor.user_id] })}
                           onViewProfile={() => handleInteraction('view_profile')}
                           compact={isStacked}
                           onBookNow={(e) => {
@@ -706,21 +706,21 @@ function SearchPageContent() {
           isOpen={showTimeSelection}
           onClose={() => setShowTimeSelection(false)}
           instructor={{
-            user_id: getString(timeSelectionContext?.instructor, 'user_id', ''),
+            user_id: getString(timeSelectionContext?.['instructor'], 'user_id', ''),
             user: {
-              first_name: getString(isRecord(timeSelectionContext?.instructor) ? timeSelectionContext.instructor.user : undefined, 'first_name', ''),
-              last_initial: getString(isRecord(timeSelectionContext?.instructor) ? timeSelectionContext.instructor.user : undefined, 'last_initial', '')
+              first_name: getString(isRecord(timeSelectionContext?.['instructor']) ? timeSelectionContext['instructor']['user'] : undefined, 'first_name', ''),
+              last_initial: getString(isRecord(timeSelectionContext?.['instructor']) ? timeSelectionContext['instructor']['user'] : undefined, 'last_initial', '')
             },
-            services: getArray(timeSelectionContext?.instructor, 'services') as Array<{
+            services: getArray(timeSelectionContext?.['instructor'], 'services') as Array<{
               id?: string;
               duration_options: number[];
               hourly_rate: number;
               skill: string;
             }>
           }}
-          preSelectedDate={getString(timeSelectionContext, 'preSelectedDate') || undefined}
-          preSelectedTime={getString(timeSelectionContext, 'preSelectedTime') || undefined}
-          serviceId={getString(timeSelectionContext, 'serviceId') || undefined}
+          {...(getString(timeSelectionContext, 'preSelectedDate') && { preSelectedDate: getString(timeSelectionContext, 'preSelectedDate') })}
+          {...(getString(timeSelectionContext, 'preSelectedTime') && { preSelectedTime: getString(timeSelectionContext, 'preSelectedTime') })}
+          {...(getString(timeSelectionContext, 'serviceId') && { serviceId: getString(timeSelectionContext, 'serviceId') })}
         />
       )}
     </div>

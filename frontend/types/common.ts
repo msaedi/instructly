@@ -293,15 +293,15 @@ export function getErrorMessage(error: unknown): string {
       const detail = error.detail as Record<string, unknown>;
 
       // For rate limiting, show retry time
-      if (detail.code === 'RATE_LIMIT_EXCEEDED' && detail.retry_after) {
-        const retryAfter = Number(detail.retry_after);
+      if (detail['code'] === 'RATE_LIMIT_EXCEEDED' && detail['retry_after']) {
+        const retryAfter = Number(detail['retry_after']);
         if (!isNaN(retryAfter)) {
           const minutes = Math.ceil(retryAfter / 60);
-          return `${detail.message} (Try again in ${minutes} minute${minutes > 1 ? 's' : ''})`;
+          return `${detail['message']} (Try again in ${minutes} minute${minutes > 1 ? 's' : ''})`;
         }
       }
 
-      return String(detail.message);
+      return String(detail['message']);
     }
   }
 
@@ -398,7 +398,7 @@ export function isRateLimitError(error: unknown): boolean {
   if (!detail || typeof detail !== 'object') return false;
   if (!('code' in detail)) return false;
 
-  return (detail as Record<string, unknown>).code === 'RATE_LIMIT_EXCEEDED';
+  return (detail as Record<string, unknown>)['code'] === 'RATE_LIMIT_EXCEEDED';
 }
 
 /**
@@ -411,5 +411,5 @@ export function getRateLimitRetryTime(error: unknown): number | null {
 
   const apiError = error as { detail: Record<string, unknown> };
   const detail = apiError.detail;
-  return typeof detail.retry_after === 'number' ? detail.retry_after : null;
+  return typeof detail['retry_after'] === 'number' ? detail['retry_after'] : null;
 }

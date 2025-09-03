@@ -2,6 +2,10 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "24.1.x",
+    "npm": "11.3.x"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:test": "next dev -p 3100",
@@ -15,6 +19,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
     "typecheck:strict:log": "npm run typecheck:strict 2>&1 | tee .artifacts/ts-noUncheckedIndexedAccess.log",
+    "typecheck:strict-all": "tsc -p tsconfig.strict-all.json --noEmit",
+    "typecheck:strict-all:log": "npm run typecheck:strict-all 2>&1 | tee .artifacts/ts-strict-all.log",
     "build:log": "mkdir -p .artifacts && NEXT_TELEMETRY_DISABLED=1 next build 2>&1 | tee .artifacts/next-build.log",
     "build:warn-check": "node scripts/check-next-warnings.js",
     "prepare": "is-ci || husky",

@@ -80,7 +80,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [savingAbout, setSavingAbout] = useState(false);
-  const [, setSavingAreas] = useState(false);
+  // Areas saving state removed - handled by neighborhood persistence
   const [profileData, setProfileData] = useState<ProfileFormData>({
     bio: '',
     areas_of_service: [] as string[],
@@ -227,23 +227,23 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
             const mapped: SelectedService[] = (me.services || []).map((svc: unknown) => {
               const s = svc as Record<string, unknown>;
               return {
-                catalog_service_id: s.service_catalog_id as string,
-                name: (s.name as string) || '',
-                hourly_rate: String(s.hourly_rate ?? ''),
+                catalog_service_id: s['service_catalog_id'] as string,
+                name: (s['name'] as string) || '',
+                hourly_rate: String(s['hourly_rate'] ?? ''),
                 ageGroup:
-                  Array.isArray(s.age_groups) && s.age_groups.length === 2
+                  Array.isArray(s['age_groups']) && s['age_groups'].length === 2
                     ? 'both'
-                    : ((s.age_groups as string[]) || []).includes('kids')
+                    : ((s['age_groups'] as string[]) || []).includes('kids')
                     ? 'kids'
                     : 'adults',
-                description: (s.description as string) || '',
-                equipment: Array.isArray(s.equipment_required) ? (s.equipment_required as string[]).join(', ') : '',
+                description: (s['description'] as string) || '',
+                equipment: Array.isArray(s['equipment_required']) ? (s['equipment_required'] as string[]).join(', ') : '',
                 levels_taught:
-                  Array.isArray(s.levels_taught) && s.levels_taught.length
-                    ? s.levels_taught as string[]
+                  Array.isArray(s['levels_taught']) && s['levels_taught'].length
+                    ? s['levels_taught'] as string[]
                     : ['beginner', 'intermediate', 'advanced'],
-                duration_options: Array.isArray(s.duration_options) && s.duration_options.length ? s.duration_options as number[] : [60],
-                location_types: Array.isArray(s.location_types) && s.location_types.length ? s.location_types as string[] : ['in-person'],
+                duration_options: Array.isArray(s['duration_options']) && s['duration_options'].length ? s['duration_options'] as number[] : [60],
+                location_types: Array.isArray(s['location_types']) && s['location_types'].length ? s['location_types'] as string[] : ['in-person'],
               };
             });
             if (mapped.length) setSelectedServices(mapped);
@@ -261,7 +261,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
+      const url = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
       const r = await fetch(url);
       if (r.ok) {
         const data = await r.json();
@@ -613,44 +613,12 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _handleSaveAreas = async () => {
-    try {
-      setSavingAreas(true);
-      setError('');
-      if (profileData.areas_of_service.length === 0) {
-        setError('Please select at least one area of service');
-        setSavingAreas(false);
-        return;
-      }
-      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bio: profileData.bio,
-          years_experience: profileData.years_experience,
-          services: profileData.services,
-          areas_of_service: profileData.areas_of_service,
-        }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({} as { detail?: string }));
-        throw new Error(errorData.detail || 'Failed to update service areas');
-      }
-      onSuccess();
-      onClose();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save service areas');
-    } finally {
-      setSavingAreas(false);
-    }
-  };
+  // Areas-only save handler removed - functionality integrated into neighborhood persistence
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={undefined}
       showCloseButton={true}
       size="lg"
       noPadding
@@ -1380,10 +1348,10 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                             service_catalog_id: s.catalog_service_id,
                             hourly_rate: Number(s.hourly_rate),
                             age_groups: s.ageGroup === 'both' ? ['kids','adults'] : [s.ageGroup],
-                            description: s.description?.trim() || undefined,
+                            ...(s.description?.trim() ? { description: s.description.trim() } : {}),
                             duration_options: (s.duration_options?.length ? s.duration_options : [60]).sort((a,b)=>a-b),
                             levels_taught: s.levels_taught,
-                            equipment_required: s.equipment?.split(',').map((x)=>x.trim()).filter(Boolean) || undefined,
+                            ...(s.equipment?.split(',').map((x)=>x.trim()).filter(Boolean)?.length ? { equipment_required: s.equipment.split(',').map((x)=>x.trim()).filter(Boolean) } : {}),
                             location_types: s.location_types?.length ? s.location_types : ['in-person'],
                           })),
                       };

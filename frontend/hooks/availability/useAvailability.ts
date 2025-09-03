@@ -39,11 +39,11 @@ function extractErrorMessage(err: unknown, fallback: string): string {
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail)) {
     const msgs = detail
-      .map((d: unknown) => (typeof d === 'string' ? d : (d as { msg?: string })?.msg))
+      .map((d: unknown) => (typeof d === 'string' ? d : (d as { msg?: string })?.['msg']))
       .filter(Boolean);
     if (msgs.length) return msgs.join('; ');
   }
-  if (typeof (err as Record<string, unknown>)?.message === 'string') return (err as Record<string, unknown>).message as string;
+  if (typeof (err as Record<string, unknown>)?.['message'] === 'string') return (err as Record<string, unknown>)['message'] as string;
   try {
     return JSON.stringify(err);
   } catch {
@@ -77,8 +77,8 @@ export function useAvailability(): UseAvailabilityReturn {
       const res = await fetchWithAuth(`${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}?start_date=${week_start}`);
       if (res.ok) {
         serverWeek = await res.json();
-        const etag = res.headers.get('ETag') || undefined;
-        if (typeof window !== 'undefined') (window as Window & { __week_version?: string }).__week_version = etag || undefined;
+        const etag = res.headers.get('ETag');
+        if (typeof window !== 'undefined' && etag) (window as Window & { __week_version?: string }).__week_version = etag;
       }
     } catch {
       logger.warn('Could not load server week before save; proceeding with local snapshot');
@@ -207,8 +207,8 @@ export function useAvailability(): UseAvailabilityReturn {
     setMessage,
     refreshSchedule,
     currentWeekDisplay,
-    version,
-    lastModified,
+    ...(version && { version }),
+    ...(lastModified && { lastModified }),
     saveWeek,
     validateWeek,
     copyFromPreviousWeek,

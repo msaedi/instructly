@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBetaConfigFromHeaders, getBetaRedirect, isRouteAccessible } from '@/lib/beta-config';
+import { env } from '@/lib/env';
 
 // Protected preview middleware for staff-only access on Vercel
 // Requirements:
@@ -27,7 +28,7 @@ function isPublicAssetPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { nextUrl, cookies } = request;
   const pathname = nextUrl.pathname;
-  const isPreviewProject = (process.env.NEXT_PUBLIC_APP_ENV || '').toLowerCase() === 'preview';
+  const isPreviewProject = (env.get('NEXT_PUBLIC_APP_ENV') || '').toLowerCase() === 'preview';
 
   // Detect site configuration by hostname, then allow cookie to override phase for beta host
   const betaConfig = getBetaConfigFromHeaders(request.headers);
@@ -36,7 +37,7 @@ export async function middleware(request: NextRequest) {
   let serverAllowSignup: string | null = null;
   if (betaConfig.site === 'beta') {
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+      const apiBase = env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000';
       const healthRes = await fetch(`${apiBase}/health`, { method: 'GET', cache: 'no-store' });
       serverPhase = healthRes.headers.get('x-beta-phase');
       serverAllowSignup = healthRes.headers.get('x-beta-allow-signup');
@@ -62,7 +63,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Support lowercase env var per project convention, fallback to uppercase
-  const requiredToken = process.env.staff_access_token || process.env.STAFF_ACCESS_TOKEN;
+  const requiredToken = env.get('staff_access_token') || env.get('STAFF_ACCESS_TOKEN');
 
   // Project-level preview gate: if this is the preview project, always enforce staff gate
   // Also enforce locally when testing with a configured token
@@ -87,7 +88,7 @@ export async function middleware(request: NextRequest) {
       const maxAge = 60 * 60 * 24 * 30;
       response.cookies.set(STAFF_COOKIE_NAME, requiredToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: env.isProduction(),
         sameSite: 'lax',
         path: '/',
         maxAge,

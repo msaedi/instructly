@@ -19,7 +19,7 @@ import { logger } from '@/lib/logger';
 export default function ReviewPage() {
   const params = useParams();
   const router = useRouter();
-  const lessonId = params.id as string;
+  const lessonId = params['id'] as string;
   const { isAuthenticated, isLoading: isAuthLoading, redirectToLogin } = useAuth();
   const queryClient = useQueryClient();
 
@@ -117,12 +117,25 @@ export default function ReviewPage() {
     try {
       const { reviewsApi } = await import('@/services/api/reviews');
       const tipAmount = showCustomTip ? parseFloat(customTip) : selectedTip;
-      const res = await reviewsApi.submit({
+      const payload: {
+        booking_id: string;
+        rating: number;
+        review_text?: string;
+        tip_amount_cents?: number;
+      } = {
         booking_id: lessonId,
         rating,
-        review_text: review ? review : undefined,
-        tip_amount_cents: tipAmount ? Math.round((tipAmount as number) * 100) : undefined,
-      });
+      };
+
+      if (review) {
+        payload.review_text = review;
+      }
+
+      if (tipAmount) {
+        payload.tip_amount_cents = Math.round((tipAmount as number) * 100);
+      }
+
+      const res = await reviewsApi.submit(payload);
 
       // If a tip PI is created, confirm it on the client
       if (res.tip_client_secret) {

@@ -48,7 +48,7 @@ export function queryFn<T = unknown>(endpoint: string, options: QueryOptions = {
     const { params } = options;
     const url = withApiBase(endpoint);
     // Use unified client; cookies are always included
-    const data = await httpGet(url, { query: params });
+    const data = await httpGet(url, params ? { query: params } : {});
     return data as T;
   };
 }
@@ -75,7 +75,7 @@ export function mutationFn<TData = unknown, TVariables = unknown>(
   return async (variables: TVariables): Promise<TData> => {
     const { params } = options;
     const url = withApiBase(endpoint);
-    const data = await httpPost(url, variables, { query: params });
+    const data = await httpPost(url, variables, params ? { query: params } : {});
     return data as TData;
   };
 }

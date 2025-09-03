@@ -14,6 +14,7 @@ import {
   clearGuestSession,
 } from '@/lib/searchTracking';
 import { withApiBase } from '@/lib/apiBase';
+import { env } from '@/lib/env';
 
 export interface User {
   id: string;
@@ -79,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userQuery.data);
       setError(null);
       setIsLoading(false);
-      if (process.env.NODE_ENV !== 'production') {
+      if (!env.isProduction()) {
         logger.debug('[TRACE] checkAuth() success', { nowHasUser: true });
       }
     } else if (userQuery.isError) {
@@ -100,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = useCallback(async () => {
     (window as unknown as { __checkAuthCount?: number }).__checkAuthCount = ((window as unknown as { __checkAuthCount?: number }).__checkAuthCount || 0) + 1;
-    if (process.env.NODE_ENV !== 'production') {
+    if (!env.isProduction()) {
       logger.debug('[TRACE] checkAuth()', {
         count: (window as unknown as { __checkAuthCount?: number }).__checkAuthCount,
         hadUser: !!userRef.current,

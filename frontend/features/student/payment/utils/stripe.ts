@@ -1,8 +1,9 @@
 import { loadStripe, Stripe } from '@stripe/stripe-js';
+import { env } from '@/lib/env';
 
 // Initialize Stripe - use test key for now
 const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder'
+  env.get('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY') || 'pk_test_placeholder'
 );
 
 export const getStripe = (): Promise<Stripe | null> => stripePromise;

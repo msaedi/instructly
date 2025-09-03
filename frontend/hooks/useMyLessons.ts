@@ -116,7 +116,7 @@ export function useCancelLesson() {
         });
       }
 
-      return { previousData };
+      return previousData ? { previousData } : undefined;
     },
 
     onError: (_err, _variables, context) => {
@@ -178,7 +178,7 @@ export function useRescheduleLesson() {
         });
       }
 
-      return { previousDetail };
+      return previousDetail ? { previousDetail } : undefined;
     },
 
     onError: (_err, _variables, context) => {

@@ -384,7 +384,9 @@ function StudentDashboardContent() {
                                   last_name: userData.last_name,
                                   email: userData.email,
                                   has_profile_picture: Boolean((userData as unknown as { has_profile_picture?: boolean })?.has_profile_picture),
-                                  profile_picture_version: (userData as unknown as { profile_picture_version?: number })?.profile_picture_version,
+                                  ...((userData as unknown as { profile_picture_version?: number })?.profile_picture_version && {
+                                    profile_picture_version: (userData as unknown as { profile_picture_version?: number }).profile_picture_version
+                                  }),
                                 }}
                                 size={144}
                                 className="cursor-pointer"
@@ -839,9 +841,11 @@ function StudentDashboardContent() {
                               <UserAvatar
                                 user={{
                                   id: fav.id,
-                                  first_name: fav.first_name || fav.profile?.user?.first_name,
-                                  last_name: fav.last_name || undefined,
-                                  email: fav.email || undefined,
+                                  ...((fav.first_name || fav.profile?.user?.first_name) && {
+                                    first_name: fav.first_name || fav.profile?.user?.first_name || ''
+                                  }),
+                                  ...(fav.last_name && { last_name: fav.last_name }),
+                                  ...(fav.email && { email: fav.email }),
                                   // Keep avatar glyph fallback; do not pass non-existent fields from minimal API
                                 }}
                                 size={48}
@@ -934,7 +938,7 @@ function StudentDashboardContent() {
       {showAddressModal && (
         <AddressModal
           mode={showAddressModal.mode}
-          address={showAddressModal.mode === 'edit' ? showAddressModal.address : undefined}
+          {...(showAddressModal.mode === 'edit' && showAddressModal.address && { address: showAddressModal.address })}
           onClose={() => setShowAddressModal(null)}
           onSaved={() => {
             setShowAddressModal(null);
@@ -1754,12 +1758,12 @@ export default function StudentDashboard() {
 function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'edit'; address?: SavedAddress; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     label: address?.label || 'home',
-    street_line1: (address as Record<string, unknown>)?.street_line1 as string || '',
-    street_line2: (address as Record<string, unknown>)?.street_line2 as string || '',
-    locality: (address as Record<string, unknown>)?.locality as string || '',
-    administrative_area: (address as Record<string, unknown>)?.administrative_area as string || '',
-    postal_code: (address as Record<string, unknown>)?.postal_code as string || '',
-    country_code: (address as Record<string, unknown>)?.country_code as string || 'US',
+    street_line1: (address as Record<string, unknown>)?.['street_line1'] as string || '',
+    street_line2: (address as Record<string, unknown>)?.['street_line2'] as string || '',
+    locality: (address as Record<string, unknown>)?.['locality'] as string || '',
+    administrative_area: (address as Record<string, unknown>)?.['administrative_area'] as string || '',
+    postal_code: (address as Record<string, unknown>)?.['postal_code'] as string || '',
+    country_code: (address as Record<string, unknown>)?.['country_code'] as string || 'US',
     is_default: !!address?.is_default,
     place_id: '',
   });
@@ -1877,17 +1881,17 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
                         const res = await fetchWithAuth(`/api/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}`);
                         if (res.ok) {
                           const d = (await res.json()) as Record<string, unknown>;
-                          const street = [d.street_number, d.street_name].filter(Boolean).join(' ');
+                          const street = [d['street_number'], d['street_name']].filter(Boolean).join(' ');
                           setForm((prev) => ({
                             ...prev,
                             place_id: s.place_id,
                             street_line1: street || prev.street_line1,
-                            locality: (d.city as string) || prev.locality,
-                            administrative_area: (d.state as string) || prev.administrative_area,
-                            postal_code: (d.postal_code as string) || prev.postal_code,
+                            locality: (d['city'] as string) || prev.locality,
+                            administrative_area: (d['state'] as string) || prev.administrative_area,
+                            postal_code: (d['postal_code'] as string) || prev.postal_code,
                           }));
                           suppressAutocompleteRef.current = true;
-                          setQuery((d.formatted_address as string) || s.description || s.text || '');
+                          setQuery((d['formatted_address'] as string) || s.description || s.text || '');
                         } else {
                           setForm((prev) => ({ ...prev, place_id: s.place_id }));
                           suppressAutocompleteRef.current = true;
@@ -2048,10 +2052,10 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
   // Debug log to see what user data we're getting
   logger.debug('EditProfileModal received user data', {
     fullUser: user,
-    first_name: user?.first_name,
-    last_name: user?.last_name,
-    phone: user?.phone,
-    zip_code: user?.zip_code
+    first_name: user?.['first_name'],
+    last_name: user?.['last_name'],
+    phone: user?.['phone'],
+    zip_code: user?.['zip_code']
   });
 
   const [firstName, setFirstName] = useState<string>(

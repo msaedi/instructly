@@ -57,11 +57,11 @@ export function InstructorInfo({
         <UserAvatar
           user={{
             id: String(instructor.id),
-            first_name: instructor.first_name,
-            last_name: instructor.last_name,
-            email: instructor.email,
-            has_profile_picture: instructor.has_profile_picture,
-            profile_picture_version: instructor.profile_picture_version,
+            ...(instructor.first_name && { first_name: instructor.first_name }),
+            ...(instructor.last_name && { last_name: instructor.last_name }),
+            ...(instructor.email && { email: instructor.email }),
+            ...(instructor.has_profile_picture !== undefined && { has_profile_picture: instructor.has_profile_picture }),
+            ...(instructor.profile_picture_version && { profile_picture_version: instructor.profile_picture_version }),
           }}
           size={56}
           className="h-12 w-12 sm:h-14 sm:w-14"

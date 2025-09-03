@@ -4,6 +4,7 @@ import { convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
 import type { ServiceCategory, CatalogService } from '@/features/shared/api/client';
+import { env } from '@/lib/env';
 
 /**
  * Services page React Query hooks
@@ -154,7 +155,7 @@ export function useServicesInfiniteSearch(filters: ServiceSearchFilters) {
       params.append('limit', '20');
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/services/search?${params}`
+        `${env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000'}/services/search?${params}`
       );
 
       if (!response.ok) {

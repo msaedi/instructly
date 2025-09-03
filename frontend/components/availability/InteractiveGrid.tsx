@@ -26,10 +26,7 @@ export interface InteractiveGridProps {
 
 const HALF_HOURS_PER_HOUR = 2;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _toCellIndex(hour: number, halfIndex: 0 | 1) {
-  return hour * HALF_HOURS_PER_HOUR + halfIndex;
-}
+// Helper function removed - can be added back if needed for cell index calculations
 
 function parseHHMMSS(t: string) {
   const parts = t.split(':');
@@ -135,8 +132,7 @@ export default function InteractiveGrid({
   const virtualizationEnabled = rows > 46; // enable for large ranges
 
   // Now-line positioning updates every 5 minutes
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used to trigger now line recalculation
-  const [nowTick, setNowTick] = useState(0);
+  const [, setNowTick] = useState(0); // Triggers now line recalculation
   useEffect(() => {
     const id = setInterval(() => setNowTick((x) => x + 1), 5 * 60 * 1000);
     return () => clearInterval(id);
@@ -233,8 +229,8 @@ export default function InteractiveGrid({
         const bottomPx = topPx + rowHeight;
         const rect = gridRef.current.getBoundingClientRect();
         const viewportTop = Math.max(0, -rect.top);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const _viewportBottom = viewportTop + window.innerHeight - Math.max(0, rect.top + rect.height - window.innerHeight);
+        // Viewport calculations available for future use:
+        // const viewportBottom = viewportTop + window.innerHeight - Math.max(0, rect.top + rect.height - window.innerHeight);
         if (topPx < viewportTop + visibleStart * rowHeight || bottomPx > (visibleEnd + 1) * rowHeight) {
           // Force update range around target
           const buffer = 6;
@@ -363,15 +359,14 @@ export default function InteractiveGrid({
           {topSpacer}
           {Array.from({ length: endRow - startRow + 1 }).map((_, idx) => {
             const r = startRow + idx;
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const _isHourLine = r % 2 === 0; // full hour rows
+            // Styling flags available for future use:
+            // const isHourLine = r % 2 === 0; // full hour rows
             const isSelected = existing.has(r);
             const inDragRange = dxActive ? r >= Math.min(dxActive.startCell, dxActive.currentCell) && r <= Math.max(dxActive.startCell, dxActive.currentCell) : false;
             const booked = isCellBooked(bookedSlots, date, r, startHour);
             const past = isPastCell(date, r);
             const isFirst = r === 0;
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const _isLast = r === rows - 1;
+            // const isLastRow = r === rows - 1; // Available for conditional styling
             // Draw only bottom borders for consistency; first row adds a top border
             const bottomBorder = r % 2 === 1 ? 'border-b-2 border-gray-300' : 'border-b border-gray-200';
             const bookedTooltip = booked ? 'Booked: reservation stays; editing affects future availability' : undefined;

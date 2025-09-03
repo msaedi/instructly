@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { env } from '@/lib/env';
 
 /**
  * Read environment variables from file.
@@ -8,7 +9,7 @@ import { defineConfig, devices } from '@playwright/test';
 // import path from 'path';
 // dotenv.config({ path: path.resolve(__dirname, '.env') });
 
-const isCI = !!process.env.CI;
+const isCI = env.isCI();
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -23,7 +24,7 @@ export default defineConfig({
   /* Retry on CI only - REDUCED to avoid 20 minute runs */
   retries: isCI ? 1 : 0,
   /* Modest workers in CI to reduce resource contention */
-  workers: isCI ? 2 : undefined,
+  ...(isCI && { workers: 2 }),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: isCI
     ? [
@@ -41,7 +42,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100',
+    baseURL: env.getOrDefault('PLAYWRIGHT_BASE_URL', 'http://localhost:3100'),
     storageState: 'e2e/.auth/state.json',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
@@ -81,14 +82,20 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: process.env.CI ? undefined : {
-    command: 'NEXT_PUBLIC_USE_PROXY=false npm run dev:test',
-    url: 'http://localhost:3100',
-    reuseExistingServer: true,
-    timeout: 120 * 1000,
-    env: {
-      ...process.env,
-      NEXT_PUBLIC_USE_PROXY: 'false', // Always use direct mode for e2e tests
+  ...(!env.isCI() && {
+    webServer: {
+      command: 'npm run dev:test',
+      url: 'http://localhost:3100',
+      reuseExistingServer: !env.get('CI'),
+      timeout: 120 * 1000,
+      // IMPORTANT: Pass environment variables to the Next.js process
+      env: {
+        ...process.env,
+        NEXT_PUBLIC_API_BASE: 'http://localhost:8000',
+        NEXT_PUBLIC_USE_PROXY: 'false',
+        NEXT_PUBLIC_APP_ENV: 'e2e',
+        NODE_ENV: 'development',
+      },
     },
-  },
+  }),
 });

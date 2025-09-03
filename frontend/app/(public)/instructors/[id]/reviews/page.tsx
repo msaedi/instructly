@@ -22,7 +22,7 @@ function StarRating({ rating }: { rating: number }) {
 export default function InstructorAllReviewsPage() {
   const params = useParams();
   const router = useRouter();
-  const instructorId = params.id as string;
+  const instructorId = params['id'] as string;
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,12 +49,22 @@ export default function InstructorAllReviewsPage() {
     setLoading(true);
     (async () => {
       try {
+        const opts: { minRating?: number; withText?: boolean } = {};
+
+        if (minRating !== undefined) {
+          opts.minRating = minRating;
+        }
+
+        if (withText !== undefined) {
+          opts.withText = withText;
+        }
+
         const res: ReviewListPageResponse = await reviewsApi.getRecent(
           instructorId,
           undefined,
           perPage,
           page,
-          { minRating, withText }
+          Object.keys(opts).length > 0 ? opts : undefined
         );
         if (!mounted) return;
         setReviews(res.reviews || []);

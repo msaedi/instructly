@@ -126,7 +126,7 @@ export default function RescheduleTimeSelectionModal({
   };
 
   const canReschedule = checkCanReschedule();
-  const studentTimezone = (user as unknown as Record<string, unknown>)?.timezone as string || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const studentTimezone = (user as unknown as Record<string, unknown>)?.['timezone'] as string || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const formatDateInTz = (d: Date, tz: string) => {
     return new Intl.DateTimeFormat('en-CA', {
@@ -426,6 +426,7 @@ export default function RescheduleTimeSelectionModal({
         document.body.style.overflow = originalStyle;
       };
     }
+    return undefined;
   }, [isOpen]);
 
   // Handle backdrop click

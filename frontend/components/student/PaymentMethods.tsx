@@ -21,7 +21,7 @@ import { paymentService } from '@/services/api/payments';
 import DeletePaymentMethodModal from '@/components/modals/DeletePaymentMethodModal';
 
 const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
+  process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || ''
 );
 
 interface PaymentMethod {

@@ -79,7 +79,7 @@ export function useSendMessage() {
   return useMutation({
     mutationFn: (request: SendMessageRequest) =>
       messageService.sendMessage(request),
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       // Invalidate message history for this booking
       queryClient.invalidateQueries({
         queryKey: messageQueryKeys.history(variables.booking_id),
@@ -157,7 +157,7 @@ export function useMarkAsRead() {
         message_ids: variables.message_ids,
       });
     },
-    onError: (error, variables, context) => {
+    onError: (error, _variables, context) => {
       // Rollback optimistic update on error
       if (context?.previousCount) {
         queryClient.setQueryData(

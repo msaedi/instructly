@@ -57,6 +57,7 @@ export function RecentSearches() {
         window.removeEventListener('guestSearchUpdated', handleStorageChange);
       };
     }
+    return undefined;
   }, [isAuthenticated, isAuthLoading]);
 
   // Listen for authenticated search updates
@@ -73,6 +74,7 @@ export function RecentSearches() {
         window.removeEventListener('searchHistoryUpdated', handleSearchUpdate);
       };
     }
+    return undefined;
   }, [isAuthenticated, isAuthLoading]);
 
   const loadGuestSearches = async () => {

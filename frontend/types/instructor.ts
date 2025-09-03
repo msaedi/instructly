@@ -337,23 +337,23 @@ export function isInstructor(user: unknown): user is { instructor_profile: Instr
 export function getInstructorDisplayName(instructor: unknown): string {
   const inst = instructor as Record<string, unknown>;
   // For InstructorProfile with nested user object
-  if (inst?.user && typeof inst.user === 'object') {
-    const user = inst.user as Record<string, unknown>;
-    if (user?.first_name && user?.last_initial) {
-      const firstName = String(user.first_name) || '';
-      const lastInitial = String(user.last_initial) || '';
+  if (inst?.['user'] && typeof inst['user'] === 'object') {
+    const user = inst['user'] as Record<string, unknown>;
+    if (user?.['first_name'] && user?.['last_initial']) {
+      const firstName = String(user['first_name']) || '';
+      const lastInitial = String(user['last_initial']) || '';
       return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
     }
   }
   // For InstructorBasic with direct fields
-  if (inst?.first_name && inst?.last_initial) {
-    const firstName = String(inst.first_name) || '';
-    const lastInitial = String(inst.last_initial) || '';
+  if (inst?.['first_name'] && inst?.['last_initial']) {
+    const firstName = String(inst['first_name']) || '';
+    const lastInitial = String(inst['last_initial']) || '';
     return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
   }
   // Fallback
-  if (inst?.user_id) {
-    return 'Instructor #' + String(inst.user_id);
+  if (inst?.['user_id']) {
+    return 'Instructor #' + String(inst['user_id']);
   }
   return 'Instructor';
 }

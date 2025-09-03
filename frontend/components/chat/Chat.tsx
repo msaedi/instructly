@@ -515,20 +515,7 @@ export function Chat({
     }
   }, [allMessages, userReactions]); // Only re-run when messages or reactions change
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _toggleReactionLocal = (message: Message, emoji: string) => {
-    setUserReactions(prev => {
-      const currentReaction = prev[message.id];
-
-      // If clicking the same emoji, remove it (toggle off)
-      if (currentReaction === emoji) {
-        return { ...prev, [message.id]: null };
-      }
-
-      // Otherwise, set this as the only reaction
-      return { ...prev, [message.id]: emoji };
-    });
-  };
+  // Local reaction toggle function removed - optimistic updates handled in handleAddReaction
 
   const isEmojiMyReacted = (message: Message, emoji: string): boolean => {
     // Check our local state for the current reaction

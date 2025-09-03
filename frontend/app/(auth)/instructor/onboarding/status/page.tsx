@@ -52,14 +52,14 @@ export default function OnboardingStatusPage() {
         // Check if skills were skipped
         if (typeof window !== 'undefined' && sessionStorage.getItem('skillsSkipped') === 'true') {
           setSkillsSkipped(true);
-        } else if (me && (!me.services || me.services.length === 0)) {
+        } else if (me && (!me['services'] || me['services'].length === 0)) {
           setSkillsSkipped(true);
         }
 
         // Check if verification was skipped
         if (typeof window !== 'undefined' && sessionStorage.getItem('verificationSkipped') === 'true') {
           setVerificationSkipped(true);
-        } else if (me && (!me.background_check_status || me.background_check_status === 'pending')) {
+        } else if (me && (!me['background_check_status'] || me['background_check_status'] === 'pending')) {
           setVerificationSkipped(true);
         }
       } finally {
@@ -70,22 +70,22 @@ export default function OnboardingStatusPage() {
 
   // If already live, redirect to dashboard
   useEffect(() => {
-    if (profile?.is_live) {
+    if (profile?.['is_live']) {
       router.replace('/instructor/dashboard');
     }
-  }, [profile?.is_live, router]);
+  }, [profile, router]);
 
   const canGoLive = Boolean(
     profile &&
-      (profile.skills_configured || (Array.isArray(profile.services) && profile.services.length > 0)) &&
+      (profile['skills_configured'] || (Array.isArray(profile['services']) && profile['services'].length > 0)) &&
       connectStatus && connectStatus.onboarding_completed &&
-      (profile.identity_verified_at || profile.identity_verification_session_id)
+      (profile['identity_verified_at'] || profile['identity_verification_session_id'])
   );
 
   const pendingRequired: string[] = [];
   if (!(connectStatus && connectStatus.onboarding_completed)) pendingRequired.push('Stripe Connect');
-  if (!(profile && (profile.identity_verified_at || profile.identity_verification_session_id))) pendingRequired.push('ID verification');
-  if (!(profile && ((profile.skills_configured) || (Array.isArray(profile.services) && profile.services.length > 0)))) pendingRequired.push('Skills & pricing');
+  if (!(profile && (profile['identity_verified_at'] || profile['identity_verification_session_id']))) pendingRequired.push('ID verification');
+  if (!(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)))) pendingRequired.push('Skills & pricing');
 
   const formatList = (items: string[]) => {
     if (items.length <= 1) return items.join('');
@@ -109,7 +109,7 @@ export default function OnboardingStatusPage() {
   const startIdentity = async () => {
     try {
       const session = await createStripeIdentitySession();
-      const pubkey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+      const pubkey = process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'];
       if (pubkey) {
         const stripe = await loadStripe(pubkey);
         if (stripe && session.client_secret) {
@@ -127,7 +127,7 @@ export default function OnboardingStatusPage() {
         }
       } else {
         // Fallback: hosted link by opening in same tab
-        window.location.href = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/payments/identity/session`;
+        window.location.href = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/payments/identity/session`;
       }
     } catch {
       // no-op
@@ -320,13 +320,13 @@ export default function OnboardingStatusPage() {
 
         <div className="mt-6 space-y-4">
           {/* 1) Skills & pricing */}
-          <Row label="Skills & pricing" ok={Boolean(profile && ((profile.skills_configured) || (Array.isArray(profile.services) && profile.services.length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-[#6A0DAD] hover:underline">Edit</Link>} />
+          <Row label="Skills & pricing" ok={Boolean(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-[#6A0DAD] hover:underline">Edit</Link>} />
           {/* 2) ID verification */}
-          <Row label="ID verification" ok={Boolean(profile?.identity_verified_at)} action={profile?.identity_verified_at ? <span className="text-gray-400">Completed</span> : <button onClick={startIdentity} className="text-[#6A0DAD] hover:underline">Start</button>} />
+          <Row label="ID verification" ok={Boolean(profile?.['identity_verified_at'])} action={profile?.['identity_verified_at'] ? <span className="text-gray-400">Completed</span> : <button onClick={startIdentity} className="text-[#6A0DAD] hover:underline">Start</button>} />
           {/* 3) Background check (optional) */}
           <Row
             label="Background check (optional)"
-            ok={Boolean(profile?.background_check_uploaded_at)}
+            ok={Boolean(profile?.['background_check_uploaded_at'])}
             action={
               <div>
                 <input
@@ -342,7 +342,7 @@ export default function OnboardingStatusPage() {
                   className="text-[#6A0DAD] hover:underline disabled:text-gray-400"
                   disabled={bgUploading}
                 >
-                  {bgUploading ? 'Uploading…' : (profile?.background_check_uploaded_at ? 'Replace' : 'Upload')}
+                  {bgUploading ? 'Uploading…' : (profile?.['background_check_uploaded_at'] ? 'Replace' : 'Upload')}
                 </button>
               </div>
             }

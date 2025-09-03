@@ -11,6 +11,7 @@ import GlobalBackground from '../components/ui/GlobalBackground';
 import PreviewRibbon from '../components/PreviewRibbon';
 import { BetaProvider, BetaBanner } from '@/contexts/BetaContext';
 import { BackgroundProvider } from '@/lib/config/backgroundProvider';
+import { env } from '@/lib/env';
 // Analytics moved to client-only Providers to avoid SSR hydration mismatch
 
 /**
@@ -66,7 +67,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://instainstru.com'),
+  metadataBase: new URL(env.get('NEXT_PUBLIC_APP_URL') || 'https://instainstru.com'),
   openGraph: {
     title: BRAND.seo.defaultTitle,
     description:
@@ -135,9 +136,9 @@ export default function RootLayout({
   // Log layout initialization in development
   logger.debug('Root layout initialized', {
     brand: BRAND.name,
-    environment: process.env.NODE_ENV,
-    appUrl: process.env.NEXT_PUBLIC_APP_URL,
-    loggingEnabled: process.env.NEXT_PUBLIC_ENABLE_LOGGING === 'true',
+    environment: env.get('NODE_ENV'),
+    appUrl: env.get('NEXT_PUBLIC_APP_URL'),
+    loggingEnabled: env.get('NEXT_PUBLIC_ENABLE_LOGGING') === 'true',
   });
 
   return (
@@ -159,7 +160,7 @@ export default function RootLayout({
           {/* Global fixed background with blur-up and readability overlay */}
           <GlobalBackground />
           <BetaProvider>
-            {process.env.NEXT_PUBLIC_APP_ENV === 'preview' ? <PreviewRibbon /> : null}
+            {env.get('NEXT_PUBLIC_APP_ENV') === 'preview' ? <PreviewRibbon /> : null}
             <BetaBanner />
             {/* Future enhancements could include:
               - Global error boundary
