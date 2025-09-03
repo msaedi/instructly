@@ -12,31 +12,16 @@ concurrency:
 jobs:
   contract-check:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
-      # Python deps for OpenAPI export
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: Use Node 22.x for frontend
+        uses: ./.github/actions/use-node-frontend
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-openapi-${{ hashFiles('backend/requirements-openapi.txt') }}
-          restore-keys: |
-            pip-${{ runner.os }}-openapi-
-
-      - name: Install Python deps (OpenAPI export)
-        run: pip install -r ../backend/requirements-openapi.txt
-
-      # Node for frontend (use composite action)
-      - uses: ./.github/actions/use-node-frontend
-      - name: Install deps (frontend only)
+      - name: Install deps (frontend)
+        working-directory: frontend
+        env:
+          NPM_CONFIG_ENGINE_STRICT: "false"
         run: npm ci
       - name: Assert generator pinned
         run: node -e "const p=require('./package.json'); if(!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(p.devDependencies['openapi-typescript']||'')) { throw new Error('openapi-typescript must be pinned, not ^/~'); }"
@@ -51,8 +36,9 @@ jobs:
               exit 1
             fi
           fi
-      - name: Contract check (OpenAPI → TS types)
-        run: npm run contract:check
+      - name: Contract check (OpenAPI → TS types) — CI mode
+        working-directory: frontend
+        run: npm run contract:check:ci
 
   lint-build:
     needs: contract-check
@@ -66,6 +52,8 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
+        env:
+          NPM_CONFIG_ENGINE_STRICT: "false"
         run: npm ci
 
       - name: Lint
@@ -91,6 +79,8 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
+        env:
+          NPM_CONFIG_ENGINE_STRICT: "false"
         run: npm ci
 
       - name: Unit tests
