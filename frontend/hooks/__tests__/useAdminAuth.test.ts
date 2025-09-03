@@ -91,7 +91,7 @@ describe('useAdminAuth', () => {
 
     renderHook(() => useAdminAuth());
 
-    expect(mockPush).toHaveBeenCalledWith('/login?redirect=/admin/analytics/search');
+    expect(mockPush).toHaveBeenCalledWith('/login?redirect=/admin/engineering/codebase');
   });
 
   it('should redirect to login when not authenticated (cookie-first session)', () => {
@@ -122,7 +122,7 @@ describe('useAdminAuth', () => {
 
     renderHook(() => useAdminAuth());
 
-    expect(mockPush).toHaveBeenCalledWith('/login?redirect=/admin/analytics/search');
+    expect(mockPush).toHaveBeenCalledWith('/login?redirect=/admin/engineering/codebase');
   });
 
   it('should redirect to login when user lacks admin permissions (allow account switch)', () => {
@@ -164,7 +164,7 @@ describe('useAdminAuth', () => {
 
     renderHook(() => useAdminAuth());
 
-    expect(mockPush).toHaveBeenCalledWith('/login?redirect=/admin/analytics/search');
+    expect(mockPush).toHaveBeenCalledWith('/login?redirect=/admin/engineering/codebase');
   });
 
   it('should not redirect when user has admin permissions', () => {

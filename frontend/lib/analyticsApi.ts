@@ -2,6 +2,8 @@
 
 // Analytics API client for admin dashboard (search analytics + codebase metrics)
 
+import { logger } from '@/lib/logger';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
 
 // Codebase metrics types
@@ -224,8 +226,10 @@ export interface CandidateTopService {
 }
 
 // Shared fetch helper
-async function fetchWithAuth<T>(endpoint: string, _token: string | null): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+async function fetchWithAuth<T>(endpoint: string, _token: string | null | undefined): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  logger.info(`Analytics API GET ${endpoint}`, { base: API_BASE_URL });
+  const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -233,12 +237,16 @@ async function fetchWithAuth<T>(endpoint: string, _token: string | null): Promis
   });
 
   if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    const msg = body || `API error: ${response.status}`;
+    logger.error('Analytics API error', { endpoint, status: response.status, body: msg });
     if (response.status === 401) throw new Error('Unauthorized');
-    const body = await response.text();
-    throw new Error(body || `API error: ${response.status}`);
+    throw new Error(msg);
   }
 
-  return response.json();
+  const json = await response.json();
+  logger.debug('Analytics API success', { endpoint, status: response.status });
+  return json;
 }
 
 // Client

@@ -30,7 +30,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     const isInstructor = roles.includes('instructor');
     const isStudent = roles.includes('student') || (!isInstructor && !isAdmin);
     if (isAdmin) {
-      router.replace('/admin/analytics/codebase');
+      router.replace('/admin/engineering/codebase');
       return;
     }
     if (!isStudent) {

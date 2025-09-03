@@ -31,15 +31,14 @@ export default function CandidatesAnalyticsDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = async () => {
-    if (!token) return;
     setLoading(true);
     setError(null);
     try {
       const [s, t, ts, sd] = await Promise.all([
-        analyticsApi.getCandidatesSummary(token, days),
-        analyticsApi.getCandidateCategoryTrends(token, days),
-        analyticsApi.getCandidateTopServices(token, days, 20),
-        analyticsApi.getCandidateScoreDistribution(token, days),
+        analyticsApi.getCandidatesSummary(token ?? '', days),
+        analyticsApi.getCandidateCategoryTrends(token ?? '', days),
+        analyticsApi.getCandidateTopServices(token ?? '', days, 20),
+        analyticsApi.getCandidateScoreDistribution(token ?? '', days),
       ]);
       setSummary(s);
       setTrends(t);
@@ -162,12 +161,11 @@ export default function CandidatesAnalyticsDashboard() {
                                 <button
                                   className="text-indigo-600 hover:underline"
                                   onClick={async () => {
-                                    if (!token) return;
                                     if (drilldown && drilldown.serviceId === item.service_catalog_id) {
                                       setDrilldown(null);
                                       return;
                                     }
-                                    const rows = await analyticsApi.getCandidateServiceQueries(token, item.service_catalog_id, days, 50);
+                                    const rows = await analyticsApi.getCandidateServiceQueries(token ?? '', item.service_catalog_id, days, 50);
                                     setDrilldown({ serviceId: item.service_catalog_id, serviceName: item.service_name, rows });
                                   }}
                                 >

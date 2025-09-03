@@ -21,17 +21,11 @@ export function useDatabaseData(token: string | null): UseDatabaseDataReturn {
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!token) {
-      setError('No authentication token');
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      const stats = await databaseApi.getStats(token);
+      const stats = await databaseApi.getStats(token ?? '');
       setData(stats);
     } catch (err) {
       logger.error('Failed to fetch database data', err as Error);

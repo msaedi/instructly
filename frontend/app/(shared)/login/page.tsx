@@ -176,7 +176,7 @@ function LoginForm() {
         const isInstructor = roles.includes('instructor');
 
         if (isAdmin) {
-          router.push('/admin/analytics/codebase');
+          router.push('/admin/engineering/codebase');
         } else if (isInstructor) {
           // Probe instructor profile; if exists and is_live => dashboard, else status
           const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
@@ -253,7 +253,7 @@ function LoginForm() {
         const isAdmin = roles.includes('admin');
         const isInstructor = roles.includes('instructor');
         if (isAdmin) {
-          router.push('/admin/analytics/codebase');
+          router.push('/admin/engineering/codebase');
         } else if (isInstructor) {
           const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
           if (me.ok) {

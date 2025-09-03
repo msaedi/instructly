@@ -53,8 +53,6 @@ export function useAnalyticsData(token: string | null): UseAnalyticsDataReturn {
   const [dateRange, setDateRange] = useState(30);
 
   const fetchAllData = useCallback(async () => {
-    if (!token) return;
-
     setLoading(true);
     setError(null);
 
@@ -70,14 +68,14 @@ export function useAnalyticsData(token: string | null): UseAnalyticsDataReturn {
         performance,
         conversions,
       ] = await Promise.all([
-        analyticsApi.getSearchTrends(token, dateRange),
-        analyticsApi.getPopularSearches(token, dateRange, 20),
-        analyticsApi.getSearchReferrers(token, dateRange),
-        analyticsApi.getZeroResultSearches(token, dateRange, 20),
-        analyticsApi.getServicePillPerformance(token, dateRange),
-        analyticsApi.getAnalyticsSummary(token, dateRange),
-        analyticsApi.getSearchPerformance(token, dateRange),
-        analyticsApi.getConversionMetrics(token, dateRange),
+        analyticsApi.getSearchTrends(token ?? '', dateRange),
+        analyticsApi.getPopularSearches(token ?? '', dateRange, 20),
+        analyticsApi.getSearchReferrers(token ?? '', dateRange),
+        analyticsApi.getZeroResultSearches(token ?? '', dateRange, 20),
+        analyticsApi.getServicePillPerformance(token ?? '', dateRange),
+        analyticsApi.getAnalyticsSummary(token ?? '', dateRange),
+        analyticsApi.getSearchPerformance(token ?? '', dateRange),
+        analyticsApi.getConversionMetrics(token ?? '', dateRange),
       ]);
 
       setData({

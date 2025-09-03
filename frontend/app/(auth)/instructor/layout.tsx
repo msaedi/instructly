@@ -20,7 +20,7 @@ export default function InstructorAuthLayout({ children }: { children: React.Rea
     const isAdmin = roles.includes('admin');
     const isInstructor = roles.includes('instructor');
     if (isAdmin) {
-      router.replace('/admin/analytics/codebase');
+      router.replace('/admin/engineering/codebase');
       return;
     }
     if (!isInstructor) {

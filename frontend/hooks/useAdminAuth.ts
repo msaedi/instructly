@@ -23,7 +23,7 @@ export function useAdminAuth() {
       const currentPath =
         typeof window !== 'undefined' ? window.location.pathname + window.location.search : '';
       // Encode only when using an actual current path; leave default unencoded to satisfy tests
-      const redirectParam = currentPath && currentPath !== '/' ? encodeURIComponent(currentPath) : '/admin/analytics/search';
+      const redirectParam = currentPath && currentPath !== '/' ? encodeURIComponent(currentPath) : '/admin/engineering/codebase';
       router.push(`/login?redirect=${redirectParam}`);
       return;
     }
@@ -33,7 +33,7 @@ export function useAdminAuth() {
       // Redirect non-admins to login to allow switching to an admin account
       const currentPath =
         typeof window !== 'undefined' ? window.location.pathname + window.location.search : '';
-      const redirectParam = currentPath && currentPath !== '/' ? encodeURIComponent(currentPath) : '/admin/analytics/search';
+      const redirectParam = currentPath && currentPath !== '/' ? encodeURIComponent(currentPath) : '/admin/engineering/codebase';
       router.push(`/login?redirect=${redirectParam}`);
     }
   }, [user, isAuthenticated, isLoading, router, hasPermission]);

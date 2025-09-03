@@ -81,7 +81,7 @@ Optimizations applied:
 ### Redis Dashboard
 Access the Redis monitoring dashboard at:
 ```
-/admin/analytics/redis
+/admin/ops/redis
 ```
 
 Features:
@@ -108,7 +108,7 @@ Features:
 ### Database Pool Monitoring
 Database connection pool monitoring has been separated into its own dashboard:
 ```
-/admin/analytics/database
+/admin/ops/database
 ```
 
 ## Maintenance

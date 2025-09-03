@@ -9,7 +9,7 @@ You are continuing work on InstaInstru, the "Uber of instruction" platform. This
 **Major Updates Since v80**:
 - **Redis Migration**: ✅ COMPLETE! Migrated from Upstash to Render Redis, solving usage limit crisis
 - **Infrastructure Cost**: Now $53/month (added $7 for Redis)
-- **Monitoring Dashboards**: New Redis and Database monitoring at `/admin/analytics/*`
+- **Monitoring Dashboards**: New Redis and Database monitoring at `/admin/ops/*`
 - **Database Pool Fix**: Increased connections from 10 to 30, solving timeout issues
 - **Search Analytics System**: ✅ COMPLETE! 10 endpoints with comprehensive tracking
 - **RBAC Implementation**: ✅ COMPLETE! 30 permissions, 1,206 backend tests + 41 frontend tests passing
@@ -152,12 +152,12 @@ You are continuing work on InstaInstru, the "Uber of instruction" platform. This
 
 ### Infrastructure Monitoring ✅
 **Achievement**: Created comprehensive monitoring dashboards
-- **Redis Dashboard**: `/admin/analytics/redis`
+- **Redis Dashboard**: `/admin/ops/redis`
   - Real-time connection status
   - Memory usage visualization
   - Celery queue monitoring
   - Migration verification
-- **Database Dashboard**: `/admin/analytics/database`
+- **Database Dashboard**: `/admin/ops/database`
   - PostgreSQL connection pool health
   - Pool usage visualization (20/30 connections)
   - Production alerts when >80% usage

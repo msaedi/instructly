@@ -11,7 +11,7 @@ export interface BetaSettings {
 
 export async function getBetaSettings(): Promise<BetaSettings> {
   // Use toggleable base; rely on cookies for auth
-  const res = await fetch(withApiBase('/beta/settings'), {
+  const res = await fetch(withApiBase('/api/beta/settings'), {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -20,7 +20,7 @@ export async function getBetaSettings(): Promise<BetaSettings> {
 }
 
 export async function updateBetaSettings(payload: BetaSettings): Promise<BetaSettings> {
-  const res = await fetch(withApiBase('/beta/settings'), {
+  const res = await fetch(withApiBase('/api/beta/settings'), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -62,7 +62,7 @@ export interface MetricsSummaryResponse {
 }
 
 export async function getMetricsSummary(): Promise<MetricsSummaryResponse> {
-  const res = await fetch(withApiBase('/beta/metrics/summary'), {
+  const res = await fetch(withApiBase('/api/beta/metrics/summary'), {
     credentials: 'include',
     cache: 'no-store',
   });

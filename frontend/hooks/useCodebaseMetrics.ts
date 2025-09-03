@@ -11,20 +11,19 @@ interface UseCodebaseMetricsReturn {
   refetch: () => void;
 }
 
-export function useCodebaseMetrics(token: string | null): UseCodebaseMetricsReturn {
+export function useCodebaseMetrics(token?: string | null): UseCodebaseMetricsReturn {
   const [data, setData] = useState<CodebaseMetricsResponse | null>(null);
   const [history, setHistory] = useState<CodebaseHistoryEntry[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!token) return;
     setLoading(true);
     setError(null);
     try {
       const [snapshot, hist] = await Promise.all([
-        analyticsApi.getCodebaseMetrics(token),
-        analyticsApi.getCodebaseHistory(token),
+        analyticsApi.getCodebaseMetrics(token ?? ''),
+        analyticsApi.getCodebaseHistory(token ?? ''),
       ]);
       setData(snapshot);
       setHistory(hist.items || []);

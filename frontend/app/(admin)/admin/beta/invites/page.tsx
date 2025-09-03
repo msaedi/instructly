@@ -289,7 +289,7 @@ export default function BetaInvitesAdminPage() {
                         .filter((s) => s.length > 0);
                       if (emails.length === 0) return;
                       try {
-                        const res = await fetch(withApiBase('/beta/invites/generate'), {
+                        const res = await fetch(withApiBase('/api/beta/invites/generate'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ count: emails.length, role, expires_in_days: days, source: 'csv_upload', emails }),
@@ -317,7 +317,7 @@ export default function BetaInvitesAdminPage() {
                         .filter((s) => s.length > 0);
                       if (emails.length === 0) return;
                       try {
-                        const r = await fetch(withApiBase('/beta/invites/send-batch-async'), {
+                        const r = await fetch(withApiBase('/api/beta/invites/send-batch-async'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ emails, role, expires_in_days: days, source: 'csv_upload' }),
