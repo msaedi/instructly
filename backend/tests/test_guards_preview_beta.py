@@ -43,9 +43,23 @@ class TestPreviewNoGates:
 
 
 class TestProdPhaseBehavior:
-    def test_prod_beta_requires_beta_grant(self, monkeypatch, client: TestClient, test_student: User):
+    def test_prod_beta_requires_beta_grant(self, monkeypatch, client: TestClient, test_student: User, db):
         _set_env("prod", "beta")
+        # Ensure DB beta settings are in a gated phase
+        try:
+            from app.repositories.beta_repository import BetaSettingsRepository
+
+            settings_repo = BetaSettingsRepository(db)
+            settings_repo.update_settings(
+                beta_disabled=False, beta_phase="instructor_only", allow_signup_without_invite=False
+            )
+            db.commit()
+        except Exception:
+            pass
+
         headers = _auth_headers_for(test_student)
+        # Disable the default testing bypass so beta checks are enforced in tests
+        headers["x-enforce-beta-checks"] = "1"
         r = client.get(
             "/bookings/?exclude_future_confirmed=true&per_page=1&page=1",
             headers=headers,
