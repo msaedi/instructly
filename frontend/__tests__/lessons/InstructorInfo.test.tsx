@@ -40,10 +40,10 @@ describe('InstructorInfo', () => {
     expect(screen.getByText('250 lessons completed')).toBeInTheDocument();
   });
 
-  it('renders avatar fallback glyph when no photo', () => {
+  it('renders avatar fallback initials when no photo', () => {
     render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
-    // UserAvatar fallback shows glyph when no profile picture
-    expect(screen.getByText('👤')).toBeInTheDocument();
+    // Our UserAvatar now falls back to first initial rather than glyph
+    expect(screen.getByText('J')).toBeInTheDocument();
   });
 
   it('calls onChat when chat button is clicked', () => {
@@ -74,7 +74,7 @@ describe('InstructorInfo', () => {
     expect(screen.getByText('1 lessons completed')).toBeInTheDocument();
   });
 
-  it('shows privacy-safe name for complex names', () => {
+  it('shows privacy-safe name for complex names and initials fallback', () => {
     const longNameInstructor = {
       ...mockInstructor,
       first_name: 'Alexandra',
@@ -84,8 +84,8 @@ describe('InstructorInfo', () => {
     render(<InstructorInfo instructor={longNameInstructor} onChat={mockOnChat} />);
 
     expect(screen.getByText('Alexandra M.')).toBeInTheDocument();
-    // Fallback glyph is shown when no profile pic
-    expect(screen.getByText('👤')).toBeInTheDocument();
+    // Fallback initial is shown when no profile pic
+    expect(screen.getByText('A')).toBeInTheDocument();
   });
 
   it('shows review and tip button for completed lessons', () => {

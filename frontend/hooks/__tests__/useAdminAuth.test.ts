@@ -94,7 +94,7 @@ describe('useAdminAuth', () => {
     expect(mockPush).toHaveBeenCalledWith('/login?redirect=/admin/analytics/search');
   });
 
-  it('should not redirect to login when token exists in localStorage', () => {
+  it('should redirect to login when not authenticated (cookie-first session)', () => {
     mockUseAuth.mockReturnValue({
       user: null,
       isAuthenticated: false,
@@ -117,15 +117,15 @@ describe('useAdminAuth', () => {
       permissions: [],
     });
 
-    // Token exists in localStorage
+    // Token in localStorage is ignored in cookie-first mode
     (window.localStorage.getItem as jest.Mock).mockReturnValue('fake-token');
 
     renderHook(() => useAdminAuth());
 
-    expect(mockPush).not.toHaveBeenCalledWith('/login?redirect=/admin/analytics/search');
+    expect(mockPush).toHaveBeenCalledWith('/login?redirect=/admin/analytics/search');
   });
 
-  it('should redirect to home when user lacks admin permissions', () => {
+  it('should redirect to login when user lacks admin permissions (allow account switch)', () => {
     const mockUser = {
       id: '1',
       email: 'student@test.com',
@@ -164,7 +164,7 @@ describe('useAdminAuth', () => {
 
     renderHook(() => useAdminAuth());
 
-    expect(mockPush).toHaveBeenCalledWith('/');
+    expect(mockPush).toHaveBeenCalledWith('/login?redirect=/admin/analytics/search');
   });
 
   it('should not redirect when user has admin permissions', () => {

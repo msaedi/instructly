@@ -38,6 +38,7 @@ const eslintConfig = [
     },
     languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
   },
+  // No additional typed-rule overrides; all pages are linted uniformly
   // React Refresh ergonomics in component and test files
   {
     files: ['components/**/*', 'features/**/*', 'app/**/*', '__tests__/**/*'],
@@ -110,6 +111,13 @@ const eslintConfig = [
     rules: {
       'no-console': 'off',
       'no-restricted-syntax': 'off',
+    },
+  },
+  // Test setup file can safely use console to filter warnings
+  {
+    files: ['jest.setup.js'],
+    rules: {
+      'no-console': 'off',
     },
   },
   // Allow console and CommonJS requires in Node/CLI files

@@ -7,6 +7,8 @@ export class InstructorProfilePage {
   readonly hourlyRate: Locator;
   readonly availabilityCalendar: Locator;
   readonly timeSlots: Locator;
+  readonly availabilityModalHeading: Locator;
+  readonly availabilitySelectAndContinue: Locator;
   readonly bookButton: Locator;
   readonly selectedTimeSlot: Locator;
 
@@ -31,6 +33,8 @@ export class InstructorProfilePage {
       .first()
       .or(page.getByRole('button', { name: /Book (now|This)/i }).first());
     this.selectedTimeSlot = page.locator('button[aria-pressed="true"], button.selected');
+    this.availabilityModalHeading = page.getByRole('heading', { name: /Set your lesson date & time/i });
+    this.availabilitySelectAndContinue = page.getByRole('button', { name: /Select and continue/i });
   }
 
   async selectFirstAvailableSlot() {
@@ -82,6 +86,21 @@ export class InstructorProfilePage {
     await this.bookButton.waitFor({ state: 'visible', timeout: 15000 });
     await this.bookButton.scrollIntoViewIfNeeded().catch(() => {});
     await this.bookButton.click();
+    // Wait for the availability modal to appear
+    await this.availabilityModalHeading.waitFor({ timeout: 15000 });
+    // If time slots dropdown exists, ensure a time is selected
+    const hasTimeDropdown = await this.page.locator('button:has-text("Select time")').first().isVisible({ timeout: 2000 }).catch(() => false);
+    if (hasTimeDropdown) {
+      await this.page.locator('button:has-text("Select time")').first().click();
+      // Pick the first time option in the dropdown if present
+      const firstOption = this.page.locator('div[role="dialog"] div').locator('button').first();
+      if (await firstOption.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await firstOption.click();
+      }
+    }
+    // Click Select and continue
+    await this.availabilitySelectAndContinue.waitFor({ timeout: 10000 });
+    await this.availabilitySelectAndContinue.click();
   }
 
   async getSelectedSlotTime() {

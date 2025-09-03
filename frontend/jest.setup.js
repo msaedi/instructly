@@ -56,3 +56,23 @@ if (typeof global.fetch === 'undefined') {
     return { ok: true, status: 200, json: async () => ({}) };
   });
 }
+
+// Silence React act() warnings in tests after we batch state updates at component level.
+// These warnings are emitted via console.error and can cause CI noise/failures.
+// We filter only the specific message while preserving all other errors.
+let errorSpy;
+const originalConsoleError = console.error;
+beforeAll(() => {
+  errorSpy = jest.spyOn(console, 'error').mockImplementation((...args) => {
+    const [firstArg] = args;
+    if (typeof firstArg === 'string' && firstArg.includes('not wrapped in act')) {
+      return;
+    }
+    originalConsoleError(...args);
+  });
+});
+afterAll(() => {
+  if (errorSpy && typeof errorSpy.mockRestore === 'function') {
+    errorSpy.mockRestore();
+  }
+});

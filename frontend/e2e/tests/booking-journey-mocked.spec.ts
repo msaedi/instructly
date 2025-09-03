@@ -97,10 +97,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
       return;
     }
 
-    // Step 6: Select an available time slot
-    await instructorProfile.selectFirstAvailableSlot();
-
-    // Step 7: Proceed to booking
+    // Step 6: Open availability modal via Book now! and proceed
     await instructorProfile.proceedToBooking();
 
     // Step 8: Wait for either login or booking modal state
@@ -305,9 +302,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
       return;
     }
 
-    // Select first available time slot instead of specific time
-    await instructorProfile.selectFirstAvailableSlot();
-
+    // Open availability modal via Book now! and proceed
     await instructorProfile.proceedToBooking();
 
     // Wait for either login or booking modal

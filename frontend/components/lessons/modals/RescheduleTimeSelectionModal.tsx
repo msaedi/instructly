@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useReducer } from 'react';
+import { flushSync } from 'react-dom';
 import { X, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { logger } from '@/lib/logger';
@@ -16,6 +17,69 @@ import SummarySection from '@/features/student/booking/components/TimeSelectionM
 interface AvailabilitySlot {
   start_time: string;
   end_time: string;
+}
+
+type AvailabilityByDate = Record<string, { date: string; available_slots: AvailabilitySlot[]; is_blackout: boolean }>;
+
+type State = {
+  loadingAvailability: boolean;
+  loadingTimeSlots: boolean;
+  selectedDate: string | null;
+  selectedTime: string | null;
+  showTimeDropdown: boolean;
+  timeSlots: string[];
+  availableDates: string[];
+  availabilityData: AvailabilityByDate | null;
+};
+
+type Action =
+  | { type: 'AVAILABILITY_LOAD_START' }
+  | { type: 'AVAILABILITY_LOAD_SUCCESS'; payload: { availabilityData: AvailabilityByDate; availableDates: string[]; selectedDate: string | null; timeSlots: string[]; selectedTime: string | null; showTimeDropdown: boolean } }
+  | { type: 'AVAILABILITY_LOAD_FAIL' }
+  | { type: 'DATE_SELECT_START'; payload: { selectedDate: string } }
+  | { type: 'DATE_SELECT_SUCCESS'; payload: { timeSlots: string[]; selectedTime: string | null } }
+  | { type: 'DATE_SELECT_FAIL' }
+  | { type: 'SET_SELECTED_TIME'; payload: { selectedTime: string } };
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'AVAILABILITY_LOAD_START':
+      return { ...state, loadingAvailability: true };
+    case 'AVAILABILITY_LOAD_SUCCESS':
+      return {
+        ...state,
+        loadingAvailability: false,
+        availabilityData: action.payload.availabilityData,
+        availableDates: action.payload.availableDates,
+        selectedDate: action.payload.selectedDate,
+        timeSlots: action.payload.timeSlots,
+        selectedTime: action.payload.selectedTime,
+        showTimeDropdown: action.payload.showTimeDropdown,
+      };
+    case 'AVAILABILITY_LOAD_FAIL':
+      return { ...state, loadingAvailability: false };
+    case 'DATE_SELECT_START':
+      return {
+        ...state,
+        loadingTimeSlots: true,
+        selectedDate: action.payload.selectedDate,
+        showTimeDropdown: true,
+        selectedTime: null,
+      };
+    case 'DATE_SELECT_SUCCESS':
+      return {
+        ...state,
+        loadingTimeSlots: false,
+        timeSlots: action.payload.timeSlots,
+        selectedTime: action.payload.selectedTime,
+      };
+    case 'DATE_SELECT_FAIL':
+      return { ...state, loadingTimeSlots: false };
+    case 'SET_SELECTED_TIME':
+      return { ...state, selectedTime: action.payload.selectedTime };
+    default:
+      return state;
+  }
 }
 
 interface RescheduleTimeSelectionModalProps {
@@ -89,21 +153,24 @@ export default function RescheduleTimeSelectionModal({
   const durationOptions = useMemo(() => getDurationOptions(), [getDurationOptions]);
 
   // Component state
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number>(
     durationOptions.length > 0
       ? Math.min(...durationOptions.map((o) => o.duration))
       : 60
   );
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
-  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
-  const [availableDates, setAvailableDates] = useState<string[]>([]);
-  const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [disabledDurations] = useState<number[]>([]);
-  const [availabilityData, setAvailabilityData] = useState<Record<string, { date: string; available_slots: { start_time: string; end_time: string; }[]; is_blackout: boolean; }> | null>(null);
-  const [loadingAvailability, setLoadingAvailability] = useState(false);
-  const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
+  const [state, dispatch] = useReducer(reducer, {
+    loadingAvailability: false,
+    loadingTimeSlots: false,
+    selectedDate: null,
+    selectedTime: null,
+    showTimeDropdown: false,
+    timeSlots: [],
+    availableDates: [],
+    availabilityData: null,
+  });
+  const { selectedDate, selectedTime, showTimeDropdown, timeSlots, availableDates, loadingAvailability, loadingTimeSlots, availabilityData } = state;
 
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
@@ -115,8 +182,15 @@ export default function RescheduleTimeSelectionModal({
     return `${firstName} ${lastInitial}.`;
   };
 
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const fetchAvailability = useCallback(async () => {
-    setLoadingAvailability(true);
+    dispatch({ type: 'AVAILABILITY_LOAD_START' });
     try {
       const today = new Date();
       const endDate = new Date();
@@ -131,7 +205,7 @@ export default function RescheduleTimeSelectionModal({
       });
 
       if (response.data?.availability_by_date) {
-        const availabilityByDate = response.data.availability_by_date;
+        const availabilityByDate = response.data.availability_by_date as AvailabilityByDate;
         const datesWithSlots: string[] = [];
         Object.keys(availabilityByDate).forEach((date) => {
           const dateData = availabilityByDate[date];
@@ -157,15 +231,44 @@ export default function RescheduleTimeSelectionModal({
           }
         });
 
-        // Apply related updates synchronously to avoid act() warnings in tests
-        setAvailabilityData(availabilityByDate);
-        setAvailableDates(datesWithSlots);
+        let nextSelectedDate: string | null = null;
+        let nextTimeSlots: string[] = [];
+        let nextSelectedTime: string | null = null;
+        let nextShowDropdown = false;
 
         if (datesWithSlots.length > 0) {
           const firstDate = at(datesWithSlots, 0);
-          if (!firstDate) return;
+          if (!firstDate) {
+            if (!isMountedRef.current) return;
+            dispatch({
+              type: 'AVAILABILITY_LOAD_SUCCESS',
+              payload: {
+                availabilityData: availabilityByDate,
+                availableDates: datesWithSlots,
+                selectedDate: null,
+                timeSlots: [],
+                selectedTime: null,
+                showTimeDropdown: false,
+              },
+            });
+            return;
+          }
           const firstDateData = availabilityByDate[firstDate];
-          if (!firstDateData) return;
+          if (!firstDateData) {
+            if (!isMountedRef.current) return;
+            dispatch({
+              type: 'AVAILABILITY_LOAD_SUCCESS',
+              payload: {
+                availabilityData: availabilityByDate,
+                availableDates: datesWithSlots,
+                selectedDate: null,
+                timeSlots: [],
+                selectedTime: null,
+                showTimeDropdown: false,
+              },
+            });
+            return;
+          }
           const slots = firstDateData.available_slots || [];
           const expandDiscreteStarts = (
             start: string,
@@ -197,19 +300,34 @@ export default function RescheduleTimeSelectionModal({
             expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
           );
 
-          setSelectedDate(firstDate);
-          setShowTimeDropdown(true);
-          setTimeSlots(formattedSlots);
+          nextSelectedDate = firstDate;
+          nextShowDropdown = true;
+          nextTimeSlots = formattedSlots;
           if (formattedSlots.length > 0) {
             const firstSlot = at(formattedSlots, 0);
-            if (firstSlot) setSelectedTime(firstSlot);
+            if (firstSlot) nextSelectedTime = firstSlot;
           }
         }
+
+        if (!isMountedRef.current) return;
+        flushSync(() => {
+          dispatch({
+            type: 'AVAILABILITY_LOAD_SUCCESS',
+            payload: {
+              availabilityData: availabilityByDate,
+              availableDates: datesWithSlots,
+              selectedDate: nextSelectedDate,
+              timeSlots: nextTimeSlots,
+              selectedTime: nextSelectedTime,
+              showTimeDropdown: nextShowDropdown,
+            },
+          });
+        });
       }
     } catch (error) {
       logger.error('Failed to fetch availability', error);
-    } finally {
-      setLoadingAvailability(false);
+      if (!isMountedRef.current) return;
+      dispatch({ type: 'AVAILABILITY_LOAD_FAIL' });
     }
   }, [instructor.user_id, studentTimezone, selectedDuration]);
 
@@ -223,10 +341,7 @@ export default function RescheduleTimeSelectionModal({
   // Handle date selection
   const handleDateSelect = useCallback(
     (date: string) => {
-      setSelectedDate(date);
-      setShowTimeDropdown(true);
-      setSelectedTime(null);
-      setLoadingTimeSlots(true);
+      dispatch({ type: 'DATE_SELECT_START', payload: { selectedDate: date } });
 
       const dateData = availabilityData?.[date];
       if (availabilityData && dateData) {
@@ -262,21 +377,22 @@ export default function RescheduleTimeSelectionModal({
           expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
         );
 
-        setTimeSlots(formattedSlots);
-        if (formattedSlots.length > 0) {
-          const firstSlot = at(formattedSlots, 0);
-          if (firstSlot) setSelectedTime(firstSlot);
-        }
+        if (!isMountedRef.current) return;
+        dispatch({
+          type: 'DATE_SELECT_SUCCESS',
+          payload: { timeSlots: formattedSlots, selectedTime: at(formattedSlots, 0) || null },
+        });
       }
-
-      setLoadingTimeSlots(false);
+      // If there was no availability data for the selected date, just stop loading
+      if (!isMountedRef.current) return;
+      dispatch({ type: 'DATE_SELECT_FAIL' });
     },
     [availabilityData, selectedDuration]
   );
 
   // Handle time selection
   const handleTimeSelect = (time: string) => {
-    setSelectedTime(time);
+    dispatch({ type: 'SET_SELECTED_TIME', payload: { selectedTime: time } });
   };
 
   // Handle escape key

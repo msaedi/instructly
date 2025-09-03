@@ -18,8 +18,8 @@ jobs:
       - name: ESLint (no warnings allowed)
         run: npm run lint:ci
         working-directory: frontend
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Typecheck (strict)
+        run: npm run typecheck:strict
         working-directory: frontend
       - name: Next build (capture warnings)
         run: |

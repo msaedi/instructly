@@ -29,7 +29,8 @@ import { navigationStateManager } from '@/lib/navigation/navigationStateManager'
 import { format } from 'date-fns';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { getString, getNumber, isRecord } from '@/lib/typesafe';
+import { getString, getNumber } from '@/lib/typesafe';
+import type { InstructorService } from '@/types/instructor';
 import { at } from '@/lib/ts/safe';
 
 // Booking intent helpers
@@ -145,24 +146,18 @@ function InstructorProfileContent() {
 
 
 
-  // Helper function to handle booking - checks auth and redirects if needed
-  const handleBookingClick = (service?: Record<string, unknown>, serviceDuration?: number) => {
-    const selectedService = service || instructor?.services[0]; // Use provided service or default to first
+  // Helper function to handle booking - opens availability modal; auth handled after time selection
+  const handleBookingClick = (service?: InstructorService, serviceDuration?: number) => {
+    const selectedService: InstructorService | undefined = service || instructor?.services[0]; // Use provided service or default to first
     const duration = serviceDuration || 60; // Use provided duration or default
 
-    // If no slot is selected OR slot was auto-selected (not user-selected), open the booking modal
+    // Always open the booking modal to select a time; authentication is handled after selection
     if (!selectedSlot || !isSlotUserSelected) {
-      if (typeof window !== 'undefined') {
-        // User not authenticated - redirect to login first
-        const returnUrl = `/instructors/${instructor?.user_id}`;
-        nextRouter.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
-        return;
-      }
-      // Open booking modal for time slot selection
       bookingModal.openBookingModal({
-        date: '', // Will be selected in modal
-        time: '', // Will be selected in modal
+        date: '',
+        time: '',
         duration,
+        service: selectedService,
       });
       return;
     }
@@ -458,7 +453,7 @@ function InstructorProfileContent() {
             <ServiceCards
               services={instructor.services}
               selectedSlot={selectedSlot}
-              onBookService={(service, duration) => handleBookingClick(isRecord(service) ? service : {}, duration)}
+              onBookService={(service, duration) => handleBookingClick(service, duration)}
             />
           </section>
 
@@ -483,7 +478,7 @@ function InstructorProfileContent() {
                 <ServiceCards
                   services={instructor.services}
                   selectedSlot={selectedSlot}
-                  onBookService={(service, duration) => handleBookingClick(isRecord(service) ? service : {}, duration)}
+                  onBookService={(service, duration) => handleBookingClick(service, duration)}
                 />
               </div>
 

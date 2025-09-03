@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import { flushSync } from 'react-dom';
 import Link from 'next/link';
 import { useCurrentLessons, useCompletedLessons } from '@/hooks/useMyLessons';
 import { LessonCard } from '@/components/lessons/LessonCard';
@@ -61,8 +62,7 @@ function MyLessonsContent() {
       ? upcomingLessons?.items
       : historyLessons?.items;
 
-  const [batchRatings, setBatchRatings] = useState<Record<string, { rating: number | null; review_count: number }>>({});
-  const [batchReviewed, setBatchReviewed] = useState<Record<string, boolean>>({});
+  const [lessonMeta, setLessonMeta] = useState<{ ratings: Record<string, { rating: number | null; review_count: number }>; reviewed: Record<string, boolean> }>({ ratings: {}, reviewed: {} });
 
   // Batch fetch ratings for visible lessons
   useEffect(() => {
@@ -74,13 +74,18 @@ function MyLessonsContent() {
       try {
         const res = await reviewsApi.getRatingsBatch(uniqueInstructorIds);
         if (!mounted) return;
-        const map: Record<string, { rating: number | null; review_count: number }> = {};
+        const ratingsMap: Record<string, { rating: number | null; review_count: number }> = {};
         for (const item of res.results) {
-          map[item.instructor_id] = { rating: item.rating, review_count: item.review_count };
+          ratingsMap[item.instructor_id] = { rating: item.rating, review_count: item.review_count };
         }
-        setBatchRatings(map);
+        flushSync(() => {
+          setLessonMeta((prev) => ({ ...prev, ratings: ratingsMap }));
+        });
       } catch {
-        if (mounted) setBatchRatings({});
+        if (!mounted) return;
+        flushSync(() => {
+          setLessonMeta((prev) => ({ ...prev, ratings: {} }));
+        });
       }
     })();
     return () => {
@@ -108,11 +113,16 @@ function MyLessonsContent() {
       try {
         const existing = await reviewsApi.getExistingForBookings(ids);
         if (!mounted) return;
-        const map: Record<string, boolean> = {};
-        for (const bid of existing) map[bid] = true;
-        setBatchReviewed(map);
+        const reviewedMap: Record<string, boolean> = {};
+        for (const bid of existing) reviewedMap[bid] = true;
+        flushSync(() => {
+          setLessonMeta((prev) => ({ ...prev, reviewed: reviewedMap }));
+        });
       } catch {
-        if (mounted) setBatchReviewed({});
+        if (!mounted) return;
+        flushSync(() => {
+          setLessonMeta((prev) => ({ ...prev, reviewed: {} }));
+        });
       }
     })();
     return () => {
@@ -258,7 +268,7 @@ function MyLessonsContent() {
             // Check if lesson is in the past (for lessons that haven't been marked COMPLETED yet)
             const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}`);
             const isPastLesson = hasMounted ? (lessonDateTime < new Date()) : false;
-            const br = batchRatings[lesson.instructor_id];
+            const br = lessonMeta.ratings[lesson.instructor_id];
 
             return (
               <LessonCard
@@ -271,7 +281,7 @@ function MyLessonsContent() {
                 onReviewTip={() => router.push(`/student/review/${lesson.id}`)}
                 prefetchedRating={typeof br?.rating === 'number' ? br.rating : undefined}
                 prefetchedReviewCount={typeof br?.review_count === 'number' ? br.review_count : undefined}
-                prefetchedReviewed={!!batchReviewed[lesson.id]}
+                prefetchedReviewed={!!lessonMeta.reviewed[lesson.id]}
                 suppressFetchRating={true}
                 suppressFetchReviewed={true}
               />
