@@ -46,6 +46,8 @@ export interface SearchHistoryItem {
 let guestBootstrapInFlight = false;
 let guestBootstrapDone = false;
 export async function ensureGuestOnce(): Promise<void> {
+  // Skip guest bootstrap during unit tests to avoid extra network calls
+  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') return;
   if (typeof document === 'undefined') return;
   // Always trust the cookie first; if absent, we must bootstrap regardless of any local sentinel
   const hasGuest = document.cookie.split('; ').some((c) => c.startsWith('guest_id='));
@@ -131,8 +133,8 @@ export function getGuestSessionId(): string {
 /**
  * Get headers for API requests based on authentication state
  */
-function getHeaders(isAuthenticated: boolean): HeadersInit {
-  const headers: HeadersInit = {
+function getHeaders(isAuthenticated: boolean): Record<string, string> {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
@@ -230,7 +232,9 @@ export async function recordSearch(
       body.observability_candidates = searchRecord.observability_candidates;
     }
 
-    const data = (await httpPost(buildUrl('/api/search-history/'), body)) as unknown;
+    const data = (await httpPost(buildUrl('/api/search-history/'), body, {
+      headers: getHeaders(isAuthenticated),
+    })) as unknown;
     logger.info('Search recorded successfully', { searchRecord, responseData: data });
 
     // Trigger update event for UI components
@@ -268,7 +272,10 @@ export async function getRecentSearches(
         await ensureGuestOnce();
       }
     }
-    const data = (await httpGet(buildUrl('/api/search-history/'), { query: { limit } })) as SearchHistoryItem[];
+    const data = (await httpGet(buildUrl('/api/search-history/'), {
+      headers: getHeaders(isAuthenticated),
+      query: { limit },
+    })) as SearchHistoryItem[];
     return data;
   } catch (error) {
     logger.error('Error fetching recent searches', error as Error);
@@ -310,13 +317,17 @@ export async function trackSearchInteraction(
       isAuthenticated,
     });
 
-    await httpPost(buildUrl('/api/search-history/interaction'), {
-      search_event_id: searchEventId,
-      interaction_type: interactionType,
-      instructor_id: instructorId,
-      result_position: resultPosition,
-      time_to_interaction: timeToInteraction,
-    });
+    await httpPost(
+      buildUrl('/api/search-history/interaction'),
+      {
+        search_event_id: searchEventId,
+        interaction_type: interactionType,
+        instructor_id: instructorId,
+        result_position: resultPosition,
+        time_to_interaction: timeToInteraction,
+      },
+      { headers: getHeaders(isAuthenticated) }
+    );
 
     logger.info('Search interaction tracked successfully');
   } catch (error) {

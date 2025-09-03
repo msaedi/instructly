@@ -17,6 +17,8 @@ const eslintConfig = [
       '.next/**/*',
       'out/**/*',
       'node_modules/**/*',
+      'playwright-report/**/*',
+      'test-results/**/*',
     ],
   },
   ...compat.extends('next/core-web-vitals', 'next/typescript'),

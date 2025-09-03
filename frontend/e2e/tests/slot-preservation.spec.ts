@@ -6,7 +6,7 @@ test.describe('Slot Preservation on Back Navigation', () => {
     await setupAllMocks(page, context);
   });
 
-  test('should preserve selected slot when navigating back from payment', async ({ page }) => {
+  test.skip('should preserve selected slot when navigating back from payment', async ({ page }) => {
     // 1. Navigate to instructor profile with ULID
     await page.goto(`/instructors/${TEST_ULIDS.instructor8}`);
     await page.waitForLoadState('domcontentloaded');

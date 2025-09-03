@@ -29,7 +29,7 @@ jest.mock('next/navigation', () => ({
 
 // Mock API client used by the modal
 jest.mock('@/features/shared/api/client', () => {
-  const { format } = dateFns;
+  const { format } = jest.requireActual('date-fns') as typeof dateFns;
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);

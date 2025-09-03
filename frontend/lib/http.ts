@@ -63,7 +63,13 @@ export async function http(method: HttpMethod, url: string, options: HttpOptions
 
   let data: unknown = null;
   try {
-    data = await resp.clone().json();
+    // Some Jest mocks don't implement clone(); fall back to json()
+    const anyResp = resp as unknown as { clone?: () => Response; json: () => Promise<unknown> };
+    if (typeof anyResp.clone === 'function') {
+      data = await anyResp.clone().json();
+    } else if (typeof anyResp.json === 'function') {
+      data = await anyResp.json();
+    }
   } catch {}
 
   if (!resp.ok) {

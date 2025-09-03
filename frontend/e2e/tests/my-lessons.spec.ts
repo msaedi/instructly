@@ -1170,9 +1170,16 @@ test.describe('Error Handling', () => {
 
       // Check credentials match what we expect
       if (email === studentCredentials.email && password === studentCredentials.password) {
+        const origin = request.headers()['origin'] || 'http://localhost:3100';
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
+          headers: {
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Credentials': 'true',
+            'Vary': 'Origin',
+            'Set-Cookie': 'access_token=mock_access_token; Path=/; HttpOnly; SameSite=Lax'
+          },
           body: JSON.stringify({
             access_token: 'mock_access_token',
             token_type: 'bearer',
@@ -1201,8 +1208,12 @@ test.describe('Error Handling', () => {
 
     // Mock auth endpoint to success after we set the token
     await page.route('**/auth/me', async (route) => {
-      const token = route.request().headers()['authorization'];
-      if (token === 'Bearer mock_access_token') {
+      const headers = route.request().headers();
+      const authHeader = headers['authorization'] || '';
+      const cookieHeader = headers['cookie'] || '';
+      const hasBearer = authHeader.includes('Bearer mock_access_token');
+      const hasCookie = /(?:^|;\s*)access_token=mock_access_token(?:;|$)/.test(cookieHeader);
+      if (hasBearer || hasCookie) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',

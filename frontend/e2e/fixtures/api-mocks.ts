@@ -128,6 +128,9 @@ export async function mockBookingCreation(page: Page) {
 }
 
 export async function mockAuthentication(routeContext: Page | { route: (pattern: string, handler: (route: Route) => Promise<void>) => Promise<void> }) {
+  // Track auth state per test run (cookie is primary, this helps where cookies are flaky in headless)
+  let isAuthenticated = false;
+
   // Mock login endpoint
   await routeContext.route('**/auth/login', async (route: Route) => {
     // For POST requests, check credentials if needed
@@ -161,10 +164,19 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
       // Check credentials - be lenient for test
       if ((email === 'john.smith@example.com' || email === 'test@example.com') &&
           (password === 'Test1234' || password === 'test123')) {
-        // Return successful login response
+        // Return successful login response and simulate backend cookie
+        isAuthenticated = true;
+        const origin = route.request().headers()['origin'] || 'http://localhost:3100';
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
+          headers: {
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Credentials': 'true',
+            'Vary': 'Origin',
+            // SameSite=Lax works for same-site (localhost:3100 -> localhost:8000)
+            'Set-Cookie': 'access_token=mock_access_token_123456; Path=/; HttpOnly; SameSite=Lax'
+          },
           body: JSON.stringify({
             access_token: 'mock_access_token_123456',
             token_type: 'bearer',
@@ -216,10 +228,18 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
         // Check credentials - be lenient for test
         if ((email === 'john.smith@example.com' || email === 'test@example.com') &&
             (password === 'Test1234' || password === 'test123')) {
-          // Return successful login response
+          // Return successful login response and set cookie
+          isAuthenticated = true;
+          const origin = route.request().headers()['origin'] || 'http://localhost:3100';
           await route.fulfill({
             status: 200,
             contentType: 'application/json',
+            headers: {
+              'Access-Control-Allow-Origin': origin,
+              'Access-Control-Allow-Credentials': 'true',
+              'Vary': 'Origin',
+              'Set-Cookie': 'access_token=mock_access_token_123456; Path=/; HttpOnly; SameSite=Lax'
+            },
             body: JSON.stringify({
               access_token: 'mock_access_token_123456',
               token_type: 'bearer',
@@ -266,14 +286,20 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
     }
   });
 
-  // Mock current user endpoint
+  // Mock current user endpoint - succeed only if cookie (or prior login) present
   await routeContext.route('**/auth/me', async (route: Route) => {
-    // Check if user has auth token
-    const authHeader = route.request().headers()['authorization'];
-    if (authHeader && authHeader.includes('Bearer')) {
+    const origin = route.request().headers()['origin'] || 'http://localhost:3100';
+    const cookieHeader = route.request().headers()['cookie'] || '';
+    const hasCookie = /(?:^|;\s*)access_token=/.test(cookieHeader);
+    if (isAuthenticated || hasCookie) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Vary': 'Origin'
+        },
         body: JSON.stringify({
           id: TEST_ULIDS.user1,
           email: 'john.smith@example.com',
@@ -288,13 +314,15 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
         }),
       });
     } else {
-      // Not authenticated
       await route.fulfill({
         status: 401,
         contentType: 'application/json',
-        body: JSON.stringify({
-          detail: 'Not authenticated'
-        }),
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Vary': 'Origin'
+        },
+        body: JSON.stringify({ detail: 'Not authenticated' }),
       });
     }
   });
@@ -306,6 +334,35 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
 
   // Set up authentication mocks first
   await mockAuthentication(routeContext);
+
+  // Ensure guest session bootstrap does not hit real backend (avoid CORS flakes)
+  await routeContext.route('**/api/public/session/guest', async (route: Route) => {
+    const req = route.request();
+    const origin = req.headers()['origin'] || 'http://localhost:3100';
+    if (req.method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, X-Session-ID, X-Search-Origin, X-Guest-Session-ID, Authorization',
+          'Vary': 'Origin'
+        }
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin'
+      },
+      body: JSON.stringify({ ok: true })
+    });
+  });
 
   // Mock the search endpoint FIRST (before the general instructors handler)
   await routeContext.route('**/api/search/instructors**', async (route: Route) => {
