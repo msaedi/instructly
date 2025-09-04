@@ -1,0 +1,28 @@
+groups:
+  - name: ratelimit.alerts
+    interval: 30s
+    rules:
+      - alert: HighRateLimitBlocks
+        expr: |
+          sum by (bucket) (increase(instainstru_rl_decisions_total{action="block"}[5m]))
+            / clamp_min(sum by (bucket) (increase(instainstru_rl_decisions_total[5m])), 1)
+            > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary:
+            "More than 5% of decisions are blocks in bucket {{ $labels.bucket }}"
+          description: |
+            Investigate recent rollouts or abusive patterns. Consider shadowing or raising limits.
+
+      - alert: Financial429ForVerifiedUsers
+        expr: |
+          increase(instainstru_rl_decisions_total{bucket="financial",action="block"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "429 blocks observed in financial routes"
+          description: |
+            Financial requests are being blocked. Verify idempotency keys and user experience.
