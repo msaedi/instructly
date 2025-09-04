@@ -56,6 +56,7 @@ export type FavoritesListResponse = components['schemas']['FavoritesList'];
 // Catalog types
 export type ServiceCategory = components['schemas']['CategoryResponse'];
 export type CatalogService = components['schemas']['CatalogServiceResponse'];
+export type CatalogServiceMinimal = components['schemas']['CatalogServiceMinimalResponse'];
 
 // Booking enums
 export type BookingStatus = components['schemas']['BookingStatus'];

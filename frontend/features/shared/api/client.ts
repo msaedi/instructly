@@ -14,6 +14,7 @@ import type {
   NaturalLanguageSearchResponse as GenNaturalLanguageSearchResponse,
   Booking,
 } from '@/features/shared/api/types';
+import type { CatalogServiceMinimal } from '@/features/shared/api/types';
 
 // Type aliases for generated types
 // Keep generated type imports for future use
@@ -661,7 +662,7 @@ export const publicApi = {
    * Returns minimal entries for pills: { id, name, slug }
    */
   async getKidsAvailableServices() {
-    return cleanFetch<Array<{ id: string; name: string; slug: string }>>('/services/catalog/kids-available');
+    return cleanFetch<CatalogServiceMinimal[]>('/services/catalog/kids-available');
   },
 };
 

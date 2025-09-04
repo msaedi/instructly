@@ -179,10 +179,20 @@ async function main() {
 
     const knownWrappers = new Set(['fetch', 'axios', 'httpJson', 'cleanFetch', 'optionalAuthFetch', 'authFetch']);
 
+    const IGNORED_PATTERNS = [
+      /\/middleware\.ts$/,
+      /\/lib\/.*analytics.*\.ts$/,
+      /\/lib\/.*betaApi.*\.ts$/,
+      /\/app\/api\//,
+    ];
+
+    const shouldIgnore = (relPath) => IGNORED_PATTERNS.some((rx) => rx.test(relPath));
+
     project.getSourceFiles().forEach((sf) => {
       const rel = relative(ROOT, sf.getFilePath());
       if (rel.includes('types/generated/') || rel.includes('__tests__/') || rel.includes('/e2e/')) return;
       if (rel.startsWith('features/shared/api/')) return; // allowed layer
+      if (shouldIgnore(rel)) return; // ignore internal routes/analytics/middleware
       sf.forEachDescendant((node) => {
         // Detect calls
         if (node.getKind() === SyntaxKind.CallExpression) {
@@ -228,7 +238,7 @@ async function main() {
           // Suggestion placeholder: if path matches known segments, suggest a Gen.* stub
           let suggestShimType = '';
           if (pathGuess.includes('/bookings')) suggestShimType = 'Gen.BookingResponse';
-          else if (pathGuess.includes('/instructors')) suggestShimType = 'Gen.InstructorProfileResponse';
+          else if (pathGuess.includes('/instructors') && !pathGuess.includes('/availability')) suggestShimType = 'Gen.InstructorProfileResponse';
           else if (pathGuess.includes('/services/catalog')) suggestShimType = 'Gen.CatalogServiceResponse';
           else if (pathGuess.includes('/services/categories')) suggestShimType = 'Gen.CategoryResponse';
 
@@ -255,12 +265,13 @@ async function main() {
     // ts-morph may not be installed; skip with note
   }
 
-  const adoptionPotential = adHocAny
+  const adoptionPotentialRaw = adHocAny
     .filter(i => i.typingKind !== 'forbidden')
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, 100);
+    .sort((a, b) => b.confidence - a.confidence);
 
-  const adHocAnyCallSites = adHocAny.filter(i => i.typingKind === 'untyped' || i.typingKind === 'any' || i.typingKind === 'local-interface').length;
+  const adoptionPotential = adoptionPotentialRaw.slice(0, 100);
+
+  const adHocAnyCallSites = adoptionPotentialRaw.filter(i => i.typingKind === 'untyped' || i.typingKind === 'any' || i.typingKind === 'local-interface').length;
 
   const drift = !(diffRes.ok && diffRes.out.trim().length === 0);
   const json = {
