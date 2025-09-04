@@ -6,6 +6,9 @@
  */
 
 import { validateWithZod, type SchemaLoader } from '@/features/shared/api/validation';
+import { backoff } from '@/features/shared/api/retry';
+
+const inflight = new Map<string, Promise<Response>>();
 
 /**
  * Generic JSON fetch wrapper with type safety
@@ -27,12 +30,37 @@ export async function httpJson<T>(
   input: RequestInfo,
   init?: RequestInit,
   schemaLoader?: SchemaLoader,
-  ctx?: { endpoint: string; note?: string }
+  ctx?: { endpoint: string; note?: string; dedupeKey?: string; retries?: number; financial?: boolean }
 ): Promise<T> {
-  const res = await fetch(input, {
-    credentials: 'include',
-    ...init
+  const key = ctx?.dedupeKey;
+  if (key && inflight.has(key)) {
+    const existing = inflight.get(key)!;
+    const res = await existing;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as T;
+    if (!schemaLoader) return data;
+    return validateWithZod<T>(schemaLoader, data, { endpoint: ctx?.endpoint || String(input), note: ctx?.note });
+  }
+
+  const run = async () => {
+    const doFetch = () =>
+      fetch(input, {
+        credentials: 'include',
+        ...init,
+      });
+    const res = await doFetch();
+    if (res.status === 429) {
+      if (ctx?.financial) return res; // never auto-retry financial writes
+      return backoff(doFetch, { maxRetries: ctx?.retries ?? 3 });
+    }
+    return res;
+  };
+
+  const p = run().finally(() => {
+    if (key) inflight.delete(key);
   });
+  if (key) inflight.set(key, p);
+  const res = await p;
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
