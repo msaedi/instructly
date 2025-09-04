@@ -5,7 +5,7 @@ import { QueryErrorResetBoundary } from '@tanstack/react-query';
 import { isAuthError, isNetworkError } from '@/lib/react-query/api';
 import { ApiError } from '@/lib/http';
 import { logger } from '@/lib/logger';
-import { env } from '@/lib/env';
+import { IS_DEVELOPMENT } from '@/lib/publicEnv';
 
 interface ErrorFallbackProps {
   error: Error;
@@ -92,7 +92,7 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
           {action}
         </button>
 
-        {env.isDevelopment() && (
+        {IS_DEVELOPMENT && (
           <details className="mt-6 text-left">
             <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700">
               Error Details (Development Only)

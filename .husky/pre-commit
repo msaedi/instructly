@@ -10,6 +10,9 @@ fi
 cd frontend || exit 1
 # Lint only staged files (fast)
 npx lint-staged
+# Verify no dynamic NEXT_PUBLIC_* reads slipped in client code
+echo "🔐 Verifying public env usage..."
+npm run verify:public-env || exit 1
 # Full project lint to catch all issues
 echo "🔍 Running full project lint..."
 npm run lint

@@ -3,9 +3,9 @@
 // Analytics API client for admin dashboard (search analytics + codebase metrics)
 
 import { logger } from '@/lib/logger';
-import { env } from '@/lib/env';
+import { withApiBase } from '@/lib/apiBase';
 
-const API_BASE_URL = env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000';
+const API_BASE_URL = withApiBase('/').replace(/\/$/, '');
 
 // Codebase metrics types
 export interface CodebaseCategoryStats {

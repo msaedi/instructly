@@ -17,7 +17,6 @@ if (!isCI) {
 const tmpOut = join(tmpdir(), `oas-${Date.now()}-api.d.ts`);
 mkdirSync(join(process.cwd(), '.artifacts'), { recursive: true });
 
-// eslint-disable-next-line no-console
 console.log('[contract-check] Generating TS types with pinned openapi-typescript@7.9.1...');
 execSync(
   `npx -y openapi-typescript@7.9.1 "${SPEC}" -o "${tmpOut}" --export-type`,
@@ -30,12 +29,9 @@ const actual = readFileSync(tmpOut, 'utf8');
 if (expected !== actual) {
   writeFileSync(join(process.cwd(), '.artifacts', 'api.actual.d.ts'), actual);
   writeFileSync(join(process.cwd(), '.artifacts', 'api.expected.d.ts'), expected);
-  // eslint-disable-next-line no-console
   console.error('❌ Contract drift detected between committed types and generated output.');
-  // eslint-disable-next-line no-console
   console.error('   See .artifacts/api.expected.d.ts vs .artifacts/api.actual.d.ts');
   process.exit(1);
 }
 
-// eslint-disable-next-line no-console
 console.log('✅ Contract OK (no drift).');

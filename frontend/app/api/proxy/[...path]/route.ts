@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { env } from '@/lib/env';
+import { APP_ENV, USE_PROXY, API_BASE, IS_DEVELOPMENT } from '@/lib/publicEnv';
 
 /**
  * Development proxy route handler
@@ -10,12 +10,11 @@ import { env } from '@/lib/env';
  */
 
 // Guard against non-local environments
-const IS_LOCAL = env.get('NEXT_PUBLIC_APP_ENV') === 'local' ||
-                 (env.isDevelopment() && !env.get('NEXT_PUBLIC_APP_ENV'));
+const IS_LOCAL = APP_ENV === 'local' || (IS_DEVELOPMENT && !APP_ENV);
 
 // Only active in local development when proxy mode is explicitly enabled
-const PROXY_ENABLED = IS_LOCAL && env.get('NEXT_PUBLIC_USE_PROXY') === 'true';
-const BACKEND_URL = env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000';
+const PROXY_ENABLED = IS_LOCAL && USE_PROXY === true;
+const BACKEND_URL = API_BASE || 'http://localhost:8000';
 
 async function handler(
   request: NextRequest,

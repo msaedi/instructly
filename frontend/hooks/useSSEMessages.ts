@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { logger } from '@/lib/logger';
 import { Message } from '@/services/messageService';
-import { env } from '@/lib/env';
+import { withApiBase } from '@/lib/apiBase';
 
 // Connection states
 export enum ConnectionStatus {
@@ -229,8 +229,7 @@ export function useSSEMessages({
 
     try {
       // Cookie-based session: connect without localStorage token
-      const apiUrl = env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000';
-      const url = `${apiUrl}/api/messages/stream/${bookingId}`;
+      const url = withApiBase(`/api/messages/stream/${bookingId}`);
 
       const eventSource = new EventSource(url, { withCredentials: true } as EventSourceInit);
       eventSourceRef.current = eventSource;
@@ -400,8 +399,7 @@ export function useSSEMessages({
 
       updateConnectionStatus(ConnectionStatus.CONNECTING);
 
-      const apiUrl = env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000';
-      const url = `${apiUrl}/api/messages/stream/${bookingId}`;
+      const url = withApiBase(`/api/messages/stream/${bookingId}`);
 
       // Create new EventSource with credentials
       localEventSource = new EventSource(url, { withCredentials: true } as EventSourceInit);

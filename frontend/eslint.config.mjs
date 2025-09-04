@@ -46,6 +46,28 @@ const eslintConfig = [
     plugins: { 'react-refresh': reactRefresh },
     rules: {
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // Guardrails: prevent dynamic access of NEXT_PUBLIC_* in client code
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@/lib/env',
+              importNames: ['env'],
+              message: 'Use `@/lib/publicEnv` for NEXT_PUBLIC_* in client code. env.get() is server-only.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.name='process'][property.name='env'] > MemberExpression.computed",
+          message:
+            'Use literal process.env.NEXT_PUBLIC_* or import from @/lib/publicEnv so Next.js can inline.',
+        },
+      ],
     },
   },
   // Disable react-refresh for Next.js layout files that need to export metadata
@@ -112,6 +134,13 @@ const eslintConfig = [
     rules: {
       'no-console': 'off',
       'no-restricted-syntax': 'off',
+    },
+  },
+  // Allow console in node scripts
+  {
+    files: ['scripts/**/*.js', 'scripts/**/*.mjs'],
+    rules: {
+      'no-console': 'off',
     },
   },
   // Test setup file can safely use console to filter warnings

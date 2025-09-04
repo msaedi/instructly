@@ -8,13 +8,13 @@
 
 import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 import { withApiBase } from '@/lib/apiBase';
-import { env } from '@/lib/env';
+import { NEXT_PUBLIC_APP_URL as APP_URL } from '@/lib/env';
 
 // Browser calls go through Next.js proxy to avoid CORS and middleware redirects
 // Ensure an absolute base URL for URL construction in the browser
 const API_BASE_URL = typeof window !== 'undefined'
   ? window.location.origin
-  : (env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000');
+  : (APP_URL || 'http://localhost:3000');
 
 /**
  * API response type for consistent error handling
@@ -137,8 +137,8 @@ export async function cleanFetch<T>(
     const adjustedPath = endpoint.startsWith('/api/proxy') ? endpoint : withApiBase(endpoint);
     url = new URL(adjustedPath, window.location.origin);
   } else {
-    const base = API_BASE_URL || env.get('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000';
-    url = new URL(endpoint, base as string);
+    const base = API_BASE_URL || 'http://localhost:3000';
+    url = new URL(endpoint, base);
   }
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
