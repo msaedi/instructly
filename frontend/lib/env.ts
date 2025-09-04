@@ -1,6 +1,11 @@
 /**
  * Centralized environment variable access to avoid TypeScript index signature errors
- * This module provides typed getters for process.env that comply with strict TypeScript rules
+ * This module provides typed getters for process.env that comply with strict TypeScript rules.
+ *
+ * IMPORTANT:
+ * - Do NOT use this module for NEXT_PUBLIC_* in client-side code. Next.js requires literal
+ *   access (process.env.NEXT_PUBLIC_*) for build-time inlining. Use `@/lib/publicEnv` instead.
+ * - This helper is intended for server-only envs or non-public values.
  */
 
 export const env = {

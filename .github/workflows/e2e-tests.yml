@@ -24,6 +24,10 @@ jobs:
       working-directory: ./frontend
       run: npm ci
 
+    - name: Verify public env usage
+      working-directory: ./frontend
+      run: npm run verify:public-env
+
     - name: Run RBAC unit tests
       working-directory: ./frontend
       run: npm test

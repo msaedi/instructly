@@ -62,6 +62,10 @@ jobs:
         working-directory: frontend
         run: npm run lint:ci
 
+      - name: Verify public env usage
+        working-directory: frontend
+        run: npm run verify:public-env
+
       - name: Typecheck
         working-directory: frontend
         run: npm run typecheck:strict
