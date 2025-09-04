@@ -24,8 +24,9 @@ BUCKETS = {
 # Per-bucket shadow overrides (default inherits global). Financial enforcement in PR-3.
 BUCKET_SHADOW_OVERRIDES: dict[str, bool] = {
     # If RATE_LIMIT_SHADOW_FINANCIAL is not explicitly true, default to enforcement (shadow false) for PR-3
-    "financial": os.getenv("RATE_LIMIT_SHADOW_FINANCIAL", "").lower()
-    == "true",
+    "financial": os.getenv("RATE_LIMIT_SHADOW_FINANCIAL", "").lower() == "true",
+    # PR-4: enable enforcement for write by default; allow shadow via env
+    "write": os.getenv("RATE_LIMIT_SHADOW_WRITE", "").lower() == "true",
 }
 
 

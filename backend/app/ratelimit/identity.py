@@ -27,5 +27,5 @@ def resolve_identity(req: Request) -> str:
 
 
 def is_login_flow(req: Request) -> bool:
-    # Placeholder for future PR: tag subsequent requests for ~10s after POST /auth/login
+    # Placeholder key that can be set in Redis or request.state for 10s window
     return bool(getattr(req.state, "login_flow", False))
