@@ -217,3 +217,10 @@ class PrometheusMetrics:
 
 # Singleton instance
 prometheus_metrics = PrometheusMetrics()
+
+# Ensure histogram families have at least one labeled series so buckets appear in exposition even
+# before any observations are recorded by the app/tests.
+try:
+    service_operation_duration_seconds.labels(service="bootstrap", operation="init").observe(0.0)
+except Exception:
+    pass

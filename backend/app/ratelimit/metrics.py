@@ -17,3 +17,9 @@ rl_retry_after = Histogram(
 )
 
 __all__ = ["rl_decisions", "rl_retry_after"]
+
+# Seed an initial series so histogram buckets appear prior to first observation in tests
+try:
+    rl_retry_after.labels(bucket="bootstrap", shadow="true").observe(0.0)
+except Exception:
+    pass
