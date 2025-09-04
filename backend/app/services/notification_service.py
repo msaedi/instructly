@@ -404,6 +404,81 @@ class NotificationService(BaseService):
         self.logger.info(f"Student confirmation email sent for booking {booking.id}")
         return True
 
+    @BaseService.measure_operation("send_booking_cancelled_payment_failed")
+    def send_booking_cancelled_payment_failed(self, booking: Booking) -> bool:
+        """
+        Notify student and instructor that a booking was cancelled due to repeated payment authorization failures.
+
+        This is called by background payment tasks at T-6hr when we abandon auth and cancel the booking.
+        Uses a dedicated template if present; otherwise falls back to a simple rendered string.
+        """
+        try:
+            subject = "Booking Cancelled: Payment Authorization Failed"
+
+            context = {
+                "booking": booking,
+                "subject": subject,
+                "update_payment_url": f"{self.frontend_url}/student/payments",
+            }
+
+            html_student = None
+            html_instructor = None
+
+            # Prefer specific templates if available
+            try:
+                if self.template_service.template_exists("email/booking/cancelled_payment_failed_student.html"):
+                    html_student = self.template_service.render_template(
+                        "email/booking/cancelled_payment_failed_student.html", context
+                    )
+            except Exception:
+                html_student = None
+
+            try:
+                if self.template_service.template_exists("email/booking/cancelled_payment_failed_instructor.html"):
+                    html_instructor = self.template_service.render_template(
+                        "email/booking/cancelled_payment_failed_instructor.html", context
+                    )
+            except Exception:
+                html_instructor = None
+
+            # Fallbacks using existing cancellation templates if custom ones aren't available
+            if not html_student:
+                fallback_student = (
+                    "<p>Your upcoming lesson was cancelled because we couldn't authorize the payment after multiple attempts.</p>"
+                    "<p>Please update your payment method to avoid future cancellations.</p>"
+                    f"<p><a href='{self.frontend_url}/student/payments'>Update payment method</a></p>"
+                )
+                html_student = self.template_service.render_string(fallback_student, context)
+
+            if not html_instructor:
+                fallback_instructor = "<p>The upcoming lesson was cancelled because the student's payment could not be authorized after multiple attempts.</p>"
+                html_instructor = self.template_service.render_string(fallback_instructor, context)
+
+            # Send emails
+            if getattr(booking, "student", None) and getattr(booking.student, "email", None):
+                self.email_service.send_email(
+                    to_email=booking.student.email,
+                    subject=subject,
+                    html_content=html_student,
+                )
+
+            if getattr(booking, "instructor", None) and getattr(booking.instructor, "email", None):
+                self.email_service.send_email(
+                    to_email=booking.instructor.email,
+                    subject=subject,
+                    html_content=html_instructor,
+                )
+
+            self.logger.info(
+                f"Sent payment-failure cancellation notifications for booking {getattr(booking, 'id', 'unknown')}"
+            )
+            return True
+        except Exception as e:
+            self.logger.error(
+                f"Failed to send payment-failure cancellation notifications for booking {getattr(booking, 'id', 'unknown')}: {e}"
+            )
+            return False
+
     @BaseService.measure_operation("send_final_payment_warning")
     def send_final_payment_warning(self, booking: Booking, hours_until_lesson: float) -> bool:
         """

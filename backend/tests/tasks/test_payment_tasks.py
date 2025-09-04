@@ -315,7 +315,8 @@ class TestPaymentTasks:
                 "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
             ):
                 with patch("app.tasks.payment_tasks.NotificationService") as mock_notification_service:
-                    mock_notification_service.return_value = MagicMock()
+                    notification_instance = MagicMock()
+                    mock_notification_service.return_value = notification_instance
                     # Execute task
                     result = retry_failed_authorizations()
 
@@ -328,6 +329,9 @@ class TestPaymentTasks:
         mock_payment_repo.create_payment_event.assert_called_once()
         event_call = mock_payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "auth_abandoned"
+
+        # Verify notification of cancellation due to payment failure was sent (email mocked)
+        notification_instance.send_booking_cancelled_payment_failed.assert_called_once_with(booking)
 
     @patch("app.tasks.payment_tasks.stripe")
     @patch("app.tasks.payment_tasks.StripeService")
