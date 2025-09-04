@@ -6,7 +6,7 @@ import type {
   BookingListResponse,
   Booking,
   BookingStatus,
-} from '@/types/booking';
+} from '@/features/shared/api/types';
 
 /**
  * Hook to fetch current/upcoming lessons
@@ -244,7 +244,9 @@ export function useMarkNoShow() {
 /**
  * Helper to calculate cancellation fee based on time until lesson
  */
-export function calculateCancellationFee(lesson: Booking): {
+export function calculateCancellationFee<
+  T extends Pick<Booking, 'booking_date' | 'start_time' | 'total_price'>
+>(lesson: T): {
   fee: number;
   percentage: number;
   hoursUntil: number;

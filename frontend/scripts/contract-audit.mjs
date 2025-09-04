@@ -125,8 +125,15 @@ function main() {
 
   // 5) Count of imports from generated API types
   report += header('Usage of generated API types (import count)');
-  const importHits = grepLiteral(String.raw`from\s+['"]@/types/generated/api['"]`, ROOT);
-  report += `Found **${importHits.length}** import sites of \`@/types/generated/api\`.\n`;
+  // Use regular grep since grepLiteral doesn't handle regex well
+  const directCmd = `grep -r "from.*@/types/generated/api" --include="*.ts" --include="*.tsx" ${ROOT} | wc -l`;
+  const shimCmd = `grep -r "from.*@/features/shared/api/types" --include="*.ts" --include="*.tsx" ${ROOT} | wc -l`;
+  const directCount = parseInt(safe(directCmd).out || '0');
+  const shimCount = parseInt(safe(shimCmd).out || '0');
+  const totalImports = directCount + shimCount;
+  report += `Found **${totalImports}** import sites using generated types:\n`;
+  report += `- Direct imports from \`@/types/generated/api\`: ${directCount}\n`;
+  report += `- Via type shim \`@/features/shared/api/types\`: ${shimCount}\n`;
 
   // Write report
   writeFileSync(REPORT, report);

@@ -8,7 +8,8 @@ import type { CatalogService, ServiceCategory } from '@/features/shared/api/clie
 import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import { InstructorService } from '@/types/instructor';
+import type { InstructorService } from '@/features/shared/api/types';
+type EditableService = Partial<InstructorService> & { hourly_rate?: number; description?: string | null; skill?: string };
 
 // Simple address type for profile editing
 interface AddressItem {
@@ -67,7 +68,7 @@ interface ProfileFormData {
   /** Years of teaching experience */
   years_experience: number;
   /** Services offered by the instructor */
-  services: InstructorService[];
+  services: EditableService[];
   /** First name (from account) */
   first_name: string;
   /** Last name (from account) */
@@ -85,12 +86,12 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
     bio: '',
     areas_of_service: [] as string[],
     years_experience: 0,
-    services: [] as InstructorService[],
+    services: [] as EditableService[],
     first_name: '',
     last_name: '',
     postal_code: '',
   });
-  const [newService, setNewService] = useState<Partial<InstructorService>>({
+  const [newService, setNewService] = useState<EditableService>({
     skill: '',
     hourly_rate: 50,
     description: '',
@@ -492,7 +493,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
     setError(''); // Clear any previous errors
     setProfileData({
       ...profileData,
-      services: [...profileData.services, newService as InstructorService],
+      services: [...profileData.services, newService as EditableService],
     });
 
     // Reset the form
@@ -516,7 +517,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   /**
    * Update a specific field of a service
    */
-  const updateService = (index: number, field: keyof InstructorService, value: string | number) => {
+  const updateService = (index: number, field: keyof EditableService, value: string | number) => {
     logger.debug('Updating service', { index, field, value });
 
     const updatedServices = [...profileData.services];

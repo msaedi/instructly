@@ -18,7 +18,7 @@ import { RoleName } from '@/types/enums';
 import { fetchAPI, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
-import type { FavoritedInstructor } from '@/types/instructor';
+import type { FavoritesListResponse } from '@/features/shared/api/types';
 // Use dashboard-specific saved address shape (differs from common Address)
 type SavedAddress = {
   id: string;
@@ -117,9 +117,10 @@ function StudentDashboardContent() {
     isLoading: isLoadingFavorites,
     error: favoritesError,
     refetch: refetchFavorites,
-  } = useQuery<{ favorites: FavoritedInstructor[]; total: number }>({
+  } = useQuery<unknown, Error, FavoritesListResponse>({
     queryKey: ['favorites'],
-    queryFn: favoritesApi.list,
+    queryFn: () => favoritesApi.list() as unknown as Promise<unknown>,
+    select: (d) => d as FavoritesListResponse,
     enabled: activeTab === 'favorites',
     // Always refetch when navigating to the tab to avoid stale cache view
     refetchOnMount: 'always',
@@ -825,10 +826,20 @@ function StudentDashboardContent() {
                           ? `${fav.profile.user.first_name} ${fav.profile.user.last_initial ? fav.profile.user.last_initial + '.' : ''}`
                           : `${fav.first_name}${fav.last_name ? ' ' + fav.last_name.charAt(0) + '.' : ''}`;
                         const services = fav.profile?.services || [];
-                        const uniqueServices = Array.from(new Set(services.map(s => (s.skill || '').split(' - ')[0]).filter(Boolean)));
-                        const primaryRate = services?.[0]?.hourly_rate;
+                        const uniqueServices = Array.from(
+                          new Set(
+                            services
+                              .map((s) => {
+                                const withNames = s as Partial<{ skill: string; name: string }>;
+                                const label = withNames.skill ?? withNames.name ?? '';
+                                return String(label).split(' - ')[0];
+                              })
+                              .filter((v): v is string => Boolean(v))
+                          )
+                        );
+                        const primaryRate = services?.[0]?.hourly_rate as number | undefined;
                         const primarySubject = uniqueServices[0] || null;
-                        const primaryArea = fav.profile?.areas_of_service?.[0] || null;
+                        const primaryArea = (fav.profile?.areas_of_service || [])[0] || null;
                         const yearsExp = fav.profile?.years_experience || null;
 
                         return (

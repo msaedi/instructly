@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import RescheduleTimeSelectionModal from './RescheduleTimeSelectionModal';
 import { ChatModal } from '@/components/chat/ChatModal';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { Booking } from '@/types/booking';
+import type { Booking } from '@/features/shared/api/types';
 import { toast } from 'sonner';
 
 interface RescheduleModalProps {
@@ -26,7 +26,7 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
     },
     services: [
       {
-        id: lesson.service?.id || '1',
+        id: (lesson as unknown as { service?: { id?: string } }).service?.id || '1',
         duration_options: [lesson.duration_minutes], // Use the current lesson duration
         hourly_rate: lesson.hourly_rate,
         skill: lesson.service_name,

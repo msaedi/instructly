@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RescheduleModal } from '@/components/lessons/modals/RescheduleModal';
-import { Booking, Service } from '@/types/booking';
+import type { Booking } from '@/features/shared/api/types';
 import { format } from 'date-fns';
 import { AuthProvider } from '@/features/shared/hooks/useAuth';
 import * as dateFns from 'date-fns';
@@ -75,7 +75,7 @@ const createTestQueryClient = () => {
 };
 
 describe('RescheduleModal', () => {
-  const mockBooking: Booking = {
+  const mockBooking = ({
     id: '01K2MAY484FQGFEQVN3VKGYZ58',
     booking_date: '2025-12-25',
     start_time: '14:00:00',
@@ -87,7 +87,7 @@ describe('RescheduleModal', () => {
     instructor_id: '01K2MAY484FQGFEQVN3VKGYZ59',
     student_id: '01K2MAY484FQGFEQVN3VKGYZ60',
     instructor_service_id: '01K2MAY484FQGFEQVN3VKGYZAA',
-    service: { id: '01K2MAY484FQGFEQVN3VKGYZ61' } as Service,
+    service: { id: '01K2MAY484FQGFEQVN3VKGYZ61' } as unknown as { id: string },
     service_name: 'Mathematics',
     created_at: '2025-12-01T10:00:00Z',
     updated_at: '2025-12-01T10:00:00Z',
@@ -96,7 +96,7 @@ describe('RescheduleModal', () => {
       first_name: 'John',
       last_initial: 'D',
     },
-  };
+  }) as unknown as Booking;
 
   const mockOnClose = jest.fn();
 

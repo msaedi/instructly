@@ -3,7 +3,7 @@ import { logger } from '@/lib/logger';
 import { useRouter } from 'next/navigation';
 import { CheckCircle } from 'lucide-react';
 import Modal from '@/components/Modal';
-import { Booking } from '@/types/booking';
+import type { Booking } from '@/features/shared/api/types';
 import { useCancelLesson } from '@/hooks/useMyLessons';
 import { format } from 'date-fns';
 

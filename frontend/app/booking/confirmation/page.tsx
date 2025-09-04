@@ -4,14 +4,14 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { protectedApi } from '@/features/shared/api/client';
-import type { Booking } from '@/types/booking';
+import type { Booking } from '@/features/shared/api/types';
 import { formatInstructorFromUser } from '@/utils/nameDisplay';
 
 function BookingConfirmationContent() {
   const searchParams = useSearchParams();
   const bookingId = searchParams.get('bookingId');
 
-  const [booking, setBooking] = useState<Booking | null>(null);
+  const [booking, setBooking] = useState<(Booking & Partial<{ service: { skill?: string } }>) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

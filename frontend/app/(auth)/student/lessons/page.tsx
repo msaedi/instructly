@@ -273,10 +273,10 @@ function MyLessonsContent() {
             return (
               <LessonCard
                 key={lesson.id}
-                lesson={lesson}
+                lesson={{ ...lesson, updated_at: (lesson as unknown as { updated_at?: string }).updated_at ?? new Date().toISOString() } as unknown as Booking}
                 isCompleted={lesson.status === 'COMPLETED' || (lesson.status === 'CONFIRMED' && isPastLesson)}
                 onViewDetails={() => router.push(`/student/lessons/${lesson.id}`)}
-                onChat={() => handleOpenChat(lesson)}
+                onChat={() => handleOpenChat(lesson as unknown as Booking)}
                 onBookAgain={() => router.push(`/instructors/${lesson.instructor_id}`)}
                 onReviewTip={() => router.push(`/student/review/${lesson.id}`)}
                 {...(typeof br?.rating === 'number' && { prefetchedRating: br.rating })}

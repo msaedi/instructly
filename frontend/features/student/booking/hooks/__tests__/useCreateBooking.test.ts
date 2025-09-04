@@ -165,22 +165,13 @@ describe.skip('useCreateBooking', () => {
         id: '01K2GY3VEVJWKZDVH5HMNXEVRD',
         instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR2',
         student_id: '01K2GY3VEVJWKZDVH5HMNXEVR3',
-        service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
         booking_date: '2025-01-01',
         start_time: '10:00:00',
         end_time: '11:00:00',
-        status: 'confirmed',
-        // service_name: 'Service',
-        // hourly_rate: 100,
+        status: 'CONFIRMED',
         total_price: 100,
-        // duration_minutes: 60,
         created_at: '2025-01-01T00:00:00Z',
-        updated_at: '2025-01-01T00:00:00Z',
-        instructor: { user_id: '01K2GY3VEVJWKZDVH5HMNXEVR2', user: { first_name: 'A', last_initial: 'B' } },
-        service: {
-          skill: 'Service',
-          hourly_rate: 100
-        },
+        instructor: { id: '01K2GY3VEVJWKZDVH5HMNXEVR2', first_name: 'A', last_initial: 'B' } as unknown as NonNullable<Booking['instructor']>,
       };
 
       mockCreateBooking.mockResolvedValueOnce({

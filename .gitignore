@@ -67,6 +67,7 @@ backend/dead_code_backup_*/
 monitoring/grafana-data/
 monitoring/prometheus-data/
 assets/
+frontend/types/generated/
 
 # Cloudflare Wrangler local state (do not commit)
 .wrangler/

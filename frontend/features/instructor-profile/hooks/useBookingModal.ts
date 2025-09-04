@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import type { InstructorService } from '@/types/instructor';
 
 interface BookingModalState {
   isOpen: boolean;
   selectedDate?: string;
   selectedTime?: string;
-  selectedService?: InstructorService;
+  selectedService?: unknown;
   selectedDuration?: number;
 }
 
@@ -20,7 +19,7 @@ export function useBookingModal() {
   const openBookingModal = (options?: {
     date?: string;
     time?: string;
-    service?: InstructorService;
+    service?: unknown;
     duration?: number;
   }) => {
     setModalState({

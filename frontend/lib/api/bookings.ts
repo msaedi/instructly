@@ -8,9 +8,9 @@ import {
   BookingPreview,
   BookingCreate,
   AvailabilityCheckRequest,
-} from '@/types/booking';
+} from '@/features/shared/api/types';
 
-// Generated types shim is available if needed in future; not required here currently
+// Using generated types from OpenAPI schema
 
 /**
  * Bookings API Client
@@ -94,7 +94,8 @@ export const bookingsApi = {
   checkAvailability: async (data: AvailabilityCheckRequest): Promise<AvailabilityCheckResponse> => {
     logger.info('Checking time range availability', {
       instructorId: data.instructor_id,
-      serviceId: data.service_id,
+      serviceId: (data as unknown as { service_id?: string; instructor_service_id?: string }).service_id ||
+        (data as unknown as { instructor_service_id?: string }).instructor_service_id,
       date: data.booking_date,
       startTime: data.start_time,
       endTime: data.end_time,
@@ -149,7 +150,7 @@ export const bookingsApi = {
   createBooking: async (data: BookingCreate): Promise<Booking> => {
     logger.info('Creating time-based booking', {
       instructorId: data.instructor_id,
-      serviceId: data.service_id,
+      serviceId: (data as unknown as { service_id?: string; instructor_service_id?: string }).service_id || (data as unknown as { instructor_service_id?: string }).instructor_service_id,
       date: data.booking_date,
       startTime: data.start_time,
       endTime: data.end_time,
@@ -161,7 +162,12 @@ export const bookingsApi = {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        instructor_service_id:
+          (data as unknown as { instructor_service_id?: string }).instructor_service_id ||
+          (data as unknown as { service_id?: string }).service_id,
+      }),
     });
 
     if (!response.ok) {

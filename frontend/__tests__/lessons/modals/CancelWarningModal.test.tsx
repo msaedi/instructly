@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CancelWarningModal } from '@/components/lessons/modals/CancelWarningModal';
-import { Booking } from '@/types/booking';
+import type { Booking } from '@/features/shared/api/types';
 import * as myLessonsModule from '@/hooks/useMyLessons';
 
 // Mock the useMyLessons hook
@@ -35,18 +35,11 @@ describe('CancelWarningModal', () => {
     end_time: '15:00:00',
     status: 'CONFIRMED',
     total_price: 60,
-    hourly_rate: 60,
-    duration_minutes: 60,
     instructor_id: '01K2MAY484FQGFEQVN3VKGYZ59',
     student_id: '01K2MAY484FQGFEQVN3VKGYZ60',
-    service: { id: '01K2MAY484FQGFEQVN3VKGYZ61' } as { id: string },
-    instructor: {
-      id: '01K2MAY484FQGFEQVN3VKGYZ59',
-      first_name: 'John',
-      last_initial: 'D',
-    },
-    service_name: 'Mathematics',
-  } as Booking;
+    // minimal fields to satisfy generated shape when accessed in component/tests
+    updated_at: '2025-12-25T15:00:00Z',
+  } as unknown as Booking;
 
   const mockOnClose = jest.fn();
   const mockOnReschedule = jest.fn();

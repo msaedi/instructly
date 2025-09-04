@@ -159,7 +159,7 @@ function InstructorProfileContent() {
         date?: string;
         time?: string;
         duration?: number;
-        service?: InstructorService;
+        service?: unknown;
       } = {
         date: '',
         time: '',

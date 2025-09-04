@@ -9,7 +9,11 @@
 import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { NEXT_PUBLIC_APP_URL as APP_URL } from '@/lib/env';
-import type { components } from '@/features/shared/api/types';
+import type {
+  components,
+  NaturalLanguageSearchResponse as GenNaturalLanguageSearchResponse,
+  Booking,
+} from '@/features/shared/api/types';
 
 // Type aliases for generated types
 // Keep generated type imports for future use
@@ -379,10 +383,10 @@ export const publicApi = {
    */
   async searchWithNaturalLanguage(
     query: string
-  ): Promise<ApiResponse<NaturalLanguageSearchResponse>> {
+  ): Promise<ApiResponse<GenNaturalLanguageSearchResponse>> {
     // Use optionalAuthFetch to allow unauthenticated searches
     // but include auth token if available for search history tracking
-    return optionalAuthFetch<NaturalLanguageSearchResponse>('/api/search/instructors', {
+    return optionalAuthFetch<GenNaturalLanguageSearchResponse>('/api/search/instructors', {
       params: { q: query },
     });
   },
@@ -676,35 +680,8 @@ export interface CreateBookingRequest {
   location_type?: 'student_home' | 'instructor_location' | 'neutral';
 }
 
-export interface Booking {
-  id: string;
-  instructor_id: string;
-  student_id: string;
-  service_id: string;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-  total_price: number;
-  cancellation_reason?: string;
-  student_note?: string;
-  meeting_location?: string;
-  location_type?: 'student_home' | 'instructor_location' | 'neutral';
-  created_at: string;
-  updated_at: string;
-  instructor: {
-    user_id: string;
-    user: {
-      first_name: string;
-      last_initial: string;
-      // No email for privacy
-    };
-  };
-  service: {
-    skill: string;
-    hourly_rate: number;
-  };
-}
+// Re-export generated Booking type for tests that import from this module
+export type { Booking } from '@/features/shared/api/types';
 
 /**
  * Protected API client for authenticated features

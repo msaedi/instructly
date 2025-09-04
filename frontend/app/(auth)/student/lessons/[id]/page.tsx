@@ -421,12 +421,18 @@ export default function LessonDetailsPage() {
             <RescheduleModal
               isOpen={showRescheduleModal}
               onClose={() => setShowRescheduleModal(false)}
-              lesson={lesson}
+              lesson={({
+                ...lesson,
+                updated_at: (lesson as unknown as { updated_at?: string }).updated_at ?? new Date().toISOString(),
+              } as unknown) as import('@/features/shared/api/types').Booking}
             />
             <CancelWarningModal
               isOpen={showCancelModal}
               onClose={() => setShowCancelModal(false)}
-              lesson={lesson}
+              lesson={({
+                ...lesson,
+                updated_at: (lesson as unknown as { updated_at?: string }).updated_at ?? new Date().toISOString(),
+              } as unknown) as import('@/features/shared/api/types').Booking}
               onReschedule={() => {
                 setShowCancelModal(false);
                 setShowRescheduleModal(true);
