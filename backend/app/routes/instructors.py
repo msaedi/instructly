@@ -39,6 +39,8 @@ from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType
 from ..middleware.rate_limiter import rate_limit as legacy_rate_limit
 from ..models.user import User
+
+# Note: rate limiting disabled in tests; in production this protects write endpoints
 from ..ratelimit.dependency import rate_limit
 from ..schemas.address_responses import CoverageFeatureCollectionResponse
 from ..schemas.base_responses import PaginatedResponse

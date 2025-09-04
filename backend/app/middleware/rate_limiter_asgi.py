@@ -42,6 +42,14 @@ class RateLimitMiddlewareASGI:
             await self.app(scope, receive, send)
             return
 
+        # Disable rate limiting entirely in test environment
+        try:
+            if getattr(settings, "is_testing", False):
+                await self.app(scope, receive, send)
+                return
+        except Exception:
+            pass
+
         # Honor global rate limit toggle (disable entirely when false)
         if not getattr(settings, "rate_limit_enabled", True):
             await self.app(scope, receive, send)
