@@ -3,7 +3,7 @@ import { queryFn, convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi, TopServicesResponse } from '@/features/shared/api/client';
 import { useUser } from './useUser';
-import type { BookingListResponse } from '@/types/booking';
+import type { BookingListResponse } from '@/features/shared/api/types';
 import { SearchHistoryItem } from '@/lib/searchTracking';
 
 /**
@@ -118,7 +118,7 @@ export function useBookingHistory(limit: number = 50) {
 
   return useQuery({
     queryKey: [...queryKeys.bookings.history(), { status: 'COMPLETED', limit }] as const,
-    queryFn: queryFn('/bookings/', {
+    queryFn: queryFn<BookingListResponse>('/bookings/', {
       params: { status: 'COMPLETED', per_page: limit },
       requireAuth: true,
     }),

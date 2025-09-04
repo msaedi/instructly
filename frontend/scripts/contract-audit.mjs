@@ -180,10 +180,11 @@ async function main() {
     const knownWrappers = new Set(['fetch', 'axios', 'httpJson', 'cleanFetch', 'optionalAuthFetch', 'authFetch']);
 
     const IGNORED_PATTERNS = [
-      /\/middleware\.ts$/,
-      /\/lib\/.*analytics.*\.ts$/,
-      /\/lib\/.*betaApi.*\.ts$/,
-      /\/app\/api\//,
+      /^middleware\.ts$/,
+      /^lib\/.*analytics.*\.ts$/,
+      /^lib\/.*betaApi.*\.ts$/,
+      /^app\/api\//,
+      /^app\/.*\/api\//,
     ];
 
     const shouldIgnore = (relPath) => IGNORED_PATTERNS.some((rx) => rx.test(relPath));

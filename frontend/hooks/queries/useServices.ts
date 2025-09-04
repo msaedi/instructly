@@ -3,7 +3,8 @@ import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-quer
 import { convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
-import type { ServiceCategory, CatalogService } from '@/features/shared/api/client';
+import type { ServiceCategory as ShimServiceCategory } from '@/features/shared/api/types';
+import type { CatalogService } from '@/features/shared/api/client';
 import { withApiBase } from '@/lib/apiBase';
 
 /**
@@ -33,7 +34,7 @@ import { withApiBase } from '@/lib/apiBase';
  * ```
  */
 export function useServiceCategories() {
-  return useQuery<ServiceCategory[]>({
+  return useQuery<ShimServiceCategory[]>({
     queryKey: queryKeys.services.categories,
     queryFn: async () => {
       const response = await publicApi.getServiceCategories();
