@@ -134,9 +134,10 @@ async function main() {
   report += header('Usage of generated API types (import count)');
   const directAllCmd = `grep -r "from.*@/types/generated/api" --include="*.ts" --include="*.tsx" ${ROOT}`;
   const shimAllCmd = `grep -r "from.*@/features/shared/api/types" --include="*.ts" --include="*.tsx" ${ROOT}`;
-  const allowedPathPattern = `/features/shared/api/types.ts`;
-  const directOutsideCmd = `${directAllCmd} | grep -v "${allowedPathPattern}" | wc -l`;
-  const directAllowedCmd = `${directAllCmd} | grep "${allowedPathPattern}" | wc -l`;
+  // Allowed layers: the entire features/shared/api/** directory (shim + clients)
+  const allowedDirPattern = `/features/shared/api/`;
+  const directOutsideCmd = `${directAllCmd} | grep -v "${allowedDirPattern}" | wc -l`;
+  const directAllowedCmd = `${directAllCmd} | grep "${allowedDirPattern}" | wc -l`;
   const shimCountCmd = `${shimAllCmd} | wc -l`;
 
   const directOutside = parseInt(safe(directOutsideCmd).out || '0');
@@ -145,8 +146,17 @@ async function main() {
 
   report += `Found **${directOutside + directAllowed + viaShimCount}** import sites using generated types (by layer):\n`;
   report += `- Direct imports outside allowed layers: ${directOutside}\n`;
-  report += `- Direct imports in allowed layers (shim): ${directAllowed}\n`;
+  report += `- Direct imports in allowed layers (shim/clients): ${directAllowed}\n`;
   report += `- Via type shim \`@/features/shared/api/types\`: ${viaShimCount}\n`;
+
+  // Build details for JSON output (file lists)
+  const listCmd = (cmd) => (safe(cmd).out || '').split('\n').filter(Boolean);
+  const cutUnique = (lines) => Array.from(new Set(lines.map((l) => l.split(':')[0])));
+  const directAllList = listCmd(directAllCmd);
+  const shimAllList = listCmd(shimAllCmd);
+  const directImportFilesOutside = cutUnique(directAllList.filter((l) => !l.includes(allowedDirPattern)));
+  const directImportFilesAllowed = cutUnique(directAllList.filter((l) => l.includes(allowedDirPattern)));
+  const viaShimFiles = cutUnique(shimAllList);
 
   // 6) Adoption potential via ts-morph (best-effort)
   const adHocAny = [];
@@ -261,9 +271,9 @@ async function main() {
     },
     viaShimCount,
     details: {
-      viaShimFiles: [],
-      directImportFilesOutside: [],
-      directImportFilesAllowed: [],
+      viaShimFiles,
+      directImportFilesOutside,
+      directImportFilesAllowed,
     },
   };
 
