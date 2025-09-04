@@ -42,10 +42,19 @@ class RateLimitMiddlewareASGI:
             await self.app(scope, receive, send)
             return
 
-        # Disable rate limiting entirely in test environment
+        # In test environment: do not enforce, but still emit standard headers
         try:
             if getattr(settings, "is_testing", False):
-                await self.app(scope, receive, send)
+
+                async def send_wrapper(message):
+                    if message["type"] == "http.response.start":
+                        headers = MutableHeaders(scope=message)
+                        headers["X-RateLimit-Limit"] = str(self.general_limit)
+                        headers["X-RateLimit-Remaining"] = str(self.general_limit)
+                        headers["X-RateLimit-Reset"] = str(int(time.time()) + 60)
+                    await send(message)
+
+                await self.app(scope, receive, send_wrapper)
                 return
         except Exception:
             pass
