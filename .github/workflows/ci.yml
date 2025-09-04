@@ -97,8 +97,8 @@ jobs:
           exit 1
 
       - name: Warn if shim adoption below target
-        if: steps.audit.outputs.via < 12
-        run: echo "⚠️ Shim adoption below target (12); consider wiring more call sites."
+        if: steps.audit.outputs.via < 20
+        run: echo "⚠️ Shim adoption below target (20); consider wiring more call sites."
 
       - name: Upload contract audit artifacts
         uses: actions/upload-artifact@v4
@@ -110,7 +110,13 @@ jobs:
 
       - name: Build
         working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_BASE: https://example.invalid
         run: npm run build:log
+
+      - name: Ensure runtime validation not in prod bundle
+        working-directory: frontend
+        run: npm run verify:runtime-validation-bundle
 
   frontend-tests:
     runs-on: ubuntu-latest
