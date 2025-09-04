@@ -678,7 +678,7 @@ export default function HomePage() {
                       <Clock className="h-4 w-4 mr-1" />
                       <span>Next: {instructor.nextAvailable}</span>
                     </div>
-                    <button className="mt-3 w-full bg-[#6A0DAD] hover:bg-[#6A0DAD] text-white py-2 rounded-lg transition-colors duration-200 font-medium">
+                    <button className="mt-3 w-full bg-[#6A0DAD] hover:!bg-[#6A0DAD] text-white hover:!text-white py-2 rounded-lg transition-colors duration-200 font-medium">
                       Book Now
                     </button>
                   </div>

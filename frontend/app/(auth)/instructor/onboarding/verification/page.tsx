@@ -126,7 +126,7 @@ export default function Step4Verification() {
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -328,15 +328,9 @@ export default function Step4Verification() {
         </div>
       </div>
 
-      <div className="mt-8 flex justify-between items-center">
+      <div className="mt-8 flex items-center justify-end gap-3">
         <button
-          className="px-4 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
-          onClick={() => window.location.href = '/instructor/onboarding/skill-selection'}
-        >
-          ← Back
-        </button>
-        <button
-          className="px-6 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] transition-colors font-medium shadow-sm"
+          type="button"
           onClick={() => {
             // If verification wasn't completed, mark it as skipped
             if (!verificationComplete && typeof window !== 'undefined') {
@@ -344,8 +338,21 @@ export default function Step4Verification() {
             }
             window.location.href = '/instructor/onboarding/payment-setup';
           }}
+          className="w-40 px-5 py-2.5 rounded-lg text-[#6A0DAD] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 justify-center"
         >
-          Continue →
+          Skip for now
+        </button>
+        <button
+          onClick={() => {
+            // If verification wasn't completed, mark it as skipped
+            if (!verificationComplete && typeof window !== 'undefined') {
+              sessionStorage.setItem('verificationSkipped', 'true');
+            }
+            window.location.href = '/instructor/onboarding/payment-setup';
+          }}
+          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:!bg-[#6A0DAD] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+        >
+          Continue
         </button>
       </div>
       </div>

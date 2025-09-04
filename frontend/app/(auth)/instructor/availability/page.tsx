@@ -170,7 +170,7 @@ export default function InstructorAvailabilityPage() {
             toast.success('Availability saved');
             setLastUpdatedLocal(new Date().toLocaleString());
           }}
-          className={`px-4 py-2 rounded-md text-white ${hasUnsavedChanges ? 'bg-[#6A0DAD] hover:bg-[#5a0c94]' : 'bg-gray-300 cursor-not-allowed'}`}
+          className={`px-4 py-2 rounded-md text-white ${hasUnsavedChanges ? 'bg-[#6A0DAD] hover:bg-[#6A0DAD]' : 'bg-gray-300 cursor-not-allowed'}`}
         >
           {isSaving ? 'Saving…' : hasUnsavedChanges ? 'Save changes' : 'Saved'}
         </button>
@@ -244,7 +244,7 @@ export default function InstructorAvailabilityPage() {
                 Cancel
               </button>
               <button
-                className="px-4 py-2 text-sm rounded-md bg-[#6A0DAD] text-white hover:bg-[#5a0c94]"
+                className="px-4 py-2 text-sm rounded-md bg-[#6A0DAD] text-white hover:bg-[#6A0DAD]"
                 onClick={async () => {
                   setShowConflictModal(false);
                   await refreshSchedule();

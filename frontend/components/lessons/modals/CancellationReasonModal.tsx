@@ -172,7 +172,7 @@ export function CancellationReasonModal({
               type="button"
               onClick={onClose}
               className="flex-1 py-3 px-4 bg-white text-black border-2 border-[#FFD700] rounded-lg
-                       hover:bg-[#FFD700]/10 transition-colors font-medium cursor-pointer"
+                       hover:bg-yellow-50 transition-colors font-medium cursor-pointer"
             >
               Keep Lesson
             </button>

@@ -641,7 +641,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
             <button
               onClick={handleSubmit}
               disabled={loading || !canSubmit}
-              className="px-4 py-2.5 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#5c0a9a]
+              className="px-4 py-2.5 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#6A0DAD]
                        disabled:opacity-50 disabled:cursor-not-allowed transition-all
                        duration-150 font-medium focus:outline-none focus:ring-2
                        focus:ring-offset-2 focus:ring-[#6A0DAD] flex items-center gap-2"
@@ -770,7 +770,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                 type="button"
                 onClick={handleSaveBioExperience}
                 disabled={savingAbout}
-                className="px-4 py-2.5 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#5c0a9a]
+                className="px-4 py-2.5 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#6A0DAD]
                          disabled:opacity-50 disabled:cursor-not-allowed transition-all
                          duration-150 font-medium focus:outline-none focus:ring-2
                          focus:ring-offset-2 focus:ring-[#6A0DAD]"
@@ -930,7 +930,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                         setError('Failed to save service areas');
                       }
                     }}
-                    className="px-4 py-2.5 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#5c0a9a] transition-all font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6A0DAD]"
+                    className="px-4 py-2.5 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#6A0DAD] transition-all font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6A0DAD]"
                   >
                     Save
                   </button>
@@ -1368,7 +1368,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                     } finally {
                       setSvcSaving(false);
                     }
-                  }} disabled={svcSaving} className="px-4 py-2.5 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#5c0a9a] disabled:opacity-50">{svcSaving ? 'Saving…' : 'Save'}</button>
+                  }} disabled={svcSaving} className="px-4 py-2.5 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#6A0DAD] disabled:opacity-50">{svcSaving ? 'Saving…' : 'Save'}</button>
                 </div>
               </>
             )}

@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera } from 'lucide-react';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, ExternalLink } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -37,10 +39,12 @@ function toTitle(s: string): string {
 }
 
 export default function InstructorProfileSettingsPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  // Success toast handled via Sonner; no local success banner state
+  const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile>({
     first_name: '',
     last_name: '',
@@ -91,12 +95,14 @@ export default function InstructorProfileSettingsPage() {
           firstName = userData['first_name'] || '';
           lastName = userData['last_name'] || '';
           userZip = userData['zip_code'] || '';
+          try { setUserId(userData?.['id'] ? String(userData['id']) : null); } catch {}
           logger.debug('Prefill: /auth/me body', { first_name: firstName, last_name: lastName, id: userData['id'], zip_code: userZip });
         } else if (data && data.user) {
           // Fallback to instructor payload's embedded user if available
           firstName = data.user['first_name'] || '';
           lastName = data.user['last_name'] || '';
           userZip = data.user['zip_code'] || '';
+          try { setUserId(data.user?.['id'] ? String(data.user['id']) : null); } catch {}
           logger.debug('Prefill: using instructor.user fallback', { first_name: firstName, last_name: lastName, zip_code: userZip });
         }
 
@@ -182,18 +188,8 @@ export default function InstructorProfileSettingsPage() {
     void load();
   }, []);
 
-  // Auto-hide success toast after a short delay
-  useEffect(() => {
-    if (success) {
-      const t = setTimeout(() => setSuccess(null), 2500);
-      return () => clearTimeout(t);
-    }
-    return;
-  }, [success]);
+  // Success toast is triggered directly in save(); no banner state
 
-  const canSave = useMemo(() => {
-    return profile.bio.trim().length >= 400;
-  }, [profile]);
   const bioTooShort = profile.bio.trim().length < 400;
 
 
@@ -263,7 +259,6 @@ export default function InstructorProfileSettingsPage() {
     try {
       setSaving(true);
       setError(null);
-      setSuccess(null);
       // Update user info if changed
       if (profile.first_name || profile.last_name) {
         await fetchWithAuth(API_ENDPOINTS.ME, {
@@ -330,7 +325,18 @@ export default function InstructorProfileSettingsPage() {
         });
       } catch {}
 
-      setSuccess('Profile saved');
+      toast.success('Profile saved', {
+        style: {
+          background: '#6b21a8',
+          color: '#ffffff',
+          padding: '6px 10px',
+          borderRadius: '8px',
+          width: '230px',
+          minWidth: '230px',
+          maxWidth: '230px',
+          whiteSpace: 'nowrap'
+        }
+      });
     } catch {
       setError('Failed to save profile');
     } finally {
@@ -368,7 +374,7 @@ export default function InstructorProfileSettingsPage() {
   return (
     <div className="min-h-screen">
       {/* Header - matching onboarding pages */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -555,6 +561,18 @@ export default function InstructorProfileSettingsPage() {
                 <span>Profile Details</span>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { if (userId) router.push(`/instructors/${userId}`); }}
+                aria-label="View public profile"
+                title="View public profile"
+                className="inline-flex items-center px-2.5 py-1.5 text-xs rounded-md border border-purple-200 bg-purple-50 text-[#6A0DAD] hover:bg-purple-100 transition-colors disabled:opacity-50"
+                disabled={!userId}
+              >
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                <span className="hidden sm:inline">View public profile</span>
+              </button>
+            </div>
           </div>
           <div className="py-2">
             <p className="text-gray-600 mt-1 mb-2">Introduce Yourself</p>
@@ -567,11 +585,11 @@ export default function InstructorProfileSettingsPage() {
                 onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))}
                 onBlur={() => setBioTouched(true)}
               />
-              <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-gray-500">
+              <div className="pointer-events-none absolute bottom-3 right-3 text-[10px] text-gray-500">
                 Minimum 400 characters
               </div>
-              {bioTouched && bioTooShort && (
-                <div className="mt-1 text-xs text-red-600">Please enter at least 400 characters.</div>
+              {bioTooShort && (
+                <div className="mt-1 text-xs text-red-600">Your bio is under 400 characters. You can still save and complete it later.</div>
               )}
             </div>
           </div>
@@ -644,7 +662,7 @@ export default function InstructorProfileSettingsPage() {
                     <button
                       type="button"
                       aria-label={`Remove ${name}`}
-                      className="ml-auto text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-[#6A0DAD]/10 no-hover-shadow shrink-0"
+                      className="ml-auto text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
                       onClick={() => toggleNeighborhood(nid)}
                     >
                       &times;
@@ -765,7 +783,7 @@ export default function InstructorProfileSettingsPage() {
                     }}
                     aria-label="Add address"
                     disabled={preferredLocations.length >= 2}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-[#6A0DAD]/10 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     <span className="text-base leading-none">+</span>
                   </button>
@@ -787,7 +805,7 @@ export default function InstructorProfileSettingsPage() {
                       <button
                         type="button"
                         aria-label={`Remove ${loc}`}
-                        className="ml-auto text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-[#6A0DAD]/10 no-hover-shadow shrink-0"
+                        className="ml-auto text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
                         onClick={() => setPreferredLocations((prev) => prev.filter((x) => x !== loc))}
                       >
                         &times;
@@ -824,7 +842,7 @@ export default function InstructorProfileSettingsPage() {
                     }}
                     aria-label="Add public space"
                     disabled={neutralPlaces.length >= 2}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-[#6A0DAD]/10 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     <span className="text-base leading-none">+</span>
                   </button>
@@ -838,7 +856,7 @@ export default function InstructorProfileSettingsPage() {
                       <button
                         type="button"
                         aria-label={`Remove ${place}`}
-                        className="ml-auto text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-[#6A0DAD]/10 no-hover-shadow shrink-0"
+                        className="ml-auto text-[#6A0DAD] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
                         onClick={() => setNeutralPlaces((prev) => prev.filter((x) => x !== place))}
                       >
                         &times;
@@ -883,7 +901,7 @@ export default function InstructorProfileSettingsPage() {
                 />
               </div>
               <div className="bg-white rounded-lg">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Advance Notice (hours)</label>
+                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Advance Notice (business hours)</label>
                 <input
                   type="number"
                   min={1}
@@ -924,25 +942,20 @@ export default function InstructorProfileSettingsPage() {
           <button
             type="button"
             onClick={() => { window.location.href = '/instructor/onboarding/skill-selection'; }}
-            className="w-40 px-5 py-2.5 rounded-lg text-[#6A0DAD] bg-white hover:bg-[#6A0DAD]/10 transition-colors focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 justify-center"
+            className="w-40 px-5 py-2.5 rounded-lg text-[#6A0DAD] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 justify-center"
           >
             Skip for now
           </button>
           <button
             onClick={save}
-            disabled={!canSave || saving}
-            className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#6A0DAD]/90 disabled:opacity-50 shadow-sm justify-center"
+            disabled={saving}
+            className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] disabled:opacity-50 shadow-sm justify-center"
           >
             {saving ? 'Saving...' : 'Save & Continue'}
           </button>
         </div>
       </div>
-        {/* Success toast */}
-        {success && (
-          <div className="fixed bottom-20 right-6 rounded-lg bg-green-600 text-white px-4 py-2 shadow-lg" role="alert" aria-live="polite">
-            {success}
-          </div>
-        )}
+        {/* Inline success banner removed; using Sonner toast instead */}
         {/* Animation CSS now global in app/globals.css */}
       </div>
     </div>

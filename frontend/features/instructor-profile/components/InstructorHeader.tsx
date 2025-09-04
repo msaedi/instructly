@@ -164,7 +164,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                   </button>
                   <button
                     onClick={handleShare}
-                    className="inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-[#6A0DAD]/10 transition-transform cursor-pointer hover:scale-110"
+                    className="inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-purple-50 transition-transform cursor-pointer hover:scale-110"
                     aria-label="Share profile"
                     title={shareCopied ? 'Link copied' : 'Share profile'}
                     style={{ background: 'transparent', border: 'none' }}

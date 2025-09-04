@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { publicApi } from '@/features/shared/api/client';
@@ -153,11 +153,6 @@ function Step3SkillsPricingInner() {
     setSelected((prev) => prev.filter((s) => s.catalog_service_id !== id));
   };
 
-  const canSave = useMemo(() => {
-    if (selected.length === 0) return true; // allow skip later
-    return selected.every((s) => s.hourly_rate.trim().length > 0 && !Number.isNaN(Number(s.hourly_rate)));
-  }, [selected]);
-
   const save = async () => {
     try {
       setSaving(true);
@@ -250,7 +245,7 @@ function Step3SkillsPricingInner() {
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -671,7 +666,7 @@ function Step3SkillsPricingInner() {
           <button
             onClick={submitServiceRequest}
             disabled={!requestText.trim() || requestSubmitting}
-            className="px-4 py-2 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#5c0a9a] disabled:opacity-50 shadow-sm"
+            className="px-4 py-2 rounded-lg text-white bg-[#6A0DAD] hover:!bg-[#6A0DAD] hover:!text-white disabled:opacity-50 shadow-sm"
           >
             Submit request
           </button>
@@ -679,13 +674,20 @@ function Step3SkillsPricingInner() {
         {requestSuccess && <div className="mt-2 text-sm text-gray-800">{requestSuccess}</div>}
       </div>
 
-      <div className="mt-8 flex gap-3">
+      <div className="mt-8 flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => { window.location.href = '/instructor/onboarding/verification'; }}
+          className="w-40 px-5 py-2.5 rounded-lg text-[#6A0DAD] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 justify-center"
+        >
+          Skip for now
+        </button>
         <button
           onClick={save}
-          disabled={!canSave || saving}
-          className="px-6 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#5c0a9a] disabled:opacity-50 shadow-sm transition-colors"
+          disabled={saving}
+          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:!bg-[#6A0DAD] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
         >
-          {selected.length ? 'Save & Continue' : 'Add skills later →'}
+          {saving ? 'Saving...' : 'Save & Continue'}
         </button>
       </div>
       </div>

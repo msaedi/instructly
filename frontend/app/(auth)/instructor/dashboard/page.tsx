@@ -244,7 +244,7 @@ export default function InstructorDashboardNew() {
   if (error) {
     return (
       <div className="min-h-screen">
-        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -278,7 +278,7 @@ export default function InstructorDashboardNew() {
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -507,7 +507,7 @@ export default function InstructorDashboardNew() {
                         alert('Instant payout request error');
                       }
                     }}
-                    className="inline-flex items-center px-4 py-2 text-base rounded-lg bg-[#6A0DAD] text-white hover:bg-[#5c0a9a] transition-colors"
+                    className="inline-flex items-center px-4 py-2 text-base rounded-lg bg-[#6A0DAD] text-white hover:bg-[#6A0DAD] transition-colors"
                   >
                     Request Instant Payout
                   </button>

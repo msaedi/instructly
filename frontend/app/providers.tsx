@@ -39,6 +39,18 @@ export function Providers({ children }: { children: ReactNode }) {
         <AppInitializer>{children}</AppInitializer>
         <Toaster
           position="top-right"
+          toastOptions={{
+            style: {
+              background: '#6b21a8',
+              color: '#ffffff',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              width: '230px',
+              minWidth: '230px',
+              maxWidth: '230px',
+              whiteSpace: 'nowrap',
+            },
+          }}
         />
       </AuthProvider>
       {/* React Query DevTools - Only visible in development */}

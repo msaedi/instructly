@@ -48,7 +48,7 @@ export default function WelcomeStep() {
             <Link
               ref={ctaRef}
               href="/instructor/profile"
-              className="inline-flex items-center justify-center w-52 h-12 rounded-lg bg-[#6A0DAD] text-white text-base font-medium hover:bg-[#5a0c94] focus:outline-none focus:ring-4 focus:ring-[#6A0DAD]/20 transition"
+              className="inline-flex items-center justify-center w-52 h-12 rounded-lg bg-[#6A0DAD] text-white text-base font-medium hover:bg-[#6A0DAD] focus:outline-none focus:ring-4 focus:ring-[#6A0DAD]/20 transition"
             >
               Let&apos;s get started
             </Link>
