@@ -9,7 +9,7 @@ from fastapi import Request, Response
 from .config import BUCKETS, is_shadow_mode, settings
 from .gcra import Decision
 from .headers import set_policy_headers, set_rate_headers
-from .metrics import rl_decisions, rl_retry_after
+from .metrics import rl_decisions, rl_eval_duration, rl_eval_errors, rl_retry_after
 from .redis_backend import GCRA_LUA, get_redis
 
 
@@ -77,6 +77,7 @@ def rate_limit(bucket: str):
         if interval_ms <= 0:
             decision = Decision(False, retry_after_s=float("inf"), remaining=0, limit=0, reset_epoch_s=time.time())
         else:
+            start_eval = time.perf_counter()
             try:
                 res = r.eval(GCRA_LUA, 1, key, now_ms, interval_ms, burst)
                 # res: [allowed, retry_after_ms, remaining, limit, reset_epoch_s, new_tat_ms]
@@ -95,6 +96,15 @@ def rate_limit(bucket: str):
                     limit=burst + 1,
                     reset_epoch_s=time.time() + (burst * (interval_ms / 1000.0)),
                 )
+                try:
+                    rl_eval_errors.labels(bucket=bucket).inc()
+                except Exception:
+                    pass
+            finally:
+                try:
+                    rl_eval_duration.labels(bucket=bucket).observe(max(time.perf_counter() - start_eval, 0.0))
+                except Exception:
+                    pass
 
         # Headers + metrics
         set_rate_headers(
