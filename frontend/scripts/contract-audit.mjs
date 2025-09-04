@@ -12,6 +12,7 @@ const TRACKED_TYPES = join(TYPES_DIR, 'api.d.ts');
 const AUDIT_TYPES = join(TYPES_DIR, 'api.audit.d.ts');
 const ARTIFACT_DIR = join(ROOT, '.artifacts');
 const REPORT = join(ARTIFACT_DIR, 'contract-audit-report.md');
+const REPORT_JSON = join(ARTIFACT_DIR, 'contract-audit.json');
 
 function sh(cmd, opts = {}) {
   return execSync(cmd, { stdio: 'pipe', encoding: 'utf8', ...opts }).trim();
@@ -42,6 +43,7 @@ function grepLiteral(pattern, dir) {
 
 function main() {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
+  const isCi = process.argv.includes('--ci');
 
   let report = `# Contract Audit Report\nGenerated: ${new Date().toISOString()}\n`;
   report += `\n> Read-only audit to surface any pre-existing FE⇄BE mismatches.\n`;
@@ -144,9 +146,38 @@ function main() {
   report += `- Direct imports in allowed layers (shim): ${directAllowed}\n`;
   report += `- Via type shim \`@/features/shared/api/types\`: ${shimCount}\n`;
 
+  // Build details for JSON output (file lists)
+  const listCmd = (cmd) => (safe(cmd).out || '').split('\n').filter(Boolean);
+  const cutUnique = (lines) => Array.from(new Set(lines.map((l) => l.split(':')[0])));
+  const directAllList = listCmd(directAllCmd);
+  const shimAllList = listCmd(shimAllCmd);
+  const directOutsideFiles = cutUnique(directAllList.filter((l) => !l.includes(allowedPathPattern)));
+  const directAllowedFiles = cutUnique(directAllList.filter((l) => l.includes(allowedPathPattern)));
+  const viaShimFiles = cutUnique(shimAllList);
+
+  const drift = !(diffRes.ok && diffRes.out.trim().length === 0);
+
+  const json = {
+    drift,
+    directImports: {
+      outsideAllowed: directOutside,
+      allowedLayer: directAllowed,
+    },
+    viaShimCount: shimCount,
+    details: {
+      viaShimFiles,
+      directImportFilesOutside: directOutsideFiles,
+      directImportFilesAllowed: directAllowedFiles,
+    },
+  };
+
+  writeFileSync(REPORT_JSON, JSON.stringify(json, null, 2));
+
   // Write report
   writeFileSync(REPORT, report);
-  console.log(`Wrote ${relative(ROOT, REPORT)}`);
+  if (!isCi) {
+    console.log(`Wrote ${relative(ROOT, REPORT)}`);
+  }
 
   // If running in GitHub Actions, append a brief summary
   if (process.env.GITHUB_STEP_SUMMARY) {

@@ -57,6 +57,8 @@ const eslintConfig = [
               message: 'Use `@/lib/publicEnv` for NEXT_PUBLIC_* in client code. env.get() is server-only.',
             },
           ],
+          // Block generated types in app/components/features; allowed only in features/shared/api/**
+          patterns: ['@/types/generated/*'],
         },
       ],
       'no-restricted-syntax': [
@@ -66,6 +68,26 @@ const eslintConfig = [
             "MemberExpression[object.name='process'][property.name='env'] > MemberExpression.computed",
           message:
             'Use literal process.env.NEXT_PUBLIC_* or import from @/lib/publicEnv so Next.js can inline.',
+        },
+      ],
+    },
+  },
+  // Allow generated types only in the API shim/client layer
+  {
+    files: ['features/shared/api/**/*'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@/lib/env',
+              importNames: ['env'],
+              message: 'Use `@/lib/publicEnv` for NEXT_PUBLIC_* in client code. env.get() is server-only.',
+            },
+          ],
+          // Do NOT block generated types here (shim and API client allowed)
+          patterns: [],
         },
       ],
     },

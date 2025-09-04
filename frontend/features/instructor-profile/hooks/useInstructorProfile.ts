@@ -2,6 +2,29 @@ import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
 import type { InstructorProfile, InstructorService } from '@/types/instructor';
+import { httpJson } from '@/features/shared/api/http';
+import { withApiBase } from '@/lib/apiBase';
+import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instructorProfile';
+
+type ServerInstructorProfileResult = {
+  user_id: string;
+  user?: { first_name: string; last_initial: string };
+  services?: Array<{
+    id?: string;
+    service_catalog_id?: string;
+    name?: string;
+    skill?: string;
+    duration_options?: number[];
+    hourly_rate?: number | string;
+    description?: string | null;
+  }>;
+  bio?: string;
+  areas_of_service?: string[];
+  years_experience?: number;
+  favorited_count?: number;
+  verified?: unknown;
+  is_favorited?: unknown;
+};
 
 /**
  * Hook to fetch detailed instructor profile with service names
@@ -32,14 +55,23 @@ export function useInstructorProfile(instructorId: string) {
       };
 
       const [instructor, serviceCatalog] = await Promise.all([
-        runWithRateLimitRetry(() => publicApi.getInstructorProfile(instructorId)),
+        runWithRateLimitRetry(async () => {
+          const data = await httpJson<ServerInstructorProfileResult>(
+            withApiBase(`/instructors/${instructorId}`),
+            { method: 'GET' },
+            loadInstructorProfileSchema,
+            { endpoint: 'GET /instructors/:id' }
+          );
+          return { data, status: 200 } as { data: unknown; status: number } & { error?: string; retryAfterSeconds?: number };
+        }),
         runWithRateLimitRetry(() => publicApi.getCatalogServices()),
       ]);
 
       const catalogList = serviceCatalog || [];
+      const serverInst = instructor as ServerInstructorProfileResult;
 
       // Map service names from catalog and fix data structure
-      const mappedServices: InstructorService[] = instructor?.services?.map((service: unknown) => {
+      const mappedServices: InstructorService[] = serverInst?.services?.map((service: unknown) => {
         const svc = service as {
           id?: string;
           service_catalog_id?: string;
@@ -70,23 +102,23 @@ export function useInstructorProfile(instructorId: string) {
       }) || [];
 
       // Ensure the instructor object has all required fields
-      if (!instructor) {
+      if (!serverInst) {
         throw new Error('Instructor not found');
       }
 
       // Add the id field if missing (use user_id as id)
       const instructorProfile: InstructorProfile = {
-        id: instructor.user_id || instructorId,
-        user_id: instructor.user_id,
-        bio: instructor.bio || '',
-        areas_of_service: instructor.areas_of_service || [],
-        years_experience: instructor.years_experience || 0,
-        user: instructor.user || { first_name: 'Unknown', last_initial: '' },
+        id: serverInst.user_id || instructorId,
+        user_id: serverInst.user_id,
+        bio: serverInst.bio || '',
+        areas_of_service: serverInst.areas_of_service || [],
+        years_experience: serverInst.years_experience || 0,
+        user: serverInst.user || { first_name: 'Unknown', last_initial: '' },
         services: mappedServices,
-        favorited_count: instructor.favorited_count || 0,
+        favorited_count: serverInst.favorited_count || 0,
         // Only include optional properties when they have actual values
-        ...(typeof (instructor as Record<string, unknown>)['verified'] !== 'undefined' && { is_verified: Boolean((instructor as Record<string, unknown>)['verified']) }),
-        ...(typeof (instructor as Record<string, unknown>)['is_favorited'] !== 'undefined' && { is_favorited: Boolean((instructor as Record<string, unknown>)['is_favorited']) }),
+        ...(typeof (serverInst as Record<string, unknown>)['verified'] !== 'undefined' && { is_verified: Boolean((serverInst as Record<string, unknown>)['verified']) }),
+        ...(typeof (serverInst as Record<string, unknown>)['is_favorited'] !== 'undefined' && { is_favorited: Boolean((serverInst as Record<string, unknown>)['is_favorited']) }),
       };
 
       return instructorProfile;

@@ -9,6 +9,10 @@ import {
   BookingCreate,
   AvailabilityCheckRequest,
 } from '@/features/shared/api/types';
+import { httpJson } from '@/features/shared/api/http';
+import { withApiBase } from '@/lib/apiBase';
+import { loadCreateBookingSchema } from '@/features/shared/api/schemas/booking';
+import { loadBookingListSchema } from '@/features/shared/api/schemas/bookingList';
 
 // Using generated types from OpenAPI schema
 
@@ -157,31 +161,21 @@ export const bookingsApi = {
       hasNotes: !!data.student_note,
     });
 
-    const response = await fetchWithAuth('/bookings/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    const booking = await httpJson<Booking>(
+      withApiBase('/bookings/'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...data,
+          instructor_service_id:
+            (data as unknown as { instructor_service_id?: string }).instructor_service_id ||
+            (data as unknown as { service_id?: string }).service_id,
+        }),
       },
-      body: JSON.stringify({
-        ...data,
-        instructor_service_id:
-          (data as unknown as { instructor_service_id?: string }).instructor_service_id ||
-          (data as unknown as { service_id?: string }).service_id,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      logger.error('Booking creation failed', undefined, {
-        instructorId: data.instructor_id,
-        date: data.booking_date,
-        time: `${data.start_time}-${data.end_time}`,
-        error,
-      });
-      throw new Error(error.detail || 'Failed to create booking');
-    }
-
-    const booking = await response.json();
+      loadCreateBookingSchema,
+      { endpoint: 'POST /bookings' }
+    );
     logger.info('Booking created successfully', {
       bookingId: booking.id,
       status: booking.status,
@@ -221,14 +215,12 @@ export const bookingsApi = {
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.per_page) params.append('per_page', filters.per_page.toString());
 
-    const response = await fetchWithAuth(`/bookings/?${params.toString()}`);
-    if (!response.ok) {
-      const error = await response.json();
-      logger.error('Failed to fetch bookings', undefined, { filters, error });
-      throw new Error(error.detail || 'Failed to fetch bookings');
-    }
-
-    const result = await response.json();
+    const result = await httpJson<BookingListResponse>(
+      withApiBase(`/bookings/?${params.toString()}`),
+      { method: 'GET' },
+      loadBookingListSchema,
+      { endpoint: 'GET /bookings' }
+    );
     logger.debug('Bookings fetched successfully', {
       count: result.items.length,
       total: result.total,

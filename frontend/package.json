@@ -38,6 +38,7 @@
     "contract:pull:all": "npm run contract:export && npm run contract:generate && npm run typecheck",
     "contract:check": "node scripts/contract-check.mjs",
     "audit:contract": "node scripts/contract-audit.mjs",
+    "audit:contract:ci": "node scripts/contract-audit.mjs --ci",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:headed": "playwright test --headed",
@@ -97,7 +98,8 @@
     "openapi-typescript": "7.9.1",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vercel": "^47.0.2"
+    "vercel": "^47.0.2",
+    "zod": "^3.25.76"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

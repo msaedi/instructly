@@ -70,6 +70,44 @@ jobs:
         working-directory: frontend
         run: npm run typecheck:strict
 
+      - name: Contract audit (guardrail)
+        working-directory: frontend
+        run: npm run audit:contract:ci
+
+      - name: Read audit metrics
+        id: audit
+        working-directory: frontend
+        run: |
+          jq -r '. as $j | "drift=\($j.drift)\noutside=\($j.directImports.outsideAllowed)\nvia=\($j.viaShimCount)"' .artifacts/contract-audit.json >> $GITHUB_OUTPUT
+
+      - name: Summarize audit
+        working-directory: frontend
+        run: |
+          echo "### FE⇄BE contract audit" >> $GITHUB_STEP_SUMMARY
+          echo "- Drift: ${{ steps.audit.outputs.drift }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Direct imports (outside allowed): ${{ steps.audit.outputs.outside }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Imports via shim: ${{ steps.audit.outputs.via }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See attached artifact for full report." >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail on drift or forbidden direct imports
+        if: steps.audit.outputs.drift == 'true' || steps.audit.outputs.outside != '0'
+        run: |
+          echo "❌ Contract guardrail failed: drift or forbidden direct imports detected."
+          exit 1
+
+      - name: Warn if shim adoption below target
+        if: steps.audit.outputs.via < 12
+        run: echo "⚠️ Shim adoption below target (12); consider wiring more call sites."
+
+      - name: Upload contract audit artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-audit
+          path: |
+            frontend/.artifacts/contract-audit.json
+            frontend/.artifacts/contract-audit-report.md
+
       - name: Build
         working-directory: frontend
         run: npm run build:log

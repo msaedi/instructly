@@ -5,6 +5,8 @@
  * with compile-time type checking via TypeScript generics.
  */
 
+import { validateWithZod, type SchemaLoader } from '@/features/shared/api/validation';
+
 /**
  * Generic JSON fetch wrapper with type safety
  *
@@ -21,7 +23,12 @@
  * const user = await httpJson<User>('/api/auth/me');
  * ```
  */
-export async function httpJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+export async function httpJson<T>(
+  input: RequestInfo,
+  init?: RequestInit,
+  schemaLoader?: SchemaLoader,
+  ctx?: { endpoint: string; note?: string }
+): Promise<T> {
   const res = await fetch(input, {
     credentials: 'include',
     ...init
@@ -31,7 +38,9 @@ export async function httpJson<T>(input: RequestInfo, init?: RequestInit): Promi
     throw new Error(`HTTP ${res.status}`);
   }
 
-  return (await res.json()) as T;
+  const data = (await res.json()) as T;
+  if (!schemaLoader) return data;
+  return validateWithZod<T>(schemaLoader, data, { endpoint: ctx?.endpoint || String(input), note: ctx?.note });
 }
 
 /**
