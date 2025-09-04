@@ -69,6 +69,13 @@ from .schemas.main_responses import HealthLiteResponse, HealthResponse, Performa
 from .services.template_registry import TemplateRegistry
 from .services.template_service import TemplateService
 
+# Ensure custom rate-limit metrics are registered with our Prometheus REGISTRY
+try:
+    from .ratelimit import metrics as _rl_metrics  # noqa: F401
+except Exception:
+    # Don't fail app startup if the optional module misbehaves
+    pass
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 

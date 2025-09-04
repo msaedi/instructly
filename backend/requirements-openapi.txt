@@ -9,3 +9,7 @@ orjson>=3.10,<4
 
 # Safety net: if a route still imports SQLAlchemy at runtime
 SQLAlchemy>=2.0
+
+# Ensure metrics & rate-limit backend resolvable when app imports modules
+prometheus-client>=0.20
+redis>=5
