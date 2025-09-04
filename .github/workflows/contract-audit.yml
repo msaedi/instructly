@@ -1,0 +1,35 @@
+name: Contract Audit (read-only)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  contract-audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # Use the same Node as the rest of the repo
+      - name: Use Node 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install deps (frontend only)
+        run: npm ci
+
+      - name: Run audit (non-blocking)
+        run: npm run audit:contract
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-audit-report
+          path: frontend/.artifacts/contract-audit-report.md
