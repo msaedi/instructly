@@ -5,6 +5,20 @@
     "react-hooks/exhaustive-deps": "warn",
     "@next/next/no-html-link-for-pages": "off"
   },
+  "overrides": [
+    {
+      "files": ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "warn",
+          {
+            "patterns": ["@/types/generated/api*"],
+            "message": "Import from @/features/shared/api/types instead of generated types directly"
+          }
+        ]
+      }
+    }
+  ],
   "ignorePatterns": [
     ".next/**",
     "out/**",

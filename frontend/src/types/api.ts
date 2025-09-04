@@ -478,34 +478,9 @@ export interface ServiceResponse {
   duration: number;
 }
 
-export interface BookingResponse {
-  id: string;
-  student_id: string;
-  instructor_id: string;
-  service_id: string;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
-  service_name: string;
-  hourly_rate: Money;
-  total_price: Money;
-  duration_minutes: number;
-  status: BookingStatus;
-  service_area?: string | null;
-  meeting_location?: string | null;
-  location_type?: string | null;
-  student_note?: string | null;
-  instructor_note?: string | null;
-  created_at: string;
-  confirmed_at?: string | null;
-  completed_at?: string | null;
-  cancelled_at?: string | null;
-  cancelled_by_id?: string | null;
-  cancellation_reason?: string | null;
-  student?: StudentInfo;
-  instructor?: InstructorInfo;
-  service?: ServiceInfo;
-}
+// Replace ad-hoc definition with type alias to generated type
+import type { Gen } from '@/features/shared/api/types';
+export type BookingResponse = Gen.components['schemas']['BookingResponse'];
 
 export interface InstructorProfileCreate {
   bio: string;
@@ -516,19 +491,8 @@ export interface InstructorProfileCreate {
   services: ServiceCreate[];
 }
 
-export interface InstructorProfileResponse {
-  id: string;
-  user_id: string;
-  created_at: string;
-  updated_at?: string | null;
-  user: UserBasic;
-  services: ServiceResponse[];
-  bio: string;
-  areas_of_service: string[];
-  years_experience: number;
-  min_advance_booking_hours?: number;
-  buffer_time_minutes?: number;
-}
+// Replace ad-hoc definition with type alias to generated type
+export type InstructorProfileResponse = Gen.components['schemas']['InstructorProfileResponse'];
 
 // Date/Time Helpers
 

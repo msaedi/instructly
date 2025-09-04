@@ -1,21 +1,28 @@
 /**
  * Type shim for generated OpenAPI types
  *
- * This file re-exports types from the auto-generated API definitions
- * and provides convenient aliases for commonly used schemas.
+ * Single import surface for generated OpenAPI types.
+ * NOTE: type-only re-exports to avoid bundling.
  */
 
-// Re-export all types from generated API
-export type * from '@/types/generated/api';
+// Re-export all types from generated API under namespace
+export type * as Gen from '@/types/generated/api';
 
-// Import for creating aliases
+// Import and re-export components for use in other files
 import type { components } from '@/types/generated/api';
+export type { components };
 
-// Convenient aliases for frequently used schemas
+// Canonical aliases for commonly used models (import these, not from Gen.* directly)
 export type User = components['schemas']['UserWithPermissionsResponse'];
 export type Booking = components['schemas']['BookingResponse'];
 export type InstructorProfile = components['schemas']['InstructorProfileResponse'];
-export type PaginatedBookings = components['schemas']['PaginatedResponse_BookingResponse_'];
+
+// Common endpoint payloads
+export type CreateBookingRequest = components['schemas']['BookingCreate'];
+export type CreateBookingResponse = components['schemas']['BookingResponse'];
+
+// Paginated wrappers with useful aliases
+export type BookingList = components['schemas']['PaginatedResponse_BookingResponse_'];
 
 // Additional commonly used types
 export type BookingStatus = components['schemas']['BookingStatus'];

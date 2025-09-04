@@ -10,6 +10,8 @@ import {
   AvailabilityCheckRequest,
 } from '@/types/booking';
 
+// Generated types shim is available if needed in future; not required here currently
+
 /**
  * Bookings API Client
  *

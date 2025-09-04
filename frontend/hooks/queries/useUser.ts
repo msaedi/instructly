@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { UserData } from '@/types/user';
+import type { User } from '@/features/shared/api/types';
 import { queryFn } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
+
+// Type alias for backwards compatibility
+type UserData = User;
 
 /**
  * Hook to fetch and cache the current user data
