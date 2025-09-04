@@ -20,3 +20,16 @@ BUCKETS = {
     "write": dict(rate_per_min=20, burst=3, window_s=60),
     "financial": dict(rate_per_min=5, burst=0, window_s=60),
 }
+
+# Per-bucket shadow overrides (default inherits global). Financial enforcement in PR-3.
+BUCKET_SHADOW_OVERRIDES: dict[str, bool] = {
+    # If RATE_LIMIT_SHADOW_FINANCIAL is not explicitly true, default to enforcement (shadow false) for PR-3
+    "financial": os.getenv("RATE_LIMIT_SHADOW_FINANCIAL", "").lower()
+    == "true",
+}
+
+
+def is_shadow_mode(bucket: str) -> bool:
+    """Return effective shadow flag for a bucket, honoring overrides."""
+    override = BUCKET_SHADOW_OVERRIDES.get(bucket)
+    return settings.shadow if override is None else bool(override)

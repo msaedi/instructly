@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import Request, Response
 
-from .config import BUCKETS, settings
+from .config import BUCKETS, is_shadow_mode, settings
 from .gcra import Decision
 from .headers import set_rate_headers
 from .metrics import rl_decisions, rl_retry_after
@@ -85,20 +85,21 @@ def rate_limit(bucket: str):
             decision.reset_epoch_s,
             decision.retry_after_s if not decision.allowed else None,
         )
-        rl_retry_after.labels(bucket=bucket, shadow=str(settings.shadow)).observe(max(decision.retry_after_s, 0.0))
+        shadow_flag = is_shadow_mode(bucket)
+        rl_retry_after.labels(bucket=bucket, shadow=str(shadow_flag)).observe(max(decision.retry_after_s, 0.0))
 
         if decision.allowed:
-            rl_decisions.labels(bucket=bucket, action="allow", shadow=str(settings.shadow)).inc()
+            rl_decisions.labels(bucket=bucket, action="allow", shadow=str(shadow_flag)).inc()
             return
 
         # shadow mode: record, but do not block
         rl_decisions.labels(
             bucket=bucket,
-            action="block" if not settings.shadow else "shadow_block",
-            shadow=str(settings.shadow),
+            action="block" if not shadow_flag else "shadow_block",
+            shadow=str(shadow_flag),
         ).inc()
 
-        if settings.shadow:
+        if shadow_flag:
             return
 
         from fastapi import HTTPException

@@ -29,9 +29,11 @@ from ..core.config import settings
 from ..core.enums import RoleName
 from ..core.exceptions import ServiceException, ValidationException
 from ..database import get_db
+from ..idempotency.cache import get_cached, set_cached
 from ..models.user import User
 from ..monitoring.prometheus_metrics import prometheus_metrics
 from ..ratelimit.dependency import rate_limit
+from ..ratelimit.locks import acquire_lock, release_lock
 from ..schemas.payment_schemas import (
     CheckoutResponse,
     CreateCheckoutRequest,
@@ -631,7 +633,7 @@ async def delete_payment_method(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete payment method")
 
 
-@router.post("/checkout", response_model=CheckoutResponse)
+@router.post("/checkout", response_model=CheckoutResponse, dependencies=[Depends(rate_limit("financial"))])
 async def create_checkout(
     request: CreateCheckoutRequest,
     db: Session = Depends(get_db),
@@ -650,6 +652,18 @@ async def create_checkout(
     Raises:
         HTTPException: If checkout creation fails
     """
+    # Concurrency lock: one in-flight per user/route
+    lock_key = f"{current_user.id}:checkout"
+    if not acquire_lock(lock_key, ttl_s=30):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Operation in progress")
+
+    # Idempotency: raw key from method+route+user+body hash
+    raw_key = f"POST:/api/payments/checkout:user:{current_user.id}:booking:{request.booking_id}"
+    cached = get_cached(raw_key)
+    if cached:
+        # Return cached success response
+        return CheckoutResponse(**cached)
+
     try:
         # Validate student role
         validate_student_role(current_user)
@@ -705,7 +719,7 @@ async def create_checkout(
             else None
         )
 
-        return CheckoutResponse(
+        response_payload = CheckoutResponse(
             success=payment_result["success"],
             payment_intent_id=payment_result["payment_intent_id"],
             status=payment_result["status"],
@@ -714,6 +728,13 @@ async def create_checkout(
             client_secret=client_secret,
             requires_action=payment_result["status"] in ["requires_action", "requires_confirmation"],
         )
+        # Cache result for idempotency (success path)
+        try:
+            if payment_result["success"]:
+                set_cached(raw_key, response_payload.model_dump(), ttl_s=86400)
+        except Exception:
+            pass
+        return response_payload
 
     except HTTPException:
         raise
@@ -723,6 +744,8 @@ async def create_checkout(
     except Exception as e:
         logger.error(f"Unexpected error creating checkout: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process payment")
+    finally:
+        release_lock(lock_key)
 
 
 # ========== Analytics Routes (Admin/Instructor) ==========
