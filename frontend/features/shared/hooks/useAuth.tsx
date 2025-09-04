@@ -15,7 +15,9 @@ import {
 } from '@/lib/searchTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { IS_PRODUCTION } from '@/lib/publicEnv';
-
+// Using generated types from API schema
+// Note: We define User interface manually for now to maintain compatibility
+// with existing code that expects undefined instead of null for optional fields
 export interface User {
   id: string;
   email: string;
@@ -23,17 +25,22 @@ export interface User {
   last_name: string;
   phone?: string;
   zip_code?: string;
-  roles: string[]; // Changed from single role to roles array
-  permissions: string[]; // Added permissions array
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  timezone?: string;
+  roles?: string[];
+  permissions: string[];
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
   profile_image_url?: string;
   unread_messages_count?: number;
   unread_platform_messages_count?: number;
   credits_balance?: number;
   profile_picture_version?: number;
   has_profile_picture?: boolean;
+  beta_access?: boolean;
+  beta_invited_by?: string;
+  beta_phase?: string;
+  beta_role?: string;
 }
 
 interface AuthContextType {

@@ -24,7 +24,7 @@ interface Service {
   id: string;
   service_catalog_id: string;
   hourly_rate: number | string;
-  description?: string;
+  description?: string | null;
   duration_options: number[];
   is_active?: boolean;
 }
@@ -77,11 +77,12 @@ export default function QuickBookingPage() {
         }
 
         if (response.data) {
+          const d = response.data as Record<string, unknown>;
           setInstructor({
-            ...response.data,
-            rating: response.data.rating || 4.8,
-            total_reviews: response.data.total_reviews || Math.floor(Math.random() * 200) + 50,
-            verified: response.data.verified !== undefined ? response.data.verified : true,
+            ...(response.data as unknown as InstructorData),
+            rating: (d['rating'] as number) || 4.8,
+            total_reviews: (d['total_reviews'] as number) || Math.floor(Math.random() * 200) + 50,
+            verified: typeof d['verified'] !== 'undefined' ? Boolean(d['verified']) : true,
           });
 
           // Set default service

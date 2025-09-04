@@ -38,24 +38,25 @@ export function getAvatarColor(userId: string): string {
 
 // Helper function to check if user has a specific role
 export function hasRole(user: User | null, role: string): boolean {
-  if (!user || !user.roles) return false;
+  if (!user || !Array.isArray(user.roles)) return false;
   return user.roles.includes(role);
 }
 
 // Helper function to check if user has any of the specified roles
 export function hasAnyRole(user: User | null, roles: string[]): boolean {
-  if (!user || !user.roles) return false;
-  return roles.some((role) => user.roles.includes(role));
+  const list = Array.isArray(user?.roles) ? user!.roles! : [];
+  if (list.length === 0) return false;
+  return roles.some((role) => list.includes(role));
 }
 
 // Helper function to check if user has a specific permission
 export function hasPermission(user: User | null, permission: string): boolean {
-  if (!user || !user.permissions) return false;
+  if (!user || !Array.isArray(user.permissions)) return false;
   return user.permissions.includes(permission);
 }
 
 // Helper function to get the primary role (first role in the array)
 export function getPrimaryRole(user: User | null): string | null {
-  if (!user || !user.roles || user.roles.length === 0) return null;
+  if (!user || !Array.isArray(user.roles) || user.roles.length === 0) return null;
   return user.roles[0] || null;
 }

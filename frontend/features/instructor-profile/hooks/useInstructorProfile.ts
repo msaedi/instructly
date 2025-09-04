@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
-import type { InstructorProfile } from '@/types/instructor';
+import type { InstructorProfile, InstructorService } from '@/types/instructor';
 
 /**
  * Hook to fetch detailed instructor profile with service names
@@ -39,7 +39,7 @@ export function useInstructorProfile(instructorId: string) {
       const catalogList = serviceCatalog || [];
 
       // Map service names from catalog and fix data structure
-      const mappedServices = instructor?.services?.map((service: unknown) => {
+      const mappedServices: InstructorService[] = instructor?.services?.map((service: unknown) => {
         const svc = service as {
           id?: string;
           service_catalog_id?: string;
@@ -58,14 +58,15 @@ export function useInstructorProfile(instructorId: string) {
         const hrRaw = svc.hourly_rate as unknown;
         const hourly_rate = typeof hrRaw === 'number' ? hrRaw : parseFloat(String(hrRaw ?? '0'));
 
-        return {
-          id: (svc.id as string) || (svc.service_catalog_id as string),
-          ...(svc.service_catalog_id ? { service_catalog_id: svc.service_catalog_id as string } : {}),
-          skill: (catalogService?.name as string) || (svc.name as string) || (svc.skill as string) || (svc.service_catalog_id ? `Service ${svc.service_catalog_id}` : 'Service'),
+        const mapped: InstructorService = {
+          id: String(svc.id || svc.service_catalog_id || ''),
+          ...(svc.service_catalog_id ? { service_catalog_id: String(svc.service_catalog_id) } : {}),
+          skill: String(catalogService?.name || svc.name || svc.skill || (svc.service_catalog_id ? `Service ${svc.service_catalog_id}` : 'Service')),
           duration_options: Array.isArray(svc.duration_options) && svc.duration_options.length > 0 ? (svc.duration_options as number[]) : [60],
           hourly_rate: isNaN(hourly_rate) ? 0 : hourly_rate,
           description: (svc.description as string | null) ?? null,
         };
+        return mapped;
       }) || [];
 
       // Ensure the instructor object has all required fields
@@ -84,8 +85,8 @@ export function useInstructorProfile(instructorId: string) {
         services: mappedServices,
         favorited_count: instructor.favorited_count || 0,
         // Only include optional properties when they have actual values
-        ...(instructor.verified !== undefined && { is_verified: instructor.verified }),
-        ...(instructor.is_favorited !== undefined && { is_favorited: instructor.is_favorited }),
+        ...(typeof (instructor as Record<string, unknown>)['verified'] !== 'undefined' && { is_verified: Boolean((instructor as Record<string, unknown>)['verified']) }),
+        ...(typeof (instructor as Record<string, unknown>)['is_favorited'] !== 'undefined' && { is_favorited: Boolean((instructor as Record<string, unknown>)['is_favorited']) }),
       };
 
       return instructorProfile;

@@ -9,6 +9,12 @@
 import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { NEXT_PUBLIC_APP_URL as APP_URL } from '@/lib/env';
+import type { components } from '@/features/shared/api/types';
+
+// Type aliases for generated types
+// Keep generated type imports for future use
+type PaginatedBookingResponse = components['schemas']['PaginatedResponse_BookingResponse_'];
+type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 
 // Browser calls go through Next.js proxy to avoid CORS and middleware redirects
 // Ensure an absolute base URL for URL construction in the browser
@@ -550,40 +556,10 @@ export const publicApi = {
 
   /**
    * Get instructor profile
+   * Uses generated InstructorProfileResponse type
    */
   async getInstructorProfile(instructorId: string) {
-    return optionalAuthFetch<{
-      user_id: string;
-      bio: string;
-      areas_of_service: string[];
-      years_experience: number;
-      min_advance_booking_hours: number;
-      buffer_time_minutes: number;
-      created_at: string;
-      updated_at?: string;
-      user: {
-        first_name: string;
-        last_initial: string;
-        // No email for privacy
-      };
-      services: Array<{
-        id: string;
-        service_catalog_id: string;
-        name?: string;
-        hourly_rate: number;
-        description?: string;
-        duration_options: number[];
-        is_active?: boolean;
-      }>;
-      rating?: number;
-      total_reviews?: number;
-      total_hours_taught?: number;
-      education?: string;
-      languages?: string[];
-      verified?: boolean;
-      is_favorited?: boolean;
-      favorited_count?: number;
-    }>(PUBLIC_ENDPOINTS.instructors.profile(instructorId));
+    return optionalAuthFetch<InstructorProfileResponse>(PUBLIC_ENDPOINTS.instructors.profile(instructorId));
   },
 
   /**
@@ -736,6 +712,7 @@ export interface Booking {
 export const protectedApi = {
   /**
    * Create a new booking
+   * Uses generated type from OpenAPI
    */
   async createBooking(data: CreateBookingRequest) {
     return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.create, {
@@ -746,6 +723,7 @@ export const protectedApi = {
 
   /**
    * Get list of bookings for authenticated user
+   * Uses generated PaginatedResponse type from OpenAPI
    */
   async getBookings(params?: {
     status?: 'pending' | 'confirmed' | 'cancelled' | 'completed';
@@ -753,19 +731,13 @@ export const protectedApi = {
     limit?: number;
     offset?: number;
   }) {
-    // Backend returns PaginatedResponse with items array
-    return authFetch<{
-      items: Booking[];
-      total: number;
-      page: number;
-      per_page: number;
-      has_next?: boolean;
-      has_prev?: boolean;
-    }>(PROTECTED_ENDPOINTS.bookings.list, params ? { params } : {});
+    // Use generated PaginatedBookingResponse type
+    return authFetch<PaginatedBookingResponse>(PROTECTED_ENDPOINTS.bookings.list, params ? { params } : {});
   },
 
   /**
    * Get a specific booking
+   * Uses generated BookingResponse type
    */
   async getBooking(bookingId: string) {
     return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.get(bookingId));
