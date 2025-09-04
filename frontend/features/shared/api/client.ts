@@ -417,7 +417,7 @@ export const publicApi = {
    * For guests, pass X-Guest-Session-ID header
    */
   async deleteSearchHistory(searchId: number) {
-    return unifiedFetch<void>(`/api/search-history/${searchId}`, {
+    return unifiedFetch<void>('/api/search-history/' + String(searchId), {
       method: 'DELETE',
     });
   },

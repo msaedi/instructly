@@ -80,6 +80,12 @@ jobs:
         run: |
           jq -r '. as $j | "drift=\($j.drift)\noutside=\($j.directImports.outsideAllowed)\nvia=\($j.viaShimCount)"' .artifacts/contract-audit.json >> $GITHUB_OUTPUT
 
+      - name: Read adoption metrics
+        id: adopt
+        working-directory: frontend
+        run: |
+          jq -r '. as $j | "adHocAny=\($j.adHocAnyCallSites)"' .artifacts/contract-adoption.json >> $GITHUB_OUTPUT
+
       - name: Summarize audit
         working-directory: frontend
         run: |
@@ -87,8 +93,9 @@ jobs:
           echo "- Drift: ${{ steps.audit.outputs.drift }}" >> $GITHUB_STEP_SUMMARY
           echo "- Direct imports (outside allowed): ${{ steps.audit.outputs.outside }}" >> $GITHUB_STEP_SUMMARY
           echo "- Imports via shim: ${{ steps.audit.outputs.via }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Ad-hoc/any call-sites: ${{ steps.adopt.outputs.adHocAny }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "See attached artifact for full report." >> $GITHUB_STEP_SUMMARY
+          echo "See attached artifact for full report and adoption targets." >> $GITHUB_STEP_SUMMARY
 
       - name: Fail on drift or forbidden direct imports
         if: steps.audit.outputs.drift == 'true' || steps.audit.outputs.outside != '0'
@@ -100,6 +107,10 @@ jobs:
         if: steps.audit.outputs.via < 20
         run: echo "⚠️ Shim adoption below target (20); consider wiring more call sites."
 
+      - name: Warn if ad-hoc/any call-sites detected
+        if: steps.adopt.outputs.adHocAny != '0'
+        run: echo "⚠️ Found ${{ steps.adopt.outputs.adHocAny }} ad-hoc/any API call-sites (see adoption artifacts)."
+
       - name: Upload contract audit artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -107,6 +118,8 @@ jobs:
           path: |
             frontend/.artifacts/contract-audit.json
             frontend/.artifacts/contract-audit-report.md
+            frontend/.artifacts/contract-adoption.json
+            frontend/.artifacts/contract-adoption.md
 
       - name: Build
         working-directory: frontend

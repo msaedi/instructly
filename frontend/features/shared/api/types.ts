@@ -37,21 +37,28 @@ export type NaturalLanguageSearchResponse = components['schemas']['InstructorSea
 // Availability types
 export type TimeSlot = components['schemas']['TimeSlot'];
 export type PublicTimeSlot = components['schemas']['PublicTimeSlot'];
+export type PublicInstructorAvailability = components['schemas']['PublicInstructorAvailability'];
 
 // Review types
 export type ReviewListPageResponse = components['schemas']['ReviewListPageResponse'];
 export type ReviewResponseModel = components['schemas']['ReviewResponseModel'];
 export type ReviewSubmitResponse = components['schemas']['ReviewSubmitResponse'];
+export type InstructorRatingsResponse = components['schemas']['InstructorRatingsResponse'];
+export type SearchRatingResponse = components['schemas']['SearchRatingResponse'];
+export type RatingsBatchResponse = components['schemas']['RatingsBatchResponse'];
 
-// Additional commonly used types
-export type BookingStatus = components['schemas']['BookingStatus'];
-export type AddressResponse = components['schemas']['AddressResponse'];
-export type ServiceInfo = components['schemas']['ServiceInfo'];
-export type StudentInfo = components['schemas']['StudentInfo'];
-export type InstructorInfo = components['schemas']['app__schemas__booking__InstructorInfo'];
+// Favorites
 export type FavoritedInstructor = components['schemas']['FavoritedInstructor'];
 export type FavoriteResponse = components['schemas']['FavoriteResponse'];
 export type FavoriteStatusResponse = components['schemas']['FavoriteStatusResponse'];
 export type FavoritesListResponse = components['schemas']['FavoritesList'];
+
+// Catalog types
+export type ServiceCategory = components['schemas']['CategoryResponse'];
+export type CatalogService = components['schemas']['CatalogServiceResponse'];
+
+// Booking enums
+export type BookingStatus = components['schemas']['BookingStatus'];
+
+// Instructor service
 export type InstructorService = components['schemas']['InstructorServiceResponse'];
-export type InstructorServiceResponse = components['schemas']['InstructorServiceResponse'];
