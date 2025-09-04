@@ -123,16 +123,25 @@ function main() {
     if (adhocMatches.length > 200) report += `…and ${adhocMatches.length - 200} more.\n`;
   }
 
-  // 5) Count of imports from generated API types
+  // 5) Count of imports from generated API types (exclude allowed layers)
   report += header('Usage of generated API types (import count)');
-  // Use regular grep since grepLiteral doesn't handle regex well
-  const directCmd = `grep -r "from.*@/types/generated/api" --include="*.ts" --include="*.tsx" ${ROOT} | wc -l`;
-  const shimCmd = `grep -r "from.*@/features/shared/api/types" --include="*.ts" --include="*.tsx" ${ROOT} | wc -l`;
-  const directCount = parseInt(safe(directCmd).out || '0');
-  const shimCount = parseInt(safe(shimCmd).out || '0');
-  const totalImports = directCount + shimCount;
-  report += `Found **${totalImports}** import sites using generated types:\n`;
-  report += `- Direct imports from \`@/types/generated/api\`: ${directCount}\n`;
+  // Base greps
+  const directAllCmd = `grep -r "from.*@/types/generated/api" --include="*.ts" --include="*.tsx" ${ROOT}`;
+  const shimAllCmd = `grep -r "from.*@/features/shared/api/types" --include="*.ts" --include="*.tsx" ${ROOT}`;
+  // Allowed layers to exclude from the "direct" count (shim itself)
+  const allowedPathPattern = `/features/shared/api/types.ts`;
+  const directOutsideCmd = `${directAllCmd} | grep -v "${allowedPathPattern}" | wc -l`;
+  const directAllowedCmd = `${directAllCmd} | grep "${allowedPathPattern}" | wc -l`;
+  const shimCountCmd = `${shimAllCmd} | wc -l`;
+
+  const directOutside = parseInt(safe(directOutsideCmd).out || '0');
+  const directAllowed = parseInt(safe(directAllowedCmd).out || '0');
+  const shimCount = parseInt(safe(shimCountCmd).out || '0');
+  const totalImports = directOutside + directAllowed + shimCount;
+
+  report += `Found **${totalImports}** import sites using generated types (by layer):\n`;
+  report += `- Direct imports outside allowed layers: ${directOutside}\n`;
+  report += `- Direct imports in allowed layers (shim): ${directAllowed}\n`;
   report += `- Via type shim \`@/features/shared/api/types\`: ${shimCount}\n`;
 
   // Write report
