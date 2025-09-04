@@ -31,6 +31,7 @@ from ..core.exceptions import ServiceException, ValidationException
 from ..database import get_db
 from ..models.user import User
 from ..monitoring.prometheus_metrics import prometheus_metrics
+from ..ratelimit.dependency import rate_limit
 from ..schemas.payment_schemas import (
     CheckoutResponse,
     CreateCheckoutRequest,
@@ -76,7 +77,7 @@ def validate_student_role(user: User) -> None:
 # ========== Instructor Routes ==========
 
 
-@router.post("/connect/onboard", response_model=OnboardingResponse)
+@router.post("/connect/onboard", response_model=OnboardingResponse, dependencies=[Depends(rate_limit("financial"))])
 async def start_onboarding(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -244,7 +245,9 @@ class IdentitySessionResponse(BaseModel):
     client_secret: str
 
 
-@router.post("/identity/session", response_model=IdentitySessionResponse)
+@router.post(
+    "/identity/session", response_model=IdentitySessionResponse, dependencies=[Depends(rate_limit("financial"))]
+)
 async def create_identity_session(
     request: Request,
     current_user: User = Depends(get_current_active_user),
@@ -282,7 +285,9 @@ class IdentityRefreshResponse(BaseModel):
     verified: bool
 
 
-@router.post("/identity/refresh", response_model=IdentityRefreshResponse)
+@router.post(
+    "/identity/refresh", response_model=IdentityRefreshResponse, dependencies=[Depends(rate_limit("financial"))]
+)
 async def refresh_identity_status(
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
@@ -329,7 +334,9 @@ class PayoutScheduleResponse(BaseModel):
     settings: Dict[str, Any] | None = None
 
 
-@router.post("/connect/payout-schedule", response_model=PayoutScheduleResponse)
+@router.post(
+    "/connect/payout-schedule", response_model=PayoutScheduleResponse, dependencies=[Depends(rate_limit("financial"))]
+)
 async def set_payout_schedule(
     interval: str = "weekly",
     weekly_anchor: str = "tuesday",

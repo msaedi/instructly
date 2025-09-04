@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import require_beta_phase_access
 from ..database import get_db
+from ..ratelimit.dependency import rate_limit
 from ..schemas.search_responses import InstructorSearchResponse
 from ..services.search_service import SearchService
 
@@ -22,7 +23,7 @@ router = APIRouter()
 @router.get(
     "/instructors",
     response_model=InstructorSearchResponse,
-    dependencies=[Depends(require_beta_phase_access())],
+    dependencies=[Depends(require_beta_phase_access()), Depends(rate_limit("read"))],
 )
 async def search_instructors(
     q: str = Query(..., description="Search query", min_length=1),

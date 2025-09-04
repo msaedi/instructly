@@ -36,8 +36,10 @@ from ..api.dependencies.services import get_cache_service_dep, get_favorites_ser
 from ..core.enums import RoleName
 from ..core.ulid_helper import is_valid_ulid
 from ..database import get_db
-from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
+from ..middleware.rate_limiter import RateLimitKeyType
+from ..middleware.rate_limiter import rate_limit as legacy_rate_limit
 from ..models.user import User
+from ..ratelimit.dependency import rate_limit
 from ..schemas.address_responses import CoverageFeatureCollectionResponse
 from ..schemas.base_responses import PaginatedResponse
 from ..schemas.instructor import (
@@ -56,7 +58,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/instructors", tags=["instructors"])
 
 
-@router.get("/", response_model=PaginatedResponse[InstructorProfileResponse])
+@router.get(
+    "/", response_model=PaginatedResponse[InstructorProfileResponse], dependencies=[Depends(rate_limit("read"))]
+)
 async def get_all_instructors(
     service_catalog_id: str = Query(..., description="Service catalog ID (required)"),
     min_price: float = Query(None, ge=0, le=1000, description="Minimum hourly rate"),
@@ -129,7 +133,7 @@ def get_address_service(db: Session = Depends(get_db)) -> AddressService:
     "/me",
     response_model=InstructorProfileResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_beta_access("instructor"))],
+    dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
 )
 async def create_instructor_profile(
     profile: InstructorProfileCreate,
@@ -146,7 +150,7 @@ async def create_instructor_profile(
         raise
 
 
-@router.get("/me", response_model=InstructorProfileResponse)
+@router.get("/me", response_model=InstructorProfileResponse, dependencies=[Depends(rate_limit("read"))])
 async def get_my_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -170,7 +174,11 @@ async def get_my_profile(
         raise
 
 
-@router.put("/me", response_model=InstructorProfileResponse, dependencies=[Depends(require_beta_access("instructor"))])
+@router.put(
+    "/me",
+    response_model=InstructorProfileResponse,
+    dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
+)
 async def update_profile(
     profile_update: InstructorProfileUpdate,
     current_user: User = Depends(get_current_active_user),
@@ -198,7 +206,9 @@ async def update_profile(
 
 
 @router.post(
-    "/me/go-live", response_model=InstructorProfileResponse, dependencies=[Depends(require_beta_access("instructor"))]
+    "/me/go-live",
+    response_model=InstructorProfileResponse,
+    dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
 )
 async def go_live(
     current_user: User = Depends(get_current_active_user),
@@ -286,7 +296,11 @@ async def go_live(
     return instructor_service.get_instructor_profile(current_user.id)
 
 
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_beta_access("instructor"))])
+@router.delete(
+    "/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
+)
 async def delete_instructor_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -311,7 +325,7 @@ async def delete_instructor_profile(
         raise
 
 
-@router.get("/{instructor_id}", response_model=InstructorProfileResponse)
+@router.get("/{instructor_id}", response_model=InstructorProfileResponse, dependencies=[Depends(rate_limit("read"))])
 async def get_instructor_profile(
     instructor_id: str,
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -350,7 +364,7 @@ async def get_instructor_profile(
 
 
 @router.get("/{instructor_id}/coverage", response_model=CoverageFeatureCollectionResponse)
-@rate_limit("30/minute", key_type=RateLimitKeyType.IP)
+@legacy_rate_limit("30/minute", key_type=RateLimitKeyType.IP)
 async def get_instructor_coverage(
     instructor_id: str,
     address_service: AddressService = Depends(get_address_service),

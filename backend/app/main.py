@@ -31,6 +31,7 @@ from .middleware.prometheus_middleware import PrometheusMiddleware
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
 from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY
+from .ratelimit.identity import resolve_identity
 from .repositories.beta_repository import BetaSettingsRepository
 from .routes import (
     account_management,
@@ -185,6 +186,17 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,  # Use the new lifespan handler
 )
+
+
+@app.middleware("http")
+async def attach_identity(request: Request, call_next):
+    # Attach a normalized identity for rate-limiter dependency (shadow in PR-2)
+    try:
+        request.state.rate_identity = resolve_identity(request)
+    except Exception:
+        request.state.rate_identity = "ip:unknown"
+    return await call_next(request)
+
 
 # Add middleware in the correct order (reverse order of execution)
 # HTTPS redirect should be first to handle before other processing
