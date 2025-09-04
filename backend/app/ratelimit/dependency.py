@@ -8,7 +8,7 @@ from fastapi import Request, Response
 
 from .config import BUCKETS, is_shadow_mode, settings
 from .gcra import Decision
-from .headers import set_rate_headers
+from .headers import set_policy_headers, set_rate_headers
 from .metrics import rl_decisions, rl_retry_after
 from .redis_backend import GCRA_LUA, get_redis
 
@@ -42,6 +42,7 @@ def rate_limit(bucket: str):
         if _is_testing_env():
             now_s = time.time()
             set_rate_headers(response, remaining=1000, limit=1000, reset_epoch_s=int(now_s + 60), retry_after_s=None)
+            set_policy_headers(response, bucket=bucket, shadow=is_shadow_mode(bucket))
             return
         if not settings.enabled:
             return
@@ -104,6 +105,7 @@ def rate_limit(bucket: str):
             decision.retry_after_s if not decision.allowed else None,
         )
         shadow_flag = is_shadow_mode(bucket)
+        set_policy_headers(response, bucket=bucket, shadow=shadow_flag)
         rl_retry_after.labels(bucket=bucket, shadow=str(shadow_flag)).observe(max(decision.retry_after_s, 0.0))
 
         if decision.allowed:
