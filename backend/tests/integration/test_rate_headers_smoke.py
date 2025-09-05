@@ -1,10 +1,10 @@
 from fastapi.testclient import TestClient
 
-from app.main import app as test_app
+from app.main import app as asgi_app
 
 
 def test_smoke_rate_headers_present():
-    client = TestClient(test_app)
+    client = TestClient(asgi_app)
 
     # health
     r = client.get("/health")
