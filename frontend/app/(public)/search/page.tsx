@@ -47,7 +47,7 @@ function SearchPageContent() {
   const [_total, setTotal] = useState(0);
   const [serviceName, setServiceName] = useState<string>('');
   const [serviceSlug] = useState<string>('');
-  const [rateLimit] = useState<{ seconds: number } | null>(null);
+  const [rateLimit, setRateLimit] = useState<{ seconds: number } | null>(null);
   const [showTimeSelection, setShowTimeSelection] = useState(false);
   const [timeSelectionContext, setTimeSelectionContext] = useState<Record<string, unknown> | null>(null);
 
@@ -117,7 +117,16 @@ function SearchPageContent() {
       if (query) {
         const nlResponse = await publicApi.searchWithNaturalLanguage(query);
         if (nlResponse.error) {
-          setError(nlResponse.error);
+          // If 429, client returns retryAfterSeconds – show rate limit banner instead of generic error
+          const secs = (nlResponse as unknown as { retryAfterSeconds?: number }).retryAfterSeconds;
+          if (typeof secs === 'number' && secs > 0) {
+            setRateLimit({ seconds: secs });
+            // Also set friendly copy in error area for test robustness/visibility
+            setError(`Our hamsters are sprinting. Give them ${secs}s.`);
+            return;
+          }
+          // Generic error (no Retry-After)
+          setError('Our hamsters are sprinting. Please try again shortly.');
           return;
         } else if (nlResponse.data) {
           instructorsData = nlResponse.data.results.map(

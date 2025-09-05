@@ -57,7 +57,28 @@ test.describe('Smoke Tests', () => {
 
 test.describe('Rate limit guardrails', () => {
   test('search shows friendly message when 429 with Retry-After', async ({ page, context }) => {
-    await context.route('**/api/search/instructors**', async (route) => {
+    // Ensure guest session succeeds to avoid auth redirects in CI
+    await context.route(/.*\/api(?:\/proxy)?(?:\/api)?\/public\/session\/guest.*/, async (route) => {
+      const origin = route.request().headers()['origin'] || 'http://localhost:3100';
+      await route.fulfill({
+        status: 200,
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', Vary: 'Origin' },
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true })
+      });
+    });
+    // auth/me returns 401 to keep guest flow
+    await context.route(/.*\/auth\/me.*/, async (route) => {
+      const origin = route.request().headers()['origin'] || 'http://localhost:3100';
+      await route.fulfill({
+        status: 401,
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', Vary: 'Origin' },
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Not authenticated' })
+      });
+    });
+    // Match direct and proxied API paths, including optional extra /api after /api/proxy
+    await context.route(/.*\/api(?:\/proxy)?(?:\/api)?\/search\/instructors.*/, async (route) => {
       const headers = { 'Content-Type': 'application/json', 'Retry-After': '5' };
       await route.fulfill({ status: 429, headers, body: JSON.stringify({ detail: 'Too many requests' }) });
     });
@@ -69,7 +90,28 @@ test.describe('Rate limit guardrails', () => {
   });
 
   test('search shows generic friendly message when 429 without Retry-After', async ({ page, context }) => {
-    await context.route('**/api/search/instructors**', async (route) => {
+    // Ensure guest session succeeds to avoid auth redirects in CI
+    await context.route(/.*\/api(?:\/proxy)?(?:\/api)?\/public\/session\/guest.*/, async (route) => {
+      const origin = route.request().headers()['origin'] || 'http://localhost:3100';
+      await route.fulfill({
+        status: 200,
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', Vary: 'Origin' },
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true })
+      });
+    });
+    // auth/me returns 401 to keep guest flow
+    await context.route(/.*\/auth\/me.*/, async (route) => {
+      const origin = route.request().headers()['origin'] || 'http://localhost:3100';
+      await route.fulfill({
+        status: 401,
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', Vary: 'Origin' },
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Not authenticated' })
+      });
+    });
+    // Match direct and proxied API paths, including optional extra /api after /api/proxy
+    await context.route(/.*\/api(?:\/proxy)?(?:\/api)?\/search\/instructors.*/, async (route) => {
       const headers = { 'Content-Type': 'application/json' };
       await route.fulfill({ status: 429, headers, body: JSON.stringify({ detail: 'Too many requests' }) });
     });
