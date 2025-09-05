@@ -54,3 +54,29 @@ test.describe('Smoke Tests', () => {
     await expect(page).toHaveURL(/\/signup/);
   });
 });
+
+test.describe('Rate limit guardrails', () => {
+  test('search shows friendly message when 429 with Retry-After', async ({ page, context }) => {
+    await context.route('**/api/search/instructors**', async (route) => {
+      const headers = { 'Content-Type': 'application/json', 'Retry-After': '5' };
+      await route.fulfill({ status: 429, headers, body: JSON.stringify({ detail: 'Too many requests' }) });
+    });
+
+    await page.goto('/search?q=piano');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByText(/Our hamsters are sprinting. Give them 5s\./i)).toBeVisible();
+  });
+
+  test('search shows generic friendly message when 429 without Retry-After', async ({ page, context }) => {
+    await context.route('**/api/search/instructors**', async (route) => {
+      const headers = { 'Content-Type': 'application/json' };
+      await route.fulfill({ status: 429, headers, body: JSON.stringify({ detail: 'Too many requests' }) });
+    });
+
+    await page.goto('/search?q=guitar');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByText(/Our hamsters are sprinting\. Please try again shortly\./i)).toBeVisible();
+  });
+});
