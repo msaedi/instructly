@@ -107,12 +107,23 @@ def reload_config(cache_ttl_s: int = 30) -> Dict[str, Any]:
     merged = {**env_overrides, **redis_overrides}
     _POLICY_OVERRIDES = merged
 
-    return {
+    info = {
         "enabled": settings.enabled,
         "shadow": settings.shadow,
         "bucket_shadows": BUCKET_SHADOW_OVERRIDES,
         "policy_overrides_count": len(_POLICY_OVERRIDES),
     }
+
+    # Emit PR-8 metrics: count reloads and gauge active overrides
+    try:
+        from .metrics import rl_active_overrides, rl_config_reload_total  # type: ignore
+
+        rl_config_reload_total.inc()
+        rl_active_overrides.set(len(_POLICY_OVERRIDES))
+    except Exception:
+        pass
+
+    return info
 
 
 def get_effective_policy(route: Optional[str], method: Optional[str], bucket: str) -> Dict[str, Any]:

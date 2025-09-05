@@ -1,0 +1,50 @@
+{
+  "title": "Rate Limiter",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Decisions by action (5m)",
+      "targets": [
+        {"expr": "sum by (bucket, action) (increase(instainstru_rl_decisions_total[5m]))"}
+      ]
+    },
+    {
+      "type": "heatmap",
+      "title": "Retry-After seconds",
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(instainstru_rl_retry_after_seconds_bucket[5m])) by (le, bucket))"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Config reloads (1h)",
+      "targets": [
+        {"expr": "increase(instainstru_rl_config_reload_total[1h])"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Active overrides",
+      "targets": [
+        {"expr": "instainstru_rl_active_overrides"}
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Eval errors (5m)",
+      "targets": [
+        {"expr": "increase(instainstru_rl_eval_errors_total[5m])"}
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Eval duration p95",
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(instainstru_rl_eval_duration_seconds_bucket[5m])) by (le, bucket))"}
+      ]
+    }
+  ]
+}

@@ -11,3 +11,4 @@ providers:
     options:
       path: /etc/grafana/provisioning/dashboards
       foldersFromFilesStructure: false
+      # PR-8: ensure rate-limiter dashboard is scanned from this directory

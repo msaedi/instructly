@@ -16,3 +16,30 @@ groups:
     annotations:
       summary: "Bypass observed in PROD"
       description: "Preview bypass must never occur in PROD. Check SITE_MODE, headers, hosts, and CORS."
+
+- name: rate-limiter
+  rules:
+  - alert: HighRateLimitBlocks
+    expr: sum by (bucket) (increase(instainstru_rl_decisions_total{action="block"}[5m])) /
+          clamp_min(sum by (bucket) (increase(instainstru_rl_decisions_total[5m])), 1) > 0.05
+    for: 10m
+    labels: { severity: warning }
+    annotations:
+      summary: "Rate limiter blocking >5% in {bucket}"
+      description: ">5% of requests blocked in bucket {bucket} over 5m"
+
+  - alert: Financial429ForVerifiedUsers
+    expr: increase(instainstru_rl_decisions_total{bucket="financial",action="block"}[5m]) > 0
+    for: 1m
+    labels: { severity: critical }
+    annotations:
+      summary: "Financial 429 observed"
+      description: "At least one financial request blocked in last 5m"
+
+  - alert: RateLimiterEvalErrors
+    expr: increase(instainstru_rl_eval_errors_total[5m]) > 0
+    for: 5m
+    labels: { severity: warning }
+    annotations:
+      summary: "Rate limiter evaluation errors"
+      description: "Errors occurred during rate-limit evaluation (Redis or script failures)"
