@@ -48,6 +48,7 @@ from .routes import (
     gated,
     instructor_bookings,
     instructors,
+    internal,
     messages,
     metrics,
     monitoring,
@@ -306,6 +307,7 @@ app.include_router(users_profile_picture.router)
 app.include_router(beta.router)
 app.include_router(reviews.router)
 app.include_router(gated.router)
+app.include_router(internal.router)
 
 
 # Identity + uploads: new endpoints are included via existing payments router and addresses router
