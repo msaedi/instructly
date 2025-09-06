@@ -125,7 +125,8 @@ function SearchPageContent() {
             setError(`Our hamsters are sprinting. Give them ${secs}s.`);
             return;
           }
-          // Generic error (no Retry-After)
+          // Generic error (no Retry-After) — still show banner for UX consistency/tests
+          setRateLimit({ seconds: 0 });
           setError('Our hamsters are sprinting. Please try again shortly.');
           return;
         } else if (nlResponse.data) {
