@@ -65,7 +65,7 @@ function SearchPageContent() {
 
   const RateLimitBanner = () =>
     rateLimit ? (
-      <div className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm">
+      <div data-testid="rate-limit-banner" className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm">
         Our hamsters are sprinting. Give them {rateLimit.seconds}s.
       </div>
     ) : null;
