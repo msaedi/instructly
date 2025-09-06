@@ -2,6 +2,7 @@ import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { FlatCompat } from '@eslint/eslintrc';
 import reactRefresh from 'eslint-plugin-react-refresh';
+import tsParser from '@typescript-eslint/parser';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -38,6 +39,39 @@ const eslintConfig = [
       '@typescript-eslint/ban-ts-comment': 'warn',
     },
     languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
+  },
+  // Typed rule hardening in API shim layer (low-churn surface)
+  {
+    files: ['features/shared/api/**/*'],
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: { attributes: false, arguments: false } },
+      ],
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports' },
+      ],
+      // Stricter ts-ignore usage within API shim
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        { 'ts-ignore': 'allow-with-description' },
+      ],
+      // Start as warn in a narrow surface to avoid CI churn
+      '@typescript-eslint/prefer-nullish-coalescing': [
+        'warn',
+        { ignoreConditionalTests: true, ignoreMixedLogicalExpressions: true },
+      ],
+    },
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        // Enable typed linting for this narrow surface
+        projectService: true,
+        tsconfigRootDir: __dirname,
+      },
+    },
   },
   // No additional typed-rule overrides; all pages are linted uniformly
   // React Refresh ergonomics in component and test files
@@ -83,13 +117,31 @@ const eslintConfig = [
             {
               name: '@/lib/env',
               importNames: ['env'],
-              message: 'Use `@/lib/publicEnv` for NEXT_PUBLIC_* in client code. env.get() is server-only.',
+              message:
+                'Use `@/lib/publicEnv` for NEXT_PUBLIC_* in client code. env.get() is server-only.',
             },
           ],
           // Do NOT block generated types here (shim and API client allowed)
           patterns: [],
         },
       ],
+    },
+  },
+  // Temporarily relax nullish-coalescing rule to avoid warnings without code churn
+  {
+    files: ['features/shared/api/client.ts', 'features/shared/api/http.ts'],
+    rules: {
+      '@typescript-eslint/prefer-nullish-coalescing': 'off',
+    },
+  },
+  // Disable unused-var checks in type smoke tests
+  {
+    files: ['type-tests/**/*.test-d.ts', 'type-tests/**/*.d.ts'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-unused-vars': 'off',
+      'no-undef': 'off',
+      'no-unused-expressions': 'off',
     },
   },
   // Disable react-refresh for Next.js layout files that need to export metadata

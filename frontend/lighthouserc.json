@@ -1,0 +1,17 @@
+{
+  "ci": {
+    "collect": {
+      "staticDistDir": ".next",
+      "numberOfRuns": 1,
+      "settings": { "onlyCategories": ["performance", "accessibility", "best-practices"] }
+    },
+    "assert": {
+      "preset": "lighthouse:recommended",
+      "assertions": {
+        "categories:performance": ["warn", { "minScore": 0.75 }],
+        "categories:accessibility": ["warn", { "minScore": 0.9 }]
+      }
+    },
+    "upload": { "target": "filesystem", "outputDir": ".artifacts/lhci" }
+  }
+}

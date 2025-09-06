@@ -131,6 +131,40 @@ jobs:
         working-directory: frontend
         run: npm run verify:runtime-validation-bundle
 
+      - name: Size limit (warn)
+        working-directory: frontend
+        run: npm run size || echo "::warning ::size-limit reported issues"
+
+      - name: Type smoke tests (warn)
+        working-directory: frontend
+        run: npm run type:smoke || echo "::warning ::tsd smoke reported issues"
+
+      - name: Dead code audit (warn)
+        working-directory: frontend
+        run: npm run audit:deadcode:ci
+
+      - name: Lighthouse CI (warn)
+        working-directory: frontend
+        run: npm run audit:lhci || echo "::warning ::LHCI reported issues"
+
+      - name: Type coverage (warn)
+        working-directory: frontend
+        run: npm run audit:typecov || echo "::warning ::type-coverage reported issues"
+
+      - name: Setup Python 3.11 for backend checks
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend lint/type tools
+        run: pip install -q ruff mypy
+
+      - name: Ruff (warn)
+        run: python -m ruff check backend || echo "::warning ::ruff reported issues"
+
+      - name: MyPy (scoped, warn)
+        run: mypy backend/app/schemas/base.py backend/app/schemas/search_history_responses.py backend/app/routes/internal.py || echo "::warning ::mypy reported issues"
+
   frontend-tests:
     runs-on: ubuntu-latest
     steps:

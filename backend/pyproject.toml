@@ -108,3 +108,44 @@ markers = [
     "requires_cache: marks tests that require cache to be running",
     "supporting_systems: marks tests for supporting systems",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+  "backend/tests/**",
+  "backend/**/tests/**",
+  "backend/migrations/**",
+  "backend/scripts/**"
+]
+
+[tool.ruff.lint]
+select = ["E","F","I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/migrations/**" = ["ALL"]
+"backend/tests/**/*" = ["ALL"]
+"backend/app/__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_return_any = true
+disallow_untyped_defs = true
+exclude = [
+  "backend/tests",
+  "backend/migrations",
+  "backend/scripts"
+]
+
+[[tool.mypy.overrides]]
+module = [
+  "backend.app.schemas.base",
+  "backend.app.schemas.search_history_responses",
+  "backend.app.routes.internal"
+]
+strict = true

@@ -7,9 +7,14 @@
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
     "noImplicitOverride": true,
+    "useUnknownInCatchVariables": true,
+    "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["."]
+  "include": ["."],
+  "exclude": [
+    "type-tests/**"
+  ]
 }

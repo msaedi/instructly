@@ -14,6 +14,19 @@ class StandardizedModel(BaseModel):
     model_config = ConfigDict(use_enum_values=True, populate_by_name=True)
 
 
+class StrictModel(BaseModel):
+    """Opt-in strict base: forbid extras, validate defaults and assignments.
+
+    This is off by default for existing models. Adopt per-DTO to harden.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_default=True,
+        validate_assignment=True,
+    )
+
+
 class Money(Decimal):
     """Money field that always serializes as float"""
 

@@ -7,11 +7,12 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.ratelimit.config import get_effective_policy, reload_config
+from app.schemas.base import StrictModel
 
 router = APIRouter(prefix="/internal", tags=["internal"], include_in_schema=False)
 
 
-class InternalReloadResponse(BaseModel):
+class InternalReloadResponse(StrictModel):
     ok: bool
     enabled: bool
     shadow: bool
@@ -19,7 +20,7 @@ class InternalReloadResponse(BaseModel):
     policy_overrides_count: int
 
 
-class PolicyResponse(BaseModel):
+class PolicyResponse(StrictModel):
     bucket: str
     rate_per_min: int
     burst: int

@@ -4709,11 +4709,17 @@ export type components = {
         Body_login_auth_login_post: {
             /** Client Id */
             client_id?: string | null;
-            /** Client Secret */
+            /**
+             * Client Secret
+             * Format: password
+             */
             client_secret?: string | null;
             /** Grant Type */
             grant_type?: string | null;
-            /** Password */
+            /**
+             * Password
+             * Format: password
+             */
             password: string;
             /**
              * Scope

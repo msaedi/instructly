@@ -17,6 +17,7 @@ __pycache__/
 .Python
 venv/
 env/
+.venv/
 
 # Additional Next.js/React
 out/
@@ -68,6 +69,7 @@ monitoring/grafana-data/
 monitoring/prometheus-data/
 assets/
 frontend/types/generated/
+frontend/.lighthouseci/
 
 # Cloudflare Wrangler local state (do not commit)
 .wrangler/
