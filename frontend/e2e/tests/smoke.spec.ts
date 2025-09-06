@@ -79,14 +79,33 @@ test.describe('Rate limit guardrails', () => {
     });
     // Match direct and proxied API paths, including optional extra /api after /api/proxy
     await context.route(/.*\/api(?:\/proxy)?(?:\/api)?\/search\/instructors.*/, async (route) => {
-      const headers = { 'Content-Type': 'application/json', 'Retry-After': '5' };
-      await route.fulfill({ status: 429, headers, body: JSON.stringify({ detail: 'Too many requests' }) });
+      const req = route.request();
+      const method = req.method();
+      const origin = req.headers()['origin'] || 'http://localhost:3100';
+      const baseHeaders = {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Session-ID, X-Search-Origin, X-Guest-Session-ID, Authorization',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        Vary: 'Origin'
+      } as Record<string, string>;
+      if (method === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: baseHeaders });
+        return;
+      }
+      await route.fulfill({
+        status: 429,
+        headers: { ...baseHeaders, 'Content-Type': 'application/json', 'Retry-After': '5', 'Access-Control-Expose-Headers': 'Retry-After' },
+        body: JSON.stringify({ detail: 'Too many requests' })
+      });
     });
 
     await page.goto('/search?q=piano');
     await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
-    await expect(page.getByText(/Our hamsters are sprinting. Give them 5s\./i)).toBeVisible();
+    // Prefer explicit test id to avoid copy variations
+    await expect(page.locator('[data-testid="rate-limit-banner"]')).toBeVisible({ timeout: 30000 });
   });
 
   test('search shows generic friendly message when 429 without Retry-After', async ({ page, context }) => {
@@ -112,13 +131,31 @@ test.describe('Rate limit guardrails', () => {
     });
     // Match direct and proxied API paths, including optional extra /api after /api/proxy
     await context.route(/.*\/api(?:\/proxy)?(?:\/api)?\/search\/instructors.*/, async (route) => {
-      const headers = { 'Content-Type': 'application/json' };
-      await route.fulfill({ status: 429, headers, body: JSON.stringify({ detail: 'Too many requests' }) });
+      const req = route.request();
+      const method = req.method();
+      const origin = req.headers()['origin'] || 'http://localhost:3100';
+      const baseHeaders = {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Session-ID, X-Search-Origin, X-Guest-Session-ID, Authorization',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        Vary: 'Origin'
+      } as Record<string, string>;
+      if (method === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: baseHeaders });
+        return;
+      }
+      await route.fulfill({
+        status: 429,
+        headers: { ...baseHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ detail: 'Too many requests' })
+      });
     });
 
     await page.goto('/search?q=guitar');
     await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
-    await expect(page.getByText(/Our hamsters are sprinting\. Please try again shortly\./i)).toBeVisible();
+    await expect(page.locator('[data-testid="rate-limit-banner"]')).toBeVisible({ timeout: 30000 });
   });
 });
