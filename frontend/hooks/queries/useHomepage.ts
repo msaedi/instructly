@@ -5,6 +5,9 @@ import { publicApi, TopServicesResponse } from '@/features/shared/api/client';
 import { useUser } from './useUser';
 import type { BookingListResponse } from '@/features/shared/api/types';
 import { SearchHistoryItem } from '@/lib/searchTracking';
+import { httpJson } from '@/features/shared/api/http';
+import { withApiBase } from '@/lib/apiBase';
+import { loadBookingListSchema } from '@/features/shared/api/schemas/bookingList';
 
 /**
  * Homepage-specific React Query hooks
@@ -118,10 +121,13 @@ export function useBookingHistory(limit: number = 50) {
 
   return useQuery({
     queryKey: [...queryKeys.bookings.history(), { status: 'COMPLETED', limit }] as const,
-    queryFn: queryFn<BookingListResponse>('/bookings/', {
-      params: { status: 'COMPLETED', per_page: limit },
-      requireAuth: true,
-    }),
+    queryFn: async () =>
+      httpJson<BookingListResponse>(
+        withApiBase(`/bookings/?status=COMPLETED&per_page=${limit}`),
+        { method: 'GET' },
+        loadBookingListSchema,
+        { endpoint: 'GET /bookings' }
+      ),
     enabled: isAuthenticated,
     staleTime: CACHE_TIMES.SLOW, // 15 minutes - historical data
     gcTime: CACHE_TIMES.SLOW * 2, // 30 minutes
@@ -224,10 +230,13 @@ export function useHomepageData(): HomepageData {
       // Booking history - only if authenticated
       {
         queryKey: queryKeys.bookings.history(1), // Page 1 for BookAgain component
-        queryFn: queryFn<BookingListResponse>('/bookings/', {
-          params: { status: 'COMPLETED', per_page: 50 },
-          requireAuth: true,
-        }),
+        queryFn: async () =>
+          httpJson<BookingListResponse>(
+            withApiBase('/bookings/?status=COMPLETED&per_page=50'),
+            { method: 'GET' },
+            loadBookingListSchema,
+            { endpoint: 'GET /bookings' }
+          ),
         enabled: isAuthenticated,
         staleTime: CACHE_TIMES.SLOW,
         gcTime: CACHE_TIMES.SLOW * 2,

@@ -147,8 +147,7 @@ disallow_untyped_defs = true
 explicit_package_bases = true
 follow_imports = "skip"
 files = [
-  "app/schemas/base.py",
-  "app/schemas/search_history_responses.py",
+  "app/schemas/**",
   "app/routes/internal.py",
 ]
 exclude = [

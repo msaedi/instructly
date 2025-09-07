@@ -4,7 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown } from 'lucide-react';
 import { BookingPayment, PaymentMethod, BookingType } from '../types';
 import { format } from 'date-fns';
-import { protectedApi, publicApi } from '@/features/shared/api/client';
+import { protectedApi } from '@/features/shared/api/client';
+import { httpJson } from '@/features/shared/api/http';
+import { withApiBase } from '@/lib/apiBase';
+import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instructorProfile';
 import type { InstructorService } from '@/types/instructor';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
@@ -133,14 +136,20 @@ export default function PaymentConfirmation({
 
       setLoadingInstructor(true);
       try {
-        const response = await publicApi.getInstructorProfile(booking.instructorId);
-        if (response.data?.services) {
-          setInstructorServices(response.data.services.map((service: unknown) => ({
+        const data = await httpJson<Record<string, unknown>>(
+          withApiBase(`/instructors/${booking.instructorId}`),
+          { method: 'GET' },
+          loadInstructorProfileSchema,
+          { endpoint: 'GET /instructors/:id' }
+        );
+        const services = (data as { services?: unknown[] }).services || [];
+        if (services.length) {
+          setInstructorServices(services.map((service: unknown) => ({
             ...(typeof service === 'object' && service !== null ? service : {}),
             description: (service as Record<string, unknown>)?.['description'] ?? null
           } as InstructorService)));
           logger.debug('Fetched instructor services', {
-            services: response.data.services,
+            services,
             instructorId: booking.instructorId
           });
         }

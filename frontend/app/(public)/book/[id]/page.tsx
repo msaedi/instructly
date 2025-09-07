@@ -6,6 +6,9 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Star, MapPin, Clock, DollarSign, Check } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
+import { httpJson } from '@/features/shared/api/http';
+import { withApiBase } from '@/lib/apiBase';
+import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instructorProfile';
 // Align with available public types; fall back to minimal shapes if not exported
 type PublicTimeSlot = { start_time: string; end_time: string };
 type PublicDayAvailability = { available_slots?: PublicTimeSlot[] };
@@ -68,32 +71,26 @@ export default function QuickBookingPage() {
   useEffect(() => {
     const fetchInstructor = async () => {
       try {
-        const response = await publicApi.getInstructorProfile(instructorId);
+        const data = await httpJson<Record<string, unknown>>(
+          withApiBase(`/instructors/${instructorId}`),
+          { method: 'GET' },
+          loadInstructorProfileSchema,
+          { endpoint: 'GET /instructors/:id' }
+        );
 
-        if (response.error) {
-          logger.error('API error fetching instructor', new Error(response.error));
-          setError(response.error);
-          return;
-        }
+        const d = data as Record<string, unknown>;
+        setInstructor({
+          ...(data as unknown as InstructorData),
+          rating: (d['rating'] as number) || 4.8,
+          total_reviews: (d['total_reviews'] as number) || Math.floor(Math.random() * 200) + 50,
+          verified: typeof d['verified'] !== 'undefined' ? Boolean(d['verified']) : true,
+        });
 
-        if (response.data) {
-          const d = response.data as Record<string, unknown>;
-          setInstructor({
-            ...(response.data as unknown as InstructorData),
-            rating: (d['rating'] as number) || 4.8,
-            total_reviews: (d['total_reviews'] as number) || Math.floor(Math.random() * 200) + 50,
-            verified: typeof d['verified'] !== 'undefined' ? Boolean(d['verified']) : true,
-          });
-
-          // Set default service
-          if (response.data.services.length > 0 && response.data.services[0]) {
-            setSelectedService(response.data.services[0]);
-            // Use first available duration option, default to 60 if none available
-            const defaultDuration = response.data.services[0].duration_options?.[0] || 60;
-            setDuration(defaultDuration);
-          }
-        } else {
-          setError('Instructor not found');
+        const services = (data as { services?: Service[] }).services || [];
+        if (services.length > 0 && services[0]) {
+          setSelectedService(services[0]);
+          const defaultDuration = services[0].duration_options?.[0] || 60;
+          setDuration(defaultDuration);
         }
       } catch (err) {
         logger.error('Error fetching instructor', err);
