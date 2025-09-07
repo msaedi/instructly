@@ -8,13 +8,13 @@ from pydantic import BaseModel, ConfigDict
 from pydantic_core import core_schema
 
 
-class StandardizedModel(BaseModel):
+class StandardizedModel(BaseModel):  # type: ignore[misc]
     """Base model with standardized JSON encoding"""
 
     model_config = ConfigDict(use_enum_values=True, populate_by_name=True)
 
 
-class StrictModel(BaseModel):
+class StrictModel(BaseModel):  # type: ignore[misc]
     """Opt-in strict base: forbid extras, validate defaults and assignments.
 
     This is off by default for existing models. Adopt per-DTO to harden.

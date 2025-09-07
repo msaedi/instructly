@@ -1,7 +1,7 @@
 import hmac
 import os
 from hashlib import sha256
-from typing import Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional, TypeVar, cast
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -42,7 +42,12 @@ def _verify_hmac(request: Request) -> None:
         raise HTTPException(status_code=403, detail="invalid signature")
 
 
-@router.post("/config/reload", response_model=InternalReloadResponse)
+# Cast decorators to Any to avoid "untyped decorator" in narrow mypy scope
+T = TypeVar("T", bound=Callable[..., Any])
+post_reload: Callable[[T], T] = cast(Any, router.post("/config/reload", response_model=InternalReloadResponse))
+
+
+@post_reload
 async def reload_endpoint(request: Request) -> InternalReloadResponse:
     _verify_hmac(request)
     info = reload_config()
@@ -55,7 +60,10 @@ async def reload_endpoint(request: Request) -> InternalReloadResponse:
     )
 
 
-@router.get("/rate-limit/policy", response_model=PolicyResponse)
+get_policy: Callable[[T], T] = cast(Any, router.get("/rate-limit/policy", response_model=PolicyResponse))
+
+
+@get_policy
 async def policy_introspection(
     route: Optional[str] = None, method: Optional[str] = None, bucket: str = "read"
 ) -> PolicyResponse:

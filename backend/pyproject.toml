@@ -142,10 +142,17 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_return_any = true
 disallow_untyped_defs = true
+explicit_package_bases = true
+follow_imports = "skip"
+files = [
+  "app/schemas/base.py",
+  "app/schemas/search_history_responses.py",
+  "app/routes/internal.py",
+]
 exclude = [
-  "backend/tests",
-  "backend/migrations",
-  "backend/scripts"
+  "tests",
+  "migrations",
+  "scripts"
 ]
 
 [[tool.mypy.overrides]]
