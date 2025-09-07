@@ -155,3 +155,10 @@ module = [
   "backend.app.routes.internal"
 ]
 strict = true
+
+[[tool.mypy.overrides]]
+module = [
+  "backend.app.schemas.*"
+]
+check_untyped_defs = true
+warn_unused_ignores = true

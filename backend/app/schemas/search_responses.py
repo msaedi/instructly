@@ -21,7 +21,11 @@ class InstructorInfo(BaseModel):
 
     @classmethod
     def from_user(
-        cls, user, bio: str = None, years_experience: int = None, areas_of_service: str = None
+        cls,
+        user,
+        bio: Optional[str] = None,
+        years_experience: Optional[int] = None,
+        areas_of_service: Optional[str] = None,
     ) -> "InstructorInfo":
         """Create InstructorInfo from user with privacy protection."""
         return cls(

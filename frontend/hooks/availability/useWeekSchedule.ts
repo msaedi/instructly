@@ -329,7 +329,7 @@ export function useWeekSchedule(
     setWeekSchedule({});
     setSavedWeekSchedule({});
     setExistingSlots([]);
-    fetchWeekSchedule();
+    void fetchWeekSchedule();
   }, [currentWeekStart, fetchWeekSchedule]);
 
   return {

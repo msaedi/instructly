@@ -5,6 +5,8 @@ import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { publicApi } from '@/features/shared/api/client';
+import { validateWithZod } from '@/features/shared/api/validation';
+import { loadSearchListSchema } from '@/features/shared/api/schemas/searchList';
 import InstructorCard from '@/components/InstructorCard';
 import dynamic from 'next/dynamic';
 const InstructorCoverageMap = dynamic(() => import('@/components/maps/InstructorCoverageMap'), { ssr: false });
@@ -183,8 +185,17 @@ function SearchPageContent() {
           setError(response.error);
           return;
         } else if (response.data) {
-          instructorsData = response.data.items;
-          totalResults = response.data.total;
+          // Dev/test-only validation of the response shape
+          const validated = await validateWithZod<{
+            items: unknown[];
+            total: number;
+            page: number;
+            per_page: number;
+            has_next: boolean;
+            has_prev: boolean;
+          }>(loadSearchListSchema, response.data, { endpoint: 'GET /instructors' });
+          instructorsData = validated.items as unknown as Instructor[];
+          totalResults = validated.total;
           const totalPages = Math.ceil(totalResults / 20);
           setHasMore(pageNum < totalPages);
         }

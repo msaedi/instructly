@@ -170,9 +170,9 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
     if (isOpen) {
       logger.debug('Edit profile modal opened');
       setError(''); // Clear any previous errors when modal opens
-      fetchProfile();
+      void fetchProfile();
       // Prefill selected neighborhoods from backend when opening areas-only variant
-      (async () => {
+      void (async () => {
         try {
           const areasRes = await fetchWithAuth('/api/addresses/service-areas/me');
           if (areasRes.ok) {

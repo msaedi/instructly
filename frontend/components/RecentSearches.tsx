@@ -33,9 +33,9 @@ export function RecentSearches() {
   useEffect(() => {
     if (isAuthLoading) return;
     if (isAuthenticated) {
-      fetchRecentSearches();
+      void fetchRecentSearches();
     } else {
-      loadGuestSearches();
+      void loadGuestSearches();
     }
   }, [isAuthenticated, isAuthLoading]);
 
@@ -44,7 +44,7 @@ export function RecentSearches() {
     if (isAuthLoading) return;
     if (!isAuthenticated) {
       const handleStorageChange = () => {
-        loadGuestSearches();
+        void loadGuestSearches();
       };
 
       window.addEventListener('storage', handleStorageChange);
@@ -65,7 +65,7 @@ export function RecentSearches() {
     if (isAuthLoading) return;
     if (isAuthenticated) {
       const handleSearchUpdate = () => {
-        fetchRecentSearches();
+        void fetchRecentSearches();
       };
 
       window.addEventListener('searchHistoryUpdated', handleSearchUpdate);
@@ -129,9 +129,9 @@ export function RecentSearches() {
       if (!success) {
         // On error, refresh to restore the correct state
         if (isAuthenticated) {
-          fetchRecentSearches();
+          await fetchRecentSearches();
         } else {
-          loadGuestSearches();
+          await loadGuestSearches();
         }
       }
     } catch (err) {
@@ -199,7 +199,7 @@ export function RecentSearches() {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    handleDeleteSearch(search.id);
+                    void handleDeleteSearch(search.id);
                   }}
                   className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
                   aria-label="Remove search"

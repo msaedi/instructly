@@ -77,13 +77,13 @@ export default function InstructorCard({
         logger.error('Failed to fetch service catalog', error as Error);
       }
     };
-    fetchServiceCatalog();
+    void fetchServiceCatalog();
   }, []);
 
   // Check favorite status on mount if user is logged in
   useEffect(() => {
     if (user && instructor?.user_id) {
-      favoritesApi.check(instructor.user_id)
+      void favoritesApi.check(instructor.user_id)
         .then(res => setIsFavorited(res.is_favorited))
         .catch(() => setIsFavorited(false));
     }
@@ -146,7 +146,7 @@ export default function InstructorCard({
         toast.success('Added to favorites!');
       }
       // Invalidate favorites list so dashboard tab reflects updates immediately
-      queryClient.invalidateQueries({ queryKey: ['favorites'] });
+      await queryClient.invalidateQueries({ queryKey: ['favorites'] });
     } catch (error) {
       // Revert on error
       setIsFavorited(isFavorited);
@@ -254,7 +254,7 @@ export default function InstructorCard({
                   <span className="font-medium">{rating}</span>
                   <span>·</span>
                   <button
-                    onClick={() => router.push(`/instructors/${instructor.user_id}/reviews`)}
+                    onClick={() => { router.push(`/instructors/${instructor.user_id}/reviews`); }}
                     className="underline-offset-2 hover:underline cursor-pointer"
                     aria-label="See all reviews"
                   >

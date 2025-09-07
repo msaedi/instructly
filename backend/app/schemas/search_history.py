@@ -103,7 +103,7 @@ class SearchHistoryResponse(SearchHistoryBase):
     @field_serializer("first_searched_at", "last_searched_at")
     def serialize_datetime(self, dt: datetime) -> str:
         """Serialize datetime to ISO format."""
-        return dt.isoformat() if dt else None
+        return dt.isoformat() if isinstance(dt, datetime) else ""
 
 
 class SearchHistoryInDB(SearchHistoryBase):

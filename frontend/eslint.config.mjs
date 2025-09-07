@@ -75,6 +75,66 @@ const eslintConfig = [
   },
   // (Reverted) Do not enable no-floating-promises globally; keep it scoped to API shim where typed linting is configured
   // No additional typed-rule overrides; all pages are linted uniformly
+  // Enforce no-floating-promises across app code with typed linting (scoped to app code only)
+  {
+    files: [
+      'components/**/*.{ts,tsx}',
+      'features/**/*.{ts,tsx}',
+      'hooks/**/*.{ts,tsx}',
+      'lib/**/*.{ts,tsx}',
+    ],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        // Use project service to avoid per-file project config churn
+        projectService: true,
+        tsconfigRootDir: __dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        {
+          ignoreVoid: true,
+          ignoreIIFE: true,
+        },
+      ],
+    },
+    ignores: [
+      '**/*.d.ts',
+      '**/__tests__/**',
+      'e2e/**',
+      'scripts/**',
+      'type-tests/**',
+      'types/generated/**',
+      'public/**',
+    ],
+  },
+  // Deferred surfaces (temporary): too many floaters; will be fixed incrementally
+  {
+    files: [
+      'app/(auth)/**/*.{ts,tsx}',
+      'app/(public)/**/*.{ts,tsx}',
+      'app/dashboard/**/*.{ts,tsx}',
+      'app/booking/**/*.{ts,tsx}',
+      'components/lessons/**/*.{ts,tsx}',
+      'components/chat/**/*.{ts,tsx}',
+      'components/instructor/**/*.{ts,tsx}',
+      'components/student/**/*.{ts,tsx}',
+      'components/ui/GlobalBackground.tsx',
+      'components/booking/CheckoutFlow.tsx',
+      'components/user/ProfilePictureUpload.tsx',
+      'features/student/**/*.{ts,tsx}',
+      'features/instructor-profile/**/*.{ts,tsx}',
+      'features/student/payment/**/*.{ts,tsx}',
+      'features/student/booking/**/*.{ts,tsx}',
+      'hooks/**/*.{ts,tsx}',
+      'lib/react-query/**/*.{ts,tsx}',
+    ],
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'off',
+    },
+  },
   // React Refresh ergonomics in component and test files
   {
     files: ['components/**/*', 'features/**/*', 'app/**/*', '__tests__/**/*'],

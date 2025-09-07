@@ -74,7 +74,7 @@ export function usePublicAvailability(instructorId: string, startDate?: Date) {
   }, [instructorId, startDate]);
 
   useEffect(() => {
-    fetchAvailability();
+    void fetchAvailability();
   }, [fetchAvailability]);
 
   const getAvailableDates = (): string[] => {
@@ -93,7 +93,7 @@ export function usePublicAvailability(instructorId: string, startDate?: Date) {
   };
 
   const refresh = () => {
-    fetchAvailability();
+    void fetchAvailability();
   };
 
   return {

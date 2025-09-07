@@ -98,14 +98,14 @@ export function useAnalyticsData(token: string | null): UseAnalyticsDataReturn {
 
   // Fetch data on mount and when date range changes
   useEffect(() => {
-    fetchAllData();
+    void fetchAllData();
   }, [fetchAllData]);
 
   // Auto-refresh every 5 minutes
   useEffect(() => {
     const interval = setInterval(
       () => {
-        fetchAllData();
+        void fetchAllData();
       },
       5 * 60 * 1000
     );

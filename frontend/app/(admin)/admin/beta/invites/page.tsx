@@ -43,7 +43,7 @@ export default function BetaInvitesAdminPage() {
         setBetaSummary(null);
       }
     }
-    fetchSummary();
+    void fetchSummary();
   }, []);
 
   useEffect(() => {
@@ -57,13 +57,13 @@ export default function BetaInvitesAdminPage() {
         if (!cancelled) {
           setProgress({ state: data.state, current: data.current, total: data.total, sent: data.sent, failed: data.failed });
           if (data.state === 'SUCCESS' || data.state === 'FAILURE') return; // stop
-          setTimeout(poll, 1500);
+          setTimeout(() => { void poll(); }, 1500);
         }
       } catch {
-        if (!cancelled) setTimeout(poll, 2000);
+        if (!cancelled) setTimeout(() => { void poll(); }, 2000);
       }
     }
-    poll();
+    void poll();
     return () => { cancelled = true; };
   }, [asyncTaskId]);
 
@@ -228,7 +228,7 @@ export default function BetaInvitesAdminPage() {
                       <Tooltip.Provider>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
-                            <button onClick={() => navigator.clipboard.writeText(result.code)} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
+                            <button onClick={() => { void navigator.clipboard.writeText(result.code); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
                           </Tooltip.Trigger>
                           <Tooltip.Portal>
                             <Tooltip.Content side="left" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Copy code</Tooltip.Content>
@@ -242,7 +242,7 @@ export default function BetaInvitesAdminPage() {
                       <Tooltip.Provider>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
-                            <button onClick={() => navigator.clipboard.writeText(result.join_url)} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
+                            <button onClick={() => { void navigator.clipboard.writeText(result.join_url); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
                           </Tooltip.Trigger>
                           <Tooltip.Portal>
                             <Tooltip.Content side="left" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Copy join URL</Tooltip.Content>
@@ -256,7 +256,7 @@ export default function BetaInvitesAdminPage() {
                       <Tooltip.Provider>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
-                            <button onClick={() => navigator.clipboard.writeText(result.welcome_url)} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
+                            <button onClick={() => { void navigator.clipboard.writeText(result.welcome_url); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
                           </Tooltip.Trigger>
                           <Tooltip.Portal>
                             <Tooltip.Content side="left" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Copy welcome URL</Tooltip.Content>
@@ -363,8 +363,8 @@ export default function BetaInvitesAdminPage() {
                                     <div key={it.id} className="flex items-center justify-between gap-2">
                                       <div className="truncate">{it.email} — <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">{it.code}</code></div>
                                       <div className="flex gap-1">
-                                        <button onClick={() => navigator.clipboard.writeText(it.code)} className="px-1 py-0.5 rounded ring-1 ring-gray-300 dark:ring-gray-700">Copy code</button>
-                                        <button onClick={() => navigator.clipboard.writeText(it.join_url)} className="px-1 py-0.5 rounded ring-1 ring-gray-300 dark:ring-gray-700">Copy join</button>
+                                        <button onClick={() => { void navigator.clipboard.writeText(it.code); }} className="px-1 py-0.5 rounded ring-1 ring-gray-300 dark:ring-gray-700">Copy code</button>
+                                        <button onClick={() => { void navigator.clipboard.writeText(it.join_url); }} className="px-1 py-0.5 rounded ring-1 ring-gray-300 dark:ring-gray-700">Copy join</button>
                                       </div>
                                     </div>
                                   ))}

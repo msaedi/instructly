@@ -389,6 +389,8 @@ class InstructorProfileResponse(InstructorProfileBase):
             buffer_time_minutes=instructor_profile.buffer_time_minutes,
             user=UserBasicPrivacy.from_user(instructor_profile.user),
             services=instructor_profile.services if hasattr(instructor_profile, "services") else [],
+            is_favorited=getattr(instructor_profile, "is_favorited", None),
+            favorited_count=getattr(instructor_profile, "favorited_count", 0),
             skills_configured=getattr(instructor_profile, "skills_configured", False),
             identity_verified_at=getattr(instructor_profile, "identity_verified_at", None),
             background_check_uploaded_at=getattr(instructor_profile, "background_check_uploaded_at", None),

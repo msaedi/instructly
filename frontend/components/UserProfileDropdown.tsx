@@ -47,7 +47,7 @@ export default function UserProfileDropdown() {
       }
     };
 
-    checkOnboardingStatus();
+    void checkOnboardingStatus();
   }, [user]);
 
   // Calculate dropdown position
@@ -90,7 +90,7 @@ export default function UserProfileDropdown() {
 
   const handleLogout = () => {
     setIsOpen(false);
-    logout();
+    void logout();
   };
 
   // Don't render until mounted to avoid hydration mismatch

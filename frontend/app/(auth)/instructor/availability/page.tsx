@@ -55,7 +55,7 @@ export default function InstructorAvailabilityPage() {
 
   useEffect(() => {
     if (!isLoading) {
-      fetchBookedSlots(currentWeekStart);
+      void fetchBookedSlots(currentWeekStart);
     }
   }, [currentWeekStart, isLoading, fetchBookedSlots]);
 
