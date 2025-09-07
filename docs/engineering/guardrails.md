@@ -62,3 +62,11 @@ npm run audit:typecov
 
 #### Notes
 - No runtime behavior is affected by these checks. All additions are config, CI glue, and docs.
+
+#### How to fix (cheat‑sheet)
+- no‑floating‑promises: Prefer `await`. For fire‑and‑forget, use `void fn().catch(handle)` to satisfy the rule and capture errors.
+- type‑smoke (tsd): Add/adjust `type-tests/*.test-d.ts` assertions. Avoid runtime imports; use `import type { ... }` only.
+- size‑limit: Watch large deps (e.g., `recharts`). Prefer subpath imports (e.g., `date-fns/format`), avoid accidental polyfills.
+- LHCI: Run `npm run audit:lhci` locally; artifacts in `.artifacts/lhci`. Read the HTML report to spot perf/a11y regressions.
+- MyPy (narrow): `mypy backend/app/schemas/base.py backend/app/schemas/search_history_responses.py backend/app/routes/internal.py`
+- Ruff: `ruff check --fix backend/app` to auto‑sort imports and quick‑fix lint issues.
