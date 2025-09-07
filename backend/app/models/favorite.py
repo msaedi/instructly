@@ -3,9 +3,9 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-import ulid
 from sqlalchemy import TIMESTAMP, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+import ulid
 
 from ..database import Base
 
@@ -37,16 +37,22 @@ class UserFavorite(Base):
     )
 
     # Timestamp
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
 
     # Relationships
-    student: Mapped["User"] = relationship("User", foreign_keys=[student_id], back_populates="student_favorites")
+    student: Mapped["User"] = relationship(
+        "User", foreign_keys=[student_id], back_populates="student_favorites"
+    )
 
     instructor: Mapped["User"] = relationship(
         "User", foreign_keys=[instructor_id], back_populates="instructor_favorites"
     )
 
-    __table_args__ = (UniqueConstraint("student_id", "instructor_id", name="unique_student_instructor_favorite"),)
+    __table_args__ = (
+        UniqueConstraint("student_id", "instructor_id", name="unique_student_instructor_favorite"),
+    )
 
     def __repr__(self) -> str:
         return f"<UserFavorite(student={self.student_id}, instructor={self.instructor_id})>"

@@ -1,6 +1,5 @@
 """Response models for search history endpoints."""
 
-
 from pydantic import BaseModel
 
 

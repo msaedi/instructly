@@ -17,10 +17,10 @@ Classes:
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-import ulid
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
+import ulid
 
 from ..database import Base
 
@@ -55,9 +55,13 @@ class Role(Base):
 
     # Relationships
     permissions: Mapped[List["Permission"]] = relationship(
-        secondary="role_permissions", back_populates="roles", lazy="selectin"  # Eager load permissions
+        secondary="role_permissions",
+        back_populates="roles",
+        lazy="selectin",  # Eager load permissions
     )
-    users: Mapped[List["User"]] = relationship("User", secondary="user_roles", back_populates="roles")
+    users: Mapped[List["User"]] = relationship(
+        "User", secondary="user_roles", back_populates="roles"
+    )
 
     def __repr__(self):
         return f"<Role {self.name}>"
@@ -92,7 +96,9 @@ class Permission(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    roles: Mapped[List["Role"]] = relationship(secondary="role_permissions", back_populates="permissions")
+    roles: Mapped[List["Role"]] = relationship(
+        secondary="role_permissions", back_populates="permissions"
+    )
 
     def __repr__(self):
         return f"<Permission {self.name}>"
@@ -112,9 +118,15 @@ class UserRole(Base):
 
     __tablename__ = "user_roles"
 
-    user_id: Mapped[str] = mapped_column(String(26), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    role_id: Mapped[str] = mapped_column(String(26), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
-    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    user_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
+    )
+    assigned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class RolePermission(Base):
@@ -130,7 +142,9 @@ class RolePermission(Base):
 
     __tablename__ = "role_permissions"
 
-    role_id: Mapped[str] = mapped_column(String(26), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
+    role_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
+    )
     permission_id: Mapped[str] = mapped_column(
         String(26), ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True
     )
@@ -151,7 +165,9 @@ class UserPermission(Base):
 
     __tablename__ = "user_permissions"
 
-    user_id: Mapped[str] = mapped_column(String(26), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
     permission_id: Mapped[str] = mapped_column(
         String(26), ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True
     )

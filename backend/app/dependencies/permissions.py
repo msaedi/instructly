@@ -145,7 +145,8 @@ def require_role(role_name: str):
 
         if role_name not in user_roles:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail=f"User does not have required role: {role_name}"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User does not have required role: {role_name}",
             )
 
         return current_user

@@ -7,12 +7,12 @@ This module defines ORM models for:
 - InstructorServiceArea: Link table between instructor users and neighborhoods
 """
 
-import logging
 from datetime import datetime, timezone
+import logging
 
-import ulid
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
+import ulid
 
 from ..database import Base
 
@@ -30,7 +30,9 @@ class UserAddress(Base):
     __tablename__ = "user_addresses"
 
     id = Column(String(26), primary_key=True, index=True, default=lambda: str(ulid.ULID()))
-    user_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     # Labels
     label = Column(String(20), nullable=True)  # 'home' | 'work' | 'other'
@@ -103,7 +105,9 @@ class InstructorServiceArea(Base):
     __tablename__ = "instructor_service_areas"
 
     instructor_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    neighborhood_id = Column(String(26), ForeignKey("region_boundaries.id", ondelete="CASCADE"), primary_key=True)
+    neighborhood_id = Column(
+        String(26), ForeignKey("region_boundaries.id", ondelete="CASCADE"), primary_key=True
+    )
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     is_active = Column(Boolean, nullable=False, default=True)

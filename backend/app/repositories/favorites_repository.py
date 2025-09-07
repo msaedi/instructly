@@ -50,7 +50,9 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
             # Check if already favorited
             existing = self.is_favorited(student_id, instructor_id)
             if existing:
-                self.logger.info(f"Student {student_id} already favorited instructor {instructor_id}")
+                self.logger.info(
+                    f"Student {student_id} already favorited instructor {instructor_id}"
+                )
                 return None
 
             # Create new favorite
@@ -65,7 +67,9 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
 
         except IntegrityError:
             self.db.rollback()
-            self.logger.warning(f"Duplicate favorite attempted: student={student_id}, instructor={instructor_id}")
+            self.logger.warning(
+                f"Duplicate favorite attempted: student={student_id}, instructor={instructor_id}"
+            )
             return None
         except Exception as e:
             self.db.rollback()
@@ -86,12 +90,19 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
         try:
             favorite = (
                 self.db.query(UserFavorite)
-                .filter(and_(UserFavorite.student_id == student_id, UserFavorite.instructor_id == instructor_id))
+                .filter(
+                    and_(
+                        UserFavorite.student_id == student_id,
+                        UserFavorite.instructor_id == instructor_id,
+                    )
+                )
                 .first()
             )
 
             if not favorite:
-                self.logger.info(f"No favorite found for student {student_id} and instructor {instructor_id}")
+                self.logger.info(
+                    f"No favorite found for student {student_id} and instructor {instructor_id}"
+                )
                 return False
 
             self.db.delete(favorite)
@@ -119,7 +130,12 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
         try:
             exists = (
                 self.db.query(UserFavorite)
-                .filter(and_(UserFavorite.student_id == student_id, UserFavorite.instructor_id == instructor_id))
+                .filter(
+                    and_(
+                        UserFavorite.student_id == student_id,
+                        UserFavorite.instructor_id == instructor_id,
+                    )
+                )
                 .first()
             )
             return exists is not None
@@ -174,7 +190,9 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
                 .all()
             )
 
-            self.logger.info(f"Retrieved {len(favorites)} favorites with details for student {student_id}")
+            self.logger.info(
+                f"Retrieved {len(favorites)} favorites with details for student {student_id}"
+            )
             return favorites
 
         except Exception as e:
@@ -193,13 +211,17 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
         """
         try:
             count = (
-                self.db.query(func.count(UserFavorite.id)).filter(UserFavorite.instructor_id == instructor_id).scalar()
+                self.db.query(func.count(UserFavorite.id))
+                .filter(UserFavorite.instructor_id == instructor_id)
+                .scalar()
             )
 
             return count or 0
 
         except Exception as e:
-            self.logger.error(f"Error getting favorite count for instructor {instructor_id}: {str(e)}")
+            self.logger.error(
+                f"Error getting favorite count for instructor {instructor_id}: {str(e)}"
+            )
             return 0
 
     def get_favorite_ids_for_student(self, student_id: str) -> List[str]:
@@ -215,7 +237,9 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
         """
         try:
             instructor_ids = (
-                self.db.query(UserFavorite.instructor_id).filter(UserFavorite.student_id == student_id).all()
+                self.db.query(UserFavorite.instructor_id)
+                .filter(UserFavorite.student_id == student_id)
+                .all()
             )
 
             return [id[0] for id in instructor_ids]
@@ -240,7 +264,9 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
             favorited_ids = set(self.get_favorite_ids_for_student(student_id))
 
             # Create result dictionary
-            result = {instructor_id: instructor_id in favorited_ids for instructor_id in instructor_ids}
+            result = {
+                instructor_id: instructor_id in favorited_ids for instructor_id in instructor_ids
+            }
 
             return result
 

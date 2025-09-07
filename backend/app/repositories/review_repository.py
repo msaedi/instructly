@@ -37,7 +37,10 @@ class ReviewRepository(BaseRepository[Review]):
 
     def exists_for_booking(self, booking_id: str) -> bool:
         try:
-            return self.db.query(self.model.id).filter(self.model.booking_id == booking_id).first() is not None
+            return (
+                self.db.query(self.model.id).filter(self.model.booking_id == booking_id).first()
+                is not None
+            )
         except Exception as e:
             self.logger.error(f"Error checking review existence: {e}")
             raise RepositoryException(f"Failed to check review existence: {e}")
@@ -112,7 +115,9 @@ class ReviewRepository(BaseRepository[Review]):
                 .filter(
                     and_(
                         Review.instructor_id == instructor_id,
-                        Review.status.in_([ReviewStatus.PUBLISHED.value, ReviewStatus.FLAGGED.value]),
+                        Review.status.in_(
+                            [ReviewStatus.PUBLISHED.value, ReviewStatus.FLAGGED.value]
+                        ),
                     )
                 )
                 .group_by(Review.instructor_service_id)
@@ -249,7 +254,10 @@ class ReviewResponseRepository(BaseRepository[ReviewResponse]):
 
     def exists_for_review(self, review_id: str) -> bool:
         try:
-            return self.db.query(self.model.id).filter(self.model.review_id == review_id).first() is not None
+            return (
+                self.db.query(self.model.id).filter(self.model.review_id == review_id).first()
+                is not None
+            )
         except Exception as e:
             raise RepositoryException(f"Failed to check response existence: {e}")
 

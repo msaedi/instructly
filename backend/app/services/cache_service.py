@@ -12,17 +12,17 @@ UPDATED IN v65:
 Now monitoring all cache operations to optimize energy usage! ⚡
 """
 
+from datetime import date, datetime, time, timedelta
+from enum import Enum
+from functools import wraps
 import hashlib
 import json
 import logging
 import threading
-from datetime import date, datetime, time, timedelta
-from enum import Enum
-from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import redis
 from fastapi import Depends
+import redis
 from redis import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.orm import Session
@@ -228,7 +228,9 @@ class CacheService(BaseService):
 
     def _create_circuit_breaker(self) -> CircuitBreaker:
         """Create and configure circuit breaker for resilience."""
-        return CircuitBreaker(failure_threshold=5, recovery_timeout=60, expected_exception=RedisError)
+        return CircuitBreaker(
+            failure_threshold=5, recovery_timeout=60, expected_exception=RedisError
+        )
 
     def _setup_redis_connection(self) -> None:
         """Setup Redis connection with fallback to in-memory cache."""
@@ -474,7 +476,9 @@ class CacheService(BaseService):
     # Domain-Specific Methods
 
     @BaseService.measure_operation("cache_week_availability")
-    def cache_week_availability(self, instructor_id: int, week_start: date, availability_data: Dict[str, Any]) -> bool:
+    def cache_week_availability(
+        self, instructor_id: int, week_start: date, availability_data: Dict[str, Any]
+    ) -> bool:
         """Cache week availability with smart TTL."""
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
 
@@ -487,7 +491,9 @@ class CacheService(BaseService):
         return self.set(key, availability_data, tier=tier)
 
     @BaseService.measure_operation("get_week_availability")
-    def get_week_availability(self, instructor_id: int, week_start: date) -> Optional[Dict[str, Any]]:
+    def get_week_availability(
+        self, instructor_id: int, week_start: date
+    ) -> Optional[Dict[str, Any]]:
         """Get cached week availability."""
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
         result = self.get(key)
@@ -502,7 +508,11 @@ class CacheService(BaseService):
 
     @BaseService.measure_operation("cache_instructor_availability_date_range")
     def cache_instructor_availability_date_range(
-        self, instructor_id: int, start_date: date, end_date: date, availability_data: List[Dict[str, Any]]
+        self,
+        instructor_id: int,
+        start_date: date,
+        end_date: date,
+        availability_data: List[Dict[str, Any]],
     ) -> bool:
         """Cache instructor availability for a date range with optimized TTL."""
         key = self.key_builder.build("availability", "range", instructor_id, start_date, end_date)
@@ -540,7 +550,9 @@ class CacheService(BaseService):
         return self.set(key, weekly_data, tier="hot")  # 5 minutes
 
     @BaseService.measure_operation("get_instructor_weekly_availability")
-    def get_instructor_weekly_availability(self, instructor_id: int) -> Optional[Dict[str, List[Dict[str, Any]]]]:
+    def get_instructor_weekly_availability(
+        self, instructor_id: int
+    ) -> Optional[Dict[str, List[Dict[str, Any]]]]:
         """Get cached instructor weekly availability pattern."""
         key = self.key_builder.build("availability", "weekly", instructor_id)
         result = self.get(key)
@@ -562,7 +574,9 @@ class CacheService(BaseService):
             instructor_id = entry["instructor_id"]
             if "week_start" in entry:
                 # Week availability
-                key = self.key_builder.build("availability", "week", instructor_id, entry["week_start"])
+                key = self.key_builder.build(
+                    "availability", "week", instructor_id, entry["week_start"]
+                )
                 cache_data[key] = entry["data"]
             elif "start_date" in entry and "end_date" in entry:
                 # Date range availability
@@ -793,7 +807,9 @@ def get_cache_service(db: Session = Depends(get_db)) -> CacheService:
         CacheService: Fresh cache service instance
     """
     try:
-        redis_client = redis.from_url(settings.redis_url or "redis://localhost:6379", decode_responses=True)
+        redis_client = redis.from_url(
+            settings.redis_url or "redis://localhost:6379", decode_responses=True
+        )
         redis_client.ping()
     except:
         redis_client = None

@@ -14,13 +14,13 @@ This repository handles:
 - Instructor earnings calculations
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Any, Dict, List, Optional
 
-import ulid
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
+import ulid
 
 from ..core.exceptions import RepositoryException
 from ..models.booking import Booking
@@ -108,7 +108,11 @@ class PaymentRepository(BaseRepository):
             StripeCustomer if found, None otherwise
         """
         try:
-            return self.db.query(StripeCustomer).filter(StripeCustomer.stripe_customer_id == stripe_customer_id).first()
+            return (
+                self.db.query(StripeCustomer)
+                .filter(StripeCustomer.stripe_customer_id == stripe_customer_id)
+                .first()
+            )
         except Exception as e:
             self.logger.error(f"Failed to get customer by Stripe ID: {str(e)}")
             raise RepositoryException(f"Failed to get customer by Stripe ID: {str(e)}")
@@ -146,7 +150,9 @@ class PaymentRepository(BaseRepository):
             self.logger.error(f"Failed to create connected account: {str(e)}")
             raise RepositoryException(f"Failed to create connected account: {str(e)}")
 
-    def get_connected_account_by_instructor_id(self, instructor_profile_id: str) -> Optional[StripeConnectedAccount]:
+    def get_connected_account_by_instructor_id(
+        self, instructor_profile_id: str
+    ) -> Optional[StripeConnectedAccount]:
         """
         Get connected account by instructor profile ID.
 
@@ -166,7 +172,9 @@ class PaymentRepository(BaseRepository):
             self.logger.error(f"Failed to get connected account: {str(e)}")
             raise RepositoryException(f"Failed to get connected account: {str(e)}")
 
-    def update_onboarding_status(self, stripe_account_id: str, completed: bool) -> Optional[StripeConnectedAccount]:
+    def update_onboarding_status(
+        self, stripe_account_id: str, completed: bool
+    ) -> Optional[StripeConnectedAccount]:
         """
         Update the onboarding status of a connected account.
 
@@ -246,7 +254,9 @@ class PaymentRepository(BaseRepository):
         """
         try:
             payment = (
-                self.db.query(PaymentIntent).filter(PaymentIntent.stripe_payment_intent_id == payment_intent_id).first()
+                self.db.query(PaymentIntent)
+                .filter(PaymentIntent.stripe_payment_intent_id == payment_intent_id)
+                .first()
             )
             if payment:
                 payment.status = status
@@ -268,7 +278,9 @@ class PaymentRepository(BaseRepository):
         """
         try:
             return (
-                self.db.query(PaymentIntent).filter(PaymentIntent.stripe_payment_intent_id == payment_intent_id).first()
+                self.db.query(PaymentIntent)
+                .filter(PaymentIntent.stripe_payment_intent_id == payment_intent_id)
+                .first()
             )
         except Exception as e:
             self.logger.error(f"Failed to get payment by intent ID: {str(e)}")
@@ -285,7 +297,9 @@ class PaymentRepository(BaseRepository):
             PaymentIntent if found, None otherwise
         """
         try:
-            return self.db.query(PaymentIntent).filter(PaymentIntent.booking_id == booking_id).first()
+            return (
+                self.db.query(PaymentIntent).filter(PaymentIntent.booking_id == booking_id).first()
+            )
         except Exception as e:
             self.logger.error(f"Failed to get payment by booking ID: {str(e)}")
             raise RepositoryException(f"Failed to get payment by booking ID: {str(e)}")
@@ -338,7 +352,12 @@ class PaymentRepository(BaseRepository):
     # ========== Payment Method Management ==========
 
     def save_payment_method(
-        self, user_id: str, stripe_payment_method_id: str, last4: str, brand: str, is_default: bool = False
+        self,
+        user_id: str,
+        stripe_payment_method_id: str,
+        last4: str,
+        brand: str,
+        is_default: bool = False,
     ) -> PaymentMethod:
         """
         Save a payment method for a user.
@@ -448,7 +467,9 @@ class PaymentRepository(BaseRepository):
             self.logger.error(f"Failed to get default payment method: {str(e)}")
             raise RepositoryException(f"Failed to get default payment method: {str(e)}")
 
-    def get_payment_method_by_stripe_id(self, stripe_payment_method_id: str, user_id: str) -> Optional[PaymentMethod]:
+    def get_payment_method_by_stripe_id(
+        self, stripe_payment_method_id: str, user_id: str
+    ) -> Optional[PaymentMethod]:
         """
         Get a payment method by its Stripe ID.
 
@@ -494,7 +515,9 @@ class PaymentRepository(BaseRepository):
             # Set the new default
             result = (
                 self.db.query(PaymentMethod)
-                .filter(and_(PaymentMethod.id == payment_method_id, PaymentMethod.user_id == user_id))
+                .filter(
+                    and_(PaymentMethod.id == payment_method_id, PaymentMethod.user_id == user_id)
+                )
                 .update({"is_default": True})
             )
             self.db.flush()
@@ -531,7 +554,11 @@ class PaymentRepository(BaseRepository):
                 # Otherwise treat it as a database ID
                 result = (
                     self.db.query(PaymentMethod)
-                    .filter(and_(PaymentMethod.id == payment_method_id, PaymentMethod.user_id == user_id))
+                    .filter(
+                        and_(
+                            PaymentMethod.id == payment_method_id, PaymentMethod.user_id == user_id
+                        )
+                    )
                     .delete()
                 )
             self.db.flush()
@@ -581,7 +608,10 @@ class PaymentRepository(BaseRepository):
             raise RepositoryException(f"Failed to get platform revenue stats: {str(e)}")
 
     def get_instructor_earnings(
-        self, instructor_profile_id: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+        self,
+        instructor_profile_id: str,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Calculate instructor earnings after platform fees.
@@ -598,16 +628,21 @@ class PaymentRepository(BaseRepository):
             # Join PaymentIntent with Booking to filter by instructor
             query = (
                 self.db.query(
-                    func.sum(PaymentIntent.amount - PaymentIntent.application_fee).label("total_earned"),
+                    func.sum(PaymentIntent.amount - PaymentIntent.application_fee).label(
+                        "total_earned"
+                    ),
                     func.sum(PaymentIntent.application_fee).label("total_fees"),
                     func.count(PaymentIntent.id).label("booking_count"),
-                    func.avg(PaymentIntent.amount - PaymentIntent.application_fee).label("average_earning"),
+                    func.avg(PaymentIntent.amount - PaymentIntent.application_fee).label(
+                        "average_earning"
+                    ),
                 )
                 .join(Booking, PaymentIntent.booking_id == Booking.id)
                 .filter(
                     and_(
                         PaymentIntent.status == "succeeded",
-                        Booking.instructor_id == instructor_profile_id,  # Assuming instructor_id maps to profile
+                        Booking.instructor_id
+                        == instructor_profile_id,  # Assuming instructor_id maps to profile
                     )
                 )
             )
@@ -629,7 +664,9 @@ class PaymentRepository(BaseRepository):
             self.logger.error(f"Failed to get instructor earnings: {str(e)}")
             raise RepositoryException(f"Failed to get instructor earnings: {str(e)}")
 
-    def get_user_payment_history(self, user_id: str, limit: int = 20, offset: int = 0) -> List[PaymentIntent]:
+    def get_user_payment_history(
+        self, user_id: str, limit: int = 20, offset: int = 0
+    ) -> List[PaymentIntent]:
         """
         Get payment history for a user (as a student).
 
@@ -649,7 +686,12 @@ class PaymentRepository(BaseRepository):
             results = (
                 self.db.query(PaymentIntent)
                 .join(Booking, PaymentIntent.booking_id == Booking.id)
-                .filter(and_(Booking.student_id == user_id, PaymentIntent.status.in_(["succeeded", "processing"])))
+                .filter(
+                    and_(
+                        Booking.student_id == user_id,
+                        PaymentIntent.status.in_(["succeeded", "processing"]),
+                    )
+                )
                 .order_by(PaymentIntent.created_at.desc())
                 .limit(limit)
                 .offset(offset)
@@ -723,7 +765,9 @@ class PaymentRepository(BaseRepository):
             self.logger.error(f"Failed to get payment events: {str(e)}")
             raise RepositoryException(f"Failed to get payment events: {str(e)}")
 
-    def get_latest_payment_event(self, booking_id: str, event_type: Optional[str] = None) -> Optional[PaymentEvent]:
+    def get_latest_payment_event(
+        self, booking_id: str, event_type: Optional[str] = None
+    ) -> Optional[PaymentEvent]:
         """
         Get the latest payment event for a booking.
 
@@ -794,7 +838,9 @@ class PaymentRepository(BaseRepository):
             self.logger.error(f"Failed to create platform credit: {str(e)}")
             raise RepositoryException(f"Failed to create platform credit: {str(e)}")
 
-    def apply_credits_for_booking(self, *, user_id: str, booking_id: str, amount_cents: int) -> Dict[str, Any]:
+    def apply_credits_for_booking(
+        self, *, user_id: str, booking_id: str, amount_cents: int
+    ) -> Dict[str, Any]:
         """
         Consume available platform credits to offset an amount for a booking.
 

@@ -60,4 +60,6 @@ class PasswordResetVerifyResponseInvalid(BaseModel):
 
 
 # Union type for the actual response
-PasswordResetVerifyResponse = Union[PasswordResetVerifyResponseValid, PasswordResetVerifyResponseInvalid]
+PasswordResetVerifyResponse = Union[
+    PasswordResetVerifyResponseValid, PasswordResetVerifyResponseInvalid
+]

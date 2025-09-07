@@ -27,7 +27,9 @@ class MarkMessagesReadRequest(BaseModel):
     """Request to mark messages as read."""
 
     booking_id: Optional[str] = Field(None, description="Mark all messages in this booking as read")
-    message_ids: Optional[List[str]] = Field(None, description="Specific message IDs to mark as read")
+    message_ids: Optional[List[str]] = Field(
+        None, description="Specific message IDs to mark as read"
+    )
 
     @model_validator(mode="after")
     def check_either_booking_or_ids(self) -> "MarkMessagesReadRequest":

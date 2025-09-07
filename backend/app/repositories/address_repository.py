@@ -16,7 +16,9 @@ class UserAddressRepository(BaseRepository[UserAddress]):
         query = self._build_query().filter(UserAddress.user_id == user_id)
         if active_only:
             query = query.filter(UserAddress.is_active.is_(True))
-        return self._execute_query(query.order_by(UserAddress.is_default.desc(), UserAddress.created_at.desc()))
+        return self._execute_query(
+            query.order_by(UserAddress.is_default.desc(), UserAddress.created_at.desc())
+        )
 
     def unset_default(self, user_id: str) -> int:
         return (
@@ -38,7 +40,9 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
     def __init__(self, db: Session):
         super().__init__(db, InstructorServiceArea)
 
-    def list_for_instructor(self, instructor_id: str, active_only: bool = True) -> List[InstructorServiceArea]:
+    def list_for_instructor(
+        self, instructor_id: str, active_only: bool = True
+    ) -> List[InstructorServiceArea]:
         query = self._build_query().filter(InstructorServiceArea.instructor_id == instructor_id)
         if active_only:
             query = query.filter(InstructorServiceArea.is_active.is_(True))
@@ -99,11 +103,16 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
             is_active=is_active,
         )
 
-    def list_neighborhoods_for_instructors(self, instructor_ids: List[str]) -> list[InstructorServiceArea]:
+    def list_neighborhoods_for_instructors(
+        self, instructor_ids: List[str]
+    ) -> list[InstructorServiceArea]:
         if not instructor_ids:
             return []
         return (
             self._build_query()
-            .filter(InstructorServiceArea.instructor_id.in_(instructor_ids), InstructorServiceArea.is_active.is_(True))
+            .filter(
+                InstructorServiceArea.instructor_id.in_(instructor_ids),
+                InstructorServiceArea.is_active.is_(True),
+            )
             .all()
         )

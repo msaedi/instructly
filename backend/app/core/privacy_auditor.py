@@ -10,15 +10,15 @@ The auditor ensures that privacy rules are enforced across all API endpoints,
 preventing exposure of sensitive data like full last names, emails, phone numbers, etc.
 """
 
-import json
-import logging
-import re
-import time
-import traceback
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+import json
+import logging
 from pathlib import Path
+import re
+import time
+import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -54,7 +54,9 @@ class PrivacyRule:
     description: str
     forbidden_fields: List[str] = field(default_factory=list)
     allowed_fields: List[str] = field(default_factory=list)
-    field_format: Dict[str, str] = field(default_factory=dict)  # e.g., {"name": "first_name last_initial"}
+    field_format: Dict[str, str] = field(
+        default_factory=dict
+    )  # e.g., {"name": "first_name last_initial"}
     severity: ViolationSeverity = ViolationSeverity.HIGH
 
 
@@ -184,7 +186,9 @@ class PrivacyAuditor:
     def _setup_logging(self):
         """Configure logging based on verbosity."""
         level = logging.DEBUG if self.verbose else logging.INFO
-        logging.basicConfig(level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        logging.basicConfig(
+            level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
 
     async def _authenticate_user(self, email: str, password: str = "Test1234") -> Optional[str]:
         """Authenticate a user and return their token."""
@@ -192,7 +196,9 @@ class PrivacyAuditor:
             return self.auth_tokens[email]
 
         try:
-            response = await self.client.post("/auth/login", data={"username": email, "password": password})
+            response = await self.client.post(
+                "/auth/login", data={"username": email, "password": password}
+            )
             if response.status_code == 200:
                 data = response.json()
                 token = data.get("access_token")
@@ -203,7 +209,9 @@ class PrivacyAuditor:
 
         return None
 
-    def _check_field_recursively(self, data: Any, field_name: str, path: str = "") -> List[Tuple[str, Any]]:
+    def _check_field_recursively(
+        self, data: Any, field_name: str, path: str = ""
+    ) -> List[Tuple[str, Any]]:
         """
         Recursively check for a field in nested data structures.
 
@@ -224,7 +232,9 @@ class PrivacyAuditor:
 
         return findings
 
-    def _check_privacy_violations(self, data: Any, rules: PrivacyRule, endpoint: str, method: str) -> List[Violation]:
+    def _check_privacy_violations(
+        self, data: Any, rules: PrivacyRule, endpoint: str, method: str
+    ) -> List[Violation]:
         """Check data against privacy rules and return violations."""
         violations = []
 
@@ -271,7 +281,9 @@ class PrivacyAuditor:
             return bool(re.match(pattern, str(value)))
         return True
 
-    async def _test_endpoint(self, endpoint: EndpointTest, as_user: Optional[str] = None) -> List[Violation]:
+    async def _test_endpoint(
+        self, endpoint: EndpointTest, as_user: Optional[str] = None
+    ) -> List[Violation]:
         """Test a single endpoint for privacy violations."""
         violations = []
         headers = {}
@@ -288,13 +300,21 @@ class PrivacyAuditor:
         try:
             # Make the HTTP request
             if endpoint.method.upper() == "GET":
-                response = await self.client.get(endpoint.path, params=endpoint.params, headers=headers)
+                response = await self.client.get(
+                    endpoint.path, params=endpoint.params, headers=headers
+                )
             elif endpoint.method.upper() == "POST":
-                response = await self.client.post(endpoint.path, json=endpoint.body, headers=headers)
+                response = await self.client.post(
+                    endpoint.path, json=endpoint.body, headers=headers
+                )
             else:
                 # Add other methods as needed
                 response = await self.client.request(
-                    endpoint.method, endpoint.path, params=endpoint.params, json=endpoint.body, headers=headers
+                    endpoint.method,
+                    endpoint.path,
+                    params=endpoint.params,
+                    json=endpoint.body,
+                    headers=headers,
                 )
 
             # Check response
@@ -307,14 +327,23 @@ class PrivacyAuditor:
                         rules = PrivacyRule(
                             name="public_endpoints",
                             description="Public endpoint privacy rules",
-                            forbidden_fields=self.config["rules"]["public_endpoints"]["forbidden_fields"],
-                            allowed_fields=self.config["rules"]["public_endpoints"]["allowed_fields"],
+                            forbidden_fields=self.config["rules"]["public_endpoints"][
+                                "forbidden_fields"
+                            ],
+                            allowed_fields=self.config["rules"]["public_endpoints"][
+                                "allowed_fields"
+                            ],
                         )
-                    elif endpoint.category == EndpointCategory.STUDENT and as_user in self.test_users["students"]:
+                    elif (
+                        endpoint.category == EndpointCategory.STUDENT
+                        and as_user in self.test_users["students"]
+                    ):
                         rules = PrivacyRule(
                             name="student_view",
                             description="Student viewing data",
-                            forbidden_fields=self.config["rules"]["student_view_instructor"]["forbidden_fields"],
+                            forbidden_fields=self.config["rules"]["student_view_instructor"][
+                                "forbidden_fields"
+                            ],
                             field_format={"instructor_name": "first_name last_initial"},
                         )
                     else:
@@ -326,7 +355,9 @@ class PrivacyAuditor:
                         )
 
                     # Check for violations
-                    endpoint_violations = self._check_privacy_violations(data, rules, endpoint.path, endpoint.method)
+                    endpoint_violations = self._check_privacy_violations(
+                        data, rules, endpoint.path, endpoint.method
+                    )
                     violations.extend(endpoint_violations)
 
                 except json.JSONDecodeError:
@@ -359,7 +390,12 @@ class PrivacyAuditor:
                 category=EndpointCategory.PUBLIC,
                 params={"q": "piano", "limit": 5},
             ),
-            EndpointTest(path="/services/search", method="GET", category=EndpointCategory.PUBLIC, params={"q": "yoga"}),
+            EndpointTest(
+                path="/services/search",
+                method="GET",
+                category=EndpointCategory.PUBLIC,
+                params={"q": "yoga"},
+            ),
             EndpointTest(
                 path="/api/public/instructors/01J5TESTINSTR0000000000001/availability",
                 method="GET",
@@ -499,7 +535,9 @@ class PrivacyAuditor:
 
         elif format == "markdown":
             report = ["# Privacy Audit Report\n"]
-            report.append(f"**Date**: {result.timestamp.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n")
+            report.append(
+                f"**Date**: {result.timestamp.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n"
+            )
             report.append(f"**Execution Time**: {result.execution_time:.2f}s\n")
             report.append("\n## Summary\n")
             report.append(f"- Total Endpoints Tested: {result.summary['total_endpoints']}\n")
@@ -551,7 +589,9 @@ async def run_privacy_audit(
     Returns:
         Tuple of (AuditResult, formatted_report)
     """
-    auditor = PrivacyAuditor(base_url=base_url, test_mode=test_mode, config_file=config_file, verbose=verbose)
+    auditor = PrivacyAuditor(
+        base_url=base_url, test_mode=test_mode, config_file=config_file, verbose=verbose
+    )
 
     # Store filters for use in audit
     auditor.filter_category = filter_category

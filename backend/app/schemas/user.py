@@ -1,8 +1,8 @@
 import re
 from typing import List, Optional
 
-import pytz
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+import pytz
 
 from .base import StandardizedModel
 

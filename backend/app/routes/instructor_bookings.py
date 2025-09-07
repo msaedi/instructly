@@ -39,12 +39,15 @@ def check_permission(user: User, permission: PermissionName, db: Session) -> Non
     permission_service = PermissionService(db)
     if not permission_service.user_has_permission(user.id, permission):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=f"User does not have required permission: {permission}"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"User does not have required permission: {permission}",
         )
 
 
 @router.post(
-    "/{booking_id}/complete", response_model=BookingResponse, dependencies=[Depends(require_beta_access("instructor"))]
+    "/{booking_id}/complete",
+    response_model=BookingResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def mark_lesson_complete(
     booking_id: str,
@@ -84,7 +87,8 @@ async def mark_lesson_complete(
     # Verify this is the instructor's booking
     if booking.instructor_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="You can only mark your own lessons as complete"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="You can only mark your own lessons as complete",
         )
 
     # Verify booking is in correct status
@@ -99,7 +103,8 @@ async def mark_lesson_complete(
     lesson_end = datetime.combine(booking.booking_date, booking.end_time)
     if lesson_end > now:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cannot mark lesson as complete before it ends"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Cannot mark lesson as complete before it ends",
         )
 
     # Mark as completed
@@ -155,7 +160,9 @@ async def get_pending_completion_bookings(
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
     # Get instructor's confirmed bookings
-    bookings = booking_repo.get_instructor_bookings(instructor_id=current_user.id, status=BookingStatus.CONFIRMED)
+    bookings = booking_repo.get_instructor_bookings(
+        instructor_id=current_user.id, status=BookingStatus.CONFIRMED
+    )
 
     # Filter to only past lessons
     now = datetime.now(timezone.utc)
@@ -217,7 +224,9 @@ async def get_completed_bookings(
     )
 
     # Get total count
-    total_bookings = booking_repo.get_instructor_bookings(instructor_id=current_user.id, status=BookingStatus.COMPLETED)
+    total_bookings = booking_repo.get_instructor_bookings(
+        instructor_id=current_user.id, status=BookingStatus.COMPLETED
+    )
     total = len(total_bookings)
 
     # Return paginated response
@@ -232,7 +241,9 @@ async def get_completed_bookings(
 
 
 @router.post(
-    "/{booking_id}/dispute", response_model=BookingResponse, dependencies=[Depends(require_beta_access("instructor"))]
+    "/{booking_id}/dispute",
+    response_model=BookingResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def dispute_completion(
     booking_id: str,
@@ -265,7 +276,8 @@ async def dispute_completion(
     # Verify this is the instructor's booking
     if booking.instructor_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="You can only dispute your own lessons"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="You can only dispute your own lessons",
         )
 
     # Record dispute event

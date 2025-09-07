@@ -19,12 +19,12 @@ Future Extension Points:
 - Audit logging of all database operations
 """
 
+from datetime import datetime, timezone
 import json
 import logging
 import os
-import sys
-from datetime import datetime, timezone
 from pathlib import Path
+import sys
 from typing import Dict, Literal, Optional
 
 from .config import settings
@@ -47,7 +47,9 @@ class DatabaseConfig:
         # Access raw fields directly to avoid circular dependency
         self.int_url = settings.int_database_url_raw
         self.stg_url = (
-            settings.stg_database_url_raw if settings.stg_database_url_raw else settings.prod_database_url_raw
+            settings.stg_database_url_raw
+            if settings.stg_database_url_raw
+            else settings.prod_database_url_raw
         )
         self.prod_url = settings.prod_database_url_raw or ""
         self.preview_url = settings.preview_database_url_raw
@@ -79,11 +81,16 @@ class DatabaseConfig:
             # Check if CI has provided a custom DATABASE_URL
             ci_database_url = os.getenv("DATABASE_URL")
             if ci_database_url:
-                logger.info(f"CI environment using provided DATABASE_URL: {self._mask_url(ci_database_url)}")
+                logger.info(
+                    f"CI environment using provided DATABASE_URL: {self._mask_url(ci_database_url)}"
+                )
                 print("\033[94m[CI]\033[0m Using CI-provided database")
                 self._audit_log_operation(
                     "ci_database_selection",
-                    {"url": self._mask_url(ci_database_url), "ci_environment": os.getenv("CI", "unknown")},
+                    {
+                        "url": self._mask_url(ci_database_url),
+                        "ci_environment": os.getenv("CI", "unknown"),
+                    },
                 )
                 return ci_database_url
 
@@ -184,18 +191,27 @@ class DatabaseConfig:
     def _get_int_url(self) -> str:
         """Get integration test database URL."""
         if not self.int_url:
-            raise ValueError("INT database URL not configured. " "Please set test_database_url in your .env file.")
+            raise ValueError(
+                "INT database URL not configured. "
+                "Please set test_database_url in your .env file."
+            )
         if not os.getenv("SUPPRESS_DB_MESSAGES"):
             print("\033[92m[INT]\033[0m Using Integration Test database (safe for drops/resets)")
-        self._audit_log_operation("database_selection", {"environment": "int", "url": self._mask_url(self.int_url)})
+        self._audit_log_operation(
+            "database_selection", {"environment": "int", "url": self._mask_url(self.int_url)}
+        )
         return self.int_url
 
     def _get_staging_url(self) -> str:
         """Get staging/local development database URL."""
         if not self.stg_url:
-            raise ValueError("STG database URL not configured. " "Please set stg_database_url in your .env file.")
+            raise ValueError(
+                "STG database URL not configured. " "Please set stg_database_url in your .env file."
+            )
         print("\033[93m[STG]\033[0m Using Staging/Local Dev database (preserves data)")
-        self._audit_log_operation("database_selection", {"environment": "stg", "url": self._mask_url(self.stg_url)})
+        self._audit_log_operation(
+            "database_selection", {"environment": "stg", "url": self._mask_url(self.stg_url)}
+        )
         return self.stg_url
 
     def _get_preview_url(self) -> str:
@@ -206,7 +222,8 @@ class DatabaseConfig:
             )
         print("\033[96m[PREVIEW]\033[0m Using Preview database")
         self._audit_log_operation(
-            "database_selection", {"environment": "preview", "url": self._mask_url(self.preview_url)}
+            "database_selection",
+            {"environment": "preview", "url": self._mask_url(self.preview_url)},
         )
         return self.preview_url
 
@@ -248,7 +265,9 @@ class DatabaseConfig:
 
         # Check if running in non-interactive mode
         if not sys.stdin.isatty():
-            self._audit_log_operation("production_access_denied", {"reason": "non_interactive_mode"})
+            self._audit_log_operation(
+                "production_access_denied", {"reason": "non_interactive_mode"}
+            )
             raise RuntimeError(
                 "Production database access requested in non-interactive mode. "
                 "Production access requires interactive confirmation. "
@@ -266,7 +285,9 @@ class DatabaseConfig:
         self._post_production_approval()
 
         print("\033[91m[PROD]\033[0m Using Production database - BE CAREFUL!")
-        self._audit_log_operation("production_access_granted", {"url": self._mask_url(self.prod_url)})
+        self._audit_log_operation(
+            "production_access_granted", {"url": self._mask_url(self.prod_url)}
+        )
         return self.prod_url
 
     def validate_configuration(self) -> None:
@@ -289,7 +310,9 @@ class DatabaseConfig:
                 errors.append("PREVIEW database (preview_database_url) not configured")
         elif site_mode in {"local", "stg", "stage", "staging"}:
             if not self.stg_url and not self.prod_url:
-                errors.append("STG database (stg_database_url) not configured and no prod_database_url fallback")
+                errors.append(
+                    "STG database (stg_database_url) not configured and no prod_database_url fallback"
+                )
             elif not self.stg_url and self.prod_url and not self._is_ci_environment():
                 logger.info(
                     "STG database (stg_database_url) not configured; using prod_database_url as fallback for SITE_MODE=local/stg"
@@ -308,7 +331,9 @@ class DatabaseConfig:
                     errors.append("INT database (test_database_url) not configured")
 
         if errors:
-            raise ValueError("Database configuration errors:\n" + "\n".join(f"  - {error}" for error in errors))
+            raise ValueError(
+                "Database configuration errors:\n" + "\n".join(f"  - {error}" for error in errors)
+            )
 
     def get_safety_score(self) -> Dict[str, any]:
         """

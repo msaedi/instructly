@@ -45,12 +45,18 @@ class MapboxProvider(GeocodingProvider):
                 return None
             return self._parse_feature(features[0])
 
-    async def autocomplete(self, query: str, session_token: Optional[str] = None) -> List[AutocompleteResult]:
+    async def autocomplete(
+        self, query: str, session_token: Optional[str] = None
+    ) -> List[AutocompleteResult]:
         async with httpx.AsyncClient(timeout=10) as client:
             encoded = quote(query, safe="")
             resp = await client.get(
                 f"{self.base_url}/geocoding/v5/mapbox.places/{encoded}.json",
-                params={"access_token": self.access_token, "autocomplete": "true", "types": "address,poi,place"},
+                params={
+                    "access_token": self.access_token,
+                    "autocomplete": "true",
+                    "types": "address,poi,place",
+                },
             )
             if resp.status_code != 200:
                 return []
@@ -86,7 +92,9 @@ class MapboxProvider(GeocodingProvider):
     def _parse_feature(self, feature: dict) -> GeocodedAddress:
         center = feature.get("center") or [None, None]
         lng, lat = (center[0], center[1]) if len(center) >= 2 else (None, None)
-        context = {(c.get("id", "").split(".")[0]): c.get("text") for c in feature.get("context", [])}
+        context = {
+            (c.get("id", "").split(".")[0]): c.get("text") for c in feature.get("context", [])
+        }
         # Some fields may be directly on the feature
         city = context.get("place") or context.get("locality") or feature.get("place_name")
         state = context.get("region")

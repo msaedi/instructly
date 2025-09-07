@@ -53,12 +53,17 @@ class AddressService(BaseService):
                 data.setdefault("latitude", geocoded.latitude)
                 data.setdefault("longitude", geocoded.longitude)
                 data.setdefault("locality", data.get("locality") or geocoded.city or "")
-                data.setdefault("administrative_area", data.get("administrative_area") or geocoded.state or "")
-                data.setdefault("postal_code", data.get("postal_code") or geocoded.postal_code or "")
+                data.setdefault(
+                    "administrative_area", data.get("administrative_area") or geocoded.state or ""
+                )
+                data.setdefault(
+                    "postal_code", data.get("postal_code") or geocoded.postal_code or ""
+                )
                 # Normalize country code to ISO-3166 alpha-2
                 data.setdefault(
                     "country_code",
-                    data.get("country_code") or self._normalize_country_code(getattr(geocoded, "country", None)),
+                    data.get("country_code")
+                    or self._normalize_country_code(getattr(geocoded, "country", None)),
                 )
                 data["verification_status"] = "verified"
                 # Fallback: if lat/lon missing from place details, try geocode formatted address
@@ -85,11 +90,17 @@ class AddressService(BaseService):
                         data.setdefault("latitude", geo2.latitude)
                         data.setdefault("longitude", geo2.longitude)
                         data.setdefault("locality", data.get("locality") or geo2.city or "")
-                        data.setdefault("administrative_area", data.get("administrative_area") or geo2.state or "")
-                        data.setdefault("postal_code", data.get("postal_code") or geo2.postal_code or "")
+                        data.setdefault(
+                            "administrative_area",
+                            data.get("administrative_area") or geo2.state or "",
+                        )
+                        data.setdefault(
+                            "postal_code", data.get("postal_code") or geo2.postal_code or ""
+                        )
                         data.setdefault(
                             "country_code",
-                            data.get("country_code") or self._normalize_country_code(getattr(geo2, "country", None)),
+                            data.get("country_code")
+                            or self._normalize_country_code(getattr(geo2, "country", None)),
                         )
                         data["verification_status"] = "verified"
             # Final test-mode fallback: mark verified even if provider couldn't resolve
@@ -114,7 +125,9 @@ class AddressService(BaseService):
             user = self.user_repo.find_one_by(id=user_id)
             if user:
                 full_name = " ".join(
-                    filter(None, [getattr(user, "first_name", None), getattr(user, "last_name", None)])
+                    filter(
+                        None, [getattr(user, "first_name", None), getattr(user, "last_name", None)]
+                    )
                 ).strip()
                 if full_name:
                     data["recipient_name"] = full_name
@@ -140,9 +153,15 @@ class AddressService(BaseService):
                 data.setdefault("latitude", geocoded.latitude)
                 data.setdefault("longitude", geocoded.longitude)
                 data.setdefault("locality", data.get("locality") or geocoded.city or "")
-                data.setdefault("administrative_area", data.get("administrative_area") or geocoded.state or "")
-                data.setdefault("postal_code", data.get("postal_code") or geocoded.postal_code or "")
-                data.setdefault("country_code", data.get("country_code") or (geocoded.country or "US")[:2])
+                data.setdefault(
+                    "administrative_area", data.get("administrative_area") or geocoded.state or ""
+                )
+                data.setdefault(
+                    "postal_code", data.get("postal_code") or geocoded.postal_code or ""
+                )
+                data.setdefault(
+                    "country_code", data.get("country_code") or (geocoded.country or "US")[:2]
+                )
                 data["verification_status"] = "verified"
                 if not data.get("latitude") or not data.get("longitude"):
                     addr_str = geocoded.formatted_address or data.get("street_line1") or ""
@@ -173,7 +192,9 @@ class AddressService(BaseService):
             user = self.user_repo.find_one_by(id=user_id)
             if user:
                 full_name = " ".join(
-                    filter(None, [getattr(user, "first_name", None), getattr(user, "last_name", None)])
+                    filter(
+                        None, [getattr(user, "first_name", None), getattr(user, "last_name", None)]
+                    )
                 ).strip()
                 if full_name:
                     data["recipient_name"] = full_name
@@ -272,7 +293,11 @@ class AddressService(BaseService):
 
     @BaseService.measure_operation("list_neighborhoods")
     def list_neighborhoods(
-        self, region_type: str = "nyc", borough: Optional[str] = None, limit: int = 100, offset: int = 0
+        self,
+        region_type: str = "nyc",
+        borough: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[dict]:
         # Cache key for pagination
         cache_key = None
@@ -285,7 +310,9 @@ class AddressService(BaseService):
             except Exception:
                 pass
 
-        rows = self.region_repo.list_regions(region_type=region_type, parent_region=borough, limit=limit, offset=offset)
+        rows = self.region_repo.list_regions(
+            region_type=region_type, parent_region=borough, limit=limit, offset=offset
+        )
         items = [
             {
                 "id": r["id"],

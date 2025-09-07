@@ -9,8 +9,8 @@ UPDATED IN v65: Added performance metrics to all public methods for observabilit
 Now tracks timing for all instructor operations to earn those MEGAWATTS! ⚡
 """
 
-import logging
 from datetime import datetime, timezone
+import logging
 from typing import Dict, List, Optional, Set
 
 import anyio
@@ -19,8 +19,7 @@ from sqlalchemy.orm import Session
 from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, NotFoundException
 from ..models.instructor import InstructorProfile
-from ..models.service_catalog import InstructorService as Service
-from ..models.service_catalog import ServiceCatalog, ServiceCategory
+from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate, ServiceCreate
@@ -56,10 +55,16 @@ class InstructorService(BaseService):
         self.cache_service = cache_service
 
         # Initialize repositories - use specialized InstructorProfileRepository for optimized queries
-        self.profile_repository = profile_repository or RepositoryFactory.create_instructor_profile_repository(db)
-        self.service_repository = service_repository or RepositoryFactory.create_base_repository(db, Service)
+        self.profile_repository = (
+            profile_repository or RepositoryFactory.create_instructor_profile_repository(db)
+        )
+        self.service_repository = service_repository or RepositoryFactory.create_base_repository(
+            db, Service
+        )
         self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
-        self.booking_repository = booking_repository or RepositoryFactory.create_booking_repository(db)
+        self.booking_repository = booking_repository or RepositoryFactory.create_booking_repository(
+            db
+        )
         # Add catalog repositories - use specialized repository for search capabilities
         self.catalog_repository = RepositoryFactory.create_service_catalog_repository(db)
         self.category_repository = RepositoryFactory.create_base_repository(db, ServiceCategory)
@@ -111,7 +116,9 @@ class InstructorService(BaseService):
         """
         # Use the optimized repository method that eager loads relationships
         profiles = self.profile_repository.get_all_with_details(
-            skip=skip, limit=limit, include_inactive_services=False  # Only active services
+            skip=skip,
+            limit=limit,
+            include_inactive_services=False,  # Only active services
         )
 
         # Convert to dictionaries - no additional queries needed since everything is loaded
@@ -226,7 +233,9 @@ class InstructorService(BaseService):
             )
 
         if service_catalog_id:
-            logger.info(f"Service catalog filter '{service_catalog_id}' returned {len(instructors)} instructors")
+            logger.info(
+                f"Service catalog filter '{service_catalog_id}' returned {len(instructors)} instructors"
+            )
 
         if min_price is not None or max_price is not None:
             price_range = f"${min_price or 0}-${max_price or 'unlimited'}"
@@ -318,7 +327,8 @@ class InstructorService(BaseService):
             if update_data.services is not None:
                 missing_bio = not getattr(profile, "bio", None) or not str(profile.bio).strip()
                 missing_areas = (
-                    not getattr(profile, "areas_of_service", None) or not str(profile.areas_of_service).strip()
+                    not getattr(profile, "areas_of_service", None)
+                    or not str(profile.areas_of_service).strip()
                 )
                 if "bio" not in basic_updates and missing_bio:
                     # Generate a bio like: "John is a New York-based yoga, tennis, and painting instructor."
@@ -358,7 +368,9 @@ class InstructorService(BaseService):
 
                         skills_phrase = _oxford_join(skill_names)
                         if skills_phrase:
-                            basic_updates["bio"] = f"{first_name} is a {city}-based {skills_phrase} instructor."
+                            basic_updates[
+                                "bio"
+                            ] = f"{first_name} is a {city}-based {skills_phrase} instructor."
                         else:
                             basic_updates["bio"] = f"{first_name} is a {city}-based instructor."
                     except Exception:
@@ -449,7 +461,9 @@ class InstructorService(BaseService):
         # Check for invalid IDs
         invalid_ids = set(catalog_ids) - valid_ids
         if invalid_ids:
-            raise BusinessRuleException(f"Invalid service catalog IDs: {', '.join(map(str, invalid_ids))}")
+            raise BusinessRuleException(
+                f"Invalid service catalog IDs: {', '.join(map(str, invalid_ids))}"
+            )
 
     def _update_services(self, profile_id: str, services_data: List[ServiceCreate]) -> None:
         """
@@ -468,7 +482,9 @@ class InstructorService(BaseService):
         existing_services = self.service_repository.find_by(instructor_profile_id=profile_id)
 
         # Create lookup map by catalog ID
-        services_by_catalog_id = {service.service_catalog_id: service for service in existing_services}
+        services_by_catalog_id = {
+            service.service_catalog_id: service for service in existing_services
+        }
 
         # Track which services are in the update
         updated_catalog_ids: Set[int] = set()
@@ -508,15 +524,27 @@ class InstructorService(BaseService):
                 if has_bookings:
                     # Soft delete
                     self.service_repository.update(service.id, is_active=False)
-                    catalog_name = service.catalog_entry.name if service.catalog_entry else "Unknown"
-                    logger.info(f"Soft deleted service '{catalog_name}' (ID: {service.id}) " f"- has existing bookings")
+                    catalog_name = (
+                        service.catalog_entry.name if service.catalog_entry else "Unknown"
+                    )
+                    logger.info(
+                        f"Soft deleted service '{catalog_name}' (ID: {service.id}) "
+                        f"- has existing bookings"
+                    )
                 else:
                     # Hard delete
                     self.service_repository.delete(service.id)
-                    catalog_name = service.catalog_entry.name if service.catalog_entry else "Unknown"
-                    logger.info(f"Hard deleted service '{catalog_name}' (ID: {service.id}) " f"- no bookings")
+                    catalog_name = (
+                        service.catalog_entry.name if service.catalog_entry else "Unknown"
+                    )
+                    logger.info(
+                        f"Hard deleted service '{catalog_name}' (ID: {service.id}) "
+                        f"- no bookings"
+                    )
 
-    def _profile_to_dict(self, profile: InstructorProfile, include_inactive_services: bool = False) -> Dict:
+    def _profile_to_dict(
+        self, profile: InstructorProfile, include_inactive_services: bool = False
+    ) -> Dict:
         """
         Convert instructor profile to dictionary.
 
@@ -564,7 +592,9 @@ class InstructorService(BaseService):
                 {
                     "id": service.id,
                     "service_catalog_id": service.service_catalog_id,
-                    "name": service.catalog_entry.name if service.catalog_entry else "Unknown Service",
+                    "name": service.catalog_entry.name
+                    if service.catalog_entry
+                    else "Unknown Service",
                     "hourly_rate": service.hourly_rate,
                     "description": service.description,
                     "age_groups": service.age_groups,
@@ -623,7 +653,9 @@ class InstructorService(BaseService):
             category_id = category.id
 
         # Use optimized repository method with eager loading
-        services = self.catalog_repository.get_active_services_with_categories(category_id=category_id)
+        services = self.catalog_repository.get_active_services_with_categories(
+            category_id=category_id
+        )
 
         # Convert to dictionaries (no N+1 queries since categories are loaded)
         result = [self._catalog_service_to_dict(service) for service in services]
@@ -736,7 +768,9 @@ class InstructorService(BaseService):
         return {
             "id": service.id,
             "catalog_service_id": service.service_catalog_id,
-            "name": service.catalog_entry.name if service.catalog_entry else "Unknown",  # From catalog
+            "name": service.catalog_entry.name
+            if service.catalog_entry
+            else "Unknown",  # From catalog
             "category": service.category,  # From catalog
             "hourly_rate": service.hourly_rate,
             "description": service.description or service.catalog_entry.description,
@@ -772,7 +806,9 @@ class InstructorService(BaseService):
         """
         # Get similar services using vector search
         similar_services = self.catalog_repository.find_similar_by_embedding(
-            embedding=query_embedding, limit=limit * 2, threshold=threshold  # Get more to filter
+            embedding=query_embedding,
+            limit=limit * 2,
+            threshold=threshold,  # Get more to filter
         )
 
         # Apply additional filters if provided
@@ -889,7 +925,9 @@ class InstructorService(BaseService):
 
             # Add instructor count and price range if needed
             if min_price is not None or max_price is not None:
-                instructors = self._get_instructors_for_service_in_price_range(service.id, min_price, max_price)
+                instructors = self._get_instructors_for_service_in_price_range(
+                    service.id, min_price, max_price
+                )
                 service_dict["matching_instructors"] = len(instructors)
                 service_dict["actual_price_range"] = self._calculate_price_range(instructors)
 
@@ -906,7 +944,9 @@ class InstructorService(BaseService):
                 "category_id": category_id,
                 "online_capable": online_capable,
                 "requires_certification": requires_certification,
-                "price_range": {"min": min_price, "max": max_price} if min_price or max_price else None,
+                "price_range": {"min": min_price, "max": max_price}
+                if min_price or max_price
+                else None,
             },
             "pagination": {"skip": skip, "limit": limit, "count": len(results)},
         }
@@ -1072,7 +1112,8 @@ class InstructorService(BaseService):
 
             # Get ALL services for this category (ordered by display_order)
             services = self.catalog_repository.get_active_services_with_categories(
-                category_id=category.id, limit=None  # No limit - get all services
+                category_id=category.id,
+                limit=None,  # No limit - get all services
             )
 
             # Collect services with analytics data
@@ -1107,7 +1148,9 @@ class InstructorService(BaseService):
                 # Add price range if we have instructors
                 if active_instructors > 0:
                     # Get price range from instructor services
-                    instructor_services = self._get_instructors_for_service_in_price_range(service.id, None, None)
+                    instructor_services = self._get_instructors_for_service_in_price_range(
+                        service.id, None, None
+                    )
                     if instructor_services:
                         price_range = self._calculate_price_range(instructor_services)
                         service_data["actual_min_price"] = price_range["min"]
@@ -1165,6 +1208,8 @@ class InstructorService(BaseService):
 
 
 # Dependency injection
-def get_instructor_service(db: Session, cache_service: Optional[CacheService] = None) -> InstructorService:
+def get_instructor_service(
+    db: Session, cache_service: Optional[CacheService] = None
+) -> InstructorService:
     """Get instructor service instance for dependency injection."""
     return InstructorService(db, cache_service)

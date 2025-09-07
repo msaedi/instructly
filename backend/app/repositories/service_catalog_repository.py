@@ -11,8 +11,8 @@ Provides specialized queries for:
 This repository extends BaseRepository with search and analytics capabilities.
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import distinct, or_, text
@@ -72,7 +72,9 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             """
             )
 
-            result = self.db.execute(sql, {"embedding": embedding_str, "threshold": threshold, "limit": limit})
+            result = self.db.execute(
+                sql, {"embedding": embedding_str, "threshold": threshold, "limit": limit}
+            )
 
             # Fetch services by IDs
             rows = result.fetchall()
@@ -81,7 +83,9 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
             # Get services
             service_ids = [row.id for row in rows]
-            services = self.db.query(ServiceCatalog).filter(ServiceCatalog.id.in_(service_ids)).all()
+            services = (
+                self.db.query(ServiceCatalog).filter(ServiceCatalog.id.in_(service_ids)).all()
+            )
 
             # Create service lookup
             service_map = {s.id: s for s in services}
@@ -225,7 +229,8 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             self.db.query(ServiceCatalog)
             .join(trend_subquery, ServiceCatalog.id == trend_subquery.c.service_catalog_id)
             .filter(
-                ServiceCatalog.is_active == True, trend_subquery.c.avg_7d > trend_subquery.c.avg_30d * 1.2  # 20% growth
+                ServiceCatalog.is_active == True,
+                trend_subquery.c.avg_7d > trend_subquery.c.avg_30d * 1.2,  # 20% growth
             )
             .order_by((trend_subquery.c.avg_7d - trend_subquery.c.avg_30d).desc())
         )
@@ -241,10 +246,16 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         """
         # Get services with analytics ordered by demand
         query = (
-            self.db.query(ServiceCatalog.id, ServiceAnalytics.booking_count_30d, ServiceAnalytics.search_count_30d)
+            self.db.query(
+                ServiceCatalog.id,
+                ServiceAnalytics.booking_count_30d,
+                ServiceAnalytics.search_count_30d,
+            )
             .join(ServiceAnalytics, ServiceCatalog.id == ServiceAnalytics.service_catalog_id)
             .filter(ServiceCatalog.is_active == True)
-            .order_by((ServiceAnalytics.booking_count_30d * 2 + ServiceAnalytics.search_count_30d).desc())
+            .order_by(
+                (ServiceAnalytics.booking_count_30d * 2 + ServiceAnalytics.search_count_30d).desc()
+            )
             .all()
         )
 
@@ -312,7 +323,10 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
         count = (
             self.db.query(func.count(InstructorService.id))
-            .filter(InstructorService.service_catalog_id == service_catalog_id, InstructorService.is_active == True)
+            .filter(
+                InstructorService.service_catalog_id == service_catalog_id,
+                InstructorService.is_active == True,
+            )
             .scalar()
         )
 
@@ -335,7 +349,10 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
                     ServiceCatalog.slug.label("slug"),
                 )
                 .join(InstructorService, InstructorService.service_catalog_id == ServiceCatalog.id)
-                .join(InstructorProfile, InstructorService.instructor_profile_id == InstructorProfile.id)
+                .join(
+                    InstructorProfile,
+                    InstructorService.instructor_profile_id == InstructorProfile.id,
+                )
                 .join(User, InstructorProfile.user_id == User.id)
                 .filter(InstructorService.is_active == True)
                 .filter(User.account_status == "active")
@@ -343,7 +360,9 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
             # Postgres: use array_position for membership; fallback: LIKE for JSON/text storage
             if hasattr(self.db.bind, "dialect") and self.db.bind.dialect.name == "postgresql":
-                query = query.filter(func.array_position(InstructorService.age_groups, "kids").isnot(None))
+                query = query.filter(
+                    func.array_position(InstructorService.age_groups, "kids").isnot(None)
+                )
             else:
                 query = query.filter(InstructorService.age_groups.like('%"kids"%'))
 
@@ -361,7 +380,9 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         """Initialize with ServiceAnalytics model."""
         super().__init__(db, ServiceAnalytics)
 
-    def get_by_id(self, service_catalog_id: int, load_relationships: bool = True) -> Optional[ServiceAnalytics]:
+    def get_by_id(
+        self, service_catalog_id: int, load_relationships: bool = True
+    ) -> Optional[ServiceAnalytics]:
         """
         Override get_by_id to use service_catalog_id as primary key.
 
@@ -449,7 +470,9 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         """
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-        return self.db.query(ServiceAnalytics).filter(ServiceAnalytics.last_calculated < cutoff).all()
+        return (
+            self.db.query(ServiceAnalytics).filter(ServiceAnalytics.last_calculated < cutoff).all()
+        )
 
     def update_from_bookings(self, service_catalog_id: int, booking_stats: Dict) -> None:
         """

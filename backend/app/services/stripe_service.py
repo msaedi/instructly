@@ -19,12 +19,12 @@ Architecture:
 - Follows established service patterns
 """
 
-import logging
 from datetime import datetime, timezone
+import logging
 from typing import Any, Dict, List, Optional
 
-import stripe
 from sqlalchemy.orm import Session
+import stripe
 
 from ..core.config import settings
 from ..core.exceptions import ServiceException
@@ -69,12 +69,18 @@ class StripeService(BaseService):
                 self.stripe_configured = True
                 self.logger.info("Stripe service configured successfully")
             else:
-                self.logger.warning("Stripe secret key not configured - service will operate in mock mode")
+                self.logger.warning(
+                    "Stripe secret key not configured - service will operate in mock mode"
+                )
         except Exception as e:
-            self.logger.error(f"Failed to configure Stripe service: {e} - service will operate in mock mode")
+            self.logger.error(
+                f"Failed to configure Stripe service: {e} - service will operate in mock mode"
+            )
 
         # Platform fee percentage (15 means 15%, not 0.15)
-        self.platform_fee_percentage = getattr(settings, "stripe_platform_fee_percentage", 15) / 100.0
+        self.platform_fee_percentage = (
+            getattr(settings, "stripe_platform_fee_percentage", 15) / 100.0
+        )
 
         self.logger = logging.getLogger(__name__)
 
@@ -108,7 +114,9 @@ class StripeService(BaseService):
             params: Dict[str, Any] = {
                 "type": "document",
                 "metadata": {"user_id": user_id},
-                "options": {"document": {"require_live_capture": True, "require_matching_selfie": True}},
+                "options": {
+                    "document": {"require_live_capture": True, "require_matching_selfie": True}
+                },
                 "return_url": return_url,
             }
 
@@ -147,7 +155,9 @@ class StripeService(BaseService):
                 try:
                     meta = getattr(s, "metadata", {}) or {}
                     if str(meta.get("user_id")) == str(user_id):
-                        if latest is None or getattr(s, "created", 0) > getattr(latest, "created", 0):
+                        if latest is None or getattr(s, "created", 0) > getattr(
+                            latest, "created", 0
+                        ):
                             latest = s
                 except Exception:
                     continue
@@ -208,11 +218,15 @@ class StripeService(BaseService):
 
                 # Try real Stripe path first (allows tests to @patch)
                 try:
-                    stripe_customer = stripe.Customer.create(email=email, name=name, metadata={"user_id": user_id})
+                    stripe_customer = stripe.Customer.create(
+                        email=email, name=name, metadata={"user_id": user_id}
+                    )
                     customer_record = self.payment_repository.create_customer_record(
                         user_id=user_id, stripe_customer_id=stripe_customer.id
                     )
-                    self.logger.info(f"Created Stripe customer {stripe_customer.id} for user {user_id}")
+                    self.logger.info(
+                        f"Created Stripe customer {stripe_customer.id} for user {user_id}"
+                    )
                     return customer_record
                 except Exception as e:
                     # If Stripe isn't configured, decide between mock fallback and raising
@@ -285,7 +299,9 @@ class StripeService(BaseService):
     # ========== Connected Account Management ==========
 
     @BaseService.measure_operation("stripe_create_connected_account")
-    def create_connected_account(self, instructor_profile_id: str, email: str) -> StripeConnectedAccount:
+    def create_connected_account(
+        self, instructor_profile_id: str, email: str
+    ) -> StripeConnectedAccount:
         """
         Create a Stripe Connect Express account for an instructor.
 
@@ -356,7 +372,9 @@ class StripeService(BaseService):
             raise ServiceException(f"Failed to create connected account: {str(e)}")
 
     @BaseService.measure_operation("stripe_create_account_link")
-    def create_account_link(self, instructor_profile_id: str, refresh_url: str, return_url: str) -> str:
+    def create_account_link(
+        self, instructor_profile_id: str, refresh_url: str, return_url: str
+    ) -> str:
         """
         Create an account link for Express account onboarding.
 
@@ -373,9 +391,13 @@ class StripeService(BaseService):
         """
         try:
             # Get connected account
-            account_record = self.payment_repository.get_connected_account_by_instructor_id(instructor_profile_id)
+            account_record = self.payment_repository.get_connected_account_by_instructor_id(
+                instructor_profile_id
+            )
             if not account_record:
-                raise ServiceException(f"No connected account found for instructor {instructor_profile_id}")
+                raise ServiceException(
+                    f"No connected account found for instructor {instructor_profile_id}"
+                )
 
             # Create account link
             account_link = stripe.AccountLink.create(
@@ -409,7 +431,9 @@ class StripeService(BaseService):
         Recommended to run right after onboarding completes and via a periodic audit.
         """
         try:
-            account = self.payment_repository.get_connected_account_by_instructor_id(instructor_profile_id)
+            account = self.payment_repository.get_connected_account_by_instructor_id(
+                instructor_profile_id
+            )
             if not account:
                 raise ServiceException("Connected account not found for instructor")
 
@@ -456,9 +480,15 @@ class StripeService(BaseService):
         """
         try:
             # Get connected account
-            account_record = self.payment_repository.get_connected_account_by_instructor_id(instructor_profile_id)
+            account_record = self.payment_repository.get_connected_account_by_instructor_id(
+                instructor_profile_id
+            )
             if not account_record:
-                return {"has_account": False, "onboarding_completed": False, "can_accept_payments": False}
+                return {
+                    "has_account": False,
+                    "onboarding_completed": False,
+                    "can_accept_payments": False,
+                }
 
             # Get account details from Stripe
             stripe_account = stripe.Account.retrieve(account_record.stripe_account_id)
@@ -501,7 +531,12 @@ class StripeService(BaseService):
 
     @BaseService.measure_operation("stripe_create_payment_intent")
     def create_payment_intent(
-        self, booking_id: str, customer_id: str, destination_account_id: str, amount_cents: int, currency: str = "usd"
+        self,
+        booking_id: str,
+        customer_id: str,
+        destination_account_id: str,
+        amount_cents: int,
+        currency: str = "usd",
     ) -> PaymentIntent:
         """
         Create a Stripe PaymentIntent for a booking.
@@ -542,7 +577,9 @@ class StripeService(BaseService):
                         application_fee=application_fee_cents,
                         status=stripe_intent.status,
                     )
-                    self.logger.info(f"Created payment intent {stripe_intent.id} for booking {booking_id}")
+                    self.logger.info(
+                        f"Created payment intent {stripe_intent.id} for booking {booking_id}"
+                    )
                     return payment_record
                 except Exception as e:
                     if not self.stripe_configured:
@@ -632,7 +669,9 @@ class StripeService(BaseService):
             raise ServiceException(f"Failed to authorize payment: {str(e)}")
 
     @BaseService.measure_operation("stripe_confirm_payment_intent")
-    def confirm_payment_intent(self, payment_intent_id: str, payment_method_id: str) -> PaymentIntent:
+    def confirm_payment_intent(
+        self, payment_intent_id: str, payment_method_id: str
+    ) -> PaymentIntent:
         """
         Confirm a payment intent with a payment method.
 
@@ -656,10 +695,14 @@ class StripeService(BaseService):
                 )
 
                 # Update payment status
-                payment_record = self.payment_repository.update_payment_status(payment_intent_id, stripe_intent.status)
+                payment_record = self.payment_repository.update_payment_status(
+                    payment_intent_id, stripe_intent.status
+                )
 
                 if not payment_record:
-                    raise ServiceException(f"Payment record not found for intent {payment_intent_id}")
+                    raise ServiceException(
+                        f"Payment record not found for intent {payment_intent_id}"
+                    )
 
                 self.logger.info(f"Confirmed payment intent {payment_intent_id}")
                 return payment_record
@@ -740,13 +783,21 @@ class StripeService(BaseService):
                 kwargs["amount"] = amount_cents
             if reason:
                 kwargs["metadata"] = {"reason": reason}
-            reversal = stripe.Transfer.create_reversal(transfer_id, idempotency_key=idempotency_key, **kwargs)
+            reversal = stripe.Transfer.create_reversal(
+                transfer_id, idempotency_key=idempotency_key, **kwargs
+            )
 
             # Alert/metrics for insufficient funds or negative balance scenarios
             try:
                 # Stripe returns balance_transaction on reversal; if missing or amount < requested, log alert
-                reversed_amount = getattr(reversal, "amount_reversed", None) or getattr(reversal, "amount", None)
-                if amount_cents is not None and reversed_amount is not None and reversed_amount < amount_cents:
+                reversed_amount = getattr(reversal, "amount_reversed", None) or getattr(
+                    reversal, "amount", None
+                )
+                if (
+                    amount_cents is not None
+                    and reversed_amount is not None
+                    and reversed_amount < amount_cents
+                ):
                     self.logger.warning(
                         f"Partial reversal for transfer {transfer_id}: requested={amount_cents} reversed={reversed_amount}"
                     )
@@ -773,7 +824,9 @@ class StripeService(BaseService):
             raise ServiceException(f"Failed to reverse transfer: {str(e)}")
 
     @BaseService.measure_operation("stripe_cancel_payment_intent")
-    def cancel_payment_intent(self, payment_intent_id: str, *, idempotency_key: Optional[str] = None) -> Dict[str, Any]:
+    def cancel_payment_intent(
+        self, payment_intent_id: str, *, idempotency_key: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Cancel a PaymentIntent to release authorization.
         """
@@ -817,9 +870,13 @@ class StripeService(BaseService):
                 customer = self.get_or_create_customer(booking.student_id)
 
                 # Get instructor's connected account
-                instructor_profile = self.instructor_repository.get_by_user_id(booking.instructor_id)
+                instructor_profile = self.instructor_repository.get_by_user_id(
+                    booking.instructor_id
+                )
                 if not instructor_profile:
-                    raise ServiceException(f"Instructor profile not found for user {booking.instructor_id}")
+                    raise ServiceException(
+                        f"Instructor profile not found for user {booking.instructor_id}"
+                    )
 
                 connected_account = self.payment_repository.get_connected_account_by_instructor_id(
                     instructor_profile.id
@@ -833,7 +890,9 @@ class StripeService(BaseService):
                 try:
                     if hasattr(self.payment_repository, "apply_credits_for_booking"):
                         credit_result = self.payment_repository.apply_credits_for_booking(
-                            user_id=booking.student_id, booking_id=booking.id, amount_cents=original_amount_cents
+                            user_id=booking.student_id,
+                            booking_id=booking.id,
+                            amount_cents=original_amount_cents,
                         )
                         if isinstance(credit_result, dict):
                             credits_applied = int(credit_result.get("applied_cents", 0) or 0)
@@ -898,8 +957,13 @@ class StripeService(BaseService):
                 except Exception:
                     pass
 
-                requires_action = stripe_intent.status in ["requires_action", "requires_confirmation"]
-                client_secret = getattr(stripe_intent, "client_secret", None) if requires_action else None
+                requires_action = stripe_intent.status in [
+                    "requires_action",
+                    "requires_confirmation",
+                ]
+                client_secret = (
+                    getattr(stripe_intent, "client_secret", None) if requires_action else None
+                )
 
                 return {
                     "success": True,
@@ -919,7 +983,9 @@ class StripeService(BaseService):
     # ========== Payment Method Management ==========
 
     @BaseService.measure_operation("stripe_save_payment_method")
-    def save_payment_method(self, user_id: str, payment_method_id: str, set_as_default: bool = False) -> PaymentMethod:
+    def save_payment_method(
+        self, user_id: str, payment_method_id: str, set_as_default: bool = False
+    ) -> PaymentMethod:
         """
         Save a payment method for a user.
 
@@ -937,9 +1003,13 @@ class StripeService(BaseService):
         try:
             with self.transaction():
                 # Check if payment method already exists in our database
-                existing = self.payment_repository.get_payment_method_by_stripe_id(payment_method_id, user_id)
+                existing = self.payment_repository.get_payment_method_by_stripe_id(
+                    payment_method_id, user_id
+                )
                 if existing:
-                    self.logger.info(f"Payment method {payment_method_id} already exists for user {user_id}")
+                    self.logger.info(
+                        f"Payment method {payment_method_id} already exists for user {user_id}"
+                    )
                     # If setting as default, update the existing one
                     if set_as_default:
                         self.payment_repository.set_default_payment_method(existing.id, user_id)
@@ -956,13 +1026,21 @@ class StripeService(BaseService):
                     if stripe_pm.customer:
                         if stripe_pm.customer != customer.stripe_customer_id:
                             # Payment method is attached to a different customer
-                            self.logger.error(f"Payment method {payment_method_id} is attached to a different customer")
-                            raise ServiceException("This payment method is already in use by another account")
+                            self.logger.error(
+                                f"Payment method {payment_method_id} is attached to a different customer"
+                            )
+                            raise ServiceException(
+                                "This payment method is already in use by another account"
+                            )
                         # Already attached to this customer, just retrieve it
-                        self.logger.info(f"Payment method {payment_method_id} already attached to customer")
+                        self.logger.info(
+                            f"Payment method {payment_method_id} already attached to customer"
+                        )
                     else:
                         # Not attached, so attach it
-                        stripe_pm = stripe.PaymentMethod.attach(payment_method_id, customer=customer.stripe_customer_id)
+                        stripe_pm = stripe.PaymentMethod.attach(
+                            payment_method_id, customer=customer.stripe_customer_id
+                        )
                         self.logger.info(f"Attached payment method {payment_method_id} to customer")
 
                 except stripe.error.CardError as e:
@@ -1044,13 +1122,17 @@ class StripeService(BaseService):
                         self.logger.info(f"Detached payment method {payment_method_id} from Stripe")
                     except stripe.StripeError as e:
                         # Log but don't fail - payment method might already be detached
-                        self.logger.warning(f"Could not detach payment method from Stripe: {str(e)}")
+                        self.logger.warning(
+                            f"Could not detach payment method from Stripe: {str(e)}"
+                        )
 
                 # Delete from database (handles both database ID and Stripe ID)
                 success = self.payment_repository.delete_payment_method(payment_method_id, user_id)
 
                 if success:
-                    self.logger.info(f"Deleted payment method {payment_method_id} from database for user {user_id}")
+                    self.logger.info(
+                        f"Deleted payment method {payment_method_id} from database for user {user_id}"
+                    )
 
                 return success
 
@@ -1167,14 +1249,18 @@ class StripeService(BaseService):
         try:
             # Verify webhook signature and construct event
             webhook_secret = (
-                settings.stripe_webhook_secret.get_secret_value() if settings.stripe_webhook_secret else None
+                settings.stripe_webhook_secret.get_secret_value()
+                if settings.stripe_webhook_secret
+                else None
             )
             if not webhook_secret:
                 raise ServiceException("Webhook secret not configured")
 
             try:
                 event = stripe.Webhook.construct_event(
-                    payload.encode("utf-8") if isinstance(payload, str) else payload, signature, webhook_secret
+                    payload.encode("utf-8") if isinstance(payload, str) else payload,
+                    signature,
+                    webhook_secret,
                 )
             except stripe.SignatureVerificationError as e:
                 self.logger.warning(f"Invalid webhook signature: {str(e)}")
@@ -1213,7 +1299,9 @@ class StripeService(BaseService):
                 new_status = payment_intent["status"]
 
                 # Update payment status
-                payment_record = self.payment_repository.update_payment_status(payment_intent_id, new_status)
+                payment_record = self.payment_repository.update_payment_status(
+                    payment_intent_id, new_status
+                )
 
                 if payment_record:
                     self.logger.info(f"Updated payment {payment_intent_id} status to {new_status}")
@@ -1224,7 +1312,9 @@ class StripeService(BaseService):
 
                     return True
                 else:
-                    self.logger.warning(f"Payment record not found for webhook event {payment_intent_id}")
+                    self.logger.warning(
+                        f"Payment record not found for webhook event {payment_intent_id}"
+                    )
                     return False
 
         except Exception as e:
@@ -1246,7 +1336,9 @@ class StripeService(BaseService):
                 # repo-pattern-ignore: Transaction management requires direct DB flush
                 self.db.flush()
 
-            self.logger.info(f"Processed successful payment for booking {payment_record.booking_id}")
+            self.logger.info(
+                f"Processed successful payment for booking {payment_record.booking_id}"
+            )
 
         except Exception as e:
             self.logger.error(f"Error handling successful payment: {str(e)}")
@@ -1340,7 +1432,9 @@ class StripeService(BaseService):
                     payment_intent_id = charge_data.get("payment_intent")
                     if payment_intent_id:
                         self.payment_repository.update_payment_status(payment_intent_id, "refunded")
-                        booking_payment = self.payment_repository.get_payment_by_intent_id(payment_intent_id)
+                        booking_payment = self.payment_repository.get_payment_by_intent_id(
+                            payment_intent_id
+                        )
                         if booking_payment:
                             booking = self.booking_repository.get_by_id(booking_payment.booking_id)
                             if booking:
@@ -1369,11 +1463,15 @@ class StripeService(BaseService):
             account_id = payout.get("destination") or payout.get("stripe_account")
 
             if event_type == "payout.created":
-                self.logger.info(f"Payout created: {payout_id} amount={amount} status={status} arrival={arrival_date}")
+                self.logger.info(
+                    f"Payout created: {payout_id} amount={amount} status={status} arrival={arrival_date}"
+                )
                 try:
                     # Resolve instructor_profile_id via connected account
                     if account_id:
-                        acct = self.payment_repository.get_connected_account_by_stripe_id(account_id)  # type: ignore[attr-defined]
+                        acct = self.payment_repository.get_connected_account_by_stripe_id(
+                            account_id
+                        )  # type: ignore[attr-defined]
                         if acct and acct.instructor_profile_id:
                             self.payment_repository.record_payout_event(
                                 instructor_profile_id=acct.instructor_profile_id,
@@ -1388,10 +1486,14 @@ class StripeService(BaseService):
                 return True
 
             if event_type == "payout.paid":
-                self.logger.info(f"Payout paid: {payout_id} amount={amount} status={status} arrival={arrival_date}")
+                self.logger.info(
+                    f"Payout paid: {payout_id} amount={amount} status={status} arrival={arrival_date}"
+                )
                 try:
                     if account_id:
-                        acct = self.payment_repository.get_connected_account_by_stripe_id(account_id)  # type: ignore[attr-defined]
+                        acct = self.payment_repository.get_connected_account_by_stripe_id(
+                            account_id
+                        )  # type: ignore[attr-defined]
                         if acct and acct.instructor_profile_id:
                             self.payment_repository.record_payout_event(
                                 instructor_profile_id=acct.instructor_profile_id,
@@ -1414,7 +1516,9 @@ class StripeService(BaseService):
                 # TODO: optionally notify instructor and disable instant payout UI until resolved
                 try:
                     if account_id:
-                        acct = self.payment_repository.get_connected_account_by_stripe_id(account_id)  # type: ignore[attr-defined]
+                        acct = self.payment_repository.get_connected_account_by_stripe_id(
+                            account_id
+                        )  # type: ignore[attr-defined]
                         if acct and acct.instructor_profile_id:
                             self.payment_repository.record_payout_event(
                                 instructor_profile_id=acct.instructor_profile_id,
@@ -1459,8 +1563,7 @@ class StripeService(BaseService):
             # On verified, mark identity_verified_at and store session id
             if verification_status == "verified":
                 try:
-                    from datetime import datetime
-                    from datetime import timezone as _tz
+                    from datetime import datetime, timezone as _tz
 
                     self.instructor_repository.update(
                         profile.id,
@@ -1468,7 +1571,9 @@ class StripeService(BaseService):
                         identity_verification_session_id=obj.get("id"),
                     )
                 except Exception as e:
-                    self.logger.error(f"Failed updating identity verification on profile {profile.id}: {e}")
+                    self.logger.error(
+                        f"Failed updating identity verification on profile {profile.id}: {e}"
+                    )
                     return False
                 return True
 
@@ -1509,7 +1614,9 @@ class StripeService(BaseService):
             raise ServiceException(f"Failed to get revenue stats: {str(e)}")
 
     @BaseService.measure_operation("stripe_get_instructor_earnings")
-    def get_instructor_earnings(self, instructor_profile_id: str, start_date=None, end_date=None) -> Dict[str, Any]:
+    def get_instructor_earnings(
+        self, instructor_profile_id: str, start_date=None, end_date=None
+    ) -> Dict[str, Any]:
         """
         Get instructor earnings statistics.
 
@@ -1522,7 +1629,9 @@ class StripeService(BaseService):
             Dictionary with earnings statistics
         """
         try:
-            return self.payment_repository.get_instructor_earnings(instructor_profile_id, start_date, end_date)
+            return self.payment_repository.get_instructor_earnings(
+                instructor_profile_id, start_date, end_date
+            )
         except Exception as e:
             self.logger.error(f"Error getting instructor earnings: {str(e)}")
             raise ServiceException(f"Failed to get instructor earnings: {str(e)}")

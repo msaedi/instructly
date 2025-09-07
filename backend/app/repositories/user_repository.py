@@ -93,7 +93,12 @@ class UserRepository(BaseRepository[User]):
         Fixes: 2 violations in PermissionService
         """
         try:
-            return self.db.query(User).options(joinedload(User.roles)).filter(User.id == user_id).first()
+            return (
+                self.db.query(User)
+                .options(joinedload(User.roles))
+                .filter(User.id == user_id)
+                .first()
+            )
         except Exception as e:
             self.logger.error(f"Error getting user with roles {user_id}: {str(e)}")
             return None

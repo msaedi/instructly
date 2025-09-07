@@ -11,10 +11,10 @@ booking preferences.
 import logging
 from typing import TYPE_CHECKING, List, Optional, Set
 
-import ulid
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import ulid
 
 from ..database import Base
 
@@ -191,7 +191,10 @@ class InstructorProfile(Base):
         Returns:
             bool: True if instructor offers this service actively
         """
-        return any(s.service_catalog_id == service_catalog_id and s.is_active for s in self.instructor_services)
+        return any(
+            s.service_catalog_id == service_catalog_id and s.is_active
+            for s in self.instructor_services
+        )
 
     def get_service_by_catalog_id(self, service_catalog_id: int) -> Optional["InstructorService"]:
         """

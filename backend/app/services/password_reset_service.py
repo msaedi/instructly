@@ -6,9 +6,9 @@ Handles password reset token generation, validation, and password updates.
 Follows the service layer pattern to keep business logic out of routes.
 """
 
+from datetime import datetime, timedelta, timezone
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -51,7 +51,9 @@ class PasswordResetService(BaseService):
 
         # Initialize repositories using BaseRepository
         self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
-        self.token_repository = token_repository or RepositoryFactory.create_base_repository(db, PasswordResetToken)
+        self.token_repository = token_repository or RepositoryFactory.create_base_repository(
+            db, PasswordResetToken
+        )
 
     @BaseService.measure_operation("request_password_reset")
     def request_password_reset(self, email: str) -> bool:
@@ -183,7 +185,9 @@ class PasswordResetService(BaseService):
         try:
             with self.transaction():
                 # Update password
-                self.user_repository.update(user.id, hashed_password=get_password_hash(new_password))
+                self.user_repository.update(
+                    user.id, hashed_password=get_password_hash(new_password)
+                )
 
                 # Mark token as used
                 self.token_repository.update(reset_token.id, used=True)

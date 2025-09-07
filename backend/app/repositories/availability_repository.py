@@ -22,8 +22,8 @@ Methods removed for clean architecture:
 - get_booked_slot_ids() → Use get_booked_time_ranges() for time-based queries
 """
 
-import logging
 from datetime import date, time
+import logging
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import and_, text
@@ -54,7 +54,9 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
 
     # Week and Date-based Queries
 
-    def get_week_availability(self, instructor_id: str, start_date: date, end_date: date) -> List[AvailabilitySlot]:
+    def get_week_availability(
+        self, instructor_id: str, start_date: date, end_date: date
+    ) -> List[AvailabilitySlot]:
         """
         Get all availability slots for a week.
 
@@ -116,7 +118,9 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
 
     # Booking-related Queries
 
-    def get_booked_slots_in_range(self, instructor_id: str, start_date: date, end_date: date) -> List[Booking]:
+    def get_booked_slots_in_range(
+        self, instructor_id: str, start_date: date, end_date: date
+    ) -> List[Booking]:
         """
         Get all bookings within a date range for an instructor.
 
@@ -148,7 +152,9 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting booked slots: {str(e)}")
             raise RepositoryException(f"Failed to get booked slots: {str(e)}")
 
-    def get_booked_time_ranges(self, instructor_id: str, target_date: date) -> List[Tuple[time, time]]:
+    def get_booked_time_ranges(
+        self, instructor_id: str, target_date: date
+    ) -> List[Tuple[time, time]]:
         """
         Get time ranges that have bookings on a specific date.
 
@@ -231,7 +237,9 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting availability slot details: {str(e)}")
             raise RepositoryException(f"Failed to get availability slot: {str(e)}")
 
-    def slot_exists(self, instructor_id: str, target_date: date, start_time: time, end_time: time) -> bool:
+    def slot_exists(
+        self, instructor_id: str, target_date: date, start_time: time, end_time: time
+    ) -> bool:
         """
         Check if an exact slot already exists.
 
@@ -299,7 +307,9 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error finding time conflicts: {str(e)}")
             raise RepositoryException(f"Failed to find conflicts: {str(e)}")
 
-    def create_slot(self, instructor_id: str, target_date: date, start_time: time, end_time: time) -> AvailabilitySlot:
+    def create_slot(
+        self, instructor_id: str, target_date: date, start_time: time, end_time: time
+    ) -> AvailabilitySlot:
         """
         Create a new availability slot.
 
@@ -337,7 +347,9 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
 
     # Delete Operations
 
-    def delete_slots_except(self, instructor_id: str, target_date: date, except_ids: List[str]) -> int:
+    def delete_slots_except(
+        self, instructor_id: str, target_date: date, except_ids: List[str]
+    ) -> int:
         """
         Delete all slots for a date except those in the exception list.
 
@@ -464,7 +476,9 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error counting slots: {str(e)}")
             raise RepositoryException(f"Failed to count slots: {str(e)}")
 
-    def get_availability_summary(self, instructor_id: str, start_date: date, end_date: date) -> Dict[str, int]:
+    def get_availability_summary(
+        self, instructor_id: str, start_date: date, end_date: date
+    ) -> Dict[str, int]:
         """
         Get summary of availability (slot counts per date).
 
@@ -494,7 +508,8 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             )
 
             result = self.db.execute(
-                query, {"instructor_id": instructor_id, "start_date": start_date, "end_date": end_date}
+                query,
+                {"instructor_id": instructor_id, "start_date": start_date, "end_date": end_date},
             )
 
             return {row.specific_date.isoformat(): row.slot_count for row in result}
@@ -639,7 +654,11 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
         try:
             result = (
                 self.db.query(BlackoutDate)
-                .filter(and_(BlackoutDate.id == blackout_id, BlackoutDate.instructor_id == instructor_id))
+                .filter(
+                    and_(
+                        BlackoutDate.id == blackout_id, BlackoutDate.instructor_id == instructor_id
+                    )
+                )
                 .delete()
             )
 

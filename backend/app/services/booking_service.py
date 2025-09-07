@@ -13,16 +13,21 @@ UPDATED IN v65: Added performance metrics and refactored long methods.
 All methods now under 50 lines with comprehensive observability! ⚡
 """
 
-import logging
 from datetime import date, datetime, time, timedelta, timezone
+import logging
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
-import stripe
 from sqlalchemy.orm import Session
+import stripe
 
 from ..core.enums import RoleName
-from ..core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
+from ..core.exceptions import (
+    BusinessRuleException,
+    ConflictException,
+    NotFoundException,
+    ValidationException,
+)
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService
@@ -77,7 +82,9 @@ class BookingService(BaseService):
         self.cache_service = cache_service
 
     @BaseService.measure_operation("create_booking")
-    async def create_booking(self, student: User, booking_data: BookingCreate, selected_duration: int) -> Booking:
+    async def create_booking(
+        self, student: User, booking_data: BookingCreate, selected_duration: int
+    ) -> Booking:
         """
         Create an instant booking using selected duration.
 
@@ -106,7 +113,9 @@ class BookingService(BaseService):
         )
 
         # 1. Validate and load required data
-        service, instructor_profile = await self._validate_booking_prerequisites(student, booking_data)
+        service, instructor_profile = await self._validate_booking_prerequisites(
+            student, booking_data
+        )
 
         # 2. Validate selected duration (strict for new bookings)
         if selected_duration not in service.duration_options:
@@ -170,7 +179,9 @@ class BookingService(BaseService):
         )
 
         # 1. Validate and load required data
-        service, instructor_profile = await self._validate_booking_prerequisites(student, booking_data)
+        service, instructor_profile = await self._validate_booking_prerequisites(
+            student, booking_data
+        )
 
         # 2. Validate selected duration
         if selected_duration not in service.duration_options:
@@ -263,7 +274,11 @@ class BookingService(BaseService):
 
     @BaseService.measure_operation("confirm_booking_payment")
     async def confirm_booking_payment(
-        self, booking_id: str, student: User, payment_method_id: str, save_payment_method: bool = False
+        self,
+        booking_id: str,
+        student: User,
+        payment_method_id: str,
+        save_payment_method: bool = False,
     ) -> Booking:
         """
         Confirm payment method for a booking (Phase 2.1 & 2.2).
@@ -297,7 +312,9 @@ class BookingService(BaseService):
             raise ValidationException("You can only confirm payment for your own bookings")
 
         if booking.status != BookingStatus.PENDING:
-            raise ValidationException(f"Cannot confirm payment for booking with status {booking.status}")
+            raise ValidationException(
+                f"Cannot confirm payment for booking with status {booking.status}"
+            )
 
         with self.transaction():
             # Save payment method
@@ -359,7 +376,9 @@ class BookingService(BaseService):
             # Transaction handles flush/commit automatically
 
         self.log_operation(
-            "confirm_booking_payment_completed", booking_id=booking.id, payment_status=booking.payment_status
+            "confirm_booking_payment_completed",
+            booking_id=booking.id,
+            payment_status=booking.payment_status,
         )
         # Invalidate caches so upcoming lists include the newly confirmed booking
         try:
@@ -421,7 +440,9 @@ class BookingService(BaseService):
         return opportunities
 
     @BaseService.measure_operation("cancel_booking")
-    async def cancel_booking(self, booking_id: str, user: User, reason: Optional[str] = None) -> Booking:
+    async def cancel_booking(
+        self, booking_id: str, user: User, reason: Optional[str] = None
+    ) -> Booking:
         """
         Cancel a booking.
 
@@ -450,12 +471,16 @@ class BookingService(BaseService):
 
             # Check if cancellable
             if not booking.is_cancellable:
-                raise BusinessRuleException(f"Booking cannot be cancelled - current status: {booking.status}")
+                raise BusinessRuleException(
+                    f"Booking cannot be cancelled - current status: {booking.status}"
+                )
 
             # Apply cancellation policy
             # Determine hours until lesson using UTC-aware datetimes
             now_dt = datetime.now(timezone.utc)
-            lesson_dt = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
+            lesson_dt = datetime.combine(
+                booking.booking_date, booking.start_time, tzinfo=timezone.utc
+            )
             hours_until = (lesson_dt - now_dt).total_seconds() / 3600
 
             from ..repositories.payment_repository import PaymentRepository
@@ -477,7 +502,10 @@ class BookingService(BaseService):
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="auth_released",
-                    event_data={"hours_before": round(hours_until, 2), "payment_intent_id": booking.payment_intent_id},
+                    event_data={
+                        "hours_before": round(hours_until, 2),
+                        "payment_intent_id": booking.payment_intent_id,
+                    },
                 )
                 booking.payment_status = "released"
 
@@ -487,7 +515,8 @@ class BookingService(BaseService):
                 if booking.payment_intent_id:
                     try:
                         capture = stripe_service.capture_payment_intent(
-                            booking.payment_intent_id, idempotency_key=f"capture_cancel_{booking.id}"
+                            booking.payment_intent_id,
+                            idempotency_key=f"capture_cancel_{booking.id}",
                         )
                         transfer_id = capture.get("transfer_id")
                         amount_received = capture.get("amount_received")
@@ -503,10 +532,15 @@ class BookingService(BaseService):
                                 payment_repo.create_payment_event(
                                     booking_id=booking.id,
                                     event_type="transfer_reversed_late_cancel",
-                                    event_data={"transfer_id": transfer_id, "amount": amount_received},
+                                    event_data={
+                                        "transfer_id": transfer_id,
+                                        "amount": amount_received,
+                                    },
                                 )
                             except Exception as e:
-                                logger.error(f"Transfer reversal failed for booking {booking.id}: {e}")
+                                logger.error(
+                                    f"Transfer reversal failed for booking {booking.id}: {e}"
+                                )
                     except Exception as e:
                         # If capture fails or no PI, fall back to credit-only path
                         logger.warning(f"Capture not performed for booking {booking.id}: {e}")
@@ -542,7 +576,8 @@ class BookingService(BaseService):
                     booking.payment_status = "capture_not_possible"
                 else:
                     capture = stripe_service.capture_payment_intent(
-                        booking.payment_intent_id, idempotency_key=f"capture_late_cancel_{booking.id}"
+                        booking.payment_intent_id,
+                        idempotency_key=f"capture_late_cancel_{booking.id}",
                     )
                     payment_repo.create_payment_event(
                         booking_id=booking.id,
@@ -650,7 +685,9 @@ class BookingService(BaseService):
         cancelled_bookings = sum(1 for b in bookings if b.status == BookingStatus.CANCELLED)
 
         # Calculate earnings (only completed bookings)
-        total_earnings = sum(float(b.total_price) for b in bookings if b.status == BookingStatus.COMPLETED)
+        total_earnings = sum(
+            float(b.total_price) for b in bookings if b.status == BookingStatus.COMPLETED
+        )
 
         # This month's earnings (in instructor's timezone)
         first_day_of_month = instructor_today.replace(day=1)
@@ -832,7 +869,9 @@ class BookingService(BaseService):
 
         # Check minimum advance booking
         booking_datetime = datetime.combine(booking_date, start_time, tzinfo=timezone.utc)
-        min_booking_time = datetime.now(timezone.utc) + timedelta(hours=instructor_profile.min_advance_booking_hours)
+        min_booking_time = datetime.now(timezone.utc) + timedelta(
+            hours=instructor_profile.min_advance_booking_hours
+        )
 
         if booking_datetime < min_booking_time:
             return {
@@ -861,8 +900,7 @@ class BookingService(BaseService):
         """
         # Get bookings for a range of dates to handle timezone differences
         # In worst case, tomorrow in one timezone could be 2 days away in UTC
-        from datetime import datetime
-        from datetime import timezone as tz
+        from datetime import datetime, timezone as tz
 
         # Use UTC as reference and get a 3-day window to cover all timezones
         utc_now = datetime.now(tz.utc).date()
@@ -900,7 +938,10 @@ class BookingService(BaseService):
             student_tomorrow = student_today + timedelta(days=1)
 
             # The booking should be tomorrow for both instructor and student
-            if booking.booking_date != instructor_tomorrow and booking.booking_date != student_tomorrow:
+            if (
+                booking.booking_date != instructor_tomorrow
+                and booking.booking_date != student_tomorrow
+            ):
                 continue
             try:
                 # Send reminder for this specific booking
@@ -935,12 +976,16 @@ class BookingService(BaseService):
             raise ValidationException("Only students can create bookings")
 
         # Use repositories instead of direct queries
-        service = self.conflict_checker_repository.get_active_service(booking_data.instructor_service_id)
+        service = self.conflict_checker_repository.get_active_service(
+            booking_data.instructor_service_id
+        )
         if not service:
             raise NotFoundException("Service not found or no longer available")
 
         # Get instructor profile
-        instructor_profile = self.conflict_checker_repository.get_instructor_profile(booking_data.instructor_id)
+        instructor_profile = self.conflict_checker_repository.get_instructor_profile(
+            booking_data.instructor_id
+        )
         if not instructor_profile:
             raise NotFoundException("Instructor profile not found")
 
@@ -954,9 +999,13 @@ class BookingService(BaseService):
         instructor_user = user_repository.get_by_id(booking_data.instructor_id)
         if instructor_user and instructor_user.account_status != "active":
             if instructor_user.account_status == "suspended":
-                raise BusinessRuleException("This instructor is temporarily suspended and cannot receive new bookings")
+                raise BusinessRuleException(
+                    "This instructor is temporarily suspended and cannot receive new bookings"
+                )
             elif instructor_user.account_status == "deactivated":
-                raise BusinessRuleException("This instructor account has been deactivated and cannot receive bookings")
+                raise BusinessRuleException(
+                    "This instructor account has been deactivated and cannot receive bookings"
+                )
             else:
                 raise BusinessRuleException("This instructor cannot receive bookings at this time")
 
@@ -1017,12 +1066,18 @@ class BookingService(BaseService):
             today = datetime.now(timezone.utc).date()
             min_date = today + timedelta(days=required_days)
             if booking_data.booking_date < min_date:
-                raise BusinessRuleException(f"Bookings must be made at least {min_advance_hours} hours in advance")
+                raise BusinessRuleException(
+                    f"Bookings must be made at least {min_advance_hours} hours in advance"
+                )
         else:
-            booking_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time, tzinfo=timezone.utc)
+            booking_datetime = datetime.combine(
+                booking_data.booking_date, booking_data.start_time, tzinfo=timezone.utc
+            )
             min_booking_time = datetime.now(timezone.utc) + timedelta(hours=min_advance_hours)
             if booking_datetime < min_booking_time:
-                raise BusinessRuleException(f"Bookings must be made at least {min_advance_hours} hours in advance")
+                raise BusinessRuleException(
+                    f"Bookings must be made at least {min_advance_hours} hours in advance"
+                )
 
     async def _create_booking_record(
         self,
@@ -1114,7 +1169,9 @@ class BookingService(BaseService):
         Returns:
             List of availability slots
         """
-        availability_slots = self.availability_repository.get_slots_by_date(instructor_id, target_date)
+        availability_slots = self.availability_repository.get_slots_by_date(
+            instructor_id, target_date
+        )
 
         # Filter slots within time range
         return [
@@ -1282,7 +1339,9 @@ class BookingService(BaseService):
             # Log late cancellation but allow it
             logger.warning(f"Late cancellation for booking {booking.id} by user {user.id}")
 
-    def _calculate_pricing(self, service: InstructorService, start_time: time, end_time: time) -> Dict[str, Any]:
+    def _calculate_pricing(
+        self, service: InstructorService, start_time: time, end_time: time
+    ) -> Dict[str, Any]:
         """Calculate booking pricing based on time range."""
         # Calculate duration
         # Use a reference date for duration calculations
@@ -1309,14 +1368,18 @@ class BookingService(BaseService):
         if self.cache_service:
             try:
                 # Invalidate all availability caches for the instructor and specific date
-                self.cache_service.invalidate_instructor_availability(booking.instructor_id, [booking.booking_date])
+                self.cache_service.invalidate_instructor_availability(
+                    booking.instructor_id, [booking.booking_date]
+                )
                 # Invalidate booking statistics cache for the instructor
                 stats_cache_key = f"booking_stats:instructor:{booking.instructor_id}"
                 self.cache_service.delete(stats_cache_key)
                 # Invalidate booking statistics cache for the student
                 student_stats_cache_key = f"booking_stats:student:{booking.student_id}"
                 self.cache_service.delete(student_stats_cache_key)
-                logger.debug(f"Invalidated availability and stats caches for instructor {booking.instructor_id}")
+                logger.debug(
+                    f"Invalidated availability and stats caches for instructor {booking.instructor_id}"
+                )
             except Exception as cache_error:
                 logger.warning(f"Failed to invalidate caches: {cache_error}")
 
@@ -1328,7 +1391,9 @@ class BookingService(BaseService):
         self.invalidate_cache(f"bookings:date:{booking.booking_date}")
 
         # Invalidate instructor availability caches (fallback)
-        self.invalidate_cache(f"instructor_availability:{booking.instructor_id}:{booking.booking_date}")
+        self.invalidate_cache(
+            f"instructor_availability:{booking.instructor_id}:{booking.booking_date}"
+        )
 
         # Invalidate stats caches (legacy)
         self.invalidate_cache(f"instructor_stats:{booking.instructor_id}")
@@ -1342,6 +1407,8 @@ class BookingService(BaseService):
                 self.cache_service.delete_pattern("booking:get_student_bookings:*")
                 # Invalidate ALL instructor booking caches
                 self.cache_service.delete_pattern("booking:get_instructor_bookings:*")
-                logger.debug(f"Invalidated all BookingRepository caches after booking {booking.id} change")
+                logger.debug(
+                    f"Invalidated all BookingRepository caches after booking {booking.id} change"
+                )
             except Exception as e:
                 logger.warning(f"Failed to invalidate BookingRepository caches: {e}")

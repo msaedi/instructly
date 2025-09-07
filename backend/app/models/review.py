@@ -13,11 +13,21 @@ Design notes:
 from datetime import datetime, timezone
 from enum import Enum
 
-import ulid
-from sqlalchemy import Boolean, CheckConstraint, Column, DateTime
-from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Enum as SAEnum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
+import ulid
 
 from ..database import Base
 
@@ -41,11 +51,20 @@ class Review(Base):
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
 
     # Relationships
-    booking_id = Column(String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False, unique=True)
-    student_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    instructor_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    booking_id = Column(
+        String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    student_id = Column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    instructor_id = Column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     instructor_service_id = Column(
-        String(26), ForeignKey("instructor_services.id", ondelete="CASCADE"), nullable=False, index=True
+        String(26),
+        ForeignKey("instructor_services.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
 
     # Rating data
@@ -53,11 +72,17 @@ class Review(Base):
     review_text = Column(Text, nullable=True)
 
     # Moderation & verification
-    status = Column(SAEnum(ReviewStatus, name="review_status"), nullable=False, default=ReviewStatus.PUBLISHED)
-    is_verified = Column(Boolean, nullable=False, default=False, comment="Student attended the session")
+    status = Column(
+        SAEnum(ReviewStatus, name="review_status"), nullable=False, default=ReviewStatus.PUBLISHED
+    )
+    is_verified = Column(
+        Boolean, nullable=False, default=False, comment="Student attended the session"
+    )
 
     # Timestamps
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
     updated_at = Column(
         DateTime(timezone=True),
         nullable=True,
@@ -67,8 +92,12 @@ class Review(Base):
     booking_completed_at = Column(DateTime(timezone=True), nullable=False)
 
     # Relationships (optional backrefs)
-    response = relationship("ReviewResponse", uselist=False, back_populates="review", cascade="all, delete-orphan")
-    tip = relationship("ReviewTip", uselist=False, back_populates="review", cascade="all, delete-orphan")
+    response = relationship(
+        "ReviewResponse", uselist=False, back_populates="review", cascade="all, delete-orphan"
+    )
+    tip = relationship(
+        "ReviewTip", uselist=False, back_populates="review", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         UniqueConstraint("booking_id", name="uq_reviews_booking"),
@@ -89,10 +118,16 @@ class ReviewResponse(Base):
     __tablename__ = "review_responses"
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    review_id = Column(String(26), ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False, unique=True)
-    instructor_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    review_id = Column(
+        String(26), ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    instructor_id = Column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     response_text = Column(Text, nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
 
     review = relationship("Review", back_populates="response")
 
@@ -111,11 +146,15 @@ class ReviewTip(Base):
     __tablename__ = "review_tips"
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    review_id = Column(String(26), ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False, unique=True)
+    review_id = Column(
+        String(26), ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
     amount_cents = Column(Integer, nullable=False)
     stripe_payment_intent_id = Column(String(255), nullable=True)
     status = Column(String(20), nullable=False, default="pending")  # pending, completed, failed
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
     processed_at = Column(DateTime(timezone=True), nullable=True)
 
     review = relationship("Review", back_populates="tip")

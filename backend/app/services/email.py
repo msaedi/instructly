@@ -142,7 +142,9 @@ class EmailService(BaseService):
             raise ServiceException(f"Email sending failed: {error_msg}")
 
     @BaseService.measure_operation("send_password_reset_email")
-    def send_password_reset_email(self, to_email: str, reset_url: str, user_name: Optional[str] = None) -> bool:
+    def send_password_reset_email(
+        self, to_email: str, reset_url: str, user_name: Optional[str] = None
+    ) -> bool:
         """
         Send password reset email.
 
@@ -167,7 +169,12 @@ class EmailService(BaseService):
             # Minimal text fallback
             text_content = f"Reset your {BRAND_NAME} password: {reset_url} (expires in 1 hour)"
 
-            self.send_email(to_email=to_email, subject=subject, html_content=html_content, text_content=text_content)
+            self.send_email(
+                to_email=to_email,
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content,
+            )
 
             self.log_operation("password_reset_email_sent", to_email=to_email)
             return True
@@ -176,11 +183,15 @@ class EmailService(BaseService):
             # Already logged in send_email
             return False
         except Exception as e:
-            self.logger.error(f"Unexpected error sending password reset email to {to_email}: {str(e)}")
+            self.logger.error(
+                f"Unexpected error sending password reset email to {to_email}: {str(e)}"
+            )
             return False
 
     @BaseService.measure_operation("send_password_reset_confirmation")
-    def send_password_reset_confirmation(self, to_email: str, user_name: Optional[str] = None) -> bool:
+    def send_password_reset_confirmation(
+        self, to_email: str, user_name: Optional[str] = None
+    ) -> bool:
         """
         Send confirmation email after successful password reset.
 
@@ -199,9 +210,16 @@ class EmailService(BaseService):
                 TemplateRegistry.AUTH_PASSWORD_RESET_CONFIRMATION,
                 context={"user_name": user_name},
             )
-            text_content = f"Your {BRAND_NAME} password has been reset. Log in: {settings.frontend_url}/login"
+            text_content = (
+                f"Your {BRAND_NAME} password has been reset. Log in: {settings.frontend_url}/login"
+            )
 
-            self.send_email(to_email=to_email, subject=subject, html_content=html_content, text_content=text_content)
+            self.send_email(
+                to_email=to_email,
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content,
+            )
 
             self.log_operation("password_reset_confirmation_sent", to_email=to_email)
             return True
@@ -210,7 +228,9 @@ class EmailService(BaseService):
             # Already logged in send_email
             return False
         except Exception as e:
-            self.logger.error(f"Unexpected error sending confirmation email to {to_email}: {str(e)}")
+            self.logger.error(
+                f"Unexpected error sending confirmation email to {to_email}: {str(e)}"
+            )
             return False
 
     @BaseService.measure_operation("validate_email_config")
@@ -234,7 +254,9 @@ class EmailService(BaseService):
         return True
 
     @BaseService.measure_operation("send_referral_invite")
-    def send_referral_invite(self, to_email: str, referral_link: str, inviter_name: str) -> Dict[str, Any]:
+    def send_referral_invite(
+        self, to_email: str, referral_link: str, inviter_name: str
+    ) -> Dict[str, Any]:
         """
         Send a referral invite email using Jinja2 templates.
 
@@ -280,8 +302,12 @@ class EmailService(BaseService):
         email_stats = {
             "emails_sent": metrics.get("send_email", {}).get("success_count", 0),
             "emails_failed": metrics.get("send_email", {}).get("failure_count", 0),
-            "password_resets_sent": metrics.get("send_password_reset_email", {}).get("success_count", 0),
-            "confirmations_sent": metrics.get("send_password_reset_confirmation", {}).get("success_count", 0),
+            "password_resets_sent": metrics.get("send_password_reset_email", {}).get(
+                "success_count", 0
+            ),
+            "confirmations_sent": metrics.get("send_password_reset_confirmation", {}).get(
+                "success_count", 0
+            ),
             "avg_send_time": metrics.get("send_email", {}).get("avg_time", 0),
         }
 

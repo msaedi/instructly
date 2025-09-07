@@ -6,8 +6,8 @@ These routes provide access to analytics dashboards and data exports,
 protected by RBAC permissions.
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
+import logging
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, desc, func
@@ -67,7 +67,12 @@ async def get_search_trends(
             func.count(func.distinct(SearchEvent.user_id)).label("unique_users"),
             func.count(func.distinct(SearchEvent.guest_session_id)).label("unique_guests"),
         )
-        .filter(and_(func.date(SearchEvent.searched_at) >= start_date, func.date(SearchEvent.searched_at) <= end_date))
+        .filter(
+            and_(
+                func.date(SearchEvent.searched_at) >= start_date,
+                func.date(SearchEvent.searched_at) <= end_date,
+            )
+        )
         .group_by(func.date(SearchEvent.searched_at))
         .order_by(func.date(SearchEvent.searched_at))
         .all()
@@ -202,7 +207,10 @@ async def get_search_analytics_summary(
     start_date = end_date - timedelta(days=days - 1)
 
     # Base filter for date range
-    date_filter = and_(func.date(SearchEvent.searched_at) >= start_date, func.date(SearchEvent.searched_at) <= end_date)
+    date_filter = and_(
+        func.date(SearchEvent.searched_at) >= start_date,
+        func.date(SearchEvent.searched_at) <= end_date,
+    )
 
     # Total searches and users
     totals = (
@@ -276,7 +284,10 @@ async def get_search_analytics_summary(
 
     # Zero result rate
     zero_results = (
-        db.query(func.count(SearchEvent.id)).filter(and_(date_filter, SearchEvent.results_count == 0)).scalar() or 0
+        db.query(func.count(SearchEvent.id))
+        .filter(and_(date_filter, SearchEvent.results_count == 0))
+        .scalar()
+        or 0
     )
 
     # Most effective search type
@@ -300,21 +311,29 @@ async def get_search_analytics_summary(
             "unique_guests": unique_guests,
             "total_users": total_users,
             "deleted_searches": deleted_searches,
-            "deletion_rate": round((deleted_searches / total_searches * 100) if total_searches > 0 else 0, 2),
+            "deletion_rate": round(
+                (deleted_searches / total_searches * 100) if total_searches > 0 else 0, 2
+            ),
         },
         users={
             "authenticated": unique_users,
             "guests": unique_guests,
             "converted_guests": converted_guests,
-            "user_percentage": round((unique_users / total_users * 100) if total_users > 0 else 0, 2),
-            "guest_percentage": round((unique_guests / total_users * 100) if total_users > 0 else 0, 2),
+            "user_percentage": round(
+                (unique_users / total_users * 100) if total_users > 0 else 0, 2
+            ),
+            "guest_percentage": round(
+                (unique_guests / total_users * 100) if total_users > 0 else 0, 2
+            ),
         },
         search_types=search_types,
         conversions={
             "guest_sessions": {
                 "total": guest_sessions,
                 "converted": converted_guests,
-                "conversion_rate": round((converted_guests / guest_sessions * 100) if guest_sessions > 0 else 0, 2),
+                "conversion_rate": round(
+                    (converted_guests / guest_sessions * 100) if guest_sessions > 0 else 0, 2
+                ),
             },
             "conversion_behavior": {
                 "avg_searches_before_conversion": 0,  # Would need more complex query
@@ -324,7 +343,9 @@ async def get_search_analytics_summary(
         },
         performance={
             "avg_results_per_search": round(totals.avg_results or 0, 2),
-            "zero_result_rate": round((zero_results / total_searches * 100) if total_searches > 0 else 0, 2),
+            "zero_result_rate": round(
+                (zero_results / total_searches * 100) if total_searches > 0 else 0, 2
+            ),
             "most_effective_type": most_effective.search_type if most_effective else "",
         },
     )
@@ -407,7 +428,9 @@ async def get_conversion_metrics(
         guest_sessions={
             "total": guest_sessions,
             "converted": converted_guests,
-            "conversion_rate": round((converted_guests / guest_sessions * 100) if guest_sessions > 0 else 0, 2),
+            "conversion_rate": round(
+                (converted_guests / guest_sessions * 100) if guest_sessions > 0 else 0, 2
+            ),
         },
         conversion_behavior={
             "avg_searches_before_conversion": 0,  # Would need more complex query
@@ -417,7 +440,9 @@ async def get_conversion_metrics(
         guest_engagement={
             "avg_searches_per_session": round(avg_searches, 2),
             "engaged_sessions": engaged_sessions,
-            "engagement_rate": round((engaged_sessions / guest_sessions * 100) if guest_sessions > 0 else 0, 2),
+            "engagement_rate": round(
+                (engaged_sessions / guest_sessions * 100) if guest_sessions > 0 else 0, 2
+            ),
         },
     )
 
@@ -445,30 +470,48 @@ async def get_search_performance(
 
     # Result distribution
     zero_results = (
-        db.query(func.count(SearchEvent.id)).filter(date_filter, SearchEvent.results_count == 0).scalar() or 0
+        db.query(func.count(SearchEvent.id))
+        .filter(date_filter, SearchEvent.results_count == 0)
+        .scalar()
+        or 0
     )
 
     one_to_five = (
-        db.query(func.count(SearchEvent.id)).filter(date_filter, SearchEvent.results_count.between(1, 5)).scalar() or 0
+        db.query(func.count(SearchEvent.id))
+        .filter(date_filter, SearchEvent.results_count.between(1, 5))
+        .scalar()
+        or 0
     )
 
     six_to_ten = (
-        db.query(func.count(SearchEvent.id)).filter(date_filter, SearchEvent.results_count.between(6, 10)).scalar() or 0
+        db.query(func.count(SearchEvent.id))
+        .filter(date_filter, SearchEvent.results_count.between(6, 10))
+        .scalar()
+        or 0
     )
 
-    over_ten = db.query(func.count(SearchEvent.id)).filter(date_filter, SearchEvent.results_count > 10).scalar() or 0
+    over_ten = (
+        db.query(func.count(SearchEvent.id))
+        .filter(date_filter, SearchEvent.results_count > 10)
+        .scalar()
+        or 0
+    )
 
     # Effectiveness metrics
     effectiveness = (
         db.query(
-            func.avg(SearchEvent.results_count).label("avg_results"), func.count(SearchEvent.id).label("total_searches")
+            func.avg(SearchEvent.results_count).label("avg_results"),
+            func.count(SearchEvent.id).label("total_searches"),
         )
         .filter(date_filter)
         .first()
     )
 
     searches_with_results = (
-        db.query(func.count(SearchEvent.id)).filter(date_filter, SearchEvent.results_count > 0).scalar() or 0
+        db.query(func.count(SearchEvent.id))
+        .filter(date_filter, SearchEvent.results_count > 0)
+        .scalar()
+        or 0
     )
 
     # Median results (approximation using avg as fallback)
@@ -482,7 +525,9 @@ async def get_search_performance(
             func.count(SearchEvent.id).label("count"),
             func.avg(SearchEvent.results_count).label("avg_results"),
         )
-        .filter(and_(date_filter, SearchEvent.search_query.isnot(None), SearchEvent.search_query != ""))
+        .filter(
+            and_(date_filter, SearchEvent.search_query.isnot(None), SearchEvent.search_query != "")
+        )
         .group_by(SearchEvent.search_query)
         .having(func.count(SearchEvent.id) >= 5)  # Only queries with at least 5 searches
         .order_by(func.avg(SearchEvent.results_count))
@@ -503,10 +548,16 @@ async def get_search_performance(
             "avg_results_per_search": round(effectiveness.avg_results or 0, 2),
             "median_results": round(median_results, 2),
             "searches_with_results": searches_with_results,
-            "zero_result_rate": round((zero_results / total_searches * 100) if total_searches > 0 else 0, 2),
+            "zero_result_rate": round(
+                (zero_results / total_searches * 100) if total_searches > 0 else 0, 2
+            ),
         },
         problematic_queries=[
-            {"query": query.search_query, "count": query.count, "avg_results": round(query.avg_results or 0, 2)}
+            {
+                "query": query.search_query,
+                "count": query.count,
+                "avg_results": round(query.avg_results or 0, 2),
+            }
             for query in problematic_queries
         ],
     )
@@ -556,14 +607,24 @@ async def candidates_summary(
 
     total_candidates = (
         db.query(func.count(SearchEventCandidate.id))
-        .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+        .filter(
+            and_(
+                SearchEventCandidate.created_at >= start_date,
+                SearchEventCandidate.created_at <= end_date,
+            )
+        )
         .scalar()
         or 0
     )
 
     events_with_candidates = (
         db.query(func.count(func.distinct(SearchEventCandidate.search_event_id)))
-        .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+        .filter(
+            and_(
+                SearchEventCandidate.created_at >= start_date,
+                SearchEventCandidate.created_at <= end_date,
+            )
+        )
         .scalar()
         or 0
     )
@@ -589,7 +650,12 @@ async def candidates_summary(
     # Source breakdown
     rows = (
         db.query(SearchEventCandidate.source, func.count(SearchEventCandidate.id))
-        .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+        .filter(
+            and_(
+                SearchEventCandidate.created_at >= start_date,
+                SearchEventCandidate.created_at <= end_date,
+            )
+        )
         .group_by(SearchEventCandidate.source)
         .all()
     )
@@ -631,7 +697,12 @@ async def candidates_category_trends(
             .select_from(SearchEventCandidate)
             .outerjoin(ServiceCatalog, ServiceCatalog.id == SearchEventCandidate.service_catalog_id)
             .outerjoin(ServiceCategory, ServiceCategory.id == ServiceCatalog.category_id)
-            .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+            .filter(
+                and_(
+                    SearchEventCandidate.created_at >= start_date,
+                    SearchEventCandidate.created_at <= end_date,
+                )
+            )
             .group_by(date_expr, category_expr)
             .order_by(date_expr)
             .all()
@@ -648,7 +719,12 @@ async def candidates_category_trends(
                 literal("unknown").label("category"),
                 func.count(SearchEventCandidate.id).label("count"),
             )
-            .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+            .filter(
+                and_(
+                    SearchEventCandidate.created_at >= start_date,
+                    SearchEventCandidate.created_at <= end_date,
+                )
+            )
             .group_by(func.date(SearchEventCandidate.created_at))
             .order_by(func.date(SearchEventCandidate.created_at))
             .all()
@@ -684,8 +760,15 @@ async def candidates_top_services(
         )
         .join(ServiceCatalog, ServiceCatalog.id == SearchEventCandidate.service_catalog_id)
         .join(ServiceCategory, ServiceCategory.id == ServiceCatalog.category_id)
-        .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
-        .group_by(SearchEventCandidate.service_catalog_id, ServiceCatalog.name, ServiceCategory.name)
+        .filter(
+            and_(
+                SearchEventCandidate.created_at >= start_date,
+                SearchEventCandidate.created_at <= end_date,
+            )
+        )
+        .group_by(
+            SearchEventCandidate.service_catalog_id, ServiceCatalog.name, ServiceCategory.name
+        )
         .order_by(func.count(SearchEventCandidate.id).desc())
         .limit(limit)
         .all()
@@ -699,7 +782,10 @@ async def candidates_top_services(
 
         supply_rows = (
             db.query(InstructorService.service_catalog_id, func.count(InstructorService.id))
-            .filter(InstructorService.service_catalog_id.in_(service_ids), InstructorService.is_active == True)
+            .filter(
+                InstructorService.service_catalog_id.in_(service_ids),
+                InstructorService.is_active == True,
+            )
             .group_by(InstructorService.service_catalog_id)
             .all()
         )
@@ -725,7 +811,9 @@ async def candidates_top_services(
     return CandidateTopServicesResponse(items)
 
 
-@router.get("/search/candidates/score-distribution", response_model=CandidateScoreDistributionResponse)
+@router.get(
+    "/search/candidates/score-distribution", response_model=CandidateScoreDistributionResponse
+)
 async def candidates_score_distribution(
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
@@ -739,15 +827,24 @@ async def candidates_score_distribution(
     def count_where(cond):
         return (
             db.query(func.count(SearchEventCandidate.id))
-            .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+            .filter(
+                and_(
+                    SearchEventCandidate.created_at >= start_date,
+                    SearchEventCandidate.created_at <= end_date,
+                )
+            )
             .filter(cond)
             .scalar()
             or 0
         )
 
     gte_0_90 = count_where(SearchEventCandidate.score >= 0.9)
-    gte_0_80_lt_0_90 = count_where(and_(SearchEventCandidate.score >= 0.8, SearchEventCandidate.score < 0.9))
-    gte_0_70_lt_0_80 = count_where(and_(SearchEventCandidate.score >= 0.7, SearchEventCandidate.score < 0.8))
+    gte_0_80_lt_0_90 = count_where(
+        and_(SearchEventCandidate.score >= 0.8, SearchEventCandidate.score < 0.9)
+    )
+    gte_0_70_lt_0_80 = count_where(
+        and_(SearchEventCandidate.score >= 0.7, SearchEventCandidate.score < 0.8)
+    )
     lt_0_70 = count_where(SearchEventCandidate.score < 0.7)
 
     return CandidateScoreDistributionResponse(

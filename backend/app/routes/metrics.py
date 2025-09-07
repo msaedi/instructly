@@ -7,8 +7,8 @@ This gives us immediate visibility without Prometheus complexity.
 
 from datetime import datetime, timezone
 
-import psutil
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+import psutil
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -94,11 +94,17 @@ async def get_performance_metrics(
     """Get performance metrics from all services."""
 
     # Only allow admin users or specific monitoring user
-    if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com", "sarah.chen@example.com"]:
+    if current_user.email not in [
+        "admin@instainstru.com",
+        "profiling@instainstru.com",
+        "sarah.chen@example.com",
+    ]:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
     # Cache metrics
-    cache_stats = cache_service.get_stats() if cache_service else {"error": "Cache service not available"}
+    cache_stats = (
+        cache_service.get_stats() if cache_service else {"error": "Cache service not available"}
+    )
 
     # System metrics
     system_metrics = {
@@ -397,7 +403,10 @@ def reset_rate_limits(
     """
     # Simple admin check - improve in production
     if current_user.email not in ["admin@instainstru.com", "support@instainstru.com"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only administrators can reset rate limits")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can reset rate limits",
+        )
 
     count = RateLimitAdmin.reset_all_limits(pattern)
 

@@ -30,7 +30,14 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {"items": ["..."], "total": 100, "page": 1, "per_page": 20, "has_next": True, "has_prev": False}
+            "example": {
+                "items": ["..."],
+                "total": 100,
+                "page": 1,
+                "per_page": 20,
+                "has_next": True,
+                "has_prev": False,
+            }
         }
     )
 
@@ -58,7 +65,9 @@ class DeleteResponse(BaseModel):
 
     success: bool = Field(default=True, description="Deletion success status")
     message: str = Field(description="Human-readable deletion message")
-    deleted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Deletion timestamp")
+    deleted_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="Deletion timestamp"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -80,7 +89,11 @@ class ErrorDetail(BaseModel):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {"code": "VALIDATION_ERROR", "message": "Invalid date format", "field": "booking_date"}
+            "example": {
+                "code": "VALIDATION_ERROR",
+                "message": "Invalid date format",
+                "field": "booking_date",
+            }
         }
     )
 
@@ -97,12 +110,18 @@ class ErrorResponse(BaseModel):
 
     error: ErrorDetail = Field(description="Error details")
     request_id: Optional[str] = Field(default=None, description="Request ID for tracking")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "error": {"code": "RESOURCE_NOT_FOUND", "message": "Instructor not found", "field": None},
+                "error": {
+                    "code": "RESOURCE_NOT_FOUND",
+                    "message": "Instructor not found",
+                    "field": None,
+                },
                 "request_id": "req_123abc",
                 "timestamp": "2025-01-20T10:30:00Z",
             }
@@ -116,7 +135,9 @@ class BatchOperationResult(BaseModel):
     total: int = Field(description="Total number of items processed")
     successful: int = Field(description="Number of successful operations")
     failed: int = Field(description="Number of failed operations")
-    errors: List[ErrorDetail] = Field(default_factory=list, description="List of errors for failed items")
+    errors: List[ErrorDetail] = Field(
+        default_factory=list, description="List of errors for failed items"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -124,7 +145,9 @@ class BatchOperationResult(BaseModel):
                 "total": 10,
                 "successful": 8,
                 "failed": 2,
-                "errors": [{"code": "VALIDATION_ERROR", "message": "Invalid date", "field": "date"}],
+                "errors": [
+                    {"code": "VALIDATION_ERROR", "message": "Invalid date", "field": "date"}
+                ],
             }
         }
     )
@@ -133,10 +156,14 @@ class BatchOperationResult(BaseModel):
 class HealthCheckResponse(BaseModel):
     """Standard health check response."""
 
-    status: str = Field(description="Service health status", pattern="^(healthy|degraded|unhealthy)$")
+    status: str = Field(
+        description="Service health status", pattern="^(healthy|degraded|unhealthy)$"
+    )
     service: str = Field(default="InstaInstru API", description="Service name")
     version: str = Field(description="API version")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Check timestamp")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="Check timestamp"
+    )
     checks: Dict[str, bool] = Field(description="Individual component health checks")
 
     model_config = ConfigDict(
@@ -156,13 +183,19 @@ class MetricsResponse(BaseModel):
     """Standard metrics response."""
 
     metrics: Dict[str, float] = Field(description="Metric values")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Metrics timestamp")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="Metrics timestamp"
+    )
     period: str = Field(description="Time period for metrics")
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "metrics": {"requests_per_second": 123.45, "average_response_time_ms": 234.56, "error_rate": 0.01},
+                "metrics": {
+                    "requests_per_second": 123.45,
+                    "average_response_time_ms": 234.56,
+                    "error_rate": 0.01,
+                },
                 "timestamp": "2025-01-20T10:30:00Z",
                 "period": "last_5_minutes",
             }
@@ -170,7 +203,9 @@ class MetricsResponse(BaseModel):
     )
 
 
-def create_paginated_response(items: List[T], total: int, page: int = 1, per_page: int = 20) -> PaginatedResponse[T]:
+def create_paginated_response(
+    items: List[T], total: int, page: int = 1, per_page: int = 20
+) -> PaginatedResponse[T]:
     """
     Helper function to create a paginated response.
 
@@ -184,5 +219,10 @@ def create_paginated_response(items: List[T], total: int, page: int = 1, per_pag
         PaginatedResponse with calculated pagination metadata
     """
     return PaginatedResponse(
-        items=items, total=total, page=page, per_page=per_page, has_next=page * per_page < total, has_prev=page > 1
+        items=items,
+        total=total,
+        page=page,
+        per_page=per_page,
+        has_next=page * per_page < total,
+        has_prev=page > 1,
     )

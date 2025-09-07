@@ -49,7 +49,9 @@ class ServiceOffering(BaseModel):
     equipment_required: Optional[List[str]] = Field(default=None, description="Required equipment")
     levels_taught: Optional[List[str]] = Field(default=None, description="Levels taught")
     age_groups: Optional[List[str]] = Field(default=None, description="Age groups served")
-    location_types: Optional[List[str]] = Field(default=None, description="Location types (online/in-person)")
+    location_types: Optional[List[str]] = Field(
+        default=None, description="Location types (online/in-person)"
+    )
     max_distance_miles: Optional[int] = Field(default=None, description="Maximum travel distance")
 
 

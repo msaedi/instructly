@@ -47,7 +47,11 @@ def _validate_background_check_file(filename: str, content_type: str) -> None:
 
 
 @router.post("/r2/signed-url", response_model=SignedUploadResponse)
-@rate_limit("1/minute", key_type=RateLimitKeyType.USER, error_message="Too many upload attempts. Please wait a minute.")
+@rate_limit(
+    "1/minute",
+    key_type=RateLimitKeyType.USER,
+    error_message="Too many upload attempts. Please wait a minute.",
+)
 def create_signed_upload(
     payload: CreateSignedUploadRequest,
     current_user: User = Depends(get_current_active_user),
@@ -63,14 +67,24 @@ def create_signed_upload(
     elif payload.purpose == "profile_picture":
         # Lightweight allowlist; full validation occurs on finalize
         if payload.content_type not in {"image/png", "image/jpeg"}:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid content type")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid content type"
+            )
 
     # Ensure R2 configured
-    if not settings.r2_bucket_name or not settings.r2_access_key_id or not settings.r2_secret_access_key:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Uploads not configured")
+    if (
+        not settings.r2_bucket_name
+        or not settings.r2_access_key_id
+        or not settings.r2_secret_access_key
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Uploads not configured"
+        )
 
     # Build object key using service helper (keeps structure consistent)
-    object_key = asset_service.initiate_upload_key(payload.purpose, current_user.id, payload.filename)
+    object_key = asset_service.initiate_upload_key(
+        payload.purpose, current_user.id, payload.filename
+    )
 
     # Generate presigned PUT via client
     pre = asset_service.storage.generate_presigned_put(object_key, payload.content_type)

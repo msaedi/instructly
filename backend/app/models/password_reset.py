@@ -1,9 +1,9 @@
 # backend/app/models/password_reset.py
 
-import ulid
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import ulid
 
 from ..database import Base
 

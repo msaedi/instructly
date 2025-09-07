@@ -230,7 +230,9 @@ async def delete_user_data_admin(
     privacy_service = PrivacyService(db)
 
     try:
-        deletion_stats = privacy_service.delete_user_data(user_id, delete_account=request.delete_account)
+        deletion_stats = privacy_service.delete_user_data(
+            user_id, delete_account=request.delete_account
+        )
         return UserDataDeletionResponse(
             status="success",
             message=f"Data deleted for user {user_id}",

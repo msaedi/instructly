@@ -6,15 +6,18 @@ background checks). Encapsulates key generation, access policies, processing,
 and storage interactions with R2.
 """
 
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import logging
 from typing import Literal, Optional
 
 from sqlalchemy.orm import Session
 
 from ..models.user import User
-from ..monitoring.prometheus_metrics import profile_pic_url_cache_hits_total, profile_pic_url_cache_misses_total
+from ..monitoring.prometheus_metrics import (
+    profile_pic_url_cache_hits_total,
+    profile_pic_url_cache_misses_total,
+)
 from ..repositories.user_repository import UserRepository
 from .base import BaseService
 from .cache_service import CacheService, get_cache_service
@@ -152,7 +155,9 @@ class PersonalAssetService(BaseService):
         return updated is not None
 
     @BaseService.measure_operation("get_profile_picture_view")
-    def get_profile_picture_view(self, owner_user_id: str, variant: str = "display") -> PresignedView:
+    def get_profile_picture_view(
+        self, owner_user_id: str, variant: str = "display"
+    ) -> PresignedView:
         # Any authenticated user may view profile pictures
         owner = self.users.get_by_id(owner_user_id)
         if not owner or not owner.profile_picture_version:
@@ -169,7 +174,11 @@ class PersonalAssetService(BaseService):
                 return PresignedView(url=cached["url"], expires_at=cached.get("expires_at", ""))
 
         keys = self._profile_picture_keys(owner.id, owner.profile_picture_version)
-        key = keys["display"] if variant == "display" else (keys["thumb"] if variant == "thumb" else keys["original"])
+        key = (
+            keys["display"]
+            if variant == "display"
+            else (keys["thumb"] if variant == "thumb" else keys["original"])
+        )
         pre = self.storage.generate_presigned_get(key, expires_seconds=3600)
         try:
             profile_pic_url_cache_misses_total.labels(variant=variant).inc()
@@ -179,7 +188,9 @@ class PersonalAssetService(BaseService):
         # Cache for 45 minutes (pre-expiry)
         if self.cache:
             try:
-                self.cache.set(cache_key, {"url": pre.url, "expires_at": pre.expires_at}, ttl=45 * 60)
+                self.cache.set(
+                    cache_key, {"url": pre.url, "expires_at": pre.expires_at}, ttl=45 * 60
+                )
             except Exception:
                 logger.warning("Failed to cache profile picture URL for user %s", owner.id)
 

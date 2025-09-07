@@ -12,8 +12,8 @@ All conflict checks now use booking's own fields (date, start_time, end_time)
 without any reference to availability slots.
 """
 
-import logging
 from datetime import date, datetime, time, timedelta
+import logging
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -73,7 +73,9 @@ class ConflictChecker(BaseService):
         Returns:
             List of conflicts with booking details
         """
-        bookings = self.repository.get_bookings_for_conflict_check(instructor_id, check_date, exclude_booking_id)
+        bookings = self.repository.get_bookings_for_conflict_check(
+            instructor_id, check_date, exclude_booking_id
+        )
 
         conflicts = []
         for booking in bookings:
@@ -123,11 +125,15 @@ class ConflictChecker(BaseService):
         Returns:
             True if there are conflicts, False otherwise
         """
-        conflicts = self.check_booking_conflicts(instructor_id, booking_date, start_time, end_time, exclude_booking_id)
+        conflicts = self.check_booking_conflicts(
+            instructor_id, booking_date, start_time, end_time, exclude_booking_id
+        )
         return len(conflicts) > 0
 
     @BaseService.measure_operation("get_booked_times_date")
-    def get_booked_times_for_date(self, instructor_id: str, target_date: date) -> List[Dict[str, Any]]:
+    def get_booked_times_for_date(
+        self, instructor_id: str, target_date: date
+    ) -> List[Dict[str, Any]]:
         """
         Get all booked time ranges for an instructor on a specific date.
 
@@ -156,7 +162,9 @@ class ConflictChecker(BaseService):
         ]
 
     @BaseService.measure_operation("get_booked_times_week")
-    def get_booked_times_for_week(self, instructor_id: str, week_start: date) -> Dict[str, List[Dict[str, Any]]]:
+    def get_booked_times_for_week(
+        self, instructor_id: str, week_start: date
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get all booked times for an instructor for a week.
 
@@ -386,7 +394,8 @@ class ConflictChecker(BaseService):
                 duration_minutes = time_validation.get("duration_minutes", 0)
                 if duration_minutes not in service.duration_options:
                     warnings.append(
-                        f"Service offers {service.duration_options} minutes, " f"but slot is {duration_minutes} minutes"
+                        f"Service offers {service.duration_options} minutes, "
+                        f"but slot is {duration_minutes} minutes"
                     )
 
         return {

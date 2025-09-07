@@ -62,7 +62,9 @@ class MemoryMetrics(BaseModel):
     total_mb: float = Field(description="Total memory in MB")
     percent: float = Field(description="Memory usage percentage")
 
-    model_config = ConfigDict(json_schema_extra={"example": {"used_mb": 2048.5, "total_mb": 8192.0, "percent": 25.0}})
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"used_mb": 2048.5, "total_mb": 8192.0, "percent": 25.0}}
+    )
 
 
 class RequestMetrics(BaseModel):
@@ -73,7 +75,9 @@ class RequestMetrics(BaseModel):
     average_response_time_ms: float = Field(description="Average response time in milliseconds")
 
     model_config = ConfigDict(
-        json_schema_extra={"example": {"active_count": 5, "total_count": 10000, "average_response_time_ms": 45.2}}
+        json_schema_extra={
+            "example": {"active_count": 5, "total_count": 10000, "average_response_time_ms": 45.2}
+        }
     )
 
 
@@ -127,7 +131,9 @@ class MonitoringDashboardResponse(BaseModel):
     requests: RequestMetrics = Field(description="Request processing metrics")
     memory: MemoryMetrics = Field(description="System memory metrics")
     alerts: List[AlertInfo] = Field(description="Active system alerts")
-    recommendations: List[PerformanceRecommendation] = Field(description="Performance recommendations")
+    recommendations: List[PerformanceRecommendation] = Field(
+        description="Performance recommendations"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -152,7 +158,11 @@ class MonitoringDashboardResponse(BaseModel):
                     "errors": 0,
                     "recommendations": ["Cache performance is optimal"],
                 },
-                "requests": {"active_count": 5, "total_count": 10000, "average_response_time_ms": 45.2},
+                "requests": {
+                    "active_count": 5,
+                    "total_count": 10000,
+                    "average_response_time_ms": 45.2,
+                },
                 "memory": {"used_mb": 2048.5, "total_mb": 8192.0, "percent": 25.0},
                 "alerts": [],
                 "recommendations": [],
@@ -167,7 +177,9 @@ class SlowQueryInfo(BaseModel):
     query: str = Field(description="SQL query (truncated)")
     duration_ms: float = Field(description="Query duration in milliseconds")
     timestamp: datetime = Field(description="Query execution timestamp")
-    endpoint: Optional[str] = Field(default=None, description="API endpoint that triggered the query")
+    endpoint: Optional[str] = Field(
+        default=None, description="API endpoint that triggered the query"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -254,8 +266,12 @@ class ExtendedCacheStats(BaseModel):
     """Extended cache statistics."""
 
     basic_stats: Dict[str, Any] = Field(description="Basic cache statistics")
-    redis_info: Optional[Dict[str, Any]] = Field(default=None, description="Redis server information")
-    key_patterns: Optional[Dict[str, int]] = Field(default=None, description="Cache key pattern counts")
+    redis_info: Optional[Dict[str, Any]] = Field(
+        default=None, description="Redis server information"
+    )
+    key_patterns: Optional[Dict[str, int]] = Field(
+        default=None, description="Cache key pattern counts"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -295,7 +311,11 @@ class ServiceMetrics(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "operations": {"get_availability": 1000, "create_booking": 50, "check_conflicts": 200},
+                "operations": {
+                    "get_availability": 1000,
+                    "create_booking": 50,
+                    "check_conflicts": 200,
+                },
                 "total_operations": 1250,
                 "cache_operations": 800,
                 "db_operations": 450,
@@ -337,7 +357,10 @@ class PerformanceMetricsResponse(BaseModel):
                 },
                 "cache": {"hits": 8500, "misses": 1500, "hit_rate": "85.0%"},
                 "system": {"cpu_percent": 25.5, "memory_percent": 45.2, "disk_usage": 60.0},
-                "database": {"active_connections": 5, "pool_status": {"pool_size": 20, "usage_percent": 25.0}},
+                "database": {
+                    "active_connections": 5,
+                    "pool_status": {"pool_size": 20, "usage_percent": 25.0},
+                },
             }
         }
     )
@@ -351,7 +374,9 @@ class CacheMetricsResponse(BaseModel):
     errors: int = Field(description="Cache errors")
     hit_rate: str = Field(description="Cache hit rate percentage")
     availability_metrics: Dict[str, Any] = Field(description="Availability-specific cache metrics")
-    redis_info: Optional[Dict[str, Any]] = Field(default=None, description="Redis server information")
+    redis_info: Optional[Dict[str, Any]] = Field(
+        default=None, description="Redis server information"
+    )
     performance_insights: List[str] = Field(description="Cache performance insights")
 
     model_config = ConfigDict(
@@ -392,7 +417,10 @@ class AvailabilityCacheMetricsResponse(BaseModel):
                     "invalidations": 50,
                     "cache_efficiency": "excellent",
                 },
-                "top_cached_keys_sample": ["avail:instructor:123:2025-01-20", "availability:window:456"],
+                "top_cached_keys_sample": [
+                    "avail:instructor:123:2025-01-20",
+                    "availability:window:456",
+                ],
                 "recommendations": ["Availability caching performance is optimal"],
                 "cache_tiers_info": {
                     "hot": "5 minutes (current/future availability)",
@@ -416,7 +444,9 @@ class RateLimitStats(BaseModel):
             "example": {
                 "total_keys": 42,
                 "breakdown_by_type": {"email": 15, "ip": 20, "global": 7},
-                "top_limited_clients": [{"key": "ip_192.168.1.100", "count": 50, "endpoint": "/api/search"}],
+                "top_limited_clients": [
+                    {"key": "ip_192.168.1.100", "count": 50, "endpoint": "/api/search"}
+                ],
             }
         }
     )
@@ -465,7 +495,9 @@ class ComponentHealth(BaseModel):
 
     status: str = Field(description="Component status (healthy/degraded/unhealthy)")
     type: Optional[str] = Field(default=None, description="Component type")
-    details: Optional[Dict[str, Any]] = Field(default=None, description="Additional component details")
+    details: Optional[Dict[str, Any]] = Field(
+        default=None, description="Additional component details"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -492,8 +524,16 @@ class DetailedHealthCheckResponse(BaseModel):
                 "status": "healthy",
                 "environment": "production",
                 "components": {
-                    "database": {"status": "healthy", "type": "postgresql", "details": {"user_count": 150}},
-                    "cache": {"status": "healthy", "type": "redis", "details": {"hits": 8500, "misses": 1500}},
+                    "database": {
+                        "status": "healthy",
+                        "type": "postgresql",
+                        "details": {"user_count": 150},
+                    },
+                    "cache": {
+                        "status": "healthy",
+                        "type": "redis",
+                        "details": {"hits": 8500, "misses": 1500},
+                    },
                 },
                 "cache_stats": {"hits": 8500, "misses": 1500, "hit_rate": "85.0%"},
             }
@@ -509,7 +549,9 @@ class PaymentHealthResponse(BaseModel):
     payment_stats: Dict[str, int] = Field(description="Payment status counts")
     recent_events: Dict[str, int] = Field(description="Recent payment event counts")
     overdue_authorizations: int = Field(description="Number of overdue authorizations")
-    minutes_since_last_auth: Optional[int] = Field(default=None, description="Minutes since last successful auth")
+    minutes_since_last_auth: Optional[int] = Field(
+        default=None, description="Minutes since last successful auth"
+    )
     alerts: List[str] = Field(description="Current payment system alerts")
     metrics: Dict[str, int] = Field(description="Payment metrics breakdown")
 

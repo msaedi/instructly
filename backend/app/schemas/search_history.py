@@ -20,7 +20,9 @@ class SearchHistoryBase(BaseModel):
         description="Type of search: natural_language, category, service_pill, filter, or search_history",
     )
     results_count: Optional[int] = Field(None, description="Number of results returned", ge=0)
-    guest_session_id: Optional[str] = Field(None, description="UUID for guest session tracking", max_length=36)
+    guest_session_id: Optional[str] = Field(
+        None, description="UUID for guest session tracking", max_length=36
+    )
 
     @field_validator("search_type")
     @classmethod
@@ -47,7 +49,8 @@ class SearchHistoryCreate(SearchHistoryBase):
         None, description="Additional context like page origin, viewport size, etc."
     )
     device_context: Optional[Dict[str, Any]] = Field(
-        None, description="Device context from frontend including screen size, connection type, etc."
+        None,
+        description="Device context from frontend including screen size, connection type, etc.",
     )
     observability_candidates: Optional[List[Dict[str, Any]]] = Field(
         default=None,

@@ -128,7 +128,9 @@ def update_my_address(
     current_user=Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
 ):
-    updated = service.update_address(current_user.id, address_id, data.model_dump(exclude_unset=True))
+    updated = service.update_address(
+        current_user.id, address_id, data.model_dump(exclude_unset=True)
+    )
     if not updated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
     return AddressResponse(**updated)
@@ -271,6 +273,8 @@ def list_neighborhoods(
     per_page = max(1, min(per_page, 500))
     page = max(1, page)
     offset = (page - 1) * per_page
-    items_raw = service.list_neighborhoods(region_type=region_type, borough=borough, limit=per_page, offset=offset)
+    items_raw = service.list_neighborhoods(
+        region_type=region_type, borough=borough, limit=per_page, offset=offset
+    )
     items = [NeighborhoodItem(**r) for r in items_raw]
     return NeighborhoodsListResponse(items=items, total=len(items), page=page, per_page=per_page)

@@ -6,11 +6,18 @@ This module provides Prometheus-compatible metrics by leveraging existing
 and best practices for metric types.
 """
 
-import time
 from collections import defaultdict
+import time
 from typing import Dict, Optional
 
-from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Gauge, Histogram, generate_latest
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 
 # Create a custom registry to avoid conflicts with default metrics
 REGISTRY = CollectorRegistry()
@@ -54,7 +61,10 @@ service_operations_total = Counter(
 )
 
 errors_total = Counter(
-    "instainstru_errors_total", "Total number of errors", ["service", "operation", "error_type"], registry=REGISTRY
+    "instainstru_errors_total",
+    "Total number of errors",
+    ["service", "operation", "error_type"],
+    registry=REGISTRY,
 )
 
 # Cache metrics for personal assets
@@ -138,7 +148,11 @@ class PrometheusMetrics:
 
     @staticmethod
     def record_service_operation(
-        service: str, operation: str, duration: float, status: str = "success", error_type: Optional[str] = None
+        service: str,
+        operation: str,
+        duration: float,
+        status: str = "success",
+        error_type: Optional[str] = None,
     ) -> None:
         """
         Record service operation metrics from @measure_operation decorator.
@@ -151,7 +165,9 @@ class PrometheusMetrics:
             error_type: Type of error if status is 'error'
         """
         # Record duration
-        service_operation_duration_seconds.labels(service=service, operation=operation).observe(duration)
+        service_operation_duration_seconds.labels(service=service, operation=operation).observe(
+            duration
+        )
 
         # Record count
         service_operations_total.labels(service=service, operation=operation, status=status).inc()

@@ -14,15 +14,15 @@ Key Features:
 - Stripe API integration through StripeService
 """
 
-import logging
 from datetime import datetime, timezone
+import logging
 from typing import Any, Dict, List
 
-import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
+import stripe
 
 from ..api.dependencies.auth import get_current_active_user
 from ..core.config import settings
@@ -62,19 +62,27 @@ def get_stripe_service(db: Session = Depends(get_db)) -> StripeService:
 def validate_instructor_role(user: User) -> None:
     """Validate that user has instructor role."""
     if not user.is_instructor:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This endpoint requires instructor role")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="This endpoint requires instructor role"
+        )
 
 
 def validate_student_role(user: User) -> None:
     """Validate that user has student role."""
     if not user.is_student:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This endpoint requires student role")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="This endpoint requires student role"
+        )
 
 
 # ========== Instructor Routes ==========
 
 
-@router.post("/connect/onboard", response_model=OnboardingResponse, dependencies=[Depends(rate_limit("financial"))])
+@router.post(
+    "/connect/onboard",
+    response_model=OnboardingResponse,
+    dependencies=[Depends(rate_limit("financial"))],
+)
 async def start_onboarding(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -101,7 +109,9 @@ async def start_onboarding(
         instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
         if not instructor_profile:
             logger.error(f"No instructor profile found for user {current_user.id}")
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
+            )
 
         # Check if account already exists
         existing_account = stripe_service.payment_repository.get_connected_account_by_instructor_id(
@@ -110,7 +120,9 @@ async def start_onboarding(
 
         if existing_account:
             # Check onboarding status
-            account_status = await run_in_threadpool(stripe_service.check_account_status, instructor_profile.id)
+            account_status = await run_in_threadpool(
+                stripe_service.check_account_status, instructor_profile.id
+            )
 
             if account_status["onboarding_completed"]:
                 return OnboardingResponse(
@@ -160,7 +172,9 @@ async def start_onboarding(
         logger.info(f"Started onboarding for instructor {instructor_profile.id}")
 
         return OnboardingResponse(
-            account_id=connected_account.stripe_account_id, onboarding_url=onboarding_url, already_onboarded=False
+            account_id=connected_account.stripe_account_id,
+            onboarding_url=onboarding_url,
+            already_onboarded=False,
         )
 
     except HTTPException:
@@ -172,7 +186,8 @@ async def start_onboarding(
     except Exception as e:
         logger.error(f"Unexpected error during onboarding: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to start onboarding process"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to start onboarding process",
         )
 
 
@@ -198,10 +213,14 @@ async def get_onboarding_status(
         # Get instructor profile
         instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
         if not instructor_profile:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
+            )
 
         # Get account status
-        status_data = await run_in_threadpool(stripe_service.check_account_status, instructor_profile.id)
+        status_data = await run_in_threadpool(
+            stripe_service.check_account_status, instructor_profile.id
+        )
 
         # Also reflect identity status from our DB to avoid blocking on Stripe calls
         try:
@@ -230,7 +249,8 @@ async def get_onboarding_status(
     except Exception as e:
         logger.error(f"Unexpected error checking onboarding status: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to check onboarding status"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check onboarding status",
         )
 
 
@@ -243,7 +263,9 @@ class IdentitySessionResponse(BaseModel):
 
 
 @router.post(
-    "/identity/session", response_model=IdentitySessionResponse, dependencies=[Depends(rate_limit("financial"))]
+    "/identity/session",
+    response_model=IdentitySessionResponse,
+    dependencies=[Depends(rate_limit("financial"))],
 )
 async def create_identity_session(
     request: Request,
@@ -260,10 +282,13 @@ async def create_identity_session(
         # Redirect back to onboarding status page in the new Phoenix structure
         return_url = f"{settings.frontend_url}/instructor/onboarding/status?identity_return=true"
         result = await run_in_threadpool(
-            stripe_service.create_identity_verification_session, user_id=current_user.id, return_url=return_url
+            stripe_service.create_identity_verification_session,
+            user_id=current_user.id,
+            return_url=return_url,
         )
         return IdentitySessionResponse(
-            verification_session_id=result["verification_session_id"], client_secret=result["client_secret"]
+            verification_session_id=result["verification_session_id"],
+            client_secret=result["client_secret"],
         )
     except HTTPException:
         raise
@@ -273,7 +298,8 @@ async def create_identity_session(
     except Exception as e:
         logger.error(f"Unexpected error creating identity session: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create identity session"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create identity session",
         )
 
 
@@ -283,7 +309,9 @@ class IdentityRefreshResponse(BaseModel):
 
 
 @router.post(
-    "/identity/refresh", response_model=IdentityRefreshResponse, dependencies=[Depends(rate_limit("financial"))]
+    "/identity/refresh",
+    response_model=IdentityRefreshResponse,
+    dependencies=[Depends(rate_limit("financial"))],
 )
 async def refresh_identity_status(
     current_user: User = Depends(get_current_active_user),
@@ -297,7 +325,9 @@ async def refresh_identity_status(
     try:
         validate_instructor_role(current_user)
 
-        status_data = await run_in_threadpool(stripe_service.get_latest_identity_status, current_user.id)
+        status_data = await run_in_threadpool(
+            stripe_service.get_latest_identity_status, current_user.id
+        )
         status_value = status_data.get("status") or "unknown"
 
         if status_value == "verified":
@@ -311,7 +341,9 @@ async def refresh_identity_status(
                         identity_verification_session_id=status_data.get("id"),
                     )
             except Exception as e:
-                logger.error(f"Failed to persist identity verification for user {current_user.id}: {e}")
+                logger.error(
+                    f"Failed to persist identity verification for user {current_user.id}: {e}"
+                )
                 # Still return verified=true since Stripe says verified
             return IdentityRefreshResponse(status=status_value, verified=True)
 
@@ -321,7 +353,8 @@ async def refresh_identity_status(
     except Exception as e:
         logger.error(f"Error refreshing identity status: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to refresh identity status"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to refresh identity status",
         )
 
 
@@ -332,7 +365,9 @@ class PayoutScheduleResponse(BaseModel):
 
 
 @router.post(
-    "/connect/payout-schedule", response_model=PayoutScheduleResponse, dependencies=[Depends(rate_limit("financial"))]
+    "/connect/payout-schedule",
+    response_model=PayoutScheduleResponse,
+    dependencies=[Depends(rate_limit("financial"))],
 )
 async def set_payout_schedule(
     interval: str = "weekly",
@@ -352,7 +387,9 @@ async def set_payout_schedule(
         # Get instructor profile
         instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
         if not instructor_profile:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
+            )
 
         result = await run_in_threadpool(
             stripe_service.set_payout_schedule_for_account,
@@ -360,7 +397,9 @@ async def set_payout_schedule(
             interval,
             weekly_anchor,
         )
-        return PayoutScheduleResponse(ok=True, account_id=result.get("account_id"), settings=result.get("settings"))
+        return PayoutScheduleResponse(
+            ok=True, account_id=result.get("account_id"), settings=result.get("settings")
+        )
     except HTTPException:
         raise
     except ServiceException as e:
@@ -368,7 +407,10 @@ async def set_payout_schedule(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error setting payout schedule: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to set payout schedule")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to set payout schedule",
+        )
 
 
 @router.get("/connect/dashboard", response_model=DashboardLinkResponse)
@@ -393,11 +435,15 @@ async def get_dashboard_link(
         # Get instructor profile
         instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
         if not instructor_profile:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
+            )
 
         # Get connected account
-        connected_account = stripe_service.payment_repository.get_connected_account_by_instructor_id(
-            instructor_profile.id
+        connected_account = (
+            stripe_service.payment_repository.get_connected_account_by_instructor_id(
+                instructor_profile.id
+            )
         )
 
         if not connected_account or not connected_account.onboarding_completed:
@@ -407,12 +453,15 @@ async def get_dashboard_link(
             )
 
         # Create dashboard link
-        login_link = await run_in_threadpool(stripe.Account.create_login_link, connected_account.stripe_account_id)
+        login_link = await run_in_threadpool(
+            stripe.Account.create_login_link, connected_account.stripe_account_id
+        )
 
         logger.info(f"Created dashboard link for instructor {instructor_profile.id}")
 
         return DashboardLinkResponse(
-            dashboard_url=login_link.url, expires_in_minutes=5  # Stripe login links expire after 5 minutes
+            dashboard_url=login_link.url,
+            expires_in_minutes=5,  # Stripe login links expire after 5 minutes
         )
 
     except HTTPException:
@@ -420,13 +469,18 @@ async def get_dashboard_link(
         raise
     except stripe.StripeError as e:
         logger.error(f"Stripe error creating dashboard link: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to create dashboard link")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to create dashboard link"
+        )
     except ServiceException as e:
         logger.error(f"Service error creating dashboard link: {str(e)}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error creating dashboard link: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create dashboard link")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create dashboard link",
+        )
 
 
 class InstantPayoutResponse(BaseModel):
@@ -453,11 +507,17 @@ async def request_instant_payout(
         # Resolve connected account
         instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
         if not instructor_profile:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
+            )
 
-        connected = stripe_service.payment_repository.get_connected_account_by_instructor_id(instructor_profile.id)
+        connected = stripe_service.payment_repository.get_connected_account_by_instructor_id(
+            instructor_profile.id
+        )
         if not connected or not connected.onboarding_completed:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Onboarding incomplete")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Onboarding incomplete"
+            )
 
         # Create a payout with method='instant' on the connected account
         # Note: Requires Stripe account eligibility and sufficient balance
@@ -481,7 +541,9 @@ async def request_instant_payout(
     except Exception as e:
         logger.error(f"Unexpected error requesting instant payout: {str(e)}")
         prometheus_metrics.inc_instant_payout_request("error")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Instant payout failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Instant payout failed"
+        )
 
 
 # ========== Student Routes ==========
@@ -515,7 +577,9 @@ async def save_payment_method(
 
         # Save payment method
         payment_method = stripe_service.save_payment_method(
-            user_id=current_user.id, payment_method_id=request.payment_method_id, set_as_default=request.set_as_default
+            user_id=current_user.id,
+            payment_method_id=request.payment_method_id,
+            set_as_default=request.set_as_default,
         )
 
         logger.info(f"Saved payment method for user {current_user.id}")
@@ -536,7 +600,10 @@ async def save_payment_method(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error saving payment method: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save payment method")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save payment method",
+        )
 
 
 @router.get("/methods", response_model=List[PaymentMethodResponse])
@@ -580,7 +647,10 @@ async def list_payment_methods(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error listing payment methods: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to list payment methods")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list payment methods",
+        )
 
 
 @router.delete("/methods/{method_id}", response_model=DeleteResponse)
@@ -611,7 +681,8 @@ async def delete_payment_method(
 
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Payment method not found or not owned by user"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Payment method not found or not owned by user",
             )
 
         logger.info(f"Deleted payment method {method_id} for user {current_user.id}")
@@ -625,10 +696,15 @@ async def delete_payment_method(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error deleting payment method: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete payment method")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete payment method",
+        )
 
 
-@router.post("/checkout", response_model=CheckoutResponse, dependencies=[Depends(rate_limit("financial"))])
+@router.post(
+    "/checkout", response_model=CheckoutResponse, dependencies=[Depends(rate_limit("financial"))]
+)
 async def create_checkout(
     request: CreateCheckoutRequest,
     db: Session = Depends(get_db),
@@ -650,7 +726,9 @@ async def create_checkout(
     # Concurrency lock: one in-flight per user/route
     lock_key = f"{current_user.id}:checkout"
     if not acquire_lock(lock_key, ttl_s=30):
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Operation in progress")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Operation in progress"
+        )
 
     # Idempotency: raw key from method+route+user+body hash
     raw_key = f"POST:/api/payments/checkout:user:{current_user.id}:booking:{request.booking_id}"
@@ -669,7 +747,10 @@ async def create_checkout(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
 
         if booking.student_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only pay for your own bookings")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only pay for your own bookings",
+            )
 
         # Check booking status - should be confirmed and not yet paid
         if booking.status not in ["CONFIRMED", "PENDING"]:
@@ -681,12 +762,16 @@ async def create_checkout(
         # Check if booking already has a successful payment
         existing_payment = stripe_service.payment_repository.get_payment_by_booking_id(booking.id)
         if existing_payment and existing_payment.status == "succeeded":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking has already been paid")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Booking has already been paid"
+            )
 
         # Save payment method if requested
         if request.save_payment_method:
             stripe_service.save_payment_method(
-                user_id=current_user.id, payment_method_id=request.payment_method_id, set_as_default=False
+                user_id=current_user.id,
+                payment_method_id=request.payment_method_id,
+                set_as_default=False,
             )
 
         # Process payment
@@ -721,7 +806,8 @@ async def create_checkout(
             amount=payment_result["amount"],
             application_fee=payment_result["application_fee"],
             client_secret=client_secret,
-            requires_action=payment_result["status"] in ["requires_action", "requires_confirmation"],
+            requires_action=payment_result["status"]
+            in ["requires_action", "requires_confirmation"],
         )
         # Cache result for idempotency (success path)
         try:
@@ -738,7 +824,9 @@ async def create_checkout(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error creating checkout: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process payment")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process payment"
+        )
     finally:
         release_lock(lock_key)
 
@@ -768,7 +856,9 @@ async def get_instructor_earnings(
         # Get instructor profile
         instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
         if not instructor_profile:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
+            )
 
         # Get earnings data (using instructor user ID for now)
         earnings = stripe_service.get_instructor_earnings(current_user.id)
@@ -789,7 +879,9 @@ async def get_instructor_earnings(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error getting earnings: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get earnings data")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get earnings data"
+        )
 
 
 # ========== Transaction History Route ==========
@@ -838,7 +930,9 @@ async def get_transaction_history(
                 # Determine credits applied from payment events
                 credit_applied_cents = 0
                 try:
-                    events = stripe_service.payment_repository.get_payment_events_for_booking(booking.id)
+                    events = stripe_service.payment_repository.get_payment_events_for_booking(
+                        booking.id
+                    )
                     # Prefer explicit credits_applied event
                     for ev in events:
                         if ev.event_type == "credits_applied":
@@ -850,7 +944,11 @@ async def get_transaction_history(
                             if ev.event_type == "auth_succeeded_credits_only":
                                 data = ev.event_data or {}
                                 credit_applied_cents = int(
-                                    data.get("credits_applied_cents", data.get("original_amount_cents", 0)) or 0
+                                    data.get(
+                                        "credits_applied_cents",
+                                        data.get("original_amount_cents", 0),
+                                    )
+                                    or 0
                                 )
                 except Exception:
                     credit_applied_cents = 0
@@ -889,7 +987,8 @@ async def get_transaction_history(
     except Exception as e:
         logger.error(f"Error getting transaction history: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get transaction history"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get transaction history",
         )
 
 
@@ -930,7 +1029,9 @@ async def get_credit_balance(
 
     except Exception as e:
         logger.error(f"Error getting credit balance: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get credit balance")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get credit balance"
+        )
 
 
 # ========== Webhook Route (No Authentication) ==========
@@ -989,14 +1090,18 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
                 else:
                     secret_type = f"secret #{i+1}"
 
-                logger.info(f"Webhook verified with {secret_type} secret for event: {event['type']}")
+                logger.info(
+                    f"Webhook verified with {secret_type} secret for event: {event['type']}"
+                )
                 break  # Success! Stop trying other secrets
             except stripe.error.SignatureVerificationError as e:
                 _last_error = e
                 continue  # Try next secret
 
         if not event:
-            logger.error(f"Webhook signature verification failed with all {len(webhook_secrets)} configured secrets")
+            logger.error(
+                f"Webhook signature verification failed with all {len(webhook_secrets)} configured secrets"
+            )
             raise HTTPException(status_code=400, detail="Invalid signature")
 
         # Log account context for debugging
@@ -1023,5 +1128,7 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
         logger.error(f"Unexpected webhook error: {str(e)}")
         # Return 200 to prevent Stripe retries for non-recoverable errors
         return WebhookResponse(
-            status="error", event_type="unknown", message="Error logged - returning 200 to prevent retries"
+            status="error",
+            event_type="unknown",
+            message="Error logged - returning 200 to prevent retries",
         )

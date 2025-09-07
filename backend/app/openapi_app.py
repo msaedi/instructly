@@ -4,6 +4,7 @@
 This avoids importing heavyweight production dependencies like prometheus_client,
 Sentry, etc. that are not needed for schema generation.
 """
+
 from fastapi import FastAPI
 
 # Import only the routers, not the full main app

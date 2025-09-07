@@ -108,13 +108,18 @@ async def database_pool_status(
             },
             recommendations={
                 "increase_pool_size": usage_percent > 80,
-                "current_load": "high" if usage_percent > 60 else "normal" if usage_percent > 30 else "low",
+                "current_load": "high"
+                if usage_percent > 60
+                else "normal"
+                if usage_percent > 30
+                else "low",
             },
         )
     except Exception as e:
         logger.error(f"Failed to get database pool status: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to retrieve pool statistics: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve pool statistics: {str(e)}",
         )
 
 

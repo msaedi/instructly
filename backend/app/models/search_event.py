@@ -6,10 +6,21 @@ This model stores every search event for analytics purposes,
 maintaining a complete history of all searches without deduplication.
 """
 
-import ulid
-from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, SmallInteger, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import ulid
 
 from ..database import Base
 
@@ -27,7 +38,9 @@ class SearchEvent(Base):
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
 
     # User identification (one or the other)
-    user_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    user_id = Column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     guest_session_id = Column(String(36), nullable=True, index=True)
 
     # Search details
@@ -41,17 +54,25 @@ class SearchEvent(Base):
     results_count = Column(Integer, default=0, nullable=True)
 
     # Event tracking
-    searched_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
-    session_id = Column(String(36), nullable=True, index=True, comment="Browser session for journey tracking")
+    searched_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    session_id = Column(
+        String(36), nullable=True, index=True, comment="Browser session for journey tracking"
+    )
     referrer = Column(String(255), nullable=True, comment="Page where search originated")
 
     # Additional context as JSON
-    search_context = Column(JSON, nullable=True, comment="Additional context: filters, location, device info, etc.")
+    search_context = Column(
+        JSON, nullable=True, comment="Additional context: filters, location, device info, etc."
+    )
 
     # Enhanced analytics columns
     ip_address = Column(String(45), nullable=True, comment="IPv4 or IPv6 address")
     ip_address_hash = Column(String(64), nullable=True, comment="SHA-256 hash of IP for privacy")
-    geo_data = Column(JSON, nullable=True, comment="Geolocation data: country, state, city, borough, postal_code")
+    geo_data = Column(
+        JSON, nullable=True, comment="Geolocation data: country, state, city, borough, postal_code"
+    )
     device_type = Column(String(20), nullable=True, comment="desktop, mobile, tablet")
     browser_info = Column(JSON, nullable=True, comment="Browser name, version, OS")
     connection_type = Column(String(20), nullable=True, comment="wifi, cellular, ethernet")
@@ -61,7 +82,9 @@ class SearchEvent(Base):
 
     # Privacy and consent
     consent_given = Column(Boolean, nullable=True, default=True)
-    consent_type = Column(String(50), nullable=True, comment="Type of consent: analytics, marketing, etc.")
+    consent_type = Column(
+        String(50), nullable=True, comment="Type of consent: analytics, marketing, etc."
+    )
 
     # Audit
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -89,16 +112,22 @@ class SearchEventCandidate(Base):
     __tablename__ = "search_event_candidates"
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    search_event_id = Column(String(26), ForeignKey("search_events.id", ondelete="CASCADE"), nullable=False, index=True)
+    search_event_id = Column(
+        String(26), ForeignKey("search_events.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     position = Column(SmallInteger, nullable=False, comment="1-based rank in candidate list")
     service_catalog_id = Column(
         String(26), ForeignKey("service_catalog.id", ondelete="SET NULL"), nullable=True, index=True
     )
     score = Column(Float, nullable=True, comment="primary score used for ordering (e.g., hybrid)")
     vector_score = Column(Float, nullable=True, comment="raw vector similarity if available")
-    lexical_score = Column(Float, nullable=True, comment="text/trigram or token overlap score if available")
+    lexical_score = Column(
+        Float, nullable=True, comment="text/trigram or token overlap score if available"
+    )
     source = Column(String(20), nullable=True, comment="vector|trgm|exact|hybrid")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
 
     # Relationships
     search_event = relationship("SearchEvent", back_populates="candidates")

@@ -126,7 +126,9 @@ async def confirm_password_reset(
 
 @router.get("/verify/{token}", response_model=PasswordResetVerifyResponse)
 @rate_limit(
-    "20/minute", key_type=RateLimitKeyType.IP, error_message="Too many verification attempts. Please try again later."
+    "20/minute",
+    key_type=RateLimitKeyType.IP,
+    error_message="Too many verification attempts. Please try again later.",
 )
 async def verify_reset_token(
     request: Request,  # Add this for rate limiting

@@ -34,8 +34,8 @@ Router Endpoints:
     POST /send-reminders - Admin endpoint for reminder emails
 """
 
-import logging
 from datetime import datetime, timedelta
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -107,9 +107,15 @@ async def get_upcoming_bookings(
                 is_student = current_user.id == booking.get("student_id")
                 is_instructor = current_user.id == booking.get("instructor_id")
 
-                student_last_name = booking.get("student", {}).get("last_name", "") if booking.get("student") else ""
+                student_last_name = (
+                    booking.get("student", {}).get("last_name", "")
+                    if booking.get("student")
+                    else ""
+                )
                 instructor_last_name = (
-                    booking.get("instructor", {}).get("last_name", "") if booking.get("instructor") else ""
+                    booking.get("instructor", {}).get("last_name", "")
+                    if booking.get("instructor")
+                    else ""
                 )
 
                 total_price_raw = booking.get("total_price", 0)
@@ -138,7 +144,9 @@ async def get_upcoming_bookings(
                         else student_last_name[0]
                         if student_last_name
                         else "",
-                        instructor_first_name=booking.get("instructor", {}).get("first_name", "Unknown")
+                        instructor_first_name=booking.get("instructor", {}).get(
+                            "first_name", "Unknown"
+                        )
                         if booking.get("instructor")
                         else "Unknown",
                         instructor_last_name=instructor_last_name
@@ -173,13 +181,17 @@ async def get_upcoming_bookings(
                         end_time=booking.end_time,
                         service_name=booking.service_name,
                         total_price=_tp,
-                        student_first_name=booking.student.first_name if booking.student else "Unknown",
+                        student_first_name=booking.student.first_name
+                        if booking.student
+                        else "Unknown",
                         student_last_name=booking.student.last_name
                         if is_student and booking.student
                         else booking.student.last_name[0]
                         if booking.student and booking.student.last_name
                         else "",
-                        instructor_first_name=booking.instructor.first_name if booking.instructor else "Unknown",
+                        instructor_first_name=booking.instructor.first_name
+                        if booking.instructor
+                        else "Unknown",
                         instructor_last_name=booking.instructor.last_name
                         if is_instructor and booking.instructor
                         else booking.instructor.last_name[0]
@@ -246,7 +258,9 @@ async def get_booking_stats(
 
 @router.post("/check-availability", response_model=AvailabilityCheckResponse)
 @rate_limit(
-    "30/minute", key_type=RateLimitKeyType.USER, error_message="Too many availability checks. Please slow down."
+    "30/minute",
+    key_type=RateLimitKeyType.USER,
+    error_message="Too many availability checks. Please slow down.",
 )
 async def check_availability(
     request: Request,  # ADD THIS for rate limiting
@@ -280,9 +294,13 @@ async def check_availability(
 
 
 # Admin endpoint - consider moving to separate admin routes in future
-@router.post("/send-reminders", response_model=SendRemindersResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/send-reminders", response_model=SendRemindersResponse, status_code=status.HTTP_200_OK
+)
 @rate_limit(
-    "1/hour", key_type=RateLimitKeyType.IP, error_message="Reminder emails can only be triggered once per hour."
+    "1/hour",
+    key_type=RateLimitKeyType.IP,
+    error_message="Reminder emails can only be triggered once per hour.",
 )
 async def send_reminder_emails(
     request: Request,  # ADD THIS for rate limiting
@@ -301,7 +319,9 @@ async def send_reminder_emails(
     try:
         count = await booking_service.send_booking_reminders()
         return SendRemindersResponse(
-            message=f"Successfully sent {count} reminder emails", reminders_sent=count, failed_reminders=0
+            message=f"Successfully sent {count} reminder emails",
+            reminders_sent=count,
+            failed_reminders=0,
         )
     except Exception as e:
         logger.error(f"Failed to send reminder emails: {str(e)}")
@@ -322,7 +342,9 @@ async def send_reminder_emails(
 async def get_bookings(
     status: Optional[BookingStatus] = None,
     upcoming_only: Optional[bool] = None,
-    upcoming: Optional[bool] = None,  # Support both upcoming and upcoming_only for frontend compatibility
+    upcoming: Optional[
+        bool
+    ] = None,  # Support both upcoming and upcoming_only for frontend compatibility
     exclude_future_confirmed: bool = False,
     include_past_confirmed: bool = False,
     page: int = Query(1, ge=1),
@@ -534,7 +556,9 @@ async def get_booking_preview(
             end_time=str(booking.end_time),
             duration_minutes=booking.duration_minutes,
             location_type=booking.location_type or "neutral",
-            location_type_display=booking.location_type_display if booking.location_type else "Neutral Location",
+            location_type_display=booking.location_type_display
+            if booking.location_type
+            else "Neutral Location",
             meeting_location=booking.meeting_location,
             service_area=booking.service_area,
             status=booking.status,
@@ -571,7 +595,9 @@ async def update_booking(
 ):
     """Update booking details (instructor only)."""
     try:
-        booking = booking_service.update_booking(booking_id=booking_id, user=current_user, update_data=update_data)
+        booking = booking_service.update_booking(
+            booking_id=booking_id, user=current_user, update_data=update_data
+        )
         return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
@@ -673,9 +699,15 @@ async def reschedule_booking(
 
         # 3) Create the new booking using requested slot (service defaults to original unless provided)
         # Sanitize carried-over optional fields from original which may be mocks in tests
-        _student_note = original.student_note if isinstance(getattr(original, "student_note", None), str) else None
+        _student_note = (
+            original.student_note
+            if isinstance(getattr(original, "student_note", None), str)
+            else None
+        )
         _meeting_location = (
-            original.meeting_location if isinstance(getattr(original, "meeting_location", None), str) else None
+            original.meeting_location
+            if isinstance(getattr(original, "meeting_location", None), str)
+            else None
         )
         _location_type_raw = getattr(original, "location_type", None)
         _location_type = (
@@ -710,7 +742,9 @@ async def reschedule_booking(
             from ..services.stripe_service import StripeService as _StripeService
 
             stripe_service = _StripeService(booking_service.db)
-            default_pm = stripe_service.payment_repository.get_default_payment_method(current_user.id)  # type: ignore[attr-defined]
+            default_pm = stripe_service.payment_repository.get_default_payment_method(
+                current_user.id
+            )  # type: ignore[attr-defined]
             if default_pm and default_pm.stripe_payment_method_id:
                 try:
                     new_booking = await booking_service.confirm_booking_payment(
@@ -727,7 +761,9 @@ async def reschedule_booking(
 
         # 4) Only after successful creation, cancel the original booking
         try:
-            await booking_service.cancel_booking(booking_id=booking_id, user=current_user, reason="Rescheduled")
+            await booking_service.cancel_booking(
+                booking_id=booking_id, user=current_user, reason="Rescheduled"
+            )
         except DomainException as e:
             # Business rule violations (e.g., late reschedule) should propagate as 422 via handler
             raise e

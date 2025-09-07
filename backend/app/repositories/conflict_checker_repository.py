@@ -14,8 +14,8 @@ Key changes:
 - Simplified from complex joins to direct booking queries
 """
 
-import logging
 from datetime import date
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session, joinedload
@@ -71,7 +71,9 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                 .filter(
                     Booking.instructor_id == instructor_id,
                     Booking.booking_date == check_date,
-                    Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                    Booking.status.in_(
+                        [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                    ),
                 )
             )
 
@@ -103,7 +105,9 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                 .filter(
                     Booking.instructor_id == instructor_id,
                     Booking.booking_date == target_date,
-                    Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                    Booking.status.in_(
+                        [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                    ),
                 )
                 .order_by(Booking.start_time)
                 .all()
@@ -132,7 +136,9 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                 .filter(
                     Booking.instructor_id == instructor_id,
                     Booking.booking_date.in_(week_dates),
-                    Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                    Booking.status.in_(
+                        [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                    ),
                 )
                 .order_by(Booking.booking_date, Booking.start_time)
                 .all()
@@ -181,7 +187,11 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             InstructorProfile if exists, None otherwise
         """
         try:
-            return self.db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
+            return (
+                self.db.query(InstructorProfile)
+                .filter(InstructorProfile.user_id == instructor_id)
+                .first()
+            )
         except Exception as e:
             self.logger.error(f"Error getting instructor profile: {str(e)}")
             raise RepositoryException(f"Failed to get profile: {str(e)}")

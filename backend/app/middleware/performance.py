@@ -10,8 +10,8 @@ Integrates with the production monitor to track:
 """
 
 import time
-import uuid
 from typing import Callable
+import uuid
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware

@@ -1,7 +1,7 @@
 # backend/app/main.py
+from contextlib import asynccontextmanager
 import logging
 import os
-from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,7 +67,12 @@ from .routes import (
     uploads,
     users_profile_picture,
 )
-from .schemas.main_responses import HealthLiteResponse, HealthResponse, PerformanceMetricsResponse, RootResponse
+from .schemas.main_responses import (
+    HealthLiteResponse,
+    HealthResponse,
+    PerformanceMetricsResponse,
+    RootResponse,
+)
 from .services.template_registry import TemplateRegistry
 from .services.template_service import TemplateService
 
@@ -79,7 +84,9 @@ except Exception:
     pass
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 
 logger = logging.getLogger(__name__)
@@ -96,12 +103,16 @@ async def lifespan(app: FastAPI):
     logger.info(f"{BRAND_NAME} API starting up...")
     import os
 
-    logger.info(f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','') or 'unset'})")
+    logger.info(
+        f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','') or 'unset'})"
+    )
 
     # Enforce is_testing discipline without changing preview/prod behavior otherwise
     try:
         site_mode = os.getenv("SITE_MODE", "").strip().lower()
-        if site_mode in {"preview", "prod", "production", "live"} and bool(getattr(settings, "is_testing", False)):
+        if site_mode in {"preview", "prod", "production", "live"} and bool(
+            getattr(settings, "is_testing", False)
+        ):
             logger.error("Refusing to start: is_testing=true is not allowed in preview/prod")
             raise SystemExit(2)
         if site_mode == "local" and bool(getattr(settings, "is_testing", False)):
@@ -131,9 +142,12 @@ async def lifespan(app: FastAPI):
     try:
         ts = TemplateService(None, None)
         _ = ts.render_template(
-            TemplateRegistry.AUTH_PASSWORD_RESET, {"reset_url": "https://example.com", "user_name": "Test"}
+            TemplateRegistry.AUTH_PASSWORD_RESET,
+            {"reset_url": "https://example.com", "user_name": "Test"},
         )
-        _ = ts.render_template(TemplateRegistry.AUTH_PASSWORD_RESET_CONFIRMATION, {"user_name": "Test"})
+        _ = ts.render_template(
+            TemplateRegistry.AUTH_PASSWORD_RESET_CONFIRMATION, {"user_name": "Test"}
+        )
         _ = ts.render_template(
             TemplateRegistry.REFERRALS_INVITE_STANDALONE,
             {"inviter_name": "Test", "referral_link": "https://example.com"},
@@ -236,7 +250,9 @@ def _compute_allowed_origins() -> list[str]:
 
 
 _DYN_ALLOWED_ORIGINS = _compute_allowed_origins()
-assert "*" not in _DYN_ALLOWED_ORIGINS, "CORS allow_origins cannot include * when allow_credentials=True"
+assert (
+    "*" not in _DYN_ALLOWED_ORIGINS
+), "CORS allow_origins cannot include * when allow_credentials=True"
 
 app.add_middleware(
     CORSMiddleware,
@@ -255,7 +271,9 @@ app.add_middleware(MonitoringMiddleware)
 app.add_middleware(PerformanceMiddleware)  # Performance monitoring with SSE bypass
 app.add_middleware(PrometheusMiddleware)  # Prometheus metrics with SSE bypass
 app.add_middleware(BetaPhaseHeaderMiddleware)  # Attach x-beta-phase header for every response
-app.add_middleware(CsrfOriginMiddlewareASGI)  # CSRF Origin/Referer checks for state-changing methods
+app.add_middleware(
+    CsrfOriginMiddlewareASGI
+)  # CSRF Origin/Referer checks for state-changing methods
 
 # Add GZip compression middleware with SSE exclusion
 # SSE responses must NOT be compressed to work properly
@@ -318,7 +336,9 @@ from app.schemas.payment_schemas import WebhookResponse
 
 # Redirect for Stripe webhook - handles the URL currently configured in Stripe Dashboard
 @app.post("/api/webhooks/stripe", response_model=WebhookResponse)
-async def redirect_stripe_webhook(request: Request, db: Session = Depends(get_db)) -> WebhookResponse:
+async def redirect_stripe_webhook(
+    request: Request, db: Session = Depends(get_db)
+) -> WebhookResponse:
     """
     Redirect old webhook URL to new location.
 

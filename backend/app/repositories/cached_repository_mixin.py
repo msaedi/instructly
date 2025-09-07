@@ -12,10 +12,10 @@ This mixin can be added to any repository to enable caching
 without modifying the core repository logic.
 """
 
+from functools import wraps
 import hashlib
 import json
 import logging
-from functools import wraps
 from typing import Any, Callable, Dict, Optional, Union
 
 from ..services.cache_service import CacheService, get_cache_service
@@ -132,7 +132,11 @@ class CachedRepositoryMixin:
             # Cycle detection
             if obj_id in _visited:
                 # Return minimal representation for circular reference
-                return {"id": getattr(data, "id", None), "__type__": data.__class__.__name__, "_circular_ref": True}
+                return {
+                    "id": getattr(data, "id", None),
+                    "__type__": data.__class__.__name__,
+                    "_circular_ref": True,
+                }
 
             _visited.add(obj_id)
 
@@ -175,7 +179,9 @@ class CachedRepositoryMixin:
                                         }
                                 # Skip non-critical relationships at depth 1+
                                 elif _depth == 0:
-                                    result[relationship.key] = self._serialize_for_cache(related, _visited, _depth + 1)
+                                    result[relationship.key] = self._serialize_for_cache(
+                                        related, _visited, _depth + 1
+                                    )
 
                 return result
 
@@ -220,7 +226,9 @@ class CachedRepositoryMixin:
         pattern = f"{self._cache_prefix}:*:{entity_id}:*"
         try:
             count = self.cache_service.delete_pattern(pattern)
-            logger.info(f"Invalidated {count} cache entries for {self._cache_prefix} entity {entity_id}")
+            logger.info(
+                f"Invalidated {count} cache entries for {self._cache_prefix} entity {entity_id}"
+            )
         except Exception as e:
             logger.error(f"Failed to invalidate entity cache: {e}")
 
@@ -294,7 +302,9 @@ def cached_method(ttl: Optional[int] = None, tier: str = "warm"):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
             # Skip caching if disabled or no cache service
-            if not getattr(self, "_cache_enabled", True) or not getattr(self, "cache_service", None):
+            if not getattr(self, "_cache_enabled", True) or not getattr(
+                self, "cache_service", None
+            ):
                 return func(self, *args, **kwargs)
 
             # Generate cache key
@@ -319,7 +329,9 @@ def cached_method(ttl: Optional[int] = None, tier: str = "warm"):
                     self.cache_service.set(cache_key, cache_data, ttl=ttl, tier=tier)
                     logger.debug(f"Cached result for {func.__name__}: {cache_key}")
                 except RecursionError as e:
-                    logger.error(f"Recursion error during cache serialization in {func.__name__}: {e}")
+                    logger.error(
+                        f"Recursion error during cache serialization in {func.__name__}: {e}"
+                    )
                 except Exception as e:
                     logger.error(f"Cache set error in {func.__name__}: {e}")
 

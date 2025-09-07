@@ -24,19 +24,26 @@ Router Endpoints:
     GET /{instructor_id} - Get specific instructor's profile
 """
 
-import logging
 from datetime import datetime, timezone
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from ..api.dependencies.auth import get_current_active_user, get_current_active_user_optional, require_beta_access
-from ..api.dependencies.services import get_cache_service_dep, get_favorites_service, get_instructor_service
+from ..api.dependencies.auth import (
+    get_current_active_user,
+    get_current_active_user_optional,
+    require_beta_access,
+)
+from ..api.dependencies.services import (
+    get_cache_service_dep,
+    get_favorites_service,
+    get_instructor_service,
+)
 from ..core.enums import RoleName
 from ..core.ulid_helper import is_valid_ulid
 from ..database import get_db
-from ..middleware.rate_limiter import RateLimitKeyType
-from ..middleware.rate_limiter import rate_limit as legacy_rate_limit
+from ..middleware.rate_limiter import RateLimitKeyType, rate_limit as legacy_rate_limit
 from ..models.user import User
 
 # Note: rate limiting disabled in tests; in production this protects write endpoints
@@ -60,7 +67,9 @@ router = APIRouter(prefix="/instructors", tags=["instructors"])
 
 
 @router.get(
-    "/", response_model=PaginatedResponse[InstructorProfileResponse], dependencies=[Depends(rate_limit("read"))]
+    "/",
+    response_model=PaginatedResponse[InstructorProfileResponse],
+    dependencies=[Depends(rate_limit("read"))],
 )
 async def get_all_instructors(
     service_catalog_id: str = Query(..., description="Service catalog ID (required)"),
@@ -86,7 +95,10 @@ async def get_all_instructors(
     # Validate filter parameters using the schema
     try:
         filters = InstructorFilterParams(
-            service_catalog_id=service_catalog_id, min_price=min_price, max_price=max_price, age_group=age_group
+            service_catalog_id=service_catalog_id,
+            min_price=min_price,
+            max_price=max_price,
+            age_group=age_group,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -143,7 +155,9 @@ async def create_instructor_profile(
 ):
     """Create a new instructor profile."""
     try:
-        profile_data = instructor_service.create_instructor_profile(user=current_user, profile_data=profile)
+        profile_data = instructor_service.create_instructor_profile(
+            user=current_user, profile_data=profile
+        )
         return profile_data
     except Exception as e:
         if "already exists" in str(e):
@@ -151,7 +165,9 @@ async def create_instructor_profile(
         raise
 
 
-@router.get("/me", response_model=InstructorProfileResponse, dependencies=[Depends(rate_limit("read"))])
+@router.get(
+    "/me", response_model=InstructorProfileResponse, dependencies=[Depends(rate_limit("read"))]
+)
 async def get_my_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -198,7 +214,9 @@ async def update_profile(
         if not instructor_service.cache_service and cache_service:
             instructor_service.cache_service = cache_service
 
-        profile_data = instructor_service.update_instructor_profile(user_id=current_user.id, update_data=profile_update)
+        profile_data = instructor_service.update_instructor_profile(
+            user_id=current_user.id, update_data=profile_update
+        )
         return profile_data
     except Exception as e:
         if "not found" in str(e).lower():
@@ -233,7 +251,9 @@ async def go_live(
 
     # Load profile details
     try:
-        profile_data = instructor_service.get_instructor_profile(current_user.id, include_inactive_services=False)
+        profile_data = instructor_service.get_instructor_profile(
+            current_user.id, include_inactive_services=False
+        )
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
@@ -251,7 +271,9 @@ async def go_live(
     )
 
     # Determine gating conditions
-    skills_ok = bool(profile_data.get("skills_configured")) or (len(profile_data.get("services", [])) > 0)
+    skills_ok = bool(profile_data.get("skills_configured")) or (
+        len(profile_data.get("services", [])) > 0
+    )
     identity_ok = bool(profile_data.get("identity_verified_at"))
     connect_ok = bool(connect.get("onboarding_completed"))
 
@@ -275,7 +297,9 @@ async def go_live(
             # Refresh ORM profile
             profile = instructor_service.profile_repository.find_one_by(user_id=current_user.id)
             if not profile:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+                )
             # Update flags
             if not getattr(profile, "onboarding_completed_at", None):
                 instructor_service.profile_repository.update(
@@ -291,7 +315,9 @@ async def go_live(
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to go live")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to go live"
+        )
 
     # Return updated profile
     return instructor_service.get_instructor_profile(current_user.id)
@@ -326,7 +352,11 @@ async def delete_instructor_profile(
         raise
 
 
-@router.get("/{instructor_id}", response_model=InstructorProfileResponse, dependencies=[Depends(rate_limit("read"))])
+@router.get(
+    "/{instructor_id}",
+    response_model=InstructorProfileResponse,
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_instructor_profile(
     instructor_id: str,
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -360,7 +390,9 @@ async def get_instructor_profile(
         return response
     except Exception as e:
         if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
+            )
         raise
 
 

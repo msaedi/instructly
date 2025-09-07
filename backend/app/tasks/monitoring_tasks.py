@@ -2,16 +2,16 @@
 Celery tasks for monitoring alerts and notifications.
 """
 
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
-import httpx
-import ulid
 from celery import Task
+import httpx
 from sqlalchemy import func
+import ulid
 
 from app.core.config import settings
 from app.database import SessionLocal
@@ -37,7 +37,8 @@ class MonitoringTask(Task):
             # Check if we should use test database
             if os.getenv("USE_TEST_DATABASE") == "true":
                 test_db_url = os.getenv(
-                    "test_database_url", "postgresql://postgres:postgres@localhost:5432/instainstru_test"
+                    "test_database_url",
+                    "postgresql://postgres:postgres@localhost:5432/instainstru_test",
                 )
                 from sqlalchemy import create_engine
                 from sqlalchemy.orm import sessionmaker
@@ -222,7 +223,9 @@ def create_github_issue_for_alert(self, alert_id: str):
 
         details_md = ""
         if alert.details:
-            details_md = "\n\n### Details:\n```json\n" + json.dumps(alert.details, indent=2) + "\n```"
+            details_md = (
+                "\n\n### Details:\n```json\n" + json.dumps(alert.details, indent=2) + "\n```"
+            )
 
         issue_body = f"""
 ## Monitoring Alert
@@ -240,7 +243,10 @@ def create_github_issue_for_alert(self, alert_id: str):
 """
 
         # Create GitHub issue
-        headers = {"Authorization": f"token {github_token}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {github_token}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         issue_data = {
             "title": issue_title,
@@ -250,7 +256,9 @@ def create_github_issue_for_alert(self, alert_id: str):
 
         with httpx.Client() as client:
             response = client.post(
-                f"https://api.github.com/repos/{github_repo}/issues", headers=headers, json=issue_data
+                f"https://api.github.com/repos/{github_repo}/issues",
+                headers=headers,
+                json=issue_data,
             )
             response.raise_for_status()
 
@@ -304,7 +312,9 @@ def cleanup_old_alerts():
         db = SessionLocal()
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
 
-        deleted_count = db.query(AlertHistory).filter(AlertHistory.created_at < cutoff_date).delete()
+        deleted_count = (
+            db.query(AlertHistory).filter(AlertHistory.created_at < cutoff_date).delete()
+        )
 
         db.commit()
         db.close()

@@ -45,8 +45,8 @@ class AuthService(BaseService):
 
         # Initialize repositories using BaseRepository pattern
         self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
-        self.instructor_repository = instructor_repository or RepositoryFactory.create_base_repository(
-            db, InstructorProfile
+        self.instructor_repository = (
+            instructor_repository or RepositoryFactory.create_base_repository(db, InstructorProfile)
         )
         # Avoid instantiating TFA service here to keep auth lightweight and avoid config/key coupling
 
@@ -122,13 +122,17 @@ class AuthService(BaseService):
                 # If registering as instructor, create profile with safe defaults
                 if role_name == RoleName.INSTRUCTOR:
                     # Derive initial service area (prefer neighborhood) and city for bio
-                    service_area_guess = "Manhattan"  # areas_of_service: neighborhood/city for filtering
+                    service_area_guess = (
+                        "Manhattan"  # areas_of_service: neighborhood/city for filtering
+                    )
                     city_guess = "New York"  # bio should use city, not borough
                     try:
                         if zip_code:
                             import anyio
 
-                            from app.repositories.region_boundary_repository import RegionBoundaryRepository
+                            from app.repositories.region_boundary_repository import (
+                                RegionBoundaryRepository,
+                            )
                             from app.services.geocoding.factory import create_geocoding_provider
 
                             provider = create_geocoding_provider()
@@ -141,7 +145,9 @@ class AuthService(BaseService):
                                 # Neighborhood/region name for areas_of_service if available
                                 rb_repo = RegionBoundaryRepository(self.db)
                                 region = rb_repo.find_region_by_point(
-                                    lat=float(geocoded.latitude), lng=float(geocoded.longitude), region_type="nyc"
+                                    lat=float(geocoded.latitude),
+                                    lng=float(geocoded.longitude),
+                                    region_type="nyc",
                                 )
                                 if region and region.get("region_name"):
                                     service_area_guess = region["region_name"]

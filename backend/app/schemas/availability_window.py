@@ -122,7 +122,9 @@ class TimeRange(BaseModel):
 class WeekSpecificScheduleCreate(BaseModel):
     """Schema for creating schedule for specific dates."""
 
-    schedule: List[Dict[str, Any]]  # Each item: {"date": "2025-07-15", "start_time": "09:00", "end_time": "10:00"}
+    schedule: List[
+        Dict[str, Any]
+    ]  # Each item: {"date": "2025-07-15", "start_time": "09:00", "end_time": "10:00"}
     clear_existing: bool = Field(
         default=True,
         description="Whether to clear existing entries for the week before saving",

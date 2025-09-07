@@ -78,9 +78,15 @@ class RBACRepository:
         Fixes: 2 violations in PermissionService
         """
         try:
-            return self.db.query(UserPermission).filter_by(user_id=user_id, permission_id=permission_id).first()
+            return (
+                self.db.query(UserPermission)
+                .filter_by(user_id=user_id, permission_id=permission_id)
+                .first()
+            )
         except Exception as e:
-            self.logger.error(f"Error getting user permission for user {user_id}, permission {permission_id}: {str(e)}")
+            self.logger.error(
+                f"Error getting user permission for user {user_id}, permission {permission_id}: {str(e)}"
+            )
             return None
 
     def check_user_permission(self, user_id: str, permission_name: str) -> Optional[UserPermission]:
@@ -113,12 +119,19 @@ class RBACRepository:
         Fixes: 1 violation in PermissionService
         """
         try:
-            return self.db.query(UserPermission).join(Permission).filter(UserPermission.user_id == user_id).all()
+            return (
+                self.db.query(UserPermission)
+                .join(Permission)
+                .filter(UserPermission.user_id == user_id)
+                .all()
+            )
         except Exception as e:
             self.logger.error(f"Error getting user permissions for user {user_id}: {str(e)}")
             return []
 
-    def add_user_permission(self, user_id: str, permission_id: str, granted: bool = True) -> UserPermission:
+    def add_user_permission(
+        self, user_id: str, permission_id: str, granted: bool = True
+    ) -> UserPermission:
         """
         Add or update a user permission override.
 
@@ -128,7 +141,9 @@ class RBACRepository:
         Note: Does NOT commit - service layer controls transaction
         """
         try:
-            user_perm = UserPermission(user_id=user_id, permission_id=permission_id, granted=granted)
+            user_perm = UserPermission(
+                user_id=user_id, permission_id=permission_id, granted=granted
+            )
             self.db.add(user_perm)
             return user_perm
         except Exception as e:

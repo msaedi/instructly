@@ -40,7 +40,9 @@ class SearchUserContext:
         return cls(user_id=user_id, session_id=session_id)
 
     @classmethod
-    def from_guest(cls, guest_session_id: str, session_id: Optional[str] = None) -> "SearchUserContext":
+    def from_guest(
+        cls, guest_session_id: str, session_id: Optional[str] = None
+    ) -> "SearchUserContext":
         """Create context for a guest user."""
         return cls(guest_session_id=guest_session_id, session_id=session_id)
 

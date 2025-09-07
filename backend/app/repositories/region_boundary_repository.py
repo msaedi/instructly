@@ -36,7 +36,9 @@ class RegionBoundaryRepository:
         ).fetchall()
         colnames = {row[0] for row in cols}
         meta_column = (
-            "region_metadata" if "region_metadata" in colnames else ("metadata" if "metadata" in colnames else None)
+            "region_metadata"
+            if "region_metadata" in colnames
+            else ("metadata" if "metadata" in colnames else None)
         )
 
         json_meta = json.dumps(metadata or {})
@@ -102,7 +104,9 @@ class RegionBoundaryRepository:
     def has_postgis(self) -> bool:
         try:
             res = self.db.execute(
-                text("SELECT 1 FROM pg_available_extensions WHERE name='postgis' AND installed_version IS NOT NULL")
+                text(
+                    "SELECT 1 FROM pg_available_extensions WHERE name='postgis' AND installed_version IS NOT NULL"
+                )
             ).first()
             return res is not None
         except Exception:
@@ -140,7 +144,11 @@ class RegionBoundaryRepository:
                 LIMIT 1
                 """
             )
-            return self.db.execute(sql, {"lat": lat, "lng": lng, "rtype": region_type}).mappings().first()
+            return (
+                self.db.execute(sql, {"lat": lat, "lng": lng, "rtype": region_type})
+                .mappings()
+                .first()
+            )
         except Exception:
             try:
                 self.db.rollback()
@@ -150,7 +158,9 @@ class RegionBoundaryRepository:
 
     # --- Listing and GeoJSON helpers ---
 
-    def list_regions(self, region_type: str, parent_region: str | None = None, limit: int = 500, offset: int = 0):
+    def list_regions(
+        self, region_type: str, parent_region: str | None = None, limit: int = 500, offset: int = 0
+    ):
         """List regions of a given type, optionally filtered by parent (e.g., borough).
 
         Returns mappings with: id, region_type, region_code, region_name, parent_region
@@ -214,7 +224,9 @@ class RegionBoundaryRepository:
                 pass
             return []
 
-    def find_region_ids_by_partial_names(self, names: list[str], region_type: str = "nyc") -> dict[str, str]:
+    def find_region_ids_by_partial_names(
+        self, names: list[str], region_type: str = "nyc"
+    ) -> dict[str, str]:
         """Return a mapping from partial name to region id by simple ILIKE match (first result)."""
         if not names:
             return {}

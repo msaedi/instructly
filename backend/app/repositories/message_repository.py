@@ -6,8 +6,8 @@ Implements all data access operations for message management
 following the TRUE 100% repository pattern.
 """
 
-import logging
 from datetime import datetime, timezone
+import logging
 from typing import List, Optional, Tuple
 
 from sqlalchemy import and_, func
@@ -57,7 +57,9 @@ class MessageRepository(BaseRepository[Message]):
             # Create notification for the recipient
             recipient_id = self._get_recipient_id(booking_id, sender_id)
             if recipient_id:
-                notification = MessageNotification(message_id=message.id, user_id=recipient_id, is_read=False)
+                notification = MessageNotification(
+                    message_id=message.id, user_id=recipient_id, is_read=False
+                )
                 self.db.add(notification)
 
             self.logger.info(f"Created message {message.id} for booking {booking_id}")
@@ -67,7 +69,9 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error creating message: {str(e)}")
             raise RepositoryException(f"Failed to create message: {str(e)}")
 
-    def get_messages_for_booking(self, booking_id: str, limit: int = 50, offset: int = 0) -> List[Message]:
+    def get_messages_for_booking(
+        self, booking_id: str, limit: int = 50, offset: int = 0
+    ) -> List[Message]:
         """
         Get messages for a booking with pagination.
 
@@ -146,7 +150,10 @@ class MessageRepository(BaseRepository[Message]):
                     )
                 )
                 .update(
-                    {MessageNotification.is_read: True, MessageNotification.read_at: datetime.now(timezone.utc)},
+                    {
+                        MessageNotification.is_read: True,
+                        MessageNotification.read_at: datetime.now(timezone.utc),
+                    },
                     synchronize_session=False,
                 )
             )
@@ -219,7 +226,11 @@ class MessageRepository(BaseRepository[Message]):
             from ..models.message import MessageReaction
 
             rows = (
-                self.db.query(MessageReaction.message_id, MessageReaction.emoji, func.count(MessageReaction.id))
+                self.db.query(
+                    MessageReaction.message_id,
+                    MessageReaction.emoji,
+                    func.count(MessageReaction.id),
+                )
                 .filter(MessageReaction.message_id.in_(message_ids))
                 .group_by(MessageReaction.message_id, MessageReaction.emoji)
                 .all()
@@ -229,7 +240,9 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching reaction counts: {str(e)}")
             raise RepositoryException(f"Failed to fetch reaction counts: {str(e)}")
 
-    def get_user_reactions_for_message_ids(self, message_ids: List[str], user_id: str) -> List[tuple]:
+    def get_user_reactions_for_message_ids(
+        self, message_ids: List[str], user_id: str
+    ) -> List[tuple]:
         """
         Return tuples of (message_id, emoji) for reactions by the user on given messages.
         """
@@ -328,7 +341,11 @@ class MessageRepository(BaseRepository[Message]):
             Tuple of (student_id, instructor_id) or None if booking not found
         """
         try:
-            booking = self.db.query(Booking.student_id, Booking.instructor_id).filter(Booking.id == booking_id).first()
+            booking = (
+                self.db.query(Booking.student_id, Booking.instructor_id)
+                .filter(Booking.id == booking_id)
+                .first()
+            )
 
             if booking:
                 return (booking.student_id, booking.instructor_id)

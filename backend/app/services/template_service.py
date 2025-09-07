@@ -13,8 +13,8 @@ FIXED IN THIS VERSION:
 - Maintains all existing functionality
 """
 
-import logging
 from datetime import datetime, timezone
+import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -198,7 +198,9 @@ class TemplateService(BaseService):
         return context
 
     @BaseService.measure_operation("render_template")
-    def render_template(self, template_name: str, context: Optional[Dict[str, Any]] = None, **kwargs) -> str:
+    def render_template(
+        self, template_name: str, context: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> str:
         """
         Render a template with the given context.
 
@@ -247,7 +249,9 @@ class TemplateService(BaseService):
                     template_name_str = template_name.value  # type: ignore[attr-defined]
                 except Exception:
                     template_name_str = str(template_name)
-                template_path = (Path(__file__).parent.parent / "templates" / template_name_str).resolve()
+                template_path = (
+                    Path(__file__).parent.parent / "templates" / template_name_str
+                ).resolve()
                 with open(template_path, "r", encoding="utf-8-sig", errors="replace") as f:
                     raw = f.read()
                 # Basic sanitize: strip any leading non-printable characters
@@ -264,11 +268,15 @@ class TemplateService(BaseService):
                 self.logger.warning(f"Rendered {template_name} via fallback sanitize path")
                 return rendered
             except Exception as inner:
-                self.logger.error(f"Error rendering template {template_name}: {str(e)} | Fallback failed: {inner}")
+                self.logger.error(
+                    f"Error rendering template {template_name}: {str(e)} | Fallback failed: {inner}"
+                )
                 raise
 
     @BaseService.measure_operation("render_string")
-    def render_string(self, template_string: str, context: Optional[Dict[str, Any]] = None, **kwargs) -> str:
+    def render_string(
+        self, template_string: str, context: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> str:
         """
         Render a template from a string.
 
@@ -318,7 +326,9 @@ class TemplateService(BaseService):
             try:
                 cached_result = self.cache.get(cache_key)
                 if cached_result is not None:
-                    self.logger.debug(f"Template existence for '{template_name}' retrieved from cache")
+                    self.logger.debug(
+                        f"Template existence for '{template_name}' retrieved from cache"
+                    )
                     return cached_result
             except Exception as e:
                 self.logger.warning(f"Cache get failed for template existence: {e}")

@@ -8,10 +8,10 @@ for a specific booking.
 
 from datetime import datetime, timezone
 
-import ulid
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import JSON as SAJSON
+import ulid
 
 from ..database import Base
 
@@ -30,7 +30,9 @@ class Message(Base):
     booking_id = Column(String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
     sender_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content = Column(String(1000), nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
@@ -46,7 +48,9 @@ class Message(Base):
     # Relationships
     booking = relationship("Booking", back_populates="messages")
     sender = relationship("User", foreign_keys=[sender_id])
-    notifications = relationship("MessageNotification", back_populates="message", cascade="all, delete-orphan")
+    notifications = relationship(
+        "MessageNotification", back_populates="message", cascade="all, delete-orphan"
+    )
 
 
 class MessageReaction(Base):
@@ -60,7 +64,9 @@ class MessageReaction(Base):
     message_id = Column(String(26), ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     emoji = Column(String(16), nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class MessageEdit(Base):
@@ -73,7 +79,9 @@ class MessageEdit(Base):
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     message_id = Column(String(26), ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)
     original_content = Column(String(1000), nullable=False)
-    edited_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    edited_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class MessageNotification(Base):
@@ -91,7 +99,9 @@ class MessageNotification(Base):
     user_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     is_read = Column(Boolean, nullable=False, default=False)
     read_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
 
     # Relationships
     message = relationship("Message", back_populates="notifications")

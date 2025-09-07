@@ -84,7 +84,9 @@ class MessageService(BaseService):
 
         # Create the message
         with self.transaction():
-            message = self.repository.create_message(booking_id=booking_id, sender_id=sender_id, content=content)
+            message = self.repository.create_message(
+                booking_id=booking_id, sender_id=sender_id, content=content
+            )
 
             # Send email notification if recipient is offline
             self._send_offline_notification(booking, sender_id, content)
@@ -93,7 +95,9 @@ class MessageService(BaseService):
             return message
 
     @BaseService.measure_operation("get_message_history")
-    def get_message_history(self, booking_id: str, user_id: str, limit: int = 50, offset: int = 0) -> List[Message]:
+    def get_message_history(
+        self, booking_id: str, user_id: str, limit: int = 50, offset: int = 0
+    ) -> List[Message]:
         """
         Get message history for a booking.
 
@@ -113,7 +117,9 @@ class MessageService(BaseService):
         if not self._user_has_booking_access(booking_id, user_id):
             raise ForbiddenException("You don't have access to this booking")
 
-        messages = self.repository.get_messages_for_booking(booking_id=booking_id, limit=limit, offset=offset)
+        messages = self.repository.get_messages_for_booking(
+            booking_id=booking_id, limit=limit, offset=offset
+        )
 
         # Reverse to get chronological order (oldest first)
         messages = list(reversed(messages))
@@ -323,7 +329,9 @@ class MessageService(BaseService):
             from ..core.config import settings
 
             window_minutes = getattr(settings, "message_edit_window_minutes", 5)
-            if (datetime.now(timezone.utc) - message.created_at) > timedelta(minutes=window_minutes):
+            if (datetime.now(timezone.utc) - message.created_at) > timedelta(
+                minutes=window_minutes
+            ):
                 raise ValidationException("Edit window has expired")
         except Exception:
             pass
@@ -391,14 +399,19 @@ class MessageService(BaseService):
 
         try:
             # Determine recipient
-            recipient_id = booking.instructor_id if sender_id == booking.student_id else booking.student_id
+            recipient_id = (
+                booking.instructor_id if sender_id == booking.student_id else booking.student_id
+            )
 
             # TODO: Check if recipient is online (future enhancement)
             # For now, always send email notifications
 
             # Send email notification
             self.notification_service.send_message_notification(
-                recipient_id=recipient_id, booking=booking, sender_id=sender_id, message_content=content
+                recipient_id=recipient_id,
+                booking=booking,
+                sender_id=sender_id,
+                message_content=content,
             )
 
         except Exception as e:

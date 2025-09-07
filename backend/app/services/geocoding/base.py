@@ -39,7 +39,9 @@ class GeocodingProvider(ABC):
         pass
 
     @abstractmethod
-    async def autocomplete(self, query: str, session_token: Optional[str] = None) -> List[AutocompleteResult]:
+    async def autocomplete(
+        self, query: str, session_token: Optional[str] = None
+    ) -> List[AutocompleteResult]:
         pass
 
     @abstractmethod

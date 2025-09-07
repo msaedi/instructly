@@ -9,13 +9,18 @@ default_session_duration) have been removed as part of the refactoring.
 These will be reimplemented differently in the new booking system.
 """
 
-import logging
 from datetime import datetime
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..core.constants import MAX_BIO_LENGTH, MAX_SESSION_DURATION, MIN_BIO_LENGTH, MIN_SESSION_DURATION
+from ..core.constants import (
+    MAX_BIO_LENGTH,
+    MAX_SESSION_DURATION,
+    MIN_BIO_LENGTH,
+    MIN_SESSION_DURATION,
+)
 from .base import Money, StandardizedModel
 
 logger = logging.getLogger(__name__)
@@ -30,11 +35,20 @@ class InstructorFilterParams(BaseModel):
     """
 
     search: Optional[str] = Field(
-        None, description="Text search across instructor name, bio, and services", min_length=1, max_length=100
+        None,
+        description="Text search across instructor name, bio, and services",
+        min_length=1,
+        max_length=100,
     )
-    service_catalog_id: Optional[str] = Field(None, description="Filter by specific service catalog ID")
-    min_price: Optional[float] = Field(None, ge=0, le=1000, description="Minimum hourly rate filter")
-    max_price: Optional[float] = Field(None, ge=0, le=1000, description="Maximum hourly rate filter")
+    service_catalog_id: Optional[str] = Field(
+        None, description="Filter by specific service catalog ID"
+    )
+    min_price: Optional[float] = Field(
+        None, ge=0, le=1000, description="Minimum hourly rate filter"
+    )
+    max_price: Optional[float] = Field(
+        None, ge=0, le=1000, description="Maximum hourly rate filter"
+    )
     age_group: Optional[str] = Field(
         None,
         description="Age group filter. Allowed: 'kids' or 'adults'. If omitted, no age filter is applied.",
@@ -81,7 +95,9 @@ class ServiceBase(StandardizedModel):
     """
 
     service_catalog_id: str = Field(..., description="ID of the service from catalog")
-    hourly_rate: Money = Field(..., gt=0, le=1000, description="Hourly rate in USD")  # Changed from float
+    hourly_rate: Money = Field(
+        ..., gt=0, le=1000, description="Hourly rate in USD"
+    )  # Changed from float
     description: Optional[str] = Field(None, max_length=500)
     requirements: Optional[str] = Field(None, max_length=500)
     age_groups: Optional[List[str]] = Field(
@@ -113,7 +129,9 @@ class ServiceBase(StandardizedModel):
             raise ValueError("At least one duration option is required")
         for duration in v:
             if not MIN_SESSION_DURATION <= duration <= MAX_SESSION_DURATION:
-                raise ValueError(f"Duration must be between {MIN_SESSION_DURATION} and {MAX_SESSION_DURATION} minutes")
+                raise ValueError(
+                    f"Duration must be between {MIN_SESSION_DURATION} and {MAX_SESSION_DURATION} minutes"
+                )
         return v
 
     @field_validator("age_groups")
@@ -157,7 +175,9 @@ class ServiceBase(StandardizedModel):
         for item in v:
             value = str(item).strip().lower()
             if value not in allowed:
-                raise ValueError("levels_taught must be any of: 'beginner', 'intermediate', 'advanced'")
+                raise ValueError(
+                    "levels_taught must be any of: 'beginner', 'intermediate', 'advanced'"
+                )
             if value not in normalized:
                 normalized.append(value)
         return normalized
@@ -238,7 +258,7 @@ class UserBasicPrivacy(StandardizedModel):
         return cls(
             id=user.id,
             first_name=user.first_name,
-            last_initial=user.last_name[0] if user.last_name else ""
+            last_initial=user.last_name[0] if user.last_name else "",
             # No email for privacy protection
         )
 
@@ -266,8 +286,12 @@ class InstructorProfileBase(StandardizedModel):
         description="NYC areas where instructor provides services",
     )
     years_experience: int = Field(..., ge=0, le=50, description="Years of teaching experience")
-    min_advance_booking_hours: int = Field(default=2, ge=0, le=168, description="Minimum hours in advance for bookings")
-    buffer_time_minutes: int = Field(default=0, ge=0, le=60, description="Buffer time between bookings")
+    min_advance_booking_hours: int = Field(
+        default=2, ge=0, le=168, description="Minimum hours in advance for bookings"
+    )
+    buffer_time_minutes: int = Field(
+        default=0, ge=0, le=60, description="Buffer time between bookings"
+    )
 
     @field_validator("areas_of_service")
     def validate_areas(cls, v):
@@ -353,10 +377,14 @@ class InstructorProfileResponse(InstructorProfileBase):
     updated_at: Optional[datetime] = None
     user: UserBasicPrivacy  # Changed from UserBasic to protect privacy
     services: List[ServiceResponse]
-    is_favorited: Optional[bool] = Field(None, description="Whether the current user has favorited this instructor")
+    is_favorited: Optional[bool] = Field(
+        None, description="Whether the current user has favorited this instructor"
+    )
     favorited_count: int = Field(0, description="Number of students who favorited this instructor")
     # Onboarding status fields
-    skills_configured: bool = Field(default=False, description="Whether skills/pricing were configured at least once")
+    skills_configured: bool = Field(
+        default=False, description="Whether skills/pricing were configured at least once"
+    )
     identity_verified_at: Optional[datetime] = Field(default=None)
     identity_verification_session_id: Optional[str] = Field(default=None)
     background_check_object_key: Optional[str] = Field(default=None)
@@ -393,7 +421,9 @@ class InstructorProfileResponse(InstructorProfileBase):
             favorited_count=getattr(instructor_profile, "favorited_count", 0),
             skills_configured=getattr(instructor_profile, "skills_configured", False),
             identity_verified_at=getattr(instructor_profile, "identity_verified_at", None),
-            background_check_uploaded_at=getattr(instructor_profile, "background_check_uploaded_at", None),
+            background_check_uploaded_at=getattr(
+                instructor_profile, "background_check_uploaded_at", None
+            ),
             onboarding_completed_at=getattr(instructor_profile, "onboarding_completed_at", None),
             is_live=getattr(instructor_profile, "is_live", False),
         )

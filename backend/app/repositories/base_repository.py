@@ -13,8 +13,8 @@ The repository pattern separates data access from business logic,
 making the code more testable and maintainable.
 """
 
-import logging
 from abc import ABC, abstractmethod
+import logging
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -253,7 +253,9 @@ class BaseRepository(IRepository[T]):
             self.db.flush()
             return True
         except IntegrityError as e:
-            self.logger.error(f"Cannot delete {self.model.__name__} {id} due to constraints: {str(e)}")
+            self.logger.error(
+                f"Cannot delete {self.model.__name__} {id} due to constraints: {str(e)}"
+            )
             self.db.rollback()
             raise RepositoryException(f"Cannot delete due to existing references: {str(e)}")
         except SQLAlchemyError as e:
@@ -343,7 +345,11 @@ class BaseRepository(IRepository[T]):
             for update_data in updates:
                 entity_id = update_data.pop("id", None)
                 if entity_id and update_data:
-                    result = self.db.query(self.model).filter(self.model.id == entity_id).update(update_data)
+                    result = (
+                        self.db.query(self.model)
+                        .filter(self.model.id == entity_id)
+                        .update(update_data)
+                    )
                     updated_count += result
 
             self.db.flush()

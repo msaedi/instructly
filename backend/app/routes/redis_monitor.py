@@ -8,8 +8,8 @@ Provides insights into Redis operations, memory usage, and Celery queue status.
 import logging
 from typing import Dict
 
-import redis
 from fastapi import APIRouter, Depends, HTTPException, status
+import redis
 
 from app.core.config import settings
 from app.core.enums import PermissionName
@@ -167,7 +167,8 @@ async def redis_stats(
     except Exception as e:
         logger.error(f"Failed to get Redis stats: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to retrieve Redis statistics: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve Redis statistics: {str(e)}",
         )
 
 
@@ -198,7 +199,8 @@ async def celery_queue_status(
     except Exception as e:
         logger.error(f"Failed to get Celery queue status: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to retrieve queue status: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve queue status: {str(e)}",
         )
 
 
@@ -302,7 +304,10 @@ async def redis_connection_audit(
             {
                 "api_cache": api_cache_url,
                 "celery_broker": celery_broker_url,
-                "active_connections": {"local_redis": local_redis_connections, "upstash": upstash_connections},
+                "active_connections": {
+                    "local_redis": local_redis_connections,
+                    "upstash": upstash_connections,
+                },
                 "upstash_detected": upstash_detected,
                 "service_connections": service_connections,
                 "environment_variables": env_check,
@@ -317,7 +322,8 @@ async def redis_connection_audit(
     except Exception as e:
         logger.error(f"Failed to audit Redis connections: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to audit connections: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to audit connections: {str(e)}",
         )
 
 
@@ -365,13 +371,15 @@ async def flush_celery_queues(
                 flushed[queue] = f"error: {str(e)}"
 
         return RedisFlushQueuesResponse(
-            message=f"Flushed {len(flushed)} queues, removed {total_removed} tasks", queues_flushed=list(flushed.keys())
+            message=f"Flushed {len(flushed)} queues, removed {total_removed} tasks",
+            queues_flushed=list(flushed.keys()),
         )
 
     except Exception as e:
         logger.error(f"Failed to flush queues: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to flush queues: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to flush queues: {str(e)}",
         )
 
 

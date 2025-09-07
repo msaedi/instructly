@@ -8,10 +8,10 @@ Validates and processes profile images:
 - Convert transparency to white background
 """
 
+from dataclasses import dataclass
 import imghdr
 import io
 import logging
-from dataclasses import dataclass
 from typing import Tuple
 
 from PIL import Image, ImageOps
@@ -62,9 +62,13 @@ class ImageProcessingService:
             return composite.convert("RGB")
 
     def _center_crop_square(self, img: Image.Image) -> Image.Image:
-        return ImageOps.fit(img, (min(img.size), min(img.size)), method=Image.LANCZOS, centering=(0.5, 0.5))
+        return ImageOps.fit(
+            img, (min(img.size), min(img.size)), method=Image.LANCZOS, centering=(0.5, 0.5)
+        )
 
-    def _encode_jpeg(self, img: Image.Image, size: Tuple[int, int] | None = None, quality: int = 85) -> bytes:
+    def _encode_jpeg(
+        self, img: Image.Image, size: Tuple[int, int] | None = None, quality: int = 85
+    ) -> bytes:
         out = io.BytesIO()
         work = img
         if size is not None:
@@ -72,7 +76,9 @@ class ImageProcessingService:
         work.save(out, format="JPEG", quality=quality, optimize=True)
         return out.getvalue()
 
-    def process_profile_picture(self, uploaded_bytes: bytes, browser_content_type: str) -> ProcessedImages:
+    def process_profile_picture(
+        self, uploaded_bytes: bytes, browser_content_type: str
+    ) -> ProcessedImages:
         # Validate by magic bytes then enforce additional constraints
         detected = self._verify_magic_bytes(uploaded_bytes)
         self._enforce_constraints(detected, uploaded_bytes)

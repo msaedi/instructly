@@ -18,7 +18,7 @@ repos:
       - id: black
         name: black (backend/app)
         # Use runner's Python (set by CI via .python-version)
-        args: [--line-length=120]
+        args: [--line-length=100]
         files: ^backend/app/.*\.py$
         exclude: ^monitoring/
 
@@ -29,10 +29,6 @@ repos:
       - id: ruff
         name: ruff (backend/app)
         args: ["--fix", "--select", "F,I", "backend/app"]
-        additional_dependencies: ["ruff==0.5.7"]
-        files: ^backend/app/.*\.py$
-      - id: ruff-format
-        name: ruff-format (backend/app)
         additional_dependencies: ["ruff==0.5.7"]
         files: ^backend/app/.*\.py$
 

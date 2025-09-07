@@ -12,18 +12,18 @@ This module provides:
 """
 
 import asyncio
+from collections import deque
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 import gc
 import logging
 import os
 import time
-import uuid
-from collections import deque
-from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Set
+import uuid
 
-import psutil
 from fastapi import Request
+import psutil
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
@@ -110,7 +110,8 @@ class PerformanceMonitor:
 
                 self.slow_queries.append(slow_query_info)
                 logger.warning(
-                    f"Slow query detected ({duration_ms:.2f}ms): {query_preview}", extra={"duration_ms": duration_ms}
+                    f"Slow query detected ({duration_ms:.2f}ms): {query_preview}",
+                    extra={"duration_ms": duration_ms},
                 )
 
                 # Alert if query is extremely slow
@@ -181,7 +182,9 @@ class PerformanceMonitor:
 
         # Calculate usage percentage
         total_possible = pool_status["size"] + pool_status["overflow"]
-        usage_percent = (pool_status["checked_out"] / total_possible * 100) if total_possible > 0 else 0
+        usage_percent = (
+            (pool_status["checked_out"] / total_possible * 100) if total_possible > 0 else 0
+        )
 
         pool_health = {
             **pool_status,
@@ -222,7 +225,8 @@ class PerformanceMonitor:
         # Alert if memory usage is high
         if memory_usage["percent"] > 80:
             self._send_alert(
-                "high_memory_usage", f"Memory usage at {memory_usage['percent']}% ({memory_usage['rss_mb']}MB RSS)"
+                "high_memory_usage",
+                f"Memory usage at {memory_usage['percent']}% ({memory_usage['rss_mb']}MB RSS)",
             )
             # Force garbage collection
             gc.collect()
@@ -245,15 +249,21 @@ class PerformanceMonitor:
 
         # Generate recommendations
         if hit_rate < 70:
-            cache_health["recommendations"].append("Low cache hit rate. Consider warming cache or adjusting TTLs.")
+            cache_health["recommendations"].append(
+                "Low cache hit rate. Consider warming cache or adjusting TTLs."
+            )
             self._send_alert("low_cache_hit_rate", f"Cache hit rate at {hit_rate}% (target: >70%)")
 
         if cache_stats.get("errors", 0) > 10:
-            cache_health["recommendations"].append("High cache error count. Check Redis/Upstash connection.")
+            cache_health["recommendations"].append(
+                "High cache error count. Check Redis/Upstash connection."
+            )
 
         return cache_health
 
-    def _send_alert(self, alert_type: str, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+    def _send_alert(
+        self, alert_type: str, message: str, details: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Send alert if not in cooldown period."""
         now = datetime.now(timezone.utc)
 
@@ -300,7 +310,9 @@ class PerformanceMonitor:
         # Calculate averages from history
         avg_pool_usage = 0
         if self.db_pool_history:
-            avg_pool_usage = sum(h["usage_percent"] for h in self.db_pool_history) / len(self.db_pool_history)
+            avg_pool_usage = sum(h["usage_percent"] for h in self.db_pool_history) / len(
+                self.db_pool_history
+            )
 
         summary = {
             "timestamp": datetime.now(timezone.utc).isoformat(),

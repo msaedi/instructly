@@ -9,10 +9,10 @@ payment intents, payment methods, payment events, and platform credits.
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-import ulid
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+import ulid
 
 from app.database import Base
 
@@ -28,12 +28,18 @@ class StripeCustomer(Base):
     __tablename__ = "stripe_customers"
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    user_id: Mapped[str] = mapped_column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     stripe_customer_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="stripe_customer")
@@ -55,8 +61,12 @@ class StripeConnectedAccount(Base):
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
     # Relationships
     instructor_profile: Mapped["InstructorProfile"] = relationship(
@@ -73,15 +83,23 @@ class PaymentIntent(Base):
     __tablename__ = "payment_intents"
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    booking_id: Mapped[str] = mapped_column(String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
+    booking_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False
+    )
     stripe_payment_intent_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     amount: Mapped[int] = mapped_column(Integer, nullable=False, comment="Amount in cents")
-    application_fee: Mapped[int] = mapped_column(Integer, nullable=False, comment="Platform fee in cents")
+    application_fee: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Platform fee in cents"
+    )
     status: Mapped[str] = mapped_column(String(50), nullable=False)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
     # Relationships
     booking: Mapped["Booking"] = relationship("Booking", back_populates="payment_intent")
@@ -96,15 +114,21 @@ class PaymentMethod(Base):
     __tablename__ = "payment_methods"
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    user_id: Mapped[str] = mapped_column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     stripe_payment_method_id: Mapped[str] = mapped_column(String(255), nullable=False)
     last4: Mapped[Optional[str]] = mapped_column(String(4), nullable=True)
     brand: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="payment_methods")
@@ -119,7 +143,9 @@ class PaymentEvent(Base):
     __tablename__ = "payment_events"
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    booking_id: Mapped[str] = mapped_column(String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
+    booking_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False
+    )
     event_type: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
@@ -131,7 +157,9 @@ class PaymentEvent(Base):
     )
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     # Relationships
     booking: Mapped["Booking"] = relationship("Booking", back_populates="payment_events")
@@ -146,7 +174,9 @@ class PlatformCredit(Base):
     __tablename__ = "platform_credits"
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    user_id: Mapped[str] = mapped_column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     amount_cents: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Amount in cents to avoid float precision issues"
     )
@@ -167,7 +197,9 @@ class PlatformCredit(Base):
     used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="platform_credits")
@@ -213,9 +245,9 @@ class InstructorPayoutEvent(Base):
     arrival_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     failure_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     failure_message: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     def __repr__(self) -> str:
-        return (
-            f"<InstructorPayoutEvent(instructor_profile_id={self.instructor_profile_id}, payout_id={self.payout_id})>"
-        )
+        return f"<InstructorPayoutEvent(instructor_profile_id={self.instructor_profile_id}, payout_id={self.payout_id})>"

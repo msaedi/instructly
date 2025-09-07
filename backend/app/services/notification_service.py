@@ -16,9 +16,9 @@ Changes from original:
 """
 
 import asyncio
-import logging
 from datetime import datetime, timedelta
 from functools import wraps
+import logging
 from typing import Any, Callable, List, Optional
 
 from jinja2.exceptions import TemplateNotFound
@@ -65,7 +65,9 @@ def retry(max_attempts: int = 3, backoff_seconds: float = 1.0) -> Callable:
                         )
                         await asyncio.sleep(wait_time)
                     else:
-                        logger.error(f"All {max_attempts} attempts failed for {func.__name__}: {str(e)}")
+                        logger.error(
+                            f"All {max_attempts} attempts failed for {func.__name__}: {str(e)}"
+                        )
 
             raise last_exception
 
@@ -180,7 +182,9 @@ class NotificationService(BaseService):
                 self.logger.info(f"All booking confirmation emails sent for booking {booking.id}")
                 return True
             else:
-                self.logger.warning(f"Some booking confirmation emails failed for booking {booking.id}")
+                self.logger.warning(
+                    f"Some booking confirmation emails failed for booking {booking.id}"
+                )
                 return False
 
         except ServiceException:
@@ -225,11 +229,15 @@ class NotificationService(BaseService):
             if is_student_cancellation:
                 # Student cancelled - notify instructor
                 try:
-                    success = await self._send_instructor_cancellation_notification(booking, reason, "student")
+                    success = await self._send_instructor_cancellation_notification(
+                        booking, reason, "student"
+                    )
                 except TemplateNotFound as e:
                     raise ServiceException(f"Email template error: {str(e)}")
                 except Exception as e:
-                    self.logger.error(f"Failed to send instructor cancellation after retries: {str(e)}")
+                    self.logger.error(
+                        f"Failed to send instructor cancellation after retries: {str(e)}"
+                    )
                     success = False
 
                 # Also send confirmation to student
@@ -238,27 +246,37 @@ class NotificationService(BaseService):
                 except TemplateNotFound as e:
                     raise ServiceException(f"Email template error: {str(e)}")
                 except Exception as e:
-                    self.logger.error(f"Failed to send student confirmation after retries: {str(e)}")
+                    self.logger.error(
+                        f"Failed to send student confirmation after retries: {str(e)}"
+                    )
                     student_success = False
 
                 return success and student_success
             else:
                 # Instructor cancelled - notify student
                 try:
-                    success = await self._send_student_cancellation_notification(booking, reason, "instructor")
+                    success = await self._send_student_cancellation_notification(
+                        booking, reason, "instructor"
+                    )
                 except TemplateNotFound as e:
                     raise ServiceException(f"Email template error: {str(e)}")
                 except Exception as e:
-                    self.logger.error(f"Failed to send student cancellation after retries: {str(e)}")
+                    self.logger.error(
+                        f"Failed to send student cancellation after retries: {str(e)}"
+                    )
                     success = False
 
                 # Also send confirmation to instructor
                 try:
-                    instructor_success = await self._send_instructor_cancellation_confirmation(booking)
+                    instructor_success = await self._send_instructor_cancellation_confirmation(
+                        booking
+                    )
                 except TemplateNotFound as e:
                     raise ServiceException(f"Email template error: {str(e)}")
                 except Exception as e:
-                    self.logger.error(f"Failed to send instructor confirmation after retries: {str(e)}")
+                    self.logger.error(
+                        f"Failed to send instructor confirmation after retries: {str(e)}"
+                    )
                     instructor_success = False
 
                 return success and instructor_success
@@ -331,7 +349,9 @@ class NotificationService(BaseService):
         # Get all bookings in the date range with a single query
         start_date = date_range[0]
         end_date = date_range[-1]
-        all_bookings = booking_repository.get_bookings_by_date_range_and_status(start_date, end_date, "CONFIRMED")
+        all_bookings = booking_repository.get_bookings_by_date_range_and_status(
+            start_date, end_date, "CONFIRMED"
+        )
 
         self.logger.info(f"Found {len(all_bookings)} bookings for tomorrow")
         return all_bookings
@@ -356,7 +376,9 @@ class NotificationService(BaseService):
             try:
                 student_sent = await self._send_student_reminder(booking)
             except Exception as e:
-                self.logger.error(f"Failed to send student reminder for booking {booking.id} after retries: {str(e)}")
+                self.logger.error(
+                    f"Failed to send student reminder for booking {booking.id} after retries: {str(e)}"
+                )
 
             # Try to send instructor reminder
             try:
@@ -392,7 +414,9 @@ class NotificationService(BaseService):
         }
 
         # Render template
-        html_content = self.template_service.render_template("email/booking/confirmation_student.html", context)
+        html_content = self.template_service.render_template(
+            "email/booking/confirmation_student.html", context
+        )
 
         # Send email - let exceptions propagate for retry
         _response = self.email_service.send_email(
@@ -426,7 +450,9 @@ class NotificationService(BaseService):
 
             # Prefer specific templates if available
             try:
-                if self.template_service.template_exists("email/booking/cancelled_payment_failed_student.html"):
+                if self.template_service.template_exists(
+                    "email/booking/cancelled_payment_failed_student.html"
+                ):
                     html_student = self.template_service.render_template(
                         "email/booking/cancelled_payment_failed_student.html", context
                     )
@@ -434,7 +460,9 @@ class NotificationService(BaseService):
                 html_student = None
 
             try:
-                if self.template_service.template_exists("email/booking/cancelled_payment_failed_instructor.html"):
+                if self.template_service.template_exists(
+                    "email/booking/cancelled_payment_failed_instructor.html"
+                ):
                     html_instructor = self.template_service.render_template(
                         "email/booking/cancelled_payment_failed_instructor.html", context
                     )
@@ -548,7 +576,9 @@ class NotificationService(BaseService):
         }
 
         # Render template
-        html_content = self.template_service.render_template("email/booking/confirmation_instructor.html", context)
+        html_content = self.template_service.render_template(
+            "email/booking/confirmation_instructor.html", context
+        )
 
         # Send email - let exceptions propagate for retry
         _response = self.email_service.send_email(
@@ -584,7 +614,9 @@ class NotificationService(BaseService):
         }
 
         # Render template
-        html_content = self.template_service.render_template("email/booking/cancellation_student.html", context)
+        html_content = self.template_service.render_template(
+            "email/booking/cancellation_student.html", context
+        )
 
         _response = self.email_service.send_email(
             to_email=booking.student.email,
@@ -616,7 +648,9 @@ class NotificationService(BaseService):
         }
 
         # Render template
-        html_content = self.template_service.render_template("email/booking/cancellation_instructor.html", context)
+        html_content = self.template_service.render_template(
+            "email/booking/cancellation_instructor.html", context
+        )
 
         _response = self.email_service.send_email(
             to_email=booking.instructor.email,
@@ -704,7 +738,9 @@ class NotificationService(BaseService):
         }
 
         # Render template
-        html_content = self.template_service.render_template("email/booking/reminder_student.html", context)
+        html_content = self.template_service.render_template(
+            "email/booking/reminder_student.html", context
+        )
 
         # Send email - let exceptions propagate for retry
         _response = self.email_service.send_email(
@@ -731,7 +767,9 @@ class NotificationService(BaseService):
         }
 
         # Render template
-        html_content = self.template_service.render_template("email/booking/reminder_instructor.html", context)
+        html_content = self.template_service.render_template(
+            "email/booking/reminder_instructor.html", context
+        )
 
         # Send email - let exceptions propagate for retry
         _response = self.email_service.send_email(
@@ -785,13 +823,17 @@ class NotificationService(BaseService):
                 "booking_date": booking.booking_date.strftime("%B %d, %Y"),
                 "booking_time": booking.start_time.strftime("%-I:%M %p"),
                 "service_name": booking.service_name,
-                "message_preview": message_content[:200] + "..." if len(message_content) > 200 else message_content,
+                "message_preview": message_content[:200] + "..."
+                if len(message_content) > 200
+                else message_content,
                 "booking_id": booking.id,
                 "settings": settings,  # Include settings for frontend URL
             }
 
             # Render template using the template service
-            html_content = self.template_service.render_template("email/booking/new_message.html", context)
+            html_content = self.template_service.render_template(
+                "email/booking/new_message.html", context
+            )
 
             # Send email
             _response = self.email_service.send_email(

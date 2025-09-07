@@ -35,7 +35,10 @@ async def suspend_account(
     - Suspended instructors can still login but cannot receive new bookings
     """
     if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can suspend their accounts")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can suspend their accounts",
+        )
 
     try:
         result = account_service.suspend_instructor_account(current_user)
@@ -65,7 +68,8 @@ async def deactivate_account(
     """
     if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can deactivate their accounts"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can deactivate their accounts",
         )
 
     try:
@@ -96,7 +100,8 @@ async def reactivate_account(
     """
     if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can reactivate their accounts"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can reactivate their accounts",
         )
 
     try:
@@ -125,4 +130,7 @@ async def check_account_status(
         return AccountStatusResponse(**result)
     except Exception as e:
         logger.error(f"Error checking account status: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to check account status")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check account status",
+        )

@@ -41,7 +41,9 @@ class MockGeocodingProvider(GeocodingProvider):
             confidence_score=0.99,
         )
 
-    async def autocomplete(self, query: str, session_token: Optional[str] = None) -> List[AutocompleteResult]:
+    async def autocomplete(
+        self, query: str, session_token: Optional[str] = None
+    ) -> List[AutocompleteResult]:
         base = [
             AutocompleteResult(
                 text="Times Square",

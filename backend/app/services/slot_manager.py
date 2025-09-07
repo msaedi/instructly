@@ -12,8 +12,8 @@ This service is now purely focused on availability slot management.
 All booking-related logic has been moved to BookingService.
 """
 
-import logging
 from datetime import date, datetime, time
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -89,13 +89,18 @@ class SlotManager(BaseService):
             raise ValidationException(validation["reason"])
 
         # Check for duplicate slot
-        if self.availability_repository.slot_exists(instructor_id, target_date, start_time, end_time):
+        if self.availability_repository.slot_exists(
+            instructor_id, target_date, start_time, end_time
+        ):
             raise ConflictException("This exact time slot already exists")
 
         with self.transaction():
             # Create the slot
             new_slot = self.repository.create(
-                instructor_id=instructor_id, specific_date=target_date, start_time=start_time, end_time=end_time
+                instructor_id=instructor_id,
+                specific_date=target_date,
+                start_time=start_time,
+                end_time=end_time,
             )
 
             # Always merge if requested
@@ -230,7 +235,8 @@ class SlotManager(BaseService):
             return 0
 
         self.logger.debug(
-            f"Merging slots for instructor {instructor_id} on {target_date}: " f"{len(slots)} slots found"
+            f"Merging slots for instructor {instructor_id} on {target_date}: "
+            f"{len(slots)} slots found"
         )
 
         # Merge slots
@@ -267,13 +273,16 @@ class SlotManager(BaseService):
             # Note: When called from create_slot, we're already in a transaction
             # The BaseService.transaction() context manager handles nested transactions
             self.logger.info(
-                f"Merge complete: {len(slots)} slots -> " f"{len(merged_slots)} slots ({merged_count} merged)"
+                f"Merge complete: {len(slots)} slots -> "
+                f"{len(merged_slots)} slots ({merged_count} merged)"
             )
 
         return merged_count
 
     @BaseService.measure_operation("split_slot")
-    def split_slot(self, slot_id: str, split_time: time) -> Tuple[AvailabilitySlot, AvailabilitySlot]:
+    def split_slot(
+        self, slot_id: str, split_time: time
+    ) -> Tuple[AvailabilitySlot, AvailabilitySlot]:
         """
         Split a slot into two at the specified time.
 
@@ -393,7 +402,9 @@ class SlotManager(BaseService):
 
     # Private helper methods
 
-    def _slots_can_merge(self, slot1: AvailabilitySlot, slot2: AvailabilitySlot, max_gap_minutes: int = 1) -> bool:
+    def _slots_can_merge(
+        self, slot1: AvailabilitySlot, slot2: AvailabilitySlot, max_gap_minutes: int = 1
+    ) -> bool:
         """
         Check if two slots can be merged.
 
@@ -427,5 +438,6 @@ class SlotManager(BaseService):
         """
         if time_value.minute % 15 != 0 or time_value.second != 0:
             raise ValidationException(
-                f"Time {time_value} must align to 15-minute blocks " "(e.g., 9:00, 9:15, 9:30, 9:45)"
+                f"Time {time_value} must align to 15-minute blocks "
+                "(e.g., 9:00, 9:15, 9:30, 9:45)"
             )

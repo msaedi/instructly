@@ -81,7 +81,14 @@ from .referrals import ReferralSendError, ReferralSendRequest, ReferralSendRespo
 from .security import PasswordChangeRequest, PasswordChangeResponse
 
 # User and authentication schemas
-from .user import Token, UserCreate, UserLogin, UserResponse, UserUpdate, UserWithPermissionsResponse
+from .user import (
+    Token,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    UserUpdate,
+    UserWithPermissionsResponse,
+)
 
 __all__ = [
     # User schemas

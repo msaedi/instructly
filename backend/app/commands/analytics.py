@@ -13,11 +13,11 @@ Usage:
 """
 
 import argparse
+from datetime import datetime, timezone
 import json
 import logging
-import sys
-from datetime import datetime, timezone
 from pathlib import Path
+import sys
 from typing import Any, Dict
 
 # Add project root to Python path
@@ -26,16 +26,18 @@ sys.path.insert(0, str(project_root))
 
 from celery.result import AsyncResult
 from redis import Redis
+from scripts.calculate_service_analytics import AnalyticsCalculator
 from sqlalchemy import desc, func
 
 from app.core.config import settings
 from app.database import get_db
 from app.models.service_catalog import ServiceAnalytics
 from app.tasks.analytics import calculate_analytics
-from scripts.calculate_service_analytics import AnalyticsCalculator
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -192,7 +194,9 @@ class AnalyticsCommand:
         total_records = db.query(func.count(ServiceAnalytics.service_catalog_id)).scalar()
 
         # Get most recent update
-        latest_update = db.query(ServiceAnalytics).order_by(desc(ServiceAnalytics.last_calculated)).first()
+        latest_update = (
+            db.query(ServiceAnalytics).order_by(desc(ServiceAnalytics.last_calculated)).first()
+        )
 
         if latest_update:
             last_run["latest_update"] = latest_update.last_calculated.isoformat()
@@ -263,8 +267,12 @@ Examples:
 
     # Run command
     run_parser = subparsers.add_parser("run", help="Run analytics calculation")
-    run_parser.add_argument("--days", type=int, default=90, help="Number of days to analyze (default: 90)")
-    run_parser.add_argument("--async", action="store_true", dest="async_mode", help="Run asynchronously via Celery")
+    run_parser.add_argument(
+        "--days", type=int, default=90, help="Number of days to analyze (default: 90)"
+    )
+    run_parser.add_argument(
+        "--async", action="store_true", dest="async_mode", help="Run asynchronously via Celery"
+    )
 
     # Status command
     _status_parser = subparsers.add_parser("status", help="Check last run status")

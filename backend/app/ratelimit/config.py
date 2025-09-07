@@ -1,6 +1,6 @@
+from dataclasses import dataclass
 import json
 import os
-from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 
@@ -126,7 +126,9 @@ def reload_config(cache_ttl_s: int = 30) -> Dict[str, Any]:
     return info
 
 
-def get_effective_policy(route: Optional[str], method: Optional[str], bucket: str) -> Dict[str, Any]:
+def get_effective_policy(
+    route: Optional[str], method: Optional[str], bucket: str
+) -> Dict[str, Any]:
     """Return merged policy for a route/method based on bucket + overrides.
 
     Simple prefix pattern match for overrides.

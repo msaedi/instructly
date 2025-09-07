@@ -3,6 +3,7 @@
 HTTPS Redirect Middleware for InstaInstru
 Forces all HTTP traffic to redirect to HTTPS in production
 """
+
 import logging
 from typing import Callable
 
@@ -57,7 +58,9 @@ class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
 
         if is_https:
             # HSTS header - tells browsers to only use HTTPS for 1 year
-            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+            response.headers[
+                "Strict-Transport-Security"
+            ] = "max-age=31536000; includeSubDomains; preload"
 
         return response
 

@@ -33,7 +33,9 @@ class BetaAccessRepository(BaseRepository[BetaAccess]):
     def __init__(self, db: Session):
         super().__init__(db, BetaAccess)
 
-    def grant_access(self, user_id: str, role: str, phase: str, invited_by_code: Optional[str]) -> BetaAccess:
+    def grant_access(
+        self, user_id: str, role: str, phase: str, invited_by_code: Optional[str]
+    ) -> BetaAccess:
         return self.create(user_id=user_id, role=role, phase=phase, invited_by_code=invited_by_code)
 
     def get_latest_for_user(self, user_id: str) -> Optional[BetaAccess]:
@@ -54,7 +56,9 @@ class BetaSettingsRepository(BaseRepository[BetaSettings]):
         if rec:
             return rec
         # Create default if none exists
-        return self.create(beta_disabled=False, beta_phase="instructor_only", allow_signup_without_invite=False)
+        return self.create(
+            beta_disabled=False, beta_phase="instructor_only", allow_signup_without_invite=False
+        )
 
     def update_settings(
         self, *, beta_disabled: bool, beta_phase: str, allow_signup_without_invite: bool

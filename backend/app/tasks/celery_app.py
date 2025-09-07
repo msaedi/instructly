@@ -35,7 +35,10 @@ def create_celery_app() -> Celery:
     # Allow environment variables to drive broker/backend for alignment with Flower/worker
     # Priority: CELERY_BROKER_URL -> REDIS_URL -> settings.redis_url -> default
     broker_url = (
-        os.getenv("CELERY_BROKER_URL") or os.getenv("REDIS_URL") or settings.redis_url or "redis://localhost:6379"
+        os.getenv("CELERY_BROKER_URL")
+        or os.getenv("REDIS_URL")
+        or settings.redis_url
+        or "redis://localhost:6379"
     )
     # Ensure Redis URL includes database number
     if not broker_url.endswith("/0") and not any(broker_url.endswith(f"/{i}") for i in range(16)):
@@ -102,7 +105,9 @@ def create_celery_app() -> Celery:
                 "task_time_limit": CELERY_WORKER_CONFIG.get("task_time_limit", 300),
                 "task_soft_time_limit": CELERY_WORKER_CONFIG.get("task_soft_time_limit", 240),
                 # Add memory limit for production
-                "worker_max_memory_per_child": CELERY_WORKER_CONFIG.get("worker_max_memory_per_child", 200000),
+                "worker_max_memory_per_child": CELERY_WORKER_CONFIG.get(
+                    "worker_max_memory_per_child", 200000
+                ),
                 # Enable compression for production
                 "task_compression": CELERY_WORKER_CONFIG.get("task_compression", "gzip"),
             }
@@ -155,7 +160,9 @@ def config_loggers(*args: Any, **kwargs: Any) -> None:
     import logging
 
     # Set up basic logging configuration
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
 
 
 # Create the Celery app instance

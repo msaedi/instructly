@@ -22,9 +22,9 @@ Router Endpoints:
 """
 
 import asyncio
+from datetime import datetime, timezone
 import json
 import logging
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sse_starlette.sse import EventSourceResponse
@@ -183,7 +183,10 @@ async def stream_messages(
 
         try:
             # Send initial connection confirmation
-            yield {"event": "connected", "data": json.dumps({"booking_id": booking_id, "status": "connected"})}
+            yield {
+                "event": "connected",
+                "data": json.dumps({"booking_id": booking_id, "status": "connected"}),
+            }
 
             # Small delay to ensure connection is established
             await asyncio.sleep(0.1)
@@ -206,7 +209,9 @@ async def stream_messages(
             # Start heartbeat task if notification service available
             if notification_service and queue:
                 try:
-                    heartbeat_task = asyncio.create_task(send_heartbeats(notification_service, booking_id))
+                    heartbeat_task = asyncio.create_task(
+                        send_heartbeats(notification_service, booking_id)
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to start heartbeat task: {str(e)}")
                     heartbeat_task = None
@@ -219,7 +224,9 @@ async def stream_messages(
                     if queue:
                         # Try to get message from queue with timeout
                         try:
-                            message_data = await asyncio.wait_for(queue.get(), timeout=30.0)  # 30 second timeout
+                            message_data = await asyncio.wait_for(
+                                queue.get(), timeout=30.0
+                            )  # 30 second timeout
 
                             # Process the message
                             event_type = message_data.get("type") or "message"
@@ -227,11 +234,16 @@ async def stream_messages(
                             if event_type == "heartbeat":
                                 yield {
                                     "event": "heartbeat",
-                                    "data": json.dumps({"timestamp": message_data.get("timestamp")}),
+                                    "data": json.dumps(
+                                        {"timestamp": message_data.get("timestamp")}
+                                    ),
                                 }
                             else:
                                 # Skip echo for our own outbound chat messages only
-                                if event_type == "message" and message_data.get("sender_id") == current_user.id:
+                                if (
+                                    event_type == "message"
+                                    and message_data.get("sender_id") == current_user.id
+                                ):
                                     continue
 
                                 # Mark as not mine for chat messages
@@ -372,7 +384,9 @@ async def add_reaction(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         logger.error(f"Error adding reaction: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add reaction")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add reaction"
+        )
 
 
 @router.delete(
@@ -394,7 +408,9 @@ async def remove_reaction(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         logger.error(f"Error removing reaction: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to remove reaction")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to remove reaction"
+        )
 
 
 class EditMessageRequest(BaseModel):
@@ -424,7 +440,9 @@ async def edit_message(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         logger.error(f"Error editing message: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to edit message")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to edit message"
+        )
 
 
 @router.get(
@@ -433,7 +451,9 @@ async def edit_message(
 )
 async def get_message_config():
     """Public config values for the messaging UI."""
-    return MessageConfigResponse(edit_window_minutes=getattr(settings, "message_edit_window_minutes", 5))
+    return MessageConfigResponse(
+        edit_window_minutes=getattr(settings, "message_edit_window_minutes", 5)
+    )
 
 
 @router.get(

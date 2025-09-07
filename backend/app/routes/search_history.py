@@ -171,7 +171,9 @@ async def record_search(
             "search_type": search_data.search_type,
             "results_count": search_data.results_count,
             "referrer": context.search_origin,
-            "context": search_data.search_context if hasattr(search_data, "search_context") else None,
+            "context": search_data.search_context
+            if hasattr(search_data, "search_context")
+            else None,
         }
 
         search = await search_service.record_search(
@@ -181,7 +183,9 @@ async def record_search(
             user_agent=user_agent,
             device_context=device_context,
             observability_candidates=(
-                search_data.observability_candidates if hasattr(search_data, "observability_candidates") else None
+                search_data.observability_candidates
+                if hasattr(search_data, "observability_candidates")
+                else None
             ),
         )
 
@@ -208,7 +212,9 @@ async def record_search(
 
         logger = logging.getLogger(__name__)
         logger.error(f"Unexpected error recording search: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred"
+        )
 
 
 @router.delete("/{search_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -241,7 +247,9 @@ async def delete_search(
     if current_user:
         deleted = search_service.delete_search(user_id=current_user.id, search_id=search_id)
     elif x_guest_session_id:
-        deleted = search_service.delete_search(guest_session_id=x_guest_session_id, search_id=search_id)
+        deleted = search_service.delete_search(
+            guest_session_id=x_guest_session_id, search_id=search_id
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -250,13 +258,16 @@ async def delete_search(
 
     if not deleted:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Search history entry not found or does not belong to you"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Search history entry not found or does not belong to you",
         )
 
     return None
 
 
-@router.post("/interaction", response_model=SearchInteractionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/interaction", response_model=SearchInteractionResponse, status_code=status.HTTP_201_CREATED
+)
 async def track_interaction(
     interaction_data: dict,
     request: Request,
@@ -306,7 +317,8 @@ async def track_interaction(
         # Validate required fields
         if not search_event_id or not interaction_type:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="search_event_id and interaction_type are required"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="search_event_id and interaction_type are required",
             )
 
         # Get session ID from context
@@ -348,7 +360,11 @@ async def track_interaction(
 
         if os.getenv("ENV", "development") == "development":
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to track interaction: {str(e)}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to track interaction: {str(e)}",
             )
         else:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to track interaction")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to track interaction",
+            )

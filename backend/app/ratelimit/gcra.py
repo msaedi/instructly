@@ -41,7 +41,9 @@ def gcra_decide(
     if interval == float("inf"):
         # Zero rate -> always blocked
         reset_epoch_s = (last_tat_s or now_s) + interval
-        decision = Decision(False, retry_after_s=float("inf"), remaining=0, limit=0, reset_epoch_s=reset_epoch_s)
+        decision = Decision(
+            False, retry_after_s=float("inf"), remaining=0, limit=0, reset_epoch_s=reset_epoch_s
+        )
         return last_tat_s or now_s, decision
 
     # TAT baseline is last_tat_s, or a time in the past which allows immediate request
@@ -57,7 +59,13 @@ def gcra_decide(
         remaining = max(0, int(burst - (remaining_float - 1)))  # approximate tokens left
         # Reset occurs when bucket fully refills back to burst -> time when remaining reaches burst
         reset_epoch_s = now_s + max(0.0, (burst * interval))
-        decision = Decision(True, retry_after_s=0.0, remaining=remaining, limit=burst + 1, reset_epoch_s=reset_epoch_s)
+        decision = Decision(
+            True,
+            retry_after_s=0.0,
+            remaining=remaining,
+            limit=burst + 1,
+            reset_epoch_s=reset_epoch_s,
+        )
         return new_tat, decision
     else:
         # Compute retry after: time until allowed again
@@ -65,5 +73,11 @@ def gcra_decide(
         retry_after = max(0.0, allow_at - now_s)
         # Remaining is zero when blocked
         reset_epoch_s = now_s + max(0.0, (burst * interval))
-        decision = Decision(False, retry_after_s=retry_after, remaining=0, limit=burst + 1, reset_epoch_s=reset_epoch_s)
+        decision = Decision(
+            False,
+            retry_after_s=retry_after,
+            remaining=0,
+            limit=burst + 1,
+            reset_epoch_s=reset_epoch_s,
+        )
         return tat, decision

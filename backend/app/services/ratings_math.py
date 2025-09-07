@@ -6,7 +6,9 @@ from typing import Dict, Iterable, Optional
 from .ratings_config import DEFAULT_RATINGS_CONFIG, RatingsConfig
 
 
-def compute_simple_shrinkage(rating_sum: float, count: int, config: RatingsConfig = DEFAULT_RATINGS_CONFIG) -> float:
+def compute_simple_shrinkage(
+    rating_sum: float, count: int, config: RatingsConfig = DEFAULT_RATINGS_CONFIG
+) -> float:
     c = float(config.simple_shrinkage_prior_count)
     m = float(config.prior_mean_rating)
     if count <= 0:
@@ -33,7 +35,12 @@ def compute_dirichlet_rating(
     reviews = list(reviews)
     if not reviews:
         pm = dirichlet_prior_mean(config)
-        return {"rating": round(pm, 1), "total_reviews": 0, "total_reviews_effective": 0, "display_rating": None}
+        return {
+            "rating": round(pm, 1),
+            "total_reviews": 0,
+            "total_reviews_effective": 0,
+            "display_rating": None,
+        }
 
     weights = [0.0, 0.0, 0.0, 0.0, 0.0]
     total_effective = 0.0
@@ -53,7 +60,8 @@ def compute_dirichlet_rating(
             count_before = sum(
                 1
                 for rv in reviews
-                if getattr(rv, student_attr) == sid and getattr(rv, created_at_attr) <= getattr(r, created_at_attr)
+                if getattr(rv, student_attr) == sid
+                and getattr(rv, created_at_attr) <= getattr(r, created_at_attr)
             )
             if count_before > 1:
                 w *= config.duplicate_rater_secondary_weight
@@ -71,10 +79,16 @@ def compute_dirichlet_rating(
     rating = round(posterior_mean, 1)
     count_effective = int(round(total_effective))
     raw_count = len(reviews)
-    return {"rating": rating, "total_reviews": raw_count, "total_reviews_effective": count_effective}
+    return {
+        "rating": rating,
+        "total_reviews": raw_count,
+        "total_reviews_effective": count_effective,
+    }
 
 
-def display_policy(rating: float, count: int, config: RatingsConfig = DEFAULT_RATINGS_CONFIG) -> Optional[str]:
+def display_policy(
+    rating: float, count: int, config: RatingsConfig = DEFAULT_RATINGS_CONFIG
+) -> Optional[str]:
     if count < config.min_reviews_to_display:
         return None
     if count < 5:

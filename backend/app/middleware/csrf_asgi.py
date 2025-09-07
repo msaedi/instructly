@@ -37,7 +37,9 @@ class CsrfOriginMiddlewareASGI:
             first = [o.strip() for o in csv.split(",") if o.strip()]
             if first:
                 try:
-                    return urlparse(first[0]).hostname or first[0].replace("https://", "").replace("http://", "")
+                    return urlparse(first[0]).hostname or first[0].replace("https://", "").replace(
+                        "http://", ""
+                    )
                 except Exception:
                     return first[0]
             return "app.instainstru.com"
@@ -61,7 +63,11 @@ class CsrfOriginMiddlewareASGI:
         except Exception:
             return False
         p = (path or "").lower()
-        return p.startswith("/auth/login") or p.startswith("/auth/login-with-session") or p.startswith("/auth/register")
+        return (
+            p.startswith("/auth/login")
+            or p.startswith("/auth/login-with-session")
+            or p.startswith("/auth/register")
+        )
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":

@@ -8,8 +8,8 @@ delegating all business logic to the AuthService.
 UPDATED: Added rate limiting to protect against brute force attacks.
 """
 
-import logging
 from datetime import timedelta
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -21,7 +21,14 @@ from ..core.config import settings
 from ..core.exceptions import ConflictException, NotFoundException
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ..schemas import Token, UserCreate, UserLogin, UserResponse, UserUpdate, UserWithPermissionsResponse
+from ..schemas import (
+    Token,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    UserUpdate,
+    UserWithPermissionsResponse,
+)
 from ..schemas.security import LoginResponse, PasswordChangeRequest, PasswordChangeResponse
 from ..services.auth_service import AuthService
 from ..services.beta_service import BetaService
@@ -100,7 +107,9 @@ async def register(
                 if grant:
                     logger.info(f"Consumed beta invite for user {db_user.id} via register")
                 else:
-                    logger.warning(f"Invite not consumed on register for user {db_user.id}: {reason}")
+                    logger.warning(
+                        f"Invite not consumed on register for user {db_user.id}: {reason}"
+                    )
         except Exception as e:
             # Log only; do not block registration if invite handling fails
             logger.error(f"Error consuming invite on register for {db_user.id}: {e}")
@@ -243,12 +252,16 @@ async def change_password(
     from app.auth import get_password_hash, verify_password
 
     if not verify_password(request.current_password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect"
+        )
 
     # Basic strength checks
     new_pw = request.new_password
     if len(new_pw) < 8 or new_pw.lower() == new_pw or not any(c.isdigit() for c in new_pw):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password is too weak")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="New password is too weak"
+        )
 
     hashed = get_password_hash(new_pw)
 
@@ -257,7 +270,9 @@ async def change_password(
     user_repository = RepositoryFactory.create_user_repository(db)
     success = user_repository.update_password(user.id, hashed)
     if not success:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password"
+        )
 
     return PasswordChangeResponse(message="Password changed successfully")
 

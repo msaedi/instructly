@@ -4,8 +4,8 @@ Monitoring endpoints for health checks and diagnostics.
 These endpoints are secured and used for internal monitoring and operations.
 """
 
-import os
 from datetime import datetime, timezone
+import os
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -32,7 +32,9 @@ router = APIRouter(
 )
 
 
-async def verify_monitoring_api_key(api_key: Optional[str] = Header(None, alias="X-Monitoring-API-Key")):
+async def verify_monitoring_api_key(
+    api_key: Optional[str] = Header(None, alias="X-Monitoring-API-Key"),
+):
     """
     Verify access to monitoring endpoints using API key.
 
@@ -94,7 +96,9 @@ async def get_monitoring_dashboard(
 
 
 @router.get("/slow-queries", response_model=SlowQueriesResponse)
-async def get_slow_queries(limit: int = 10, _: None = Depends(verify_monitoring_api_key)) -> SlowQueriesResponse:
+async def get_slow_queries(
+    limit: int = 10, _: None = Depends(verify_monitoring_api_key)
+) -> SlowQueriesResponse:
     """Get recent slow queries."""
     return SlowQueriesResponse(
         slow_queries=list(monitor.slow_queries)[-limit:],
@@ -103,7 +107,9 @@ async def get_slow_queries(limit: int = 10, _: None = Depends(verify_monitoring_
 
 
 @router.get("/slow-requests", response_model=SlowRequestsResponse)
-async def get_slow_requests(limit: int = 10, _: None = Depends(verify_monitoring_api_key)) -> SlowRequestsResponse:
+async def get_slow_requests(
+    limit: int = 10, _: None = Depends(verify_monitoring_api_key)
+) -> SlowRequestsResponse:
     """Get recent slow requests."""
     return SlowRequestsResponse(
         slow_requests=list(monitor.slow_requests)[-limit:],
@@ -133,7 +139,9 @@ async def get_extended_cache_stats(
 
 
 @router.post("/alerts/acknowledge/{alert_type}", response_model=AlertAcknowledgeResponse)
-async def acknowledge_alert(alert_type: str, _: None = Depends(verify_monitoring_api_key)) -> AlertAcknowledgeResponse:
+async def acknowledge_alert(
+    alert_type: str, _: None = Depends(verify_monitoring_api_key)
+) -> AlertAcknowledgeResponse:
     """Acknowledge an alert to reset its cooldown."""
     if alert_type in monitor._last_alert_time:
         del monitor._last_alert_time[alert_type]

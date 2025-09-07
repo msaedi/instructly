@@ -6,8 +6,8 @@ Automated tasks that run on schedule to maintain GDPR compliance
 and apply data retention policies.
 """
 
-import logging
 from datetime import datetime, timezone
+import logging
 from typing import Dict
 
 from celery import Task
@@ -240,7 +240,9 @@ def process_data_export_request(self, user_id: int, request_id: str = None) -> D
 
 # Task to process user data deletion requests
 @celery_app.task(bind=True, base=DatabaseTask, name="privacy.process_data_deletion_request")
-def process_data_deletion_request(self, user_id: int, delete_account: bool = False, request_id: str = None) -> Dict:
+def process_data_deletion_request(
+    self, user_id: int, delete_account: bool = False, request_id: str = None
+) -> Dict:
     """
     Process a user data deletion request.
 

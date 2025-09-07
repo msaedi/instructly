@@ -30,7 +30,16 @@ class DeviceTrackingService(BaseService):
     """
 
     # Device type patterns for fallback detection
-    MOBILE_PATTERNS = [r"Mobile", r"Android", r"iPhone", r"iPad", r"iPod", r"BlackBerry", r"webOS", r"Windows Phone"]
+    MOBILE_PATTERNS = [
+        r"Mobile",
+        r"Android",
+        r"iPhone",
+        r"iPad",
+        r"iPod",
+        r"BlackBerry",
+        r"webOS",
+        r"Windows Phone",
+    ]
 
     TABLET_PATTERNS = [r"iPad", r"Android.*Tablet", r"Kindle", r"Silk", r"PlayBook"]
 

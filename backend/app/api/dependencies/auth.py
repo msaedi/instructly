@@ -11,8 +11,10 @@ from typing import Optional
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from ...auth import get_current_user as auth_get_current_user
-from ...auth import get_current_user_optional as auth_get_current_user_optional
+from ...auth import (
+    get_current_user as auth_get_current_user,
+    get_current_user_optional as auth_get_current_user_optional,
+)
 from ...core.config import settings
 from ...models.user import User
 from ...monitoring.prometheus_metrics import prometheus_metrics
@@ -26,7 +28,9 @@ def _from_preview_origin(request: Request) -> bool:
     referer = (request.headers.get("referer") or "").lower()
     xfhost = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").lower()
     api_host = request.url.hostname.lower() if request.url and request.url.hostname else ""
-    front_ok = settings.preview_frontend_domain in origin or settings.preview_frontend_domain in referer
+    front_ok = (
+        settings.preview_frontend_domain in origin or settings.preview_frontend_domain in referer
+    )
     api_ok = settings.preview_api_domain in xfhost or settings.preview_api_domain in api_host
     return bool(front_ok and api_ok)
 
@@ -58,7 +62,9 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
                     "user_id": getattr(user, "id", None),
                     "staff": True,
                     "origin": (request.headers.get("origin") or "").lower(),
-                    "host": (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").lower(),
+                    "host": (
+                        request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+                    ).lower(),
                     "client_ip": request.client.host if request.client else None,
                     "user_agent": request.headers.get("user-agent", ""),
                 },
@@ -70,7 +76,11 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
     # Optional header path (only if explicitly allowed) – must come from preview origins
     if settings.allow_preview_header and _from_preview_origin(request):
         token = request.headers.get("x-staff-preview-token", "")
-        if token and settings.staff_preview_token and hmac.compare_digest(token, settings.staff_preview_token):
+        if (
+            token
+            and settings.staff_preview_token
+            and hmac.compare_digest(token, settings.staff_preview_token)
+        ):
             try:
                 logger.info(
                     "preview_bypass",
@@ -80,7 +90,11 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
                         "user_id": getattr(user, "id", None),
                         "staff": getattr(user, "is_staff", False),
                         "origin": (request.headers.get("origin") or "").lower(),
-                        "host": (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").lower(),
+                        "host": (
+                            request.headers.get("x-forwarded-host")
+                            or request.headers.get("host")
+                            or ""
+                        ).lower(),
                         "client_ip": request.client.host if request.client else None,
                         "user_agent": request.headers.get("user-agent", ""),
                         "via": "header",
@@ -147,7 +161,10 @@ async def get_current_user(
             session = SessionLocal()
             created = True
         except Exception:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database connection failed")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database connection failed",
+            )
 
     try:
         user = session.query(User).filter(User.email == current_user_email).first()
@@ -175,11 +192,15 @@ async def get_current_user(
                         "preview_impersonation",
                         extra={
                             "event": "preview_impersonation",
-                            "route": request.url.path if request and getattr(request, "url", None) else "",
+                            "route": request.url.path
+                            if request and getattr(request, "url", None)
+                            else "",
                             "staff_user_id": getattr(user, "id", None),
                             "impersonated_user_id": imp_id,
                             "origin": (request.headers.get("origin") or "").lower(),
-                            "client_ip": request.client.host if getattr(request, "client", None) else None,
+                            "client_ip": request.client.host
+                            if getattr(request, "client", None)
+                            else None,
                         },
                     )
                     return imp
@@ -294,9 +315,13 @@ def require_beta_access(role: Optional[str] = None):
         repo = BetaAccessRepository(db)
         beta = repo.get_latest_for_user(current_user.id)
         if not beta:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Beta access required")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Beta access required"
+            )
         if role and beta.role != role:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Beta {role} access required")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=f"Beta {role} access required"
+            )
         return current_user
 
     return verify_beta
@@ -343,12 +368,16 @@ def require_beta_phase_access(_expected_phase: Optional[str] = None):
         # 5) Otherwise enforce that user has a BetaAccess grant
         # If the route also requires auth, current_user will be set; otherwise it may be None.
         if not current_user:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Beta access required")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Beta access required"
+            )
 
         repo = BetaAccessRepository(db)
         beta = repo.get_latest_for_user(current_user.id)
         if not beta:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Beta access required")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Beta access required"
+            )
 
         return None
 

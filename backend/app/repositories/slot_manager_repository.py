@@ -22,8 +22,8 @@ Methods removed:
 - date_has_bookings()
 """
 
-import logging
 from datetime import date
+import logging
 from typing import List, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -71,7 +71,9 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
 
     # Slot Collection Queries
 
-    def get_slots_by_date_ordered(self, instructor_id: str, target_date: date) -> List[AvailabilitySlot]:
+    def get_slots_by_date_ordered(
+        self, instructor_id: str, target_date: date
+    ) -> List[AvailabilitySlot]:
         """
         Get all slots for a date ordered by start time.
 
@@ -98,7 +100,9 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting ordered slots: {str(e)}")
             raise RepositoryException(f"Failed to get slots: {str(e)}")
 
-    def get_slots_for_instructor_date(self, instructor_id: str, target_date: date) -> List[AvailabilitySlot]:
+    def get_slots_for_instructor_date(
+        self, instructor_id: str, target_date: date
+    ) -> List[AvailabilitySlot]:
         """
         Get all slots for an instructor on a specific date.
 
@@ -113,7 +117,9 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
         """
         return self.get_slots_by_date_ordered(instructor_id, target_date)
 
-    def get_ordered_slots_for_gap_analysis(self, instructor_id: str, target_date: date) -> List[AvailabilitySlot]:
+    def get_ordered_slots_for_gap_analysis(
+        self, instructor_id: str, target_date: date
+    ) -> List[AvailabilitySlot]:
         """
         Get slots ordered for gap analysis between consecutive slots.
 
@@ -154,7 +160,9 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error counting slots: {str(e)}")
             raise RepositoryException(f"Failed to count slots: {str(e)}")
 
-    def get_slots_in_date_range(self, instructor_id: str, start_date: date, end_date: date) -> List[AvailabilitySlot]:
+    def get_slots_in_date_range(
+        self, instructor_id: str, start_date: date, end_date: date
+    ) -> List[AvailabilitySlot]:
         """
         Get all slots for an instructor within a date range.
 

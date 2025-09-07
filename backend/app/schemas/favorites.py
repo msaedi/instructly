@@ -17,8 +17,12 @@ class FavoriteResponse(BaseModel):
 
     success: bool = Field(..., description="Whether the operation was successful")
     message: str = Field(..., description="Human-readable message about the operation")
-    favorite_id: Optional[str] = Field(None, description="ID of the created favorite (for add operations)")
-    already_favorited: Optional[bool] = Field(None, description="True if already favorited (for add)")
+    favorite_id: Optional[str] = Field(
+        None, description="ID of the created favorite (for add operations)"
+    )
+    already_favorited: Optional[bool] = Field(
+        None, description="True if already favorited (for add)"
+    )
     not_favorited: Optional[bool] = Field(None, description="True if not favorited (for remove)")
 
     model_config = ConfigDict(
@@ -39,7 +43,9 @@ class FavoritedInstructor(BaseModel):
     email: str = Field(..., description="Instructor email")
     first_name: str = Field(..., description="Instructor first name")
     last_name: str = Field(..., description="Instructor last name")
-    profile: Optional[InstructorProfileResponse] = Field(None, description="Instructor profile details")
+    profile: Optional[InstructorProfileResponse] = Field(
+        None, description="Instructor profile details"
+    )
     favorited_at: Optional[datetime] = Field(None, description="When this instructor was favorited")
     is_active: bool = Field(True, description="Whether the instructor is active")
 

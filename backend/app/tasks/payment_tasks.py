@@ -5,12 +5,12 @@ Handles scheduled authorizations, retries, captures, and payouts.
 Implements proper retry timing windows based on lesson time.
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Any, Dict
 
-import stripe
 from sqlalchemy.orm import Session
+import stripe
 
 from app.core.config import settings
 from app.database import get_db
@@ -24,12 +24,16 @@ from app.tasks.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 # Configure Stripe
-stripe.api_key = settings.stripe_secret_key.get_secret_value() if settings.stripe_secret_key else None
+stripe.api_key = (
+    settings.stripe_secret_key.get_secret_value() if settings.stripe_secret_key else None
+)
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
 PLATFORM_FEE_PERCENTAGE = 15  # 15% platform fee
 
 
-@celery_app.task(bind=True, max_retries=3, name="app.tasks.payment_tasks.process_scheduled_authorizations")
+@celery_app.task(
+    bind=True, max_retries=3, name="app.tasks.payment_tasks.process_scheduled_authorizations"
+)
 def process_scheduled_authorizations(self) -> Dict[str, Any]:
     """
     Process scheduled payment authorizations.
@@ -66,7 +70,9 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
         for booking in bookings_to_authorize:
             # Calculate exact time until lesson
             # Make booking_datetime timezone-aware (assuming UTC for booking times)
-            booking_datetime = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
+            booking_datetime = datetime.combine(
+                booking.booking_date, booking.start_time, tzinfo=timezone.utc
+            )
             hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
 
             # Only process if in the 23.5-24.5 hour window
@@ -80,7 +86,9 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                     raise Exception(f"No Stripe customer for student {booking.student_id}")
 
                 # Get instructor's Stripe account
-                from app.repositories.instructor_profile_repository import InstructorProfileRepository
+                from app.repositories.instructor_profile_repository import (
+                    InstructorProfileRepository,
+                )
 
                 instructor_repo = InstructorProfileRepository(db)
                 instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
@@ -97,7 +105,9 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                 try:
                     if hasattr(_payment_repo, "apply_credits_for_booking"):
                         credit_result = _payment_repo.apply_credits_for_booking(
-                            user_id=booking.student_id, booking_id=booking.id, amount_cents=original_amount_cents
+                            user_id=booking.student_id,
+                            booking_id=booking.id,
+                            amount_cents=original_amount_cents,
                         )
                         # Safely coerce to int in case tests use MagicMock
                         if isinstance(credit_result, dict):
@@ -124,7 +134,9 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                         },
                     )
                     results["success"] += 1
-                    logger.info(f"Booking {booking.id} fully covered by credits; no authorization needed")
+                    logger.info(
+                        f"Booking {booking.id} fully covered by credits; no authorization needed"
+                    )
                     continue
 
                 application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE / 100)
@@ -187,12 +199,18 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                     if "card" in error_message.lower() or "declined" in error_message.lower()
                     else "system_error"
                 )
-                handle_authorization_failure(booking, _payment_repo, error_message, error_type, hours_until_lesson)
+                handle_authorization_failure(
+                    booking, _payment_repo, error_message, error_type, hours_until_lesson
+                )
                 # T-24 first failure email: send urgent update-card notice on initial failure
                 try:
                     # Only send once
-                    if not has_event_type(_payment_repo, booking.id, "t24_first_failure_email_sent"):
-                        notification_service.send_final_payment_warning(booking, hours_until_lesson)  # reuse template
+                    if not has_event_type(
+                        _payment_repo, booking.id, "t24_first_failure_email_sent"
+                    ):
+                        notification_service.send_final_payment_warning(
+                            booking, hours_until_lesson
+                        )  # reuse template
                         _payment_repo.create_payment_event(
                             booking_id=booking.id,
                             event_type="t24_first_failure_email_sent",
@@ -202,7 +220,9 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                             },
                         )
                 except Exception as mail_err:
-                    logger.error(f"Failed to send T-24 failure email for booking {booking.id}: {mail_err}")
+                    logger.error(
+                        f"Failed to send T-24 failure email for booking {booking.id}: {mail_err}"
+                    )
                 results["failed"] += 1
                 results["failures"].append(
                     {
@@ -218,7 +238,9 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
         if results["failed"] > 0:
             logger.warning(f"Authorization job completed with {results['failed']} failures")
 
-        logger.info(f"Authorization job completed: {results['success']} success, {results['failed']} failed")
+        logger.info(
+            f"Authorization job completed: {results['success']} success, {results['failed']} failed"
+        )
         return results
 
     except Exception as exc:
@@ -228,7 +250,9 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
         db.close()
 
 
-@celery_app.task(bind=True, max_retries=5, name="app.tasks.payment_tasks.retry_failed_authorizations")
+@celery_app.task(
+    bind=True, max_retries=5, name="app.tasks.payment_tasks.retry_failed_authorizations"
+)
 def retry_failed_authorizations(self) -> Dict[str, Any]:
     """
     Retry failed payment authorizations at specific time windows.
@@ -267,7 +291,9 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
 
         for booking in bookings_to_retry:
             # Calculate hours until lesson
-            booking_datetime = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
+            booking_datetime = datetime.combine(
+                booking.booking_date, booking.start_time, tzinfo=timezone.utc
+            )
             hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
 
             # Skip if lesson already happened
@@ -295,7 +321,9 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
                 # Send cancellation notification
                 notification_service.send_booking_cancelled_payment_failed(booking)
                 results["cancelled"] += 1
-                logger.info(f"Cancelled booking {booking.id} due to payment failure (T-{hours_until_lesson:.1f}hr)")
+                logger.info(
+                    f"Cancelled booking {booking.id} due to payment failure (T-{hours_until_lesson:.1f}hr)"
+                )
 
             elif hours_until_lesson <= 12:
                 # T-12hr: Send final warning and retry
@@ -324,7 +352,9 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
             elif 17 <= hours_until_lesson < 23:  # T-18hr, T-20hr, T-22hr windows
                 # Silent retry at specific windows
                 retry_windows = [18, 20, 22]
-                should_retry = any(abs(hours_until_lesson - window) < 0.5 for window in retry_windows)
+                should_retry = any(
+                    abs(hours_until_lesson - window) < 0.5 for window in retry_windows
+                )
 
                 if should_retry:
                     # Check if we already retried at this window
@@ -337,7 +367,9 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
                     ]
 
                     if not recent_retry_times:  # Haven't retried recently
-                        if attempt_authorization_retry(booking, _payment_repo, db, hours_until_lesson):
+                        if attempt_authorization_retry(
+                            booking, _payment_repo, db, hours_until_lesson
+                        ):
                             results["success"] += 1
                         else:
                             results["failed"] += 1
@@ -379,7 +411,9 @@ def handle_authorization_failure(
     logger.error(f"Failed to authorize payment for booking {booking.id}: {error}")
 
 
-def attempt_authorization_retry(booking: Booking, payment_repo: Any, db: Session, hours_until_lesson: float) -> bool:
+def attempt_authorization_retry(
+    booking: Booking, payment_repo: Any, db: Session, hours_until_lesson: float
+) -> bool:
     """
     Attempt to retry authorization for a booking.
 
@@ -450,7 +484,9 @@ def attempt_authorization_retry(booking: Booking, payment_repo: Any, db: Session
             },
         )
 
-        logger.info(f"Successfully retried authorization for booking {booking.id} (T-{hours_until_lesson:.1f}hr)")
+        logger.info(
+            f"Successfully retried authorization for booking {booking.id} (T-{hours_until_lesson:.1f}hr)"
+        )
         return True
 
     except Exception as e:
@@ -527,7 +563,9 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
         # Filter to only bookings where lesson ended >24hr ago
         bookings_to_auto_complete = []
         for booking in all_confirmed_bookings:
-            lesson_end = datetime.combine(booking.booking_date, booking.end_time, tzinfo=timezone.utc)
+            lesson_end = datetime.combine(
+                booking.booking_date, booking.end_time, tzinfo=timezone.utc
+            )
             if lesson_end <= auto_complete_cutoff:
                 bookings_to_auto_complete.append(booking)
 
@@ -565,7 +603,12 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
             # Check when authorization was created
             auth_events = _payment_repo.get_payment_events_for_booking(booking.id)
             auth_event = next(
-                (e for e in auth_events if e.event_type in ["auth_succeeded", "auth_retry_succeeded"]), None
+                (
+                    e
+                    for e in auth_events
+                    if e.event_type in ["auth_succeeded", "auth_retry_succeeded"]
+                ),
+                None,
             )
 
             if auth_event and auth_event.created_at <= seven_days_ago:
@@ -575,7 +618,9 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
                     capture_result = attempt_payment_capture(booking, _payment_repo, "expired_auth")
                     if not capture_result["success"]:
                         # Create new authorization and capture
-                        new_auth_result = create_new_authorization_and_capture(booking, _payment_repo, db)
+                        new_auth_result = create_new_authorization_and_capture(
+                            booking, _payment_repo, db
+                        )
                         if new_auth_result["success"]:
                             results["captured"] += 1
                         else:
@@ -611,7 +656,9 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
         db.close()
 
 
-def attempt_payment_capture(booking: Booking, payment_repo: Any, capture_reason: str) -> Dict[str, bool]:
+def attempt_payment_capture(
+    booking: Booking, payment_repo: Any, capture_reason: str
+) -> Dict[str, bool]:
     """
     Attempt to capture a payment for a booking.
 
@@ -653,7 +700,9 @@ def attempt_payment_capture(booking: Booking, payment_repo: Any, capture_reason:
             },
         )
 
-        logger.info(f"Successfully captured payment for booking {booking.id} (reason: {capture_reason})")
+        logger.info(
+            f"Successfully captured payment for booking {booking.id} (reason: {capture_reason})"
+        )
         return {"success": True}
 
     except stripe.error.InvalidRequestError as e:
@@ -730,7 +779,9 @@ def attempt_payment_capture(booking: Booking, payment_repo: Any, capture_reason:
         return {"success": False, "error": str(e)}
 
 
-def create_new_authorization_and_capture(booking: Booking, payment_repo: Any, db: Session) -> Dict[str, bool]:
+def create_new_authorization_and_capture(
+    booking: Booking, payment_repo: Any, db: Session
+) -> Dict[str, bool]:
     """
     Create a new authorization and immediately capture for expired authorizations.
 
@@ -836,11 +887,15 @@ def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
 
         # Verify this is a late cancellation
         now = datetime.now(timezone.utc)
-        lesson_datetime = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
+        lesson_datetime = datetime.combine(
+            booking.booking_date, booking.start_time, tzinfo=timezone.utc
+        )
         hours_until_lesson = (lesson_datetime - now).total_seconds() / 3600
 
         if hours_until_lesson >= 12:
-            logger.warning(f"Booking {booking_id} cancelled with {hours_until_lesson:.1f}hr notice - no charge")
+            logger.warning(
+                f"Booking {booking_id} cancelled with {hours_until_lesson:.1f}hr notice - no charge"
+            )
             return {"success": False, "error": "Not a late cancellation"}
 
         # Check if payment is already captured
@@ -952,7 +1007,9 @@ def check_authorization_health() -> Dict[str, Any]:
         scheduled_bookings = booking_repo.get_bookings_for_payment_authorization()
 
         for booking in scheduled_bookings:
-            booking_datetime = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
+            booking_datetime = datetime.combine(
+                booking.booking_date, booking.start_time, tzinfo=timezone.utc
+            )
             hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
 
             if hours_until_lesson < 24:  # Should have been authorized
@@ -1013,7 +1070,9 @@ def check_authorization_health() -> Dict[str, Any]:
         db.close()
 
 
-@celery_app.task(bind=True, max_retries=3, name="app.tasks.payment_tasks.audit_and_fix_payout_schedules")
+@celery_app.task(
+    bind=True, max_retries=3, name="app.tasks.payment_tasks.audit_and_fix_payout_schedules"
+)
 def audit_and_fix_payout_schedules(self) -> Dict[str, Any]:
     """
     Nightly audit to ensure all connected accounts use weekly Tuesday payouts.

@@ -1,6 +1,6 @@
+from datetime import datetime, timedelta, timezone
 import logging
 import os
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, status
@@ -66,7 +66,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+        expire = datetime.now(timezone.utc) + timedelta(
+            minutes=settings.access_token_expire_minutes
+        )
 
     to_encode.update({"exp": expire})
 
@@ -114,7 +116,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-async def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme_optional)) -> str:
+async def get_current_user(
+    request: Request, token: Optional[str] = Depends(oauth2_scheme_optional)
+) -> str:
     """
     Dependency to get the current authenticated user email from JWT token.
 

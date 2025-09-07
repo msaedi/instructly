@@ -36,9 +36,12 @@ class TimingMiddlewareASGI:
         method = scope.get("method", "")
 
         # Skip timing for health and metrics endpoints
-        if path in ["/health", "/metrics/health", "/metrics/performance", "/metrics/cache"] or path.startswith(
-            "/metrics"
-        ):
+        if path in [
+            "/health",
+            "/metrics/health",
+            "/metrics/performance",
+            "/metrics/cache",
+        ] or path.startswith("/metrics"):
             await self.app(scope, receive, send)
             return
 
@@ -66,7 +69,9 @@ class TimingMiddlewareASGI:
 
                 # Log slow requests
                 if process_time > 100:  # Log requests slower than 100ms
-                    logger.warning(f"[TIMING] Slow request: {method} {path} took {process_time:.2f}ms")
+                    logger.warning(
+                        f"[TIMING] Slow request: {method} {path} took {process_time:.2f}ms"
+                    )
 
             await send(message)
 

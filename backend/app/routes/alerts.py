@@ -103,7 +103,9 @@ def get_alert_summary(
     # Get daily counts
     daily_alerts = []
     for i in range(days):
-        day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) - timedelta(days=i)
+        day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) - timedelta(
+            days=i
+        )
         day_end = day_start + timedelta(days=1)
 
         count = (
@@ -139,7 +141,10 @@ def get_live_alerts(
     since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
 
     alerts = (
-        db.query(AlertHistory).filter(AlertHistory.created_at >= since).order_by(desc(AlertHistory.created_at)).all()
+        db.query(AlertHistory)
+        .filter(AlertHistory.created_at >= since)
+        .order_by(desc(AlertHistory.created_at))
+        .all()
     )
 
     return LiveAlertsResponse(

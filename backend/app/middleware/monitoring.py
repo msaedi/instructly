@@ -3,10 +3,10 @@
 Simple performance monitoring to track real-world metrics.
 """
 
-import logging
-import time
 from collections import defaultdict, deque
 from datetime import datetime
+import logging
+import time
 
 from ..core.constants import SSE_PATH_PREFIX
 

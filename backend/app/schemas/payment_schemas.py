@@ -18,7 +18,9 @@ class SavePaymentMethodRequest(BaseModel):
     """Request to save a payment method for a user."""
 
     payment_method_id: str = Field(..., description="Stripe payment method ID")
-    set_as_default: bool = Field(default=False, description="Whether to set as default payment method")
+    set_as_default: bool = Field(
+        default=False, description="Whether to set as default payment method"
+    )
 
 
 class CreateCheckoutRequest(BaseModel):
@@ -26,7 +28,9 @@ class CreateCheckoutRequest(BaseModel):
 
     booking_id: str = Field(..., description="Booking ID to process payment for")
     payment_method_id: str = Field(..., description="Stripe payment method ID to use")
-    save_payment_method: bool = Field(default=False, description="Whether to save payment method for future use")
+    save_payment_method: bool = Field(
+        default=False, description="Whether to save payment method for future use"
+    )
 
 
 # ========== Response Models ==========
@@ -59,7 +63,9 @@ class OnboardingStatusResponse(BaseModel):
     onboarding_completed: bool = Field(..., description="Whether onboarding is complete")
     charges_enabled: bool = Field(..., description="Whether account can accept payments")
     payouts_enabled: bool = Field(default=False, description="Whether account can receive payouts")
-    details_submitted: bool = Field(default=False, description="Whether required details are submitted")
+    details_submitted: bool = Field(
+        default=False, description="Whether required details are submitted"
+    )
     requirements: List[str] = Field(default_factory=list, description="Outstanding requirements")
 
 
@@ -78,8 +84,12 @@ class CheckoutResponse(BaseModel):
     status: str = Field(..., description="Payment status")
     amount: int = Field(..., description="Payment amount in cents")
     application_fee: int = Field(..., description="Platform fee in cents")
-    client_secret: Optional[str] = Field(None, description="Client secret for frontend confirmation")
-    requires_action: bool = Field(default=False, description="Whether payment requires additional action")
+    client_secret: Optional[str] = Field(
+        None, description="Client secret for frontend confirmation"
+    )
+    requires_action: bool = Field(
+        default=False, description="Whether payment requires additional action"
+    )
 
 
 class CustomerResponse(BaseModel):
@@ -176,7 +186,9 @@ class PaymentErrorResponse(BaseModel):
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Human-readable error message")
     details: Optional[dict] = Field(None, description="Additional error details")
-    payment_intent_id: Optional[str] = Field(None, description="Associated payment intent ID if applicable")
+    payment_intent_id: Optional[str] = Field(
+        None, description="Associated payment intent ID if applicable"
+    )
 
 
 # ========== Generic Response Models ==========

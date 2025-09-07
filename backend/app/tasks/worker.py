@@ -14,8 +14,8 @@ Usage:
 
 import logging
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
@@ -49,7 +49,9 @@ def start_worker():
         "pool": os.getenv("CELERY_POOL", "prefork"),  # or 'eventlet' for async
         "concurrency": int(os.getenv("CELERY_CONCURRENCY", os.cpu_count() or 4)),
         "hostname": os.getenv("CELERY_HOSTNAME", f"worker@{os.uname().nodename}"),
-        "queues": os.getenv("CELERY_QUEUES", "celery,email,notifications,analytics,maintenance,bookings,cache"),
+        "queues": os.getenv(
+            "CELERY_QUEUES", "celery,email,notifications,analytics,maintenance,bookings,cache"
+        ),
         "events": True,
         "heartbeat_interval": 30,
         "without_gossip": False,

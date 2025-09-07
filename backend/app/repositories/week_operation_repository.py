@@ -22,8 +22,8 @@ Methods removed for clean architecture:
 - delete_non_booked_slots() → Use delete_slots_preserving_booked_times()
 """
 
-import logging
 from datetime import date
+import logging
 from typing import Dict, List
 
 from sqlalchemy import and_, text
@@ -53,7 +53,9 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Week Booking Queries
 
-    def get_week_bookings_with_slots(self, instructor_id: int, week_dates: List[date]) -> Dict[str, any]:
+    def get_week_bookings_with_slots(
+        self, instructor_id: int, week_dates: List[date]
+    ) -> Dict[str, any]:
         """
         Get all bookings in a target week.
 
@@ -107,7 +109,9 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting week bookings: {str(e)}")
             raise RepositoryException(f"Failed to get week bookings: {str(e)}")
 
-    def get_bookings_in_date_range(self, instructor_id: int, start_date: date, end_date: date) -> Dict[str, any]:
+    def get_bookings_in_date_range(
+        self, instructor_id: int, start_date: date, end_date: date
+    ) -> Dict[str, any]:
         """
         Get all bookings in a date range for pattern operations.
 
@@ -168,7 +172,9 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Slot Queries
 
-    def get_week_slots(self, instructor_id: int, start_date: date, end_date: date) -> List[AvailabilitySlot]:
+    def get_week_slots(
+        self, instructor_id: int, start_date: date, end_date: date
+    ) -> List[AvailabilitySlot]:
         """
         Get all slots for a week.
 
@@ -197,7 +203,9 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting week slots: {str(e)}")
             raise RepositoryException(f"Failed to get slots: {str(e)}")
 
-    def get_slots_with_booking_status(self, instructor_id: int, target_date: date) -> List[Dict[str, any]]:
+    def get_slots_with_booking_status(
+        self, instructor_id: int, target_date: date
+    ) -> List[Dict[str, any]]:
         """
         Get all slots for a date with their booking status.
 
@@ -258,7 +266,9 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting slots with status: {str(e)}")
             raise RepositoryException(f"Failed to get slots: {str(e)}")
 
-    def get_week_with_booking_status(self, instructor_id: int, start_date: date, end_date: date) -> List[Dict]:
+    def get_week_with_booking_status(
+        self, instructor_id: int, start_date: date, end_date: date
+    ) -> List[Dict]:
         """
         Get week availability with booking status for each slot.
 

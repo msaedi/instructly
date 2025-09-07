@@ -1,12 +1,12 @@
 import base64
+from datetime import datetime, timezone
 import io
 import logging
-from datetime import datetime, timezone
 from typing import List, Optional
 
+from cryptography.fernet import Fernet
 import pyotp
 import qrcode
-from cryptography.fernet import Fernet
 from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash, verify_password
@@ -24,7 +24,9 @@ class TwoFactorAuthService(BaseService):
         super().__init__(db)
         self.user_repository = RepositoryFactory.create_user_repository(db)
         # Ensure Fernet key is valid length (44 url-safe base64 bytes). Expect provided via env.
-        key = settings.totp_encryption_key.get_secret_value() if settings.totp_encryption_key else ""
+        key = (
+            settings.totp_encryption_key.get_secret_value() if settings.totp_encryption_key else ""
+        )
         if not key:
             # Generate ephemeral key in dev if not provided
             self._fernet = Fernet(Fernet.generate_key())
@@ -46,7 +48,9 @@ class TwoFactorAuthService(BaseService):
         return pyotp.random_base32()
 
     @BaseService.measure_operation("tfa_generate_qr")
-    def generate_qr_code(self, email: str, secret: str, issuer: str = "InstaInstru") -> tuple[str, str]:
+    def generate_qr_code(
+        self, email: str, secret: str, issuer: str = "InstaInstru"
+    ) -> tuple[str, str]:
         totp = pyotp.TOTP(secret)
         otpauth_url = totp.provisioning_uri(name=email, issuer_name=issuer)
         img = qrcode.make(otpauth_url)
@@ -122,7 +126,9 @@ class TwoFactorAuthService(BaseService):
         return {
             "enabled": bool(user.totp_enabled),
             "verified_at": user.totp_verified_at.isoformat() if user.totp_verified_at else None,
-            "last_used_at": user.two_factor_last_used_at.isoformat() if user.two_factor_last_used_at else None,
+            "last_used_at": user.two_factor_last_used_at.isoformat()
+            if user.two_factor_last_used_at
+            else None,
         }
 
     @BaseService.measure_operation("tfa_verify_login")

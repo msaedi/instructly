@@ -11,10 +11,10 @@ This module defines the service catalog system with three models:
 import logging
 from typing import TYPE_CHECKING, List, Optional
 
-import ulid
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+import ulid
 
 from ..database import Base
 from .types import IntegerArrayType, StringArrayType
@@ -98,7 +98,9 @@ class ServiceCategory(Base):
         }
 
         if include_services:
-            data["services"] = [entry.to_dict() for entry in self.catalog_entries if entry.is_active]
+            data["services"] = [
+                entry.to_dict() for entry in self.catalog_entries if entry.is_active
+            ]
 
         return data
 
@@ -135,7 +137,9 @@ class ServiceCatalog(Base):
     __tablename__ = "service_catalog"
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    category_id = Column(String(26), ForeignKey("service_categories.id"), nullable=False, index=True)
+    category_id = Column(
+        String(26), ForeignKey("service_categories.id"), nullable=False, index=True
+    )
     name = Column(String, nullable=False)
     slug = Column(String, nullable=False, unique=True, index=True)
     description = Column(Text, nullable=True)
@@ -175,7 +179,9 @@ class ServiceCatalog(Base):
     @property
     def price_range(self) -> tuple[Optional[float], Optional[float]]:
         """Get min and max prices from active instructors."""
-        active_prices = [service.hourly_rate for service in self.instructor_services if service.is_active]
+        active_prices = [
+            service.hourly_rate for service in self.instructor_services if service.is_active
+        ]
 
         if not active_prices:
             return (None, None)
@@ -276,16 +282,24 @@ class InstructorService(Base):
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     instructor_profile_id = Column(
-        String(26), ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+        String(26),
+        ForeignKey("instructor_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     service_catalog_id = Column(
-        String(26), ForeignKey("service_catalog.id", ondelete="RESTRICT"), nullable=False, index=True
+        String(26),
+        ForeignKey("service_catalog.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
     hourly_rate = Column(Float, nullable=False)
     experience_level = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
     requirements = Column(Text, nullable=True)
-    duration_options: Mapped[List[int]] = mapped_column(IntegerArrayType, nullable=False, default=[60])
+    duration_options: Mapped[List[int]] = mapped_column(
+        IntegerArrayType, nullable=False, default=[60]
+    )
     equipment_required: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     levels_taught: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     age_groups: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
@@ -321,12 +335,20 @@ class InstructorService(Base):
     @property
     def category(self) -> str:
         """Get category name from catalog entry."""
-        return self.catalog_entry.category.name if self.catalog_entry and self.catalog_entry.category else "Unknown"
+        return (
+            self.catalog_entry.category.name
+            if self.catalog_entry and self.catalog_entry.category
+            else "Unknown"
+        )
 
     @property
     def category_slug(self) -> str:
         """Get category slug from catalog entry."""
-        return self.catalog_entry.category.slug if self.catalog_entry and self.catalog_entry.category else "unknown"
+        return (
+            self.catalog_entry.category.slug
+            if self.catalog_entry and self.catalog_entry.category
+            else "unknown"
+        )
 
     def session_price(self, duration_minutes: int) -> float:
         """
@@ -372,7 +394,8 @@ class InstructorService(Base):
             "category_slug": self.category_slug,
             "hourly_rate": self.hourly_rate,
             "experience_level": self.experience_level,
-            "description": self.description or (self.catalog_entry.description if self.catalog_entry else None),
+            "description": self.description
+            or (self.catalog_entry.description if self.catalog_entry else None),
             "requirements": self.requirements,
             "duration_options": self.duration_options,
             "equipment_required": self.equipment_required,
@@ -424,7 +447,10 @@ class ServiceAnalytics(Base):
     __tablename__ = "service_analytics"
 
     service_catalog_id = Column(
-        String(26), ForeignKey("service_catalog.id", ondelete="CASCADE"), primary_key=True, nullable=False
+        String(26),
+        ForeignKey("service_catalog.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
     )
     search_count_7d = Column(Integer, nullable=False, default=0, index=True)
     search_count_30d = Column(Integer, nullable=False, default=0)
@@ -446,7 +472,9 @@ class ServiceAnalytics(Base):
     active_instructors = Column(Integer, nullable=False, default=0)
     total_weekly_hours = Column(Float, nullable=True)
     supply_demand_ratio = Column(Float, nullable=True)
-    last_calculated = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    last_calculated = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
 
     # Relationships
     catalog_entry = relationship("ServiceCatalog", backref="analytics", uselist=False)

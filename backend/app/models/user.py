@@ -14,10 +14,10 @@ Classes:
 import logging
 from typing import TYPE_CHECKING
 
-import ulid
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import ulid
 
 from ..database import Base
 from .favorite import UserFavorite
@@ -99,7 +99,9 @@ class User(Base):
 
     # Relationships
     # RBAC relationship
-    roles = relationship("Role", secondary="user_roles", back_populates="users", lazy="selectin")  # Eager load roles
+    roles = relationship(
+        "Role", secondary="user_roles", back_populates="users", lazy="selectin"
+    )  # Eager load roles
 
     instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
 
@@ -110,15 +112,25 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
-    blackout_dates = relationship("BlackoutDate", back_populates="instructor", cascade="all, delete-orphan")
+    blackout_dates = relationship(
+        "BlackoutDate", back_populates="instructor", cascade="all, delete-orphan"
+    )
 
     # Password reset relationships
-    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+    password_reset_tokens = relationship(
+        "PasswordResetToken", back_populates="user", cascade="all, delete-orphan"
+    )
 
     # Payment relationships
-    stripe_customer = relationship("StripeCustomer", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    payment_methods = relationship("PaymentMethod", back_populates="user", cascade="all, delete-orphan")
-    platform_credits = relationship("PlatformCredit", back_populates="user", cascade="all, delete-orphan")
+    stripe_customer = relationship(
+        "StripeCustomer", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+    payment_methods = relationship(
+        "PaymentMethod", back_populates="user", cascade="all, delete-orphan"
+    )
+    platform_credits = relationship(
+        "PlatformCredit", back_populates="user", cascade="all, delete-orphan"
+    )
 
     # Favorites relationships
     # Favorites where this user is the student (instructors they've favorited)
@@ -140,13 +152,18 @@ class User(Base):
     # Search history for personalization
     # Specify foreign_keys to resolve ambiguity with converted_to_user_id
     search_history = relationship(
-        "SearchHistory", foreign_keys="SearchHistory.user_id", back_populates="user", cascade="all, delete-orphan"
+        "SearchHistory",
+        foreign_keys="SearchHistory.user_id",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     def __init__(self, **kwargs):
         """Initialize a new user and log the creation."""
         super().__init__(**kwargs)
-        logger.info(f"Creating new {kwargs.get('role', 'unknown')} user with email: {kwargs.get('email', 'unknown')}")
+        logger.info(
+            f"Creating new {kwargs.get('role', 'unknown')} user with email: {kwargs.get('email', 'unknown')}"
+        )
 
     def __repr__(self):
         """String representation of the User object."""

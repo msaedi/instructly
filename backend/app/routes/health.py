@@ -6,9 +6,9 @@ These endpoints are used for monitoring application health,
 database connectivity, and service availability.
 """
 
+from datetime import datetime, timezone
 import logging
 import os
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text

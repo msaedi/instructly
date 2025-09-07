@@ -12,9 +12,9 @@ All operations work directly with AvailabilitySlot objects
 using instructor_id + date.
 """
 
-import logging
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
@@ -68,7 +68,9 @@ class BulkOperationService(BaseService):
         self.week_operation_repository = RepositoryFactory.create_week_operation_repository(db)
 
     @BaseService.measure_operation("bulk_update")
-    async def process_bulk_update(self, instructor_id: str, update_data: BulkUpdateRequest) -> Dict[str, Any]:
+    async def process_bulk_update(
+        self, instructor_id: str, update_data: BulkUpdateRequest
+    ) -> Dict[str, Any]:
         """
         Process bulk update operations.
 
@@ -214,7 +216,9 @@ class BulkOperationService(BaseService):
                 results.append(result)
 
             except Exception as e:
-                self.logger.error(f"Error processing operation {idx} for instructor {instructor_id}: {str(e)}")
+                self.logger.error(
+                    f"Error processing operation {idx} for instructor {instructor_id}: {str(e)}"
+                )
                 result = OperationResult(
                     operation_index=idx,
                     action=operation.action,
@@ -261,8 +265,12 @@ class BulkOperationService(BaseService):
                     f"Invalidated all cache for instructor {instructor_id} due to remove operations without specific dates"
                 )
         elif affected_dates:
-            self.cache_service.invalidate_instructor_availability(instructor_id, list(affected_dates))
-            self.logger.info(f"Invalidated cache for instructor {instructor_id}, dates: {len(affected_dates)}")
+            self.cache_service.invalidate_instructor_availability(
+                instructor_id, list(affected_dates)
+            )
+            self.logger.info(
+                f"Invalidated cache for instructor {instructor_id}, dates: {len(affected_dates)}"
+            )
 
     @BaseService.measure_operation("extract_affected_dates")
     def _extract_affected_dates(
@@ -329,7 +337,9 @@ class BulkOperationService(BaseService):
         }
 
     @BaseService.measure_operation("validate_week")
-    async def validate_week_changes(self, instructor_id: str, validation_data: ValidateWeekRequest) -> Dict[str, Any]:
+    async def validate_week_changes(
+        self, instructor_id: str, validation_data: ValidateWeekRequest
+    ) -> Dict[str, Any]:
         """
         Validate planned changes to week availability.
 
@@ -358,7 +368,9 @@ class BulkOperationService(BaseService):
         )
 
         # Validate each operation
-        validation_results = await self._validate_operations(instructor_id=instructor_id, operations=operations)
+        validation_results = await self._validate_operations(
+            instructor_id=instructor_id, operations=operations
+        )
 
         # Generate summary
         summary = self._generate_validation_summary(validation_results)
@@ -426,7 +438,9 @@ class BulkOperationService(BaseService):
             return f"Missing required fields for add operation: {', '.join(missing_fields)}"
         return None
 
-    def _validate_add_operation_timing(self, operation: SlotOperation, instructor_id: str) -> Optional[str]:
+    def _validate_add_operation_timing(
+        self, operation: SlotOperation, instructor_id: str
+    ) -> Optional[str]:
         """Validate time constraints and alignment."""
         # Check for past dates using instructor's timezone
         instructor_today = get_user_today_by_id(instructor_id, self.db)
@@ -447,11 +461,16 @@ class BulkOperationService(BaseService):
 
         return None
 
-    async def _check_add_operation_conflicts(self, instructor_id: str, operation: SlotOperation) -> Optional[str]:
+    async def _check_add_operation_conflicts(
+        self, instructor_id: str, operation: SlotOperation
+    ) -> Optional[str]:
         """Check for booking conflicts and blackout dates."""
         # Check if slot already exists
         if self.availability_repository.slot_exists(
-            instructor_id, target_date=operation.date, start_time=operation.start_time, end_time=operation.end_time
+            instructor_id,
+            target_date=operation.date,
+            start_time=operation.start_time,
+            end_time=operation.end_time,
         ):
             return (
                 f"Time slot {operation.start_time.strftime('%H:%M')}-{operation.end_time.strftime('%H:%M')} "
@@ -547,10 +566,15 @@ class BulkOperationService(BaseService):
                 reason=str(e),
             )
 
-    async def _validate_remove_operation(self, instructor_id: str, slot_id: str) -> Tuple[Optional[Any], Optional[str]]:
+    async def _validate_remove_operation(
+        self, instructor_id: str, slot_id: str
+    ) -> Tuple[Optional[Any], Optional[str]]:
         """Validate slot exists and belongs to instructor."""
         if not slot_id:
-            return None, "Missing slot_id for remove operation - cannot identify which slot to remove"
+            return (
+                None,
+                "Missing slot_id for remove operation - cannot identify which slot to remove",
+            )
 
         # Find the slot using repository
         slot = self.repository.get_slot_for_instructor(slot_id, instructor_id)
@@ -639,7 +663,9 @@ class BulkOperationService(BaseService):
             return "Missing slot_id for update operation - cannot identify which slot to update"
         return None
 
-    async def _find_slot_for_update(self, instructor_id: str, slot_id: str) -> Tuple[Optional[Any], Optional[str]]:
+    async def _find_slot_for_update(
+        self, instructor_id: str, slot_id: str
+    ) -> Tuple[Optional[Any], Optional[str]]:
         """Find the slot to update and verify ownership."""
         # Find the slot using repository
         slot = self.repository.get_slot_for_instructor(slot_id, instructor_id)
@@ -722,7 +748,9 @@ class BulkOperationService(BaseService):
         new_start = operation.start_time if operation.start_time else slot.start_time
         new_end = operation.end_time if operation.end_time else slot.end_time
 
-        if error := await self._validate_update_timing_and_conflicts(instructor_id, operation, slot):
+        if error := await self._validate_update_timing_and_conflicts(
+            instructor_id, operation, slot
+        ):
             return OperationResult(
                 operation_index=operation_index,
                 action="update",
@@ -756,7 +784,9 @@ class BulkOperationService(BaseService):
                 reason=str(e),
             )
 
-    def _get_existing_week_slots(self, instructor_id: str, week_start: date) -> Dict[str, List[Dict]]:
+    def _get_existing_week_slots(
+        self, instructor_id: str, week_start: date
+    ) -> Dict[str, List[Dict]]:
         """Get existing slots for a week from database."""
         end_date = week_start + timedelta(days=6)
 
@@ -801,7 +831,8 @@ class BulkOperationService(BaseService):
             # Find slots to remove
             for saved_slot in saved_slots:
                 still_exists = any(
-                    s.start_time == saved_slot.start_time and s.end_time == saved_slot.end_time for s in current_slots
+                    s.start_time == saved_slot.start_time and s.end_time == saved_slot.end_time
+                    for s in current_slots
                 )
 
                 if not still_exists:
@@ -817,7 +848,11 @@ class BulkOperationService(BaseService):
                         saved_end = saved_end.strftime("%H:%M:%S")
 
                     db_slot = next(
-                        (s for s in existing_db_slots if s["start_time"] == saved_start and s["end_time"] == saved_end),
+                        (
+                            s
+                            for s in existing_db_slots
+                            if s["start_time"] == saved_start and s["end_time"] == saved_end
+                        ),
                         None,
                     )
 
@@ -827,7 +862,8 @@ class BulkOperationService(BaseService):
             # Find slots to add
             for current_slot in current_slots:
                 is_new = not any(
-                    s.start_time == current_slot.start_time and s.end_time == current_slot.end_time for s in saved_slots
+                    s.start_time == current_slot.start_time and s.end_time == current_slot.end_time
+                    for s in saved_slots
                 )
 
                 if is_new:
@@ -877,7 +913,9 @@ class BulkOperationService(BaseService):
 
         return validation_details
 
-    def _generate_validation_summary(self, validation_results: List[ValidationSlotDetail]) -> ValidationSummary:
+    def _generate_validation_summary(
+        self, validation_results: List[ValidationSlotDetail]
+    ) -> ValidationSummary:
         """Generate summary from validation results."""
         operations_by_type = {"add": 0, "remove": 0, "update": 0}
         valid_count = 0
@@ -892,8 +930,14 @@ class BulkOperationService(BaseService):
                 invalid_count += 1
 
         estimated_changes = {
-            "slots_added": sum(1 for d in validation_results if d.action == "add" and "Valid" in (d.reason or "")),
-            "slots_removed": sum(1 for d in validation_results if d.action == "remove" and "Valid" in (d.reason or "")),
+            "slots_added": sum(
+                1 for d in validation_results if d.action == "add" and "Valid" in (d.reason or "")
+            ),
+            "slots_removed": sum(
+                1
+                for d in validation_results
+                if d.action == "remove" and "Valid" in (d.reason or "")
+            ),
             "conflicts": invalid_count,
         }
 

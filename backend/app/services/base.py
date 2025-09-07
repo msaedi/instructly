@@ -11,10 +11,10 @@ Provides common functionality for all service classes including:
 """
 
 import asyncio
-import logging
-import time
 from contextlib import asynccontextmanager, contextmanager
 from functools import wraps
+import logging
+import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -161,7 +161,9 @@ class BaseService:
                         # Only log if it's actually slow
                         if elapsed > 1.0:
                             if hasattr(self, "logger"):
-                                self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
+                                self.logger.warning(
+                                    f"Slow operation detected: {operation_name} took {elapsed:.2f}s"
+                                )
 
                         # Record Prometheus metrics (optimized)
                         if PROMETHEUS_AVAILABLE and prometheus_metrics:
@@ -208,7 +210,9 @@ class BaseService:
 
                     if elapsed > 1.0:
                         if hasattr(self, "logger"):
-                            self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
+                            self.logger.warning(
+                                f"Slow operation detected: {operation_name} took {elapsed:.2f}s"
+                            )
 
                     if PROMETHEUS_AVAILABLE and prometheus_metrics:
                         try:
@@ -256,7 +260,9 @@ class BaseService:
 
             # Log slow operations
             if elapsed > 1.0:
-                self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
+                self.logger.warning(
+                    f"Slow operation detected: {operation_name} took {elapsed:.2f}s"
+                )
 
             # Record Prometheus metrics
             if PROMETHEUS_AVAILABLE and prometheus_metrics:
@@ -265,7 +271,10 @@ class BaseService:
                     status = "success" if success else "error"
 
                     prometheus_metrics.record_service_operation(
-                        service=service_name, operation=operation_name, duration=elapsed, status=status
+                        service=service_name,
+                        operation=operation_name,
+                        duration=elapsed,
+                        status=status,
                     )
                 except Exception:
                     # Don't let metrics collection break the operation
@@ -289,14 +298,19 @@ class BaseService:
             self._record_metric(operation_name, elapsed, success)
 
             if elapsed > 1.0:
-                self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
+                self.logger.warning(
+                    f"Slow operation detected: {operation_name} took {elapsed:.2f}s"
+                )
 
             if PROMETHEUS_AVAILABLE and prometheus_metrics:
                 try:
                     service_name = self.__class__.__name__
                     status = "success" if success else "error"
                     prometheus_metrics.record_service_operation(
-                        service=service_name, operation=operation_name, duration=elapsed, status=status
+                        service=service_name,
+                        operation=operation_name,
+                        duration=elapsed,
+                        status=status,
                     )
                 except Exception:
                     pass

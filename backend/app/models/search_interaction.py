@@ -6,10 +6,10 @@ This model tracks how users interact with search results, including clicks,
 hovers, bookmarks, and other engagement metrics.
 """
 
-import ulid
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import ulid
 
 from ..database import Base
 
@@ -30,7 +30,9 @@ class SearchInteraction(Base):
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
 
     # Link to the search event
-    search_event_id = Column(String(26), ForeignKey("search_events.id", ondelete="CASCADE"), nullable=False, index=True)
+    search_event_id = Column(
+        String(26), ForeignKey("search_events.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     # Session tracking
     session_id = Column(String(36), nullable=True, comment="Browser session ID")
@@ -51,11 +53,15 @@ class SearchInteraction(Base):
         index=True,
         comment="ID of the instructor whose result was interacted with",
     )
-    result_position = Column(Integer, nullable=True, comment="Position of the result in search results (1-based)")
+    result_position = Column(
+        Integer, nullable=True, comment="Position of the result in search results (1-based)"
+    )
 
     # Timing metrics
     time_to_interaction = Column(Float, nullable=True, comment="Seconds from search to interaction")
-    interaction_duration = Column(Float, nullable=True, comment="Duration of interaction in seconds (e.g., hover time)")
+    interaction_duration = Column(
+        Float, nullable=True, comment="Duration of interaction in seconds (e.g., hover time)"
+    )
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -65,6 +71,4 @@ class SearchInteraction(Base):
     instructor = relationship("User", foreign_keys=[instructor_id])
 
     def __repr__(self):
-        return (
-            f"<SearchInteraction(id={self.id}, type={self.interaction_type}, search_event_id={self.search_event_id})>"
-        )
+        return f"<SearchInteraction(id={self.id}, type={self.interaction_type}, search_event_id={self.search_event_id})>"

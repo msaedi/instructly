@@ -6,8 +6,8 @@ Handles GDPR compliance, data retention policies, and user privacy requests.
 Provides centralized privacy management across all data types.
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Dict
 
 from sqlalchemy.orm import Session
@@ -142,8 +142,12 @@ class PrivacyService(BaseService):
 
         # Business rule: Do NOT allow account deletion if there are active/future bookings
         # This applies to both students and instructors
-        future_student_bookings = self.booking_repository.get_student_bookings(user_id, upcoming_only=True)
-        future_instructor_bookings = self.booking_repository.get_instructor_bookings(user_id, upcoming_only=True)
+        future_student_bookings = self.booking_repository.get_student_bookings(
+            user_id, upcoming_only=True
+        )
+        future_instructor_bookings = self.booking_repository.get_instructor_bookings(
+            user_id, upcoming_only=True
+        )
         total_future_bookings = len(future_student_bookings) + len(future_instructor_bookings)
         if delete_account and total_future_bookings > 0:
             # Raise a value error that routes will convert to 400
@@ -159,10 +163,14 @@ class PrivacyService(BaseService):
 
         try:
             # Delete search history
-            deletion_stats["search_history"] = self.search_history_repository.delete_user_searches(user_id)
+            deletion_stats["search_history"] = self.search_history_repository.delete_user_searches(
+                user_id
+            )
 
             # Delete search events
-            deletion_stats["search_events"] = self.search_event_repository.delete_user_events(user_id)
+            deletion_stats["search_events"] = self.search_event_repository.delete_user_events(
+                user_id
+            )
 
             # Anonymize bookings (keep for business records but remove PII)
             # Note: We can't set student_id/instructor_id to NULL due to NOT NULL constraints
@@ -234,12 +242,18 @@ class PrivacyService(BaseService):
         try:
             # Delete old search events (keep aggregated data only)
             if hasattr(settings, "search_event_retention_days"):
-                cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.search_event_retention_days)
-                retention_stats["search_events_deleted"] = self.search_event_repository.delete_old_events(cutoff_date)
+                cutoff_date = datetime.now(timezone.utc) - timedelta(
+                    days=settings.search_event_retention_days
+                )
+                retention_stats[
+                    "search_events_deleted"
+                ] = self.search_event_repository.delete_old_events(cutoff_date)
 
             # Anonymize old bookings (keep for business records)
             if hasattr(settings, "booking_pii_retention_days"):
-                cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.booking_pii_retention_days)
+                cutoff_date = datetime.now(timezone.utc) - timedelta(
+                    days=settings.booking_pii_retention_days
+                )
                 # Count old bookings that would be anonymized
                 # Note: Can't actually set student_id/instructor_id to NULL due to NOT NULL constraints
                 old_bookings_count = self.booking_repository.count_old_bookings(cutoff_date)
@@ -283,8 +297,12 @@ class PrivacyService(BaseService):
 
         # Add retention policy information
         if hasattr(settings, "search_event_retention_days"):
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.search_event_retention_days)
-            stats["search_events_eligible_for_deletion"] = self.search_event_repository.count_old_events(cutoff_date)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(
+                days=settings.search_event_retention_days
+            )
+            stats[
+                "search_events_eligible_for_deletion"
+            ] = self.search_event_repository.count_old_events(cutoff_date)
 
         return stats
 

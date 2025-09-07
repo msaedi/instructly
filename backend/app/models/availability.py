@@ -15,10 +15,10 @@ Classes:
 
 import logging
 
-import ulid
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Index, String, Time, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import ulid
 
 from ..database import Base
 
@@ -70,7 +70,12 @@ class AvailabilitySlot(Base):
         Index("idx_availability_date", "specific_date"),
         Index("idx_availability_instructor_id", "instructor_id"),
         Index(
-            "unique_instructor_date_time_slot", "instructor_id", "specific_date", "start_time", "end_time", unique=True
+            "unique_instructor_date_time_slot",
+            "instructor_id",
+            "specific_date",
+            "start_time",
+            "end_time",
+            unique=True,
         ),
     )
 

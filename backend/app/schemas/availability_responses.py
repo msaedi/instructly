@@ -48,7 +48,9 @@ class BookedSlotsResponse(BaseModel):
 
     week_start: date
     week_end: date
-    booked_slots: List[Dict[str, Any]] = Field(description="List of booked slots with booking details")
+    booked_slots: List[Dict[str, Any]] = Field(
+        description="List of booked slots with booking details"
+    )
 
 
 class DeleteBlackoutResponse(BaseModel):

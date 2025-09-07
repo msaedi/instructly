@@ -24,7 +24,9 @@ class PublicTimeSlot(BaseModel):
     start_time: str = Field(description="Start time in HH:MM format")
     end_time: str = Field(description="End time in HH:MM format")
 
-    model_config = ConfigDict(json_schema_extra={"example": {"start_time": "09:00", "end_time": "10:00"}})
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"start_time": "09:00", "end_time": "10:00"}}
+    )
 
 
 class PublicDayAvailability(BaseModel):
@@ -34,7 +36,9 @@ class PublicDayAvailability(BaseModel):
     available_slots: List[PublicTimeSlot] = Field(
         default_factory=list, description="List of available time slots for booking"
     )
-    is_blackout: bool = Field(default=False, description="Whether this date is completely unavailable")
+    is_blackout: bool = Field(
+        default=False, description="Whether this date is completely unavailable"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -65,8 +69,12 @@ class PublicInstructorAvailability(BaseModel):
     """
 
     instructor_id: str
-    instructor_first_name: Optional[str] = Field(None, description="Instructor's first name if privacy settings allow")
-    instructor_last_initial: Optional[str] = Field(None, description="Instructor's last name initial for privacy")
+    instructor_first_name: Optional[str] = Field(
+        None, description="Instructor's first name if privacy settings allow"
+    )
+    instructor_last_initial: Optional[str] = Field(
+        None, description="Instructor's last name initial for privacy"
+    )
 
     # Detail level indicator
     detail_level: str = Field(description="Level of detail: minimal, summary, or full")
@@ -87,9 +95,15 @@ class PublicInstructorAvailability(BaseModel):
     timezone: str = Field(default="America/New_York", description="Instructor's timezone")
 
     # Summary statistics to help frontend
-    total_available_slots: Optional[int] = Field(None, description="Total number of bookable slots in the date range")
-    total_available_days: Optional[int] = Field(None, description="Number of days with availability")
-    earliest_available_date: Optional[str] = Field(None, description="Earliest date with availability")
+    total_available_slots: Optional[int] = Field(
+        None, description="Total number of bookable slots in the date range"
+    )
+    total_available_days: Optional[int] = Field(
+        None, description="Number of days with availability"
+    )
+    earliest_available_date: Optional[str] = Field(
+        None, description="Earliest date with availability"
+    )
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -137,8 +151,12 @@ class PublicAvailabilityMinimal(BaseModel):
     """Minimal availability info - just yes/no."""
 
     instructor_id: str
-    instructor_first_name: Optional[str] = Field(None, description="Instructor's first name if privacy settings allow")
-    instructor_last_initial: Optional[str] = Field(None, description="Instructor's last name initial for privacy")
+    instructor_first_name: Optional[str] = Field(
+        None, description="Instructor's first name if privacy settings allow"
+    )
+    instructor_last_initial: Optional[str] = Field(
+        None, description="Instructor's last name initial for privacy"
+    )
     has_availability: bool
     earliest_available_date: Optional[str] = None
     timezone: str = Field(default="America/New_York")
@@ -148,8 +166,12 @@ class PublicAvailabilitySummary(BaseModel):
     """Summary availability - time ranges without specific slots."""
 
     instructor_id: str
-    instructor_first_name: Optional[str] = Field(None, description="Instructor's first name if privacy settings allow")
-    instructor_last_initial: Optional[str] = Field(None, description="Instructor's last name initial for privacy")
+    instructor_first_name: Optional[str] = Field(
+        None, description="Instructor's first name if privacy settings allow"
+    )
+    instructor_last_initial: Optional[str] = Field(
+        None, description="Instructor's last name initial for privacy"
+    )
     availability_summary: Dict[str, Dict[str, Union[str, bool, float]]]
     timezone: str = Field(default="America/New_York")
     total_available_days: int

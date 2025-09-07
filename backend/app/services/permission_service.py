@@ -32,7 +32,9 @@ class PermissionService(BaseService):
         self.rbac_repository = RepositoryFactory.create_rbac_repository(db)
 
     @BaseService.measure_operation("user_has_permission")
-    def user_has_permission(self, user_id: str, permission_name: Union[str, PermissionName]) -> bool:
+    def user_has_permission(
+        self, user_id: str, permission_name: Union[str, PermissionName]
+    ) -> bool:
         """
         Check if a user has a specific permission.
 
@@ -47,7 +49,11 @@ class PermissionService(BaseService):
             True if the user has the permission, False otherwise
         """
         # Convert enum to string if needed
-        permission_str = permission_name.value if isinstance(permission_name, PermissionName) else permission_name
+        permission_str = (
+            permission_name.value
+            if isinstance(permission_name, PermissionName)
+            else permission_name
+        )
 
         # Check cache first
         cache_key = f"{user_id}:{permission_str}"
@@ -158,7 +164,9 @@ class PermissionService(BaseService):
         if user_perm:
             user_perm.granted = True
         else:
-            user_perm = self.rbac_repository.add_user_permission(user_id, permission.id, granted=True)
+            user_perm = self.rbac_repository.add_user_permission(
+                user_id, permission.id, granted=True
+            )
 
         # repo-pattern-ignore: Transaction commit belongs in service layer
         self.db.commit()
@@ -194,7 +202,9 @@ class PermissionService(BaseService):
         if user_perm:
             user_perm.granted = False
         else:
-            user_perm = self.rbac_repository.add_user_permission(user_id, permission.id, granted=False)
+            user_perm = self.rbac_repository.add_user_permission(
+                user_id, permission.id, granted=False
+            )
 
         # repo-pattern-ignore: Transaction commit belongs in service layer
         self.db.commit()

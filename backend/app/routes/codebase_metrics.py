@@ -11,8 +11,8 @@ admin analytics endpoints.
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
+import subprocess
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status

@@ -8,8 +8,8 @@ existing backend/scripts/codebase_metrics.py with --json.
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
+import subprocess
 from typing import Any, Dict, List
 
 from app.tasks.celery_app import BaseTask, celery_app

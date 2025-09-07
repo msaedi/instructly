@@ -53,7 +53,11 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         Returns:
             Number of deleted records
         """
-        return self.db.query(SearchEvent).filter(SearchEvent.user_id == user_id).delete(synchronize_session=False)
+        return (
+            self.db.query(SearchEvent)
+            .filter(SearchEvent.user_id == user_id)
+            .delete(synchronize_session=False)
+        )
 
     def delete_old_events(self, cutoff_date: datetime) -> int:
         """
@@ -68,7 +72,9 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             Number of deleted records
         """
         return (
-            self.db.query(SearchEvent).filter(SearchEvent.searched_at < cutoff_date).delete(synchronize_session=False)
+            self.db.query(SearchEvent)
+            .filter(SearchEvent.searched_at < cutoff_date)
+            .delete(synchronize_session=False)
         )
 
     def count_old_events(self, cutoff_date: datetime) -> int:
@@ -83,7 +89,12 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         Returns:
             Count of old events
         """
-        return self.db.query(func.count(SearchEvent.id)).filter(SearchEvent.searched_at < cutoff_date).scalar() or 0
+        return (
+            self.db.query(func.count(SearchEvent.id))
+            .filter(SearchEvent.searched_at < cutoff_date)
+            .scalar()
+            or 0
+        )
 
     def count_all_events(self) -> int:
         """
@@ -205,7 +216,11 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
                 score = max(30.0, score)  # Don't go below 30
 
         # Check for interactions (clicks, bookings, etc.)
-        interaction = self.db.query(SearchInteraction).filter(SearchInteraction.search_event_id == event_id).first()
+        interaction = (
+            self.db.query(SearchInteraction)
+            .filter(SearchInteraction.search_event_id == event_id)
+            .first()
+        )
 
         if interaction:
             # Interaction bonus (adds 20-30 points)
@@ -213,7 +228,9 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         return min(100.0, score)  # Cap at 100
 
-    def get_popular_searches_with_avg_results(self, limit: int = 10, hours: Optional[int] = None) -> List[Dict]:
+    def get_popular_searches_with_avg_results(
+        self, limit: int = 10, hours: Optional[int] = None
+    ) -> List[Dict]:
         """
         Get popular searches with their average result counts.
 
@@ -235,11 +252,18 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             query = query.filter(SearchEvent.searched_at >= cutoff_time)
 
         results = (
-            query.group_by(SearchEvent.search_query).order_by(func.count(SearchEvent.id).desc()).limit(limit).all()
+            query.group_by(SearchEvent.search_query)
+            .order_by(func.count(SearchEvent.id).desc())
+            .limit(limit)
+            .all()
         )
 
         return [
-            {"query": query, "search_count": search_count, "avg_results": float(avg_results) if avg_results else 0.0}
+            {
+                "query": query,
+                "search_count": search_count,
+                "avg_results": float(avg_results) if avg_results else 0.0,
+            }
             for query, search_count, avg_results in results
         ]
 
@@ -249,7 +273,12 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         Used for analytics and rate limiting.
         """
-        return self.db.query(func.count(SearchEvent.id)).filter(SearchEvent.searched_at >= since).scalar() or 0
+        return (
+            self.db.query(func.count(SearchEvent.id))
+            .filter(SearchEvent.searched_at >= since)
+            .scalar()
+            or 0
+        )
 
     def get_searches_by_user(self, user_id: str, limit: Optional[int] = None) -> List[SearchEvent]:
         """
@@ -258,7 +287,9 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         Used for user history and personalization.
         """
         query = (
-            self.db.query(SearchEvent).filter(SearchEvent.user_id == user_id).order_by(SearchEvent.searched_at.desc())
+            self.db.query(SearchEvent)
+            .filter(SearchEvent.user_id == user_id)
+            .order_by(SearchEvent.searched_at.desc())
         )
 
         if limit:
@@ -353,7 +384,10 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         # Get daily counts
         daily_counts_query = (
-            self.db.query(cast(SearchEvent.searched_at, Date).label("date"), func.count(SearchEvent.id).label("count"))
+            self.db.query(
+                cast(SearchEvent.searched_at, Date).label("date"),
+                func.count(SearchEvent.id).label("count"),
+            )
             .filter(SearchEvent.search_query == query, SearchEvent.searched_at >= cutoff_date)
             .group_by(cast(SearchEvent.searched_at, Date))
             .order_by(cast(SearchEvent.searched_at, Date))
@@ -376,7 +410,9 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             "query": query,
             "count": count,
             "avg_results": float(avg_results) if avg_results else 0.0,
-            "average_results": float(avg_results) if avg_results else 0.0,  # Alias for compatibility
+            "average_results": float(avg_results)
+            if avg_results
+            else 0.0,  # Alias for compatibility
             "period_days": days,
             "daily_counts": daily_counts,
             "type_distribution": type_distribution,

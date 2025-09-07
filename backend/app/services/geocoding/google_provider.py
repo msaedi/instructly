@@ -15,7 +15,9 @@ class GoogleMapsProvider(GeocodingProvider):
 
     async def geocode(self, address: str) -> Optional[GeocodedAddress]:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{self.base_url}/geocode/json", params={"address": address, "key": self.api_key})
+            resp = await client.get(
+                f"{self.base_url}/geocode/json", params={"address": address, "key": self.api_key}
+            )
             if resp.status_code != 200:
                 return None
             data = resp.json()
@@ -36,7 +38,9 @@ class GoogleMapsProvider(GeocodingProvider):
                 return None
             return self._parse_result(data["results"][0])
 
-    async def autocomplete(self, query: str, session_token: Optional[str] = None) -> List[AutocompleteResult]:
+    async def autocomplete(
+        self, query: str, session_token: Optional[str] = None
+    ) -> List[AutocompleteResult]:
         async with httpx.AsyncClient(timeout=10) as client:
             params = {"input": query, "key": self.api_key, "types": "address"}
             if session_token:

@@ -2,9 +2,9 @@
 
 from typing import Optional
 
-import ulid
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.sql import func
+import ulid
 
 from ..database import Base
 
@@ -27,7 +27,9 @@ class BetaInvite(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used_at = Column(DateTime(timezone=True), nullable=True)
-    used_by_user_id: Optional[str] = Column(String(26), ForeignKey("users.id"), nullable=True, index=True)
+    used_by_user_id: Optional[str] = Column(
+        String(26), ForeignKey("users.id"), nullable=True, index=True
+    )
 
     # Free-form metadata: source, campaign, cohort, etc. (map to DB column named 'metadata')
     metadata_json = Column("metadata", JSON, nullable=True)
@@ -44,7 +46,9 @@ class BetaAccess(Base):
     role: str = Column(String(32), nullable=False)
 
     # Foreign key to invites by code (code is unique)
-    invited_by_code: Optional[str] = Column(String(16), ForeignKey("beta_invites.code"), nullable=True, index=True)
+    invited_by_code: Optional[str] = Column(
+        String(16), ForeignKey("beta_invites.code"), nullable=True, index=True
+    )
 
     granted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

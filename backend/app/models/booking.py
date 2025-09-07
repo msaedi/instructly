@@ -11,15 +11,26 @@ This allows bookings to persist as commitments regardless of
 availability changes ("Rug and Person" principle).
 """
 
-import logging
 from datetime import date, datetime, timezone
 from enum import Enum
+import logging
 from typing import Optional
 
-import ulid
-from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Time
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    Time,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import ulid
 
 from ..database import Base
 
@@ -107,12 +118,18 @@ class Booking(Base):
     payment_intent = relationship(
         "PaymentIntent", back_populates="booking", uselist=False, cascade="all, delete-orphan"
     )
-    payment_events = relationship("PaymentEvent", back_populates="booking", cascade="all, delete-orphan")
+    payment_events = relationship(
+        "PaymentEvent", back_populates="booking", cascade="all, delete-orphan"
+    )
     generated_credits = relationship(
-        "PlatformCredit", foreign_keys="PlatformCredit.source_booking_id", back_populates="source_booking"
+        "PlatformCredit",
+        foreign_keys="PlatformCredit.source_booking_id",
+        back_populates="source_booking",
     )
     used_credits = relationship(
-        "PlatformCredit", foreign_keys="PlatformCredit.used_booking_id", back_populates="used_booking"
+        "PlatformCredit",
+        foreign_keys="PlatformCredit.used_booking_id",
+        back_populates="used_booking",
     )
 
     # Optional linkage when created by reschedule
@@ -140,7 +157,9 @@ class Booking(Base):
         super().__init__(**kwargs)
         if not self.status:
             self.status = BookingStatus.CONFIRMED
-        logger.info(f"Creating booking for student {self.student_id} with instructor {self.instructor_id}")
+        logger.info(
+            f"Creating booking for student {self.student_id} with instructor {self.instructor_id}"
+        )
 
     def __repr__(self):
         """String representation for debugging."""

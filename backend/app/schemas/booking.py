@@ -38,9 +38,15 @@ class BookingCreate(BaseModel):
     instructor_service_id: str = Field(..., description="Instructor service being booked")
     booking_date: date = Field(..., description="Date of the booking")
     start_time: time = Field(..., description="Start time")
-    selected_duration: int = Field(..., description="Selected duration in minutes from service's duration_options")
-    student_note: Optional[str] = Field(None, max_length=1000, description="Optional note from student")
-    meeting_location: Optional[str] = Field(None, description="Specific meeting location if applicable")
+    selected_duration: int = Field(
+        ..., description="Selected duration in minutes from service's duration_options"
+    )
+    student_note: Optional[str] = Field(
+        None, max_length=1000, description="Optional note from student"
+    )
+    meeting_location: Optional[str] = Field(
+        None, description="Specific meeting location if applicable"
+    )
     location_type: Optional[Literal["student_home", "instructor_location", "neutral"]] = Field(
         "neutral", description="Type of meeting location"
     )
@@ -127,7 +133,9 @@ class BookingRescheduleRequest(BaseModel):
     booking_date: date = Field(..., description="New date for the lesson")
     start_time: time = Field(..., description="New start time (HH:MM)")
     selected_duration: int = Field(..., description="New selected duration in minutes")
-    instructor_service_id: Optional[str] = Field(None, description="Override service if needed (defaults to old)")
+    instructor_service_id: Optional[str] = Field(
+        None, description="Override service if needed (defaults to old)"
+    )
 
     @field_validator("start_time", mode="before")
     @classmethod
@@ -159,8 +167,12 @@ class BookingConfirmPayment(BaseModel):
     2. Confirm payment (this schema) after card details collected
     """
 
-    payment_method_id: str = Field(..., description="Stripe payment method ID from completed SetupIntent")
-    save_payment_method: bool = Field(False, description="Whether to save this payment method for future use")
+    payment_method_id: str = Field(
+        ..., description="Stripe payment method ID from completed SetupIntent"
+    )
+    save_payment_method: bool = Field(
+        False, description="Whether to save this payment method for future use"
+    )
 
 
 class BookingUpdate(BaseModel):
@@ -269,7 +281,11 @@ class InstructorInfo(StandardizedModel):
         Factory method to create InstructorInfo from User model.
         Ensures privacy by only exposing last initial.
         """
-        return cls(id=user.id, first_name=user.first_name, last_initial=user.last_name[0] if user.last_name else "")
+        return cls(
+            id=user.id,
+            first_name=user.first_name,
+            last_initial=user.last_name[0] if user.last_name else "",
+        )
 
 
 class ServiceInfo(StandardizedModel):
@@ -310,7 +326,11 @@ class BookingResponse(BookingBase):
             return value if isinstance(value, str) else None
 
         def _safe_location_type(value: object) -> Optional[str]:
-            if isinstance(value, str) and value in ["student_home", "instructor_location", "neutral"]:
+            if isinstance(value, str) and value in [
+                "student_home",
+                "instructor_location",
+                "neutral",
+            ]:
                 return value
             return "neutral"
 
@@ -351,7 +371,9 @@ class BookingResponse(BookingBase):
             "cancellation_reason": booking.cancellation_reason,
             # Privacy-protected nested objects
             "student": StudentInfo.model_validate(booking.student) if booking.student else None,
-            "instructor": InstructorInfo.from_user(booking.instructor) if booking.instructor else None,
+            "instructor": InstructorInfo.from_user(booking.instructor)
+            if booking.instructor
+            else None,
             "instructor_service": ServiceInfo.model_validate(booking.instructor_service)
             if booking.instructor_service
             else None,
@@ -390,7 +412,9 @@ class BookingCreateResponse(BookingResponse):
     setup_intent_client_secret: Optional[str] = Field(
         None, description="Stripe SetupIntent client_secret for collecting payment method"
     )
-    requires_payment_method: bool = Field(True, description="Whether payment method is required before confirmation")
+    requires_payment_method: bool = Field(
+        True, description="Whether payment method is required before confirmation"
+    )
 
     @property
     def is_cancellable(self) -> bool:
@@ -407,7 +431,9 @@ class BookingCreateResponse(BookingResponse):
         return self.booking_date > user_today and self.status == BookingStatus.CONFIRMED
 
     @classmethod
-    def from_booking(cls, booking, setup_intent_client_secret: Optional[str] = None) -> "BookingCreateResponse":
+    def from_booking(
+        cls, booking, setup_intent_client_secret: Optional[str] = None
+    ) -> "BookingCreateResponse":
         """
         Create BookingCreateResponse from Booking ORM model.
         Inherits privacy protection from parent and adds payment setup fields.
@@ -452,9 +478,13 @@ class BookingCreateResponse(BookingResponse):
                 email=booking.student.email,
             ),
             "instructor_service": ServiceInfo(
-                id=booking.instructor_service.id if booking.instructor_service else booking.instructor_service_id,
+                id=booking.instructor_service.id
+                if booking.instructor_service
+                else booking.instructor_service_id,
                 name=booking.service_name,  # Use denormalized name
-                description=booking.instructor_service.description if booking.instructor_service else None,
+                description=booking.instructor_service.description
+                if booking.instructor_service
+                else None,
             ),
             # Payment setup fields
             "setup_intent_client_secret": setup_intent_client_secret

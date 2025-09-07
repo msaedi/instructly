@@ -11,11 +11,11 @@ Implements comprehensive rate limiting to protect against:
 Uses DragonflyDB (Redis-compatible) for distributed rate limiting.
 """
 
+from enum import Enum
+from functools import wraps
 import hashlib
 import logging
 import time
-from enum import Enum
-from functools import wraps
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from fastapi import HTTPException, Request, Response, status
@@ -356,15 +356,24 @@ def rate_limit(
             window_name = f"{func.__name__}_{rate_string.replace('/', 'per')}"
 
             allowed, requests_made, retry_after = rate_limiter.check_rate_limit(
-                identifier=identifier, limit=limit, window_seconds=window_seconds, window_name=window_name
+                identifier=identifier,
+                limit=limit,
+                window_seconds=window_seconds,
+                window_name=window_name,
             )
 
             if not allowed:
-                error_msg = error_message or f"Rate limit exceeded. Try again in {retry_after} seconds."
+                error_msg = (
+                    error_message or f"Rate limit exceeded. Try again in {retry_after} seconds."
+                )
 
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={"message": error_msg, "code": "RATE_LIMIT_EXCEEDED", "retry_after": retry_after},
+                    detail={
+                        "message": error_msg,
+                        "code": "RATE_LIMIT_EXCEEDED",
+                        "retry_after": retry_after,
+                    },
                     headers={
                         "Retry-After": str(retry_after),
                         "X-RateLimit-Limit": str(limit),
@@ -378,7 +387,10 @@ def rate_limit(
 
             if isinstance(response, Response):
                 remaining = rate_limiter.get_remaining_requests(
-                    identifier=identifier, limit=limit, window_seconds=window_seconds, window_name=window_name
+                    identifier=identifier,
+                    limit=limit,
+                    window_seconds=window_seconds,
+                    window_name=window_name,
                 )
 
                 response.headers["X-RateLimit-Limit"] = str(limit)
@@ -406,7 +418,11 @@ def rate_limit(
 
 
 async def _get_identifier(
-    request: Request, key_type: RateLimitKeyType, key_field: Optional[str], args: tuple, kwargs: dict
+    request: Request,
+    key_type: RateLimitKeyType,
+    key_field: Optional[str],
+    args: tuple,
+    kwargs: dict,
 ) -> Optional[str]:
     """
     Extract identifier from request based on key type.
@@ -515,7 +531,9 @@ def rate_limit_api_key(api_key_field: str = "api_key"):
     """Apply rate limits based on API key."""
 
     def decorator(func: Callable) -> Callable:
-        return rate_limit("1000/hour", key_type=RateLimitKeyType.COMPOSITE, key_field=api_key_field)(func)
+        return rate_limit(
+            "1000/hour", key_type=RateLimitKeyType.COMPOSITE, key_field=api_key_field
+        )(func)
 
     return decorator
 

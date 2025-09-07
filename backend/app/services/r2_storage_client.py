@@ -5,11 +5,11 @@ Provides SigV4 presigned URL generation for GET/PUT/DELETE and helper methods
 to upload/download bytes without requiring boto3.
 """
 
+from dataclasses import dataclass
+from datetime import datetime, timezone
 import hashlib
 import hmac
 import logging
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
 
 import requests
@@ -38,7 +38,11 @@ class R2StorageClient:
     """
 
     def __init__(self) -> None:
-        if not settings.r2_bucket_name or not settings.r2_access_key_id or not settings.r2_secret_access_key:
+        if (
+            not settings.r2_bucket_name
+            or not settings.r2_access_key_id
+            or not settings.r2_secret_access_key
+        ):
             raise RuntimeError("R2 configuration is missing; check r2_* settings")
 
         self.account_id = settings.r2_account_id
@@ -123,17 +127,25 @@ class R2StorageClient:
         headers = {"Content-Type": content_type} if content_type else {}
         return PresignedUrl(url=url, headers=headers, expires_at=expires_at)
 
-    def generate_presigned_put(self, object_key: str, content_type: str, expires_seconds: int = 300) -> PresignedUrl:
-        return self._build_presigned_url("PUT", object_key, expires_seconds, content_type=content_type)
+    def generate_presigned_put(
+        self, object_key: str, content_type: str, expires_seconds: int = 300
+    ) -> PresignedUrl:
+        return self._build_presigned_url(
+            "PUT", object_key, expires_seconds, content_type=content_type
+        )
 
     def generate_presigned_get(self, object_key: str, expires_seconds: int = 3600) -> PresignedUrl:
         return self._build_presigned_url("GET", object_key, expires_seconds)
 
-    def generate_presigned_delete(self, object_key: str, expires_seconds: int = 300) -> PresignedUrl:
+    def generate_presigned_delete(
+        self, object_key: str, expires_seconds: int = 300
+    ) -> PresignedUrl:
         return self._build_presigned_url("DELETE", object_key, expires_seconds)
 
     # Convenience helpers
-    def upload_bytes(self, object_key: str, data: bytes, content_type: str) -> Tuple[bool, Optional[int]]:
+    def upload_bytes(
+        self, object_key: str, data: bytes, content_type: str
+    ) -> Tuple[bool, Optional[int]]:
         try:
             pre = self.generate_presigned_put(object_key, content_type)
             resp = requests.put(pre.url, data=data, headers=pre.headers, timeout=30)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import random
 from datetime import datetime, timedelta, timezone
+import random
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -43,7 +43,12 @@ class BetaService:
 
     @BaseService.measure_operation("beta_invite_generated_bulk")
     def bulk_generate(
-        self, count: int, role: str, expires_in_days: int, source: Optional[str], emails: Optional[list[str]]
+        self,
+        count: int,
+        role: str,
+        expires_in_days: int,
+        source: Optional[str],
+        emails: Optional[list[str]],
     ):
         expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
         records = []
@@ -66,12 +71,19 @@ class BetaService:
         if not ok:
             return None, reason
         self.invites.mark_used(code, user_id)
-        grant = self.access.grant_access(user_id=user_id, role=role, phase=phase, invited_by_code=code)
+        grant = self.access.grant_access(
+            user_id=user_id, role=role, phase=phase, invited_by_code=code
+        )
         return grant, None
 
     @BaseService.measure_operation("beta_invite_sent")
     def send_invite_email(
-        self, to_email: str, role: str, expires_in_days: int, source: str | None, base_url: str | None
+        self,
+        to_email: str,
+        role: str,
+        expires_in_days: int,
+        source: str | None,
+        base_url: str | None,
     ):
         created = self.bulk_generate(
             count=1, role=role, expires_in_days=expires_in_days, source=source, emails=[to_email]
@@ -109,14 +121,23 @@ class BetaService:
 
     @BaseService.measure_operation("beta_invite_sent_batch")
     def send_invite_batch(
-        self, emails: list[str], role: str, expires_in_days: int, source: str | None, base_url: str | None
+        self,
+        emails: list[str],
+        role: str,
+        expires_in_days: int,
+        source: str | None,
+        base_url: str | None,
     ):
         sent: list[tuple[object, str, str, str]] = []  # (invite, email, join, welcome)
         failed: list[tuple[str, str]] = []  # (email, reason)
         for em in emails:
             try:
                 invite, join_url, welcome_url = self.send_invite_email(
-                    to_email=em, role=role, expires_in_days=expires_in_days, source=source, base_url=base_url
+                    to_email=em,
+                    role=role,
+                    expires_in_days=expires_in_days,
+                    source=source,
+                    base_url=base_url,
                 )
                 sent.append((invite, em, join_url, welcome_url))
             except Exception as e:

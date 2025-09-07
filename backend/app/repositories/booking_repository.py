@@ -18,8 +18,8 @@ This repository handles:
 - Caching for performance optimization
 """
 
-import logging
 from datetime import date, datetime, time, timezone
+import logging
 from typing import Dict, List, Optional
 
 from sqlalchemy import and_
@@ -78,7 +78,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = self.db.query(Booking).filter(
                 Booking.instructor_id == instructor_id,
                 Booking.booking_date == booking_date,
-                Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                Booking.status.in_(
+                    [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                ),
                 # Any overlap with the time range
                 Booking.start_time < end_time,
                 Booking.end_time > start_time,
@@ -120,7 +122,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = self.db.query(Booking).filter(
                 Booking.instructor_id == instructor_id,
                 Booking.booking_date == booking_date,
-                Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                Booking.status.in_(
+                    [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                ),
                 # Time overlap check
                 Booking.start_time < end_time,
                 Booking.end_time > start_time,
@@ -160,7 +164,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = self.db.query(Booking).filter(
                 Booking.student_id == student_id,
                 Booking.booking_date == booking_date,
-                Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                Booking.status.in_(
+                    [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                ),
                 # Time overlap check: start_time < other_end_time AND end_time > other_start_time
                 Booking.start_time < end_time,
                 Booking.end_time > start_time,
@@ -352,7 +358,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = (
                 self.db.query(Booking)
                 .options(
-                    joinedload(Booking.student), joinedload(Booking.instructor), joinedload(Booking.instructor_service)
+                    joinedload(Booking.student),
+                    joinedload(Booking.instructor),
+                    joinedload(Booking.instructor_service),
                 )
                 .filter(Booking.student_id == student_id)
             )
@@ -398,12 +406,18 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         # Past dates (any status)
                         Booking.booking_date < today,
                         # Today's past bookings (any status)
-                        and_(Booking.booking_date == today, Booking.start_time <= current_time.isoformat()),
+                        and_(
+                            Booking.booking_date == today,
+                            Booking.start_time <= current_time.isoformat(),
+                        ),
                         # Future bookings that are NOT confirmed (cancelled/no-show)
                         and_(
                             or_(
                                 Booking.booking_date > today,
-                                and_(Booking.booking_date == today, Booking.start_time > current_time.isoformat()),
+                                and_(
+                                    Booking.booking_date == today,
+                                    Booking.start_time > current_time.isoformat(),
+                                ),
                             ),
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                             # Hide reschedule-driven cancellations from student History
@@ -425,7 +439,10 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 query = query.filter(
                     or_(
                         Booking.booking_date < today,
-                        and_(Booking.booking_date == today, Booking.start_time <= current_time.isoformat()),
+                        and_(
+                            Booking.booking_date == today,
+                            Booking.start_time <= current_time.isoformat(),
+                        ),
                     ),
                     Booking.status == BookingStatus.COMPLETED,
                 )
@@ -472,7 +489,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = (
                 self.db.query(Booking)
                 .options(
-                    joinedload(Booking.student), joinedload(Booking.instructor), joinedload(Booking.instructor_service)
+                    joinedload(Booking.student),
+                    joinedload(Booking.instructor),
+                    joinedload(Booking.instructor_service),
                 )
                 .filter(Booking.instructor_id == instructor_id)
             )
@@ -518,12 +537,18 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         # Past dates (any status)
                         Booking.booking_date < today,
                         # Today's past bookings (any status)
-                        and_(Booking.booking_date == today, Booking.start_time <= current_time.isoformat()),
+                        and_(
+                            Booking.booking_date == today,
+                            Booking.start_time <= current_time.isoformat(),
+                        ),
                         # Future bookings that are NOT confirmed (cancelled/no-show)
                         and_(
                             or_(
                                 Booking.booking_date > today,
-                                and_(Booking.booking_date == today, Booking.start_time > current_time.isoformat()),
+                                and_(
+                                    Booking.booking_date == today,
+                                    Booking.start_time > current_time.isoformat(),
+                                ),
                             ),
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                         ),
@@ -543,7 +568,10 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 query = query.filter(
                     or_(
                         Booking.booking_date < today,
-                        and_(Booking.booking_date == today, Booking.start_time <= current_time.isoformat()),
+                        and_(
+                            Booking.booking_date == today,
+                            Booking.start_time <= current_time.isoformat(),
+                        ),
                     ),
                     Booking.status == BookingStatus.COMPLETED,
                 )
@@ -625,7 +653,10 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = (
                 self.db.query(Booking)
                 .join(InstructorService, Booking.instructor_service_id == InstructorService.id)
-                .filter(InstructorService.service_catalog_id == service_catalog_id, Booking.booking_date >= from_date)
+                .filter(
+                    InstructorService.service_catalog_id == service_catalog_id,
+                    Booking.booking_date >= from_date,
+                )
             )
 
             if to_date:
@@ -691,7 +722,10 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     # Date-based Queries (simplified)
 
     def get_bookings_for_date(
-        self, booking_date: date, status: Optional[BookingStatus] = None, with_relationships: bool = False
+        self,
+        booking_date: date,
+        status: Optional[BookingStatus] = None,
+        with_relationships: bool = False,
     ) -> List[Booking]:
         """
         Get bookings for a specific date (system-wide).
@@ -808,7 +842,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error completing booking {booking_id}: {str(e)}")
             raise RepositoryException(f"Failed to complete booking: {str(e)}")
 
-    def cancel_booking(self, booking_id: str, cancelled_by_id: str, reason: Optional[str] = None) -> Booking:
+    def cancel_booking(
+        self, booking_id: str, cancelled_by_id: str, reason: Optional[str] = None
+    ) -> Booking:
         """
         Cancel booking with audit trail.
 
@@ -910,7 +946,10 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         """
         from sqlalchemy import func
 
-        return self.db.query(func.count(Booking.id)).filter(Booking.created_at < cutoff_date).scalar() or 0
+        return (
+            self.db.query(func.count(Booking.id)).filter(Booking.created_at < cutoff_date).scalar()
+            or 0
+        )
 
     def get_bookings_by_date_and_status(self, booking_date: date, status: str) -> List[Booking]:
         """
@@ -926,12 +965,18 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             List of bookings matching the criteria
         """
         try:
-            return self.db.query(Booking).filter(Booking.booking_date == booking_date, Booking.status == status).all()
+            return (
+                self.db.query(Booking)
+                .filter(Booking.booking_date == booking_date, Booking.status == status)
+                .all()
+            )
         except Exception as e:
             self.logger.error(f"Error getting bookings by date and status: {str(e)}")
             return []
 
-    def get_bookings_by_date_range_and_status(self, start_date: date, end_date: date, status: str) -> List[Booking]:
+    def get_bookings_by_date_range_and_status(
+        self, start_date: date, end_date: date, status: str
+    ) -> List[Booking]:
         """
         Get all bookings within a date range for a specific status.
 
@@ -948,7 +993,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         try:
             return (
                 self.db.query(Booking)
-                .filter(Booking.booking_date >= start_date, Booking.booking_date <= end_date, Booking.status == status)
+                .filter(
+                    Booking.booking_date >= start_date,
+                    Booking.booking_date <= end_date,
+                    Booking.status == status,
+                )
                 .all()
             )
         except Exception as e:
@@ -1128,7 +1177,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         if not booking_ids:
             return []
         try:
-            rows = self.db.query(Booking.id).filter(Booking.id.in_(booking_ids), Booking.student_id == student_id).all()
+            rows = (
+                self.db.query(Booking.id)
+                .filter(Booking.id.in_(booking_ids), Booking.student_id == student_id)
+                .all()
+            )
             return [r[0] if isinstance(r, tuple) else r.id for r in rows]
         except Exception as e:
             self.logger.error(f"Error filtering owned booking ids: {e}")

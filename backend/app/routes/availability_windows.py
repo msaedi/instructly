@@ -38,8 +38,8 @@ Router Endpoints:
     DELETE /blackout-dates/{id} - Remove a blackout date
 """
 
-import logging
 from datetime import date, timedelta
+import logging
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -97,13 +97,17 @@ router = APIRouter(prefix="/instructors/availability", tags=["availability"])
 def verify_instructor(current_user: User) -> User:
     """Verify the current user is an instructor."""
     if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
-        logger.warning(f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint")
+        logger.warning(
+            f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint"
+        )
         raise HTTPException(status_code=403, detail=ERROR_INSTRUCTOR_ONLY)
     return current_user
 
 
 @router.get(
-    "/week", response_model=Dict[str, List[TimeRange]], dependencies=[Depends(require_beta_access("instructor"))]
+    "/week",
+    response_model=Dict[str, List[TimeRange]],
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def get_week_availability(
     response: Response,
@@ -119,9 +123,13 @@ async def get_week_availability(
     verify_instructor(current_user)
 
     try:
-        week_map = availability_service.get_week_availability(instructor_id=current_user.id, start_date=start_date)
+        week_map = availability_service.get_week_availability(
+            instructor_id=current_user.id, start_date=start_date
+        )
         # Compute version and attach as header
-        version = availability_service.compute_week_version(current_user.id, start_date, start_date + timedelta(days=6))
+        version = availability_service.compute_week_version(
+            current_user.id, start_date, start_date + timedelta(days=6)
+        )
         response.headers["ETag"] = version
         # Compute Last-Modified from server data for cross-tab consistency
         last_mod = availability_service.get_week_last_modified(
@@ -129,7 +137,9 @@ async def get_week_availability(
         )
         if last_mod:
             # RFC 1123 format via http-date: use strftime with GMT
-            response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime("%a, %d %b %Y %H:%M:%S GMT")
+            response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
+                "%a, %d %b %Y %H:%M:%S GMT"
+            )
         # Allow browsers to read ETag and Last-Modified via CORS
         response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
         return week_map
@@ -141,7 +151,9 @@ async def get_week_availability(
 
 
 @router.post(
-    "/week", response_model=WeekAvailabilityUpdateResponse, dependencies=[Depends(require_beta_access("instructor"))]
+    "/week",
+    response_model=WeekAvailabilityUpdateResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def save_week_availability(
     week_data: WeekSpecificScheduleCreate,
@@ -163,8 +175,7 @@ async def save_week_availability(
             availability_service.cache_service = cache_service
 
         # Compute week start/end (Monday..Sunday)
-        from datetime import date as _date
-        from datetime import timedelta as _timedelta
+        from datetime import date as _date, timedelta as _timedelta
 
         from app.core.timezone_utils import get_user_today_by_id
 
@@ -179,18 +190,28 @@ async def save_week_availability(
                 except Exception:
                     continue
             # Use user's timezone-aware 'today' when deriving default week
-            monday = min(dates) if dates else get_user_today_by_id(current_user.id, availability_service.db)
+            monday = (
+                min(dates)
+                if dates
+                else get_user_today_by_id(current_user.id, availability_service.db)
+            )
             monday = monday - _timedelta(days=monday.weekday())
         week_end = monday + _timedelta(days=6)
 
         # Get pre-save summary
-        pre_summary = availability_service.get_availability_summary(current_user.id, monday, week_end)
+        pre_summary = availability_service.get_availability_summary(
+            current_user.id, monday, week_end
+        )
         pre_total = sum(pre_summary.values())
 
-        await availability_service.save_week_availability(instructor_id=current_user.id, week_data=week_data)
+        await availability_service.save_week_availability(
+            instructor_id=current_user.id, week_data=week_data
+        )
 
         # Get post-save summary
-        post_summary = availability_service.get_availability_summary(current_user.id, monday, week_end)
+        post_summary = availability_service.get_availability_summary(
+            current_user.id, monday, week_end
+        )
         post_total = sum(post_summary.values())
 
         created = max(0, post_total - pre_total)
@@ -203,7 +224,9 @@ async def save_week_availability(
         # Compute and attach Last-Modified after save
         last_mod = availability_service.get_week_last_modified(current_user.id, monday, week_end)
         if last_mod:
-            response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime("%a, %d %b %Y %H:%M:%S GMT")
+            response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
+                "%a, %d %b %Y %H:%M:%S GMT"
+            )
         response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
 
         return WeekAvailabilityUpdateResponse(
@@ -222,7 +245,11 @@ async def save_week_availability(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/copy-week", response_model=CopyWeekResponse, dependencies=[Depends(require_beta_access("instructor"))])
+@router.post(
+    "/copy-week",
+    response_model=CopyWeekResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
 async def copy_week_availability(
     copy_data: CopyWeekRequest,
     current_user: User = Depends(get_current_active_user),
@@ -325,7 +352,9 @@ def add_specific_date_availability(
 
 
 @router.get(
-    "/", response_model=List[AvailabilityWindowResponse], dependencies=[Depends(require_beta_access("instructor"))]
+    "/",
+    response_model=List[AvailabilityWindowResponse],
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 def get_all_availability(
     start_date: Optional[date] = Query(None),
@@ -370,7 +399,9 @@ def get_all_availability(
 
 
 @router.patch(
-    "/bulk-update", response_model=BulkUpdateResponse, dependencies=[Depends(require_beta_access("instructor"))]
+    "/bulk-update",
+    response_model=BulkUpdateResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def bulk_update_availability(
     update_data: BulkUpdateRequest,
@@ -393,7 +424,9 @@ async def bulk_update_availability(
 
 
 @router.patch(
-    "/{window_id}", response_model=AvailabilityWindowResponse, dependencies=[Depends(require_beta_access("instructor"))]
+    "/{window_id}",
+    response_model=AvailabilityWindowResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 def update_availability_window(
     window_id: str,
@@ -434,7 +467,9 @@ def update_availability_window(
 
 
 @router.delete(
-    "/{window_id}", response_model=DeleteWindowResponse, dependencies=[Depends(require_beta_access("instructor"))]
+    "/{window_id}",
+    response_model=DeleteWindowResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 def delete_availability_window(
     window_id: str,
@@ -455,7 +490,9 @@ def delete_availability_window(
 
 
 @router.get(
-    "/week/booked-slots", response_model=BookedSlotsResponse, dependencies=[Depends(require_beta_access("instructor"))]
+    "/week/booked-slots",
+    response_model=BookedSlotsResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def get_week_booked_slots(
     start_date: date = Query(..., description="Start date (Monday) of the week"),
@@ -472,12 +509,16 @@ async def get_week_booked_slots(
         )
 
         # Format for frontend display
-        formatted_slots = presentation_service.format_booked_slots_from_service_data(booked_slots_by_date)
+        formatted_slots = presentation_service.format_booked_slots_from_service_data(
+            booked_slots_by_date
+        )
 
         from datetime import timedelta
 
         week_end = start_date + timedelta(days=6)
-        return BookedSlotsResponse(week_start=start_date, week_end=week_end, booked_slots=formatted_slots)
+        return BookedSlotsResponse(
+            week_start=start_date, week_end=week_end, booked_slots=formatted_slots
+        )
 
     except DomainException as e:
         raise e.to_http_exception()
@@ -535,7 +576,9 @@ def get_blackout_dates(
 
 
 @router.post(
-    "/blackout-dates", response_model=BlackoutDateResponse, dependencies=[Depends(require_beta_access("instructor"))]
+    "/blackout-dates",
+    response_model=BlackoutDateResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 def add_blackout_date(
     blackout_data: BlackoutDateCreate,
@@ -546,7 +589,9 @@ def add_blackout_date(
     verify_instructor(current_user)
 
     try:
-        result = availability_service.add_blackout_date(instructor_id=current_user.id, blackout_data=blackout_data)
+        result = availability_service.add_blackout_date(
+            instructor_id=current_user.id, blackout_data=blackout_data
+        )
         return BlackoutDateResponse.model_validate(result)
     except DomainException as e:
         raise e.to_http_exception()
@@ -569,7 +614,9 @@ def delete_blackout_date(
     verify_instructor(current_user)
 
     try:
-        availability_service.delete_blackout_date(instructor_id=current_user.id, blackout_id=blackout_id)
+        availability_service.delete_blackout_date(
+            instructor_id=current_user.id, blackout_id=blackout_id
+        )
         return DeleteBlackoutResponse(blackout_id=blackout_id)
     except DomainException as e:
         raise e.to_http_exception()

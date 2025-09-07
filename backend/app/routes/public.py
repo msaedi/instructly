@@ -13,14 +13,14 @@ Key Design Decisions:
 5. Respects blackout dates
 """
 
+from datetime import date, datetime, timedelta
 import hashlib
 import logging
-from datetime import date, datetime, timedelta
 from typing import Optional
 
-import ulid
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
+import ulid
 
 from ..core.config import settings
 from ..core.timezone_utils import get_user_today
@@ -141,7 +141,9 @@ async def get_instructor_public_availability(
     request: Request,
     response_obj: Response,
     start_date: date = Query(..., description="Start date for availability search"),
-    end_date: Optional[date] = Query(None, description="End date (defaults to configured days from start)"),
+    end_date: Optional[date] = Query(
+        None, description="End date (defaults to configured days from start)"
+    ),
     availability_service: AvailabilityService = Depends(get_availability_service),
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -176,7 +178,9 @@ async def get_instructor_public_availability(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
 
     # Verify they have an instructor profile
-    instructor_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
+    instructor_profile = (
+        db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
+    )
     if not instructor_profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
 
@@ -184,21 +188,28 @@ async def get_instructor_public_availability(
     instructor_today = get_user_today(instructor_user)
     if start_date < instructor_today:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Start date cannot be in the past (instructor timezone)"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Start date cannot be in the past (instructor timezone)",
         )
 
     # If end_date is provided, validate it
     if end_date:
         if end_date < start_date:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="End date must be after start date")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="End date must be after start date"
+            )
 
         # Check if range is too large
         if (end_date - start_date).days > 90:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Date range cannot exceed 90 days")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Date range cannot exceed 90 days"
+            )
 
     # NOW set default end_date if not provided
     if not end_date:
-        end_date = start_date + timedelta(days=settings.public_availability_days - 1)  # -1 because range is inclusive
+        end_date = start_date + timedelta(
+            days=settings.public_availability_days - 1
+        )  # -1 because range is inclusive
 
     # Enforce configured maximum even if user requests more
     max_end_date = start_date + timedelta(days=settings.public_availability_days - 1)
@@ -206,9 +217,7 @@ async def get_instructor_public_availability(
         end_date = max_end_date
 
     # Check cache first - include detail level in cache key
-    cache_key = (
-        f"public_availability:{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}"
-    )
+    cache_key = f"public_availability:{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}"
     cached_result = None
     if cache_service:
         try:
@@ -225,12 +234,16 @@ async def get_instructor_public_availability(
     # Build response based on detail level
     if settings.public_availability_detail_level == "minimal":
         # Minimal: Just check if any availability exists
-        all_slots = availability_service.repository.get_week_availability(instructor_id, start_date, end_date)
+        all_slots = availability_service.repository.get_week_availability(
+            instructor_id, start_date, end_date
+        )
 
         response_data = PublicInstructorAvailability(
             instructor_id=instructor_id,
             instructor_first_name=(
-                instructor_user.first_name if settings.public_availability_show_instructor_name else None
+                instructor_user.first_name
+                if settings.public_availability_show_instructor_name
+                else None
             ),
             instructor_last_initial=(
                 instructor_user.last_name[0]
@@ -245,7 +258,9 @@ async def get_instructor_public_availability(
 
     elif settings.public_availability_detail_level == "summary":
         # Summary: Show counts and time ranges, not specific slots
-        all_slots = availability_service.repository.get_week_availability(instructor_id, start_date, end_date)
+        all_slots = availability_service.repository.get_week_availability(
+            instructor_id, start_date, end_date
+        )
 
         # Group by morning/afternoon/evening
         availability_summary = {}
@@ -270,14 +285,17 @@ async def get_instructor_public_availability(
 
             # Add hours
             duration = (
-                datetime.combine(date.min, slot.end_time) - datetime.combine(date.min, slot.start_time)
+                datetime.combine(date.min, slot.end_time)
+                - datetime.combine(date.min, slot.start_time)
             ).seconds / 3600
             availability_summary[date_str]["total_hours"] += duration
 
         response_data = PublicInstructorAvailability(
             instructor_id=instructor_id,
             instructor_first_name=(
-                instructor_user.first_name if settings.public_availability_show_instructor_name else None
+                instructor_user.first_name
+                if settings.public_availability_show_instructor_name
+                else None
             ),
             instructor_last_initial=(
                 instructor_user.last_name[0]
@@ -301,7 +319,9 @@ async def get_instructor_public_availability(
         blackout_date_set = {b.date for b in blackout_dates}
 
         # Compute merged and booked-subtracted intervals via service
-        computed = availability_service.compute_public_availability(instructor_id, start_date, end_date)
+        computed = availability_service.compute_public_availability(
+            instructor_id, start_date, end_date
+        )
 
         # Process each date in the range
         current_date = start_date
@@ -318,7 +338,8 @@ async def get_instructor_public_availability(
 
             intervals = computed.get(date_str, [])
             available_slots = [
-                PublicTimeSlot(start_time=st.strftime("%H:%M"), end_time=en.strftime("%H:%M")) for st, en in intervals
+                PublicTimeSlot(start_time=st.strftime("%H:%M"), end_time=en.strftime("%H:%M"))
+                for st, en in intervals
             ]
 
             total_available_slots += len(available_slots)
@@ -335,7 +356,9 @@ async def get_instructor_public_availability(
         response_data = PublicInstructorAvailability(
             instructor_id=instructor_id,
             instructor_first_name=(
-                instructor_user.first_name if settings.public_availability_show_instructor_name else None
+                instructor_user.first_name
+                if settings.public_availability_show_instructor_name
+                else None
             ),
             instructor_last_initial=(
                 instructor_user.last_name[0]
@@ -379,7 +402,9 @@ async def get_instructor_public_availability(
     if not cached_result and cache_service:
         try:
             cache_service.set(
-                cache_key, response_data.model_dump(exclude_none=True), ttl=settings.public_availability_cache_ttl
+                cache_key,
+                response_data.model_dump(exclude_none=True),
+                ttl=settings.public_availability_cache_ttl,
             )
         except Exception as e:
             logger.warning(f"Failed to cache public availability: {e}")
@@ -417,7 +442,9 @@ async def get_next_available_slot(
     if not instructor_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
 
-    instructor_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
+    instructor_profile = (
+        db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
+    )
     if not instructor_profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
 
@@ -432,29 +459,39 @@ async def get_next_available_slot(
             continue
 
         # Get available slots for this date
-        slots = availability_service.repository.get_week_availability(instructor_id, current_date, current_date)
+        slots = availability_service.repository.get_week_availability(
+            instructor_id, current_date, current_date
+        )
 
         if slots:
             # Get booked times
-            booked_bookings = conflict_checker.repository.get_bookings_for_date(instructor_id, current_date)
+            booked_bookings = conflict_checker.repository.get_bookings_for_date(
+                instructor_id, current_date
+            )
 
             # Convert to time format
             booked_times = []
             for booking in booked_bookings:
-                booked_times.append({"start_time": booking.start_time, "end_time": booking.end_time})
+                booked_times.append(
+                    {"start_time": booking.start_time, "end_time": booking.end_time}
+                )
 
             # Find first slot that can accommodate the duration
             for slot in sorted(slots, key=lambda s: s.start_time):
                 # Calculate slot duration in minutes
                 slot_duration = (
-                    datetime.combine(date.min, slot.end_time) - datetime.combine(date.min, slot.start_time)
+                    datetime.combine(date.min, slot.end_time)
+                    - datetime.combine(date.min, slot.start_time)
                 ).seconds // 60
 
                 if slot_duration >= duration_minutes:
                     # Check if this slot is booked
                     is_booked = False
                     for booked in booked_times:
-                        if slot.start_time < booked["end_time"] and slot.end_time > booked["start_time"]:
+                        if (
+                            slot.start_time < booked["end_time"]
+                            and slot.end_time > booked["start_time"]
+                        ):
                             is_booked = True
                             break
 
@@ -462,7 +499,8 @@ async def get_next_available_slot(
                         # Found an available slot!
                         # Return the requested duration from the start of the slot
                         end_time = (
-                            datetime.combine(date.min, slot.start_time) + timedelta(minutes=duration_minutes)
+                            datetime.combine(date.min, slot.start_time)
+                            + timedelta(minutes=duration_minutes)
                         ).time()
 
                         # Set cache headers for successful results (2 minutes for next-available)
@@ -481,7 +519,9 @@ async def get_next_available_slot(
     # Set cache headers for no-availability results (1 minute)
     response_obj.headers["Cache-Control"] = "public, max-age=60"
 
-    return NextAvailableSlotResponse(found=False, message=f"No available slots found in the next {search_days} days")
+    return NextAvailableSlotResponse(
+        found=False, message=f"No available slots found in the next {search_days} days"
+    )
 
 
 @router.post(
@@ -504,23 +544,31 @@ async def send_referral_invites(
     from_name = payload.from_name or "A friend"
 
     if not isinstance(emails, list) or not emails:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No recipient emails provided")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No recipient emails provided"
+        )
 
-    logger.info(f"[Referrals] Sending invites: count={len(emails)} link={referral_link} from={from_name}")
+    logger.info(
+        f"[Referrals] Sending invites: count={len(emails)} link={referral_link} from={from_name}"
+    )
     email_service = EmailService(db)
     try:
         email_service.validate_email_config()
         logger.info("[Referrals] Email config validated")
     except Exception as e:
         logger.error(f"[Referrals] Email config invalid: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Email not configured")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Email not configured"
+        )
 
     sent = 0
     failures = 0
     error_details: list[ReferralSendError] = []
     for to_email in emails:
         try:
-            email_service.send_referral_invite(to_email=to_email, referral_link=referral_link, inviter_name=from_name)
+            email_service.send_referral_invite(
+                to_email=to_email, referral_link=referral_link, inviter_name=from_name
+            )
             sent += 1
         except Exception as e:
             # continue to next

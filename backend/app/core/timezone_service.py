@@ -3,8 +3,9 @@ Timezone detection service using ZIP code prefix mapping.
 No external dependencies, 99% accurate for US zip codes.
 Uses @lru_cache for ultra-fast lookups.
 """
-import logging
+
 from functools import lru_cache
+import logging
 from typing import Optional
 
 logger = logging.getLogger(__name__)

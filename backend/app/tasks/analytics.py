@@ -6,16 +6,16 @@ This module contains tasks for calculating service analytics, generating reports
 and updating metrics asynchronously.
 """
 
+from datetime import datetime, timezone
 import logging
 import time
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from scripts.calculate_service_analytics import AnalyticsCalculator
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.tasks.celery_app import BaseTask, celery_app
-from scripts.calculate_service_analytics import AnalyticsCalculator
 
 logger = logging.getLogger(__name__)
 

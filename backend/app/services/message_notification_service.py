@@ -163,7 +163,9 @@ class MessageNotificationService:
                         # Re-subscribe to all channels we were listening to
                         for booking_id in self.subscribers.keys():
                             channel_name = f"booking_chat_{booking_id}"
-                            await self.connection.add_listener(channel_name, self._handle_notification)
+                            await self.connection.add_listener(
+                                channel_name, self._handle_notification
+                            )
 
                         self.logger.info("Successfully reconnected to database")
                     except Exception as e:

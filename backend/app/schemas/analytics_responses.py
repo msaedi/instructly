@@ -128,7 +128,9 @@ class DateRange(BaseModel):
     end: str = Field(description="End date in ISO format")
     days: int = Field(description="Number of days in range")
 
-    model_config = ConfigDict(json_schema_extra={"example": {"start": "2025-01-01", "end": "2025-01-31", "days": 31}})
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"start": "2025-01-01", "end": "2025-01-31", "days": 31}}
+    )
 
 
 class SearchTotals(BaseModel):
@@ -193,7 +195,9 @@ class GuestConversionMetrics(BaseModel):
     converted: int = Field(description="Number of converted sessions")
     conversion_rate: float = Field(description="Conversion rate percentage")
 
-    model_config = ConfigDict(json_schema_extra={"example": {"total": 800, "converted": 50, "conversion_rate": 6.25}})
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"total": 800, "converted": 50, "conversion_rate": 6.25}}
+    )
 
 
 class ConversionBehavior(BaseModel):
@@ -336,7 +340,9 @@ class ResultDistribution(BaseModel):
     zero_results: int = Field(description="Searches with zero results")
     one_to_five_results: int = Field(description="Searches with 1-5 results", alias="1_5_results")
     six_to_ten_results: int = Field(description="Searches with 6-10 results", alias="6_10_results")
-    over_ten_results: int = Field(description="Searches with over 10 results", alias="over_10_results")
+    over_ten_results: int = Field(
+        description="Searches with over 10 results", alias="over_10_results"
+    )
 
     model_config = ConfigDict(
         populate_by_name=True,

@@ -26,8 +26,8 @@ Methods removed:
 For single slot CRUD operations, use AvailabilityRepository.
 """
 
-import logging
 from datetime import date, time
+import logging
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import and_
@@ -57,7 +57,9 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Ownership Validation
 
-    def get_slot_for_instructor(self, slot_id: str, instructor_id: str) -> Optional[AvailabilitySlot]:
+    def get_slot_for_instructor(
+        self, slot_id: str, instructor_id: str
+    ) -> Optional[AvailabilitySlot]:
         """
         Get a slot only if it belongs to the instructor.
 
@@ -152,7 +154,9 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Cache Support
 
-    def get_unique_dates_from_operations(self, instructor_id: str, operation_dates: List[date]) -> List[date]:
+    def get_unique_dates_from_operations(
+        self, instructor_id: str, operation_dates: List[date]
+    ) -> List[date]:
         """
         Get unique dates that actually exist for cache invalidation.
 

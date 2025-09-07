@@ -64,12 +64,16 @@ async def submit_review(
                 instr_repo = InstructorProfileRepository(db)
                 instructor_profile = instr_repo.get_by_user_id(review.instructor_id)
                 if not instructor_profile:
-                    raise HTTPException(status_code=400, detail="Instructor profile not found for tip")
+                    raise HTTPException(
+                        status_code=400, detail="Instructor profile not found for tip"
+                    )
                 connected = stripe_service.payment_repository.get_connected_account_by_instructor_id(  # type: ignore[attr-defined]
                     instructor_profile.id
                 )
                 if not connected or not connected.stripe_account_id:
-                    raise HTTPException(status_code=400, detail="Instructor is not set up to receive tips")
+                    raise HTTPException(
+                        status_code=400, detail="Instructor is not set up to receive tips"
+                    )
 
                 # Create PaymentIntent for the tip as a destination charge
                 pi_record = stripe_service.create_payment_intent(
@@ -80,7 +84,9 @@ async def submit_review(
                 )
 
                 # Try auto-confirm with student's default payment method
-                default_pm = stripe_service.payment_repository.get_default_payment_method(current_user.id)
+                default_pm = stripe_service.payment_repository.get_default_payment_method(
+                    current_user.id
+                )
                 if default_pm and default_pm.stripe_payment_method_id:
                     try:
                         pi_after_confirm = stripe_service.confirm_payment_intent(
@@ -93,7 +99,9 @@ async def submit_review(
                                 import stripe as _stripe
 
                                 if getattr(stripe_service, "stripe_configured", False):
-                                    pi = _stripe.PaymentIntent.retrieve(pi_record.stripe_payment_intent_id)
+                                    pi = _stripe.PaymentIntent.retrieve(
+                                        pi_record.stripe_payment_intent_id
+                                    )
                                     tip_client_secret = getattr(pi, "client_secret", None)
                             except Exception:
                                 tip_client_secret = None
@@ -142,7 +150,9 @@ def get_search_rating(
     instructor_service_id: Optional[str] = Query(None),
     service: ReviewService = Depends(get_review_service),
 ):
-    return SearchRatingResponse(**service.get_rating_for_search_context(instructor_id, instructor_service_id))
+    return SearchRatingResponse(
+        **service.get_rating_for_search_context(instructor_id, instructor_service_id)
+    )
 
 
 @router.get("/instructor/{instructor_id}/recent", response_model=ReviewListPageResponse)

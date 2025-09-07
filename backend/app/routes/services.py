@@ -51,7 +51,9 @@ async def get_catalog_services(
         return instructor_service.get_available_catalog_services(category_slug=category)
     except Exception as e:
         if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Category '{category}' not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Category '{category}' not found"
+            )
         raise
 
 
@@ -69,7 +71,9 @@ async def add_service_to_profile(
     from app.core.enums import RoleName
 
     if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can add services")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can add services"
+        )
 
     try:
         return instructor_service.create_instructor_service_from_catalog(

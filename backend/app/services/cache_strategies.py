@@ -7,8 +7,8 @@ data consistency without arbitrary delays.
 """
 
 import asyncio
-import logging
 from datetime import date, timedelta
+import logging
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,9 @@ class CacheWarmingStrategy:
                 actual_count = sum(len(slots) for slots in fresh_data.values())
                 if actual_count == expected_slot_count:
                     # Data is fresh! Cache it and return
-                    self.cache_service.cache_week_availability(instructor_id, week_start, fresh_data)
+                    self.cache_service.cache_week_availability(
+                        instructor_id, week_start, fresh_data
+                    )
                     self.logger.info(f"Cache warmed successfully after {retry_count} retries")
                     return fresh_data
                 else:
@@ -85,7 +87,10 @@ class CacheWarmingStrategy:
         return last_result or {}
 
     async def invalidate_and_warm(
-        self, instructor_id: str, dates: list[date], expected_changes: Optional[Dict[str, Any]] = None
+        self,
+        instructor_id: str,
+        dates: list[date],
+        expected_changes: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Invalidate caches and immediately warm with fresh data.

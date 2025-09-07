@@ -13,7 +13,9 @@ from ..monitoring.prometheus_metrics import prometheus_metrics
 router = APIRouter()
 
 
-@router.get("/metrics/prometheus", include_in_schema=False, response_class=Response, response_model=None)
+@router.get(
+    "/metrics/prometheus", include_in_schema=False, response_class=Response, response_model=None
+)
 async def get_prometheus_metrics() -> Response:
     """
     Expose Prometheus metrics for scraping.
@@ -31,5 +33,9 @@ async def get_prometheus_metrics() -> Response:
     return Response(
         content=metrics_data,
         media_type=content_type,
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"},
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
     )

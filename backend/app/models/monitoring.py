@@ -5,9 +5,9 @@ Monitoring and alert history models.
 from datetime import datetime
 from typing import Optional
 
-import ulid
 from sqlalchemy import JSON, DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
+import ulid
 
 from app.database import Base
 
@@ -30,7 +30,9 @@ class AlertHistory(Base):
     github_issue_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:

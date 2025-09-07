@@ -18,8 +18,8 @@ FIXED IN THIS VERSION:
 - Service now achieves 9/10 quality
 """
 
-import logging
 from datetime import date, timedelta
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
@@ -62,7 +62,9 @@ class WeekOperationService(BaseService):
 
         # Initialize repositories
         self.repository = repository or RepositoryFactory.create_week_operation_repository(db)
-        self.availability_repository = availability_repository or RepositoryFactory.create_availability_repository(db)
+        self.availability_repository = (
+            availability_repository or RepositoryFactory.create_availability_repository(db)
+        )
 
         # Lazy import to avoid circular dependencies
         if availability_service is None:
@@ -117,7 +119,9 @@ class WeekOperationService(BaseService):
             self._clear_week_slots(instructor_id, target_week_dates)
 
             # Copy slots from source to target
-            created_count = self._copy_slots_between_weeks(instructor_id, from_week_start, to_week_start)
+            created_count = self._copy_slots_between_weeks(
+                instructor_id, from_week_start, to_week_start
+            )
 
         # Ensure SQLAlchemy session is fresh
         self.db.expire_all()
@@ -181,7 +185,9 @@ class WeekOperationService(BaseService):
         if self.cache_service and created_count > 0:
             await self._warm_cache_for_affected_weeks(instructor_id, start_date, end_date)
 
-        return self._format_pattern_application_result(all_dates, dates_with_slots, created_count, start_date, end_date)
+        return self._format_pattern_application_result(
+            all_dates, dates_with_slots, created_count, start_date, end_date
+        )
 
     @BaseService.measure_operation("calculate_week_dates")  # METRICS ADDED
     def calculate_week_dates(self, monday: date) -> List[date]:
@@ -197,7 +203,9 @@ class WeekOperationService(BaseService):
         return [monday + timedelta(days=i) for i in range(7)]
 
     @BaseService.measure_operation("get_week_pattern")  # METRICS ADDED
-    def get_week_pattern(self, instructor_id: str, week_start: date) -> Dict[str, List[Dict[str, Any]]]:
+    def get_week_pattern(
+        self, instructor_id: str, week_start: date
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Extract the availability pattern for a week.
 
@@ -208,7 +216,9 @@ class WeekOperationService(BaseService):
         Returns:
             Pattern indexed by day name (Monday, Tuesday, etc.)
         """
-        week_availability = self.availability_service.get_week_availability(instructor_id, week_start)
+        week_availability = self.availability_service.get_week_availability(
+            instructor_id, week_start
+        )
         return self._extract_week_pattern(week_availability, week_start)
 
     # Private helper methods - EXTRACTED FOR REFACTORING
@@ -222,11 +232,15 @@ class WeekOperationService(BaseService):
 
     def _clear_week_slots(self, instructor_id: str, week_dates: List[date]) -> int:
         """Clear all existing slots from a week."""
-        deleted_count = self.availability_repository.delete_slots_by_dates(instructor_id, week_dates)
+        deleted_count = self.availability_repository.delete_slots_by_dates(
+            instructor_id, week_dates
+        )
         self.logger.debug(f"Deleted {deleted_count} existing slots from target week")
         return deleted_count
 
-    def _copy_slots_between_weeks(self, instructor_id: str, from_week_start: date, to_week_start: date) -> int:
+    def _copy_slots_between_weeks(
+        self, instructor_id: str, from_week_start: date, to_week_start: date
+    ) -> int:
         """Copy slots from source week to target week."""
         # Get source week slots
         source_slots = self.repository.get_week_slots(
@@ -288,7 +302,9 @@ class WeekOperationService(BaseService):
         self, instructor_id: str, from_week_start: date
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Get source week availability and extract pattern."""
-        source_week = self.availability_service.get_week_availability(instructor_id, from_week_start)
+        source_week = self.availability_service.get_week_availability(
+            instructor_id, from_week_start
+        )
         return self._extract_week_pattern(source_week, from_week_start)
 
     def _get_date_range(self, start_date: date, end_date: date) -> List[date]:
@@ -349,7 +365,9 @@ class WeekOperationService(BaseService):
             self.logger.info("No slots to create - pattern may be empty")
             return 0, 0
 
-    async def _warm_cache_for_affected_weeks(self, instructor_id: str, start_date: date, end_date: date) -> None:
+    async def _warm_cache_for_affected_weeks(
+        self, instructor_id: str, start_date: date, end_date: date
+    ) -> None:
         """Warm cache for all weeks affected by pattern application."""
         from .cache_strategies import CacheWarmingStrategy
 

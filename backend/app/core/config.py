@@ -40,10 +40,16 @@ class Settings(BaseSettings):
     #  - preview_database_url
     #  - stg_database_url
     #  - test_database_url
-    prod_database_url_raw: Optional[str] = Field(default=None, alias="prod_database_url")  # From env PROD_DATABASE_URL
-    preview_database_url_raw: str = Field(default="", alias="preview_database_url")  # From env PREVIEW_DATABASE_URL
+    prod_database_url_raw: Optional[str] = Field(
+        default=None, alias="prod_database_url"
+    )  # From env PROD_DATABASE_URL
+    preview_database_url_raw: str = Field(
+        default="", alias="preview_database_url"
+    )  # From env PREVIEW_DATABASE_URL
     int_database_url_raw: str = Field(
-        default="postgresql://postgres:postgres@localhost:5432/instainstru_test" if os.getenv("CI") else "",
+        default="postgresql://postgres:postgres@localhost:5432/instainstru_test"
+        if os.getenv("CI")
+        else "",
         alias="test_database_url",
     )  # From env TEST_DATABASE_URL
     stg_database_url_raw: str = Field("", alias="stg_database_url")  # From env STG_DATABASE_URL
@@ -61,7 +67,9 @@ class Settings(BaseSettings):
 
     # Environment (derived from SITE_MODE)
     environment: str = (
-        "production" if os.getenv("SITE_MODE", "local").lower() in {"prod", "production", "live"} else "development"
+        "production"
+        if os.getenv("SITE_MODE", "local").lower() in {"prod", "production", "live"}
+        else "development"
     )
 
     # Cache settings
@@ -72,15 +80,21 @@ class Settings(BaseSettings):
     guest_session_expiry_days: int = 30  # How long to keep guest sessions
     soft_delete_retention_days: int = 90  # How long to keep soft-deleted searches
     guest_session_purge_days: int = 90  # When to permanently delete guest sessions
-    search_history_max_per_user: int = 1000  # Maximum searches to keep per user (set to 0 to disable limit)
+    search_history_max_per_user: int = (
+        1000  # Maximum searches to keep per user (set to 0 to disable limit)
+    )
     search_analytics_enabled: bool = True  # Enable/disable analytics tracking
 
     # Privacy and Data Retention Configuration (GDPR compliance)
     search_event_retention_days: int = 365  # Keep detailed search events for 1 year
     booking_pii_retention_days: int = 2555  # Keep booking PII for 7 years (business requirement)
     alert_retention_days: int = 365  # Keep alert history for 1 year
-    privacy_data_export_enabled: bool = True  # Enable user data export (GDPR right to data portability)
-    privacy_data_deletion_enabled: bool = True  # Enable user data deletion (GDPR right to be forgotten)
+    privacy_data_export_enabled: bool = (
+        True  # Enable user data export (GDPR right to data portability)
+    )
+    privacy_data_deletion_enabled: bool = (
+        True  # Enable user data deletion (GDPR right to be forgotten)
+    )
 
     # Production database protection
     production_database_indicators: list[str] = [
@@ -121,63 +135,103 @@ class Settings(BaseSettings):
     )
 
     public_availability_cache_ttl: int = Field(
-        default=300, description="Cache TTL in seconds for public availability data"  # 5 minutes
+        default=300,
+        description="Cache TTL in seconds for public availability data",  # 5 minutes
     )
 
     # Rate Limiting Configuration
-    rate_limit_enabled: bool = Field(default=True, description="Enable rate limiting (disable for testing)")
+    rate_limit_enabled: bool = Field(
+        default=True, description="Enable rate limiting (disable for testing)"
+    )
 
-    rate_limit_general_per_minute: int = Field(default=100, description="General API rate limit per minute per IP")
+    rate_limit_general_per_minute: int = Field(
+        default=100, description="General API rate limit per minute per IP"
+    )
 
-    rate_limit_auth_per_minute: int = Field(default=5, description="Authentication attempts per minute per IP")
+    rate_limit_auth_per_minute: int = Field(
+        default=5, description="Authentication attempts per minute per IP"
+    )
 
-    rate_limit_password_reset_per_hour: int = Field(default=5, description="Password reset requests per hour per email")
+    rate_limit_password_reset_per_hour: int = Field(
+        default=5, description="Password reset requests per hour per email"
+    )
 
     rate_limit_password_reset_ip_per_hour: int = Field(
         default=10, description="Password reset requests per hour per IP"
     )
 
-    rate_limit_register_per_hour: int = Field(default=10, description="Registration attempts per hour per IP")
+    rate_limit_register_per_hour: int = Field(
+        default=10, description="Registration attempts per hour per IP"
+    )
 
-    rate_limit_booking_per_minute: int = Field(default=20, description="Booking requests per minute per user")
+    rate_limit_booking_per_minute: int = Field(
+        default=20, description="Booking requests per minute per user"
+    )
 
-    rate_limit_expensive_per_minute: int = Field(default=10, description="Expensive operations per minute per user")
+    rate_limit_expensive_per_minute: int = Field(
+        default=10, description="Expensive operations per minute per user"
+    )
 
     # Rate limit bypass for testing
-    rate_limit_bypass_token: str = Field(default="", description="Token to bypass rate limiting (for load testing)")
+    rate_limit_bypass_token: str = Field(
+        default="", description="Token to bypass rate limiting (for load testing)"
+    )
 
     # Template Caching Configuration
     template_cache_enabled: bool = Field(
-        default=True, description="Enable template service caching (disable for development if needed)"
+        default=True,
+        description="Enable template service caching (disable for development if needed)",
     )
 
     # Messaging configuration
-    message_edit_window_minutes: int = Field(default=5, description="How many minutes a user can edit their message")
+    message_edit_window_minutes: int = Field(
+        default=5, description="How many minutes a user can edit their message"
+    )
 
     # Geocoding/Maps providers
-    geocoding_provider: str = Field(default="google", description="Geocoding provider: google|mapbox|mock")
-    google_maps_api_key: str = Field(default="", description="Google Maps API key for geocoding/places")
-    mapbox_access_token: str = Field(default="", description="Mapbox access token for geocoding/search")
+    geocoding_provider: str = Field(
+        default="google", description="Geocoding provider: google|mapbox|mock"
+    )
+    google_maps_api_key: str = Field(
+        default="", description="Google Maps API key for geocoding/places"
+    )
+    mapbox_access_token: str = Field(
+        default="", description="Mapbox access token for geocoding/search"
+    )
 
     # Stripe Configuration
-    stripe_publishable_key: str = Field(default="", description="Stripe publishable key for frontend")
-    stripe_secret_key: SecretStr = Field(default="", description="Stripe secret key for backend API calls")
+    stripe_publishable_key: str = Field(
+        default="", description="Stripe publishable key for frontend"
+    )
+    stripe_secret_key: SecretStr = Field(
+        default="", description="Stripe secret key for backend API calls"
+    )
 
     # Webhook secrets - backward compatible for both local and deployed environments
-    stripe_webhook_secret: SecretStr = Field(default="", description="Stripe webhook secret for local dev (Stripe CLI)")
+    stripe_webhook_secret: SecretStr = Field(
+        default="", description="Stripe webhook secret for local dev (Stripe CLI)"
+    )
     stripe_webhook_secret_platform: SecretStr = Field(
         default="", description="Platform events webhook secret (deployed)"
     )
-    stripe_webhook_secret_connect: SecretStr = Field(default="", description="Connect events webhook secret (deployed)")
+    stripe_webhook_secret_connect: SecretStr = Field(
+        default="", description="Connect events webhook secret (deployed)"
+    )
 
-    stripe_platform_fee_percentage: float = Field(default=15, description="Platform fee percentage (15 = 15%)")
+    stripe_platform_fee_percentage: float = Field(
+        default=15, description="Platform fee percentage (15 = 15%)"
+    )
     stripe_currency: str = Field(default="usd", description="Default currency for payments")
 
     # Preview staff access (for API-side preview bypass)
     staff_preview_token: str = Field(default="", alias="staff_preview_token")
     allow_preview_header: bool = Field(default=False, alias="allow_preview_header")
-    preview_frontend_domain: str = Field(default="preview.instainstru.com", alias="preview_frontend_domain")
-    preview_api_domain: str = Field(default="preview-api.instainstru.com", alias="preview_api_domain")
+    preview_frontend_domain: str = Field(
+        default="preview.instainstru.com", alias="preview_frontend_domain"
+    )
+    preview_api_domain: str = Field(
+        default="preview-api.instainstru.com", alias="preview_api_domain"
+    )
     prod_api_domain: str = Field(default="api.instainstru.com", alias="prod_api_domain")
     prod_frontend_origins_csv: str = Field(
         default="https://beta.instainstru.com,https://app.instainstru.com",
@@ -195,8 +249,12 @@ class Settings(BaseSettings):
     )
 
     # Prometheus HTTP API (optional)
-    prometheus_http_url: str = Field(default="", description="Prometheus base URL, e.g., http://localhost:9090")
-    prometheus_bearer_token: str = Field(default="", description="Optional bearer token for Prometheus API")
+    prometheus_http_url: str = Field(
+        default="", description="Prometheus base URL, e.g., http://localhost:9090"
+    )
+    prometheus_bearer_token: str = Field(
+        default="", description="Optional bearer token for Prometheus API"
+    )
 
     @property
     def webhook_secrets(self) -> list[str]:
@@ -259,7 +317,8 @@ class Settings(BaseSettings):
 
         if not has_test_indicator:
             logger.warning(
-                "Test database URL doesn't contain 'test' in its name. " "Consider using a clearly named test database."
+                "Test database URL doesn't contain 'test' in its name. "
+                "Consider using a clearly named test database."
             )
 
         return v
@@ -279,7 +338,9 @@ class Settings(BaseSettings):
     def is_production_database(self, url: str = None) -> bool:
         """Check if a database URL appears to be a production database."""
         check_url = url or self.prod_database_url_raw or ""
-        return any(indicator in check_url.lower() for indicator in self.production_database_indicators)
+        return any(
+            indicator in check_url.lower() for indicator in self.production_database_indicators
+        )
 
     @property
     def database_url(self) -> str:

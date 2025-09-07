@@ -6,8 +6,8 @@ All heavy lifting is done by app.core.privacy_auditor.
 """
 
 import asyncio
-import logging
 from datetime import datetime, timezone
+import logging
 from typing import Any, Dict
 
 from celery import shared_task
@@ -66,7 +66,11 @@ def audit_privacy_production() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Privacy audit failed: {e}")
-        return {"status": "failed", "error": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
+        return {
+            "status": "failed",
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
     finally:
         loop.close()
 

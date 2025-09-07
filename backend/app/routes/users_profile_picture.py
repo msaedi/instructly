@@ -78,7 +78,9 @@ def delete_profile_picture(
 ):
     try:
         ok = asset_service.delete_profile_picture(current_user)
-        return DeleteResponse(success=ok, message="Profile picture deleted" if ok else "No profile picture present")
+        return DeleteResponse(
+            success=ok, message="Profile picture deleted" if ok else "No profile picture present"
+        )
     except Exception as e:
         logger.error(f"Delete profile picture failed: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -41,6 +41,8 @@ class TimingMiddleware(BaseHTTPMiddleware):
 
         # Log slow requests
         if process_time > 100:  # Log requests slower than 100ms
-            logger.warning(f"Slow request: {request.method} {request.url.path} " f"took {process_time:.2f}ms")
+            logger.warning(
+                f"Slow request: {request.method} {request.url.path} " f"took {process_time:.2f}ms"
+            )
 
         return response

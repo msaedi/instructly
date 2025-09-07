@@ -14,8 +14,8 @@ FIXED IN THIS VERSION:
 - Transformed from 6/10 to 9/10 quality
 """
 
-import logging
 from datetime import date, time
+import logging
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -72,7 +72,9 @@ class PresentationService(BaseService):
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
 
     @BaseService.measure_operation("format_student_name")  # METRICS ADDED
-    def format_student_name_for_privacy(self, first_name: Optional[str], last_name: Optional[str]) -> Dict[str, str]:
+    def format_student_name_for_privacy(
+        self, first_name: Optional[str], last_name: Optional[str]
+    ) -> Dict[str, str]:
         """
         Format student name for privacy (First name + Last initial).
 
@@ -151,7 +153,9 @@ class PresentationService(BaseService):
             Formatted slot dictionary for frontend display
         """
         # Format student name
-        name_info = self.format_student_name_for_privacy(booking.student.first_name, booking.student.last_name)
+        name_info = self.format_student_name_for_privacy(
+            booking.student.first_name, booking.student.last_name
+        )
 
         # Format service area
         service_area_short = self.abbreviate_service_area(booking.service_area)

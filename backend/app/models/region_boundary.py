@@ -2,8 +2,8 @@
 
 from datetime import datetime, timezone
 
-import ulid
 from sqlalchemy import JSON, Column, DateTime, String
+import ulid
 
 from ..database import Base
 

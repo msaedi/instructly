@@ -40,7 +40,13 @@ def rate_limit(bucket: str):
         # Disable enforcement in tests but still emit standard headers for assertions
         if _is_testing_env():
             now_s = time.time()
-            set_rate_headers(response, remaining=1000, limit=1000, reset_epoch_s=int(now_s + 60), retry_after_s=None)
+            set_rate_headers(
+                response,
+                remaining=1000,
+                limit=1000,
+                reset_epoch_s=int(now_s + 60),
+                retry_after_s=None,
+            )
             set_policy_headers(response, bucket=bucket, shadow=is_shadow_mode(bucket))
             return
         if not settings.enabled:
@@ -74,7 +80,9 @@ def rate_limit(bucket: str):
 
         # Fallback in case interval_ms becomes 0 due to invalid config
         if interval_ms <= 0:
-            decision = Decision(False, retry_after_s=float("inf"), remaining=0, limit=0, reset_epoch_s=time.time())
+            decision = Decision(
+                False, retry_after_s=float("inf"), remaining=0, limit=0, reset_epoch_s=time.time()
+            )
         else:
             start_eval = time.perf_counter()
             try:
@@ -101,7 +109,9 @@ def rate_limit(bucket: str):
                     pass
             finally:
                 try:
-                    rl_eval_duration.labels(bucket=bucket).observe(max(time.perf_counter() - start_eval, 0.0))
+                    rl_eval_duration.labels(bucket=bucket).observe(
+                        max(time.perf_counter() - start_eval, 0.0)
+                    )
                 except Exception:
                     pass
 
@@ -115,7 +125,9 @@ def rate_limit(bucket: str):
         )
         shadow_flag = is_shadow_mode(bucket)
         set_policy_headers(response, bucket=bucket, shadow=shadow_flag)
-        rl_retry_after.labels(bucket=bucket, shadow=str(shadow_flag)).observe(max(decision.retry_after_s, 0.0))
+        rl_retry_after.labels(bucket=bucket, shadow=str(shadow_flag)).observe(
+            max(decision.retry_after_s, 0.0)
+        )
 
         if decision.allowed:
             rl_decisions.labels(bucket=bucket, action="allow", shadow=str(shadow_flag)).inc()

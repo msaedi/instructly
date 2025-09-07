@@ -17,8 +17,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import RepositoryException
 from ..models.instructor import InstructorProfile
-from ..models.service_catalog import InstructorService as Service
-from ..models.service_catalog import ServiceCatalog, ServiceCategory
+from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
 from .base_repository import BaseRepository
 
@@ -81,7 +80,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .filter(User.account_status == "active")
                 .options(
                     joinedload(InstructorProfile.user),
-                    joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
+                    joinedload(InstructorProfile.instructor_services).joinedload(
+                        Service.catalog_entry
+                    ),
                 )
                 .offset(skip)
                 .limit(limit)
@@ -118,7 +119,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 self.db.query(InstructorProfile)
                 .options(
                     joinedload(InstructorProfile.user),
-                    joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
+                    joinedload(InstructorProfile.instructor_services).joinedload(
+                        Service.catalog_entry
+                    ),
                 )
                 .filter(InstructorProfile.user_id == user_id)
                 .first()
@@ -132,7 +135,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.logger.error(f"Error getting profile by user_id: {str(e)}")
             raise RepositoryException(f"Failed to get instructor profile: {str(e)}")
 
-    def get_profiles_by_area(self, area: str, skip: int = 0, limit: int = 100) -> List[InstructorProfile]:
+    def get_profiles_by_area(
+        self, area: str, skip: int = 0, limit: int = 100
+    ) -> List[InstructorProfile]:
         """
         Get instructor profiles that service a specific area.
 
@@ -153,7 +158,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .filter(User.account_status == "active")
                 .options(
                     joinedload(InstructorProfile.user),
-                    joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
+                    joinedload(InstructorProfile.instructor_services).joinedload(
+                        Service.catalog_entry
+                    ),
                 )
                 .filter(InstructorProfile.areas_of_service.ilike(f"%{area}%"))
                 .offset(skip)
@@ -164,7 +171,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.logger.error(f"Error getting profiles by area: {str(e)}")
             raise RepositoryException(f"Failed to get profiles by area: {str(e)}")
 
-    def get_profiles_by_experience(self, min_years: int, skip: int = 0, limit: int = 100) -> List[InstructorProfile]:
+    def get_profiles_by_experience(
+        self, min_years: int, skip: int = 0, limit: int = 100
+    ) -> List[InstructorProfile]:
         """
         Get instructor profiles with minimum years of experience.
 
@@ -183,7 +192,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .filter(User.account_status == "active")
                 .options(
                     joinedload(InstructorProfile.user),
-                    joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
+                    joinedload(InstructorProfile.instructor_services).joinedload(
+                        Service.catalog_entry
+                    ),
                 )
                 .filter(InstructorProfile.years_experience >= min_years)
                 .offset(skip)
@@ -270,7 +281,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 # Only use array_to_string for PostgreSQL
                 # Check if we're using PostgreSQL by looking at the dialect
                 if hasattr(self.db.bind, "dialect") and self.db.bind.dialect.name == "postgresql":
-                    search_conditions.append(func.array_to_string(ServiceCatalog.search_terms, " ").ilike(search_term))
+                    search_conditions.append(
+                        func.array_to_string(ServiceCatalog.search_terms, " ").ilike(search_term)
+                    )
 
                 query = query.filter(or_(*search_conditions))
 
@@ -289,7 +302,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             if age_group:
                 # Use PostgreSQL array_position for reliable membership check on arrays
                 if hasattr(self.db.bind, "dialect") and self.db.bind.dialect.name == "postgresql":
-                    query = query.filter(func.array_position(Service.age_groups, age_group).isnot(None))
+                    query = query.filter(
+                        func.array_position(Service.age_groups, age_group).isnot(None)
+                    )
                 else:
                     like_pattern = f'%"{age_group}"%'
                     query = query.filter(Service.age_groups.like(like_pattern))
@@ -335,4 +350,6 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         This is called by BaseRepository methods like get_by_id()
         when load_relationships=True.
         """
-        return query.options(joinedload(InstructorProfile.user), joinedload(InstructorProfile.instructor_services))
+        return query.options(
+            joinedload(InstructorProfile.user), joinedload(InstructorProfile.instructor_services)
+        )

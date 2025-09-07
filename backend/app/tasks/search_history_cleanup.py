@@ -5,8 +5,8 @@ Celery tasks for search history cleanup.
 Provides periodic tasks to clean up old search history data.
 """
 
-import logging
 from datetime import datetime, timezone
+import logging
 
 from celery import shared_task
 from sqlalchemy.orm import Session
@@ -104,7 +104,8 @@ def search_history_cleanup_dry_run(self):
             "statistics": stats,
             "would_delete": {
                 "soft_deleted": stats["soft_deleted_eligible"],
-                "guest_sessions": stats["converted_guest_eligible"] + stats["expired_guest_eligible"],
+                "guest_sessions": stats["converted_guest_eligible"]
+                + stats["expired_guest_eligible"],
             },
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }

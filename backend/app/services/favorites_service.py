@@ -83,10 +83,18 @@ class FavoritesService(BaseService):
                 # Invalidate cache
                 self._invalidate_favorite_cache(student_id, instructor_id)
 
-                return {"success": True, "message": "Instructor added to favorites", "favorite_id": favorite.id}
+                return {
+                    "success": True,
+                    "message": "Instructor added to favorites",
+                    "favorite_id": favorite.id,
+                }
             else:
                 # Already favorited
-                return {"success": False, "message": "Instructor already in favorites", "already_favorited": True}
+                return {
+                    "success": False,
+                    "message": "Instructor already in favorites",
+                    "already_favorited": True,
+                }
 
         except Exception as e:
             self.logger.error(f"Error adding favorite: {str(e)}")
@@ -127,7 +135,11 @@ class FavoritesService(BaseService):
                 return {"success": True, "message": "Instructor removed from favorites"}
             else:
                 # Not favorited
-                return {"success": False, "message": "Instructor not in favorites", "not_favorited": True}
+                return {
+                    "success": False,
+                    "message": "Instructor not in favorites",
+                    "not_favorited": True,
+                }
 
         except Exception as e:
             self.logger.error(f"Error removing favorite: {str(e)}")

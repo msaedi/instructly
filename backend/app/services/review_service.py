@@ -18,7 +18,11 @@ from ..models.booking import BookingStatus
 from ..models.review import Review, ReviewResponse, ReviewStatus
 from ..repositories.booking_repository import BookingRepository
 from ..repositories.factory import RepositoryFactory
-from ..repositories.review_repository import ReviewRepository, ReviewResponseRepository, ReviewTipRepository
+from ..repositories.review_repository import (
+    ReviewRepository,
+    ReviewResponseRepository,
+    ReviewTipRepository,
+)
 from .base import BaseService
 from .cache_service import CacheService
 from .ratings_config import DEFAULT_RATINGS_CONFIG, RatingsConfig
@@ -38,7 +42,12 @@ class ReviewService(BaseService):
     REVIEW_WINDOW_DAYS = 30
     CACHE_VERSION = "v2"
 
-    def __init__(self, db, cache: Optional[CacheService] = None, config: RatingsConfig = DEFAULT_RATINGS_CONFIG):
+    def __init__(
+        self,
+        db,
+        cache: Optional[CacheService] = None,
+        config: RatingsConfig = DEFAULT_RATINGS_CONFIG,
+    ):
         super().__init__(db, cache)
         self.repository: ReviewRepository = ReviewRepository(db)
         self.response_repository: ReviewResponseRepository = ReviewResponseRepository(db)
@@ -79,7 +88,10 @@ class ReviewService(BaseService):
         effective_completed_at_utc: Optional[datetime] = booking.completed_at
 
         # If completion timestamp is missing, derive it from scheduled end for CONFIRMED/COMPLETED
-        if effective_completed_at_utc is None and booking.status in [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]:
+        if effective_completed_at_utc is None and booking.status in [
+            BookingStatus.CONFIRMED,
+            BookingStatus.COMPLETED,
+        ]:
             from ..core.timezone_utils import get_user_now_by_id
 
             # Get user's current time with safe fallback to UTC
@@ -96,7 +108,11 @@ class ReviewService(BaseService):
             if booking.status == BookingStatus.CONFIRMED:
                 if booking.booking_date > today:
                     raise ValidationException("You can submit a review after the lesson ends")
-                if booking.booking_date == today and booking.end_time and now_time < booking.end_time:
+                if (
+                    booking.booking_date == today
+                    and booking.end_time
+                    and now_time < booking.end_time
+                ):
                     raise ValidationException("You can submit a review after the lesson ends")
 
             # Compute the scheduled end datetime in user's timezone, then convert to UTC
@@ -167,12 +183,16 @@ class ReviewService(BaseService):
         by_service: List[Dict] = []
         for s in breakdown_rows:
             # For service breakdown, fall back to simple shrinkage per-service to avoid heavy histogram compute
-            bayes = compute_simple_shrinkage(s.get("rating_sum", 0), s.get("review_count", 0), self.config)
+            bayes = compute_simple_shrinkage(
+                s.get("rating_sum", 0), s.get("review_count", 0), self.config
+            )
             count = int(s.get("review_count", 0))
             by_service.append(
                 {
                     "instructor_service_id": s["instructor_service_id"],
-                    "rating": round(bayes, 1) if count >= self.config.min_reviews_to_display else None,
+                    "rating": round(bayes, 1)
+                    if count >= self.config.min_reviews_to_display
+                    else None,
                     "review_count": count,
                     "display_rating": display_policy(bayes, count, self.config),
                 }
@@ -241,7 +261,9 @@ class ReviewService(BaseService):
             # transaction session when a student context is attached to the DB session info.
             current_student_id = getattr(self.db, "current_student_id", None)
             if current_student_id:
-                owned = self.booking_repository.filter_owned_booking_ids(booking_ids, current_student_id)
+                owned = self.booking_repository.filter_owned_booking_ids(
+                    booking_ids, current_student_id
+                )
                 if not owned:
                     return []
                 return self.repository.get_existing_for_bookings(owned)
@@ -251,8 +273,12 @@ class ReviewService(BaseService):
             return []
 
     @BaseService.measure_operation("get_rating_for_search_context")
-    def get_rating_for_search_context(self, instructor_id: str, instructor_service_id: Optional[str] = None) -> Dict:
-        cache_key = f"ratings:search:{self.CACHE_VERSION}:{instructor_id}:{instructor_service_id or 'all'}"
+    def get_rating_for_search_context(
+        self, instructor_id: str, instructor_service_id: Optional[str] = None
+    ) -> Dict:
+        cache_key = (
+            f"ratings:search:{self.CACHE_VERSION}:{instructor_id}:{instructor_service_id or 'all'}"
+        )
         if self.cache:
             cached = self.cache.get(cache_key)
             if cached:
@@ -261,7 +287,9 @@ class ReviewService(BaseService):
         if instructor_service_id:
             sr = self._compute_dirichlet_rating_for_service(instructor_id, instructor_service_id)
             result = {
-                "primary_rating": sr["rating"] if sr["total_reviews"] >= self.config.min_reviews_to_display else None,
+                "primary_rating": sr["rating"]
+                if sr["total_reviews"] >= self.config.min_reviews_to_display
+                else None,
                 "review_count": int(sr["total_reviews"]),
                 "is_service_specific": True,
             }
@@ -282,7 +310,9 @@ class ReviewService(BaseService):
         return result
 
     @BaseService.measure_operation("add_instructor_response")
-    def add_instructor_response(self, *, review_id: str, instructor_id: str, response_text: str) -> ReviewResponse:
+    def add_instructor_response(
+        self, *, review_id: str, instructor_id: str, response_text: str
+    ) -> ReviewResponse:
         if not response_text or not response_text.strip():
             raise ValidationException("Response text cannot be empty")
         if len(response_text.strip()) > 500:
@@ -298,7 +328,9 @@ class ReviewService(BaseService):
 
         with self.transaction():
             response = self.response_repository.create_response(
-                review_id=review_id, instructor_id=instructor_id, response_text=response_text.strip()
+                review_id=review_id,
+                instructor_id=instructor_id,
+                response_text=response_text.strip(),
             )
 
         # Invalidate caches
@@ -337,9 +369,13 @@ class ReviewService(BaseService):
     def _dirichlet_prior_mean(self) -> float:
         return dirichlet_prior_mean(self.config)
 
-    def _compute_dirichlet_rating_for_service(self, instructor_id: str, instructor_service_id: str) -> Dict:
+    def _compute_dirichlet_rating_for_service(
+        self, instructor_id: str, instructor_service_id: str
+    ) -> Dict:
         """Compute service-specific rating using a Dirichlet prior with recency weighting."""
-        reviews = self.repository.get_published_verified_for_instructor(instructor_id, instructor_service_id)
+        reviews = self.repository.get_published_verified_for_instructor(
+            instructor_id, instructor_service_id
+        )
         result = compute_dirichlet_rating(reviews, config=self.config)
         return {
             "rating": result["rating"],

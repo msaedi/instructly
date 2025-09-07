@@ -6,9 +6,9 @@ Unified implementation that handles both authenticated and guest users
 without code duplication.
 """
 
+from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -137,7 +137,9 @@ class SearchHistoryService(BaseService):
             if result.search_count == 1:
                 logger.info(f"Created new search history for {context.identifier}: {query}")
             else:
-                logger.info(f"Updated search history for {context.identifier}: {query} (count: {result.search_count})")
+                logger.info(
+                    f"Updated search history for {context.identifier}: {query} (count: {result.search_count})"
+                )
 
             # Maintain limit per user/guest
             self._enforce_search_limit(context)
@@ -168,7 +170,9 @@ class SearchHistoryService(BaseService):
                     {
                         "device": {
                             **browser_info.get("device", {}),
-                            "type": device_context.get("device_type", browser_info.get("device", {}).get("type")),
+                            "type": device_context.get(
+                                "device_type", browser_info.get("device", {}).get("type")
+                            ),
                         },
                         "viewport": device_context.get("viewport_size"),
                         "screen": device_context.get("screen_resolution"),
@@ -211,7 +215,9 @@ class SearchHistoryService(BaseService):
                 "geo_data": geo_data,
                 "device_type": device_context.get("device_type") if device_context else None,
                 "browser_info": browser_info,
-                "connection_type": device_context.get("connection_type") if device_context else None,
+                "connection_type": device_context.get("connection_type")
+                if device_context
+                else None,
                 "is_returning_user": is_returning,
                 "page_view_count": search_data.get("context", {}).get("page_view_count")
                 if search_data.get("context")
@@ -242,7 +248,9 @@ class SearchHistoryService(BaseService):
                         )
                     self.event_repository.bulk_insert_candidates(event.id, normalized)
             except Exception as e:
-                logger.warning(f"Failed to persist observability candidates for event {event.id}: {e}")
+                logger.warning(
+                    f"Failed to persist observability candidates for event {event.id}: {e}"
+                )
 
             # Use service transaction pattern instead of direct DB operations
             with self.transaction():
@@ -297,7 +305,9 @@ class SearchHistoryService(BaseService):
                 raise ValueError("Must provide either user_id, guest_session_id, or context")
         # Use the unified method that works with context
         searches = self.repository.get_recent_searches_unified(
-            context, limit=limit * 2, order_by="last_searched_at"  # Get extra to ensure we have enough after filtering
+            context,
+            limit=limit * 2,
+            order_by="last_searched_at",  # Get extra to ensure we have enough after filtering
         )
 
         # Filter out category searches
@@ -314,7 +324,10 @@ class SearchHistoryService(BaseService):
 
     @BaseService.measure_operation("delete_search")
     def delete_search(
-        self, user_id: Optional[str] = None, guest_session_id: Optional[str] = None, search_id: int = None
+        self,
+        user_id: Optional[str] = None,
+        guest_session_id: Optional[str] = None,
+        search_id: int = None,
     ) -> bool:
         """
         Soft delete a search for any user type.
@@ -334,7 +347,9 @@ class SearchHistoryService(BaseService):
             deleted = self.repository.soft_delete_by_id(search_id=search_id, user_id=user_id)
             identifier = f"user_{user_id}"
         elif guest_session_id:
-            deleted = self.repository.soft_delete_guest_search(search_id=search_id, guest_session_id=guest_session_id)
+            deleted = self.repository.soft_delete_guest_search(
+                search_id=search_id, guest_session_id=guest_session_id
+            )
             identifier = f"guest_{guest_session_id}"
         else:
             return False
@@ -344,7 +359,9 @@ class SearchHistoryService(BaseService):
                 pass  # Transaction commits automatically
             logger.info(f"Soft deleted search history {search_id} for {identifier}")
         else:
-            logger.warning(f"Search history {search_id} not found or already deleted for {identifier}")
+            logger.warning(
+                f"Search history {search_id} not found or already deleted for {identifier}"
+            )
 
         return deleted
 
@@ -372,7 +389,9 @@ class SearchHistoryService(BaseService):
         if deleted > 0:
             with self.transaction():
                 pass  # Transaction commits automatically
-            logger.info(f"Deleted {deleted} old searches for {context.identifier} to maintain limit")
+            logger.info(
+                f"Deleted {deleted} old searches for {context.identifier} to maintain limit"
+            )
 
     # Guest-to-user conversion (remains as specific operation)
     @BaseService.measure_operation("convert_guest_searches_to_user")
@@ -400,7 +419,9 @@ class SearchHistoryService(BaseService):
             for search in guest_searches:
                 # Check if user already has this exact search
                 # We don't check timestamp to avoid duplicates of same query
-                existing = self.repository.find_existing_search(user_id=user_id, query=search.search_query)
+                existing = self.repository.find_existing_search(
+                    user_id=user_id, query=search.search_query
+                )
 
                 if not existing:
                     # Create new search entry for user, preserving timestamp and deleted status
@@ -425,7 +446,8 @@ class SearchHistoryService(BaseService):
                 pass  # Transaction commits automatically
 
             logger.info(
-                f"Converted {converted_count} guest searches to user {user_id}, " f"marked {marked_count} as converted"
+                f"Converted {converted_count} guest searches to user {user_id}, "
+                f"marked {marked_count} as converted"
             )
 
             return converted_count

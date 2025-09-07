@@ -1,6 +1,7 @@
 """
 Base schemas with standardized field types for consistent API responses.
 """
+
 from decimal import Decimal
 from typing import Any
 

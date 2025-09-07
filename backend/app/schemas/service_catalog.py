@@ -57,7 +57,8 @@ class InstructorServiceCreate(BaseModel):
     hourly_rate: float = Field(..., gt=0, description="Hourly rate for this service")
     custom_description: Optional[str] = Field(None, description="Custom description (optional)")
     duration_options: Optional[List[int]] = Field(
-        None, description="Custom duration options in minutes (uses catalog defaults if not provided)"
+        None,
+        description="Custom duration options in minutes (uses catalog defaults if not provided)",
     )
 
     model_config = ConfigDict(

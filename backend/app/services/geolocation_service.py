@@ -191,7 +191,15 @@ class GeolocationService(BaseService):
             (
                 state.strip().lower() in ["new york", "ny"]
                 and city.strip().lower()
-                in ["new york", "brooklyn", "queens", "bronx", "staten island", "the bronx", "manhattan"]
+                in [
+                    "new york",
+                    "brooklyn",
+                    "queens",
+                    "bronx",
+                    "staten island",
+                    "the bronx",
+                    "manhattan",
+                ]
             )
             if state and city
             else False

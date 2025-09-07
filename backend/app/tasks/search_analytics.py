@@ -6,8 +6,8 @@ This module contains tasks for calculating search analytics, processing
 search events asynchronously, and generating search insights.
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
@@ -103,12 +103,16 @@ def calculate_search_metrics(self, hours_back: int = 24) -> Dict[str, Any]:
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
 
         # Use repository methods for all data access
-        popular_searches = search_repo.get_popular_searches_with_avg_results(hours=hours_back, limit=20)
+        popular_searches = search_repo.get_popular_searches_with_avg_results(
+            hours=hours_back, limit=20
+        )
         type_distribution = search_repo.get_search_type_distribution(hours=hours_back)
         total_searches = search_repo.count_searches_since(cutoff_time)
         searches_with_interactions = search_repo.count_searches_with_interactions(cutoff_time)
 
-        conversion_rate = searches_with_interactions / total_searches * 100 if total_searches > 0 else 0
+        conversion_rate = (
+            searches_with_interactions / total_searches * 100 if total_searches > 0 else 0
+        )
 
         metrics = {
             "period": {
@@ -173,13 +177,17 @@ def generate_search_insights(self, days_back: int = 7) -> Dict[str, Any]:
         # Calculate abandonment rate
         abandonment_rate = 0.0
         if total_searches > 0:
-            abandonment_rate = round((total_searches - searches_with_interactions) / total_searches * 100, 2)
+            abandonment_rate = round(
+                (total_searches - searches_with_interactions) / total_searches * 100, 2
+            )
 
         # Get peak hours using repository
         try:
             peak_hours = search_repo.get_hourly_search_counts(cutoff_time, limit=5)
         except AttributeError:
-            logger.exception("SearchEventRepository missing get_hourly_search_counts; returning empty peak_hours")
+            logger.exception(
+                "SearchEventRepository missing get_hourly_search_counts; returning empty peak_hours"
+            )
             peak_hours = []
 
         # Trending searches can be approximated using popular searches

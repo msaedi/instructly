@@ -6,15 +6,13 @@ Handles periodic cleanup of old soft-deleted records and expired guest sessions
 based on configuration settings.
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Tuple
 
-from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..models.search_history import SearchHistory
 from ..repositories.search_history_repository import SearchHistoryRepository
 from .base import BaseService
 
@@ -50,11 +48,15 @@ class SearchHistoryCleanupService(BaseService):
             logger.info("Soft delete retention is disabled (0 days), skipping cleanup")
             return 0
 
-        _cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.soft_delete_retention_days)
+        _cutoff_date = datetime.now(timezone.utc) - timedelta(
+            days=settings.soft_delete_retention_days
+        )
 
         try:
             # Find and delete old soft-deleted records
-            deleted_count = self.repository.hard_delete_old_soft_deleted(days_old=settings.soft_delete_retention_days)
+            deleted_count = self.repository.hard_delete_old_soft_deleted(
+                days_old=settings.soft_delete_retention_days
+            )
 
             with self.transaction():
                 pass  # Transaction commits automatically
@@ -87,7 +89,9 @@ class SearchHistoryCleanupService(BaseService):
             logger.info("Guest session purge is disabled (0 days), skipping cleanup")
             return 0
 
-        _cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.guest_session_purge_days)
+        _cutoff_date = datetime.now(timezone.utc) - timedelta(
+            days=settings.guest_session_purge_days
+        )
 
         try:
             # Delete old converted guest searches
@@ -98,7 +102,9 @@ class SearchHistoryCleanupService(BaseService):
             # Delete old non-converted guest searches
             # These are guest searches that were never converted and are very old
             expired_days = settings.guest_session_expiry_days + settings.guest_session_purge_days
-            expired_deleted = self.repository.delete_old_unconverted_guest_searches(days_old=expired_days)
+            expired_deleted = self.repository.delete_old_unconverted_guest_searches(
+                days_old=expired_days
+            )
 
             total_deleted = converted_deleted + expired_deleted
 
@@ -156,65 +162,28 @@ class SearchHistoryCleanupService(BaseService):
 
         # Total soft-deleted records
         # repo-pattern-ignore: Statistics query for reporting - count only deleted
-        stats["total_soft_deleted"] = self.db.query(SearchHistory).filter(SearchHistory.deleted_at.isnot(None)).count()
+        # Use repository for statistics to comply with repository pattern
+        stats["total_soft_deleted"] = self.repository.count_soft_deleted_total()
 
         # Soft-deleted records eligible for cleanup
         if settings.soft_delete_retention_days:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.soft_delete_retention_days)
-            # This is complex enough to keep as direct query for now
-            stats["soft_deleted_eligible"] = (
-                # repo-pattern-ignore: Statistics query for reporting
-                self.db.query(SearchHistory)
-                # repo-pattern-ignore: Statistics query for reporting
-                .filter(and_(SearchHistory.deleted_at.isnot(None), SearchHistory.deleted_at < cutoff_date))
-                # repo-pattern-ignore: Statistics query for reporting
-                .count()
+            stats["soft_deleted_eligible"] = self.repository.count_soft_deleted_eligible(
+                days_old=settings.soft_delete_retention_days
             )
 
         # Total guest sessions
-        stats["total_guest_sessions"] = (
-            # repo-pattern-ignore: Statistics query for reporting
-            self.db.query(SearchHistory)
-            # repo-pattern-ignore: Statistics query for reporting
-            .filter(SearchHistory.guest_session_id.isnot(None))
-            # repo-pattern-ignore: Statistics query for reporting
-            .count()
-        )
+        stats["total_guest_sessions"] = self.repository.count_total_guest_sessions()
 
         # Converted guest sessions eligible for cleanup
         if settings.guest_session_purge_days:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.guest_session_purge_days)
-            stats["converted_guest_eligible"] = (
-                # repo-pattern-ignore: Statistics query for reporting
-                self.db.query(SearchHistory)
-                # repo-pattern-ignore: Statistics query for reporting
-                .filter(
-                    and_(
-                        SearchHistory.guest_session_id.isnot(None),
-                        SearchHistory.converted_to_user_id.isnot(None),
-                        SearchHistory.converted_at < cutoff_date,
-                    )
-                    # repo-pattern-ignore: Statistics query for reporting
-                ).count()
+            stats["converted_guest_eligible"] = self.repository.count_converted_guest_eligible(
+                days_old=settings.guest_session_purge_days
             )
 
         # Expired guest sessions eligible for cleanup
         if settings.guest_session_expiry_days and settings.guest_session_purge_days:
-            expired_cutoff = datetime.now(timezone.utc) - timedelta(
-                days=settings.guest_session_expiry_days + settings.guest_session_purge_days
-            )
-            stats["expired_guest_eligible"] = (
-                # repo-pattern-ignore: Statistics query for reporting
-                self.db.query(SearchHistory)
-                # repo-pattern-ignore: Statistics query for reporting
-                .filter(
-                    and_(
-                        SearchHistory.guest_session_id.isnot(None),
-                        SearchHistory.converted_to_user_id.is_(None),
-                        SearchHistory.first_searched_at < expired_cutoff,
-                    )
-                    # repo-pattern-ignore: Statistics query for reporting
-                ).count()
+            stats["expired_guest_eligible"] = self.repository.count_expired_guest_eligible(
+                days_old=settings.guest_session_expiry_days + settings.guest_session_purge_days
             )
 
         return stats

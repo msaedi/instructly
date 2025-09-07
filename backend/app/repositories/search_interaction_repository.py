@@ -6,8 +6,8 @@ Handles all database operations for search interactions including
 clicks, hovers, bookmarks, and other user engagement metrics.
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Dict, List, Optional
 
 from sqlalchemy import and_, func
@@ -40,7 +40,9 @@ class SearchInteractionRepository(BaseRepository):
         self.db.add(interaction)
         return interaction
 
-    def get_interactions_by_search_event(self, search_event_id: int, limit: int = 100) -> List[SearchInteraction]:
+    def get_interactions_by_search_event(
+        self, search_event_id: int, limit: int = 100
+    ) -> List[SearchInteraction]:
         """
         Get all interactions for a specific search event.
 
@@ -77,7 +79,12 @@ class SearchInteractionRepository(BaseRepository):
 
         return (
             self.db.query(SearchInteraction)
-            .filter(and_(SearchInteraction.instructor_id == instructor_id, SearchInteraction.created_at >= cutoff_date))
+            .filter(
+                and_(
+                    SearchInteraction.instructor_id == instructor_id,
+                    SearchInteraction.created_at >= cutoff_date,
+                )
+            )
             .order_by(SearchInteraction.created_at.desc())
             .limit(limit)
             .all()
@@ -156,7 +163,9 @@ class SearchInteractionRepository(BaseRepository):
             Dictionary with funnel metrics
         """
         interactions = (
-            self.db.query(SearchInteraction.interaction_type, func.count(SearchInteraction.id).label("count"))
+            self.db.query(
+                SearchInteraction.interaction_type, func.count(SearchInteraction.id).label("count")
+            )
             .filter(SearchInteraction.search_event_id == search_event_id)
             .group_by(SearchInteraction.interaction_type)
             .all()
@@ -209,7 +218,11 @@ class SearchInteractionRepository(BaseRepository):
         # Calculate median
         sorted_times = sorted(times)
         n = len(sorted_times)
-        median_time = sorted_times[n // 2] if n % 2 == 1 else (sorted_times[n // 2 - 1] + sorted_times[n // 2]) / 2
+        median_time = (
+            sorted_times[n // 2]
+            if n % 2 == 1
+            else (sorted_times[n // 2 - 1] + sorted_times[n // 2]) / 2
+        )
 
         return {
             "avg_time_seconds": round(avg_time, 2),

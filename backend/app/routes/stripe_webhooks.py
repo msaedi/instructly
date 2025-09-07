@@ -59,12 +59,16 @@ async def handle_payment_events(
 
         if not signature:
             logger.warning("Missing Stripe signature header")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing stripe-signature header")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Missing stripe-signature header"
+            )
 
         # Verify webhook signature
         if not stripe_service.verify_webhook_signature(payload, signature):
             logger.warning("Invalid Stripe webhook signature")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook signature")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook signature"
+            )
 
         # Parse event data
         import json
@@ -114,7 +118,9 @@ async def handle_payment_events(
         raise
     except Exception as e:
         logger.error(f"Error processing Stripe webhook: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process webhook")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process webhook"
+        )
 
 
 @router.post("/account-events", response_model=WebhookResponse)
@@ -141,11 +147,15 @@ async def handle_account_events(
         signature = request.headers.get("stripe-signature")
 
         if not signature:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing stripe-signature header")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Missing stripe-signature header"
+            )
 
         # Verify webhook signature
         if not stripe_service.verify_webhook_signature(payload, signature):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook signature")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook signature"
+            )
 
         # Parse event data
         import json
@@ -169,7 +179,9 @@ async def handle_account_events(
         raise
     except Exception as e:
         logger.error(f"Error processing Stripe account webhook: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process webhook")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process webhook"
+        )
 
 
 async def _handle_account_events(event: Dict[str, Any], stripe_service: StripeService) -> bool:
@@ -281,5 +293,7 @@ async def test_webhook_endpoint() -> WebhookResponse:
     """
     logger.info("Webhook test endpoint accessed")
     return WebhookResponse(
-        status="success", event_type="test", message="Stripe webhook endpoint is accessible at /webhooks/stripe"
+        status="success",
+        event_type="test",
+        message="Stripe webhook endpoint is accessible at /webhooks/stripe",
     )

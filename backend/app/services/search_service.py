@@ -11,9 +11,9 @@ This service parses natural language, generates embeddings, and coordinates
 with repositories to find the best matches.
 """
 
+from datetime import datetime, timezone
 import logging
 import re
-from datetime import datetime, timezone
 from typing import Dict, List
 
 from sentence_transformers import SentenceTransformer
@@ -212,7 +212,9 @@ class QueryParser:
                     constraints["price"]["min"] = target * 0.8
                     constraints["price"]["max"] = target * 1.2
                 else:
-                    constraints["price"][constraint_type.replace("_price", "")] = float(match.group(1))
+                    constraints["price"][constraint_type.replace("_price", "")] = float(
+                        match.group(1)
+                    )
 
                 # Remove price from cleaned query
                 constraints["cleaned_query"] = re.sub(pattern, "", constraints["cleaned_query"])
@@ -240,11 +242,15 @@ class QueryParser:
 
         # Apply lightweight morphology normalizations (generic, not service-specific)
         for pattern, repl in self.MORPH_NORMALIZATIONS.items():
-            constraints["cleaned_query"] = re.sub(pattern, repl, constraints["cleaned_query"], flags=re.IGNORECASE)
+            constraints["cleaned_query"] = re.sub(
+                pattern, repl, constraints["cleaned_query"], flags=re.IGNORECASE
+            )
 
         # Remove generic role/format words to improve matching (kept in original_query)
         for pattern in self.ROLE_STOPWORDS:
-            constraints["cleaned_query"] = re.sub(pattern, "", constraints["cleaned_query"], flags=re.IGNORECASE)
+            constraints["cleaned_query"] = re.sub(
+                pattern, "", constraints["cleaned_query"], flags=re.IGNORECASE
+            )
 
         # Final trim
         constraints["cleaned_query"] = " ".join(constraints["cleaned_query"].split())
@@ -340,7 +346,9 @@ class SearchService(BaseService):
 
         # Search for services using semantic similarity
         services, observability_candidates = self._search_services(
-            query_embedding=query_embedding, parsed=parsed, limit=limit * 2  # Get more to filter later
+            query_embedding=query_embedding,
+            parsed=parsed,
+            limit=limit * 2,  # Get more to filter later
         )
 
         # Find instructors for matched services
@@ -417,7 +425,9 @@ class SearchService(BaseService):
             },
         }
 
-    def _search_services(self, query_embedding: List[float], parsed: Dict, limit: int) -> tuple[List[Dict], List[Dict]]:
+    def _search_services(
+        self, query_embedding: List[float], parsed: Dict, limit: int
+    ) -> tuple[List[Dict], List[Dict]]:
         """Search for services using embeddings and filters, and prepare top-N candidates for observability."""
 
         # Lightweight helpers for fuzzy token matching (to capitalize on pg_trgm in exact-text phase)
@@ -502,7 +512,9 @@ class SearchService(BaseService):
             _performed_vector_search = False
             if parsed["cleaned_query"]:
                 # Search for exact/close text matches
-                exact_services = self.catalog_repository.search_services(query_text=parsed["cleaned_query"], limit=10)
+                exact_services = self.catalog_repository.search_services(
+                    query_text=parsed["cleaned_query"], limit=10
+                )
                 query_lower = parsed["cleaned_query"].lower()
                 q_tokens = [t for t in query_lower.split() if t]
                 for service in exact_services:
@@ -540,7 +552,9 @@ class SearchService(BaseService):
                         break
                 _performed_vector_search = True
                 if similar_services:
-                    raw_candidates = [(svc, score, "vector") for svc, score in similar_services[:10]]
+                    raw_candidates = [
+                        (svc, score, "vector") for svc, score in similar_services[:10]
+                    ]
 
         # Convert to service dicts with scores
         services = []
@@ -573,7 +587,9 @@ class SearchService(BaseService):
                 terms = [t.lower() for t in (service_dict.get("search_terms") or [])]
                 if terms and (q in terms or any(q == term for term in terms)):
                     token_bonus += 0.08
-            service_dict["relevance_score"] = min(service_dict["relevance_score"] + token_bonus, 1.0)
+            service_dict["relevance_score"] = min(
+                service_dict["relevance_score"] + token_bonus, 1.0
+            )
 
             services.append(service_dict)
 
@@ -584,7 +600,9 @@ class SearchService(BaseService):
             # Allow closely related neighbors (e.g., keyboard for piano), drop distant ones
             min_score = max(0.5, top_score * 0.68)
 
-            q_tokens = [t for t in (parsed.get("cleaned_query") or "").lower().split() if len(t) > 2]
+            q_tokens = [
+                t for t in (parsed.get("cleaned_query") or "").lower().split() if len(t) > 2
+            ]
 
             def has_token_overlap(svc: Dict) -> bool:
                 if not q_tokens:
@@ -600,7 +618,11 @@ class SearchService(BaseService):
                     return True
                 return False
 
-            pruned = [s for s in services if s.get("relevance_score", 0.0) >= min_score or has_token_overlap(s)]
+            pruned = [
+                s
+                for s in services
+                if s.get("relevance_score", 0.0) >= min_score or has_token_overlap(s)
+            ]
 
             # Keep up to 3 to allow one closely related neighbor (e.g., Keyboard) to appear
             services = pruned[:3]
@@ -646,7 +668,9 @@ class SearchService(BaseService):
                     # vector neighbors to raw candidates so the API can return
                     # observability_candidates for zero-result queries.
                     if not raw_candidates:
-                        raw_candidates = [(svc, score, "vector") for svc, score in top_candidates[:10]]
+                        raw_candidates = [
+                            (svc, score, "vector") for svc, score in top_candidates[:10]
+                        ]
                     logger.info(
                         "NL Search observability: top vector candidates when no results",
                         extra={
@@ -658,7 +682,10 @@ class SearchService(BaseService):
                         },
                     )
                 else:
-                    logger.info("NL Search observability: no vector candidates found", extra={"parsed": parsed})
+                    logger.info(
+                        "NL Search observability: no vector candidates found",
+                        extra={"parsed": parsed},
+                    )
             except Exception as e:
                 logger.warning(f"Observability logging failed: {e}")
 
@@ -682,7 +709,9 @@ class SearchService(BaseService):
                 continue
             seen.add(svc.id)
             # Compute hybrid score similar to main ranking
-            bonus = _token_bonus_for(getattr(svc, "name", ""), getattr(svc, "description", "") or "")
+            bonus = _token_bonus_for(
+                getattr(svc, "name", ""), getattr(svc, "description", "") or ""
+            )
             hybrid_score = min((base_score or 0.0) + bonus, 1.0)
             obs.append(
                 {
@@ -698,7 +727,9 @@ class SearchService(BaseService):
 
         return services, obs
 
-    def _find_instructors_for_services(self, services: List[Dict], parsed: Dict, limit: int) -> List[Dict]:
+    def _find_instructors_for_services(
+        self, services: List[Dict], parsed: Dict, limit: int
+    ) -> List[Dict]:
         """Find instructors offering the matched services."""
         results = []
 
@@ -760,7 +791,9 @@ class SearchService(BaseService):
                         "location_types": instructor_service.location_types,
                         "max_distance_miles": instructor_service.max_distance_miles,
                     },
-                    "match_score": self._calculate_match_score(service["relevance_score"], instructor_service, parsed),
+                    "match_score": self._calculate_match_score(
+                        service["relevance_score"], instructor_service, parsed
+                    ),
                 }
                 # Optional: attach minimal coverage metadata if available via service area repo
                 try:
@@ -772,14 +805,24 @@ class SearchService(BaseService):
                         result["coverage_regions"] = [
                             {
                                 "region_id": a.neighborhood_id,
-                                "name": (getattr(a.neighborhood, "region_name", None) if a.neighborhood else None),
-                                "borough": (getattr(a.neighborhood, "parent_region", None) if a.neighborhood else None),
+                                "name": (
+                                    getattr(a.neighborhood, "region_name", None)
+                                    if a.neighborhood
+                                    else None
+                                ),
+                                "borough": (
+                                    getattr(a.neighborhood, "parent_region", None)
+                                    if a.neighborhood
+                                    else None
+                                ),
                                 "coverage_type": getattr(a, "coverage_type", None),
                             }
                             for a in areas
                             if a.is_active
                         ]
-                        result["coverage_region_ids"] = [a.neighborhood_id for a in areas if a.is_active]
+                        result["coverage_region_ids"] = [
+                            a.neighborhood_id for a in areas if a.is_active
+                        ]
                 except Exception:
                     pass
                 results.append(result)
@@ -789,18 +832,30 @@ class SearchService(BaseService):
 
         return results
 
-    def _matches_location_constraints(self, instructor_service, instructor_profile, location_constraints: Dict) -> bool:
+    def _matches_location_constraints(
+        self, instructor_service, instructor_profile, location_constraints: Dict
+    ) -> bool:
         """Check if instructor matches location constraints."""
         if location_constraints.get("online"):
-            if not instructor_service.location_types or "online" not in instructor_service.location_types:
+            if (
+                not instructor_service.location_types
+                or "online" not in instructor_service.location_types
+            ):
                 return False
 
         if location_constraints.get("in_person"):
-            if not instructor_service.location_types or "in-person" not in instructor_service.location_types:
+            if (
+                not instructor_service.location_types
+                or "in-person" not in instructor_service.location_types
+            ):
                 return False
 
             # Check specific boroughs
-            areas = instructor_profile.areas_of_service.lower() if instructor_profile.areas_of_service else ""
+            areas = (
+                instructor_profile.areas_of_service.lower()
+                if instructor_profile.areas_of_service
+                else ""
+            )
             for borough in ["manhattan", "brooklyn", "queens", "bronx", "staten_island"]:
                 if location_constraints.get(borough) and borough.replace("_", " ") not in areas:
                     return False
@@ -841,7 +896,9 @@ class SearchService(BaseService):
 
         return True
 
-    def _calculate_match_score(self, relevance_score: float, instructor_service, parsed: Dict) -> float:
+    def _calculate_match_score(
+        self, relevance_score: float, instructor_service, parsed: Dict
+    ) -> float:
         """Calculate overall match score for ranking.
 
         Incorporates semantic relevance and a cautious rating lower-bound (Beta posterior 5th percentile).
@@ -864,7 +921,9 @@ class SearchService(BaseService):
             score *= 1.05
 
         # Boost for location type match
-        if parsed["location"].get("online") and "online" in (instructor_service.location_types or []):
+        if parsed["location"].get("online") and "online" in (
+            instructor_service.location_types or []
+        ):
             score *= 1.1
 
         # Add cautious rating signal (Beta lower-bound at 5th percentile) using 4-5★ as positive
@@ -888,7 +947,11 @@ class SearchService(BaseService):
                 import math
 
                 mean = alpha / (alpha + beta) if (alpha + beta) > 0 else 0.0
-                var = (alpha * beta) / (((alpha + beta) ** 2) * (alpha + beta + 1.0)) if (alpha + beta) > 1 else 0.0
+                var = (
+                    (alpha * beta) / (((alpha + beta) ** 2) * (alpha + beta + 1.0))
+                    if (alpha + beta) > 1
+                    else 0.0
+                )
                 std = math.sqrt(var)
                 lb = max(0.0, mean - 2.0 * std)
                 # Weight into score (scaled 0..100) with modest influence

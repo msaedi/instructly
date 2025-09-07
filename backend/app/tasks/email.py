@@ -95,10 +95,14 @@ def send_booking_reminder(self, booking_id: int, hours_before: int = 24) -> Dict
         email_service = EmailService(db)
 
         # Send reminder to student
-        student_result = email_service.send_booking_reminder_to_student(booking, hours_before=hours_before)
+        student_result = email_service.send_booking_reminder_to_student(
+            booking, hours_before=hours_before
+        )
 
         # Send reminder to instructor
-        instructor_result = email_service.send_booking_reminder_to_instructor(booking, hours_before=hours_before)
+        instructor_result = email_service.send_booking_reminder_to_instructor(
+            booking, hours_before=hours_before
+        )
 
         db.close()
 
@@ -149,7 +153,9 @@ def send_cancellation_notification(
         email_service = EmailService(db)
 
         # Send cancellation notification
-        result = email_service.send_cancellation_notification(booking=booking, cancelled_by=cancelled_by, reason=reason)
+        result = email_service.send_cancellation_notification(
+            booking=booking, cancelled_by=cancelled_by, reason=reason
+        )
 
         db.close()
 
@@ -215,7 +221,12 @@ def send_password_reset_email(self, email: str, reset_token: str) -> Dict[str, A
     max_retries=2,
 )
 def send_beta_invites_batch(
-    self, emails: list[str], role: str, expires_in_days: int, source: str | None, base_url: str | None
+    self,
+    emails: list[str],
+    role: str,
+    expires_in_days: int,
+    source: str | None,
+    base_url: str | None,
 ) -> Dict[str, Any]:
     """
     Send beta invites to a list of emails, reporting progress.
@@ -236,7 +247,11 @@ def send_beta_invites_batch(
         for idx, em in enumerate(emails, start=1):
             try:
                 invite, join_url, welcome_url = svc.send_invite_email(
-                    to_email=em, role=role, expires_in_days=expires_in_days, source=source, base_url=base_url
+                    to_email=em,
+                    role=role,
+                    expires_in_days=expires_in_days,
+                    source=source,
+                    base_url=base_url,
                 )
                 sent += 1
                 results["sent"].append(
@@ -265,6 +280,13 @@ def send_beta_invites_batch(
                 )
 
         db.close()
-        return {"status": "success", "current": total, "total": total, "sent": sent, "failed": failed, **results}
+        return {
+            "status": "success",
+            "current": total,
+            "total": total,
+            "sent": sent,
+            "failed": failed,
+            **results,
+        }
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60)

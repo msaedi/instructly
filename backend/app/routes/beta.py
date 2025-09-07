@@ -1,6 +1,6 @@
-import requests
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+import requests
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -30,13 +30,17 @@ from ..tasks.celery_app import celery_app
 router = APIRouter(prefix="/api/beta", tags=["beta"])
 
 
-def _fetch_prometheus_summary(prometheus_http_url: str, bearer_token: str | None) -> BetaMetricsSummaryResponse | None:
+def _fetch_prometheus_summary(
+    prometheus_http_url: str, bearer_token: str | None
+) -> BetaMetricsSummaryResponse | None:
     try:
         base = prometheus_http_url.rstrip("/")
         headers = {"Authorization": f"Bearer {bearer_token}"} if bearer_token else None
 
         def q(expr: str) -> float:
-            r = requests.get(f"{base}/api/v1/query", params={"query": expr}, headers=headers, timeout=4)
+            r = requests.get(
+                f"{base}/api/v1/query", params={"query": expr}, headers=headers, timeout=4
+            )
             r.raise_for_status()
             data = r.json()
             try:
@@ -53,7 +57,9 @@ def _fetch_prometheus_summary(prometheus_http_url: str, bearer_token: str | None
         )
         phases = {}
         for phase in ["disabled", "instructor_only", "open_beta", "unknown"]:
-            phases[phase] = q(f'last_over_time(instainstru_beta_phase_header_total{{phase="{phase}"}}[24h])')
+            phases[phase] = q(
+                f'last_over_time(instainstru_beta_phase_header_total{{phase="{phase}"}}[24h])'
+            )
         return BetaMetricsSummaryResponse(
             invites_sent_24h=int(invites_sent),
             invites_errors_24h=int(invites_err),
@@ -92,7 +98,10 @@ def generate_invites(
         source=payload.source,
         emails=payload.emails,
     )
-    items = [InviteRecord(id=i.id, code=i.code, email=i.email, role=i.role, expires_at=i.expires_at) for i in created]
+    items = [
+        InviteRecord(id=i.id, code=i.code, email=i.email, role=i.role, expires_at=i.expires_at)
+        for i in created
+    ]
     return InviteGenerateResponse(invites=items)
 
 
@@ -104,7 +113,9 @@ def get_beta_metrics_summary(db: Session = Depends(get_db), admin=Depends(requir
     """
     # If Prometheus HTTP API is configured, prefer a true 24h window query
     if settings.prometheus_http_url:
-        result = _fetch_prometheus_summary(settings.prometheus_http_url, settings.prometheus_bearer_token)
+        result = _fetch_prometheus_summary(
+            settings.prometheus_http_url, settings.prometheus_bearer_token
+        )
         if result is not None:
             return result
 
@@ -146,7 +157,9 @@ def get_beta_metrics_summary(db: Session = Depends(get_db), admin=Depends(requir
             phase_counts_24h=phase_counts,
         )
     except Exception:
-        return BetaMetricsSummaryResponse(invites_sent_24h=0, invites_errors_24h=0, phase_counts_24h={})
+        return BetaMetricsSummaryResponse(
+            invites_sent_24h=0, invites_errors_24h=0, phase_counts_24h={}
+        )
 
 
 @router.post("/invites/consume", response_model=AccessGrantResponse)
@@ -167,7 +180,9 @@ def consume_invite(payload: InviteConsumeRequest, db: Session = Depends(get_db))
 
 
 @router.post("/invites/send", response_model=InviteSendResponse)
-def send_invite(payload: InviteSendRequest, db: Session = Depends(get_db), admin=Depends(require_role("admin"))):
+def send_invite(
+    payload: InviteSendRequest, db: Session = Depends(get_db), admin=Depends(require_role("admin"))
+):
     svc = BetaService(db)
     invite, join_url, welcome_url = svc.send_invite_email(
         to_email=payload.to_email,
@@ -177,13 +192,19 @@ def send_invite(payload: InviteSendRequest, db: Session = Depends(get_db), admin
         base_url=payload.base_url,
     )
     return InviteSendResponse(
-        id=invite.id, code=invite.code, email=payload.to_email, join_url=join_url, welcome_url=welcome_url
+        id=invite.id,
+        code=invite.code,
+        email=payload.to_email,
+        join_url=join_url,
+        welcome_url=welcome_url,
     )
 
 
 @router.post("/invites/send-batch", response_model=InviteBatchSendResponse)
 def send_invite_batch(
-    payload: InviteBatchSendRequest, db: Session = Depends(get_db), admin=Depends(require_role("admin"))
+    payload: InviteBatchSendRequest,
+    db: Session = Depends(get_db),
+    admin=Depends(require_role("admin")),
 ):
     svc = BetaService(db)
     sent, failed = svc.send_invite_batch(
@@ -203,11 +224,19 @@ def send_invite_batch(
 
 @router.post("/invites/send-batch-async", response_model=InviteBatchAsyncStartResponse)
 def send_invite_batch_async(
-    payload: InviteBatchSendRequest, db: Session = Depends(get_db), admin=Depends(require_role("admin"))
+    payload: InviteBatchSendRequest,
+    db: Session = Depends(get_db),
+    admin=Depends(require_role("admin")),
 ):
     task = celery_app.send_task(
         "app.tasks.email.send_beta_invites_batch",
-        args=[list(map(str, payload.emails)), payload.role, payload.expires_in_days, payload.source, payload.base_url],
+        args=[
+            list(map(str, payload.emails)),
+            payload.role,
+            payload.expires_in_days,
+            payload.source,
+            payload.base_url,
+        ],
     )
     return InviteBatchAsyncStartResponse(task_id=task.id)
 
@@ -254,7 +283,9 @@ def get_beta_settings(db: Session = Depends(get_db), admin=Depends(require_role(
 
 @router.put("/settings", response_model=BetaSettingsPayload)
 def update_beta_settings(
-    payload: BetaSettingsPayload, db: Session = Depends(get_db), admin=Depends(require_role("admin"))
+    payload: BetaSettingsPayload,
+    db: Session = Depends(get_db),
+    admin=Depends(require_role("admin")),
 ):
     repo = BetaSettingsRepository(db)
     rec = repo.update_settings(

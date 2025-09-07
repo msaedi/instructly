@@ -89,7 +89,11 @@ def get_booking_service(
         BookingService instance
     """
     return BookingService(
-        db, notification_service, repository=None, conflict_checker_repository=None, cache_service=cache_service
+        db,
+        notification_service,
+        repository=None,
+        conflict_checker_repository=None,
+        cache_service=cache_service,
     )
 
 

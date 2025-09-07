@@ -1,6 +1,6 @@
 # backend/app/database.py
-import logging
 from datetime import datetime
+import logging
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker

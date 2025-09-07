@@ -14,7 +14,12 @@ from ..auth import get_current_user
 from ..core.enums import PermissionName
 from ..database import get_db
 from ..dependencies.permissions import require_permission
-from ..schemas.favorites import FavoritedInstructor, FavoriteResponse, FavoritesList, FavoriteStatusResponse
+from ..schemas.favorites import (
+    FavoritedInstructor,
+    FavoriteResponse,
+    FavoritesList,
+    FavoriteStatusResponse,
+)
 from ..schemas.instructor import InstructorProfileResponse
 from ..services.favorites_service import FavoritesService
 
@@ -37,7 +42,9 @@ async def add_favorite(
     current_user: str = Depends(get_current_user),
     db: Session = Depends(get_db),
     favorites_service: FavoritesService = Depends(get_favorites_service),
-    _: None = Depends(require_permission(PermissionName.CREATE_BOOKINGS)),  # Students can create bookings
+    _: None = Depends(
+        require_permission(PermissionName.CREATE_BOOKINGS)
+    ),  # Students can create bookings
 ):
     """
     Add an instructor to the current user's favorites.
@@ -73,7 +80,9 @@ async def add_favorite(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error adding favorite: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add favorite")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add favorite"
+        )
 
 
 @router.delete("/{instructor_id}", response_model=FavoriteResponse)
@@ -82,7 +91,9 @@ async def remove_favorite(
     current_user: str = Depends(get_current_user),
     db: Session = Depends(get_db),
     favorites_service: FavoritesService = Depends(get_favorites_service),
-    _: None = Depends(require_permission(PermissionName.CREATE_BOOKINGS)),  # Students can create bookings
+    _: None = Depends(
+        require_permission(PermissionName.CREATE_BOOKINGS)
+    ),  # Students can create bookings
 ):
     """
     Remove an instructor from the current user's favorites.
@@ -118,7 +129,9 @@ async def remove_favorite(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error removing favorite: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to remove favorite")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to remove favorite"
+        )
 
 
 @router.get("", response_model=FavoritesList)
@@ -174,7 +187,9 @@ async def get_favorites(
 
     except Exception as e:
         logger.error(f"Error getting favorites: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get favorites")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get favorites"
+        )
 
 
 @router.get("/check/{instructor_id}", response_model=FavoriteStatusResponse)
@@ -210,10 +225,15 @@ async def check_favorite_status(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         # Check favorite status
-        is_favorited = favorites_service.is_favorited(student_id=user.id, instructor_id=instructor_id)
+        is_favorited = favorites_service.is_favorited(
+            student_id=user.id, instructor_id=instructor_id
+        )
 
         return FavoriteStatusResponse(is_favorited=is_favorited)
 
     except Exception as e:
         logger.error(f"Error checking favorite status: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to check favorite status")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check favorite status",
+        )
