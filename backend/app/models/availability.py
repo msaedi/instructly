@@ -16,7 +16,7 @@ Classes:
 import logging
 
 import ulid
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Index, Integer, String, Time, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Index, String, Time, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 

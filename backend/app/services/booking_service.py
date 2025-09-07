@@ -314,8 +314,9 @@ class BookingService(BaseService):
                 )
 
             # Phase 2.2: Schedule authorization based on lesson timing
-            booking_datetime = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
-            now = datetime.now(timezone.utc)
+            # Use naive datetimes consistently to avoid timezone skew with stored local times
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            now = datetime.now()
             hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
 
             if hours_until_lesson <= 24:
@@ -1265,7 +1266,7 @@ class BookingService(BaseService):
     async def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
         """Apply business rules for cancellation."""
         # Check cancellation deadline using user's timezone
-        from app.core.timezone_utils import get_user_timezone, get_user_today_by_id
+        from app.core.timezone_utils import get_user_timezone
 
         # Get user's timezone for proper comparison
         user_tz = get_user_timezone(user)

@@ -499,7 +499,7 @@ class SearchService(BaseService):
         else:
             # For specific service queries, first try exact match; if none, fall back to semantic search
             exact_candidates = []  # (service, score)
-            performed_vector_search = False
+            _performed_vector_search = False
             if parsed["cleaned_query"]:
                 # Search for exact/close text matches
                 exact_services = self.catalog_repository.search_services(query_text=parsed["cleaned_query"], limit=10)
@@ -538,7 +538,7 @@ class SearchService(BaseService):
                     )
                     if similar_services:
                         break
-                performed_vector_search = True
+                _performed_vector_search = True
                 if similar_services:
                     raw_candidates = [(svc, score, "vector") for svc, score in similar_services[:10]]
 

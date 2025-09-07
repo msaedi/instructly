@@ -1,7 +1,7 @@
 # backend/app/schemas/password_reset.py
 
 from datetime import datetime
-from typing import Optional, Union
+from typing import Union
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 

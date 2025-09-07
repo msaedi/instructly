@@ -9,15 +9,12 @@ Handles business logic for the messaging system including:
 - Email notifications for offline users
 """
 
-import json
 import logging
 from typing import List, Optional
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..core.enums import PermissionName
-from ..core.exceptions import ForbiddenException, NotFoundException, ServiceException, ValidationException
+from ..core.exceptions import ForbiddenException, NotFoundException, ValidationException
 from ..models.booking import Booking, BookingStatus
 from ..models.message import Message
 from ..repositories.factory import RepositoryFactory

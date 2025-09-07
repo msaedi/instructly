@@ -2,7 +2,6 @@
 Centralized email configuration service for InstaInstru.
 Follows repository pattern and dependency injection.
 """
-from typing import Dict, Optional
 
 from sqlalchemy.orm import Session
 

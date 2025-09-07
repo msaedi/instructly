@@ -5,7 +5,6 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from ..models.address import InstructorServiceArea, NYCNeighborhood, UserAddress
-from ..models.region_boundary import RegionBoundary
 from .base_repository import BaseRepository
 
 

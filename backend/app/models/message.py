@@ -9,10 +9,9 @@ for a specific booking.
 from datetime import datetime, timezone
 
 import ulid
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import JSON as SAJSON
-from sqlalchemy.types import TypeDecorator
 
 from ..database import Base
 

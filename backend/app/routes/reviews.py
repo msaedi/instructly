@@ -14,7 +14,6 @@ from ..schemas.review import (
     RatingsBatchResponse,
     ReviewItem,
     ReviewListPageResponse,
-    ReviewListResponse,
     ReviewResponseModel,
     ReviewSubmitRequest,
     ReviewSubmitResponse,

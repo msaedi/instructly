@@ -11,11 +11,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
-from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..models.search_event import SearchEvent
 from ..models.search_history import SearchHistory
 from ..models.search_interaction import SearchInteraction
 from ..repositories.search_event_repository import SearchEventRepository
@@ -123,7 +121,7 @@ class SearchHistoryService(BaseService):
         try:
             query = search_data["search_query"]
             normalized_query = self.normalize_search_query(query)
-            now = datetime.now(timezone.utc)
+            _now = datetime.now(timezone.utc)
 
             # Use repository for atomic UPSERT operation
             result = self.repository.upsert_search(

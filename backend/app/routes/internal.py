@@ -1,10 +1,9 @@
 import hmac
 import os
 from hashlib import sha256
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
 
 from app.ratelimit.config import get_effective_policy, reload_config
 from app.schemas.base import StrictModel

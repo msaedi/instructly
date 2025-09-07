@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from ..core.enums import RoleName
-from ..core.exceptions import ConflictException, NotFoundException, ValidationException
+from ..core.exceptions import NotFoundException, ValidationException
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..repositories.favorites_repository import FavoritesRepository
@@ -66,10 +66,10 @@ class FavoritesService(BaseService):
         self.log_operation("add_favorite", student_id=student_id, instructor_id=instructor_id)
 
         # Validate student exists and is actually a student
-        student = self._validate_student(student_id)
+        _student = self._validate_student(student_id)
 
         # Validate instructor exists and is actually an instructor
-        instructor = self._validate_instructor(instructor_id)
+        _instructor = self._validate_instructor(instructor_id)
 
         # Prevent students from favoriting themselves (edge case)
         if student_id == instructor_id:
@@ -111,10 +111,10 @@ class FavoritesService(BaseService):
         self.log_operation("remove_favorite", student_id=student_id, instructor_id=instructor_id)
 
         # Validate student exists and is actually a student
-        student = self._validate_student(student_id)
+        _student = self._validate_student(student_id)
 
         # Validate instructor exists
-        instructor = self._validate_instructor(instructor_id)
+        _instructor = self._validate_instructor(instructor_id)
 
         try:
             # Remove the favorite
@@ -180,7 +180,7 @@ class FavoritesService(BaseService):
         self.log_operation("get_student_favorites", student_id=student_id)
 
         # Validate student exists
-        student = self._validate_student(student_id)
+        _student = self._validate_student(student_id)
 
         # Get favorites with instructor profiles
         favorites = self.favorites_repository.get_favorites_with_details(student_id)

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from math import sqrt
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, Optional
 
 from .ratings_config import DEFAULT_RATINGS_CONFIG, RatingsConfig
 

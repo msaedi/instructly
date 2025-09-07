@@ -19,21 +19,15 @@ Architecture:
 - Follows established service patterns
 """
 
-import hashlib
-import hmac
 import logging
 from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 import stripe
-import ulid
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..core.exceptions import ServiceException
-from ..models.booking import Booking
-from ..models.instructor import InstructorProfile
 from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
@@ -1445,7 +1439,7 @@ class StripeService(BaseService):
     def _handle_identity_webhook(self, event: Dict[str, Any]) -> bool:
         """Handle Stripe Identity verification session events to persist verification status."""
         try:
-            evt_type = event.get("type", "")
+            _evt_type = event.get("type", "")
             obj = event.get("data", {}).get("object", {})
             verification_status = obj.get("status")
 

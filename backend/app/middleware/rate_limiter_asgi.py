@@ -5,7 +5,6 @@ This is a pure ASGI implementation that avoids the BaseHTTPMiddleware
 "No response returned" issue.
 """
 
-import json
 import logging
 import re
 import time

@@ -1,6 +1,5 @@
 """Beta program models: invites and access grants."""
 
-from datetime import datetime
 from typing import Optional
 
 import ulid

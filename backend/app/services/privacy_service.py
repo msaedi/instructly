@@ -10,11 +10,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict
 
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..models import Booking, InstructorProfile, SearchEvent, SearchHistory, User
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 

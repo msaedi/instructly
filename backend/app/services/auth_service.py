@@ -155,7 +155,7 @@ class AuthService(BaseService):
                     first_name = getattr(user, "first_name", "") or ""
                     default_bio = f"{first_name} is a {city_guess}-based instructor."
 
-                    instructor_profile = self.instructor_repository.create(
+                    _instructor_profile = self.instructor_repository.create(
                         user_id=user.id,
                         # Provide defaults that satisfy response schema validation
                         bio=default_bio,

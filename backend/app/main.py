@@ -259,7 +259,6 @@ app.add_middleware(CsrfOriginMiddlewareASGI)  # CSRF Origin/Referer checks for s
 
 # Add GZip compression middleware with SSE exclusion
 # SSE responses must NOT be compressed to work properly
-from starlette.middleware.gzip import GZipMiddleware
 
 
 class SSEAwareGZipMiddleware(GZipMiddleware):

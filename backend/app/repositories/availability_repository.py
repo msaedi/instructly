@@ -26,7 +26,7 @@ import logging
 from datetime import date, time
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, func, text
+from sqlalchemy import and_, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 

@@ -166,9 +166,6 @@ async def save_week_availability(
         from datetime import date as _date
         from datetime import timedelta as _timedelta
 
-        from fastapi import Depends
-        from sqlalchemy.orm import Session
-
         from app.core.timezone_utils import get_user_today_by_id
 
         if week_data.week_start:

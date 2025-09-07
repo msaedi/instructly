@@ -8,7 +8,6 @@ Slots exist = available. That's it.
 """
 
 import datetime
-from datetime import date
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator

@@ -7,17 +7,15 @@ Implements proper retry timing windows based on lesson time.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 import stripe
-from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.database import get_db
 from app.models.booking import Booking, BookingStatus
-from app.models.instructor import InstructorProfile
-from app.models.payment import PaymentEvent, StripeCustomer
+from app.models.payment import PaymentEvent
 from app.repositories.factory import RepositoryFactory
 from app.services.notification_service import NotificationService
 from app.services.stripe_service import StripeService
@@ -46,14 +44,14 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
 
     db = SessionLocal()
     try:
-        payment_repo = RepositoryFactory.get_payment_repository(db)
+        _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
         notification_service = NotificationService(db)
 
         # Find bookings that need authorization (T-24 hours)
         now = datetime.now(timezone.utc)
-        auth_window_start = now + timedelta(hours=23, minutes=30)  # 23.5 hours
-        auth_window_end = now + timedelta(hours=24, minutes=30)  # 24.5 hours
+        _auth_window_start = now + timedelta(hours=23, minutes=30)  # 23.5 hours
+        _auth_window_end = now + timedelta(hours=24, minutes=30)  # 24.5 hours
 
         # Get bookings that need authorization
         bookings_to_authorize = booking_repo.get_bookings_for_payment_authorization()
@@ -77,7 +75,7 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
 
             try:
                 # Get student's Stripe customer
-                student_customer = payment_repo.get_customer_by_user_id(booking.student_id)
+                student_customer = _payment_repo.get_customer_by_user_id(booking.student_id)
                 if not student_customer:
                     raise Exception(f"No Stripe customer for student {booking.student_id}")
 
@@ -86,7 +84,7 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
 
                 instructor_repo = InstructorProfileRepository(db)
                 instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
-                instructor_account = payment_repo.get_connected_account_by_instructor_id(
+                instructor_account = _payment_repo.get_connected_account_by_instructor_id(
                     instructor_profile.id if instructor_profile else None
                 )
 
@@ -97,8 +95,8 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                 original_amount_cents = int(booking.total_price * 100)
                 credits_applied = 0
                 try:
-                    if hasattr(payment_repo, "apply_credits_for_booking"):
-                        credit_result = payment_repo.apply_credits_for_booking(
+                    if hasattr(_payment_repo, "apply_credits_for_booking"):
+                        credit_result = _payment_repo.apply_credits_for_booking(
                             user_id=booking.student_id, booking_id=booking.id, amount_cents=original_amount_cents
                         )
                         # Safely coerce to int in case tests use MagicMock
@@ -117,7 +115,7 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                 if amount_cents <= 0:
                     # Fully covered by credits; mark as authorized without creating PI
                     booking.payment_status = "authorized"
-                    payment_repo.create_payment_event(
+                    _payment_repo.create_payment_event(
                         booking_id=booking.id,
                         event_type="auth_succeeded_credits_only",
                         event_data={
@@ -164,7 +162,7 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                     except Exception:
                         pass
 
-                payment_repo.create_payment_event(
+                _payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="auth_succeeded",
                     event_data={
@@ -189,13 +187,13 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                     if "card" in error_message.lower() or "declined" in error_message.lower()
                     else "system_error"
                 )
-                handle_authorization_failure(booking, payment_repo, error_message, error_type, hours_until_lesson)
+                handle_authorization_failure(booking, _payment_repo, error_message, error_type, hours_until_lesson)
                 # T-24 first failure email: send urgent update-card notice on initial failure
                 try:
                     # Only send once
-                    if not has_event_type(payment_repo, booking.id, "t24_first_failure_email_sent"):
+                    if not has_event_type(_payment_repo, booking.id, "t24_first_failure_email_sent"):
                         notification_service.send_final_payment_warning(booking, hours_until_lesson)  # reuse template
-                        payment_repo.create_payment_event(
+                        _payment_repo.create_payment_event(
                             booking_id=booking.id,
                             event_type="t24_first_failure_email_sent",
                             event_data={
@@ -249,7 +247,7 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
 
     db = SessionLocal()
     try:
-        payment_repo = RepositoryFactory.get_payment_repository(db)
+        _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
         notification_service = NotificationService(db)
 
@@ -284,7 +282,7 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
                 booking.cancelled_at = now
                 booking.cancellation_reason = "Payment authorization failed after multiple attempts"
 
-                payment_repo.create_payment_event(
+                _payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="auth_abandoned",
                     event_data={
@@ -301,11 +299,11 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
 
             elif hours_until_lesson <= 12:
                 # T-12hr: Send final warning and retry
-                if not has_event_type(payment_repo, booking.id, "final_warning_sent"):
+                if not has_event_type(_payment_repo, booking.id, "final_warning_sent"):
                     # Send final warning email
                     notification_service.send_final_payment_warning(booking, hours_until_lesson)
 
-                    payment_repo.create_payment_event(
+                    _payment_repo.create_payment_event(
                         booking_id=booking.id,
                         event_type="final_warning_sent",
                         event_data={
@@ -316,7 +314,7 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
                     results["warnings_sent"] += 1
 
                 # Attempt retry
-                if attempt_authorization_retry(booking, payment_repo, db, hours_until_lesson):
+                if attempt_authorization_retry(booking, _payment_repo, db, hours_until_lesson):
                     results["success"] += 1
                 else:
                     results["failed"] += 1
@@ -330,7 +328,7 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
 
                 if should_retry:
                     # Check if we already retried at this window
-                    recent_events = payment_repo.get_payment_events_for_booking(booking.id)
+                    recent_events = _payment_repo.get_payment_events_for_booking(booking.id)
                     recent_retry_times = [
                         e.created_at
                         for e in recent_events
@@ -339,7 +337,7 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
                     ]
 
                     if not recent_retry_times:  # Haven't retried recently
-                        if attempt_authorization_retry(booking, payment_repo, db, hours_until_lesson):
+                        if attempt_authorization_retry(booking, _payment_repo, db, hours_until_lesson):
                             results["success"] += 1
                         else:
                             results["failed"] += 1
@@ -495,7 +493,7 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
 
     db = SessionLocal()
     try:
-        payment_repo = RepositoryFactory.get_payment_repository(db)
+        _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
         now = datetime.now(timezone.utc)
 
@@ -516,7 +514,7 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
         ]
 
         for booking in bookings_to_capture:
-            capture_result = attempt_payment_capture(booking, payment_repo, "instructor_completed")
+            capture_result = attempt_payment_capture(booking, _payment_repo, "instructor_completed")
             if capture_result["success"]:
                 results["captured"] += 1
             else:
@@ -538,7 +536,7 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
             booking.status = BookingStatus.COMPLETED
             booking.completed_at = now
 
-            payment_repo.create_payment_event(
+            _payment_repo.create_payment_event(
                 booking_id=booking.id,
                 event_type="auto_completed",
                 event_data={
@@ -551,7 +549,7 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
             )
 
             # Attempt capture
-            capture_result = attempt_payment_capture(booking, payment_repo, "auto_completed")
+            capture_result = attempt_payment_capture(booking, _payment_repo, "auto_completed")
             if capture_result["success"]:
                 results["captured"] += 1
             else:
@@ -565,7 +563,7 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
 
         for booking in bookings_with_expired_auth:
             # Check when authorization was created
-            auth_events = payment_repo.get_payment_events_for_booking(booking.id)
+            auth_events = _payment_repo.get_payment_events_for_booking(booking.id)
             auth_event = next(
                 (e for e in auth_events if e.event_type in ["auth_succeeded", "auth_retry_succeeded"]), None
             )
@@ -574,10 +572,10 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
                 # Authorization is expired, need to handle it
                 if booking.status == BookingStatus.COMPLETED:
                     # Try to capture anyway (might fail)
-                    capture_result = attempt_payment_capture(booking, payment_repo, "expired_auth")
+                    capture_result = attempt_payment_capture(booking, _payment_repo, "expired_auth")
                     if not capture_result["success"]:
                         # Create new authorization and capture
-                        new_auth_result = create_new_authorization_and_capture(booking, payment_repo, db)
+                        new_auth_result = create_new_authorization_and_capture(booking, _payment_repo, db)
                         if new_auth_result["success"]:
                             results["captured"] += 1
                         else:
@@ -585,7 +583,7 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
                 else:
                     # Mark as expired, will need manual intervention
                     booking.payment_status = "auth_expired"
-                    payment_repo.create_payment_event(
+                    _payment_repo.create_payment_event(
                         booking_id=booking.id,
                         event_type="auth_expired",
                         event_data={
@@ -827,7 +825,7 @@ def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
     """
     try:
         db = next(get_db())
-        payment_repo = RepositoryFactory.get_payment_repository(db)
+        _payment_repo = RepositoryFactory.get_payment_repository(db)
 
         # Get the booking
         booking_repo = RepositoryFactory.get_booking_repository(db)
@@ -863,7 +861,7 @@ def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
 
             booking.payment_status = "captured"
 
-            payment_repo.create_payment_event(
+            _payment_repo.create_payment_event(
                 booking_id=booking.id,
                 event_type="late_cancellation_captured",
                 event_data={
@@ -895,7 +893,7 @@ def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
                 return {"success": True, "already_captured": True}
             else:
                 # Log the error
-                payment_repo.create_payment_event(
+                _payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="late_cancellation_capture_failed",
                     event_data={
@@ -909,7 +907,7 @@ def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
                 return {"success": False, "error": str(e)}
 
         except Exception as e:
-            payment_repo.create_payment_event(
+            _payment_repo.create_payment_event(
                 booking_id=booking.id,
                 event_type="late_cancellation_capture_failed",
                 event_data={
@@ -942,7 +940,7 @@ def check_authorization_health() -> Dict[str, Any]:
     """
     try:
         db = next(get_db())
-        payment_repo = RepositoryFactory.get_payment_repository(db)
+        _payment_repo = RepositoryFactory.get_payment_repository(db)
 
         now = datetime.now(timezone.utc)
 
@@ -1024,7 +1022,7 @@ def audit_and_fix_payout_schedules(self) -> Dict[str, Any]:
 
     db = SessionLocal()
     try:
-        payment_repo = RepositoryFactory.get_payment_repository(db)
+        _payment_repo = RepositoryFactory.get_payment_repository(db)
         stripe_service = StripeService(db)
 
         # repo-pattern-ignore: Simple scan over connected accounts table

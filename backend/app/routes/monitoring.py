@@ -1,15 +1,11 @@
-# backend/app/routes/monitoring.py
 """
-Production monitoring endpoints for performance tracking.
+Monitoring endpoints for health checks and diagnostics.
 
-Provides real-time insights into:
-- Database performance
-- Cache effectiveness
-- Request latency
-- System health
+These endpoints are secured and used for internal monitoring and operations.
 """
 
 import os
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -31,7 +27,7 @@ from ..services.cache_service import get_cache_service
 
 router = APIRouter(
     prefix="/api/monitoring",
-    tags=["monitoring"],
+    tags=["Monitoring"],
     responses={404: {"description": "Not found"}},
 )
 
@@ -229,7 +225,7 @@ async def get_payment_system_health(
 
     Requires monitoring API key in production.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from sqlalchemy import and_, func
 
@@ -237,7 +233,7 @@ async def get_payment_system_health(
     from app.models.payment import PaymentEvent
     from app.repositories.factory import RepositoryFactory
 
-    payment_repo = RepositoryFactory.get_payment_repository(db)
+    _payment_repo = RepositoryFactory.get_payment_repository(db)
     now = datetime.now(timezone.utc)
 
     # Count bookings by payment status
@@ -336,8 +332,7 @@ async def trigger_payment_health_check(
 
     Requires monitoring API key in production.
     """
-    from datetime import datetime
-
+    # datetime already available where needed above; avoid re-import
     try:
         from app.tasks.payment_tasks import check_authorization_health
 

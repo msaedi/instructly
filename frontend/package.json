@@ -51,8 +51,8 @@
     "audit:deadcode": "node scripts/run-knip.mjs",
     "audit:deadcode:ci": "npm run audit:deadcode",
     "audit:typecov": "type-coverage --detail || true",
-    "type:smoke": "tsd --files \"type-tests/**/*.test-d.ts\" || true",
-    "type:smoke:ci": "tsd --files \"type-tests/**/*.test-d.ts\" || true",
+    "type:smoke": "tsd --files \"type-tests/**/*.test-d.ts\"",
+    "type:smoke:ci": "npm run type:smoke",
     "audit:lhci": "next build && lhci autorun || true"
   },
   "dependencies": {
@@ -121,7 +121,7 @@
   "size-limit": [
     {
       "path": ".next/static/chunks/*.js",
-      "limit": "600 kB"
+      "limit": "550 kB"
     }
   ],
   "typeCoverage": {

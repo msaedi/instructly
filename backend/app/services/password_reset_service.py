@@ -78,10 +78,10 @@ class PasswordResetService(BaseService):
                     self._invalidate_existing_tokens(user.id)
 
                     # Generate new token
-                    token = self._generate_reset_token(user.id)
+                    _token = self._generate_reset_token(user.id)
 
                     # Create reset URL
-                    reset_url = f"{settings.frontend_url}/reset-password?token={token}"
+                    reset_url = f"{settings.frontend_url}/reset-password?token={_token}"
 
                     # Send email
                     self.email_service.send_password_reset_email(
@@ -214,7 +214,7 @@ class PasswordResetService(BaseService):
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 
-        reset_token = self.token_repository.create(
+        _reset_token = self.token_repository.create(
             user_id=user_id,
             token=token,
             expires_at=expires_at,

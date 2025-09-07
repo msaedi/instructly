@@ -6,7 +6,7 @@ Provides insights into Redis operations, memory usage, and Celery queue status.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Dict
 
 import redis
 from fastapi import APIRouter, Depends, HTTPException, status

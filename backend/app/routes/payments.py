@@ -26,8 +26,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ..api.dependencies.auth import get_current_active_user
 from ..core.config import settings
-from ..core.enums import RoleName
-from ..core.exceptions import ServiceException, ValidationException
+from ..core.exceptions import ServiceException
 from ..database import get_db
 from ..idempotency.cache import get_cached, set_cached
 from ..models.user import User
@@ -38,20 +37,16 @@ from ..schemas.payment_schemas import (
     CheckoutResponse,
     CreateCheckoutRequest,
     CreditBalanceResponse,
-    CustomerResponse,
     DashboardLinkResponse,
     DeleteResponse,
     EarningsResponse,
     OnboardingResponse,
     OnboardingStatusResponse,
-    PaymentErrorResponse,
-    PaymentIntentResponse,
     PaymentMethodResponse,
     SavePaymentMethodRequest,
     TransactionHistoryItem,
     WebhookResponse,
 )
-from ..services.base import BaseService
 from ..services.stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
@@ -516,7 +511,7 @@ async def save_payment_method(
         validate_student_role(current_user)
 
         # Ensure user has a Stripe customer
-        customer = stripe_service.get_or_create_customer(current_user.id)
+        _customer = stripe_service.get_or_create_customer(current_user.id)
 
         # Save payment method
         payment_method = stripe_service.save_payment_method(
@@ -972,7 +967,7 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
 
         # Try each configured secret until one works
         event = None
-        last_error = None
+        _last_error = None
         secret_type = None
 
         for i, secret in enumerate(webhook_secrets):
@@ -997,7 +992,7 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
                 logger.info(f"Webhook verified with {secret_type} secret for event: {event['type']}")
                 break  # Success! Stop trying other secrets
             except stripe.error.SignatureVerificationError as e:
-                last_error = e
+                _last_error = e
                 continue  # Try next secret
 
         if not event:
@@ -1012,7 +1007,7 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
 
         # Process the verified event
         stripe_service = StripeService(db)
-        result = stripe_service.handle_webhook_event(event)  # Pass parsed event directly
+        _result = stripe_service.handle_webhook_event(event)  # Pass parsed event directly
 
         logger.info(f"Webhook processed successfully: {event['type']}")
         return WebhookResponse(

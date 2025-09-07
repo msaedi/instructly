@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
-from ..core.exceptions import NotFoundException, RepositoryException
+from ..core.exceptions import RepositoryException
 from ..models.review import Review, ReviewResponse, ReviewStatus, ReviewTip
 from .base_repository import BaseRepository
 

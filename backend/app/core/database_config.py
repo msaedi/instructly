@@ -80,7 +80,7 @@ class DatabaseConfig:
             ci_database_url = os.getenv("DATABASE_URL")
             if ci_database_url:
                 logger.info(f"CI environment using provided DATABASE_URL: {self._mask_url(ci_database_url)}")
-                print(f"\033[94m[CI]\033[0m Using CI-provided database")
+                print("\033[94m[CI]\033[0m Using CI-provided database")
                 self._audit_log_operation(
                     "ci_database_selection",
                     {"url": self._mask_url(ci_database_url), "ci_environment": os.getenv("CI", "unknown")},
@@ -308,7 +308,7 @@ class DatabaseConfig:
                     errors.append("INT database (test_database_url) not configured")
 
         if errors:
-            raise ValueError(f"Database configuration errors:\n" + "\n".join(f"  - {error}" for error in errors))
+            raise ValueError("Database configuration errors:\n" + "\n".join(f"  - {error}" for error in errors))
 
     def get_safety_score(self) -> Dict[str, any]:
         """

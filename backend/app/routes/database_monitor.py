@@ -6,7 +6,6 @@ Provides insights into connection pool usage, query performance, and database he
 """
 
 import logging
-from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 

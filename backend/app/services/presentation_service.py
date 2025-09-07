@@ -90,7 +90,7 @@ class PresentationService(BaseService):
         if not first_name:
             return {"first_name": "Unknown", "last_initial": ""}
 
-        formatted_first_name = first_name.strip() if first_name else "Unknown"
+        _formatted_first_name = first_name.strip() if first_name else "Unknown"
         last_initial = ""
 
         if last_name and last_name.strip():

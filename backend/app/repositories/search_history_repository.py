@@ -431,7 +431,6 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         Returns:
             SearchHistory record (new or updated)
         """
-        from sqlalchemy import and_
         from sqlalchemy.dialects.postgresql import insert
 
         now = datetime.now(timezone.utc)

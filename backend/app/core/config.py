@@ -272,7 +272,7 @@ class Settings(BaseSettings):
         # Use the new database configuration system
         try:
             return DatabaseConfig().get_database_url()
-        except Exception as e:
+        except Exception:
             # Surface error immediately; do not fall back to legacy behavior
             raise
 

@@ -28,7 +28,6 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user, get_current_active_user_optional, require_beta_access
@@ -291,7 +290,7 @@ async def go_live(
                 instructor_service.profile_repository.update(profile.id, is_live=True)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to go live")
 
     # Return updated profile

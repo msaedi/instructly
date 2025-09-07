@@ -350,7 +350,7 @@ class ConflictChecker(BaseService):
         # Check if date is in the past using instructor's timezone
         instructor_today = get_user_today_by_id(instructor_id, self.db)
         if booking_date < instructor_today:
-            errors.append(f"Cannot book for past dates (instructor timezone)")
+            errors.append("Cannot book for past dates (instructor timezone)")
         elif booking_date == instructor_today:
             # Get instructor's current time for same-day validation
             instructor = self.user_repository.get_by_id(instructor_id)
@@ -359,7 +359,7 @@ class ConflictChecker(BaseService):
 
                 instructor_now = get_user_now(instructor)
                 if start_time < instructor_now.time():
-                    errors.append(f"Cannot book for past time slots (instructor timezone)")
+                    errors.append("Cannot book for past time slots (instructor timezone)")
 
         # Check minimum advance booking
         advance_check = self.check_minimum_advance_booking(instructor_id, booking_date, start_time)

@@ -15,7 +15,6 @@ from typing import Dict, List, Optional, Set
 
 import anyio
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
 
 from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, NotFoundException
@@ -965,7 +964,7 @@ class InstructorService(BaseService):
         if self.cache_service:
             cached_result = self.cache_service.get(cache_key)
             if cached_result:
-                logger.debug(f"Cache hit for top services per category")
+                logger.debug("Cache hit for top services per category")
                 return cached_result
 
         # Get all categories
@@ -1044,7 +1043,7 @@ class InstructorService(BaseService):
         if self.cache_service:
             cached_result = self.cache_service.get(cache_key)
             if cached_result:
-                logger.debug(f"Cache hit for all services with instructors")
+                logger.debug("Cache hit for all services with instructors")
                 return cached_result
 
         # Get all categories

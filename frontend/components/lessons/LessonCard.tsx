@@ -210,7 +210,8 @@ function getCancellationFeeDisplay(lesson: Booking): string {
   }
 
   const cancelledDate = new Date(lesson.cancelled_at);
-  const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}`);
+  // Normalize to UTC to avoid timezone skew when comparing cancellation vs lesson start
+  const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}Z`);
   const hoursBeforeLesson = (lessonDateTime.getTime() - cancelledDate.getTime()) / (1000 * 60 * 60);
 
   if (hoursBeforeLesson > 24) {

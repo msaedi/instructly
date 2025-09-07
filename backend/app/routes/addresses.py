@@ -1,18 +1,14 @@
 """Routes for user addresses and instructor service areas."""
 
 import logging
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user
-from ..api.dependencies.services import get_db
-from ..core.ulid_helper import is_valid_ulid
 from ..database import get_db as get_session
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ..models.user import User
 from ..schemas.address import (
     AddressCreate,
     AddressListResponse,

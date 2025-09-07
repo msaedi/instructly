@@ -1,4 +1,3 @@
-import time
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -37,7 +36,7 @@ def gcra_decide(
         (new_tat_s, Decision)
     """
     interval = _to_interval_s(rate_per_min)
-    limit_capacity = max(1, int(rate_per_min if burst <= 0 else rate_per_min + burst))
+    _limit_capacity = max(1, int(rate_per_min if burst <= 0 else rate_per_min + burst))
 
     if interval == float("inf"):
         # Zero rate -> always blocked

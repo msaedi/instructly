@@ -5,7 +5,6 @@ Keep subjects in code (not templates) for versioning, logging,
 and future i18n. Bodies remain in Jinja templates.
 """
 
-from typing import Optional
 
 from app.core.constants import BRAND_NAME
 

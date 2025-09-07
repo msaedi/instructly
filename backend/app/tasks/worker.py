@@ -21,10 +21,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from celery.bin import worker
+from celery.bin import worker  # noqa: E402 (path injected above)
 
-from app.core.logging import setup_logging
-from app.tasks import celery_app
+from app.core.logging import setup_logging  # noqa: E402
+from app.tasks import celery_app  # noqa: E402
 
 # Configure logging
 setup_logging()

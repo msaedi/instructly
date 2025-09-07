@@ -8,13 +8,11 @@ Separated from the main instructors routes for better organization.
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import get_account_lifecycle_service
 from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, ValidationException
-from ..database import get_db
 from ..models.user import User
 from ..schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
 from ..services.account_lifecycle_service import AccountLifecycleService

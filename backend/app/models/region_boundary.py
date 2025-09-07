@@ -1,7 +1,6 @@
 """Generic region boundary model for global city support."""
 
 from datetime import datetime, timezone
-from typing import Optional
 
 import ulid
 from sqlalchemy import JSON, Column, DateTime, String

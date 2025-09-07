@@ -20,7 +20,7 @@ import resend
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..core.constants import BRAND_NAME, NOREPLY_EMAIL
+from ..core.constants import BRAND_NAME
 from ..core.exceptions import ServiceException
 from .base import BaseService
 from .email_subjects import EmailSubject

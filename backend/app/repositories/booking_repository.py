@@ -22,7 +22,7 @@ import logging
 from datetime import date, datetime, time, timezone
 from typing import Dict, List, Optional
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.enums import RoleName
@@ -737,7 +737,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             Dictionary with status as key and count as value
         """
         try:
-            from sqlalchemy import case, func
+            from sqlalchemy import func
 
             # Build the filter based on role
             if user_role == RoleName.STUDENT:

@@ -9,10 +9,9 @@ This module defines ORM models for:
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
 import ulid
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
 from ..database import Base

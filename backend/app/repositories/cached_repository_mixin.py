@@ -16,9 +16,7 @@ import hashlib
 import json
 import logging
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Union
-
-from sqlalchemy.orm import Session
+from typing import Any, Callable, Dict, Optional, Union
 
 from ..services.cache_service import CacheService, get_cache_service
 

@@ -11,8 +11,6 @@ from typing import List, Set, Union
 from sqlalchemy.orm import Session
 
 from ..core.enums import PermissionName
-from ..models.rbac import Permission, Role, UserPermission
-from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 

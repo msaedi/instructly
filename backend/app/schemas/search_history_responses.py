@@ -1,11 +1,10 @@
 """Response models for search history endpoints."""
 
+
 from pydantic import BaseModel
 
-from .base import StrictModel
 
-
-class SearchInteractionResponse(StrictModel):
+class SearchInteractionResponse(BaseModel):
     """Response for recording search interaction."""
 
     success: bool

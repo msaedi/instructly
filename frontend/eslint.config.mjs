@@ -73,6 +73,7 @@ const eslintConfig = [
       },
     },
   },
+  // (Reverted) Do not enable no-floating-promises globally; keep it scoped to API shim where typed linting is configured
   // No additional typed-rule overrides; all pages are linted uniformly
   // React Refresh ergonomics in component and test files
   {

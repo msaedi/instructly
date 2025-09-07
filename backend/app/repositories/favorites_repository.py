@@ -8,12 +8,11 @@ Provides methods for adding, removing, and querying favorite instructors.
 import logging
 from typing import List, Optional
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.favorite import UserFavorite
-from ..models.instructor import InstructorProfile
 from ..models.user import User
 from .base_repository import BaseRepository
 

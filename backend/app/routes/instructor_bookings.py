@@ -12,7 +12,7 @@ endpoints in instructors.py.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -21,7 +21,7 @@ from app.api.dependencies import get_current_active_user
 from app.api.dependencies.auth import require_beta_access
 from app.core.enums import PermissionName
 from app.database import get_db
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import BookingStatus
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.base_responses import PaginatedResponse

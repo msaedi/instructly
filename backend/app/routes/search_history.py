@@ -294,7 +294,7 @@ async def track_interaction(
         time_to_interaction = interaction_data.get("time_to_interaction")
 
         logger.info(
-            f"Track interaction request",
+            "Track interaction request",
             {
                 "search_event_id": search_event_id,
                 "interaction_type": interaction_type,
@@ -323,7 +323,7 @@ async def track_interaction(
         )
 
         logger.info(
-            f"Search interaction tracked successfully",
+            "Search interaction tracked successfully",
             {
                 "interaction_id": interaction.id,
                 "user_id": context.user_id,

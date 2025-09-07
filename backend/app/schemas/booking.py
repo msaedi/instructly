@@ -11,7 +11,7 @@ availability changes.
 from datetime import date, datetime, time, timedelta
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..models.booking import BookingStatus
 from ..schemas.base import Money, StandardizedModel

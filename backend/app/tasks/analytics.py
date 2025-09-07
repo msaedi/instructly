@@ -77,7 +77,7 @@ def calculate_analytics(self, days_back: int = 90) -> Dict[str, Any]:
 
         # Log completion
         logger.info(
-            f"Analytics calculation completed successfully",
+            "Analytics calculation completed successfully",
             extra={
                 "task_id": task_id,
                 "execution_time": execution_time,
@@ -152,7 +152,7 @@ def generate_daily_report(self) -> Dict[str, Any]:
         execution_time = time.time() - start_time
 
         logger.info(
-            f"Daily report generated successfully",
+            "Daily report generated successfully",
             extra={
                 "task_id": task_id,
                 "execution_time": execution_time,
@@ -288,7 +288,7 @@ def record_task_execution(
         # This would require a TaskExecution model to be created
         # For now, just log it
         logger.info(
-            f"Task execution recorded",
+            "Task execution recorded",
             extra={
                 "task_name": task_name,
                 "status": status,

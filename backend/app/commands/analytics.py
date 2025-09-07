@@ -267,7 +267,7 @@ Examples:
     run_parser.add_argument("--async", action="store_true", dest="async_mode", help="Run asynchronously via Celery")
 
     # Status command
-    status_parser = subparsers.add_parser("status", help="Check last run status")
+    _status_parser = subparsers.add_parser("status", help="Check last run status")
 
     # Parse arguments
     args = parser.parse_args()
@@ -282,13 +282,13 @@ Examples:
 
         if result["status"] == "submitted":
             print(f"✅ {result['message']}")
-            print(f"   Check status with: python -m app.commands.analytics status")
+            print("   Check status with: python -m app.commands.analytics status")
         elif result["status"] == "success":
-            print(f"✅ Analytics completed successfully!")
+            print("✅ Analytics completed successfully!")
             print(f"   Execution time: {result['execution_time']:.2f}s")
             print(f"   Services updated: {result['services_updated']}")
             if "report" in result:
-                print(f"\n📊 Report Summary:")
+                print("\n📊 Report Summary:")
                 print(json.dumps(result["report"], indent=2))
         else:
             print(f"❌ Analytics failed: {result.get('error', 'Unknown error')}")
@@ -305,7 +305,7 @@ Examples:
         else:
             # Display last run info
             last_run = status["last_run"]
-            print(f"Last Run:")
+            print("Last Run:")
             print(f"  Started: {last_run['started_at']}")
             print(f"  Status: {last_run['status']}")
 
@@ -329,14 +329,14 @@ Examples:
 
             # Display database stats
             if "database_stats" in status:
-                print(f"\nDatabase Statistics:")
+                print("\nDatabase Statistics:")
                 stats = status["database_stats"]
                 print(f"  Total Analytics Records: {stats['total_records']}")
                 print(f"  Latest Update: {stats['latest_update']}")
 
             # Display report if available
             if "report" in status:
-                print(f"\nLast Report Summary:")
+                print("\nLast Report Summary:")
                 print(json.dumps(status["report"], indent=2))
 
     else:

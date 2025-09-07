@@ -395,7 +395,7 @@ class NotificationService(BaseService):
         html_content = self.template_service.render_template("email/booking/confirmation_student.html", context)
 
         # Send email - let exceptions propagate for retry
-        response = self.email_service.send_email(
+        _response = self.email_service.send_email(
             to_email=booking.student.email,
             subject=subject,
             html_content=html_content,
@@ -551,7 +551,7 @@ class NotificationService(BaseService):
         html_content = self.template_service.render_template("email/booking/confirmation_instructor.html", context)
 
         # Send email - let exceptions propagate for retry
-        response = self.email_service.send_email(
+        _response = self.email_service.send_email(
             to_email=booking.instructor.email,
             subject=subject,
             html_content=html_content,
@@ -586,7 +586,7 @@ class NotificationService(BaseService):
         # Render template
         html_content = self.template_service.render_template("email/booking/cancellation_student.html", context)
 
-        response = self.email_service.send_email(
+        _response = self.email_service.send_email(
             to_email=booking.student.email,
             subject=subject,
             html_content=html_content,
@@ -618,7 +618,7 @@ class NotificationService(BaseService):
         # Render template
         html_content = self.template_service.render_template("email/booking/cancellation_instructor.html", context)
 
-        response = self.email_service.send_email(
+        _response = self.email_service.send_email(
             to_email=booking.instructor.email,
             subject=subject,
             html_content=html_content,
@@ -649,7 +649,7 @@ class NotificationService(BaseService):
             "email/booking/cancellation_confirmation_student.html", context
         )
 
-        response = self.email_service.send_email(
+        _response = self.email_service.send_email(
             to_email=booking.student.email,
             subject=subject,
             html_content=html_content,
@@ -680,7 +680,7 @@ class NotificationService(BaseService):
             "email/booking/cancellation_confirmation_instructor.html", context
         )
 
-        response = self.email_service.send_email(
+        _response = self.email_service.send_email(
             to_email=booking.instructor.email,
             subject=subject,
             html_content=html_content,
@@ -707,7 +707,7 @@ class NotificationService(BaseService):
         html_content = self.template_service.render_template("email/booking/reminder_student.html", context)
 
         # Send email - let exceptions propagate for retry
-        response = self.email_service.send_email(
+        _response = self.email_service.send_email(
             to_email=booking.student.email,
             subject=subject,
             html_content=html_content,
@@ -734,7 +734,7 @@ class NotificationService(BaseService):
         html_content = self.template_service.render_template("email/booking/reminder_instructor.html", context)
 
         # Send email - let exceptions propagate for retry
-        response = self.email_service.send_email(
+        _response = self.email_service.send_email(
             to_email=booking.instructor.email,
             subject=subject,
             html_content=html_content,
@@ -768,7 +768,7 @@ class NotificationService(BaseService):
             sender = user_repo.get_by_id(sender_id)
 
             if not recipient or not sender:
-                self.logger.error(f"Cannot send message notification: users not found")
+                self.logger.error("Cannot send message notification: users not found")
                 return False
 
             # Determine if sender is instructor or student
@@ -794,13 +794,13 @@ class NotificationService(BaseService):
             html_content = self.template_service.render_template("email/booking/new_message.html", context)
 
             # Send email
-            response = self.email_service.send_email(
+            _response = self.email_service.send_email(
                 to_email=recipient.email,
                 subject=subject,
                 html_content=html_content,
             )
 
-            if response:
+            if _response:
                 self.logger.info(f"Message notification sent to {recipient.email}")
                 return True
             else:

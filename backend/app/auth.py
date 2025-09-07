@@ -194,6 +194,11 @@ async def get_current_user(request: Request, token: Optional[str] = Depends(oaut
         email: str = payload.get("sub")
         if email is None:
             logger.warning("Token payload missing 'sub' field")
+            credentials_exception = HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
             raise credentials_exception
 
         logger.debug(f"Successfully validated token for user: {email}")

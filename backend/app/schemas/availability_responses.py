@@ -1,11 +1,9 @@
 """Response models for availability endpoints."""
 
-from datetime import date, time
-from typing import Any, Dict, List, Optional
+from datetime import date
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
-
-from .availability_window import AvailabilityWindowResponse, BlackoutDateResponse
 
 
 class WeekAvailabilityUpdateResponse(BaseModel):

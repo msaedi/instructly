@@ -40,9 +40,11 @@ __all__ = [
     "process_monitoring_alert",
     "send_alert_email",
     "create_github_issue_for_alert",
+    # Explicitly re-export side-effect/task-discovery imports
+    "cleanup_old_alerts",
 ]
 
 # Import all_tasks to ensure task discovery
-from app.tasks import all_tasks
+from app.tasks import all_tasks  # noqa: F401
 
 # This allows running celery with: celery -A app.tasks worker

@@ -549,7 +549,7 @@ async def candidates_summary(
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
     db: Session = Depends(get_db),
 ) -> CandidateSummaryResponse:
-    from sqlalchemy import and_, func, literal
+    from sqlalchemy import and_, func
 
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days)

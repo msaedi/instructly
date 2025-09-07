@@ -14,7 +14,6 @@ from app.services.two_factor_auth_service import TwoFactorAuthService
 from ..api.dependencies.services import get_auth_service
 from ..schemas.security import (
     BackupCodesResponse,
-    LoginResponse,
     TFADisableRequest,
     TFADisableResponse,
     TFASetupInitiateResponse,

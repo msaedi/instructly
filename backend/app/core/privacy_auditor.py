@@ -10,24 +10,19 @@ The auditor ensures that privacy rules are enforced across all API endpoints,
 preventing exposure of sensitive data like full last names, emails, phone numbers, etc.
 """
 
-import asyncio
 import json
 import logging
-import os
 import re
-import sys
 import time
 import traceback
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
-from urllib.parse import urlparse
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 import yaml
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -234,15 +229,15 @@ class PrivacyAuditor:
         violations = []
 
         # Check for forbidden fields
-        for field in rules.forbidden_fields:
-            findings = self._check_field_recursively(data, field)
+        for field_name in rules.forbidden_fields:
+            findings = self._check_field_recursively(data, field_name)
             for path, value in findings:
                 violations.append(
                     Violation(
                         endpoint=endpoint,
                         method=method,
                         violation_type="forbidden_field",
-                        message=f"Field '{field}' should not be exposed",
+                        message=f"Field '{field_name}' should not be exposed",
                         severity=rules.severity,
                         field_path=path,
                         example_value=value,
@@ -250,8 +245,8 @@ class PrivacyAuditor:
                 )
 
         # Check field formats (e.g., name should be "FirstName L.")
-        for field, expected_format in rules.field_format.items():
-            findings = self._check_field_recursively(data, field)
+        for field_name, expected_format in rules.field_format.items():
+            findings = self._check_field_recursively(data, field_name)
             for path, value in findings:
                 if not self._matches_format(value, expected_format):
                     violations.append(
@@ -259,7 +254,7 @@ class PrivacyAuditor:
                             endpoint=endpoint,
                             method=method,
                             violation_type="incorrect_format",
-                            message=f"Field '{field}' has incorrect format. Expected: {expected_format}",
+                            message=f"Field '{field_name}' has incorrect format. Expected: {expected_format}",
                             severity=ViolationSeverity.MEDIUM,
                             field_path=path,
                             example_value=value,

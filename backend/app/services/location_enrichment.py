@@ -10,7 +10,7 @@ to generic metadata if enrichment is unavailable or no match is found.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple, TypedDict
+from typing import Optional, TypedDict
 
 from sqlalchemy.orm import Session
 

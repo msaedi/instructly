@@ -50,7 +50,7 @@ class SearchHistoryCleanupService(BaseService):
             logger.info("Soft delete retention is disabled (0 days), skipping cleanup")
             return 0
 
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.soft_delete_retention_days)
+        _cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.soft_delete_retention_days)
 
         try:
             # Find and delete old soft-deleted records
@@ -87,7 +87,7 @@ class SearchHistoryCleanupService(BaseService):
             logger.info("Guest session purge is disabled (0 days), skipping cleanup")
             return 0
 
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.guest_session_purge_days)
+        _cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.guest_session_purge_days)
 
         try:
             # Delete old converted guest searches

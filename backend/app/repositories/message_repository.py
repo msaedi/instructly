@@ -10,13 +10,12 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import NotFoundException, RepositoryException
 from ..models.booking import Booking
 from ..models.message import Message, MessageNotification
-from ..models.user import User
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)

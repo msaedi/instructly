@@ -12,7 +12,7 @@ import imghdr
 import io
 import logging
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Tuple
 
 from PIL import Image, ImageOps
 
