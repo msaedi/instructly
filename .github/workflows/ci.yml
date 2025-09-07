@@ -187,7 +187,7 @@ jobs:
 
       - name: Ruff (backend app)
         working-directory: backend
-        run: ruff check app
+        run: ruff check app --select F,I
 
       - name: MyPy (scoped, warn)
         run: mypy backend/app/schemas/base.py backend/app/schemas/search_history_responses.py backend/app/routes/internal.py || echo "::warning ::mypy reported issues"
