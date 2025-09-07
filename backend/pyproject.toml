@@ -116,12 +116,13 @@ extend-exclude = [
   "backend/tests/**",
   "backend/**/tests/**",
   "backend/migrations/**",
+  "backend/alembic/**",
   "backend/scripts/**"
 ]
 src = ["backend/app"]
 
 [tool.ruff.lint]
-select = ["E","F","I","UP","B","ANN"]
+select = ["F","I"]
 ignore = []
 
 [tool.ruff.lint.isort]

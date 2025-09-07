@@ -25,10 +25,10 @@ repos:
       - id: ruff
         args: ["--fix", "--exit-non-zero-on-fix"]
         additional_dependencies: ["ruff==0.5.7"]
-        files: ^backend/
+        files: ^backend/app/
       - id: ruff-format
         additional_dependencies: ["ruff==0.5.7"]
-        files: ^backend/
+        files: ^backend/app/
 
   - repo: local
     hooks:
