@@ -183,7 +183,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install backend lint/type tools
-        run: pip install -q ruff mypy
+        run: pip install -q "ruff==0.5.7" mypy
 
       - name: Ruff (backend app)
         working-directory: backend
