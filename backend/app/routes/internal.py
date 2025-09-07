@@ -1,7 +1,7 @@
 import hmac
 import os
 from hashlib import sha256
-from typing import Any, Awaitable, Callable, Dict, Optional, TypeVar, cast
+from typing import Any, Callable, Dict, Optional, TypeVar, cast
 
 from fastapi import APIRouter, HTTPException, Request
 
