@@ -90,11 +90,3 @@ repos:
         files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: true
         description: Fail commit if console.* is used in staged frontend TS/TSX files (tests/e2e excluded)
-
-      - id: pre-push
-        name: pre-push (CI fail-gates parity)
-        entry: scripts/prepush.sh
-        language: script
-        pass_filenames: false
-        stages: [push]
-        description: Run backend/frontend fail-gates before pushing

@@ -9,7 +9,8 @@ shopt -s extglob nullglob
 frontend_files=()
 for f in "$@"; do
   if [[ "$f" =~ ^frontend/.*\.(ts|tsx|js|jsx)$ ]]; then
-    frontend_files+=("$f")
+    rel_path="${f#frontend/}"
+    frontend_files+=("$rel_path")
   fi
 done
 

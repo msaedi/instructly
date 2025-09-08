@@ -189,8 +189,17 @@ jobs:
         working-directory: backend
         run: ruff check app --select F,I
 
+      - name: Setup Python 3.11 for backend mypy
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install mypy and stubs
+        run: pip install -q mypy types-pytz
+
       - name: MyPy (scoped, warn)
-        run: mypy backend/app/schemas/base.py backend/app/schemas/search_history_responses.py backend/app/routes/internal.py || echo "::warning ::mypy reported issues"
+        working-directory: backend
+        run: mypy app/schemas app/routes/internal.py || echo "::warning ::mypy reported issues"
 
       - name: MyPy (summary)
         run: |

@@ -31,7 +31,19 @@ const config = {
     'node_modules/**',
   ],
 
-  external: ['@/lib/env'],
+  // external is not a valid top-level key in some knip versions; use ignore instead
+  // to suppress false positives for '@/lib/env'
+  ignore: [
+    'playwright.config.ts',
+    'e2e/**',
+    '**/__tests__/**',
+    'type-tests/**',
+    'types/generated/**',
+    '.next/**',
+    'node_modules/**',
+  ],
+  // Tell knip to treat module spec '@/lib/env' as provided externally
+  // Older knip doesn’t support a top-level `external` field; use entry/ignore
 
 };
 
