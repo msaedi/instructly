@@ -43,7 +43,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
 
     def find_existing_search(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         query: Optional[str] = None,
     ) -> Optional[SearchHistory]:
@@ -56,7 +56,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
             return None
 
         if user_id is not None:
-            context = SearchUserContext.from_user(int(user_id))
+            context = SearchUserContext.from_user(user_id)
         elif guest_session_id:
             context = SearchUserContext.from_guest(guest_session_id)
         else:
@@ -89,7 +89,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
 
     def find_existing_search_for_update(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         search_query: Optional[str] = None,
     ) -> Optional[SearchHistory]:
@@ -118,7 +118,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
         )
 
         if user_id is not None:
-            query = query.filter(SearchHistory.user_id == int(user_id))
+            query = query.filter(SearchHistory.user_id == user_id)
         elif guest_session_id:
             query = query.filter(SearchHistory.guest_session_id == guest_session_id)
         else:
@@ -153,7 +153,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
         return cast(List[SearchHistory], query.limit(limit).all())
 
     def get_recent_searches(
-        self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, limit: int = 3
+        self, user_id: Optional[str] = None, guest_session_id: Optional[str] = None, limit: int = 3
     ) -> List[SearchHistory]:
         """
         Get recent searches for a user or guest session.
@@ -161,7 +161,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
         Excludes soft-deleted entries and orders by most recent.
         """
         if user_id is not None:
-            context = SearchUserContext.from_user(int(user_id))
+            context = SearchUserContext.from_user(user_id)
         elif guest_session_id:
             context = SearchUserContext.from_guest(guest_session_id)
         else:
@@ -177,7 +177,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
 
     def count_searches(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         exclude_deleted: bool = True,
     ) -> int:
@@ -185,7 +185,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
         Count searches for a user or guest session.
         """
         if user_id is not None:
-            context = SearchUserContext.from_user(int(user_id))
+            context = SearchUserContext.from_user(user_id)
         elif guest_session_id:
             context = SearchUserContext.from_guest(guest_session_id)
         else:
@@ -202,7 +202,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
 
     def get_searches_to_delete(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         keep_count: int = 10,
     ) -> Query:
@@ -225,7 +225,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
 
     def soft_delete_old_searches(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         keep_ids_subquery: Optional[Query] = None,
     ) -> int:
@@ -255,7 +255,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
             query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
         )
 
-    def soft_delete_by_id(self, search_id: str, user_id: int) -> bool:
+    def soft_delete_by_id(self, search_id: str, user_id: str) -> bool:
         """
         Soft delete a specific search entry for an authenticated user.
         """
@@ -293,7 +293,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
 
     def create(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         search_query: Optional[str] = None,
         search_type: str = "natural_language",
@@ -455,7 +455,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
 
     def upsert_search(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         search_query: Optional[str] = None,
         normalized_query: Optional[str] = None,
@@ -534,7 +534,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
 
     def get_search_by_user_and_query(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         normalized_query: Optional[str] = None,
     ) -> Optional[SearchHistory]:
@@ -558,7 +558,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
                 self.db.query(SearchHistory)
                 .filter(
                     and_(
-                        SearchHistory.user_id == int(user_id),
+                        SearchHistory.user_id == user_id,
                         SearchHistory.normalized_query == normalized_query,
                         SearchHistory.deleted_at.is_(None),
                     )
@@ -581,7 +581,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[mi
 
     def enforce_search_limit(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         max_searches: int = 10,
     ) -> int:

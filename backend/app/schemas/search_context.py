@@ -22,7 +22,7 @@ class SearchUserContext:
     """
 
     # One of these must be set
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None
     guest_session_id: Optional[str] = None
 
     # Session tracking for analytics
@@ -35,7 +35,7 @@ class SearchUserContext:
             raise ValueError("Must provide exactly one of user_id or guest_session_id")
 
     @classmethod
-    def from_user(cls, user_id: int, session_id: Optional[str] = None) -> "SearchUserContext":
+    def from_user(cls, user_id: str, session_id: Optional[str] = None) -> "SearchUserContext":
         """Create context for an authenticated user."""
         return cls(user_id=user_id, session_id=session_id)
 
