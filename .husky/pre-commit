@@ -1,31 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Contract drift check only if backend API changed
-CHANGED=$(git diff --cached --name-only)
-if echo "$CHANGED" | grep -E '^(backend/app|backend/routers|backend/schemas|backend/openapi|backend/scripts)'; then
-  echo "→ Running contract drift check (backend touched)"
-  (cd frontend && npm run contract:check) || exit 1
-fi
-
-cd frontend || exit 1
-# Lint only staged files (fast)
-npx lint-staged
-# Verify no dynamic NEXT_PUBLIC_* reads slipped in client code
-echo "🔐 Verifying public env usage..."
-npm run verify:public-env || exit 1
-# Full project lint to catch all issues
-echo "🔍 Running full project lint..."
-npm run lint
-# Full typecheck to catch cross-file issues
-npm run typecheck
-# Strict typecheck (fast incremental)
-echo "🧠 Running strict typecheck (fast)..."
-npm run typecheck:strict-all:fast
-
-# Run repository-wide Python pre-commit suite (Black, isort, API contracts, timezone, repo pattern, metrics, no-console)
-cd .. || exit 1
-if command -v pre-commit >/dev/null 2>&1; then
-  PRE_COMMIT=1 pre-commit run --show-diff-on-failure
-else
-  echo "pre-commit not installed; skipping Python hooks" >&2
-fi
+exec ./scripts/run-pre-commit.sh

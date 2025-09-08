@@ -28,12 +28,28 @@ repos:
     hooks:
       - id: ruff
         name: ruff (backend/app)
-        args: ["--fix", "--select", "F,I", "backend/app"]
+        args: ["--fix", "--select", "F", "--select", "I"]
         additional_dependencies: ["ruff==0.5.7"]
         files: ^backend/app/.*\.py$
 
   - repo: local
     hooks:
+      - id: frontend-eslint
+        name: Frontend ESLint (staged files)
+        entry: scripts/precommit_frontend_eslint.sh
+        language: script
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: true
+        description: Run ESLint on staged frontend files only
+
+      - id: frontend-public-env
+        name: Frontend public env verify
+        entry: bash -lc "cd frontend && npm run verify:public-env --silent"
+        language: system
+        files: ^frontend/.*
+        pass_filenames: false
+        description: Verify public env usage when frontend files are staged
+
       - id: api-contracts
         name: API Contract Check
         entry: backend/scripts/check_api_contracts_wrapper.sh
@@ -74,3 +90,11 @@ repos:
         files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: true
         description: Fail commit if console.* is used in staged frontend TS/TSX files (tests/e2e excluded)
+
+      - id: pre-push
+        name: pre-push (CI fail-gates parity)
+        entry: scripts/prepush.sh
+        language: script
+        pass_filenames: false
+        stages: [push]
+        description: Run backend/frontend fail-gates before pushing

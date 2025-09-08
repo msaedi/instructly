@@ -1,7 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Frontend strict typecheck gate before push (full, no emit)
-if [ -d "frontend" ]; then
-  echo "🧠 Running frontend strict typecheck (full)..."
-  (cd frontend && npm run typecheck:strict-all) || exit 1
-fi
+exec ./scripts/prepush.sh
