@@ -19,4 +19,9 @@ if [[ ${#frontend_files[@]} -eq 0 ]]; then
 fi
 
 cd frontend
+# If node_modules isn't installed (e.g., pre-commit run in CI before npm ci), skip fast.
+if [[ ! -d node_modules ]]; then
+  echo "[pre-commit] skipping ESLint (frontend/node_modules not installed)"
+  exit 0
+fi
 npx --yes eslint --max-warnings=0 --report-unused-disable-directives --cache --cache-location .artifacts/.eslintcache "${frontend_files[@]}"
