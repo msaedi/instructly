@@ -61,7 +61,7 @@ export default function ReviewPage() {
         logger.error('Failed to check existing review', error as Error);
       }
     };
-    checkExistingReview();
+    void checkExistingReview();
   }, [lesson]);
 
   // Show loading while checking auth
@@ -164,9 +164,9 @@ export default function ReviewPage() {
       toast.success('Review submitted successfully!');
 
       // Invalidate lessons caches so History reflects Reviewed status immediately
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      await queryClient.invalidateQueries({ queryKey: ['bookings'] });
 
       // Redirect back to lessons (history tab)
       router.push('/student/lessons?tab=history');

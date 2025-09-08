@@ -48,7 +48,7 @@ function ResetPasswordForm() {
       setError('Failed to verify reset link.');
     } finally { setIsVerifying(false); }
   }, [token]);
-  useEffect(() => { verifyToken(); }, [token, verifyToken]);
+  useEffect(() => { void verifyToken(); }, [token, verifyToken]);
   useEffect(() => {
     setPasswordValidations({ minLength: password.length >= 8, hasUppercase: /[A-Z]/.test(password), hasNumber: /[0-9]/.test(password) });
   }, [password]);

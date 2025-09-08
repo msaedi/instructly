@@ -38,7 +38,7 @@ function BookingConfirmationContent() {
       }
     };
 
-    fetchBooking();
+    void fetchBooking();
   }, [bookingId]);
 
   const generateICSFile = () => {

@@ -111,7 +111,7 @@ export default function Dashboard() {
       }
     };
 
-    checkUserRoleAndRedirect();
+    void checkUserRoleAndRedirect();
   }, [router]);
 
   // Error state

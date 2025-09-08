@@ -233,9 +233,9 @@ function StudentDashboardContent() {
   };
 
   useEffect(() => {
-    loadAddresses();
+    void loadAddresses();
     // Preload TFA status in background
-    (async () => {
+    void (async () => {
       try {
         const res = await fetchWithAuth('/api/auth/2fa/status');
         if (res.ok) {
@@ -376,7 +376,7 @@ function StudentDashboardContent() {
                           <ProfilePictureUpload
                             size={144}
                             ariaLabel="Change profile picture"
-                            onCompleted={() => { setProfilePhoto(null); refetchUserData(); }}
+                            onCompleted={() => { setProfilePhoto(null); void refetchUserData(); }}
                             trigger={
                               <UserAvatar
                                 user={{
@@ -395,7 +395,7 @@ function StudentDashboardContent() {
                             }
                           />
                         ) : (
-                          <ProfilePictureUpload size={144} onCompleted={() => { setProfilePhoto(null); refetchUserData(); }} />
+                          <ProfilePictureUpload size={144} onCompleted={() => { setProfilePhoto(null); void refetchUserData(); }} />
                         )}
                       </div>
                       <div className="space-y-1.5 text-sm text-gray-700">
@@ -560,7 +560,7 @@ function StudentDashboardContent() {
                                       boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
                                     },
                                   });
-                                  loadAddresses();
+                                  void loadAddresses();
                                 } else {
                                   toast.error('Failed to remove address', {
                                     style: {
@@ -764,7 +764,7 @@ function StudentDashboardContent() {
                         className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-[#6A0DAD] px-4 text-sm font-medium text-white hover:bg-[#6A0DAD] cursor-pointer"
                         onClick={() => {
                           const link = `https://instainstru.com/ref/${(userData?.first_name || 'USER').toUpperCase().slice(0, 3)}${(userData?.id || '').slice(-3)}`;
-                          navigator.clipboard.writeText(link);
+                          void navigator.clipboard.writeText(link);
                           setReferralStatus('Referral link copied');
                           setTimeout(() => setReferralStatus(''), 2000);
                         }}
@@ -953,7 +953,7 @@ function StudentDashboardContent() {
           onClose={() => setShowAddressModal(null)}
           onSaved={() => {
             setShowAddressModal(null);
-            loadAddresses();
+            void loadAddresses();
           }}
         />
       )}
@@ -980,7 +980,7 @@ function StudentDashboardContent() {
           onClose={() => setShowEditProfile(false)}
           onSaved={() => {
             setShowEditProfile(false);
-            refetchUserData(); // Refresh user data without page reload
+            void refetchUserData(); // Refresh user data without page reload
           }}
         />
       )}
@@ -1665,7 +1665,7 @@ function TfaModal({ onClose, onChanged }: { onClose: () => void; onChanged: () =
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !loading && code.trim().length >= 6) {
                     e.preventDefault();
-                    verify();
+                    void verify();
                   }
                 }}
                 placeholder="123 456"
@@ -1691,7 +1691,7 @@ function TfaModal({ onClose, onChanged }: { onClose: () => void; onChanged: () =
                 <div className="mt-2 flex gap-2">
                   <button
                     className="rounded-md border px-3 py-1 text-xs hover:bg-gray-100 active:bg-gray-200 transition-colors"
-                    onClick={() => { navigator.clipboard.writeText(backupCodes.join('\n')); toast.success('Backup codes copied', {
+                    onClick={() => { void navigator.clipboard.writeText(backupCodes.join('\n')); toast.success('Backup codes copied', {
                       style: {
                         background: '#6b21a8',
                         color: 'white',
@@ -1741,13 +1741,13 @@ function TfaModal({ onClose, onChanged }: { onClose: () => void; onChanged: () =
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !loading && currentPassword.trim().length > 0) {
                   e.preventDefault();
-                  disable();
+                  void disable();
                 }
               }}
             />
             <div className="flex justify-end gap-3">
               <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors" onClick={onClose}>Close</button>
-              <button className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-red-300' : 'bg-red-600 hover:bg-red-700 active:bg-red-800'}`} onClick={disable} disabled={loading}>
+              <button className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-red-300' : 'bg-red-600 hover:bg-red-700 active:bg-red-800'}`} onClick={() => void disable()} disabled={loading}>
                 {loading ? 'Disabling…' : 'Disable 2FA'}
               </button>
             </div>

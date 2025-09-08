@@ -332,11 +332,11 @@ function LoginForm() {
             </div>
             <div>
               <label htmlFor="twofa" className="block text-sm font-medium text-gray-700">6-digit code</label>
-              <input id="twofa" inputMode="numeric" pattern="[0-9]*" maxLength={6} className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && twoFactorCode.trim().length >= 6) { e.preventDefault(); handleVerify2FA(); } }} placeholder="123 456" />
+              <input id="twofa" inputMode="numeric" pattern="[0-9]*" maxLength={6} className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && twoFactorCode.trim().length >= 6) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="123 456" />
             </div>
             <div>
               <label htmlFor="backup" className="block text-sm font-medium text-gray-700">Backup code (optional)</label>
-              <input id="backup" className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500" value={backupCode} onChange={(e) => setBackupCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && backupCode.trim().length > 0) { e.preventDefault(); handleVerify2FA(); } }} placeholder="ABCD-EFGH-1234" />
+              <input id="backup" className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500" value={backupCode} onChange={(e) => setBackupCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && backupCode.trim().length > 0) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="ABCD-EFGH-1234" />
             </div>
             <div className="flex items-center gap-2">
               <input id="trust" type="checkbox" className="h-4 w-4" checked={trustThisBrowser} onChange={(e) => setTrustThisBrowser(e.target.checked)} />

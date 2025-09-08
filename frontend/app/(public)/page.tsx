@@ -208,7 +208,7 @@ export default function HomePage() {
       }
     };
 
-    probeInstructorStatus();
+    void probeInstructorStatus();
   }, [isAuthenticated, user]);
 
   // Detect touch device

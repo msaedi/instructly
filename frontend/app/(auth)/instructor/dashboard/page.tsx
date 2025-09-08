@@ -111,8 +111,8 @@ export default function InstructorDashboardNew() {
 
   useEffect(() => {
     logger.info('Instructor dashboard (new) loaded');
-    fetchProfile();
-    (async () => {
+    void fetchProfile();
+    void (async () => {
       try {
         const s = await getConnectStatus();
         setConnectStatus(s);
@@ -215,7 +215,7 @@ export default function InstructorDashboardNew() {
 
   const handleProfileUpdate = () => {
     logger.info('Profile updated, refreshing data');
-    fetchProfile();
+    void fetchProfile();
     setShowEditModal(false);
   };
 

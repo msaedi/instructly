@@ -127,7 +127,7 @@ export default function AvailabilityPage(): React.ReactElement {
   // Fetch booked slots when week changes
   useEffect(() => {
     if (!isLoading) {
-      fetchBookedSlots(currentWeekStart);
+      void fetchBookedSlots(currentWeekStart);
     }
   }, [currentWeekStart, isLoading, fetchBookedSlots]);
 

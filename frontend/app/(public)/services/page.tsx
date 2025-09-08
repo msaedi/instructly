@@ -99,7 +99,7 @@ export default function AllServicesPage() {
         // non-fatal
       }
     };
-    fetchKids();
+    void fetchKids();
   }, []);
 
   // Add React Query hook for fetching services
@@ -271,7 +271,7 @@ export default function AllServicesPage() {
       }
     };
 
-    fetchServices();
+    void fetchServices();
   }, [servicesResponse, queryError]);
 
   // Derive display categories with kids services injected at render-time to avoid race conditions

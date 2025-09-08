@@ -106,7 +106,7 @@ function InstructorProfileContent() {
         if (prev === null) return prev;
         if (prev <= 1) {
           clearInterval(interval);
-          refetch();
+          void refetch();
           return null;
         }
         return prev - 1;

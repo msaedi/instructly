@@ -239,7 +239,7 @@ function SearchPageContent() {
             }
 
             // Record the search
-            recordSearch(
+            void recordSearch(
               {
                 query: searchQuery,
                 search_type: searchType,
@@ -260,7 +260,7 @@ function SearchPageContent() {
   }, [query, category, serviceCatalogId, isAuthenticated, serviceNameFromUrl, fromSource, serviceName]);
 
   useEffect(() => {
-    fetchResults(1, false);
+    void fetchResults(1, false);
   }, [query, category, serviceCatalogId, availableNow, fetchResults]);
 
   // Initialize filtered instructors when instructors change
@@ -289,7 +289,7 @@ function SearchPageContent() {
         setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
       }
     };
-    fetchCoverage();
+    void fetchCoverage();
   }, [instructors]);
 
   // Initialize filtered instructors when instructors change
@@ -429,7 +429,7 @@ function SearchPageContent() {
         if (entries[0]?.isIntersecting && hasMore && !loadingMore && !loading) {
           const nextPage = page + 1;
           setPage(nextPage);
-          fetchResults(nextPage, true);
+          void fetchResults(nextPage, true);
         }
       },
       { threshold: 0.1 }
@@ -531,7 +531,7 @@ function SearchPageContent() {
     };
 
     if (instructors && instructors.length) {
-      fetchAvailabilities();
+      void fetchAvailabilities();
     }
   }, [instructors]);
 

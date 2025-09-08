@@ -100,7 +100,7 @@ export default function QuickBookingPage() {
       }
     };
 
-    fetchInstructor();
+    void fetchInstructor();
   }, [instructorId]);
 
   // Check if we have preselected time on mount
@@ -143,7 +143,7 @@ export default function QuickBookingPage() {
         }
       };
 
-      fetchAvailability();
+      void fetchAvailability();
     }
   }, [instructor, instructorId]);
 

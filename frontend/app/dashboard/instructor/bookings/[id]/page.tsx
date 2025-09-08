@@ -62,7 +62,7 @@ export default function BookingDetailsPage() {
 
   useEffect(() => {
     if (bookingId) {
-      fetchBookingDetails();
+      void fetchBookingDetails();
     }
   }, [bookingId, fetchBookingDetails]);
 
