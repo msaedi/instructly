@@ -332,7 +332,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
       }
     };
 
-    loadPaymentMethods();
+    void loadPaymentMethods();
   }, []);
 
   const handlePaymentSuccess = (paymentIntentId: string) => {

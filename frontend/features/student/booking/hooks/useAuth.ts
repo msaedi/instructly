@@ -92,7 +92,7 @@ export function useAuth(): UseAuthReturn {
 
   // Check authentication on mount
   useEffect(() => {
-    checkAuth();
+    void checkAuth();
   }, []);
 
   return {

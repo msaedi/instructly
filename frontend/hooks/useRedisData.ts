@@ -79,13 +79,13 @@ export function useRedisData(token: string | null): UseRedisDataReturn {
 
   // Fetch data on mount
   useEffect(() => {
-    fetchAllData();
+    void fetchAllData();
   }, [fetchAllData]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchAllData();
+      void fetchAllData();
     }, 30 * 1000);
 
     return () => clearInterval(interval);

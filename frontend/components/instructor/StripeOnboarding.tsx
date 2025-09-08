@@ -64,7 +64,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
 
   // Initial status check
   useEffect(() => {
-    checkStatus();
+    void checkStatus();
   }, [instructorId, checkStatus]);
 
   // Polling logic for when returning from Stripe
@@ -88,7 +88,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
 
     const pollInterval = setInterval(() => {
       setPollAttempts((prev) => prev + 1);
-      checkStatus();
+      void checkStatus();
     }, 2000); // Poll every 2 seconds
 
     return () => clearInterval(pollInterval);

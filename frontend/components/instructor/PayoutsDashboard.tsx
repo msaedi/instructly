@@ -47,7 +47,7 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => 
       }
     };
 
-    loadEarnings();
+    void loadEarnings();
   }, [instructorId]);
 
   // Open Stripe Express dashboard

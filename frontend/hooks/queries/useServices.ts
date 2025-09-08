@@ -266,7 +266,7 @@ export function usePrefetchServices() {
 
   return {
     all: () => {
-      queryClient.prefetchQuery({
+      void queryClient.prefetchQuery({
         queryKey: queryKeys.services.withInstructors,
         queryFn: async () => {
           const response = await publicApi.getAllServicesWithInstructors();
@@ -276,7 +276,7 @@ export function usePrefetchServices() {
       });
     },
     byCategory: (categorySlug: string) => {
-      queryClient.prefetchQuery({
+      void queryClient.prefetchQuery({
         queryKey: queryKeys.services.byCategory(categorySlug),
         queryFn: async () => {
           const response = await publicApi.getCatalogServices(categorySlug);
@@ -286,7 +286,7 @@ export function usePrefetchServices() {
       });
     },
     categories: () => {
-      queryClient.prefetchQuery({
+      void queryClient.prefetchQuery({
         queryKey: queryKeys.services.categories,
         queryFn: async () => {
           const response = await publicApi.getServiceCategories();

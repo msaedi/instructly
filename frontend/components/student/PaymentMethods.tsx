@@ -250,7 +250,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
   };
 
   useEffect(() => {
-    loadPaymentMethods();
+    void loadPaymentMethods();
   }, [userId]);
 
   if (loading) {
@@ -286,9 +286,9 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
           <h3 className="text-lg font-medium mb-4">Add New Card</h3>
           <Elements stripe={stripePromise}>
             <AddCardForm
-              onSuccess={() => {
+              onSuccess={async () => {
                 setAddingCard(false);
-                loadPaymentMethods();
+                await loadPaymentMethods();
               }}
               onCancel={() => setAddingCard(false)}
             />

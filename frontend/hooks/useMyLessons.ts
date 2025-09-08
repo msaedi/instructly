@@ -126,14 +126,14 @@ export function useCancelLesson() {
       }
     },
 
-    onSettled: () => {
+    onSettled: async () => {
       // Refetch to ensure consistency - invalidate ALL booking-related queries
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
       // Invalidate all upcoming queries regardless of limit parameter
-      queryClient.invalidateQueries({ queryKey: ['bookings', 'upcoming'] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
+      await queryClient.invalidateQueries({ queryKey: ['bookings', 'upcoming'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
       // Also invalidate the generic 'bookings' queries
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
 }
@@ -189,14 +189,14 @@ export function useRescheduleLesson() {
       }
     },
 
-    onSettled: () => {
+    onSettled: async () => {
       // Refetch to ensure consistency - invalidate ALL booking-related queries
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
       // Invalidate all upcoming queries regardless of limit parameter
-      queryClient.invalidateQueries({ queryKey: ['bookings', 'upcoming'] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
+      await queryClient.invalidateQueries({ queryKey: ['bookings', 'upcoming'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
       // Also invalidate the generic 'bookings' queries
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
 }
@@ -210,13 +210,13 @@ export function useCompleteLesson() {
   return useMutation<Booking, Error, string>({
     mutationFn: (lessonId) => bookingsApi.completeBooking(lessonId),
 
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       // Update cache - invalidate ALL booking-related queries
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(String(data.id)) });
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(String(data.id)) });
+      await queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
 }
@@ -230,13 +230,13 @@ export function useMarkNoShow() {
   return useMutation<Booking, Error, string>({
     mutationFn: (lessonId) => bookingsApi.markNoShow(lessonId),
 
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       // Update cache - invalidate ALL booking-related queries
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(String(data.id)) });
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(String(data.id)) });
+      await queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
 }

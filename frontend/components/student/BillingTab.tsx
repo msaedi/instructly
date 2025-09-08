@@ -64,7 +64,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
       }
     };
 
-    loadTransactions();
+    void loadTransactions();
   }, [userId]);
 
   // Load credit balance from real API
@@ -88,7 +88,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
       }
     };
 
-    loadCreditBalance();
+    void loadCreditBalance();
   }, [userId]);
 
   // Apply promo code
@@ -272,12 +272,12 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/25 focus:border-purple-500"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  handleApplyPromoCode();
+                  void handleApplyPromoCode();
                 }
               }}
             />
             <Button
-              onClick={handleApplyPromoCode}
+              onClick={() => void handleApplyPromoCode()}
               disabled={isApplyingPromo || !promoCode.trim()}
               className="bg-[#6A0DAD] hover:bg-[#6A0DAD] text-white"
             >

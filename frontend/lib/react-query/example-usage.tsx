@@ -145,9 +145,9 @@ function BookingForm({ instructorId, serviceId }: any) {
       // Rollback on error
       queryClient.setQueryData(queryKeys.bookings.all, context?.previousBookings);
     },
-    onSettled: () => {
+    onSettled: async () => {
       // Refetch after mutation
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
     },
   });
 
@@ -203,7 +203,7 @@ function InfiniteInstructorList() {
       ))}
 
       {hasNextPage && (
-        <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+        <button onClick={() => void fetchNextPage()} disabled={isFetchingNextPage}>
           {isFetchingNextPage ? 'Loading more...' : 'Load More'}
         </button>
       )}
@@ -219,7 +219,7 @@ function InstructorCard({ instructor }: any) {
 
   // Prefetch instructor details on hover
   const handleMouseEnter = () => {
-    queryClient.prefetchQuery({
+    void queryClient.prefetchQuery({
       queryKey: queryKeys.instructors.detail(instructor.id),
       queryFn: queryFn(`/instructors/${instructor.id}`),
       staleTime: CACHE_TIMES.SLOW,

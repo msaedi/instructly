@@ -334,7 +334,7 @@ export default function RescheduleTimeSelectionModal({
   // Fetch availability data when modal opens
   useEffect(() => {
     if (isOpen && instructor.user_id) {
-      fetchAvailability();
+      void fetchAvailability();
     }
   }, [isOpen, instructor.user_id, fetchAvailability]);
 

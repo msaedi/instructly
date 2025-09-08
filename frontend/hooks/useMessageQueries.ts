@@ -79,14 +79,14 @@ export function useSendMessage() {
   return useMutation({
     mutationFn: (request: SendMessageRequest) =>
       messageService.sendMessage(request),
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       // Invalidate message history for this booking
-      queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: messageQueryKeys.history(variables.booking_id),
       });
 
       // Invalidate unread count (in case user sees their own message)
-      queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: messageQueryKeys.unreadCount(),
       });
 
@@ -138,15 +138,15 @@ export function useMarkAsRead() {
 
       return { previousCount };
     },
-    onSuccess: (data, variables) => {
+    onSuccess: async (data, variables) => {
       // Invalidate unread count to get accurate number
-      queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: messageQueryKeys.unreadCount(),
       });
 
       // If marking all messages in a booking as read, invalidate that history
       if (variables.booking_id) {
-        queryClient.invalidateQueries({
+        await queryClient.invalidateQueries({
           queryKey: messageQueryKeys.history(variables.booking_id),
         });
       }
@@ -180,9 +180,9 @@ export function useDeleteMessage() {
   return useMutation({
     mutationFn: (messageId: string) =>
       messageService.deleteMessage(messageId),
-    onSuccess: (_, messageId) => {
+    onSuccess: async (_, messageId) => {
       // Invalidate all message history queries
-      queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: messageQueryKeys.all,
       });
 

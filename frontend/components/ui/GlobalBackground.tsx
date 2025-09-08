@@ -127,7 +127,7 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
       }
     }
 
-    resolveBg();
+    void resolveBg();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bgUrl and lqUrl are state variables set within the effect
   }, [pathname, ctxActivity, ctxOverrides, overrides, activity, hasMounted, rotationTick]);
 

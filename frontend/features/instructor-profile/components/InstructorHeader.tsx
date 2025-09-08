@@ -94,7 +94,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
         toast.success('Added to favorites!');
       }
       // Invalidate favorites list so dashboard tab reflects updates immediately
-      queryClient.invalidateQueries({ queryKey: ['favorites'] });
+      await queryClient.invalidateQueries({ queryKey: ['favorites'] });
     } catch (error) {
       // Revert on error
       setIsSaved(isSaved);

@@ -115,7 +115,7 @@ export function useSSEMessages({
 
     // Request permission if not granted
     if (Notification.permission === 'default') {
-      Notification.requestPermission();
+      void Notification.requestPermission();
       return;
     }
 
@@ -371,10 +371,12 @@ export function useSSEMessages({
 
   // Manual reconnect
   const reconnect = useCallback(() => {
-    disconnect();
-    reconnectAttemptsRef.current = 0;
-    reconnectDelayRef.current = 1000; // Reset delay for manual reconnect
-    connect();
+    void (async () => {
+      disconnect();
+      reconnectAttemptsRef.current = 0;
+      reconnectDelayRef.current = 1000; // Reset delay for manual reconnect
+      connect();
+    })();
   }, [connect, disconnect]);
 
   // Clear messages

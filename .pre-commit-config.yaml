@@ -90,3 +90,33 @@ repos:
         files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: true
         description: Fail commit if console.* is used in staged frontend TS/TSX files (tests/e2e excluded)
+
+      - id: backend-no-focused-tests
+        name: Backend block focused tests
+        entry: backend/scripts/precommit_block_only_tests.sh
+        language: script
+        pass_filenames: false
+        description: Fail if focused tests are committed in backend
+
+
+
+  - repo: local
+    hooks:
+      - id: gitleaks-system
+        name: gitleaks (system)
+        language: system
+        entry: scripts/run-gitleaks.sh
+        pass_filenames: false
+        files: |
+          ^(frontend|backend)/
+        exclude: |
+          (?x)
+          ^frontend/\.next/|
+          ^frontend/node_modules/|
+          ^frontend/.artifacts/|
+          ^frontend/dist/|
+          ^frontend/coverage/|
+          ^frontend/playwright-report/|
+          ^backend/(?:\.?venv|\.mypy_cache|\.pytest_cache|\.ruff_cache)/|
+          ^backend/alembic/|
+          \.(snap|map|lock|md|png|jpg|jpeg|gif|svg|ico|pdf|csv|geojson)$

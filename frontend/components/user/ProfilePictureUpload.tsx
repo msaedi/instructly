@@ -89,7 +89,7 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
       logger.info('Profile picture uploaded successfully');
       try {
         await checkAuth();
-        queryClient.invalidateQueries({ queryKey: queryKeys.user });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.user });
       } catch {}
       if (onCompleted) onCompleted();
     } catch (err: unknown) {

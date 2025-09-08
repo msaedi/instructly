@@ -289,7 +289,7 @@ export default function TimeSelectionModal({
   // Fetch availability data when modal opens
   useEffect(() => {
     if (isOpen && instructor.user_id) {
-      fetchAvailability();
+      void fetchAvailability();
     }
   }, [isOpen, instructor.user_id, fetchAvailability]);
 
@@ -847,7 +847,7 @@ export default function TimeSelectionModal({
             if (newSelectedDate) {
               // Switch to the new date that can accommodate the duration
               setSelectedDate(newSelectedDate);
-              handleDateSelect(newSelectedDate);
+              void handleDateSelect(newSelectedDate);
               logger.info('Switched to new date for duration', { newDate: newSelectedDate, duration });
               return;
             }
@@ -857,7 +857,7 @@ export default function TimeSelectionModal({
         // If we get here, either current date works or we couldn't find a better date
         // Continue with existing logic
         if (!availabilityData[selectedDate]) {
-          handleDateSelect(selectedDate);
+          void handleDateSelect(selectedDate);
           return;
         }
 
@@ -970,7 +970,7 @@ export default function TimeSelectionModal({
         setDisabledDurations(combinedDisabled);
       } catch (e) {
         logger.error('Failed to recompute slots on duration change', e);
-        handleDateSelect(selectedDate);
+        void handleDateSelect(selectedDate);
       }
     }
   };

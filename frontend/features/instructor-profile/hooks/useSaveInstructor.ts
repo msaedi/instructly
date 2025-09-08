@@ -48,9 +48,9 @@ export function useSaveInstructor(instructorId: string) {
       setIsSaved(false);
     },
 
-    onSuccess: () => {
+    onSuccess: async () => {
       // Invalidate saved instructors query
-      queryClient.invalidateQueries({ queryKey: ['users', 'saved-instructors'] });
+      await queryClient.invalidateQueries({ queryKey: ['users', 'saved-instructors'] });
     },
   });
 
@@ -75,9 +75,9 @@ export function useSaveInstructor(instructorId: string) {
       setIsSaved(true);
     },
 
-    onSuccess: () => {
+    onSuccess: async () => {
       // Invalidate saved instructors query
-      queryClient.invalidateQueries({ queryKey: ['users', 'saved-instructors'] });
+      await queryClient.invalidateQueries({ queryKey: ['users', 'saved-instructors'] });
     },
   });
 

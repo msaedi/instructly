@@ -1,0 +1,21 @@
+title = "Repo Gitleaks Config"
+
+[extend]
+
+[allowlist]
+paths = [
+  '''^frontend/\.next/''',
+  '''^frontend/node_modules/''',
+  '''^frontend/\.artifacts/''',
+  '''^frontend/dist/''',
+  '''^frontend/coverage/''',
+  '''^backend/\.?venv/''',
+  '''^backend/\.mypy_cache/''',
+  '''^backend/\.pytest_cache/''',
+  '''^backend/\.ruff_cache/''',
+  '''^backend/alembic/''',
+  '''^backend/tests/fixtures/''',
+]
+regexes = [
+  '''"(__test_snapshot__|__fixtures__)"'''
+]

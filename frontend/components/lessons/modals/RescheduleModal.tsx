@@ -85,9 +85,9 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
           // Immediately refresh bookings caches so Upcoming reflects changes without manual refresh
           try {
             const { queryClient, queryKeys } = await import('@/lib/react-query/queryClient');
-            queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
-            queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
-            queryClient.invalidateQueries({ queryKey: ['bookings'] });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
+            await queryClient.invalidateQueries({ queryKey: ['bookings'] });
           } catch {}
           router.push(newId ? `/student/lessons/${newId}` : '/student/lessons');
           return;

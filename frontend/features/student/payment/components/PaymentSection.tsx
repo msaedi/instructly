@@ -149,7 +149,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       }
     };
 
-    fetchPaymentData();
+    void fetchPaymentData();
   }, []);
 
   // Auto-apply available credits by default on confirmation step

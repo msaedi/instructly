@@ -261,7 +261,7 @@ export function Chat({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      void handleSendMessage();
     }
   };
 
@@ -278,7 +278,7 @@ export function Chat({
     setInputMessage(e.target.value);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      handleTyping();
+      void handleTyping();
     }, 1000);
   };
 

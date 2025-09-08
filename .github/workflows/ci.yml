@@ -176,6 +176,13 @@ jobs:
         working-directory: frontend
         run: |
           npx --yes type-coverage --detail | sed -n 's/^type-coverage: /type-coverage: /p' | head -1 >> $GITHUB_STEP_SUMMARY || true
+      - name: Type coverage (weekly summary json)
+        working-directory: frontend
+        run: |
+          mkdir -p .artifacts
+          npx --yes type-coverage --detail | sed -n 's/^type-coverage: //p' | head -1 | awk '{print $1}' | sed 's/%//' > .artifacts/typecov.current
+          echo "{\"coverage\": $(cat .artifacts/typecov.current)}" > .artifacts/typecov.json
+          echo "type-coverage-json: $(cat .artifacts/typecov.json)" >> $GITHUB_STEP_SUMMARY
 
       - name: Setup Python 3.11 for backend checks
         uses: actions/setup-python@v5
@@ -197,9 +204,9 @@ jobs:
       - name: Install mypy and required libs
         run: pip install -q mypy types-pytz "pydantic~=2.8" "pydantic-core~=2.23" fastapi
 
-      - name: MyPy (scoped+widen, warn)
+      - name: MyPy (schemas/internal) fail-gate
         working-directory: backend
-        run: mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py || echo "::warning ::mypy reported issues"
+        run: mypy app/schemas app/routes/internal.py
 
       - name: MyPy (summary)
         run: |

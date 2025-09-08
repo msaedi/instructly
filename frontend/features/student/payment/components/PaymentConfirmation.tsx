@@ -126,7 +126,7 @@ export default function PaymentConfirmation({
       }
     };
 
-    checkForConflicts();
+    void checkForConflicts();
   }, [booking]); // Re-run when booking changes
 
   // Fetch instructor profile to get the actual service duration options
@@ -160,7 +160,7 @@ export default function PaymentConfirmation({
       }
     };
 
-    fetchInstructorProfile();
+    void fetchInstructorProfile();
   }, [booking.instructorId]);
 
 

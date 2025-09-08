@@ -35,12 +35,12 @@ export function useCodebaseMetrics(token?: string | null): UseCodebaseMetricsRet
   }, [token]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
   // Auto-refresh every 10 minutes
   useEffect(() => {
-    const id = setInterval(fetchData, 10 * 60 * 1000);
+    const id = setInterval(() => { void fetchData(); }, 10 * 60 * 1000);
     return () => clearInterval(id);
   }, [fetchData]);
 

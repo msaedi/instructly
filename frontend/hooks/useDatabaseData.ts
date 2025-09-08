@@ -37,13 +37,13 @@ export function useDatabaseData(token: string | null): UseDatabaseDataReturn {
 
   // Fetch data on mount
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchData();
+      void fetchData();
     }, 30 * 1000);
 
     return () => clearInterval(interval);
