@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager, contextmanager
 from functools import wraps
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, TypeVar, cast
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -123,7 +123,9 @@ class BaseService:
             Decorator function
         """
 
-        def decorator(func: Callable) -> Callable:
+        F = TypeVar("F", bound=Callable[..., Any])
+
+        def decorator(func: F) -> F:
             # Store the operation name on the function for later use
             func._operation_name = operation_name
             func._is_measured = True
@@ -183,7 +185,7 @@ class BaseService:
                                 # Don't let metrics collection break the operation
                                 pass
 
-                return wrapper
+                return cast(F, wrapper)
 
             @wraps(func)
             async def async_wrapper(self, *args, **kwargs):
@@ -228,7 +230,7 @@ class BaseService:
                         except Exception:
                             pass
 
-            return async_wrapper
+            return cast(F, async_wrapper)
 
         return decorator
 

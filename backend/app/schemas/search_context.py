@@ -7,7 +7,7 @@ between authenticated users and guests, allowing unified business logic.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional, cast
+from typing import Any, Dict, Optional, cast
 
 from ..core.config import settings
 
@@ -22,7 +22,7 @@ class SearchUserContext:
     """
 
     # One of these must be set
-    user_id: Optional[str] = None
+    user_id: Optional[int] = None
     guest_session_id: Optional[str] = None
 
     # Session tracking for analytics
@@ -35,7 +35,7 @@ class SearchUserContext:
             raise ValueError("Must provide exactly one of user_id or guest_session_id")
 
     @classmethod
-    def from_user(cls, user_id: str, session_id: Optional[str] = None) -> "SearchUserContext":
+    def from_user(cls, user_id: int, session_id: Optional[str] = None) -> "SearchUserContext":
         """Create context for an authenticated user."""
         return cls(user_id=user_id, session_id=session_id)
 
@@ -63,7 +63,7 @@ class SearchUserContext:
         """Get the search history limit (same for both user types)."""
         return cast(int, settings.search_history_max_per_user)
 
-    def to_repository_kwargs(self) -> Dict[str, Optional[str]]:
+    def to_repository_kwargs(self) -> Dict[str, Optional[Any]]:
         """
         Convert to kwargs for repository methods.
 

@@ -8,7 +8,7 @@ based on configuration settings.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Tuple
+from typing import Dict, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -19,7 +19,7 @@ from .base import BaseService
 logger = logging.getLogger(__name__)
 
 
-class SearchHistoryCleanupService(BaseService):
+class SearchHistoryCleanupService(BaseService):  # type: ignore[misc]
     """
     Service for cleaning up old search history records.
 
@@ -29,12 +29,12 @@ class SearchHistoryCleanupService(BaseService):
     - Purging of old converted guest searches
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session) -> None:
         """Initialize the cleanup service."""
         super().__init__(db)
         self.repository = SearchHistoryRepository(db)
 
-    @BaseService.measure_operation("cleanup_soft_deleted_searches")
+    @BaseService.measure_operation("cleanup_soft_deleted_searches")  # type: ignore[misc]
     def cleanup_soft_deleted_searches(self) -> int:
         """
         Permanently delete soft-deleted searches older than retention period.
@@ -72,7 +72,7 @@ class SearchHistoryCleanupService(BaseService):
             logger.error(f"Error cleaning up soft-deleted searches: {str(e)}")
             raise
 
-    @BaseService.measure_operation("cleanup_old_guest_sessions")
+    @BaseService.measure_operation("cleanup_old_guest_sessions")  # type: ignore[misc]
     def cleanup_old_guest_sessions(self) -> int:
         """
         Clean up old guest session searches based on purge settings.
@@ -122,7 +122,7 @@ class SearchHistoryCleanupService(BaseService):
             logger.error(f"Error cleaning up guest sessions: {str(e)}")
             raise
 
-    @BaseService.measure_operation("cleanup_all")
+    @BaseService.measure_operation("cleanup_all")  # type: ignore[misc]
     def cleanup_all(self) -> Tuple[int, int]:
         """
         Run all cleanup operations.
@@ -144,8 +144,8 @@ class SearchHistoryCleanupService(BaseService):
 
         return soft_deleted_count, guest_session_count
 
-    @BaseService.measure_operation("get_cleanup_statistics")
-    def get_cleanup_statistics(self) -> dict:
+    @BaseService.measure_operation("get_cleanup_statistics")  # type: ignore[misc]
+    def get_cleanup_statistics(self) -> Dict[str, int]:
         """
         Get statistics about records eligible for cleanup.
 

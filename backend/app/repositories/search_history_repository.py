@@ -7,24 +7,24 @@ without code duplication.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 
 from sqlalchemy import desc, func, or_
-from sqlalchemy.orm import Query
+from sqlalchemy.orm import Query, Session
 
 from ..models.search_history import SearchHistory
 from ..schemas.search_context import SearchUserContext
 from .base_repository import BaseRepository
 
 
-class SearchHistoryRepository(BaseRepository[SearchHistory]):
+class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[misc]
     """
     Repository for search history data access.
 
     Provides unified queries that work for both authenticated and guest users.
     """
 
-    def __init__(self, db):
+    def __init__(self, db: Session) -> None:
         """Initialize with SearchHistory model."""
         super().__init__(db, SearchHistory)
 
@@ -45,7 +45,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         self,
         user_id: Optional[int] = None,
         guest_session_id: Optional[str] = None,
-        query: str = None,
+        query: Optional[str] = None,
     ) -> Optional[SearchHistory]:
         """
         Find an existing search entry for a user or guest.
@@ -55,8 +55,8 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         if not query:
             return None
 
-        if user_id:
-            context = SearchUserContext.from_user(user_id)
+        if user_id is not None:
+            context = SearchUserContext.from_user(int(user_id))
         elif guest_session_id:
             context = SearchUserContext.from_guest(guest_session_id)
         else:
@@ -91,7 +91,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         self,
         user_id: Optional[int] = None,
         guest_session_id: Optional[str] = None,
-        search_query: str = None,
+        search_query: Optional[str] = None,
     ) -> Optional[SearchHistory]:
         """
         Find existing search for incrementing (not soft-deleted).
@@ -117,8 +117,8 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
             SearchHistory.normalized_query == normalized_query, SearchHistory.deleted_at.is_(None)
         )
 
-        if user_id:
-            query = query.filter(SearchHistory.user_id == user_id)
+        if user_id is not None:
+            query = query.filter(SearchHistory.user_id == int(user_id))
         elif guest_session_id:
             query = query.filter(SearchHistory.guest_session_id == guest_session_id)
         else:
@@ -150,7 +150,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         else:
             query = query.order_by(desc(SearchHistory.last_searched_at))
 
-        return query.limit(limit).all()
+        return cast(List[SearchHistory], query.limit(limit).all())
 
     def get_recent_searches(
         self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, limit: int = 3
@@ -160,8 +160,8 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         Excludes soft-deleted entries and orders by most recent.
         """
-        if user_id:
-            context = SearchUserContext.from_user(user_id)
+        if user_id is not None:
+            context = SearchUserContext.from_user(int(user_id))
         elif guest_session_id:
             context = SearchUserContext.from_guest(guest_session_id)
         else:
@@ -170,7 +170,10 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         query = self.db.query(SearchHistory).filter(SearchHistory.deleted_at.is_(None))
 
         query = self._add_user_filter(query, context)
-        return query.order_by(desc(SearchHistory.last_searched_at)).limit(limit).all()
+        return cast(
+            List[SearchHistory],
+            query.order_by(desc(SearchHistory.last_searched_at)).limit(limit).all(),
+        )
 
     def count_searches(
         self,
@@ -181,8 +184,8 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         """
         Count searches for a user or guest session.
         """
-        if user_id:
-            context = SearchUserContext.from_user(user_id)
+        if user_id is not None:
+            context = SearchUserContext.from_user(int(user_id))
         elif guest_session_id:
             context = SearchUserContext.from_guest(guest_session_id)
         else:
@@ -194,7 +197,8 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
             query = query.filter(SearchHistory.deleted_at.is_(None))
 
         query = self._add_user_filter(query, context)
-        return query.scalar() or 0
+        result = query.scalar()
+        return int(result or 0)
 
     def get_searches_to_delete(
         self,
@@ -223,7 +227,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         self,
         user_id: Optional[int] = None,
         guest_session_id: Optional[str] = None,
-        keep_ids_subquery: Query = None,
+        keep_ids_subquery: Optional[Query] = None,
     ) -> int:
         """
         Soft delete searches not in the keep list.
@@ -247,9 +251,11 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         query = self._add_user_filter(query, context)
 
-        return query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
+        return int(
+            query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
+        )
 
-    def soft_delete_by_id(self, search_id: str, user_id: str) -> bool:
+    def soft_delete_by_id(self, search_id: str, user_id: int) -> bool:
         """
         Soft delete a specific search entry for an authenticated user.
         """
@@ -261,7 +267,9 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         query = self._add_user_filter(query, context)
 
-        result = query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
+        result: int = int(
+            query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
+        )
 
         return result > 0
 
@@ -277,7 +285,9 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         query = self._add_user_filter(query, context)
 
-        result = query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
+        result: int = int(
+            query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
+        )
 
         return result > 0
 
@@ -285,11 +295,11 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         self,
         user_id: Optional[int] = None,
         guest_session_id: Optional[str] = None,
-        search_query: str = None,
+        search_query: Optional[str] = None,
         search_type: str = "natural_language",
         results_count: Optional[int] = None,
         deleted_at: Optional[datetime] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> SearchHistory:
         """
         Create a new search history entry.
@@ -328,21 +338,22 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         """
         Get all guest searches for conversion to user account, including deleted ones.
         """
-        return (
+        return cast(
+            List[SearchHistory],
             self.db.query(SearchHistory)
             .filter(
                 SearchHistory.guest_session_id == guest_session_id,
                 SearchHistory.converted_to_user_id.is_(None),
             )
             .order_by(SearchHistory.first_searched_at)
-            .all()
+            .all(),
         )
 
     def mark_searches_as_converted(self, guest_session_id: str, user_id: str) -> int:
         """
         Mark guest searches as converted to user account.
         """
-        return (
+        return int(
             self.db.query(SearchHistory)
             .filter(
                 SearchHistory.guest_session_id == guest_session_id,
@@ -374,7 +385,9 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         if exclude_deleted:
             query = query.filter(SearchHistory.deleted_at.is_(None))
 
-        return query.order_by(desc(SearchHistory.first_searched_at)).all()
+        return cast(
+            List[SearchHistory], query.order_by(desc(SearchHistory.first_searched_at)).all()
+        )
 
     def delete_user_searches(self, user_id: str) -> int:
         """
@@ -388,7 +401,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         Returns:
             Number of deleted records
         """
-        return (
+        return int(
             self.db.query(SearchHistory)
             .filter(SearchHistory.user_id == user_id)
             .delete(synchronize_session=False)
@@ -403,7 +416,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         Returns:
             Total count of search history records
         """
-        return self.db.query(func.count(SearchHistory.id)).scalar() or 0
+        return int(self.db.query(func.count(SearchHistory.id)).scalar() or 0)
 
     # Analytics methods
 
@@ -444,8 +457,8 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         self,
         user_id: Optional[int] = None,
         guest_session_id: Optional[str] = None,
-        search_query: str = None,
-        normalized_query: str = None,
+        search_query: Optional[str] = None,
+        normalized_query: Optional[str] = None,
         search_type: str = "natural_language",
         results_count: Optional[int] = None,
     ) -> SearchHistory:
@@ -487,7 +500,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         stmt = insert(SearchHistory).values(**values)
 
         # Define conflict resolution based on user type
-        if user_id:
+        if user_id is not None:
             # For authenticated users
             stmt = stmt.on_conflict_do_update(
                 index_elements=["user_id", "normalized_query"],
@@ -523,7 +536,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         self,
         user_id: Optional[int] = None,
         guest_session_id: Optional[str] = None,
-        normalized_query: str = None,
+        normalized_query: Optional[str] = None,
     ) -> Optional[SearchHistory]:
         """
         Get search history by user/guest and normalized query.
@@ -540,12 +553,12 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         """
         from sqlalchemy import and_
 
-        if user_id:
+        if user_id is not None:
             return (
                 self.db.query(SearchHistory)
                 .filter(
                     and_(
-                        SearchHistory.user_id == user_id,
+                        SearchHistory.user_id == int(user_id),
                         SearchHistory.normalized_query == normalized_query,
                         SearchHistory.deleted_at.is_(None),
                     )
@@ -598,7 +611,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         user_id: Optional[int] = None,
         guest_session_id: Optional[str] = None,
         before_time: Optional[datetime] = None,
-    ):
+    ) -> None:
         """
         Get previous search event for duplicate detection.
 
@@ -618,7 +631,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         # The service should use self.event_repository.get_previous_search_event()
         return None
 
-    def get_search_event_by_id(self, event_id: int):
+    def get_search_event_by_id(self, event_id: int) -> None:
         """
         Get search event by ID for validation.
 
@@ -652,7 +665,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
-        deleted_count = (
+        deleted_count_int = int(
             self.db.query(SearchHistory)
             .filter(
                 and_(SearchHistory.deleted_at.isnot(None), SearchHistory.deleted_at < cutoff_date)
@@ -660,7 +673,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
             .delete(synchronize_session=False)
         )
 
-        return deleted_count
+        return deleted_count_int
 
     # --------------------
     # Statistics helpers
@@ -673,7 +686,9 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         Returns:
             Total number of records where deleted_at is not null
         """
-        return self.db.query(SearchHistory).filter(SearchHistory.deleted_at.isnot(None)).count()
+        return int(
+            self.db.query(SearchHistory).filter(SearchHistory.deleted_at.isnot(None)).count()
+        )
 
     def count_soft_deleted_eligible(self, days_old: int) -> int:
         """
@@ -688,7 +703,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         from sqlalchemy import and_
 
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
-        return (
+        return int(
             self.db.query(SearchHistory)
             .filter(
                 and_(
@@ -703,7 +718,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         """
         Count all guest session records (any record with a guest_session_id).
         """
-        return (
+        return int(
             self.db.query(SearchHistory).filter(SearchHistory.guest_session_id.isnot(None)).count()
         )
 
@@ -717,7 +732,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         from sqlalchemy import and_
 
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
-        return (
+        return int(
             self.db.query(SearchHistory)
             .filter(
                 and_(
@@ -739,7 +754,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         from sqlalchemy import and_
 
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
-        return (
+        return int(
             self.db.query(SearchHistory)
             .filter(
                 and_(
@@ -765,7 +780,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
-        deleted_count = (
+        deleted_count = int(
             self.db.query(SearchHistory)
             .filter(
                 and_(
@@ -795,7 +810,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
-        deleted_count = (
+        deleted_count = int(
             self.db.query(SearchHistory)
             .filter(
                 and_(

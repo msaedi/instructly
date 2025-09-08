@@ -7,7 +7,7 @@ with a single set of endpoints.
 """
 
 import logging
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -83,12 +83,12 @@ async def get_search_context(
     return context
 
 
-@router.get("/", response_model=List[SearchHistoryResponse])
+@router.get("/", response_model=List[SearchHistoryResponse])  # type: ignore[misc]
 async def get_recent_searches(
     limit: int = 3,
     context: SearchUserContext = Depends(get_search_context),
     db: Session = Depends(get_db),
-):
+) -> List[SearchHistoryResponse]:
     """
     Get recent searches for the current user (authenticated or guest).
 
@@ -121,13 +121,13 @@ async def get_recent_searches(
     ]
 
 
-@router.post("/", response_model=SearchHistoryResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=SearchHistoryResponse, status_code=status.HTTP_201_CREATED)  # type: ignore[misc]
 async def record_search(
     search_data: SearchHistoryCreate,
     request: Request,
     context: SearchUserContext = Depends(get_search_context),
     db: Session = Depends(get_db),
-):
+) -> SearchHistoryResponse:
     """
     Record a search for the current user (authenticated or guest).
 
@@ -217,13 +217,13 @@ async def record_search(
         )
 
 
-@router.delete("/{search_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{search_id}", status_code=status.HTTP_204_NO_CONTENT)  # type: ignore[misc]
 async def delete_search(
     search_id: str,
     current_user: Optional[User] = Depends(get_current_user_optional),
     x_guest_session_id: Optional[str] = Header(None),
     db: Session = Depends(get_db),
-):
+) -> None:
     """
     Delete a search for the current user (authenticated or guest).
 
@@ -267,13 +267,13 @@ async def delete_search(
 
 @router.post(
     "/interaction", response_model=SearchInteractionResponse, status_code=status.HTTP_201_CREATED
-)
+)  # type: ignore[misc]
 async def track_interaction(
-    interaction_data: dict,
+    interaction_data: Dict[str, object],
     request: Request,
     context: SearchUserContext = Depends(get_search_context),
     db: Session = Depends(get_db),
-):
+) -> SearchInteractionResponse:
     """
     Track user interaction with search results.
 
