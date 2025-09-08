@@ -37,8 +37,7 @@ if [[ "${FAST_HOOKS:-0}" != "1" ]]; then
   echo "[pre-push] Frontend warn-mode: audit:deadcode:ci"
   (cd frontend && npm run --silent audit:deadcode:ci) || true
 
-  echo "[pre-push] Frontend warn-mode: audit:lhci"
-  (cd frontend && npm run --silent audit:lhci) || true
+  # Removed audit:lhci from pre-push (still runs in CI)
 
   echo "[pre-push] Frontend warn-mode: audit:typecov"
   (cd frontend && npm run --silent audit:typecov) || true
