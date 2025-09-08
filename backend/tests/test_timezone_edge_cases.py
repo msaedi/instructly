@@ -253,12 +253,25 @@ class TestInternationalDateLine:
         mock_query.filter.return_value = mock_filter
 
         with patch.object(db, "query", return_value=mock_query):
-            # At the same instant, they're on different days
-            instructor_today = get_user_today_by_id(instructor.id, db)
-            student_today = get_user_today_by_id(student.id, db)
+            # Control the instant to make the test deterministic
+            # Use a fixed UTC time so Kiritimati (UTC+14) is one calendar day ahead of Niue (UTC-11)
+            with patch("app.core.timezone_utils.datetime") as mock_dt:
+                base_utc = pytz.UTC.localize(datetime(2024, 1, 15, 12, 0, 0))
 
-            # Instructor should be 1 day ahead (25 hour difference)
-            assert instructor_today == student_today + timedelta(days=1)
+                def mock_now(tz=None):
+                    if tz is None:
+                        return base_utc
+                    return base_utc.astimezone(tz)
+
+                mock_dt.now.side_effect = mock_now
+                mock_dt.combine = datetime.combine
+
+                # At the same instant, they're on different days
+                instructor_today = get_user_today_by_id(instructor.id, db)
+                student_today = get_user_today_by_id(student.id, db)
+
+                # Instructor should be 1 day ahead (25 hour difference)
+                assert instructor_today == student_today + timedelta(days=1)
 
     def test_booking_across_date_line(self, db: Session):
         """Test booking when instructor and student are on opposite sides of date line."""

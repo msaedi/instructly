@@ -194,8 +194,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install mypy and stubs
-        run: pip install -q mypy types-pytz
+      - name: Install mypy and required libs
+        run: pip install -q mypy types-pytz "pydantic~=2.8" "pydantic-core~=2.23" fastapi
 
       - name: MyPy (scoped, warn)
         working-directory: backend
