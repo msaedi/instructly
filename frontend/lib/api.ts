@@ -82,7 +82,8 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
 
       // Try to get error details from response body
       try {
-        const errorBody = await response.clone().json();
+        const errorBody: { detail?: string; message?: string; [key: string]: unknown } =
+          (await response.clone().json()) as { detail?: string; message?: string; [key: string]: unknown };
         // Downgrade 4xx (client/expected) to warn to avoid noisy console errors
         if (response.status >= 500) {
           logger.error('API error response body', undefined, {
@@ -263,7 +264,8 @@ export async function validateWeekChanges(
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string; [key: string]: unknown } =
+        (await response.json()) as { detail?: string; message?: string; [key: string]: unknown };
       logger.error('Week validation failed', undefined, {
         status: response.status,
         error,
@@ -271,10 +273,10 @@ export async function validateWeekChanges(
       throw new Error(error.detail || 'Failed to validate changes');
     }
 
-    const validationResult = await response.json();
+    const validationResult: WeekValidationResponse = (await response.json()) as WeekValidationResponse;
     logger.info('Week validation completed', {
-      hasConflicts: validationResult.has_conflicts,
-      changesCount: validationResult.changes?.length || 0,
+      hasConflicts: validationResult.summary.has_conflicts,
+      changesCount: validationResult.details.length || 0,
     });
 
     return validationResult;
@@ -319,7 +321,7 @@ export async function fetchBookingPreview(bookingId: string): Promise<BookingPre
       throw new Error('Failed to fetch booking preview');
     }
 
-    const preview = await response.json();
+    const preview: BookingPreview = (await response.json()) as BookingPreview;
     logger.debug('Booking preview fetched successfully', {
       bookingId,
       hasStudentInfo: !!(preview.student_first_name && preview.student_last_name),
@@ -351,7 +353,8 @@ export async function getUpcomingBookings(limit: number = 5): Promise<UpcomingBo
       throw new Error('Failed to fetch upcoming bookings');
     }
 
-    const data = await response.json();
+    const data: { items: UpcomingBooking[]; total: number } =
+      (await response.json()) as { items: UpcomingBooking[]; total: number };
     // Now always returns consistent paginated format
     logger.debug('Upcoming bookings fetched successfully', {
       count: data.items.length,
@@ -451,7 +454,10 @@ export function isAuthError(response: Response): boolean {
  */
 export async function getErrorMessage(response: Response): Promise<string> {
   try {
-    const data = await response.json();
+    const data: { detail?: string; message?: string } = (await response.json()) as {
+      detail?: string;
+      message?: string;
+    };
     return data.detail || data.message || 'An error occurred';
   } catch {
     return `Error: ${response.statusText}`;

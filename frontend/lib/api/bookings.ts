@@ -114,7 +114,9 @@ export const bookingsApi = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string } = (await response.json()) as {
+        detail?: string; message?: string
+      };
       logger.error('Availability check failed', undefined, {
         instructorId: data.instructor_id,
         date: data.booking_date,
@@ -245,7 +247,9 @@ export const bookingsApi = {
 
     const response = await fetchWithAuth(`/bookings/${bookingId}`);
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string } = (await response.json()) as {
+        detail?: string; message?: string
+      };
       logger.error('Failed to fetch booking', undefined, { bookingId, error });
       throw new Error(error.detail || 'Failed to fetch booking');
     }
@@ -275,7 +279,9 @@ export const bookingsApi = {
 
     const response = await fetchWithAuth(`/bookings/${bookingId}/preview`);
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string } = (await response.json()) as {
+        detail?: string; message?: string
+      };
       logger.error('Failed to fetch booking preview', undefined, { bookingId, error });
       throw new Error(error.detail || 'Failed to fetch booking preview');
     }
@@ -322,7 +328,7 @@ export const bookingsApi = {
     if (!response.ok) {
       let errorDetail = 'Failed to cancel booking';
       try {
-        const error = await response.json();
+        const error: { detail?: unknown } = (await response.json()) as { detail?: unknown };
 
         if (error.detail) {
           if (typeof error.detail === 'string') {
@@ -369,7 +375,9 @@ export const bookingsApi = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string } = (await response.json()) as {
+        detail?: string; message?: string
+      };
       logger.error('Failed to complete booking', undefined, { bookingId, error });
       throw new Error(error.detail || 'Failed to complete booking');
     }
@@ -399,7 +407,9 @@ export const bookingsApi = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string } = (await response.json()) as {
+        detail?: string; message?: string
+      };
       logger.error('Failed to mark as no-show', undefined, { bookingId, error });
       throw new Error(error.detail || 'Failed to mark as no-show');
     }
@@ -426,7 +436,9 @@ export const bookingsApi = {
 
     const response = await fetchWithAuth('/bookings/stats');
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string } = (await response.json()) as {
+        detail?: string; message?: string
+      };
       logger.error('Failed to fetch booking stats', undefined, { error });
       throw new Error(error.detail || 'Failed to fetch booking stats');
     }
@@ -456,7 +468,9 @@ export const bookingsApi = {
 
     const response = await fetchWithAuth(`/bookings/upcoming?limit=${limit}`);
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string } = (await response.json()) as {
+        detail?: string; message?: string
+      };
       logger.error('Failed to fetch upcoming bookings', undefined, { limit, error });
       throw new Error(error.detail || 'Failed to fetch upcoming bookings');
     }
@@ -511,7 +525,9 @@ export const bookingsApi = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string } = (await response.json()) as {
+        detail?: string; message?: string
+      };
       logger.error('Failed to reschedule booking', undefined, { bookingId, error });
       throw new Error(error.detail || 'Failed to reschedule booking');
     }
@@ -566,7 +582,9 @@ export const availabilityApi = {
       `/availability/instructor/${instructorId}?${params.toString()}`
     );
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string } = (await response.json()) as {
+        detail?: string; message?: string
+      };
       logger.error('Failed to fetch availability', undefined, {
         instructorId,
         dateRange: { startDate, endDate },
@@ -615,7 +633,9 @@ export const availabilityApi = {
       `/availability/instructor/${instructorId}/slots?${params.toString()}`
     );
     if (!response.ok) {
-      const error = await response.json();
+      const error: { detail?: string; message?: string } = (await response.json()) as {
+        detail?: string; message?: string
+      };
       logger.error('Failed to fetch available slots', undefined, {
         instructorId,
         date,

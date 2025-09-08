@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.strict-all.json",
+  "include": [
+    "app/**/*",
+    "components/**/*",
+    "features/**/*",
+    "hooks/**/*",
+    "lib/**/*",
+    "types/**/*"
+  ],
+  "exclude": [
+    "**/__tests__/**",
+    "e2e/**",
+    ".next/**",
+    "playwright-report/**",
+    "coverage/**",
+    "types/generated/**"
+  ]
+}
+
+
