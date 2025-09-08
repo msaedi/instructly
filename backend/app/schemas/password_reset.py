@@ -19,7 +19,7 @@ class PasswordResetConfirm(BaseModel):
     new_password: str = Field(..., min_length=8)
 
     @field_validator("new_password")
-    def validate_password(cls, v):
+    def validate_password(cls, v: str) -> str:
         if not any(char.isdigit() for char in v):
             raise ValueError("Password must contain at least one digit")
         if not any(char.isupper() for char in v):

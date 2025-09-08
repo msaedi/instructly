@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 import pytz
@@ -17,7 +17,7 @@ class UserBase(BaseModel):
     timezone: Optional[str] = "America/New_York"
 
     @field_validator("phone")
-    def validate_phone(cls, v):
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
         if v:
             # Remove any non-numeric characters
             cleaned = re.sub(r"\D", "", v)
@@ -31,7 +31,7 @@ class UserBase(BaseModel):
         return v
 
     @field_validator("timezone")
-    def validate_timezone(cls, v):
+    def validate_timezone(cls, v: Optional[str]) -> Optional[str]:
         if v and v not in pytz.all_timezones:
             raise ValueError(f"Invalid timezone: {v}")
         return v
@@ -41,7 +41,9 @@ class UserCreate(UserBase):
     password: str
     role: Optional[str] = None  # For backward compatibility during registration
     guest_session_id: Optional[str] = None  # For conversion on signup
-    metadata: Optional[dict] = None  # Optional client-provided metadata (e.g., invite_code)
+    metadata: Optional[
+        Dict[str, Any]
+    ] = None  # Optional client-provided metadata (e.g., invite_code)
 
 
 class UserUpdate(BaseModel):
@@ -52,7 +54,7 @@ class UserUpdate(BaseModel):
     timezone: Optional[str] = None
 
     @field_validator("phone")
-    def validate_phone(cls, v):
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
         if v:
             # Remove any non-numeric characters
             cleaned = re.sub(r"\D", "", v)
@@ -66,7 +68,7 @@ class UserUpdate(BaseModel):
         return v
 
     @field_validator("timezone")
-    def validate_timezone(cls, v):
+    def validate_timezone(cls, v: Optional[str]) -> Optional[str]:
         if v and v not in pytz.all_timezones:
             raise ValueError(f"Invalid timezone: {v}")
         return v

@@ -11,7 +11,7 @@ These will be reimplemented differently in the new booking system.
 
 from datetime import datetime
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -55,23 +55,23 @@ class InstructorFilterParams(BaseModel):
     )
 
     @field_validator("max_price")
-    def validate_price_range(cls, v, values):
+    def validate_price_range(cls, v: Optional[float], info: Any) -> Optional[float]:
         """Ensure max_price >= min_price if both are provided."""
-        if v is not None and "min_price" in values.data:
-            min_price = values.data["min_price"]
+        if v is not None and hasattr(info, "data") and "min_price" in info.data:
+            min_price = info.data["min_price"]
             if min_price is not None and v < min_price:
                 raise ValueError("max_price must be greater than or equal to min_price")
         return v
 
     @field_validator("search")
-    def clean_string_fields(cls, v):
+    def clean_string_fields(cls, v: Optional[str]) -> Optional[str]:
         """Clean and normalize string fields."""
         if v is not None:
             return v.strip()
         return v
 
     @field_validator("age_group")
-    def validate_age_group(cls, v):
+    def validate_age_group(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
         vv = str(v).strip().lower()
@@ -123,7 +123,7 @@ class ServiceBase(StandardizedModel):
     )
 
     @field_validator("duration_options")
-    def validate_duration_range(cls, v):
+    def validate_duration_range(cls, v: List[int]) -> List[int]:
         """Ensure each duration is within valid range."""
         if not v:
             raise ValueError("At least one duration option is required")
@@ -135,7 +135,7 @@ class ServiceBase(StandardizedModel):
         return v
 
     @field_validator("age_groups")
-    def validate_age_groups(cls, v):
+    def validate_age_groups(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Normalize and validate age groups.
 
         Accepts ['kids'], ['adults'], or ['kids','adults'].
@@ -154,8 +154,8 @@ class ServiceBase(StandardizedModel):
             else:
                 raise ValueError("age_groups must be one or more of: 'kids', 'adults'")
         # De-duplicate while preserving order
-        seen = set()
-        deduped = []
+        seen: set[str] = set()
+        deduped: List[str] = []
         for item in normalized:
             if item not in seen:
                 seen.add(item)
@@ -163,7 +163,7 @@ class ServiceBase(StandardizedModel):
         return deduped
 
     @field_validator("levels_taught")
-    def validate_levels_taught(cls, v):
+    def validate_levels_taught(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Normalize and validate levels_taught.
 
         Allowed values: beginner, intermediate, advanced.
@@ -183,7 +183,7 @@ class ServiceBase(StandardizedModel):
         return normalized
 
     @field_validator("location_types")
-    def validate_location_types(cls, v):
+    def validate_location_types(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Normalize and validate location types.
 
         Allowed values: in-person, online.
@@ -244,7 +244,7 @@ class UserBasicPrivacy(StandardizedModel):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_user(cls, user) -> "UserBasicPrivacy":
+    def from_user(cls, user: Any) -> "UserBasicPrivacy":
         """
         Create UserBasicPrivacy from User model.
         Ensures privacy by only exposing last initial and no email.
@@ -294,7 +294,7 @@ class InstructorProfileBase(StandardizedModel):
     )
 
     @field_validator("areas_of_service")
-    def validate_areas(cls, v):
+    def validate_areas(cls, v: List[str]) -> List[str]:
         """Ensure areas are properly formatted and no duplicates."""
         # Remove duplicates and format properly
         unique_areas = list(set(area.strip().title() for area in v if area.strip()))
@@ -303,7 +303,7 @@ class InstructorProfileBase(StandardizedModel):
         return unique_areas
 
     @field_validator("bio")
-    def validate_bio(cls, v):
+    def validate_bio(cls, v: str) -> str:
         """Ensure bio is not just whitespace."""
         if not v.strip():
             raise ValueError("Bio cannot be empty")
@@ -325,7 +325,7 @@ class InstructorProfileCreate(InstructorProfileBase):
     )
 
     @field_validator("services")
-    def validate_unique_services(cls, v):
+    def validate_unique_services(cls, v: List[ServiceCreate]) -> List[ServiceCreate]:
         """Ensure no duplicate service catalog IDs."""
         catalog_ids = [service.service_catalog_id for service in v]
         if len(catalog_ids) != len(set(catalog_ids)):
@@ -346,7 +346,7 @@ class InstructorProfileUpdate(BaseModel):
     services: Optional[List[ServiceCreate]] = Field(None, min_length=0, max_length=20)
 
     @field_validator("areas_of_service")
-    def validate_areas(cls, v):
+    def validate_areas(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Ensure areas are properly formatted if provided."""
         if v is not None and len(v) > 0:
             unique_areas = list(set(area.strip().title() for area in v if area.strip()))
@@ -354,7 +354,9 @@ class InstructorProfileUpdate(BaseModel):
         return v
 
     @field_validator("services")
-    def validate_unique_services(cls, v):
+    def validate_unique_services(
+        cls, v: Optional[List[ServiceCreate]]
+    ) -> Optional[List[ServiceCreate]]:
         """Ensure no duplicate service catalog IDs if provided."""
         if v is not None:
             catalog_ids = [service.service_catalog_id for service in v]
@@ -395,7 +397,7 @@ class InstructorProfileResponse(InstructorProfileBase):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_orm(cls, instructor_profile) -> "InstructorProfileResponse":
+    def from_orm(cls, instructor_profile: Any) -> "InstructorProfileResponse":
         """
         Create InstructorProfileResponse from ORM model with privacy protection.
 
@@ -429,7 +431,7 @@ class InstructorProfileResponse(InstructorProfileBase):
         )
 
     @field_validator("areas_of_service", mode="before")
-    def convert_areas_to_list(cls, v):
+    def convert_areas_to_list(cls, v: object) -> object:
         """Convert comma-separated string to list if needed."""
         if isinstance(v, str):
             # Clean up any corrupted data
@@ -444,7 +446,7 @@ class InstructorProfileResponse(InstructorProfileBase):
             cleaned = cleaned.replace("{", "").replace("}", "")
 
             # Split by comma and clean up each area
-            areas = []
+            areas: List[str] = []
             for area in cleaned.split(","):
                 # Remove quotes and whitespace
                 area = area.strip().strip('"').strip("'").strip()
@@ -455,6 +457,6 @@ class InstructorProfileResponse(InstructorProfileBase):
         return v
 
     @field_validator("services")
-    def sort_services(cls, v):
+    def sort_services(cls, v: List[ServiceResponse]) -> List[ServiceResponse]:
         """Sort services by catalog ID for consistent display."""
         return sorted(v, key=lambda s: s.service_catalog_id)

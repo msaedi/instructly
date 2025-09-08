@@ -7,7 +7,7 @@ and payment processing.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -185,7 +185,7 @@ class PaymentErrorResponse(BaseModel):
 
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Human-readable error message")
-    details: Optional[dict] = Field(None, description="Additional error details")
+    details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
     payment_intent_id: Optional[str] = Field(
         None, description="Associated payment intent ID if applicable"
     )

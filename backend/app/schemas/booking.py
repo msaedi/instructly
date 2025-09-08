@@ -9,7 +9,7 @@ availability changes.
 """
 
 from datetime import date, datetime, time, timedelta
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -59,7 +59,7 @@ class BookingCreate(BaseModel):
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
-    def parse_time_string(cls, v):
+    def parse_time_string(cls, v: object) -> object:
         """Convert time strings to time objects."""
         if isinstance(v, str):
             try:
@@ -72,7 +72,7 @@ class BookingCreate(BaseModel):
 
     @field_validator("selected_duration")
     @classmethod
-    def validate_duration(cls, v):
+    def validate_duration(cls, v: int) -> int:
         """Ensure duration is within reasonable bounds."""
         if v < 15:
             raise ValueError("Duration must be at least 15 minutes")
@@ -83,7 +83,7 @@ class BookingCreate(BaseModel):
     # NOTE: Date validation moved to services to support user timezones
     # @field_validator("booking_date")
     # @classmethod
-    # def validate_future_date(cls, v):
+    # def validate_future_date(cls, v: date) -> date:
     #     """Ensure booking is for future date."""
     #     if v < date.today():
     #         raise ValueError("Cannot book for past dates")
@@ -91,13 +91,13 @@ class BookingCreate(BaseModel):
 
     @field_validator("student_note")
     @classmethod
-    def clean_note(cls, v):
+    def clean_note(cls, v: Optional[str]) -> Optional[str]:
         """Clean up the student note."""
         return v.strip() if v else v
 
     @field_validator("location_type")
     @classmethod
-    def validate_location_type(cls, v):
+    def validate_location_type(cls, v: Optional[str]) -> str:
         """Ensure location type is valid."""
         valid_types = ["student_home", "instructor_location", "neutral"]
         if v and v not in valid_types:
@@ -105,7 +105,7 @@ class BookingCreate(BaseModel):
         return v or "neutral"
 
     @model_validator(mode="after")
-    def validate_time_order(self):
+    def validate_time_order(self) -> "BookingCreate":
         """Ensure end_time is after start_time and calculate if needed."""
         if self.end_time is None and self.start_time and self.selected_duration:
             # Calculate end_time from start_time + duration
@@ -139,7 +139,7 @@ class BookingRescheduleRequest(BaseModel):
 
     @field_validator("start_time", mode="before")
     @classmethod
-    def parse_time_string(cls, v):
+    def parse_time_string(cls, v: object) -> object:
         if isinstance(v, str):
             try:
                 hour, minute = v.split(":")
@@ -150,7 +150,7 @@ class BookingRescheduleRequest(BaseModel):
 
     @field_validator("selected_duration")
     @classmethod
-    def validate_duration(cls, v):
+    def validate_duration(cls, v: int) -> int:
         if v < 15:
             raise ValueError("Duration must be at least 15 minutes")
         if v > 720:
@@ -187,7 +187,7 @@ class BookingUpdate(BaseModel):
 
     @field_validator("instructor_note")
     @classmethod
-    def clean_note(cls, v):
+    def clean_note(cls, v: Optional[str]) -> Optional[str]:
         """Clean up the instructor note."""
         return v.strip() if v else v
 
@@ -199,7 +199,7 @@ class BookingCancel(BaseModel):
 
     @field_validator("reason")
     @classmethod
-    def clean_reason(cls, v):
+    def clean_reason(cls, v: str) -> str:
         """Ensure reason is not empty."""
         v = v.strip()
         if not v:
@@ -276,7 +276,7 @@ class InstructorInfo(StandardizedModel):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_user(cls, user) -> "InstructorInfo":
+    def from_user(cls, user: Any) -> "InstructorInfo":
         """
         Factory method to create InstructorInfo from User model.
         Ensures privacy by only exposing last initial.
@@ -314,7 +314,7 @@ class BookingResponse(BookingBase):
     rescheduled_from: Optional["RescheduledFromInfo"] = None
 
     @classmethod
-    def from_booking(cls, booking) -> "BookingResponse":
+    def from_booking(cls, booking: Any) -> "BookingResponse":
         """
         Create BookingResponse from Booking ORM model.
         Handles privacy transformation automatically.
@@ -432,7 +432,7 @@ class BookingCreateResponse(BookingResponse):
 
     @classmethod
     def from_booking(
-        cls, booking, setup_intent_client_secret: Optional[str] = None
+        cls, booking: Any, setup_intent_client_secret: Optional[str] = None
     ) -> "BookingCreateResponse":
         """
         Create BookingCreateResponse from Booking ORM model.
@@ -534,7 +534,7 @@ class AvailabilityCheckRequest(BaseModel):
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
-    def parse_time_string(cls, v):
+    def parse_time_string(cls, v: object) -> object:
         """Convert time strings to time objects."""
         if isinstance(v, str):
             try:
@@ -547,9 +547,13 @@ class AvailabilityCheckRequest(BaseModel):
 
     @field_validator("end_time")
     @classmethod
-    def validate_time_order(cls, v, info):
+    def validate_time_order(cls, v: time, info: Any) -> time:
         """Ensure end time is after start time."""
-        if info.data and "start_time" in info.data and v <= info.data["start_time"]:
+        if (
+            isinstance(getattr(info, "data", None), dict)
+            and "start_time" in info.data
+            and v <= info.data["start_time"]
+        ):
             raise ValueError("End time must be after start time")
         return v
 
@@ -568,7 +572,7 @@ class AvailabilityCheckResponse(BaseModel):
     available: bool
     reason: Optional[str] = None
     min_advance_hours: Optional[int] = None
-    conflicts_with: Optional[List[dict]] = None  # List of conflicting bookings if any
+    conflicts_with: Optional[List[Dict[str, Any]]] = None  # List of conflicting bookings if any
 
 
 class BookingStatsResponse(StandardizedModel):
@@ -608,7 +612,7 @@ class UpcomingBookingResponse(StandardizedModel):
 
     @field_validator("total_price", mode="before")
     @classmethod
-    def _coerce_price(cls, v):
+    def _coerce_price(cls, v: object) -> float:
         if v is None:
             return 0.0
         if isinstance(v, (int, float)):
@@ -657,14 +661,18 @@ class FindBookingOpportunitiesRequest(BaseModel):
 
     @field_validator("date_range_end")
     @classmethod
-    def validate_date_range(cls, v, info):
+    def validate_date_range(cls, v: date, info: Any) -> date:
         """Ensure valid date range."""
-        if info.data.get("date_range_start") and v < info.data["date_range_start"]:
+        if (
+            isinstance(getattr(info, "data", None), dict)
+            and info.data.get("date_range_start")
+            and v < info.data["date_range_start"]
+        ):
             raise ValueError("End date must be after start date")
         # Limit search to reasonable range
         from datetime import timedelta
 
-        if info.data.get("date_range_start"):
+        if isinstance(getattr(info, "data", None), dict) and info.data.get("date_range_start"):
             max_range = info.data["date_range_start"] + timedelta(days=90)
             if v > max_range:
                 raise ValueError("Search range cannot exceed 90 days")
@@ -685,4 +693,9 @@ class FindBookingOpportunitiesResponse(BaseModel):
 
     opportunities: List[BookingOpportunity]
     total_found: int
-    search_parameters: dict  # Echo back search params for context
+    search_parameters: Dict[str, Any]
+
+
+__all__ = [
+    "BookingStatus",
+]

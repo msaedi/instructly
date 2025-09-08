@@ -35,9 +35,13 @@ class AvailabilityWindowBase(BaseModel):
 
     @field_validator("end_time")
     @classmethod
-    def validate_time_order(cls, v, info):
+    def validate_time_order(cls, v: TimeType, info: Any) -> TimeType:
         """Ensure end time is after start time."""
-        if info.data.get("start_time") and v <= info.data["start_time"]:
+        if (
+            isinstance(getattr(info, "data", None), dict)
+            and info.data.get("start_time")
+            and v <= info.data["start_time"]
+        ):
             raise ValueError("End time must be after start time")
         return v
 
@@ -60,9 +64,14 @@ class AvailabilityWindowUpdate(BaseModel):
 
     @field_validator("end_time")
     @classmethod
-    def validate_time_order(cls, v, info):
+    def validate_time_order(cls, v: Optional[TimeType], info: Any) -> Optional[TimeType]:
         """Ensure end time is after start time if both provided."""
-        if v and info.data.get("start_time") and v <= info.data["start_time"]:
+        if (
+            v
+            and isinstance(getattr(info, "data", None), dict)
+            and info.data.get("start_time")
+            and v <= info.data["start_time"]
+        ):
             raise ValueError("End time must be after start time")
         return v
 
@@ -112,9 +121,13 @@ class TimeRange(BaseModel):
 
     @field_validator("end_time")
     @classmethod
-    def validate_time_order(cls, v, info):
+    def validate_time_order(cls, v: TimeType, info: Any) -> TimeType:
         """Ensure end time is after start time."""
-        if info.data.get("start_time") and v <= info.data["start_time"]:
+        if (
+            isinstance(getattr(info, "data", None), dict)
+            and info.data.get("start_time")
+            and v <= info.data["start_time"]
+        ):
             raise ValueError("End time must be after start time")
         return v
 
@@ -140,7 +153,7 @@ class WeekSpecificScheduleCreate(BaseModel):
 
     @field_validator("week_start")
     @classmethod
-    def validate_monday(cls, v):
+    def validate_monday(cls, v: Optional[DateType]) -> Optional[DateType]:
         """Ensure week start is a Monday if provided."""
         if v and v.weekday() != 0:
             raise ValueError("Week start must be a Monday")
@@ -148,7 +161,7 @@ class WeekSpecificScheduleCreate(BaseModel):
 
     @field_validator("schedule")
     @classmethod
-    def validate_schedule_items(cls, v):
+    def validate_schedule_items(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Validate each schedule item has required fields."""
         for item in v:
             if not isinstance(item, dict):
@@ -166,7 +179,7 @@ class CopyWeekRequest(BaseModel):
 
     @field_validator("from_week_start")
     @classmethod
-    def validate_from_monday(cls, v):
+    def validate_from_monday(cls, v: DateType) -> DateType:
         """Ensure from_week_start is a Monday."""
         if v.weekday() != 0:
             raise ValueError(f"{v} is not a Monday (weekday={v.weekday()})")
@@ -174,7 +187,7 @@ class CopyWeekRequest(BaseModel):
 
     @field_validator("to_week_start")
     @classmethod
-    def validate_to_monday(cls, v):
+    def validate_to_monday(cls, v: DateType) -> DateType:
         """Ensure to_week_start is a Monday."""
         if v.weekday() != 0:
             raise ValueError(f"{v} is not a Monday (weekday={v.weekday()})")
@@ -182,9 +195,13 @@ class CopyWeekRequest(BaseModel):
 
     @field_validator("to_week_start")
     @classmethod
-    def validate_different_weeks(cls, v, info):
+    def validate_different_weeks(cls, v: DateType, info: Any) -> DateType:
         """Ensure we're not copying to the same week."""
-        if info.data.get("from_week_start") and v == info.data["from_week_start"]:
+        if (
+            getattr(info, "data", None)
+            and info.data.get("from_week_start")
+            and v == info.data["from_week_start"]
+        ):
             raise ValueError("Cannot copy to the same week")
         return v
 
@@ -198,7 +215,7 @@ class ApplyToDateRangeRequest(BaseModel):
 
     @field_validator("from_week_start")
     @classmethod
-    def validate_monday(cls, v):
+    def validate_monday(cls, v: DateType) -> DateType:
         """Ensure source week starts on Monday."""
         if v.weekday() != 0:
             raise ValueError("Source week must start on a Monday")
@@ -206,9 +223,9 @@ class ApplyToDateRangeRequest(BaseModel):
 
     @field_validator("end_date")
     @classmethod
-    def validate_date_range(cls, v, info):
+    def validate_date_range(cls, v: DateType, info: Any) -> DateType:
         """Validate the date range."""
-        if info.data.get("start_date"):
+        if getattr(info, "data", None) and info.data.get("start_date"):
             if v < info.data["start_date"]:
                 raise ValueError("End date must be after start date")
             # Enforce 1-year maximum range
@@ -237,16 +254,25 @@ class SlotOperation(BaseModel):
 
     @field_validator("end_time")
     @classmethod
-    def validate_time_order(cls, v, info):
+    def validate_time_order(cls, v: Optional[TimeType], info: Any) -> Optional[TimeType]:
         """Ensure end time is after start time for add/update."""
-        if v and info.data.get("start_time") and v <= info.data["start_time"]:
+        if (
+            v
+            and isinstance(getattr(info, "data", None), dict)
+            and info.data.get("start_time")
+            and v <= info.data["start_time"]
+        ):
             raise ValueError("End time must be after start time")
         return v
 
     @field_validator("date")
     @classmethod
-    def validate_required_for_add(cls, v, info):
-        if info.data.get("action") == "add" and not v:
+    def validate_required_for_add(cls, v: Optional[DateType], info: Any) -> Optional[DateType]:
+        if (
+            isinstance(getattr(info, "data", None), dict)
+            and info.data.get("action") == "add"
+            and not v
+        ):
             raise ValueError("date is required for add operations")
         return v
 

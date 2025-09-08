@@ -3,7 +3,7 @@
 from pydantic import BaseModel
 
 
-class SearchInteractionResponse(BaseModel):  # type: ignore[misc]
+class SearchInteractionResponse(BaseModel):
     """Response for recording search interaction."""
 
     success: bool

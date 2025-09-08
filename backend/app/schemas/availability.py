@@ -8,7 +8,7 @@ A slot exists = instructor is available. Simple.
 """
 
 from datetime import date, time
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -21,7 +21,7 @@ class AvailabilitySlotBase(BaseModel):
 
     @field_validator("end_time")
     @classmethod
-    def validate_time_order(cls, v, info):
+    def validate_time_order(cls, v: time, info: Any) -> time:
         """Ensure end time is after start time."""
         if info.data.get("start_time") and v <= info.data["start_time"]:
             raise ValueError("End time must be after start time")
@@ -43,7 +43,7 @@ class AvailabilitySlotUpdate(BaseModel):
 
     @field_validator("end_time")
     @classmethod
-    def validate_time_order(cls, v, info):
+    def validate_time_order(cls, v: Optional[time], info: Any) -> Optional[time]:
         """Ensure end time is after start time if both provided."""
         if v and info.data.get("start_time") and v <= info.data["start_time"]:
             raise ValueError("End time must be after start time")

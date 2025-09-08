@@ -4,7 +4,7 @@ Response schemas for the message/chat system.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -33,9 +33,9 @@ class MessageResponse(BaseModel):
     delivered_at: Optional[datetime] = None
     edited_at: Optional[datetime] = None
     # Array of { user_id: str, read_at: datetime }
-    read_by: Optional[List[dict]] = None
+    read_by: Optional[List[Dict[str, Any]]] = None
     # Reactions summary: counts per emoji and the current user's reactions
-    reactions: Optional[dict] = None
+    reactions: Optional[Dict[str, Any]] = None
     my_reactions: Optional[List[str]] = None
     sender: Optional[MessageSenderResponse] = None
 

@@ -146,6 +146,7 @@ warn_return_any = true
 disallow_untyped_defs = true
 explicit_package_bases = true
 follow_imports = "skip"
+plugins = ["pydantic.mypy"]
 files = [
   "app/schemas/**",
   "app/routes/internal.py",
@@ -170,3 +171,11 @@ module = [
 ]
 check_untyped_defs = true
 warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+  "pydantic",
+  "pydantic.*"
+]
+ignore_missing_imports = false
+follow_imports = "normal"

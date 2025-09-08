@@ -7,7 +7,7 @@ between authenticated users and guests, allowing unified business logic.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Dict, Optional, cast
 
 from ..core.config import settings
 
@@ -29,7 +29,7 @@ class SearchUserContext:
     session_id: Optional[str] = None
     search_origin: Optional[str] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate that we have exactly one identifier."""
         if not (bool(self.user_id) ^ bool(self.guest_session_id)):
             raise ValueError("Must provide exactly one of user_id or guest_session_id")
@@ -61,9 +61,9 @@ class SearchUserContext:
     @property
     def search_limit(self) -> int:
         """Get the search history limit (same for both user types)."""
-        return settings.search_history_max_per_user
+        return cast(int, settings.search_history_max_per_user)
 
-    def to_repository_kwargs(self) -> dict:
+    def to_repository_kwargs(self) -> Dict[str, Optional[str]]:
         """
         Convert to kwargs for repository methods.
 

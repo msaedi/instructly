@@ -5,7 +5,7 @@ These models ensure consistent API responses for alert-related endpoints
 and provide proper documentation through FastAPI's automatic docs.
 """
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,7 +23,7 @@ class AlertDetail(BaseModel):
     created_at: str = Field(description="When the alert was created (ISO format)")
     email_sent: bool = Field(description="Whether email notification was sent")
     github_issue: bool = Field(description="Whether GitHub issue was created")
-    details: Optional[Dict] = Field(default=None, description="Additional alert details")
+    details: Optional[Dict[str, Any]] = Field(default=None, description="Additional alert details")
 
 
 class RecentAlertsResponse(BaseModel):

@@ -22,7 +22,7 @@ class InstructorInfo(BaseModel):
     @classmethod
     def from_user(
         cls,
-        user,
+        user: Any,
         bio: Optional[str] = None,
         years_experience: Optional[int] = None,
         areas_of_service: Optional[str] = None,

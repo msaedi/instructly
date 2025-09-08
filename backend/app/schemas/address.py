@@ -1,6 +1,6 @@
 """Pydantic schemas for user addresses and service areas."""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -49,7 +49,7 @@ class AddressResponse(AddressBase):
     district: Optional[str] = None
     neighborhood: Optional[str] = None
     subneighborhood: Optional[str] = None
-    location_metadata: Optional[dict] = None
+    location_metadata: Optional[Dict[str, Any]] = None
 
 
 class AddressListResponse(BaseModel):

@@ -1,6 +1,6 @@
 # backend/app/schemas/review.py
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 from pydantic.functional_validators import field_validator
@@ -46,8 +46,8 @@ class ReviewResponseModel(BaseModel):
 
 
 class InstructorRatingsResponse(BaseModel):
-    overall: Dict
-    by_service: List[Dict] = Field(default_factory=list)
+    overall: Dict[str, Any]
+    by_service: List[Dict[str, Any]] = Field(default_factory=list)
     confidence_level: str = Field(..., pattern="^(new|establishing|established|trusted)$")
 
 
