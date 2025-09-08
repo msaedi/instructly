@@ -135,6 +135,21 @@ const eslintConfig = [
       '@typescript-eslint/no-floating-promises': 'off',
     },
   },
+  // Enforce no-floating-promises in Next.js app pages/layouts/route handlers only
+  {
+    files: ['app/**/*.{ts,tsx}'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: { projectService: true, tsconfigRootDir: __dirname },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        { ignoreVoid: true, ignoreIIFE: true },
+      ],
+    },
+    ignores: ['**/*.d.ts', '**/__tests__/**', 'e2e/**', 'scripts/**', 'type-tests/**', 'types/generated/**', 'public/**'],
+  },
   // React Refresh ergonomics in component and test files
   {
     files: ['components/**/*', 'features/**/*', 'app/**/*', '__tests__/**/*'],

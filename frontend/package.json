@@ -50,7 +50,8 @@
     "verify:public-env": "node scripts/verify-public-env.mjs",
     "audit:deadcode": "node scripts/run-knip.mjs",
     "audit:deadcode:ci": "npm run audit:deadcode",
-    "audit:typecov": "type-coverage --detail || true",
+    "audit:typecov": "type-coverage -p tsconfig.strict-all.json --detail --strict --at-least 99 --ignore-files \".*/__tests__/.*\" --ignore-files \".*/e2e/.*\" --ignore-files \".*/types/generated/.*\" --ignore-files \".*/\\.next/.*\"",
+    "audit:typecov:ci": "type-coverage -p tsconfig.strict-all.json --detail --strict --at-least 99 --ignore-files \".*/__tests__/.*\" --ignore-files \".*/e2e/.*\" --ignore-files \".*/types/generated/.*\" --ignore-files \".*/\\.next/.*\"",
     "type:smoke": "tsd --files \"type-tests/**/*.test-d.ts\"",
     "type:smoke:ci": "npm run type:smoke",
     "audit:lhci": "cross-env NEXT_PUBLIC_API_BASE=https://example.invalid next build && lhci autorun || true"
@@ -126,9 +127,13 @@
   ],
   "typeCoverage": {
     "atLeast": 95,
-    "ignorePaths": [
-      "types/generated/**",
-      "e2e/**"
+    "ignoreFiles": [
+      "^types/generated/.*$",
+      "^e2e/.*$",
+      "^\\.next/.*$",
+      ".*__tests__/.*",
+      ".*\\.test\\.ts$",
+      ".*\\.test\\.tsx$"
     ]
   },
   "lint-staged": {

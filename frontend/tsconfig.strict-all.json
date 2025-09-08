@@ -15,6 +15,11 @@
   },
   "include": ["."],
   "exclude": [
-    "type-tests/**"
+    "type-tests/**",
+    ".next/**",
+    "e2e/**",
+    "**/__tests__/**",
+    "playwright-report/**",
+    "coverage/**"
   ]
 }

@@ -5,7 +5,7 @@ echo "[pre-push] Backend: ruff F+I"
 (cd backend && ruff check app --select F,I)
 
 echo "[pre-push] Backend: mypy schemas + routes/internal.py"
-(cd backend && mypy app/schemas app/routes/internal.py)
+(cd backend && mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py)
 
 echo "[pre-push] Backend: pytest smoke (rate headers)"
 (cd backend && \
@@ -23,6 +23,7 @@ echo "[pre-push] Frontend: build"
 
 echo "[pre-push] Frontend: size budget"
 (cd frontend && npm run --silent size)
+(cd frontend && npm run --silent audit:typecov:ci)
 
 echo "[pre-push] Frontend: type:smoke:ci"
 (cd frontend && npm run --silent type:smoke:ci)

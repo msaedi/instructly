@@ -168,9 +168,9 @@ jobs:
         run: |
           echo "lhci: completed (see .artifacts/lhci)" >> $GITHUB_STEP_SUMMARY
 
-      - name: Type coverage (warn)
+      - name: Type coverage (fail-gate >=99%)
         working-directory: frontend
-        run: npm run audit:typecov || echo "::warning ::type-coverage reported issues"
+        run: npm run audit:typecov:ci
 
       - name: Type coverage (summary)
         working-directory: frontend
@@ -197,9 +197,9 @@ jobs:
       - name: Install mypy and required libs
         run: pip install -q mypy types-pytz "pydantic~=2.8" "pydantic-core~=2.23" fastapi
 
-      - name: MyPy (scoped, warn)
+      - name: MyPy (scoped+widen, warn)
         working-directory: backend
-        run: mypy app/schemas app/routes/internal.py || echo "::warning ::mypy reported issues"
+        run: mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py || echo "::warning ::mypy reported issues"
 
       - name: MyPy (summary)
         run: |
