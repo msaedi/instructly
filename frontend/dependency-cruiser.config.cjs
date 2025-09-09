@@ -51,15 +51,17 @@ module.exports = {
       name: 'feature-isolation',
       severity: 'error',
       from: { path: '^features/([^/]+)/' },
-      to: { path: '^features/(?!shared/)[^/]+/' },
+      to: {
+        path: '^features/(?!shared/)[^/]+/',
+      },
     },
 
-    // 4) Components guard - components/** must not import features/**
+    // 4) Components guard - components/** must not import features/** (except shared)
     {
-      name: 'components-no-features',
+      name: 'components-no-features-except-shared',
       severity: 'error',
       from: { path: '^components/' },
-      to: { path: '^features/' },
+      to: { path: '^features/(?!shared/)' },
     },
   ],
 };

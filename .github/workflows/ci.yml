@@ -176,6 +176,8 @@ jobs:
         working-directory: frontend
         run: |
           npx --yes type-coverage --detail | sed -n 's/^type-coverage: /type-coverage: /p' | head -1 >> $GITHUB_STEP_SUMMARY || true
+      - name: Pin check (codegen/tooling)
+        run: node scripts/check-pins.mjs
       - name: Dependency cruiser (warn for now)
         working-directory: frontend
         run: |
