@@ -8,6 +8,10 @@
     "npm": ">=10"
   },
   "scripts": {
+    "audit:deps": "depcruise --config dependency-cruiser.config.cjs --ts-config tsconfig.json app components features hooks lib | jq '.'",
+    "audit:deps:ci": "depcruise --config dependency-cruiser.config.cjs --ts-config tsconfig.json app components features hooks lib --output-type err",
+    "audit:exports": "ts-prune -p tsconfig.json | grep -v -f ts-prune-allowlist.txt || true",
+    "audit:exports:ci": "ts-prune -p tsconfig.json | grep -v -f ts-prune-allowlist.txt | tee .artifacts/ts-prune.txt; test ! -s .artifacts/ts-prune.txt",
     "dev": "next dev",
     "dev:test": "next dev -p 3100",
     "dev:http": "rm -rf .next && NEXT_PUBLIC_API_BASE=http://localhost:8000 next dev",
@@ -101,6 +105,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "cross-env": "^10.0.0",
+    "dependency-cruiser": "^17.0.1",
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
     "eslint-plugin-no-only-tests": "^3.3.0",
@@ -114,6 +119,7 @@
     "size-limit": "^11.2.0",
     "tailwindcss": "^4",
     "ts-morph": "^22.0.0",
+    "ts-prune": "^0.10.3",
     "tsd": "^0.31.2",
     "type-coverage": "^2.29.7",
     "typescript": "^5",

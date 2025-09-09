@@ -176,6 +176,14 @@ jobs:
         working-directory: frontend
         run: |
           npx --yes type-coverage --detail | sed -n 's/^type-coverage: /type-coverage: /p' | head -1 >> $GITHUB_STEP_SUMMARY || true
+      - name: Dependency cruiser (warn for now)
+        working-directory: frontend
+        run: |
+          npm run audit:deps:ci || echo "::warning ::dependency-cruiser reported violations"
+      - name: Unused exports (ts-prune)
+        working-directory: frontend
+        run: |
+          npm run audit:exports:ci || echo "::warning ::ts-prune reported unused exports"
       - name: Type coverage (weekly summary json)
         working-directory: frontend
         run: |
@@ -202,7 +210,16 @@ jobs:
           python-version: '3.11'
 
       - name: Install mypy and required libs
-        run: pip install -q mypy types-pytz "pydantic~=2.8" "pydantic-core~=2.23" fastapi
+        run: pip install -q mypy types-pytz "pydantic~=2.8" "pydantic-core~=2.23" fastapi pip-audit
+
+      - name: pip-audit (warn or fail)
+        working-directory: backend
+        run: |
+          pip-audit -r requirements.txt -r requirements-openapi.txt -r requirements-dev.txt --strict || echo "::warning ::pip-audit reported issues"
+      - name: npm audit (warn or fail)
+        working-directory: frontend
+        run: |
+          npm audit --omit=dev --audit-level=high --json | node scripts/parse-npm-audit.js || echo "::warning ::npm audit reported high/critical issues"
 
       - name: MyPy (schemas/internal) fail-gate
         working-directory: backend

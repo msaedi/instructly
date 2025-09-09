@@ -14,6 +14,8 @@ All checks are non-functional changes focused on type safety, async hygiene, sec
 #### Frontend audits (informational)
 - LHCI (warn): `npm run audit:lhci`
 - Dead code (warn): `npm run audit:deadcode` (or `:ci`)
+- Dependency rules (fail-gate): `npm run audit:deps:ci`
+- Unused exports (ts-prune): `npm run audit:exports` locally; `:ci` fails if non-empty unless allowlisted.
 
 #### Type coverage (fail-gate ≥ 99.0%)
 - Local: `npm run audit:typecov`
@@ -53,6 +55,8 @@ All checks are non-functional changes focused on type safety, async hygiene, sec
 - Warn-mode audits are informational and should not block commits.
 
 #### Cheat‑sheet: common fixes
+- dependency-cruiser: break cycles by extracting shared modules or re-exporting via shared; honor layer rules (components → no features; features isolated).
+- ts-prune: remove unused exports or add to `frontend/ts-prune-allowlist.txt` with justification (public API types, etc.).
 - no‑floating‑promises: `await fn()`; or `void fn()` when fire‑and‑forget; add `.catch(logger.error)` if background errors must be logged.
 - Type coverage: add narrow annotations/JSDoc where values from `response.json()` are used; avoid logic changes.
 - Size‑limit: prefer subpath imports, watch heavy deps.
@@ -61,3 +65,10 @@ All checks are non-functional changes focused on type safety, async hygiene, sec
 
 #### Notes
 - No runtime behavior changes are introduced by these guardrails.
+
+### Security audits
+- Backend: `pip-audit` runs in CI (warn-mode initially). To ignore a specific CVE temporarily, add to `backend/pip-audit.ignore.json` with justification in PR.
+- Frontend: `npm audit --omit=dev --audit-level=high` summarized via `scripts/parse-npm-audit.js`; allowlist via `frontend/audit-allowlist.json` (ids), with justification.
+
+### Env-contract smoke (optional)
+- A lightweight Playwright test can run if `PLAYWRIGHT_BASE_URL` is provided in CI to probe `/health` headers and 429 UX. Skipped by default.
