@@ -181,7 +181,8 @@ jobs:
       - name: Dependency cruiser (fail-gate)
         working-directory: frontend
         run: |
-          npx --yes dependency-cruiser --config dependency-cruiser.config.cjs --ts-config tsconfig.json 'app|components|features|hooks|lib' --output-type json > .artifacts/depcruise.json
+          mkdir -p .artifacts
+          npx --yes dependency-cruiser --config dependency-cruiser.config.cjs --ts-config tsconfig.json app components features hooks lib --output-type json > .artifacts/depcruise.json
           ERRORS=$(jq '.summary.error // 0' .artifacts/depcruise.json)
           echo "dep-cruiser errors: ${ERRORS}" >> $GITHUB_STEP_SUMMARY
           test "${ERRORS}" -eq 0
