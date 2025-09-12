@@ -189,7 +189,7 @@ jobs:
       - name: Unused exports (ts-prune) fail-gate
         working-directory: frontend
         run: |
-          npx --yes ts-prune -p tsconfig.json | grep -v -f ts-prune-allowlist.txt | tee .artifacts/ts-prune.txt
+          npm run audit:exports:ci
           COUNT=$(wc -l < .artifacts/ts-prune.txt | tr -d ' \n')
           echo "ts-prune offenders: ${COUNT}" >> $GITHUB_STEP_SUMMARY
           test "${COUNT}" -eq 0
