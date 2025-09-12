@@ -58,7 +58,7 @@ echo "[pre-push] Frontend: audit:contract:ci"
 
 if [[ "${FAST_HOOKS:-0}" != "1" ]]; then
   echo "[pre-push] Frontend: dep-cruiser (fail)"
-  (cd frontend && npx --yes dependency-cruiser --config dependency-cruiser.config.cjs --ts-config tsconfig.json 'app|components|features|hooks|lib' --output-type err)
+  (cd frontend && npx --yes dependency-cruiser --config dependency-cruiser.config.cjs --ts-config tsconfig.json app components features hooks lib --output-type err)
 
   echo "[pre-push] Frontend: ts-prune (fail)"
   (cd frontend && mkdir -p .artifacts && npx --yes ts-prune -p tsconfig.json | grep -v -f ts-prune-allowlist.txt | tee .artifacts/ts-prune.prepush.txt; test ! -s .artifacts/ts-prune.prepush.txt)
