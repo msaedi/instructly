@@ -1,8 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "[pre-push] Backend: ruff F+I"
-(cd backend && ruff check app --select F,I)
+run_ruff() {
+  if command -v ruff >/dev/null 2>&1; then
+    ruff "$@"
+  elif [ -x "backend/.venv/bin/ruff" ]; then
+    "backend/.venv/bin/ruff" "$@"
+  elif command -v python3 >/dev/null 2>&1 && python3 -c 'import ruff' 2>/dev/null; then
+    python3 -m ruff "$@"
+  else
+    echo "[pre-push] ruff not found. Install with 'brew install ruff' or 'pipx install ruff', or ensure backend/.venv has ruff installed (pip install ruff)." >&2
+    return 127
+  fi
+}
+
+if [[ "${SKIP_RUFF:-0}" == "1" ]]; then
+  echo "[pre-push] SKIP_RUFF=1 -> skipping ruff"
+else
+  echo "[pre-push] Backend: ruff F+I"
+  (cd backend && run_ruff check app --select F,I)
+fi
 
 echo "[pre-push] Backend: mypy schemas + routes/internal.py (fail-gate)"
 (cd backend && mypy app/schemas app/routes/internal.py)
