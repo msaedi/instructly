@@ -4,7 +4,9 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 run_ruff() {
-  if [ -x "$REPO_ROOT/venv/bin/ruff" ]; then
+  if [ -x "$REPO_ROOT/backend/venv/bin/ruff" ]; then
+    "$REPO_ROOT/backend/venv/bin/ruff" "$@"
+  elif [ -x "$REPO_ROOT/venv/bin/ruff" ]; then
     "$REPO_ROOT/venv/bin/ruff" "$@"
   elif command -v ruff >/dev/null 2>&1; then
     ruff "$@"
@@ -19,7 +21,9 @@ run_ruff() {
 }
 
 run_mypy() {
-  if [ -x "$REPO_ROOT/venv/bin/mypy" ]; then
+  if [ -x "$REPO_ROOT/backend/venv/bin/mypy" ]; then
+    "$REPO_ROOT/backend/venv/bin/mypy" "$@"
+  elif [ -x "$REPO_ROOT/venv/bin/mypy" ]; then
     "$REPO_ROOT/venv/bin/mypy" "$@"
   elif command -v mypy >/dev/null 2>&1; then
     mypy "$@"
