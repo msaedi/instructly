@@ -1,0 +1,13 @@
+^middleware\.ts:.*$
+^next\.config\.ts:.*$
+^playwright\.config\.ts:.*$
+^app/.*$
+^components/.*$
+^hooks/.*$
+^legacy-patterns/.*$
+^lib/.*$
+^types/.*$
+^features/.*$
+^services/.*$
+^src/.*$
+^utils/.*$
