@@ -1,15 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
 run_ruff() {
-  if command -v ruff >/dev/null 2>&1; then
+  if [ -x "$REPO_ROOT/venv/bin/ruff" ]; then
+    "$REPO_ROOT/venv/bin/ruff" "$@"
+  elif command -v ruff >/dev/null 2>&1; then
     ruff "$@"
-  elif [ -x "backend/.venv/bin/ruff" ]; then
-    "backend/.venv/bin/ruff" "$@"
+  elif [ -x "$REPO_ROOT/backend/.venv/bin/ruff" ]; then
+    "$REPO_ROOT/backend/.venv/bin/ruff" "$@"
   elif command -v python3 >/dev/null 2>&1 && python3 -c 'import ruff' 2>/dev/null; then
     python3 -m ruff "$@"
   else
     echo "[pre-push] ruff not found. Install with 'brew install ruff' or 'pipx install ruff', or ensure backend/.venv has ruff installed (pip install ruff)." >&2
+    return 127
+  fi
+}
+
+run_mypy() {
+  if [ -x "$REPO_ROOT/venv/bin/mypy" ]; then
+    "$REPO_ROOT/venv/bin/mypy" "$@"
+  elif command -v mypy >/dev/null 2>&1; then
+    mypy "$@"
+  elif [ -x "$REPO_ROOT/backend/.venv/bin/mypy" ]; then
+    "$REPO_ROOT/backend/.venv/bin/mypy" "$@"
+  elif command -v python3 >/dev/null 2>&1 && python3 -c 'import mypy' 2>/dev/null; then
+    python3 -m mypy "$@"
+  else
+    echo "[pre-push] mypy not found. Activate the repo venv 'source venv/bin/activate' and 'pip install mypy types-pytz \"pydantic~=2.8\" \"pydantic-core~=2.23\" fastapi', or install mypy globally via pipx." >&2
     return 127
   fi
 }
@@ -21,8 +40,12 @@ else
   (cd backend && run_ruff check app --select F,I)
 fi
 
-echo "[pre-push] Backend: mypy schemas + routes/internal.py (fail-gate)"
-(cd backend && mypy app/schemas app/routes/internal.py)
+if [[ "${SKIP_MYPY:-0}" == "1" ]]; then
+  echo "[pre-push] SKIP_MYPY=1 -> skipping mypy"
+else
+  echo "[pre-push] Backend: mypy schemas + routes/internal.py (fail-gate)"
+  (cd backend && run_mypy app/schemas app/routes/internal.py)
+fi
 
 echo "[pre-push] Backend: pytest smoke (rate headers)"
 (cd backend && \
