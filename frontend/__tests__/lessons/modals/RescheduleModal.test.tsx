@@ -199,7 +199,8 @@ describe('RescheduleModal', () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowDay = format(tomorrow, 'd');
 
-    const dayEls = await screen.findAllByText(tomorrowDay);
+    const dayMatcher = new RegExp(`(^|-)${tomorrowDay}$`);
+    const dayEls = await screen.findAllByText(dayMatcher);
     const clickable = (dayEls as HTMLElement[]).find((el: HTMLElement) => !(el as HTMLButtonElement).disabled);
     if (clickable) {
       fireEvent.click(clickable);
@@ -229,7 +230,8 @@ describe('RescheduleModal', () => {
     await waitFor(() => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
-    const dayButtons = await screen.findAllByText(tomorrowDay);
+    const dayMatcher = new RegExp(`(^|-)${tomorrowDay}$`);
+    const dayButtons = await screen.findAllByText(dayMatcher);
     const clickable = (dayButtons as HTMLElement[]).find((el: HTMLElement) => !(el as HTMLButtonElement).disabled);
     if (clickable) {
       fireEvent.click(clickable);
@@ -285,7 +287,8 @@ describe('RescheduleModal', () => {
     const tomorrowDay = format(tomorrow, 'd');
 
     await waitFor(() => {
-      const dateButtons = screen.getAllByText(tomorrowDay) as HTMLElement[];
+      const dayMatcher = new RegExp(`(^|-)${tomorrowDay}$`);
+      const dateButtons = screen.getAllByText(dayMatcher) as HTMLElement[];
       const clickableBtn = dateButtons.find((el) => !(el as HTMLButtonElement).disabled);
       if (clickableBtn) {
         fireEvent.click(clickableBtn);

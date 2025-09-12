@@ -62,6 +62,9 @@ echo "[pre-push] Backend: pytest smoke (rate headers)"
 echo "[pre-push] Frontend: typecheck:strict-all"
 (cd frontend && npm run --silent typecheck:strict-all)
 
+echo "[pre-push] Frontend: lint"
+(cd frontend && npm run --silent lint)
+
 echo "[pre-push] Frontend: build"
 (cd frontend && npm run --silent build)
 
@@ -82,6 +85,9 @@ echo "[pre-push] Frontend: verify:runtime-validation-bundle"
 
 echo "[pre-push] Frontend: audit:contract:ci"
 (cd frontend && npm run --silent audit:contract:ci)
+
+echo "[pre-push] Frontend: test"
+(cd frontend && npm run --silent test -- --ci)
 
 if [[ "${FAST_HOOKS:-0}" != "1" ]]; then
   echo "[pre-push] Frontend: dep-cruiser (fail)"
