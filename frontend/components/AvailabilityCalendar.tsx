@@ -4,9 +4,10 @@
 import { useState, useEffect } from 'react';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
-import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
+import dynamic from 'next/dynamic';
+const TimeSelectionModal = dynamic(() => import('@/features/student/booking/public/TimeSelectionFacade'));
 import { Instructor } from '@/features/student/booking/types';
-import { getBookingIntent, clearBookingIntent } from '@/features/student/booking';
+import { getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 import { at } from '@/lib/ts/safe';
 
 interface TimeSlot {

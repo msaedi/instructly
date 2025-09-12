@@ -7,17 +7,12 @@ import { X, MapPin, Clock, DollarSign, User, Mail, Phone, MessageSquare } from '
 import { BookingModalProps, Service } from '../types';
 import { logger } from '@/lib/logger';
 import { formatFullName } from '@/utils/nameDisplay';
-import { useAuth, storeBookingIntent } from '../hooks/useAuth';
-import { calculateEndTime } from '../hooks/useCreateBooking';
+import { useAuth } from '../hooks/useAuth';
+import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/booking';
 import { at } from '@/lib/ts/safe';
-import {
-  BookingPayment,
-  BookingType,
-  determineBookingType,
-  calculateServiceFee,
-  calculateTotalAmount,
-  PaymentStatus,
-} from '@/features/student/payment';
+import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
+import { BookingType } from '@/features/shared/types/booking';
+import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
 
 export default function BookingModal({
   isOpen,

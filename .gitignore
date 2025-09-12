@@ -1,3 +1,7 @@
+# Local build/test artifacts and caches
+**/.artifacts/
+**/.eslintcache
+frontend/.lighthouseci/
 node_modules/
 .env
 .env.local

@@ -8,10 +8,7 @@ import { logger } from '@/lib/logger';
 import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import Calendar from '@/features/student/booking/components/TimeSelectionModal/Calendar';
-import TimeDropdown from '@/features/student/booking/components/TimeSelectionModal/TimeDropdown';
-import DurationButtons from '@/features/student/booking/components/TimeSelectionModal/DurationButtons';
-import SummarySection from '@/features/student/booking/components/TimeSelectionModal/SummarySection';
+import { Calendar, TimeDropdown, DurationButtons } from '@/features/shared/booking/ui';
 
 // Type for availability slots
 interface AvailabilitySlot {
@@ -105,6 +102,35 @@ interface RescheduleTimeSelectionModalProps {
     time: string;
     service: string;
   };
+}
+
+function SummarySection(props: { selectedDate: string | null; selectedTime: string | null; selectedDuration: number; price: number; onContinue: () => void; isComplete: boolean }) {
+  const { selectedDate, selectedTime, selectedDuration, price, onContinue, isComplete } = props;
+  if (!selectedDate && !selectedTime) return null;
+  return (
+    <div className="w-full">
+      <div className="text-center">
+        <p className="text-sm mb-1" style={{ color: '#666666' }}>Request for:</p>
+        {selectedDate && selectedTime && (
+          <p className="text-lg font-bold mb-1" style={{ color: '#333333', fontSize: '18px' }}>
+            {selectedDate} {selectedTime}
+          </p>
+        )}
+        {selectedDuration && price > 0 && (
+          <p className="text-base mb-4" style={{ color: '#333333', fontSize: '16px' }}>
+            {selectedDuration} min · ${price}
+          </p>
+        )}
+        <button
+          onClick={onContinue}
+          disabled={!isComplete}
+          className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors ${isComplete ? 'bg-[#6A0DAD] text-white hover:bg-[#6A0DAD]' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+        >
+          Select and continue
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function RescheduleTimeSelectionModal({

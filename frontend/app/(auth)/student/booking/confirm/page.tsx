@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PaymentSection } from '@/features/student/payment';
-import { BookingPayment, PaymentStatus, BookingType } from '@/features/student/payment/types';
+import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
+// booking helpers are imported elsewhere as needed
+import { BookingType } from '@/features/shared/types/booking';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';

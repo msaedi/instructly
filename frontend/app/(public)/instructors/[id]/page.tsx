@@ -16,15 +16,10 @@ import { useBookingModal } from '@/features/instructor-profile/hooks/useBookingM
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { useRouter as useNextRouter } from 'next/navigation';
-import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
-import {
-  BookingPayment,
-  BookingType,
-  determineBookingType,
-  calculateServiceFee,
-  calculateTotalAmount,
-  PaymentStatus,
-} from '@/features/student/payment';
+import { calculateEndTime } from '@/features/shared/utils/booking';
+import { BookingPayment, PaymentStatus } from '@/features/student/payment';
+import { BookingType } from '@/features/shared/types/booking';
+import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { format } from 'date-fns';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
@@ -34,48 +29,7 @@ import type { InstructorService } from '@/types/instructor';
 import { at } from '@/lib/ts/safe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
-// Booking intent helpers
-function storeBookingIntent(bookingIntent: {
-  instructorId: string;
-  serviceId?: string;
-  date: string;
-  time: string;
-  duration: number;
-  skipModal?: boolean;
-}) {
-  try {
-    sessionStorage.setItem('bookingIntent', JSON.stringify(bookingIntent));
-  } catch {
-    // Silent failure
-  }
-}
-
-function getBookingIntent(): {
-  instructorId: string;
-  serviceId?: string;
-  date: string;
-  time: string;
-  duration: number;
-  skipModal?: boolean;
-} | null {
-  try {
-    const stored = sessionStorage.getItem('bookingIntent');
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch {
-    // Silent failure
-  }
-  return null;
-}
-
-function clearBookingIntent() {
-  try {
-    sessionStorage.removeItem('bookingIntent');
-  } catch {
-    // Silent failure
-  }
-}
+import { storeBookingIntent, getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 
 function InstructorProfileContent() {
   const params = useParams();

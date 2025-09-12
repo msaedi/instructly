@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown } from 'lucide-react';
-import { BookingPayment, PaymentMethod, BookingType } from '../types';
+import { BookingPayment, PaymentMethod } from '../types';
+import { BookingType } from '@/features/shared/types/booking';
 import { format } from 'date-fns';
 import { protectedApi } from '@/features/shared/api/client';
 import { httpJson } from '@/features/shared/api/http';
@@ -11,7 +12,7 @@ import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instr
 import type { InstructorService } from '@/types/instructor';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
-import { calculateServiceFee, calculateTotalAmount, determineBookingType } from '../utils/paymentCalculations';
+import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
 import { logger } from '@/lib/logger';
 
 interface PaymentConfirmationProps {

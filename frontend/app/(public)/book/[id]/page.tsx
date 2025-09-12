@@ -13,15 +13,11 @@ import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instr
 type PublicTimeSlot = { start_time: string; end_time: string };
 type PublicDayAvailability = { available_slots?: PublicTimeSlot[] };
 import { logger } from '@/lib/logger';
-import { useAuth, storeBookingIntent, calculateEndTime } from '@/features/student/booking';
-import {
-  BookingPayment,
-  BookingType,
-  PaymentStatus,
-  determineBookingType,
-  calculateServiceFee,
-  calculateTotalAmount,
-} from '@/features/student/payment';
+import { useAuth } from '@/features/student/booking';
+import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/booking';
+import { BookingPayment, PaymentStatus } from '@/features/student/payment';
+import { BookingType } from '@/features/shared/types/booking';
+import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
 
 interface Service {
   id: string;

@@ -10,6 +10,7 @@ export { usePaymentFlow, PaymentStep } from './hooks/usePaymentFlow';
 
 // Export types
 export * from './types';
+export type { BookingType, BookingPayment } from '@/features/shared/types/booking';
 
 // Export utilities
 export * from './utils/paymentCalculations';

@@ -9,17 +9,12 @@ import { BookingModalProps, Service } from '../types';
 import { logger } from '@/lib/logger';
 import { at } from '@/lib/ts/safe';
 import { formatFullName } from '@/utils/nameDisplay';
-import { useAuth, storeBookingIntent } from '../hooks/useAuth';
-import { calculateEndTime } from '../hooks/useCreateBooking';
+import { useAuth } from '../hooks/useAuth';
+import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/booking';
 import CheckoutFlow from '@/components/booking/CheckoutFlow';
-import {
-  BookingPayment,
-  BookingType,
-  determineBookingType,
-  calculateServiceFee,
-  calculateTotalAmount,
-  PaymentStatus,
-} from '@/features/student/payment';
+import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
+import { BookingType } from '@/features/shared/types/booking';
+import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
 
 // Define the Booking interface for pending booking
 interface PendingBooking {

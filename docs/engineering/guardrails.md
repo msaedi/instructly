@@ -11,11 +11,11 @@ All checks are non-functional changes focused on type safety, async hygiene, sec
 - Contract audit (fail-gate): `npm run audit:contract:ci`
 - Runtime validation bundle check: `npm run verify:runtime-validation-bundle`
 
-#### Frontend audits (informational)
+#### Frontend audits
 - LHCI (warn): `npm run audit:lhci`
 - Dead code (warn): `npm run audit:deadcode` (or `:ci`)
-- Dependency rules (fail-gate): `npm run audit:deps:ci`
-- Unused exports (ts-prune): `npm run audit:exports` locally; `:ci` fails if non-empty unless allowlisted.
+- Dependency rules (fail-gate): dep-cruiser runs in CI and pre-push (fast), fails on any error
+- Unused exports (ts-prune fail-gate): runs in CI and pre-push (fast), fails unless empty (allowlist supported)
 
 #### Type coverage (fail-gate ≥ 99.0%)
 - Local: `npm run audit:typecov`
@@ -54,8 +54,28 @@ All checks are non-functional changes focused on type safety, async hygiene, sec
 - Fail-gates must be green locally and in CI.
 - Warn-mode audits are informational and should not block commits.
 
+#### Imports & layering
+- components/** must not import feature internals. Use:
+  - `features/<feature>/public/**` facades; or
+  - `features/shared/**` presentational utilities.
+- features/* must not import other features/* (except `features/shared/**`).
+- Only `features/shared/api/types` may import `types/generated/**`.
+
+##### Adding a facade (example)
+If a component needs a feature-owned modal, expose a thin facade under `features/<feature>/public/` that re-exports or lazy-wraps the internal component without changing behavior:
+
+```tsx
+// features/foo/public/ThingFacade.tsx
+import type { ComponentProps } from 'react';
+import Thing from '../components/Thing';
+export type ThingFacadeProps = ComponentProps<typeof Thing>;
+export default function ThingFacade(props: ThingFacadeProps) { return <Thing {...props} />; }
+```
+
+Then import from `features/foo/public` in `components/**`.
+
 #### Cheat‑sheet: common fixes
-- dependency-cruiser: break cycles by extracting shared modules or re-exporting via shared; honor layer rules (components → no features; features isolated).
+- dependency-cruiser: break cycles by extracting shared modules or re-exporting via shared; honor layer rules and use public facades.
 - ts-prune: remove unused exports or add to `frontend/ts-prune-allowlist.txt` with justification (public API types, etc.).
 - no‑floating‑promises: `await fn()`; or `void fn()` when fire‑and‑forget; add `.catch(logger.error)` if background errors must be logged.
 - Type coverage: add narrow annotations/JSDoc where values from `response.json()` are used; avoid logic changes.

@@ -1,19 +1,4 @@
-import { differenceInHours } from 'date-fns';
-import { BookingType, TRANSACTION_LIMITS } from '../types';
-
-export const calculateServiceFee = (basePrice: number): number => {
-  return basePrice * (TRANSACTION_LIMITS.SERVICE_FEE_PERCENTAGE / 100);
-};
-
-export const calculateTotalAmount = (basePrice: number): number => {
-  const serviceFee = calculateServiceFee(basePrice);
-  return basePrice + serviceFee;
-};
-
-export const determineBookingType = (lessonDate: Date): BookingType => {
-  const hoursUntilLesson = differenceInHours(lessonDate, new Date());
-  return hoursUntilLesson < 24 ? BookingType.LAST_MINUTE : BookingType.STANDARD;
-};
+import { TRANSACTION_LIMITS } from '@/features/shared/types/booking';
 
 export const calculateCreditApplication = (
   totalAmount: number,
@@ -30,16 +15,12 @@ export const calculateCreditApplication = (
   };
 };
 
-export const validateTransactionAmount = (amount: number): boolean => {
-  return amount > 0 && amount <= TRANSACTION_LIMITS.MAX_TRANSACTION;
-};
+export { calculateServiceFee, calculateTotalAmount, determineBookingType } from '@/features/shared/utils/paymentCalculations';
+export type { BookingType } from '@/features/shared/types/booking';
 
-export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
-};
+export const validateTransactionAmount = (amount: number): boolean => amount > 0 && amount <= TRANSACTION_LIMITS.MAX_TRANSACTION;
+
+export const formatCurrency = (amount: number): string => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 
 export const calculateTipAmount = (baseAmount: number, tipPercentage: number): number => {
   return baseAmount * (tipPercentage / 100);

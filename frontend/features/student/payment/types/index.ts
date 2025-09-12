@@ -16,11 +16,7 @@ export enum PaymentMethod {
   MIXED = 'mixed', // Credits + Card
 }
 
-export enum BookingType {
-  STANDARD = 'standard', // >24hrs ahead
-  LAST_MINUTE = 'last_minute', // <24hrs ahead
-  PACKAGE = 'package',
-}
+export { BookingType } from '@/features/shared/types/booking';
 
 export interface PaymentIntent {
   id: string;
@@ -46,7 +42,7 @@ export interface BookingPayment {
   serviceFee: number;
   totalAmount: number;
 
-  bookingType: BookingType;
+  bookingType: import('@/features/shared/types/booking').BookingType;
   paymentStatus: PaymentStatus;
   stripeIntentId?: string;
 
@@ -97,8 +93,4 @@ export const DEFAULT_TIP_OPTIONS: TipOption[] = [
   { percentage: 25, amount: 0 },
 ];
 
-export const TRANSACTION_LIMITS = {
-  MAX_TRANSACTION: 1000, // $1,000 max per transaction
-  CREDIT_EXPIRY_MONTHS: 12,
-  SERVICE_FEE_PERCENTAGE: 20,
-};
+export { TRANSACTION_LIMITS } from '@/features/shared/types/booking';

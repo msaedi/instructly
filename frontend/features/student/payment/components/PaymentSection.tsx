@@ -10,7 +10,7 @@ import PaymentProcessing from './PaymentProcessing';
 import PaymentSuccess from './PaymentSuccess';
 import { logger } from '@/lib/logger';
 import { requireString } from '@/lib/ts/safe';
-import { useCreateBooking } from '@/features/student/booking';
+import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBooking';
 import { paymentService } from '@/services/api/payments';
 import { protectedApi } from '@/features/shared/api/client';
 

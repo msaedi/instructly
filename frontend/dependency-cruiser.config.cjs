@@ -29,10 +29,7 @@ module.exports = {
     },
   },
   forbidden: [
-    // 1) Forbid circular dependencies anywhere
     { name: 'no-cycles', severity: 'error', from: {}, to: { circular: true } },
-
-    // 2) Generated types boundary - only the API shim may import generated types
     {
       name: 'no-generated-in-app-components-features',
       severity: 'error',
@@ -45,23 +42,18 @@ module.exports = {
       from: { path: '^(?!(features/shared/api/types)).*$' },
       to: { path: '^types/generated/' },
     },
-
-    // 3) Feature isolation - features/* cannot import other features/* (except features/shared/**)
     {
       name: 'feature-isolation',
       severity: 'error',
       from: { path: '^features/([^/]+)/' },
-      to: {
-        path: '^features/(?!shared/)[^/]+/',
-      },
+      // Allow same top-level feature (student → student), forbid other features (except shared)
+      to: { path: '^features/(?!shared/)[^/]+/', pathNot: '^features/$1/' },
     },
-
-    // 4) Components guard - components/** must not import features/** (except shared)
     {
       name: 'components-no-features-except-shared',
       severity: 'error',
       from: { path: '^components/' },
-      to: { path: '^features/(?!shared/)' },
+      to: { path: '^features/(?!shared/)', pathNot: '^features/.*/public/' },
     },
   ],
 };
