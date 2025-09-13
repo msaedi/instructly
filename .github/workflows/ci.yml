@@ -235,9 +235,9 @@ jobs:
         run: |
           npm audit --omit=dev --audit-level=high --json | node scripts/parse-npm-audit.js || echo "::warning ::npm audit reported high/critical issues"
 
-      - name: MyPy (schemas/internal) fail-gate
+      - name: MyPy (schemas/internal + widened) fail-gate
         working-directory: backend
-        run: mypy app/schemas app/routes/internal.py
+        run: mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py
 
       - name: MyPy (summary)
         run: |
@@ -247,6 +247,19 @@ jobs:
         run: |
           mypy app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py || true
           echo "mypy (widened warn): completed" >> $GITHUB_STEP_SUMMARY
+
+      - name: Strict schemas and error envelope tests
+        working-directory: backend
+        env:
+          STRICT_SCHEMAS: "true"
+          TZ: UTC
+        run: |
+          pytest -q tests/integration/test_error_envelope.py
+          pytest -q tests/integration/search_history/test_strict_schemas.py
+      - name: Strictness summary
+        run: |
+          echo "problem+json envelope: PASS" >> $GITHUB_STEP_SUMMARY
+          echo "strict schemas (scope=search_history,internal): PASS" >> $GITHUB_STEP_SUMMARY
 
   frontend-tests:
     runs-on: ubuntu-latest

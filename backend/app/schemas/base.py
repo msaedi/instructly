@@ -4,15 +4,28 @@ Base schemas with standardized field types for consistent API responses.
 
 from decimal import Decimal
 from typing import Any
+import os
 
 from pydantic import BaseModel, ConfigDict
 from pydantic_core import core_schema
+
+# Feature flag: enable strict schemas in test/dev when desired
+STRICT_SCHEMAS: bool = os.getenv("STRICT_SCHEMAS", "false").lower() in {"1", "true", "yes"}
 
 
 class StandardizedModel(BaseModel):
     """Base model with standardized JSON encoding"""
 
     model_config = ConfigDict(use_enum_values=True, populate_by_name=True)
+
+
+class Model(BaseModel):
+    """Relaxed base model (default for prod): allows extras unless a schema opts in.
+
+    Use this as the non-strict baseline to avoid behavior changes by default.
+    """
+
+    pass
 
 
 class StrictModel(BaseModel):

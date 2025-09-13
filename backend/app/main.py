@@ -201,6 +201,10 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,  # Use the new lifespan handler
 )
+# Register unified error envelope handlers
+from .errors import register_error_handlers  # noqa: E402
+
+register_error_handlers(app)
 
 
 @app.middleware("http")

@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from .base import STRICT_SCHEMAS
 
 
 class SearchHistoryBase(BaseModel):
@@ -48,6 +49,10 @@ class SearchHistoryCreate(SearchHistoryBase):
     search_context: Optional[Dict[str, Any]] = Field(
         None, description="Additional context like page origin, viewport size, etc."
     )
+
+    # Enable strict mode (forbid extras) when flagged
+    if STRICT_SCHEMAS:
+        model_config = ConfigDict(extra="forbid", validate_assignment=True)
     device_context: Optional[Dict[str, Any]] = Field(
         None,
         description="Device context from frontend including screen size, connection type, etc.",
@@ -88,6 +93,9 @@ class GuestSearchHistoryCreate(BaseModel):
         if not v.strip():
             raise ValueError("search_query cannot be empty")
         return v.strip()
+
+    if STRICT_SCHEMAS:
+        model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 class SearchHistoryResponse(SearchHistoryBase):

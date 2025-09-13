@@ -47,8 +47,8 @@ fi
 if [[ "${SKIP_MYPY:-0}" == "1" ]]; then
   echo "[pre-push] SKIP_MYPY=1 -> skipping mypy"
 else
-  echo "[pre-push] Backend: mypy schemas + routes/internal.py (fail-gate)"
-  (cd backend && run_mypy app/schemas app/routes/internal.py)
+  echo "[pre-push] Backend: mypy schemas + routes/internal.py + widened set (fail-gate)"
+  (cd backend && run_mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py)
 fi
 
 echo "[pre-push] Backend: pytest smoke (rate headers)"
@@ -58,6 +58,10 @@ echo "[pre-push] Backend: pytest smoke (rate headers)"
   else \
     echo "[pre-push] (info) smoke test file not found: tests/integration/test_rate_headers_smoke.py — skipping"; \
   fi)
+
+echo "[pre-push] Backend: strict/envelope tests (flagged)"
+(cd backend && STRICT_SCHEMAS=true TZ=UTC pytest -q tests/integration/test_error_envelope.py)
+(cd backend && STRICT_SCHEMAS=true TZ=UTC pytest -q tests/integration/search_history/test_strict_schemas.py)
 
 echo "[pre-push] Frontend: typecheck:strict-all"
 (cd frontend && npm run --silent typecheck:strict-all)
