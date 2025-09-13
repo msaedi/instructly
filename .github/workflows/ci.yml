@@ -261,7 +261,8 @@ jobs:
       - name: pip-audit (fail on high/critical unless allowlisted)
         working-directory: backend
         run: |
-          pip-audit -r requirements.txt -r requirements-openapi.txt -r requirements-dev.txt --strict
+          chmod +x scripts/run_pip_audit.sh
+          ./scripts/run_pip_audit.sh
 
       - name: npm audit (fail on high/critical unless allowlisted)
         working-directory: frontend
