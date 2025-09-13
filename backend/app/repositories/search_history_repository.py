@@ -17,7 +17,7 @@ from ..schemas.search_context import SearchUserContext
 from .base_repository import BaseRepository
 
 
-class SearchHistoryRepository(BaseRepository[SearchHistory]):  # type: ignore[misc]
+class SearchHistoryRepository(BaseRepository[SearchHistory]):
     """
     Repository for search history data access.
 
