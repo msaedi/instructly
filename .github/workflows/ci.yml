@@ -235,18 +235,18 @@ jobs:
         run: |
           npm audit --omit=dev --audit-level=high --json | node scripts/parse-npm-audit.js || echo "::warning ::npm audit reported high/critical issues"
 
-      - name: MyPy (schemas/internal + widened) fail-gate
+      - name: MyPy (schemas/internal + payments) fail-gate
         working-directory: backend
-        run: mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py
+        run: mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py app/services/base.py app/services/stripe_service.py
 
       - name: MyPy (summary)
         run: |
           echo "mypy (narrow): completed" >> $GITHUB_STEP_SUMMARY
-      - name: MyPy (widened set - warn)
+      - name: "MyPy (next slice warn-mode: bookings/slots)"
         working-directory: backend
         run: |
-          mypy app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py || true
-          echo "mypy (widened warn): completed" >> $GITHUB_STEP_SUMMARY
+          mypy app/services/booking_service.py app/services/slot_manager.py || true
+          echo "mypy warn (bookings/slots): completed" >> $GITHUB_STEP_SUMMARY
 
       - name: Strict schemas and error envelope tests
         working-directory: backend
@@ -254,8 +254,8 @@ jobs:
           STRICT_SCHEMAS: "true"
           TZ: UTC
         run: |
-          pytest -q tests/integration/test_error_envelope.py
-          pytest -q tests/integration/search_history/test_strict_schemas.py
+          python -m pytest -q tests/integration/test_error_envelope.py
+          python -m pytest -q tests/integration/search_history/test_strict_schemas.py
       - name: Strictness summary
         run: |
           echo "problem+json envelope: PASS" >> $GITHUB_STEP_SUMMARY

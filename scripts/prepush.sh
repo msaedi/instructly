@@ -48,7 +48,7 @@ if [[ "${SKIP_MYPY:-0}" == "1" ]]; then
   echo "[pre-push] SKIP_MYPY=1 -> skipping mypy"
 else
   echo "[pre-push] Backend: mypy schemas + routes/internal.py + widened set (fail-gate)"
-  (cd backend && run_mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py)
+  (cd backend && run_mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py app/services/base.py app/services/stripe_service.py)
 fi
 
 echo "[pre-push] Backend: pytest smoke (rate headers)"

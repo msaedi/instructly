@@ -15,7 +15,17 @@ from contextlib import asynccontextmanager, contextmanager
 from functools import wraps
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Concatenate,
+    Dict,
+    Optional,
+    ParamSpec,
+    TypeVar,
+    cast,
+)
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -63,7 +73,7 @@ class BaseService:
         """
         self.db = db
         self.cache = cache
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger: logging.Logger = logging.getLogger(self.__class__.__name__)
 
     @contextmanager
     def transaction(self):
@@ -107,7 +117,9 @@ class BaseService:
         return wrapper
 
     @staticmethod
-    def measure_operation(operation_name: str) -> Callable:
+    def measure_operation(
+        operation_name: str,
+    ) -> Callable[[Callable[Concatenate["BaseService", ParamSpec("P")], TypeVar("R")]], Callable[Concatenate["BaseService", ParamSpec("P")], TypeVar("R")]]:  # type: ignore[valid-type]
         """
         Decorator to measure operation performance.
 
@@ -123,9 +135,12 @@ class BaseService:
             Decorator function
         """
 
-        F = TypeVar("F", bound=Callable[..., Any])
+        P = ParamSpec("P")
+        R = TypeVar("R")
 
-        def decorator(func: F) -> F:
+        def decorator(
+            func: Callable[Concatenate["BaseService", P], R]
+        ) -> Callable[Concatenate["BaseService", P], R]:
             # Store the operation name on the function for later use
             func._operation_name = operation_name
             func._is_measured = True
@@ -135,7 +150,7 @@ class BaseService:
             if not is_async:
 
                 @wraps(func)
-                def wrapper(self, *args, **kwargs):
+                def wrapper(self: "BaseService", *args: P.args, **kwargs: P.kwargs) -> R:
                     # Now we have access to self!
                     if not hasattr(self, "_metrics"):
                         # Initialize metrics if this is called on a non-BaseService instance
@@ -185,10 +200,10 @@ class BaseService:
                                 # Don't let metrics collection break the operation
                                 pass
 
-                return cast(F, wrapper)
+                return cast(Callable[Concatenate["BaseService", P], R], wrapper)
 
             @wraps(func)
-            async def async_wrapper(self, *args, **kwargs):
+            async def async_wrapper(self: "BaseService", *args: P.args, **kwargs: P.kwargs) -> R:
                 if not hasattr(self, "_metrics"):
                     self._metrics = {}
 
@@ -197,7 +212,7 @@ class BaseService:
                 error_type = None
 
                 try:
-                    result = await func(self, *args, **kwargs)
+                    result = await func(self, *args, **kwargs)  # type: ignore[misc]
                     success = True
                     return result
                 except Exception as e:
@@ -230,7 +245,7 @@ class BaseService:
                         except Exception:
                             pass
 
-            return cast(F, async_wrapper)
+            return cast(Callable[Concatenate["BaseService", P], R], async_wrapper)
 
         return decorator
 

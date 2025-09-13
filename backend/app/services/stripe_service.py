@@ -33,7 +33,7 @@ from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 class StripeService(BaseService):
@@ -120,7 +120,7 @@ class StripeService(BaseService):
                 "return_url": return_url,
             }
 
-            session = stripe.identity.VerificationSession.create(**params)  # type: ignore[attr-defined]
+            session = stripe.identity.VerificationSession.create(**params)
 
             client_secret = getattr(session, "client_secret", None)
             if not client_secret:
@@ -149,7 +149,7 @@ class StripeService(BaseService):
             self._check_stripe_configured()
             # Fetch recent sessions and filter by our metadata
             # Run list call with bounded timeout via stripe client defaults
-            sessions = stripe.identity.VerificationSession.list(limit=20)  # type: ignore[attr-defined]
+            sessions = stripe.identity.VerificationSession.list(limit=20)
             latest = None
             for s in sessions.get("data", []):
                 try:
@@ -235,7 +235,7 @@ class StripeService(BaseService):
                         auth_error = False
                         try:
                             # AuthenticationError indicates missing/invalid API key
-                            auth_error = isinstance(e, stripe.error.AuthenticationError)  # type: ignore[attr-defined]
+                            auth_error = isinstance(e, stripe.error.AuthenticationError)
                         except Exception:
                             auth_error = False
 
@@ -408,7 +408,8 @@ class StripeService(BaseService):
             )
 
             self.logger.info(f"Created account link for instructor {instructor_profile_id}")
-            return account_link.url
+            url_attr = getattr(account_link, "url", None)
+            return str(url_attr) if url_attr is not None else ""
 
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error creating account link: {str(e)}")
@@ -1093,7 +1094,7 @@ class StripeService(BaseService):
             ServiceException: If retrieval fails
         """
         try:
-            return self.payment_repository.get_payment_methods_by_user(user_id)
+            return list(self.payment_repository.get_payment_methods_by_user(user_id))
         except Exception as e:
             self.logger.error(f"Error getting payment methods: {str(e)}")
             raise ServiceException(f"Failed to get payment methods: {str(e)}")
@@ -1134,7 +1135,7 @@ class StripeService(BaseService):
                         f"Deleted payment method {payment_method_id} from database for user {user_id}"
                     )
 
-                return success
+                return bool(success)
 
         except Exception as e:
             self.logger.error(f"Error deleting payment method: {str(e)}")
@@ -1270,7 +1271,8 @@ class StripeService(BaseService):
                 raise ServiceException(f"Invalid webhook payload: {str(e)}")
 
             # Use the new method to process the event
-            return self.handle_webhook_event(event)
+            result = self.handle_webhook_event(event)
+            return dict(result)
 
         except ServiceException:
             raise
@@ -1471,7 +1473,7 @@ class StripeService(BaseService):
                     if account_id:
                         acct = self.payment_repository.get_connected_account_by_stripe_id(
                             account_id
-                        )  # type: ignore[attr-defined]
+                        )
                         if acct and acct.instructor_profile_id:
                             self.payment_repository.record_payout_event(
                                 instructor_profile_id=acct.instructor_profile_id,
@@ -1493,7 +1495,7 @@ class StripeService(BaseService):
                     if account_id:
                         acct = self.payment_repository.get_connected_account_by_stripe_id(
                             account_id
-                        )  # type: ignore[attr-defined]
+                        )
                         if acct and acct.instructor_profile_id:
                             self.payment_repository.record_payout_event(
                                 instructor_profile_id=acct.instructor_profile_id,
@@ -1518,7 +1520,7 @@ class StripeService(BaseService):
                     if account_id:
                         acct = self.payment_repository.get_connected_account_by_stripe_id(
                             account_id
-                        )  # type: ignore[attr-defined]
+                        )
                         if acct and acct.instructor_profile_id:
                             self.payment_repository.record_payout_event(
                                 instructor_profile_id=acct.instructor_profile_id,
@@ -1596,7 +1598,9 @@ class StripeService(BaseService):
     # ========== Analytics and Reporting ==========
 
     @BaseService.measure_operation("stripe_get_platform_revenue_stats")
-    def get_platform_revenue_stats(self, start_date=None, end_date=None) -> Dict[str, Any]:
+    def get_platform_revenue_stats(
+        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+    ) -> Dict[str, Any]:
         """
         Get platform revenue statistics.
 
@@ -1608,14 +1612,17 @@ class StripeService(BaseService):
             Dictionary with revenue statistics
         """
         try:
-            return self.payment_repository.get_platform_revenue_stats(start_date, end_date)
+            return dict(self.payment_repository.get_platform_revenue_stats(start_date, end_date))
         except Exception as e:
             self.logger.error(f"Error getting platform revenue stats: {str(e)}")
             raise ServiceException(f"Failed to get revenue stats: {str(e)}")
 
     @BaseService.measure_operation("stripe_get_instructor_earnings")
     def get_instructor_earnings(
-        self, instructor_profile_id: str, start_date=None, end_date=None
+        self,
+        instructor_profile_id: str,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Get instructor earnings statistics.
@@ -1629,8 +1636,10 @@ class StripeService(BaseService):
             Dictionary with earnings statistics
         """
         try:
-            return self.payment_repository.get_instructor_earnings(
-                instructor_profile_id, start_date, end_date
+            return dict(
+                self.payment_repository.get_instructor_earnings(
+                    instructor_profile_id, start_date, end_date
+                )
             )
         except Exception as e:
             self.logger.error(f"Error getting instructor earnings: {str(e)}")
