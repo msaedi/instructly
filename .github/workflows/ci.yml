@@ -223,8 +223,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install mypy and required libs
-        run: pip install -q mypy types-pytz "pydantic~=2.8" "pydantic-core~=2.23" fastapi pip-audit pytest resend==2.4.0
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -q -r backend/requirements.txt -r backend/requirements-dev.txt
+      - name: Install tooling (mypy, pip-audit)
+        run: pip install -q mypy pip-audit types-pytz
 
       - name: pip-audit (warn or fail)
         working-directory: backend
