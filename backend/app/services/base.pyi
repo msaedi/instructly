@@ -1,5 +1,6 @@
-from typing import Any, Callable, ContextManager, Optional, TypeVar, ParamSpec, Concatenate, Dict
 import logging
+from typing import Any, Callable, ContextManager, Dict, Optional, ParamSpec, TypeVar
+
 from sqlalchemy.orm import Session
 
 P = ParamSpec("P")
