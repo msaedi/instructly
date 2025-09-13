@@ -19,7 +19,7 @@ from .base import BaseService
 logger = logging.getLogger(__name__)
 
 
-class SearchHistoryCleanupService(BaseService):  # type: ignore[misc]
+class SearchHistoryCleanupService(BaseService):
     """
     Service for cleaning up old search history records.
 
@@ -34,7 +34,7 @@ class SearchHistoryCleanupService(BaseService):  # type: ignore[misc]
         super().__init__(db)
         self.repository = SearchHistoryRepository(db)
 
-    @BaseService.measure_operation("cleanup_soft_deleted_searches")  # type: ignore[misc]
+    @BaseService.measure_operation("cleanup_soft_deleted_searches")
     def cleanup_soft_deleted_searches(self) -> int:
         """
         Permanently delete soft-deleted searches older than retention period.
@@ -72,7 +72,7 @@ class SearchHistoryCleanupService(BaseService):  # type: ignore[misc]
             logger.error(f"Error cleaning up soft-deleted searches: {str(e)}")
             raise
 
-    @BaseService.measure_operation("cleanup_old_guest_sessions")  # type: ignore[misc]
+    @BaseService.measure_operation("cleanup_old_guest_sessions")
     def cleanup_old_guest_sessions(self) -> int:
         """
         Clean up old guest session searches based on purge settings.
@@ -122,7 +122,7 @@ class SearchHistoryCleanupService(BaseService):  # type: ignore[misc]
             logger.error(f"Error cleaning up guest sessions: {str(e)}")
             raise
 
-    @BaseService.measure_operation("cleanup_all")  # type: ignore[misc]
+    @BaseService.measure_operation("cleanup_all")
     def cleanup_all(self) -> Tuple[int, int]:
         """
         Run all cleanup operations.
@@ -144,7 +144,7 @@ class SearchHistoryCleanupService(BaseService):  # type: ignore[misc]
 
         return soft_deleted_count, guest_session_count
 
-    @BaseService.measure_operation("get_cleanup_statistics")  # type: ignore[misc]
+    @BaseService.measure_operation("get_cleanup_statistics")
     def get_cleanup_statistics(self) -> Dict[str, int]:
         """
         Get statistics about records eligible for cleanup.

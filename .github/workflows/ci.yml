@@ -237,7 +237,7 @@ jobs:
 
       - name: MyPy (schemas/internal + payments) fail-gate
         working-directory: backend
-        run: mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py app/services/base.py app/services/stripe_service.py
+        run: mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py app/services/stripe_service.py
 
       - name: MyPy (summary)
         run: |
