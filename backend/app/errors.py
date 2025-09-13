@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 def _title_from_status(status_code: int) -> str:
@@ -46,6 +47,17 @@ def _problem(
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):  # type: ignore[override]
+        problem = _problem(
+            status=exc.status_code,
+            detail=str(exc.detail) if exc.detail else None,
+            instance=request.url.path,
+        )
+        return JSONResponse(
+            problem, status_code=exc.status_code, media_type="application/problem+json"
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def starlette_http_exception_handler(request: Request, exc: StarletteHTTPException):  # type: ignore[override]
         problem = _problem(
             status=exc.status_code,
             detail=str(exc.detail) if exc.detail else None,

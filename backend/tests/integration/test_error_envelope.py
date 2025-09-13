@@ -11,7 +11,7 @@ def _enable_strict_schemas(monkeypatch):
     monkeypatch.setenv("STRICT_SCHEMAS", "true")
 
 
-client = TestClient(fastapi_app)
+client = TestClient(fastapi_app, raise_server_exceptions=False)
 
 
 def test_404_problem_json():
