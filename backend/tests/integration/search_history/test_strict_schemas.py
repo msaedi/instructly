@@ -1,18 +1,28 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import fastapi_app
-
 
 @pytest.fixture(autouse=True)
 def _enable_strict(monkeypatch):
     monkeypatch.setenv("STRICT_SCHEMAS", "true")
 
 
-client = TestClient(fastapi_app)
+@pytest.fixture()
+def client(_enable_strict):
+    from importlib import reload
+    import app.schemas.base as base
+    import app.schemas.search_history as sh
+    import app.routes.search_history as rh
+    import app.main as main
+
+    reload(base)
+    reload(sh)
+    reload(rh)
+    reload(main)
+    return TestClient(main.fastapi_app)
 
 
-def test_extra_field_rejected_for_search_create(monkeypatch):
+def test_extra_field_rejected_for_search_create(client: TestClient):
     headers = {"X-Guest-Session-ID": "guest-123"}
     payload = {
         "search_query": "math",
@@ -25,7 +35,7 @@ def test_extra_field_rejected_for_search_create(monkeypatch):
     assert resp.headers.get("content-type", "").startswith("application/problem+json")
 
 
-def test_valid_search_create_ok(monkeypatch):
+def test_valid_search_create_ok(client: TestClient):
     headers = {"X-Guest-Session-ID": "guest-123"}
     payload = {
         "search_query": "music",
