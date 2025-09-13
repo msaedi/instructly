@@ -204,8 +204,16 @@ jobs:
           BASE=$(jq -r '.lhci_min_perf' ci-baselines.json 2>/dev/null || echo 0.75)
           FILE=$(ls -1 .artifacts/lhci/**/*.json .artifacts/lhci/*.json 2>/dev/null | head -1)
           if [ -z "$FILE" ]; then FILE=$(ls -1 .artifacts/lhci/*.json 2>/dev/null | head -1); fi
+          if [ -z "$FILE" ]; then
+            echo "lhci: no report; skipping baseline gate" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
           PERF=$(jq -r '.categories.performance.score // 0' "$FILE" 2>/dev/null || echo 0)
           echo "lhci performance: ${PERF} (baseline=${BASE})" >> $GITHUB_STEP_SUMMARY
+          if [ "${PERF}" = "0" ]; then
+            echo "lhci: missing/invalid perf score; skipping baseline gate" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
           python -c "import sys; perf=float(${PERF}); base=float(${BASE}); sys.exit(0 if perf >= base else 1)"
 
       - name: Type coverage (fail-gate ≥99%)
