@@ -16,7 +16,7 @@ from functools import wraps
 import hashlib
 import json
 import logging
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
 from ..services.cache_service import CacheService, get_cache_service
 
@@ -284,7 +284,12 @@ class CachedRepositoryMixin:
         return stats
 
 
-def cached_method(ttl: Optional[int] = None, tier: str = "warm"):
+R = TypeVar("R")
+
+
+def cached_method(
+    ttl: Optional[int] = None, tier: str = "warm"
+) -> Callable[[Callable[..., R]], Callable[..., R]]:
     """
     Decorator to cache repository method results with proper SQLAlchemy serialization.
 
@@ -298,9 +303,9 @@ def cached_method(ttl: Optional[int] = None, tier: str = "warm"):
             return self.db.query(Booking)...
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., R]) -> Callable[..., R]:
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self, *args: Any, **kwargs: Any) -> R:
             # Skip caching if disabled or no cache service
             if not getattr(self, "_cache_enabled", True) or not getattr(
                 self, "cache_service", None

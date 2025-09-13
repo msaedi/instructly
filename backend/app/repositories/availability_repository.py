@@ -24,7 +24,7 @@ Methods removed for clean architecture:
 
 from datetime import date, time
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from sqlalchemy import and_, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -71,7 +71,8 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             List of availability slots ordered by date and start time
         """
         try:
-            return (
+            return cast(
+                List[AvailabilitySlot],
                 self.db.query(AvailabilitySlot)
                 .filter(
                     and_(
@@ -81,7 +82,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                     )
                 )
                 .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
-                .all()
+                .all(),
             )
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting week availability: {str(e)}")
@@ -101,7 +102,8 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             List of slots ordered by start time
         """
         try:
-            return (
+            return cast(
+                List[AvailabilitySlot],
                 self.db.query(AvailabilitySlot)
                 .filter(
                     and_(
@@ -110,7 +112,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                     )
                 )
                 .order_by(AvailabilitySlot.start_time)
-                .all()
+                .all(),
             )
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting slots by date: {str(e)}")
@@ -136,7 +138,8 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             List of confirmed/completed bookings
         """
         try:
-            return (
+            return cast(
+                List[Booking],
                 self.db.query(Booking)
                 .filter(
                     and_(
@@ -146,7 +149,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                         Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                     )
                 )
-                .all()
+                .all(),
             )
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting booked slots: {str(e)}")
@@ -201,7 +204,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             Number of bookings
         """
         try:
-            return (
+            return int(
                 self.db.query(Booking)
                 .filter(
                     and_(
@@ -290,7 +293,8 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             List of conflicting slots
         """
         try:
-            return (
+            return cast(
+                List[AvailabilitySlot],
                 self.db.query(AvailabilitySlot)
                 .filter(
                     and_(
@@ -301,7 +305,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                         AvailabilitySlot.end_time > start_time,
                     )
                 )
-                .all()
+                .all(),
             )
         except SQLAlchemyError as e:
             self.logger.error(f"Error finding time conflicts: {str(e)}")
@@ -374,11 +378,11 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             if except_ids:
                 query = query.filter(~AvailabilitySlot.id.in_(except_ids))
 
-            count = query.count()
+            count = int(query.count())
             query.delete(synchronize_session=False)
             self.db.flush()
 
-            return count
+            return int(count)
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error deleting slots: {str(e)}")
@@ -407,7 +411,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 .delete(synchronize_session=False)
             )
             self.db.flush()
-            return count
+            return int(count)
         except SQLAlchemyError as e:
             self.logger.error(f"Error deleting slots by date: {str(e)}")
             raise RepositoryException(f"Failed to delete slots: {str(e)}")
@@ -438,7 +442,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 .delete(synchronize_session=False)
             )
             self.db.flush()
-            return result
+            return int(result)
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error deleting slots by dates: {str(e)}")
@@ -461,7 +465,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             Number of slots
         """
         try:
-            return (
+            return int(
                 self.db.query(AvailabilitySlot)
                 .filter(
                     and_(
@@ -518,7 +522,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting summary: {str(e)}")
             raise RepositoryException(f"Failed to get summary: {str(e)}")
 
-    def get_instructor_availability_stats(self, instructor_id: str) -> Dict[str, any]:
+    def get_instructor_availability_stats(self, instructor_id: str) -> Dict[str, Any]:
         """
         Get aggregated statistics for instructor availability.
 
@@ -595,7 +599,8 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             List of blackout dates ordered by date
         """
         try:
-            return (
+            return cast(
+                List[BlackoutDate],
                 self.db.query(BlackoutDate)
                 .filter(
                     and_(
@@ -604,7 +609,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                     )
                 )
                 .order_by(BlackoutDate.date)
-                .all()
+                .all(),
             )
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting blackout dates: {str(e)}")
@@ -663,7 +668,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             )
 
             self.db.flush()
-            return result > 0
+            return bool(result > 0)
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error deleting blackout: {str(e)}")

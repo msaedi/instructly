@@ -20,10 +20,10 @@ This repository handles:
 
 from datetime import date, datetime, time, timezone
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy import and_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Query, Session, joinedload
 
 from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
@@ -43,7 +43,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     without any reference to availability slots.
     """
 
-    def __init__(self, db: Session, cache_service=None):
+    def __init__(self, db: Session, cache_service: Optional[Any] = None):
         """Initialize with Booking model and optional cache service."""
         super().__init__(db, Booking)
         self.logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if exclude_booking_id:
                 query = query.filter(Booking.id != exclude_booking_id)
 
-            return query.all()
+            return cast(List[Booking], query.all())
 
         except Exception as e:
             self.logger.error(f"Error getting bookings by time range: {str(e)}")
@@ -175,7 +175,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if exclude_booking_id:
                 query = query.filter(Booking.id != exclude_booking_id)
 
-            return query.all()
+            return cast(List[Booking], query.all())
 
         except Exception as e:
             self.logger.error(f"Error checking student time conflict: {str(e)}")
@@ -207,7 +207,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if status_filter:
                 query = query.filter(Booking.status.in_(status_filter))
 
-            return query.order_by(Booking.start_time).all()
+            return cast(List[Booking], query.order_by(Booking.start_time).all())
 
         except Exception as e:
             self.logger.error(f"Error getting bookings for date: {str(e)}")
@@ -239,7 +239,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if status_filter:
                 query = query.filter(Booking.status.in_(status_filter))
 
-            return query.order_by(Booking.booking_date, Booking.start_time).all()
+            return cast(
+                List[Booking], query.order_by(Booking.booking_date, Booking.start_time).all()
+            )
 
         except Exception as e:
             self.logger.error(f"Error getting bookings for week: {str(e)}")
@@ -249,11 +251,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def find_booking_opportunities(
         self,
-        available_slots: List[Dict[str, any]],
+        available_slots: List[Dict[str, Any]],
         instructor_id: str,
         target_date: date,
         duration_minutes: int,
-    ) -> List[Dict[str, any]]:
+    ) -> List[Dict[str, Any]]:
         """
         Find booking opportunities within available time slots.
 
@@ -278,12 +280,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 end_time=time(23, 59),  # End of day
             )
 
-            opportunities = []
+            opportunities: List[Dict[str, Any]] = []
 
             # Process each available slot
             for slot in available_slots:
-                slot_start = slot["start_time"]
-                slot_end = slot["end_time"]
+                slot_start = cast(time, slot["start_time"])  # time
+                slot_end = cast(time, slot["end_time"])  # time
 
                 # Find opportunities within this slot
                 current_time = slot_start
@@ -456,7 +458,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if limit:
                 query = query.limit(limit)
 
-            return query.all()
+            return cast(List[Booking], query.all())
 
         except Exception as e:
             self.logger.error(f"Error getting student bookings: {str(e)}")
@@ -585,7 +587,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if limit:
                 query = query.limit(limit)
 
-            return query.all()
+            return cast(List[Booking], query.all())
 
         except Exception as e:
             self.logger.error(f"Error getting instructor bookings: {str(e)}")
@@ -621,7 +623,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if exclude_cancelled:
                 query = query.filter(Booking.status != BookingStatus.CANCELLED)
 
-            return query.order_by(Booking.booking_date, Booking.start_time).all()
+            return cast(
+                List[Booking], query.order_by(Booking.booking_date, Booking.start_time).all()
+            )
 
         except Exception as e:
             self.logger.error(f"Error getting instructor future bookings: {str(e)}")
@@ -662,7 +666,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if to_date:
                 query = query.filter(Booking.booking_date <= to_date)
 
-            return query.all()
+            return cast(List[Booking], query.all())
 
         except Exception as e:
             self.logger.error(f"Error getting bookings for service catalog: {str(e)}")
@@ -714,7 +718,10 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             List of bookings for statistics
         """
         try:
-            return self.db.query(Booking).filter(Booking.instructor_id == instructor_id).all()
+            return cast(
+                List[Booking],
+                self.db.query(Booking).filter(Booking.instructor_id == instructor_id).all(),
+            )
         except Exception as e:
             self.logger.error(f"Error getting instructor stats: {str(e)}")
             raise RepositoryException(f"Failed to get instructor statistics: {str(e)}")
@@ -749,7 +756,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if with_relationships:
                 query = query.options(joinedload(Booking.student), joinedload(Booking.instructor))
 
-            return query.all()
+            return cast(List[Booking], query.all())
 
         except Exception as e:
             self.logger.error(f"Error getting bookings for date: {str(e)}")
@@ -920,7 +927,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     # Helper method overrides
 
-    def _apply_eager_loading(self, query):
+    def _apply_eager_loading(self, query: Query) -> Query:
         """
         Override to include common relationships by default.
 
@@ -946,7 +953,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         """
         from sqlalchemy import func
 
-        return (
+        return int(
             self.db.query(func.count(Booking.id)).filter(Booking.created_at < cutoff_date).scalar()
             or 0
         )
@@ -965,10 +972,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             List of bookings matching the criteria
         """
         try:
-            return (
+            return cast(
+                List[Booking],
                 self.db.query(Booking)
                 .filter(Booking.booking_date == booking_date, Booking.status == status)
-                .all()
+                .all(),
             )
         except Exception as e:
             self.logger.error(f"Error getting bookings by date and status: {str(e)}")
@@ -991,14 +999,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             List of bookings matching the criteria
         """
         try:
-            return (
+            return cast(
+                List[Booking],
                 self.db.query(Booking)
                 .filter(
                     Booking.booking_date >= start_date,
                     Booking.booking_date <= end_date,
                     Booking.status == status,
                 )
-                .all()
+                .all(),
             )
         except Exception as e:
             self.logger.error(f"Error getting bookings by date range and status: {str(e)}")
@@ -1014,7 +1023,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         - Have payment method ID
         """
         try:
-            return (
+            return cast(
+                List[Booking],
                 self.db.query(Booking)
                 .filter(
                     and_(
@@ -1023,7 +1033,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         Booking.payment_method_id.isnot(None),
                     )
                 )
-                .all()
+                .all(),
             )
         except Exception as e:
             self.logger.error(f"Error getting bookings for payment authorization: {str(e)}")
@@ -1039,7 +1049,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         - Have payment method ID
         """
         try:
-            return (
+            return cast(
+                List[Booking],
                 self.db.query(Booking)
                 .filter(
                     and_(
@@ -1048,7 +1059,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         Booking.payment_method_id.isnot(None),
                     )
                 )
-                .all()
+                .all(),
             )
         except Exception as e:
             self.logger.error(f"Error getting bookings for payment retry: {str(e)}")
@@ -1065,7 +1076,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         - Have completed_at timestamp
         """
         try:
-            return (
+            return cast(
+                List[Booking],
                 self.db.query(Booking)
                 .filter(
                     and_(
@@ -1075,7 +1087,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         Booking.completed_at.isnot(None),
                     )
                 )
-                .all()
+                .all(),
             )
         except Exception as e:
             self.logger.error(f"Error getting bookings for payment capture: {str(e)}")
@@ -1091,7 +1103,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         - Have payment intent ID
         """
         try:
-            return (
+            return cast(
+                List[Booking],
                 self.db.query(Booking)
                 .filter(
                     and_(
@@ -1100,7 +1113,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         Booking.payment_intent_id.isnot(None),
                     )
                 )
-                .all()
+                .all(),
             )
         except Exception as e:
             self.logger.error(f"Error getting bookings for auto completion: {str(e)}")
@@ -1115,7 +1128,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         - Have payment intent ID
         """
         try:
-            return (
+            return cast(
+                List[Booking],
                 self.db.query(Booking)
                 .filter(
                     and_(
@@ -1123,7 +1137,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         Booking.payment_intent_id.isnot(None),
                     )
                 )
-                .all()
+                .all(),
             )
         except Exception as e:
             self.logger.error(f"Error getting bookings with expired auth: {str(e)}")
@@ -1140,7 +1154,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             Count of overdue bookings
         """
         try:
-            return (
+            return int(
                 self.db.query(Booking)
                 .filter(
                     and_(

@@ -24,7 +24,7 @@ Methods removed for clean architecture:
 
 from datetime import date
 import logging
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from sqlalchemy import and_, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -55,7 +55,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     def get_week_bookings_with_slots(
         self, instructor_id: int, week_dates: List[date]
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Get all bookings in a target week.
 
@@ -88,7 +88,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             )
 
             # Process booking information
-            booked_time_ranges_by_date = {}
+            booked_time_ranges_by_date: Dict[str, List[Dict[str, Any]]] = {}
 
             for booking in bookings:
                 date_str = booking.booking_date.isoformat()
@@ -111,7 +111,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     def get_bookings_in_date_range(
         self, instructor_id: int, start_date: date, end_date: date
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Get all bookings in a date range for pattern operations.
 
@@ -145,7 +145,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             )
 
             # Organize booking information
-            bookings_by_date = {}
+            bookings_by_date: Dict[str, List[Dict[str, Any]]] = {}
 
             for booking in bookings:
                 date_str = booking.booking_date.isoformat()
@@ -189,7 +189,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             List of availability slots
         """
         try:
-            return (
+            return list(
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
@@ -205,7 +205,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     def get_slots_with_booking_status(
         self, instructor_id: int, target_date: date
-    ) -> List[Dict[str, any]]:
+    ) -> List[Dict[str, Any]]:
         """
         Get all slots for a date with their booking status.
 
@@ -234,7 +234,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                 return []
 
             # For each slot, check if there's an overlapping booking
-            result = []
+            result: List[Dict[str, Any]] = []
             for slot in slots:
                 # Check if any booking overlaps with this slot
                 has_booking = (
@@ -268,7 +268,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     def get_week_with_booking_status(
         self, instructor_id: int, start_date: date, end_date: date
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Get week availability with booking status for each slot.
 
@@ -347,7 +347,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Bulk Operations
 
-    def bulk_create_slots(self, slots: List[Dict[str, any]]) -> int:
+    def bulk_create_slots(self, slots: List[Dict[str, Any]]) -> int:
         """
         Bulk create slots using high-performance bulk_insert_mappings.
 
@@ -394,7 +394,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                 .delete(synchronize_session=False)
             )
             self.db.flush()
-            return result
+            return int(result)
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error bulk deleting slots: {str(e)}")
@@ -455,7 +455,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                 )
 
             self.db.flush()
-            return deleted_count
+            return int(deleted_count)
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error deleting slots: {str(e)}")
