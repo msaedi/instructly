@@ -237,8 +237,11 @@ class TestBookingPaymentService:
         instructor, profile, service = instructor_setup
 
         # Rule under test: "immediate" iff (start - now) <= 24 hours.
-        # Deterministic: always < 24h from "now"
-        base = datetime.now().replace(microsecond=0) + timedelta(hours=2, minutes=5)
+        # Deterministic and same-day end: if adding 1h would cross midnight, use tomorrow 10:00.
+        now_ts = datetime.now().replace(microsecond=0)
+        base = now_ts + timedelta(hours=2, minutes=5)
+        if (base + timedelta(hours=1)).date() != base.date():
+            base = datetime.combine((now_ts + timedelta(days=1)).date(), time(10, 0))
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,
