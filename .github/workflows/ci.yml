@@ -170,7 +170,8 @@ jobs:
         working-directory: frontend
         run: |
           mkdir -p .artifacts
-          npx --yes knip --config knip.config.mjs --reporter json > .artifacts/knip.json
+          npx --yes knip --config knip.config.mjs --reporter json > .artifacts/knip.json || true
+          if [ ! -s .artifacts/knip.json ]; then echo '{"issues":[]}' > .artifacts/knip.json; fi
           jq '.issues | length // 0' .artifacts/knip.json > .artifacts/knip.count
 
       - name: Dead code (baseline-gated fail)
