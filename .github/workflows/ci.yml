@@ -185,6 +185,12 @@ jobs:
             echo "deadcode: baseline created with ${CURRENT}" >> $GITHUB_STEP_SUMMARY
             exit 0
           fi
+          # Initialize baseline if empty or invalid
+          if [[ ! -s "$BASELINE_FILE" ]] || ! grep -Eq '^[0-9]+$' "$BASELINE_FILE"; then
+            echo "$CURRENT" > "$BASELINE_FILE"
+            echo "deadcode: baseline initialized to ${CURRENT}" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
           BASELINE=$(cat "$BASELINE_FILE")
           echo "deadcode: baseline=${BASELINE}, current=${CURRENT}" >> $GITHUB_STEP_SUMMARY
           if (( CURRENT > BASELINE )); then
