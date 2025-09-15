@@ -236,11 +236,9 @@ class TestBookingPaymentService:
         """Test confirming payment for a booking within 24 hours."""
         instructor, profile, service = instructor_setup
 
-        # Create a booking within 24h and avoid midnight rollover
-        # Choose 8 PM today when possible; else 8 PM tomorrow
-        now = datetime.now().replace(microsecond=0)
-        base_date = date.today() if now.hour <= 18 else date.today() + timedelta(days=1)
-        base = datetime.combine(base_date, time(20, 0))
+        # Rule under test: "immediate" iff (start - now) <= 24 hours.
+        # Deterministic: always < 24h from "now"
+        base = datetime.now().replace(microsecond=0) + timedelta(hours=2, minutes=5)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,
