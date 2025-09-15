@@ -165,56 +165,68 @@ jobs:
         run: |
           echo "type-smoke: completed" >> $GITHUB_STEP_SUMMARY
 
-      # DEAD CODE → FAIL-GATE
-      - name: Dead code audit (fail)
+      # DEAD CODE → BASELINE-GATED FAIL
+      - name: Dead code audit (collect JSON)
         working-directory: frontend
-        run: npm run audit:deadcode:ci
+        run: |
+          mkdir -p .artifacts
+          npx --yes knip --config knip.config.mjs --reporter json > .artifacts/knip.json
+          jq '.issues | length // 0' .artifacts/knip.json > .artifacts/knip.count
+
+      - name: Dead code (baseline-gated fail)
+        working-directory: frontend
+        run: |
+          BASELINE_FILE=.artifacts/baselines/knip.count
+          CURRENT=$(cat .artifacts/knip.count)
+          if [[ ! -f "$BASELINE_FILE" ]]; then
+            mkdir -p .artifacts/baselines
+            echo "$CURRENT" > "$BASELINE_FILE"
+            echo "deadcode: baseline created with ${CURRENT}" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          BASELINE=$(cat "$BASELINE_FILE")
+          echo "deadcode: baseline=${BASELINE}, current=${CURRENT}" >> $GITHUB_STEP_SUMMARY
+          if (( CURRENT > BASELINE )); then
+            echo "❌ Dead code increased (current ${CURRENT} > baseline ${BASELINE})"
+            exit 1
+          fi
 
       - name: Dead code (summary)
         working-directory: frontend
         run: |
-          echo "deadcode: PASS" >> $GITHUB_STEP_SUMMARY
+          echo "deadcode: OK (no increase from baseline)" >> $GITHUB_STEP_SUMMARY
 
-      - name: Dead code (baseline gate)
+      # LIGHTHOUSE → BASELINE-GATED FAIL
+      - name: Lighthouse CI (collect JSON)
         working-directory: frontend
         run: |
           mkdir -p .artifacts
-          node -e "console.log(JSON.stringify({ issues: [] }))" > .artifacts/knip.json || true
-          BASE=$(jq -r '.deadcode_issues' ci-baselines.json 2>/dev/null || echo 0)
-          COUNT=$(jq -r '.issues | length' .artifacts/knip.json 2>/dev/null || echo 0)
-          echo "deadcode issues: ${COUNT} (baseline=${BASE})" >> $GITHUB_STEP_SUMMARY
-          if [ "${COUNT}" -gt "${BASE}" ]; then
-            echo "Dead code regression: ${COUNT} > baseline ${BASE}" >&2
-            exit 1
+          npx --yes @lhci/cli collect --config=./lighthouserc.json --output=json --output-path=.artifacts/lhci-lhr.json || true
+          if [[ -f .artifacts/lhci-lhr.json ]]; then
+            jq '.categories.performance.score // 0' .artifacts/lhci-lhr.json > .artifacts/lhci.performance
+          else
+            echo "0" > .artifacts/lhci.performance
           fi
 
-      # LIGHTHOUSE → FAIL-GATE
-      - name: Lighthouse CI (run)
+      - name: Lighthouse (baseline-gated fail)
         working-directory: frontend
-        run: npm run audit:lhci || true
+        run: |
+          BASELINE_FILE=.artifacts/baselines/lhci.performance
+          CURRENT=$(cat .artifacts/lhci.performance)
+          if [[ ! -f "$BASELINE_FILE" ]]; then
+            mkdir -p .artifacts/baselines
+            echo "$CURRENT" > "$BASELINE_FILE"
+            echo "lhci: baseline created with ${CURRENT}" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          BASELINE=$(cat "$BASELINE_FILE")
+          echo "lhci: baseline=${BASELINE}, current=${CURRENT}" >> $GITHUB_STEP_SUMMARY
+          awk -v c="$CURRENT" -v b="$BASELINE" 'BEGIN { if (c+0 < b+0) exit 1; }' || { echo "❌ Lighthouse performance regressed"; exit 1; }
 
       - name: Lighthouse (summary)
         working-directory: frontend
         run: |
-          echo "lhci: PASS (see .artifacts/lhci)" >> $GITHUB_STEP_SUMMARY
-
-      - name: Lighthouse (baseline gate)
-        working-directory: frontend
-        run: |
-          BASE=$(jq -r '.lhci_min_perf' ci-baselines.json 2>/dev/null || echo 0.75)
-          FILE=$(ls -1 .artifacts/lhci/**/*.json .artifacts/lhci/*.json 2>/dev/null | head -1)
-          if [ -z "$FILE" ]; then FILE=$(ls -1 .artifacts/lhci/*.json 2>/dev/null | head -1); fi
-          if [ -z "$FILE" ]; then
-            echo "lhci: no report; skipping baseline gate" >> $GITHUB_STEP_SUMMARY
-            exit 0
-          fi
-          PERF=$(jq -r '.categories.performance.score // 0' "$FILE" 2>/dev/null || echo 0)
-          echo "lhci performance: ${PERF} (baseline=${BASE})" >> $GITHUB_STEP_SUMMARY
-          if [ "${PERF}" = "0" ]; then
-            echo "lhci: missing/invalid perf score; skipping baseline gate" >> $GITHUB_STEP_SUMMARY
-            exit 0
-          fi
-          python -c "import sys; perf=float(${PERF}); base=float(${BASE}); sys.exit(0 if perf >= base else 1)"
+          echo "lhci: OK (no regression vs baseline)" >> $GITHUB_STEP_SUMMARY
 
       - name: Type coverage (fail-gate ≥99%)
         working-directory: frontend
@@ -289,33 +301,28 @@ jobs:
         working-directory: backend
         run: ruff check app --select F,I
 
-      - name: pip-audit (fail on high/critical unless allowlisted)
+      - name: pip-audit (fail-on-new)
         working-directory: backend
-        run: |
-          chmod +x scripts/run_pip_audit.sh
-          ./scripts/run_pip_audit.sh || true
-          echo "pip-audit: completed (fail-on-new via allowlist)" >> $GITHUB_STEP_SUMMARY
+        run: bash scripts/run_pip_audit.sh
 
-      - name: npm audit (fail on high/critical unless allowlisted)
+      - name: npm audit (fail-on-new)
         working-directory: frontend
         run: |
-          npm audit --omit=dev --audit-level=high --json | node scripts/parse-npm-audit.js || true
-          echo "npm audit: completed (fail-on-new via allowlist)" >> $GITHUB_STEP_SUMMARY
+          npm audit --omit=dev --json | node scripts/parse-npm-audit.js
 
       - name: MyPy (schemas/internal + payments) fail-gate
         working-directory: backend
         run: mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py app/services/stripe_service.py
 
-      - name: MyPy (summary)
-        run: |
-          echo "mypy (narrow): completed" >> $GITHUB_STEP_SUMMARY
-
-      - name: MyPy (narrow error count)
+      - name: MyPy (narrow) count → summary
         working-directory: backend
         run: |
-          mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py app/services/stripe_service.py || true | tee ../frontend/.artifacts/mypy-narrow.txt >/dev/null
-          COUNT=$(grep -Eo 'Found [0-9]+ error' ../frontend/.artifacts/mypy-narrow.txt | awk '{print $2}' || echo 0)
-          echo "mypy (narrow) errors: ${COUNT}" >> $GITHUB_STEP_SUMMARY
+          mkdir -p .artifacts
+          mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py app/services/stripe_service.py > .artifacts/mypy_narrow.txt || true
+          COUNT=$(grep -Eo 'Found [0-9]+ errors' .artifacts/mypy_narrow.txt | awk '{print $2}')
+          COUNT=${COUNT:-0}
+          echo "mypy(narrow): ${COUNT} errors" >> $GITHUB_STEP_SUMMARY
+          mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py app/services/stripe_service.py
 
       - name: "MyPy (warn-mode: bookings/availability slice)"
         working-directory: backend
@@ -331,9 +338,10 @@ jobs:
             app/routes/availability_windows.py || true
           echo "mypy warn (bookings/availability): completed" >> $GITHUB_STEP_SUMMARY
 
-      - name: MyPy (warn slice error count)
+      - name: MyPy (warn-slice) count → summary
         working-directory: backend
         run: |
+          mkdir -p .artifacts
           mypy \
             app/repositories/booking_repository.py \
             app/repositories/availability_repository.py \
@@ -342,9 +350,10 @@ jobs:
             app/services/conflict_checker.py \
             app/services/week_operation_service.py \
             app/routes/bookings.py \
-            app/routes/availability_windows.py || true | tee ../frontend/.artifacts/mypy-warn.txt >/dev/null
-          COUNT=$(grep -Eo 'Found [0-9]+ error' ../frontend/.artifacts/mypy-warn.txt | awk '{print $2}' || echo 0)
-          echo "mypy (warn slice) errors: ${COUNT}" >> $GITHUB_STEP_SUMMARY
+            app/routes/availability_windows.py > .artifacts/mypy_warn.txt || true
+          COUNT=$(grep -Eo 'Found [0-9]+ errors' .artifacts/mypy_warn.txt | awk '{print $2}')
+          COUNT=${COUNT:-0}
+          echo "mypy(warn bookings/availability): ${COUNT} errors" >> $GITHUB_STEP_SUMMARY
 
       - name: Strict schemas & error envelope tests (flagged)
         working-directory: backend
