@@ -61,21 +61,21 @@ class WeekOperationService(BaseService):
         self.logger = logging.getLogger(__name__)
 
         # Initialize repositories
-        self.repository = repository or RepositoryFactory.create_week_operation_repository(db)
-        self.availability_repository = (
-            availability_repository or RepositoryFactory.create_availability_repository(db)
-        )
+        repo = repository or RepositoryFactory.create_week_operation_repository(db)
+        self.repository: "WeekOperationRepository" = repo
+        av_repo = availability_repository or RepositoryFactory.create_availability_repository(db)
+        self.availability_repository: "AvailabilityRepository" = av_repo
 
         # Lazy import to avoid circular dependencies
         if availability_service is None:
-            from .availability_service import AvailabilityService
+            from .availability_service import AvailabilityService as _AvailabilityService
 
-            availability_service = AvailabilityService(db)
+            availability_service = _AvailabilityService(db)
 
         if conflict_checker is None:
-            from .conflict_checker import ConflictChecker
+            from .conflict_checker import ConflictChecker as _ConflictChecker
 
-            conflict_checker = ConflictChecker(db)
+            conflict_checker = _ConflictChecker(db)
 
         self.availability_service = availability_service
         self.conflict_checker = conflict_checker
@@ -232,7 +232,7 @@ class WeekOperationService(BaseService):
 
     def _clear_week_slots(self, instructor_id: str, week_dates: List[date]) -> int:
         """Clear all existing slots from a week."""
-        deleted_count = self.availability_repository.delete_slots_by_dates(
+        deleted_count: int = self.availability_repository.delete_slots_by_dates(
             instructor_id, week_dates
         )
         self.logger.debug(f"Deleted {deleted_count} existing slots from target week")
@@ -248,7 +248,7 @@ class WeekOperationService(BaseService):
         )
 
         # Prepare new slots with updated dates
-        new_slots = []
+        new_slots: List[Dict[str, Any]] = []
         for slot in source_slots:
             # Calculate the day offset
             day_offset = (slot.specific_date - from_week_start).days
@@ -265,7 +265,7 @@ class WeekOperationService(BaseService):
 
         # Bulk create new slots
         if new_slots:
-            created_count = self.repository.bulk_create_slots(new_slots)
+            created_count: int = self.repository.bulk_create_slots(new_slots)
             self.logger.info(f"Created {created_count} slots in target week")
             return created_count
         else:
@@ -281,13 +281,15 @@ class WeekOperationService(BaseService):
 
             warmer = CacheWarmingStrategy(self.cache_service, self.db)
             # warm_with_verification is async - uses asyncio.sleep for rate limiting
-            result = await warmer.warm_with_verification(
+            result: Dict[str, Any] = await warmer.warm_with_verification(
                 instructor_id,
                 week_start,
                 expected_slot_count=None,
             )
         else:
-            result = self.availability_service.get_week_availability(instructor_id, week_start)
+            result = dict(
+                self.availability_service.get_week_availability(instructor_id, week_start)
+            )
 
         # Add metadata
         result["_metadata"] = {
@@ -309,7 +311,7 @@ class WeekOperationService(BaseService):
 
     def _get_date_range(self, start_date: date, end_date: date) -> List[date]:
         """Get all dates in a range."""
-        all_dates = []
+        all_dates: List[date] = []
         current_date = start_date
         while current_date <= end_date:
             all_dates.append(current_date)
@@ -318,7 +320,9 @@ class WeekOperationService(BaseService):
 
     def _clear_date_range_slots(self, instructor_id: str, dates: List[date]) -> int:
         """Clear all existing slots in a date range."""
-        deleted_count = self.availability_repository.delete_slots_by_dates(instructor_id, dates)
+        deleted_count: int = self.availability_repository.delete_slots_by_dates(
+            instructor_id, dates
+        )
         self.logger.debug(f"Deleted {deleted_count} existing slots from date range")
         return deleted_count
 
@@ -330,7 +334,7 @@ class WeekOperationService(BaseService):
         end_date: date,
     ) -> Tuple[int, int]:
         """Apply week pattern to date range."""
-        new_slots = []
+        new_slots: List[Dict[str, Any]] = []
         dates_with_slots = 0
 
         current_date = start_date
@@ -358,7 +362,7 @@ class WeekOperationService(BaseService):
 
         # Bulk create all new slots
         if new_slots:
-            created_count = self.repository.bulk_create_slots(new_slots)
+            created_count: int = self.repository.bulk_create_slots(new_slots)
             self.logger.info(f"Created {created_count} slots across {dates_with_slots} days")
             return created_count, dates_with_slots
         else:
@@ -384,7 +388,7 @@ class WeekOperationService(BaseService):
 
     def _get_affected_weeks(self, start_date: date, end_date: date) -> Set[date]:
         """Get all week start dates affected by a date range."""
-        affected_weeks = set()
+        affected_weeks: Set[date] = set()
         current = start_date
         while current <= end_date:
             week_start = current - timedelta(days=current.weekday())
@@ -414,10 +418,10 @@ class WeekOperationService(BaseService):
         }
 
     def _extract_week_pattern(
-        self, week_availability: Dict[str, List[Dict]], week_start: date
-    ) -> Dict[str, List[Dict]]:
+        self, week_availability: Dict[str, List[Dict[str, Any]]], week_start: date
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """Extract a reusable pattern from week availability."""
-        pattern = {}
+        pattern: Dict[str, List[Dict[str, Any]]] = {}
 
         for i in range(7):
             source_date = week_start + timedelta(days=i)

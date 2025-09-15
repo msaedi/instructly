@@ -179,7 +179,7 @@ class ConflictChecker(BaseService):
         bookings = self.repository.get_bookings_for_week(instructor_id, week_dates)
 
         # Group by date
-        times_by_date = {}
+        times_by_date: Dict[str, List[Dict[str, Any]]] = {}
         for booking in bookings:
             if booking.status not in [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]:
                 continue
