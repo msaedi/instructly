@@ -33,7 +33,6 @@ Router Endpoints:
     POST /check-availability - Check if time range is available
     POST /send-reminders - Admin endpoint for reminder emails
 """
-# mypy: disable-error-code=misc
 from __future__ import annotations
 
 from datetime import datetime, timedelta
