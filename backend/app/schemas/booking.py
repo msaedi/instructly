@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..models.booking import BookingStatus
-from ..schemas.base import Money, StandardizedModel
+from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
 
 
 class RescheduledFromInfo(StandardizedModel):
@@ -56,6 +56,19 @@ class BookingCreate(BaseModel):
 
     # Forbid extra fields to enforce clean architecture
     model_config = ConfigDict(extra="forbid")
+
+    if STRICT_SCHEMAS:
+
+        @field_validator("booking_date", mode="before")
+        @classmethod
+        def _strict_date_only(
+            cls, v: object
+        ) -> object:  # pragma: no cover - exercised via integration tests
+            if isinstance(v, str):
+                # Enforce YYYY-MM-DD (date-only). Let pydantic parse into date afterwards.
+                datetime.strptime(v, "%Y-%m-%d")
+                return v
+            return v
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
@@ -557,6 +570,18 @@ class AvailabilityCheckRequest(BaseModel):
             raise ValueError("End time must be after start time")
         return v
 
+    if STRICT_SCHEMAS:
+
+        @field_validator("booking_date", mode="before")
+        @classmethod
+        def _strict_date_only(
+            cls, v: object
+        ) -> object:  # pragma: no cover - exercised via integration tests
+            if isinstance(v, str):
+                datetime.strptime(v, "%Y-%m-%d")
+                return v
+            return v
+
     # NOTE: Date validation moved to services to support user timezones
     # @field_validator("booking_date")
     # def validate_future_date(cls, v):
@@ -677,6 +702,16 @@ class FindBookingOpportunitiesRequest(BaseModel):
             if v > max_range:
                 raise ValueError("Search range cannot exceed 90 days")
         return v
+
+    if STRICT_SCHEMAS:
+
+        @field_validator("date_range_start", "date_range_end", mode="before")
+        @classmethod
+        def _strict_date_range_only(cls, v: object) -> object:  # pragma: no cover
+            if isinstance(v, str):
+                datetime.strptime(v, "%Y-%m-%d")
+                return v
+            return v
 
 
 class BookingOpportunity(BaseModel):

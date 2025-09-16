@@ -37,6 +37,18 @@ export function formatDateForAPI(date: Date): string {
 }
 
 /**
+ * Dev-only warning if a non-YYYY-MM-DD string is about to be sent.
+ * No-op in production builds.
+ */
+export function warnIfNonDateOnly(value: string): void {
+  if (process.env.NODE_ENV === 'production') return;
+  const ok = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!ok) {
+    logger.warn('Non date-only string passed to API', { value });
+  }
+}
+
+/**
  * Get the start of the current week (Monday)
  *
  * @param referenceDate - Optional reference date (defaults to today)

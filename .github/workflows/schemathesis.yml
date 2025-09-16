@@ -1,0 +1,45 @@
+name: schemathesis-nightly
+
+on:
+  schedule: [{ cron: "23 3 * * *" }]
+  workflow_dispatch: {}
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install schemathesis==3.* hypothesis==6.*
+      - name: Run read-only fuzz
+        env:
+          OPENAPI_URL: ${{ secrets.OPENAPI_URL }}
+          BASE_URL: ${{ secrets.PREVIEW_BASE_URL }}
+          AUTH_HDR: ${{ secrets.PREVIEW_AUTH_HEADER }}
+          RL_BYPASS: ${{ secrets.RATE_LIMIT_BYPASS }}
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts
+          echo "${AUTH_HDR:-}" > auth.hdr || true
+          # Optional: pass a rate-limit bypass header if provided
+          if [ -n "${RL_BYPASS:-}" ]; then echo "${RL_BYPASS}" >> auth.hdr; fi
+          # Skip list file
+          SKIP_FILE="backend/tests/schemathesis_skip.txt"
+          [ -f "$SKIP_FILE" ] || echo "# add endpoints to skip here" > "$SKIP_FILE"
+          # Run read-only checks
+          schemathesis run "$OPENAPI_URL" \
+            -m GET -m HEAD -m OPTIONS \
+            --base-url "$BASE_URL" \
+            --auth-header-file auth.hdr \
+            --checks all \
+            --hypothesis-deadline=500 --workers=4 \
+            --skip-endpoints-file "$SKIP_FILE" \
+            --skip-deprecated --skip-examples \
+            --junit-xml .artifacts/schemathesis-junit.xml || true
+      - name: Upload schemathesis artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: schemathesis-nightly
+          path: .artifacts/
+          if-no-files-found: warn

@@ -75,7 +75,7 @@ def test_422_problem_json_wrong_type(client: TestClient):
     finally:
         main.fastapi_app.router.routes = main.fastapi_app.router.routes[:before_len]
     assert r.status_code == 422
-    assert r.headers.get("content-type", "").startswith("application/problem+json")
+    assert r.headers.get("content-type", "").lower().startswith("application/problem+json")
     body = r.json()
     assert body.get("title")
     assert body.get("status") == 422
@@ -103,7 +103,7 @@ def test_422_problem_json_missing_required(client: TestClient):
     finally:
         main.fastapi_app.router.routes = main.fastapi_app.router.routes[:before_len]
     assert r.status_code == 422
-    assert r.headers.get("content-type", "").startswith("application/problem+json")
+    assert r.headers.get("content-type", "").lower().startswith("application/problem+json")
     body = r.json()
     assert body.get("title")
     assert body.get("status") == 422
@@ -131,8 +131,8 @@ def test_422_problem_json_extra_field(client: TestClient):
     finally:
         main.fastapi_app.router.routes = main.fastapi_app.router.routes[:before_len]
     assert r.status_code == 422
-    ct = r.headers.get("content-type", "").lower()
-    assert ct.startswith("application/problem+json")
+    ct = r.headers.get("content-type", "")
+    assert ct.lower().startswith("application/problem+json")
     body = r.json()
     assert body.get("status") == 422
     assert isinstance(body.get("errors"), list)

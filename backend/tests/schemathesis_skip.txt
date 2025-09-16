@@ -1,0 +1,4 @@
+# Schemathesis skip list (regex patterns)
+# One pattern per line. Examples:
+# /api/payments/webhooks/stripe
+# /api/admin/.*
