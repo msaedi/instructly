@@ -1,5 +1,6 @@
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, ParamSpec, TypeVar, Union
 
+P = ParamSpec("P")
 R = TypeVar("R")
 
 class CachedRepositoryMixin:
@@ -13,4 +14,4 @@ class CachedRepositoryMixin:
     def invalidate_entity_cache(self, entity_id: Union[int, str]) -> None: ...
     def invalidate_all_cache(self) -> None: ...
 
-def cached_method(ttl: Optional[int] = ..., tier: str = ...) -> Callable[[Callable[..., R]], Callable[..., R]]: ...
+def cached_method(ttl: Optional[int] = ..., tier: str = ...) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
