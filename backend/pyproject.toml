@@ -147,6 +147,7 @@ disallow_untyped_defs = true
 explicit_package_bases = true
 follow_imports = "skip"
 plugins = ["pydantic.mypy"]
+mypy_path = "typings"
 files = [
   "app/schemas/**",
   "app/routes/internal.py",

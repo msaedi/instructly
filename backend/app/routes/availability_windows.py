@@ -37,10 +37,11 @@ Router Endpoints:
     POST /blackout-dates - Add a blackout date
     DELETE /blackout-dates/{id} - Remove a blackout date
 """
+from __future__ import annotations
 
 from datetime import date, timedelta
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
@@ -114,7 +115,7 @@ async def get_week_availability(
     start_date: date = Query(..., description="Monday of the week"),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-):
+) -> Dict[str, List[TimeRange]]:
     """
     Get availability for a specific week.
 
@@ -123,8 +124,11 @@ async def get_week_availability(
     verify_instructor(current_user)
 
     try:
-        week_map = availability_service.get_week_availability(
-            instructor_id=current_user.id, start_date=start_date
+        week_map = cast(
+            Dict[str, List[TimeRange]],
+            availability_service.get_week_availability(
+                instructor_id=current_user.id, start_date=start_date
+            ),
         )
         # Compute version and attach as header
         version = availability_service.compute_week_version(
@@ -161,7 +165,7 @@ async def save_week_availability(
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
-):
+) -> WeekAvailabilityUpdateResponse:
     """
     Save availability for specific dates in a week.
 
@@ -255,7 +259,7 @@ async def copy_week_availability(
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
-):
+) -> CopyWeekResponse:
     """Copy availability from one week to another."""
     verify_instructor(current_user)
 
@@ -286,7 +290,7 @@ async def apply_to_date_range(
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
-):
+) -> ApplyToDateRangeResponse:
     """Apply a week's pattern to a date range."""
     verify_instructor(current_user)
 
@@ -329,7 +333,7 @@ def add_specific_date_availability(
     availability_data: SpecificDateAvailabilityCreate,
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-):
+) -> AvailabilityWindowResponse:
     """
     Add availability for a specific date.
 
@@ -361,7 +365,7 @@ def get_all_availability(
     end_date: Optional[date] = Query(None),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-):
+) -> List[AvailabilityWindowResponse]:
     """
     Get all availability windows.
 
@@ -407,7 +411,7 @@ async def bulk_update_availability(
     update_data: BulkUpdateRequest,
     current_user: User = Depends(get_current_active_user),
     bulk_operation_service: BulkOperationService = Depends(get_bulk_operation_service),
-):
+) -> BulkUpdateResponse:
     """Bulk update availability slots."""
     verify_instructor(current_user)
 
@@ -433,7 +437,7 @@ def update_availability_window(
     update_data: AvailabilityWindowUpdate,
     current_user: User = Depends(get_current_active_user),
     slot_manager: SlotManager = Depends(get_slot_manager),
-):
+) -> AvailabilityWindowResponse:
     """
     Update an availability time slot.
 
@@ -475,7 +479,7 @@ def delete_availability_window(
     window_id: str,
     current_user: User = Depends(get_current_active_user),
     slot_manager: SlotManager = Depends(get_slot_manager),
-):
+) -> DeleteWindowResponse:
     """Delete an availability time slot."""
     verify_instructor(current_user)
 
@@ -499,7 +503,7 @@ async def get_week_booked_slots(
     current_user: User = Depends(get_current_active_user),
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
     presentation_service: PresentationService = Depends(get_presentation_service),
-):
+) -> BookedSlotsResponse:
     """Get all booked slots for a week with preview information."""
     verify_instructor(current_user)
 
@@ -536,7 +540,7 @@ async def validate_week_changes(
     validation_data: ValidateWeekRequest,
     current_user: User = Depends(get_current_active_user),
     bulk_operation_service: BulkOperationService = Depends(get_bulk_operation_service),
-):
+) -> WeekValidationResponse:
     """Validate planned changes to week availability."""
     verify_instructor(current_user)
 
@@ -561,7 +565,7 @@ async def validate_week_changes(
 def get_blackout_dates(
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-):
+) -> List[BlackoutDateResponse]:
     """Get instructor's blackout dates."""
     verify_instructor(current_user)
 
@@ -584,7 +588,7 @@ def add_blackout_date(
     blackout_data: BlackoutDateCreate,
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-):
+) -> BlackoutDateResponse:
     """Add a blackout date (vacation/unavailable)."""
     verify_instructor(current_user)
 
@@ -609,7 +613,7 @@ def delete_blackout_date(
     blackout_id: str,
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-):
+) -> DeleteBlackoutResponse:
     """Delete a blackout date."""
     verify_instructor(current_user)
 

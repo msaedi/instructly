@@ -33,10 +33,12 @@ Router Endpoints:
     POST /check-availability - Check if time range is available
     POST /send-reminders - Admin endpoint for reminder emails
 """
+# mypy: disable-error-code=misc
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
-from typing import Optional
+from typing import NoReturn, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
@@ -72,7 +74,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 
-def handle_domain_exception(exc: DomainException):
+def handle_domain_exception(exc: DomainException) -> NoReturn:
     """Convert domain exceptions to HTTP exceptions."""
     if hasattr(exc, "to_http_exception"):
         raise exc.to_http_exception()
@@ -87,7 +89,7 @@ async def get_upcoming_bookings(
     limit: int = Query(5, ge=1, le=20),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> PaginatedResponse[UpcomingBookingResponse]:
     """Get upcoming bookings for dashboard widget."""
     try:
         bookings = booking_service.get_bookings_for_user(
@@ -220,7 +222,7 @@ async def update_booking_payment_method(
     payment_data: BookingPaymentMethodUpdate,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> BookingResponse:
     """
     Update booking payment method and retry authorization immediately.
 
@@ -244,7 +246,7 @@ async def update_booking_payment_method(
 async def get_booking_stats(
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> BookingStatsResponse:
     """Get booking statistics for instructors."""
     try:
         if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
@@ -267,7 +269,7 @@ async def check_availability(
     check_data: AvailabilityCheckRequest,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> AvailabilityCheckResponse:
     """
     Check if a time range is available for booking.
 
@@ -306,7 +308,7 @@ async def send_reminder_emails(
     request: Request,  # ADD THIS for rate limiting
     current_user: User = Depends(require_permission(PermissionName.MANAGE_ALL_BOOKINGS)),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> SendRemindersResponse:
     """
     Send 24-hour reminder emails for tomorrow's bookings.
 
@@ -351,7 +353,7 @@ async def get_bookings(
     per_page: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> PaginatedResponse[BookingResponse]:
     """
     Get bookings for the current user with advanced filtering.
 
@@ -449,7 +451,7 @@ async def create_booking(
     booking_data: BookingCreate,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> BookingCreateResponse:
     """
     Create a booking with payment setup (Phase 2.1).
 
@@ -490,7 +492,7 @@ async def confirm_booking_payment(
     payment_data: BookingConfirmPayment,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> BookingResponse:
     """
     Confirm payment method for a booking (Phase 2.1).
 
@@ -525,7 +527,7 @@ async def get_booking_preview(
     booking_id: str,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> BookingPreviewResponse:
     """
     Get preview information for a booking.
 
@@ -574,7 +576,7 @@ async def get_booking_details(
     booking_id: str,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> BookingResponse:
     """Get full booking details with privacy protection for students."""
     try:
         booking = booking_service.get_booking_for_user(booking_id, current_user)
@@ -592,7 +594,7 @@ async def update_booking(
     update_data: BookingUpdate,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> BookingResponse:
     """Update booking details (instructor only)."""
     try:
         booking = booking_service.update_booking(
@@ -609,7 +611,7 @@ async def cancel_booking(
     cancel_data: BookingCancel,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> BookingResponse:
     """Cancel a booking."""
     try:
         booking = await booking_service.cancel_booking(
@@ -626,7 +628,7 @@ async def reschedule_booking(
     payload: BookingRescheduleRequest,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> BookingResponse:
     """
     Reschedule flow (server-orchestrated):
     - Validates access to the original booking
@@ -744,7 +746,7 @@ async def reschedule_booking(
             stripe_service = _StripeService(booking_service.db)
             default_pm = stripe_service.payment_repository.get_default_payment_method(
                 current_user.id
-            )  # type: ignore[attr-defined]
+            )
             if default_pm and default_pm.stripe_payment_method_id:
                 try:
                     new_booking = await booking_service.confirm_booking_payment(
@@ -782,7 +784,7 @@ async def complete_booking(
     booking_id: str,
     current_user: User = Depends(require_permission(PermissionName.COMPLETE_BOOKINGS)),
     booking_service: BookingService = Depends(get_booking_service),
-):
+) -> BookingResponse:
     """
     Mark a booking as completed.
 
