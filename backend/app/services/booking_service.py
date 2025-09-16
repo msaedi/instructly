@@ -12,11 +12,12 @@ Handles all booking-related business logic including:
 UPDATED IN v65: Added performance metrics and refactored long methods.
 All methods now under 50 lines with comprehensive observability! ⚡
 """
+from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 import logging
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
 import stripe
@@ -37,6 +38,13 @@ from ..schemas.booking import BookingCreate, BookingUpdate
 from .base import BaseService
 from .notification_service import NotificationService
 
+if TYPE_CHECKING:
+    from ..models.availability_slot import AvailabilitySlot
+    from ..repositories.availability_repository import AvailabilityRepository
+    from ..repositories.booking_repository import BookingRepository
+    from ..repositories.conflict_checker_repository import ConflictCheckerRepository
+    from .cache_service import CacheService
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,13 +56,20 @@ class BookingService(BaseService):
     with other services.
     """
 
+    # Attribute type annotations to help static typing
+    repository: "BookingRepository"
+    availability_repository: "AvailabilityRepository"
+    conflict_checker_repository: "ConflictCheckerRepository"
+    cache_service: Optional["CacheService"]
+    notification_service: NotificationService
+
     def __init__(
         self,
         db: Session,
         notification_service: Optional[NotificationService] = None,
-        repository=None,
-        conflict_checker_repository=None,
-        cache_service=None,
+        repository: Optional["BookingRepository"] = None,
+        conflict_checker_repository: Optional["ConflictCheckerRepository"] = None,
+        cache_service: Optional["CacheService"] = None,
     ):
         """
         Initialize booking service.
@@ -630,22 +645,28 @@ class BookingService(BaseService):
             List of bookings
         """
         if any(role.name == RoleName.STUDENT for role in user.roles):
-            return self.repository.get_student_bookings(
-                student_id=user.id,
-                status=status,
-                upcoming_only=upcoming_only,
-                exclude_future_confirmed=exclude_future_confirmed,
-                include_past_confirmed=include_past_confirmed,
-                limit=limit,
+            return cast(
+                List[Booking],
+                self.repository.get_student_bookings(
+                    student_id=user.id,
+                    status=status,
+                    upcoming_only=upcoming_only,
+                    exclude_future_confirmed=exclude_future_confirmed,
+                    include_past_confirmed=include_past_confirmed,
+                    limit=limit,
+                ),
             )
         else:  # INSTRUCTOR
-            return self.repository.get_instructor_bookings(
-                instructor_id=user.id,
-                status=status,
-                upcoming_only=upcoming_only,
-                exclude_future_confirmed=exclude_future_confirmed,
-                include_past_confirmed=include_past_confirmed,
-                limit=limit,
+            return cast(
+                List[Booking],
+                self.repository.get_instructor_bookings(
+                    instructor_id=user.id,
+                    status=status,
+                    upcoming_only=upcoming_only,
+                    exclude_future_confirmed=exclude_future_confirmed,
+                    include_past_confirmed=include_past_confirmed,
+                    limit=limit,
+                ),
             )
 
     @BaseService.measure_operation("get_booking_stats_for_instructor")
@@ -668,7 +689,7 @@ class BookingService(BaseService):
             cached_stats = self.cache_service.get(cache_key)
             if cached_stats is not None:
                 logger.debug(f"Cache hit for instructor {instructor_id} booking stats")
-                return cached_stats
+                return cast(Dict[str, Any], cached_stats)
 
         # Calculate stats if not cached
         bookings = self.repository.get_instructor_bookings_for_stats(instructor_id)
@@ -1156,7 +1177,7 @@ class BookingService(BaseService):
         target_date: date,
         earliest_time: time,
         latest_time: time,
-    ) -> List[Any]:
+    ) -> List["AvailabilitySlot"]:
         """
         Get instructor's availability slots for the date.
 
@@ -1199,16 +1220,19 @@ class BookingService(BaseService):
         Returns:
             List of existing bookings
         """
-        return self.repository.get_bookings_by_time_range(
-            instructor_id=instructor_id,
-            booking_date=target_date,
-            start_time=earliest_time,
-            end_time=latest_time,
+        return cast(
+            List[Booking],
+            self.repository.get_bookings_by_time_range(
+                instructor_id=instructor_id,
+                booking_date=target_date,
+                start_time=earliest_time,
+                end_time=latest_time,
+            ),
         )
 
     def _calculate_booking_opportunities(
         self,
-        availability_slots: List[Any],
+        availability_slots: List["AvailabilitySlot"],
         existing_bookings: List[Booking],
         target_duration_minutes: int,
         earliest_time: time,
@@ -1231,7 +1255,7 @@ class BookingService(BaseService):
         Returns:
             List of booking opportunities
         """
-        opportunities = []
+        opportunities: List[Dict[str, Any]] = []
 
         for slot in availability_slots:
             # Adjust slot boundaries to requested time range
