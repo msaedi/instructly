@@ -85,6 +85,7 @@ Then import from `features/foo/public` in `components/**`.
 
 #### Notes
 - No runtime behavior changes are introduced by these guardrails.
+- STRICT_SCHEMAS: enabled only in preview/staging. When on, backend emits RFC7807-style `application/problem+json` errors; tests assert envelope shape. Frontend includes `lib/errors/problem.ts` with `parseProblem` and unit tests.
 
 ### Security audits
 - Backend: `pip-audit` runs in CI (warn-mode initially). To ignore a specific CVE temporarily, add to `backend/pip-audit.ignore.json` with justification in PR.

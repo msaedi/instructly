@@ -344,6 +344,30 @@ def _ensure_catalog_data():
     finally:
         session.close()
 
+# =========================================================================
+# STRICT_SCHEMAS toggle fixture
+# =========================================================================
+import contextlib
+
+
+@contextlib.contextmanager
+def _strict_env():
+    old = os.environ.get("STRICT_SCHEMAS")
+    os.environ["STRICT_SCHEMAS"] = "true"
+    try:
+        yield
+    finally:
+        if old is None:
+            os.environ.pop("STRICT_SCHEMAS", None)
+        else:
+            os.environ["STRICT_SCHEMAS"] = old
+
+
+@pytest.fixture
+def STRICT_ON():
+    with _strict_env():
+        yield
+
 
 @pytest.fixture
 def client(db: Session):
