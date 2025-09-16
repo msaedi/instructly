@@ -33,13 +33,12 @@ Router Endpoints:
     POST /check-availability - Check if time range is available
     POST /send-reminders - Admin endpoint for reminder emails
 """
-from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
 from typing import NoReturn, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 
 from ..api.dependencies import get_booking_service, get_current_active_user
 from ..api.dependencies.auth import require_beta_phase_access
@@ -218,7 +217,7 @@ async def get_upcoming_bookings(
 @router.patch("/{booking_id}/payment-method", response_model=BookingResponse)
 async def update_booking_payment_method(
     booking_id: str,
-    payment_data: BookingPaymentMethodUpdate,
+    payment_data: BookingPaymentMethodUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingResponse:
@@ -265,7 +264,7 @@ async def get_booking_stats(
 )
 async def check_availability(
     request: Request,  # ADD THIS for rate limiting
-    check_data: AvailabilityCheckRequest,
+    check_data: AvailabilityCheckRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> AvailabilityCheckResponse:
@@ -447,7 +446,7 @@ async def get_bookings(
 )
 async def create_booking(
     request: Request,  # Required for rate limiting
-    booking_data: BookingCreate,
+    booking_data: BookingCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingCreateResponse:
@@ -488,7 +487,7 @@ async def create_booking(
 @router.post("/{booking_id}/confirm-payment", response_model=BookingResponse)
 async def confirm_booking_payment(
     booking_id: str,
-    payment_data: BookingConfirmPayment,
+    payment_data: BookingConfirmPayment = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingResponse:
@@ -590,7 +589,7 @@ async def get_booking_details(
 @router.patch("/{booking_id}", response_model=BookingResponse)
 async def update_booking(
     booking_id: str,
-    update_data: BookingUpdate,
+    update_data: BookingUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingResponse:
@@ -607,7 +606,7 @@ async def update_booking(
 @router.post("/{booking_id}/cancel", response_model=BookingResponse)
 async def cancel_booking(
     booking_id: str,
-    cancel_data: BookingCancel,
+    cancel_data: BookingCancel = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingResponse:
@@ -624,7 +623,7 @@ async def cancel_booking(
 @router.post("/{booking_id}/reschedule", response_model=BookingResponse)
 async def reschedule_booking(
     booking_id: str,
-    payload: BookingRescheduleRequest,
+    payload: BookingRescheduleRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingResponse:

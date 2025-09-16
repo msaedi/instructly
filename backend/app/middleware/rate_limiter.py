@@ -14,6 +14,7 @@ Uses DragonflyDB (Redis-compatible) for distributed rate limiting.
 from enum import Enum
 from functools import wraps
 import hashlib
+import inspect
 import logging
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -412,7 +413,13 @@ def rate_limit(
                 loop.close()
 
         # Return async wrapper for async functions, sync wrapper for sync functions
-        return async_wrapper if is_async else sync_wrapper
+        wrapper = async_wrapper if is_async else sync_wrapper
+        # Preserve the original function signature for FastAPI dependency injection
+        try:
+            wrapper.__signature__ = inspect.signature(func)
+        except Exception:
+            pass
+        return wrapper
 
     return decorator
 
