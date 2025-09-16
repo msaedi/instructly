@@ -37,6 +37,21 @@ run_mypy() {
   fi
 }
 
+run_pytest() {
+  if [ -x "$REPO_ROOT/backend/venv/bin/pytest" ]; then
+    "$REPO_ROOT/backend/venv/bin/pytest" "$@"
+  elif [ -x "$REPO_ROOT/venv/bin/pytest" ]; then
+    "$REPO_ROOT/venv/bin/pytest" "$@"
+  elif command -v pytest >/dev/null 2>&1; then
+    pytest "$@"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -m pytest "$@"
+  else
+    echo "[pre-push] pytest not found. Activate backend venv (backend/venv) and 'pip install pytest'." >&2
+    return 127
+  fi
+}
+
 if [[ "${SKIP_RUFF:-0}" == "1" ]]; then
   echo "[pre-push] SKIP_RUFF=1 -> skipping ruff"
 else
@@ -54,14 +69,14 @@ fi
 echo "[pre-push] Backend: pytest smoke (rate headers)"
 (cd backend && \
   if [[ -f tests/integration/test_rate_headers_smoke.py ]]; then \
-    TZ=UTC pytest -q tests/integration/test_rate_headers_smoke.py; \
+    TZ=UTC run_pytest -q tests/integration/test_rate_headers_smoke.py; \
   else \
     echo "[pre-push] (info) smoke test file not found: tests/integration/test_rate_headers_smoke.py — skipping"; \
   fi)
 
 echo "[pre-push] Backend: strict/envelope tests (flagged)"
-(cd backend && STRICT_SCHEMAS=true TZ=UTC pytest -q tests/integration/test_error_envelope.py)
-(cd backend && STRICT_SCHEMAS=true TZ=UTC pytest -q tests/integration/search_history/test_strict_schemas.py)
+(cd backend && STRICT_SCHEMAS=true TZ=UTC run_pytest -q tests/integration/test_error_envelope.py)
+(cd backend && STRICT_SCHEMAS=true TZ=UTC run_pytest -q tests/integration/search_history/test_strict_schemas.py)
 
 echo "[pre-push] Backend: mypy bookings/availability slice (fail-gate)"
 (cd backend && run_mypy \
