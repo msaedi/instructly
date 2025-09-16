@@ -331,7 +331,7 @@ jobs:
           echo "mypy(narrow): ${COUNT} errors" >> $GITHUB_STEP_SUMMARY
           mypy app/schemas app/routes/internal.py app/repositories/search_history_repository.py app/services/search_history_cleanup_service.py app/routes/search_history.py app/services/stripe_service.py
 
-      - name: "MyPy (warn-mode: bookings/availability slice)"
+      - name: "MyPy (fail-mode: bookings/availability slice)"
         working-directory: backend
         run: |
           mypy \
@@ -342,10 +342,10 @@ jobs:
             app/services/conflict_checker.py \
             app/services/week_operation_service.py \
             app/routes/bookings.py \
-            app/routes/availability_windows.py || true
-          echo "mypy warn (bookings/availability): completed" >> $GITHUB_STEP_SUMMARY
+            app/routes/availability_windows.py
+          echo "mypy fail (bookings/availability): completed" >> $GITHUB_STEP_SUMMARY
 
-      - name: MyPy (warn-slice) count → summary
+      - name: MyPy (slice) count → summary
         working-directory: backend
         run: |
           mkdir -p .artifacts
@@ -357,10 +357,10 @@ jobs:
             app/services/conflict_checker.py \
             app/services/week_operation_service.py \
             app/routes/bookings.py \
-            app/routes/availability_windows.py > .artifacts/mypy_warn.txt || true
-          COUNT=$(grep -Eo 'Found [0-9]+ errors' .artifacts/mypy_warn.txt | awk '{print $2}')
+            app/routes/availability_windows.py > .artifacts/mypy_slice.txt || true
+          COUNT=$(grep -Eo 'Found [0-9]+ errors' .artifacts/mypy_slice.txt | awk '{print $2}')
           COUNT=${COUNT:-0}
-          echo "mypy(warn bookings/availability): ${COUNT} errors" >> $GITHUB_STEP_SUMMARY
+          echo "mypy(bookings/availability): ${COUNT} errors" >> $GITHUB_STEP_SUMMARY
 
       - name: Strict schemas & error envelope tests (flagged)
         working-directory: backend

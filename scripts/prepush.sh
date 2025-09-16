@@ -63,6 +63,17 @@ echo "[pre-push] Backend: strict/envelope tests (flagged)"
 (cd backend && STRICT_SCHEMAS=true TZ=UTC pytest -q tests/integration/test_error_envelope.py)
 (cd backend && STRICT_SCHEMAS=true TZ=UTC pytest -q tests/integration/search_history/test_strict_schemas.py)
 
+echo "[pre-push] Backend: mypy bookings/availability slice (fail-gate)"
+(cd backend && run_mypy \
+  app/repositories/booking_repository.py \
+  app/repositories/availability_repository.py \
+  app/repositories/week_operation_repository.py \
+  app/services/booking_service.py \
+  app/services/conflict_checker.py \
+  app/services/week_operation_service.py \
+  app/routes/bookings.py \
+  app/routes/availability_windows.py)
+
 echo "[pre-push] Frontend: typecheck:strict-all"
 (cd frontend && npm run --silent typecheck:strict-all)
 

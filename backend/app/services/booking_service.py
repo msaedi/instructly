@@ -645,28 +645,22 @@ class BookingService(BaseService):
             List of bookings
         """
         if any(role.name == RoleName.STUDENT for role in user.roles):
-            return cast(
-                List[Booking],
-                self.repository.get_student_bookings(
-                    student_id=user.id,
-                    status=status,
-                    upcoming_only=upcoming_only,
-                    exclude_future_confirmed=exclude_future_confirmed,
-                    include_past_confirmed=include_past_confirmed,
-                    limit=limit,
-                ),
+            return self.repository.get_student_bookings(
+                student_id=user.id,
+                status=status,
+                upcoming_only=upcoming_only,
+                exclude_future_confirmed=exclude_future_confirmed,
+                include_past_confirmed=include_past_confirmed,
+                limit=limit,
             )
         else:  # INSTRUCTOR
-            return cast(
-                List[Booking],
-                self.repository.get_instructor_bookings(
-                    instructor_id=user.id,
-                    status=status,
-                    upcoming_only=upcoming_only,
-                    exclude_future_confirmed=exclude_future_confirmed,
-                    include_past_confirmed=include_past_confirmed,
-                    limit=limit,
-                ),
+            return self.repository.get_instructor_bookings(
+                instructor_id=user.id,
+                status=status,
+                upcoming_only=upcoming_only,
+                exclude_future_confirmed=exclude_future_confirmed,
+                include_past_confirmed=include_past_confirmed,
+                limit=limit,
             )
 
     @BaseService.measure_operation("get_booking_stats_for_instructor")
@@ -1038,7 +1032,7 @@ class BookingService(BaseService):
         service: InstructorService,
         instructor_profile: InstructorProfile,
         student: Optional[User] = None,
-        exclude_booking_id: Optional[int] = None,
+        exclude_booking_id: Optional[str] = None,
     ) -> None:
         """
         Check for time conflicts and apply business rules.
@@ -1220,14 +1214,11 @@ class BookingService(BaseService):
         Returns:
             List of existing bookings
         """
-        return cast(
-            List[Booking],
-            self.repository.get_bookings_by_time_range(
-                instructor_id=instructor_id,
-                booking_date=target_date,
-                start_time=earliest_time,
-                end_time=latest_time,
-            ),
+        return self.repository.get_bookings_by_time_range(
+            instructor_id=instructor_id,
+            booking_date=target_date,
+            start_time=earliest_time,
+            end_time=latest_time,
         )
 
     def _calculate_booking_opportunities(
