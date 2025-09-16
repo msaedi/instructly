@@ -10,6 +10,7 @@ Query: Any
 Response: Any
 Request: Any
 status: Any
+Header: Any
 
 class APIRouter:
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...

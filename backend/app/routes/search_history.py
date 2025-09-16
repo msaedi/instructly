@@ -83,7 +83,7 @@ async def get_search_context(
     return context
 
 
-@router.get("/", response_model=List[SearchHistoryResponse])  # type: ignore[misc]
+@router.get("/", response_model=List[SearchHistoryResponse])
 async def get_recent_searches(
     limit: int = 3,
     context: SearchUserContext = Depends(get_search_context),
@@ -121,7 +121,7 @@ async def get_recent_searches(
     ]
 
 
-@router.post("/", response_model=SearchHistoryResponse, status_code=status.HTTP_201_CREATED)  # type: ignore[misc]
+@router.post("/", response_model=SearchHistoryResponse, status_code=status.HTTP_201_CREATED)
 async def record_search(
     search_data: SearchHistoryCreate,
     request: Request,
@@ -217,7 +217,7 @@ async def record_search(
         )
 
 
-@router.delete("/{search_id}", status_code=status.HTTP_204_NO_CONTENT)  # type: ignore[misc]
+@router.delete("/{search_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_search(
     search_id: str,
     current_user: Optional[User] = Depends(get_current_user_optional),
@@ -267,7 +267,7 @@ async def delete_search(
 
 @router.post(
     "/interaction", response_model=SearchInteractionResponse, status_code=status.HTTP_201_CREATED
-)  # type: ignore[misc]
+)
 async def track_interaction(
     interaction_data: Dict[str, object],
     request: Request,
