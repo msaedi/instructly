@@ -61,9 +61,22 @@ jobs:
         cd frontend
         npm ci
 
+    - name: Show Docker versions
+      run: |
+        docker --version
+        docker compose version
+
+    - name: Ensure Docker Compose plugin present
+      run: |
+        docker compose version || {
+          sudo apt-get update -y
+          sudo apt-get install -y docker-compose-plugin
+          docker compose version
+        }
+
     - name: Start test database
       run: |
-        docker-compose -f docker-compose.test.yml up -d postgres redis
+        docker compose -f docker-compose.test.yml up -d postgres redis
         sleep 5  # Wait for services to be ready
 
     - name: Run database migrations
@@ -235,7 +248,7 @@ jobs:
     - name: Stop services
       if: always()
       run: |
-        docker-compose -f docker-compose.test.yml down
+        docker compose -f docker-compose.test.yml down -v
         pkill -f uvicorn || true
 
   weekly-report:
