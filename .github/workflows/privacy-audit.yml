@@ -78,24 +78,24 @@ jobs:
       run: |
         if [ ! -f docker-compose.test.yml ]; then
           echo "docker-compose.test.yml not found; generating a minimal test compose file"
-          cat > docker-compose.test.yml <<'YML'
-          services:
-            postgres:
-              image: postgres:14
-              environment:
-                POSTGRES_USER: postgres
-                POSTGRES_PASSWORD: postgres
-                POSTGRES_DB: instainstru_test
-              ports:
-                - "5432:5432"
-              healthcheck:
-                test: ["CMD-SHELL","pg_isready -U postgres"]
-                interval: 5s
-                timeout: 5s
-                retries: 20
-            redis:
-              image: redis:7-alpine
-          YML
+          {
+            echo 'services:'
+            echo '  postgres:'
+            echo '    image: postgres:14'
+            echo '    environment:'
+            echo '      POSTGRES_USER: postgres'
+            echo '      POSTGRES_PASSWORD: postgres'
+            echo '      POSTGRES_DB: instainstru_test'
+            echo '    ports:'
+            echo '      - "5432:5432"'
+            echo '    healthcheck:'
+            echo '      test: ["CMD-SHELL","pg_isready -U postgres"]'
+            echo '      interval: 5s'
+            echo '      timeout: 5s'
+            echo '      retries: 20'
+            echo '  redis:'
+            echo '    image: redis:7-alpine'
+          } > docker-compose.test.yml
         fi
         docker compose -f docker-compose.test.yml up -d postgres redis
         sleep 5  # Wait for services to be ready
