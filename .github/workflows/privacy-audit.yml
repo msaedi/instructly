@@ -81,7 +81,7 @@ jobs:
           {
             echo 'services:'
             echo '  postgres:'
-            echo '    image: postgres:14'
+            echo '    image: pgvector/pgvector:pg14'
             echo '    environment:'
             echo '      POSTGRES_USER: postgres'
             echo '      POSTGRES_PASSWORD: postgres'
