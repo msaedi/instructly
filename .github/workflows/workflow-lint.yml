@@ -1,0 +1,25 @@
+name: Workflow Lint
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint workflows (no docker-compose v1; stable DB image)
+        run: |
+          # Fail if any workflow uses legacy docker-compose v1
+          if git grep -n "docker-compose" .github/workflows; then
+            echo "Found legacy docker-compose usage in workflows" >&2
+            exit 1
+          fi
+          # Enforce stable DB image in privacy-audit workflow
+          grep -q 'ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector' .github/workflows/privacy-audit.yml

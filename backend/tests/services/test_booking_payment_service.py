@@ -1,3 +1,107 @@
+from datetime import datetime, timedelta
+import ulid
+import pytest
+
+# Assuming test utilities/fixtures provide these imports; adjust paths if needed
+from app.models.booking import Booking, BookingStatus
+from app.services.booking_service import BookingService
+
+
+@pytest.mark.asyncio
+async def test_confirm_booking_payment_boundary_within_24h(db, booking_service: BookingService, student_user, instructor_setup):
+    """Booking at now + 23h59m => immediate (authorizing)."""
+    instructor, profile, service = instructor_setup
+    FIXED_NOW = datetime(2025, 1, 1, 12, 0, 0).replace(microsecond=0)
+
+    start_dt = FIXED_NOW + timedelta(hours=23, minutes=59)
+    booking = Booking(
+        id=str(ulid.ULID()),
+        student_id=student_user.id,
+        instructor_id=instructor.id,
+        instructor_service_id=service.id,
+        booking_date=start_dt.date(),
+        start_time=start_dt.time(),
+        end_time=(start_dt + timedelta(hours=1)).time(),
+        service_name="Boundary Test",
+        hourly_rate=100.0,
+        total_price=100.0,
+        duration_minutes=60,
+        status=BookingStatus.PENDING,
+        payment_status="pending_payment_method",
+    )
+    db.add(booking)
+    db.flush()
+
+    import app.services.booking_service as mod
+    RealDT = mod.datetime
+
+    class FixedDT(RealDT):
+        @classmethod
+        def now(cls, tz=None):
+            return FIXED_NOW if tz is None else FIXED_NOW.astimezone(tz)
+
+    mod.datetime = FixedDT
+    try:
+        confirmed = await booking_service.confirm_booking_payment(
+            booking_id=booking.id,
+            student=student_user,
+            payment_method_id="pm_test",
+            save_payment_method=False,
+        )
+    finally:
+        mod.datetime = RealDT
+
+    assert confirmed.status == BookingStatus.CONFIRMED
+    assert confirmed.payment_status == "authorizing"
+
+
+@pytest.mark.asyncio
+async def test_confirm_booking_payment_boundary_beyond_24h(db, booking_service: BookingService, student_user, instructor_setup):
+    """Booking at now + 24h01m => scheduled."""
+    instructor, profile, service = instructor_setup
+    FIXED_NOW = datetime(2025, 1, 1, 12, 0, 0).replace(microsecond=0)
+
+    start_dt = FIXED_NOW + timedelta(hours=24, minutes=1)
+    booking = Booking(
+        id=str(ulid.ULID()),
+        student_id=student_user.id,
+        instructor_id=instructor.id,
+        instructor_service_id=service.id,
+        booking_date=start_dt.date(),
+        start_time=start_dt.time(),
+        end_time=(start_dt + timedelta(hours=1)).time(),
+        service_name="Boundary Test",
+        hourly_rate=100.0,
+        total_price=100.0,
+        duration_minutes=60,
+        status=BookingStatus.PENDING,
+        payment_status="pending_payment_method",
+    )
+    db.add(booking)
+    db.flush()
+
+    import app.services.booking_service as mod
+    RealDT = mod.datetime
+
+    class FixedDT(RealDT):
+        @classmethod
+        def now(cls, tz=None):
+            return FIXED_NOW if tz is None else FIXED_NOW.astimezone(tz)
+
+    mod.datetime = FixedDT
+    try:
+        confirmed = await booking_service.confirm_booking_payment(
+            booking_id=booking.id,
+            student=student_user,
+            payment_method_id="pm_test",
+            save_payment_method=False,
+        )
+    finally:
+        mod.datetime = RealDT
+
+    assert confirmed.status == BookingStatus.CONFIRMED
+    assert confirmed.payment_status == "scheduled"
+
 """
 Tests for BookingService payment functionality (Phase 2).
 

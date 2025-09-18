@@ -1,3 +1,79 @@
+from datetime import datetime, timedelta
+
+import pytest
+import ulid
+from sqlalchemy.orm import Session
+
+from app.models.booking import Booking, BookingStatus
+
+
+@pytest.mark.parametrize(
+    "minutes_ahead, expected_status",
+    [
+        (23 * 60 + 59, "authorizing"),  # 23h59m -> immediate
+        (24 * 60 + 1, "scheduled"),  # 24h01m -> scheduled
+    ],
+)
+def test_confirm_booking_payment_boundary_route(
+    minutes_ahead: int,
+    expected_status: str,
+    authenticated_client,
+    student_user,
+    instructor_setup,
+    db: Session,
+):
+    """
+    Route-level boundary: <=24h is immediate (authorizing), >24h is scheduled.
+    Uses a fixed 'now' and monkeypatches booking_service.datetime.now to avoid clock drift.
+    """
+    instructor, _profile, service = instructor_setup
+
+    fixed_now = datetime(2025, 1, 1, 12, 0, 0).replace(microsecond=0)
+    start_dt = fixed_now + timedelta(minutes=minutes_ahead)
+
+    # Build a one-hour booking starting at start_dt
+    booking = Booking(
+        id=str(ulid.ULID()),
+        student_id=student_user.id,
+        instructor_id=instructor.id,
+        instructor_service_id=service.id,
+        booking_date=start_dt.date(),
+        start_time=start_dt.time(),
+        end_time=(start_dt + timedelta(hours=1)).time(),
+        service_name="Boundary Test",
+        hourly_rate=100.00,
+        total_price=100.00,
+        duration_minutes=60,
+        status=BookingStatus.PENDING,
+        payment_status="pending_payment_method",
+    )
+    db.add(booking)
+    db.commit()
+
+    # Monkeypatch datetime.now used inside booking_service
+    import app.services.booking_service as mod
+
+    RealDT = mod.datetime
+
+    class FixedDT(RealDT):  # type: ignore[misc]
+        @classmethod
+        def now(cls, tz=None):
+            return fixed_now if tz is None else fixed_now.astimezone(tz)
+
+    mod.datetime = FixedDT
+    try:
+        resp = authenticated_client.post(
+            f"/bookings/{booking.id}/confirm-payment",
+            json={"payment_method_id": "pm_test", "save_payment_method": False},
+        )
+    finally:
+        mod.datetime = RealDT
+
+    assert resp.status_code == 200, resp.text
+    db.refresh(booking)
+    assert booking.status == BookingStatus.CONFIRMED
+    assert booking.payment_status == expected_status
+
 """
 Tests for booking payment route endpoints (Phase 2).
 
