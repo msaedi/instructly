@@ -1,9 +1,16 @@
 name: Privacy Protection Audit
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch: {}
+
+# (optional but recommended)
+concurrency:
+  group: privacy-audit-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
