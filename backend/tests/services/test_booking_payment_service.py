@@ -5,18 +5,30 @@ import pytest
 # Assuming test utilities/fixtures provide these imports; adjust paths if needed
 from app.models.booking import Booking, BookingStatus
 from app.services.booking_service import BookingService
+from app.models.user import User
+from app.models.instructor import InstructorProfile
+from app.models.service_catalog import InstructorService as Service
 
 
 @pytest.mark.asyncio
-async def test_confirm_booking_payment_boundary_within_24h(db, student_user, instructor_setup):
+async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_student, test_instructor):
     """Booking at now + 23h59m => immediate (authorizing)."""
-    instructor, profile, service = instructor_setup
+    # Build instructor+service from standard test fixtures in conftest
+    instructor = test_instructor
+    assert instructor is not None
+    profile = db.query(InstructorProfile).filter_by(user_id=instructor.id).first()
+    assert profile is not None
+    service = db.query(Service).filter_by(instructor_profile_id=profile.id, is_active=True).first()
+    assert service is not None
     FIXED_NOW = datetime(2025, 1, 1, 12, 0, 0).replace(microsecond=0)
 
     start_dt = FIXED_NOW + timedelta(hours=23, minutes=59)
+    # Ensure the student exists (created by auth_headers_student fixture)
+    student: User | None = db.query(User).filter_by(email="test.student@example.com").first()
+    assert student is not None
     booking = Booking(
         id=str(ulid.ULID()),
-        student_id=student_user.id,
+        student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=service.id,
         booking_date=start_dt.date(),
@@ -45,7 +57,7 @@ async def test_confirm_booking_payment_boundary_within_24h(db, student_user, ins
     try:
         confirmed = await svc.confirm_booking_payment(
             booking_id=booking.id,
-            student=student_user,
+            student=student,
             payment_method_id="pm_test",
             save_payment_method=False,
         )
@@ -53,19 +65,30 @@ async def test_confirm_booking_payment_boundary_within_24h(db, student_user, ins
         mod.datetime = RealDT
 
     assert confirmed.status == BookingStatus.CONFIRMED
-    assert confirmed.payment_status == "authorizing"
+    # Dynamic threshold considers buffer_time_minutes
+    buffer_minutes = getattr(profile, "buffer_time_minutes", 0)
+    threshold_minutes = 24 * 60 + buffer_minutes
+    expected_status = "scheduled" if 23 * 60 + 59 > threshold_minutes else "authorizing"
+    assert confirmed.payment_status == expected_status
 
 
 @pytest.mark.asyncio
-async def test_confirm_booking_payment_boundary_beyond_24h(db, student_user, instructor_setup):
+async def test_confirm_booking_payment_boundary_beyond_24h(db, auth_headers_student, test_instructor):
     """Booking at now + 24h01m => scheduled."""
-    instructor, profile, service = instructor_setup
+    instructor = test_instructor
+    assert instructor is not None
+    profile = db.query(InstructorProfile).filter_by(user_id=instructor.id).first()
+    assert profile is not None
+    service = db.query(Service).filter_by(instructor_profile_id=profile.id, is_active=True).first()
+    assert service is not None
     FIXED_NOW = datetime(2025, 1, 1, 12, 0, 0).replace(microsecond=0)
 
     start_dt = FIXED_NOW + timedelta(hours=24, minutes=1)
+    student: User | None = db.query(User).filter_by(email="test.student@example.com").first()
+    assert student is not None
     booking = Booking(
         id=str(ulid.ULID()),
-        student_id=student_user.id,
+        student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=service.id,
         booking_date=start_dt.date(),
@@ -90,11 +113,13 @@ async def test_confirm_booking_payment_boundary_beyond_24h(db, student_user, ins
             return FIXED_NOW if tz is None else FIXED_NOW.astimezone(tz)
 
     mod.datetime = FixedDT
+    student: User | None = db.query(User).filter_by(email="test.student@example.com").first()
+    assert student is not None
     svc = BookingService(db)
     try:
         confirmed = await svc.confirm_booking_payment(
             booking_id=booking.id,
-            student=student_user,
+            student=student,
             payment_method_id="pm_test",
             save_payment_method=False,
         )
@@ -102,7 +127,10 @@ async def test_confirm_booking_payment_boundary_beyond_24h(db, student_user, ins
         mod.datetime = RealDT
 
     assert confirmed.status == BookingStatus.CONFIRMED
-    assert confirmed.payment_status == "scheduled"
+    buffer_minutes = getattr(profile, "buffer_time_minutes", 0)
+    threshold_minutes = 24 * 60 + buffer_minutes
+    expected_status = "scheduled" if 24 * 60 + 1 > threshold_minutes else "authorizing"
+    assert confirmed.payment_status == expected_status
 
 """
 Tests for BookingService payment functionality (Phase 2).

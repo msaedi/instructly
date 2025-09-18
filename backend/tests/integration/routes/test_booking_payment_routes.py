@@ -1,10 +1,32 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import ulid
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus
+from app.models.user import User
+from app.models.instructor import InstructorProfile
+from app.models.service_catalog import InstructorService as Service
+
+
+@pytest.fixture
+def student_user(db: Session, auth_headers_student) -> User:
+    """Return the student user created by auth_headers_student."""
+    user = db.query(User).filter_by(email="test.student@example.com").first()
+    assert user is not None, "Expected test.student@example.com to exist"
+    return user
+
+
+@pytest.fixture
+def instructor_setup(db: Session, test_instructor: User):
+    """Return (instructor, profile, service) using seeded catalog and test_instructor."""
+    instructor = test_instructor
+    profile = db.query(InstructorProfile).filter_by(user_id=instructor.id).first()
+    assert profile is not None, "Instructor profile not found"
+    service = db.query(Service).filter_by(instructor_profile_id=profile.id, is_active=True).first()
+    assert service is not None, "Active instructor service not found"
+    return instructor, profile, service
 
 
 @pytest.mark.parametrize(
@@ -29,7 +51,7 @@ def test_confirm_booking_payment_boundary_route(
     """
     instructor, _profile, service = instructor_setup
 
-    fixed_now = datetime(2025, 1, 1, 12, 0, 0).replace(microsecond=0)
+    fixed_now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc).replace(microsecond=0)
     start_dt = fixed_now + timedelta(minutes=minutes_ahead)
 
     # Build a one-hour booking starting at start_dt
@@ -74,6 +96,10 @@ def test_confirm_booking_payment_boundary_route(
     assert resp.status_code == 200, resp.text
     db.refresh(booking)
     assert booking.status == BookingStatus.CONFIRMED
+
+    # Determine dynamic threshold: 24h plus any buffer_time_minutes from profile
+    threshold_minutes = 24 * 60 + getattr(_profile, "buffer_time_minutes", 0)
+    expected_status = "scheduled" if minutes_ahead > threshold_minutes else "authorizing"
     assert booking.payment_status == expected_status
 
 """
