@@ -29,8 +29,27 @@ jobs:
             exit 1
           fi
 
-          # Guard: privacy audit must reference the GHCR DB image
-          if ! grep -q 'ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector' .github/workflows/privacy-audit.yml; then
-            echo "[workflow-lint] privacy-audit.yml DB image is not the GHCR image" >&2
+          # Guard: privacy audit must reference the pinned GHCR DB image digest
+          if ! grep -q 'ghcr.io/msaedi/instructly-ci-postgres@sha256:dd6c9450465b6fc753e084f870df22307bfddd150b14a660bf28fd786c9acc58' .github/workflows/privacy-audit.yml; then
+            echo "[workflow-lint] privacy-audit.yml DB image is not pinned by digest" >&2
             exit 1
           fi
+
+      - name: Verify Privacy workflow triggers and DB_IMAGE digest
+        run: |
+          python - <<'PY'
+          import sys, yaml
+          data = yaml.safe_load(open('.github/workflows/privacy-audit.yml'))
+          on_ = data.get('on', {})
+          def bad(msg):
+              print(f"[workflow-lint] {msg}", file=sys.stderr); sys.exit(1)
+          if 'push' not in on_ or 'branches' not in on_['push'] or 'main' not in on_['push']['branches']:
+              bad('missing push trigger for main in privacy-audit.yml')
+          if 'pull_request' not in on_ or 'branches' not in on_['pull_request'] or 'main' not in on_['pull_request']['branches']:
+              bad('missing pull_request trigger for main in privacy-audit.yml')
+          env = data.get('env', {}) or {}
+          expected = 'ghcr.io/msaedi/instructly-ci-postgres@sha256:dd6c9450465b6fc753e084f870df22307bfddd150b14a660bf28fd786c9acc58'
+          if env.get('DB_IMAGE') != expected:
+              bad(f"DB_IMAGE mismatch: {env.get('DB_IMAGE')}")
+          print('[workflow-lint] privacy triggers and DB_IMAGE digest OK')
+          PY

@@ -20,7 +20,7 @@ permissions:
 
 env:
   NODE_VERSION: '22'
-  DB_IMAGE: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
+  DB_IMAGE: ghcr.io/msaedi/instructly-ci-postgres@sha256:dd6c9450465b6fc753e084f870df22307bfddd150b14a660bf28fd786c9acc58
 
 jobs:
   privacy-check:
@@ -105,7 +105,7 @@ jobs:
         run: |
           RESOLVED=$(docker compose -f compose.privacy.yml config | sed -n '/db:/,/^[^[:space:]]/p' | grep -E "^[[:space:]]*image:" | awk '{print $2}')
           echo "Resolved DB image: $RESOLVED"
-          if ! echo "$RESOLVED" | grep -q '^ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector$'; then
+          if ! echo "$RESOLVED" | grep -q '^ghcr.io/msaedi/instructly-ci-postgres@sha256:dd6c9450465b6fc753e084f870df22307bfddd150b14a660bf28fd786c9acc58$'; then
             echo "DB image is not the GHCR image. Failing as per guard policy."
             exit 1
           fi
