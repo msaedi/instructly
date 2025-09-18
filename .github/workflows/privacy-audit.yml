@@ -2,267 +2,306 @@ name: Privacy Protection Audit
 
 on:
   pull_request:
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - '.github/workflows/privacy-audit.yml'
-  schedule:
-    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC
-  workflow_dispatch:  # Manual trigger
-    inputs:
-      verbose:
-        description: 'Enable verbose output'
-        required: false
-        default: 'false'
-      category:
-        description: 'Test specific category (public, auth, admin)'
-        required: false
-        default: ''
+    branches: [ main ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: read
+  checks: write
+  pull-requests: write
 
 env:
   NODE_VERSION: '22'
+  DB_IMAGE: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
 
 jobs:
-  privacy-audit:
-    name: Privacy Compliance Check
+  privacy-check:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      pull-requests: write  # For PR comments
-      checks: write         # For check annotations
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version-file: ./.python-version
-        cache: 'pip'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          check-latest: true
+          cache: npm
 
-    - name: Install backend dependencies
-      run: |
-        cd backend
-        pip install -r requirements.txt
-        pip install httpx pyyaml
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ./.python-version
+          cache: 'pip'
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        check-latest: true
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install httpx pyyaml
 
-    - name: Install frontend dependencies
-      run: |
-        cd frontend
-        npm ci
+      - name: Login to GHCR (actor + GITHUB_TOKEN)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Start test database
-      run: |
-        docker-compose -f docker-compose.test.yml up -d postgres redis
-        sleep 5  # Wait for services to be ready
+      - name: GHCR fallback login (PAT, optional)
+        env:
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+        if: ${{ env.GHCR_PAT != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: msaedi
+          password: ${{ env.GHCR_PAT }}
 
-    - name: Run database migrations
-      env:
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-        USE_TEST_DATABASE: true
-      run: |
-        cd backend
-        alembic upgrade head
+      - name: Show Docker versions
+        run: |
+          docker --version
+          docker compose version
 
-    - name: Seed test data
-      env:
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-        USE_TEST_DATABASE: true
-      run: |
-        cd backend
-        python scripts/reset_and_seed_database_enhanced.py
+      - name: Pre-pull DB image (fail fast)
+        run: |
+          set -e
+          docker pull "${{ env.DB_IMAGE }}"
 
-    - name: Start backend server
-      env:
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-        USE_TEST_DATABASE: true
-        REDIS_URL: redis://localhost:6379/0
-      run: |
-        cd backend
-        uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-        sleep 10  # Wait for server to start
+      - name: Start services (pgvector image)
+        run: |
+          cat > compose.privacy.yml <<'YML'
+          services:
+            db:
+              image: ${DB_IMAGE}
+              environment:
+                POSTGRES_USER: postgres
+                POSTGRES_PASSWORD: postgres
+                POSTGRES_DB: appdb
+              ports:
+                - "5432:5432"
+              healthcheck:
+                test: ["CMD-SHELL","pg_isready -U postgres"]
+                interval: 5s
+                timeout: 5s
+                retries: 20
+            redis:
+              image: redis:7-alpine
+          YML
+          DB_IMAGE="${{ env.DB_IMAGE }}" docker compose -f compose.privacy.yml up -d
+          docker compose -f compose.privacy.yml ps
 
-    - name: Run privacy audit
-      id: audit
-      env:
-        API_BASE_URL: http://localhost:8000
-        SKIP_ENV_CHECK: true  # Server already started
-      run: |
-        cd backend
-        VERBOSE_FLAG=""
-        CATEGORY_FLAG=""
+      - name: Show resolved compose config
+        run: |
+          echo '--- docker compose config (db only) ---'
+          docker compose -f compose.privacy.yml config | sed -n '/services:/,/^$/p' | sed -n '/db:/,/^[^[:space:]]/p'
 
-        if [[ "${{ github.event.inputs.verbose }}" == "true" ]]; then
-          VERBOSE_FLAG="--verbose"
-        fi
+      - name: Guard DB image is GHCR
+        run: |
+          RESOLVED=$(docker compose -f compose.privacy.yml config | sed -n '/db:/,/^[^[:space:]]/p' | grep -E "^[[:space:]]*image:" | awk '{print $2}')
+          echo "Resolved DB image: $RESOLVED"
+          if ! echo "$RESOLVED" | grep -q '^ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector$'; then
+            echo "DB image is not the GHCR image. Failing as per guard policy."
+            exit 1
+          fi
 
-        if [[ -n "${{ github.event.inputs.category }}" ]]; then
-          CATEGORY_FLAG="--category ${{ github.event.inputs.category }}"
-        fi
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
 
-        python scripts/ci_privacy_audit.py $VERBOSE_FLAG $CATEGORY_FLAG
-      continue-on-error: true
+      - name: Wait for DB (health-gated)
+        id: wait_db
+        run: |
+          set -e
+          CID="$(docker compose -f compose.privacy.yml ps -q db)"
+          echo "db container: $CID"
+          for i in {1..90}; do
+            STATUS="$(docker inspect -f '{{.State.Health.Status}}' "$CID" || echo "unknown")"
+            echo "db health: $STATUS"
+            if [ "$STATUS" = "healthy" ]; then
+              break
+            fi
+            sleep 2
+          done
+          if [ "$STATUS" != "healthy" ]; then
+            echo "DB never became healthy"
+            docker compose -f compose.privacy.yml logs db | tail -n 300
+            exit 1
+          fi
 
-    - name: Upload audit reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: privacy-audit-reports-${{ github.run_number }}
-        path: |
-          backend/privacy_audit_report.json
-          backend/privacy_audit_report.md
-        retention-days: 30
+      - name: Wait until queries succeed
+        run: |
+          set -e
+          for i in {1..60}; do
+            if docker compose -f compose.privacy.yml exec -T \
+                 -e PGPASSWORD=postgres db \
+                 psql -h 127.0.0.1 -U postgres -d appdb -c "SELECT 1" >/dev/null 2>&1; then
+              echo "DB query-ready"
+              exit 0
+            fi
+            echo "waiting for DB query-ready..."
+            sleep 2
+          done
+          echo "DB failed to become query-ready"
+          docker compose -f compose.privacy.yml logs db | tail -n 300
+          exit 1
 
-    - name: Read audit results
-      if: always()
-      id: results
-      run: |
-        if [ -f backend/privacy_audit_report.json ]; then
-          VIOLATIONS=$(jq '.violations | length' backend/privacy_audit_report.json)
-          echo "violations=$VIOLATIONS" >> $GITHUB_OUTPUT
+      - name: Verify pgvector is available
+        run: |
+          docker compose -f compose.privacy.yml exec -T \
+            -e PGPASSWORD=postgres db \
+            psql -h 127.0.0.1 -U postgres -d appdb -c \
+            "SELECT name, default_version FROM pg_available_extensions WHERE name='vector';"
 
-          # Check for high severity violations
-          HIGH_SEVERITY=$(jq '[.violations[] | select(.severity == "HIGH")] | length' backend/privacy_audit_report.json)
-          echo "high_severity=$HIGH_SEVERITY" >> $GITHUB_OUTPUT
-        else
-          echo "violations=0" >> $GITHUB_OUTPUT
-          echo "high_severity=0" >> $GITHUB_OUTPUT
-        fi
+      - name: Run database migrations
+        env:
+          SITE_MODE: int
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/appdb
+        run: |
+          cd backend
+          python scripts/prep_db.py --migrate
 
-    - name: Comment on PR
-      if: github.event_name == 'pull_request' && always()
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const fs = require('fs');
-          const path = require('path');
+      - name: Confirm extensions installed
+        run: |
+          docker compose -f compose.privacy.yml exec -T \
+            -e PGPASSWORD=postgres db \
+            psql -h 127.0.0.1 -U postgres -d appdb -c "SELECT postgis_full_version();"
+          docker compose -f compose.privacy.yml exec -T \
+            -e PGPASSWORD=postgres db \
+            psql -h 127.0.0.1 -U postgres -d appdb -c \
+            "SELECT name, default_version FROM pg_available_extensions WHERE name='vector';"
 
-          let comment = '## 🔒 Privacy Audit Results\n\n';
+      - name: Seed test data
+        env:
+          SITE_MODE: int
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/appdb
+        run: |
+          cd backend
+          python scripts/prep_db.py --seed-all
 
-          // Read the markdown report if it exists
-          const reportPath = path.join('backend', 'privacy_audit_report.md');
-          if (fs.existsSync(reportPath)) {
-            const report = fs.readFileSync(reportPath, 'utf8');
-            comment += report;
-          } else {
-            comment += '✅ Privacy audit completed successfully with no violations found.';
-          }
+      - name: Start backend server
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/appdb
+          USE_TEST_DATABASE: true
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          cd backend
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          sleep 10
 
-          // Add footer with links
-          comment += '\n\n---\n';
-          comment += `📎 [View detailed report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
-          comment += `🔍 Run triggered by: ${{ github.event_name }}`;
+      - name: Run privacy audit
+        id: audit
+        env:
+          API_BASE_URL: http://localhost:8000
+          SKIP_ENV_CHECK: true
+          PRIVACY_DEEP_SCAN: ${{ vars.PRIVACY_DEEP_SCAN || '' }}
+        run: |
+          cd backend
+          VERBOSE_FLAG=""
+          CATEGORY_FLAG=""
+          if [[ "${{ github.event.inputs.verbose }}" == "true" ]]; then
+            VERBOSE_FLAG="--verbose"
+          fi
+          if [[ -n "${{ github.event.inputs.category }}" ]]; then
+            CATEGORY_FLAG="--category ${{ github.event.inputs.category }}"
+          fi
+          python scripts/ci_privacy_audit.py --ci $VERBOSE_FLAG $CATEGORY_FLAG
+        continue-on-error: true
 
-          // Find and update or create comment
-          const { data: comments } = await github.rest.issues.listComments({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number,
-          });
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: privacy-audit-reports-${{ github.run_number }}
+          path: |
+            backend/logs/privacy_audit_report.json
+            backend/logs/privacy_audit_report.md
+          retention-days: 30
 
-          const botComment = comments.find(comment =>
-            comment.user.type === 'Bot' &&
-            comment.body.includes('Privacy Audit Results')
-          );
+      - name: Read audit results
+        if: always()
+        id: results
+        run: |
+          if [ -f backend/logs/privacy_audit_report.json ]; then
+            VIOLATIONS=$(jq '.violations | length' backend/logs/privacy_audit_report.json)
+            echo "violations=$VIOLATIONS" >> $GITHUB_OUTPUT
+            HIGH_SEVERITY=$(jq '[.violations[] | select(.severity == "HIGH")] | length' backend/logs/privacy_audit_report.json)
+            echo "high_severity=$HIGH_SEVERITY" >> $GITHUB_OUTPUT
+          else
+            echo "violations=0" >> $GITHUB_OUTPUT
+            echo "high_severity=0" >> $GITHUB_OUTPUT
+          fi
 
-          if (botComment) {
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: botComment.id,
-              body: comment
-            });
-          } else {
-            await github.rest.issues.createComment({
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            let comment = '## 🔒 Privacy Audit Results\n\n';
+            const reportPath = path.join('backend', 'logs', 'privacy_audit_report.md');
+            if (fs.existsSync(reportPath)) {
+              const report = fs.readFileSync(reportPath, 'utf8');
+              comment += report;
+            } else {
+              comment += '✅ Privacy audit completed successfully with no violations found.';
+            }
+            comment += '\n\n---\n';
+            comment += `📎 [View detailed report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+            comment += `🔍 Run triggered by: ${{ github.event_name }}`;
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: comment
             });
-          }
-
-    - name: Set check status
-      if: always()
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const violations = ${{ steps.results.outputs.violations || 0 }};
-          const highSeverity = ${{ steps.results.outputs.high_severity || 0 }};
-
-          let conclusion = 'success';
-          let title = '✅ No privacy violations found';
-          let summary = 'All endpoints passed privacy compliance checks.';
-
-          if (highSeverity > 0) {
-            conclusion = 'failure';
-            title = `❌ ${highSeverity} high-severity privacy violations found`;
-            summary = `Found ${violations} total violations, including ${highSeverity} high-severity issues that must be fixed.`;
-          } else if (violations > 0) {
-            conclusion = 'neutral';
-            title = `⚠️ ${violations} privacy violations found (no high severity)`;
-            summary = `Found ${violations} violations, but none are high severity. Consider fixing before merge.`;
-          }
-
-          await github.rest.checks.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            name: 'Privacy Compliance',
-            head_sha: context.sha,
-            status: 'completed',
-            conclusion: conclusion,
-            output: {
-              title: title,
-              summary: summary,
+            const botComment = comments.find(c => c.user.type === 'Bot' && c.body.includes('Privacy Audit Results'));
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
             }
-          });
 
-    - name: Fail if high-severity violations
-      if: steps.results.outputs.high_severity > 0
-      run: |
-        echo "❌ Privacy audit failed with ${{ steps.results.outputs.high_severity }} high-severity violations"
-        exit 1
+      - name: Set check status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const violations = ${{ steps.results.outputs.violations || 0 }};
+            const highSeverity = ${{ steps.results.outputs.high_severity || 0 }};
+            let conclusion = 'success';
+            let title = '✅ No privacy violations found';
+            let summary = 'All endpoints passed privacy compliance checks.';
+            if (highSeverity > 0) {
+              conclusion = 'failure';
+              title = `❌ ${highSeverity} high-severity privacy violations found`;
+              summary = `Found ${violations} total violations, including ${highSeverity} high-severity issues that must be fixed.`;
+            } else if (violations > 0) {
+              conclusion = 'neutral';
+              title = `⚠️ ${violations} privacy violations found (no high severity)`;
+              summary = `Found ${violations} violations, but none are high severity. Consider fixing before merge.`;
+            }
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Privacy Compliance',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: conclusion,
+              output: { title, summary }
+            });
 
-    - name: Stop services
-      if: always()
-      run: |
-        docker-compose -f docker-compose.test.yml down
-        pkill -f uvicorn || true
-
-  weekly-report:
-    name: Generate Weekly Report
-    runs-on: ubuntu-latest
-    if: github.event.schedule == '0 2 * * 1'  # Only on scheduled runs
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version-file: ./.python-version
-
-    - name: Generate weekly report
-      run: |
-        echo "# Weekly Privacy Audit Report" > weekly_report.md
-        echo "Generated: $(date)" >> weekly_report.md
-        echo "" >> weekly_report.md
-        echo "This is a placeholder for the weekly privacy audit report." >> weekly_report.md
-        echo "In production, this would aggregate data from the week's audits." >> weekly_report.md
-
-    - name: Upload weekly report
-      uses: actions/upload-artifact@v4
-      with:
-        name: weekly-privacy-report-${{ github.run_number }}
-        path: weekly_report.md
-        retention-days: 90
+      - name: Stop services
+        if: always()
+        run: |
+          docker compose -f compose.privacy.yml down -v || true
+          pkill -f uvicorn || true
