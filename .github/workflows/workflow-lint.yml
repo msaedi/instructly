@@ -16,10 +16,21 @@ jobs:
       - uses: actions/checkout@v4
       - name: Lint workflows (no docker-compose v1; stable DB image)
         run: |
-          # Fail if any workflow uses legacy docker-compose v1
-          if git grep -n "docker-compose" .github/workflows; then
-            echo "Found legacy docker-compose usage in workflows" >&2
+          set -euo pipefail
+
+          # Find docker-compose only in other workflow files and only in non-comment lines
+          offenders=$(grep -R --line-number --exclude=workflow-lint.yml -e 'docker-compose' .github/workflows || true)
+          if [ -n "$offenders" ]; then
+            offenders=$(echo "$offenders" | awk -F: '$3 !~ /^[[:space:]]*#/')
+          fi
+          if [ -n "$offenders" ]; then
+            echo "Found legacy docker-compose usage in workflows:"
+            echo "$offenders"
             exit 1
           fi
-          # Enforce stable DB image in privacy-audit workflow
-          grep -q 'ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector' .github/workflows/privacy-audit.yml
+
+          # Guard: privacy audit must reference the GHCR DB image
+          if ! grep -q 'ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector' .github/workflows/privacy-audit.yml; then
+            echo "[workflow-lint] privacy-audit.yml DB image is not the GHCR image" >&2
+            exit 1
+          fi

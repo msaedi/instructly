@@ -17,7 +17,8 @@ from app.models.booking import Booking, BookingStatus
 def test_confirm_booking_payment_boundary_route(
     minutes_ahead: int,
     expected_status: str,
-    authenticated_client,
+    client,
+    auth_headers_student,
     student_user,
     instructor_setup,
     db: Session,
@@ -62,9 +63,10 @@ def test_confirm_booking_payment_boundary_route(
 
     mod.datetime = FixedDT
     try:
-        resp = authenticated_client.post(
+        resp = client.post(
             f"/bookings/{booking.id}/confirm-payment",
             json={"payment_method_id": "pm_test", "save_payment_method": False},
+            headers=auth_headers_student,
         )
     finally:
         mod.datetime = RealDT

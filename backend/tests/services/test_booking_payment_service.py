@@ -8,7 +8,7 @@ from app.services.booking_service import BookingService
 
 
 @pytest.mark.asyncio
-async def test_confirm_booking_payment_boundary_within_24h(db, booking_service: BookingService, student_user, instructor_setup):
+async def test_confirm_booking_payment_boundary_within_24h(db, student_user, instructor_setup):
     """Booking at now + 23h59m => immediate (authorizing)."""
     instructor, profile, service = instructor_setup
     FIXED_NOW = datetime(2025, 1, 1, 12, 0, 0).replace(microsecond=0)
@@ -41,8 +41,9 @@ async def test_confirm_booking_payment_boundary_within_24h(db, booking_service: 
             return FIXED_NOW if tz is None else FIXED_NOW.astimezone(tz)
 
     mod.datetime = FixedDT
+    svc = BookingService(db)
     try:
-        confirmed = await booking_service.confirm_booking_payment(
+        confirmed = await svc.confirm_booking_payment(
             booking_id=booking.id,
             student=student_user,
             payment_method_id="pm_test",
@@ -56,7 +57,7 @@ async def test_confirm_booking_payment_boundary_within_24h(db, booking_service: 
 
 
 @pytest.mark.asyncio
-async def test_confirm_booking_payment_boundary_beyond_24h(db, booking_service: BookingService, student_user, instructor_setup):
+async def test_confirm_booking_payment_boundary_beyond_24h(db, student_user, instructor_setup):
     """Booking at now + 24h01m => scheduled."""
     instructor, profile, service = instructor_setup
     FIXED_NOW = datetime(2025, 1, 1, 12, 0, 0).replace(microsecond=0)
@@ -89,8 +90,9 @@ async def test_confirm_booking_payment_boundary_beyond_24h(db, booking_service: 
             return FIXED_NOW if tz is None else FIXED_NOW.astimezone(tz)
 
     mod.datetime = FixedDT
+    svc = BookingService(db)
     try:
-        confirmed = await booking_service.confirm_booking_payment(
+        confirmed = await svc.confirm_booking_payment(
             booking_id=booking.id,
             student=student_user,
             payment_method_id="pm_test",
