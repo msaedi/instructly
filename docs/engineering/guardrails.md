@@ -93,3 +93,12 @@ Then import from `features/foo/public` in `components/**`.
 
 ### Env-contract smoke (optional)
 - A lightweight Playwright test can run if `PLAYWRIGHT_BASE_URL` is provided in CI to probe `/health` headers and 429 UX. Skipped by default.
+
+### Privacy Protection Workflow
+
+- Triggers: push to `main`, pull requests targeting `main`, and manual dispatch (workflow_dispatch)
+- Compose v2 only; no `docker-compose` v1 anywhere in workflows
+- GHCR authentication via `docker/login-action@v3` using `username: ${{ github.actor }}` and `password: ${{ secrets.GITHUB_TOKEN }}`
+- Database image pinned to `ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector` (no fallback)
+- Health-gated + TCP query waits before migrations; guard step asserts resolved `db.image` matches the GHCR image
+- Artifacts: uploads `backend/logs/privacy_audit_report.json` and `.md`
