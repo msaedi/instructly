@@ -47,8 +47,7 @@ test.describe('env-contract smoke', () => {
       if (res.status() === 429) limited += 1;
     }
     await ctx.dispose();
-    // Expect at least one 429, but not many (server limit should cap)
-    expect(limited).toBeGreaterThanOrEqual(1);
-    expect(limited).toBeLessThanOrEqual(3);
+    // Expect exactly one deduped 429 signal
+    expect(limited).toBe(1);
   });
 });
