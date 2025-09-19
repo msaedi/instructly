@@ -32,8 +32,8 @@ export default function BetaInvitesAdminPage() {
     async function fetchSummary() {
       try {
         const [settingsRes, summaryRes] = await Promise.all([
-          fetch(withApiBase(`/beta/settings`), { credentials: 'include' }),
-          fetch(withApiBase(`/beta/metrics/summary`), { credentials: 'include' }),
+          fetch(withApiBase(`/api/beta/settings`), { credentials: 'include' }),
+          fetch(withApiBase(`/api/beta/metrics/summary`), { credentials: 'include' }),
         ]);
         const settings = settingsRes.ok ? await settingsRes.json() : null;
         const phase = settings?.beta_phase || 'unknown';
@@ -51,7 +51,7 @@ export default function BetaInvitesAdminPage() {
     let cancelled = false;
     async function poll() {
       try {
-        const res = await fetch(withApiBase(`/beta/invites/send-batch-progress?task_id=${encodeURIComponent(asyncTaskId || '')}`), { credentials: 'include' });
+        const res = await fetch(withApiBase(`/api/beta/invites/send-batch-progress?task_id=${encodeURIComponent(asyncTaskId || '')}`), { credentials: 'include' });
         if (!res.ok) throw new Error('progress error');
         const data = await res.json();
         if (!cancelled) {
@@ -88,7 +88,7 @@ export default function BetaInvitesAdminPage() {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch(withApiBase(`/beta/invites/send`), {
+      const res = await fetch(withApiBase(`/api/beta/invites/send`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to_email: email, role, expires_in_days: days, source }),

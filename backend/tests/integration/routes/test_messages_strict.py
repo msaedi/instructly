@@ -25,5 +25,3 @@ def test_reaction_request_rejects_extra_field(client: TestClient):
     if resp.status_code == 401:
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422
-
-
