@@ -36,12 +36,19 @@ test.describe('env-contract smoke', () => {
     await ctx.dispose();
   });
 
-  test('429 banner UX (skipped unless E2E_RATE_LIMIT_TEST=1)', async ({ page }) => {
+  test('429 path triggers limited responses (gated)', async () => {
     test.skip(process.env.E2E_RATE_LIMIT_TEST !== '1', 'Rate limit test disabled');
-    await page.goto(base!);
-    // Placeholder: assert presence of a 429 banner element if triggered
-    // This is intentionally non-destructive and optional
-    const banner = page.getByTestId('rate-limit-banner');
-    await expect(banner).toBeVisible();
+    const ctx = await request.newContext({ baseURL: base });
+    // Hit the rate-limited endpoint several times quickly
+    const attempts = 10;
+    let limited = 0;
+    for (let i = 0; i < attempts; i += 1) {
+      const res = await ctx.get('/metrics/rate-limits/test?requests=1', { ignoreHTTPSErrors: true });
+      if (res.status() === 429) limited += 1;
+    }
+    await ctx.dispose();
+    // Expect at least one 429, but not many (server limit should cap)
+    expect(limited).toBeGreaterThanOrEqual(1);
+    expect(limited).toBeLessThanOrEqual(3);
   });
 });
