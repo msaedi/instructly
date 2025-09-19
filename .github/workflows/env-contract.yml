@@ -10,18 +10,22 @@ on:
         description: "Enable 429 dedupe check (1 to enable)"
         required: false
         default: "0"
+      PLAYWRIGHT_BASE_URL:
+        description: "Base URL to run env-contract against"
+        required: false
+        default: ""
 jobs:
   smoke:
     runs-on: ubuntu-latest
     continue-on-error: true
     env:
-      PLAYWRIGHT_BASE_URL: ${{ secrets.PLAYWRIGHT_BASE_URL || vars.PLAYWRIGHT_BASE_URL }}
+      PLAYWRIGHT_BASE_URL: ${{ inputs.PLAYWRIGHT_BASE_URL || secrets.PLAYWRIGHT_BASE_URL || vars.PLAYWRIGHT_BASE_URL }}
       E2E_HEADERS_TEST: ${{ inputs.E2E_HEADERS_TEST }}
       E2E_RATE_LIMIT_TEST: ${{ inputs.E2E_RATE_LIMIT_TEST }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: "20" }
+        with: { node-version: "22" }
       - run: npm ci
         working-directory: frontend
       - name: Install Playwright browsers

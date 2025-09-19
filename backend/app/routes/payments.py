@@ -19,7 +19,7 @@ import logging
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 import stripe
@@ -261,6 +261,8 @@ class IdentitySessionResponse(BaseModel):
     verification_session_id: str
     client_secret: str
 
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
 
 @router.post(
     "/identity/session",
@@ -306,6 +308,8 @@ async def create_identity_session(
 class IdentityRefreshResponse(BaseModel):
     status: str
     verified: bool
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 @router.post(
@@ -362,6 +366,8 @@ class PayoutScheduleResponse(BaseModel):
     ok: bool
     account_id: str | None = None
     settings: Dict[str, Any] | None = None
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 @router.post(
@@ -487,6 +493,8 @@ class InstantPayoutResponse(BaseModel):
     ok: bool
     payout_id: str | None = None
     status: str | None = None
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 @router.post("/connect/instant-payout", response_model=InstantPayoutResponse)
