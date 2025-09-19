@@ -34,3 +34,25 @@
 - Push to `main` by default.
 - Open PRs only for risky changes (migrations/behavior/large diffs).
 - Pre-push tip: `FAST_HOOKS=1 pre-commit run --all-files`.
+
+## Backend strictness slice playbook
+- Add Pydantic strict config to DTOs in the chosen module:
+  - `from pydantic import ConfigDict`
+  - `model_config = ConfigDict(extra="forbid", validate_assignment=True)` on request/response models.
+- Raise mypy to strict for that module only via `backend/pyproject.toml`:
+  - `[[tool.mypy.overrides]] module=["backend.app.routes.<module>"] strict=true`
+- Add a tiny test asserting extra field → 422 under `STRICT_SCHEMAS=true`:
+  - Use `fastapi.testclient` with `reload(main)` and skip with a reason if auth blocks validation.
+- Keep slices small (≤10 files) and commit directly to `main`.
+
+## Env-contract smoke: 429 UX (gated)
+- Location: `frontend/e2e/env-contract.spec.ts`.
+- How to run (gated): set `PLAYWRIGHT_BASE_URL` and `E2E_RATE_LIMIT_TEST=1`.
+- What it asserts: making quick requests to `/metrics/rate-limits/test` yields a small, bounded count of HTTP 429 responses (deduped-retry UX).
+- Default runs keep it skipped to stay fast.
+
+## FE public env verify (diff-aware)
+- Script: `frontend/scripts/verify-public-env.mjs`.
+- Behavior: scans for `env.get('NEXT_PUBLIC_…')` and `process.env.NEXT_PUBLIC_…` in frontend, filters to changed files in the current diff (PR/base vs `origin/main`).
+- Failure message includes a fix hint:
+  - Use `getPublicEnv('FOO')` from `@/lib/publicEnv` or a helper (e.g., `withApiBase`) in client code.
