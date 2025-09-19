@@ -2,11 +2,13 @@
 
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SendRemindersResponse(BaseModel):
     """Response for sending booking reminders."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     message: str
     reminders_sent: int
@@ -15,6 +17,8 @@ class SendRemindersResponse(BaseModel):
 
 class BookingPreviewResponse(BaseModel):
     """Response for booking preview with privacy protection."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     booking_id: str
     student_first_name: str

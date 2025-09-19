@@ -54,8 +54,8 @@ class BookingCreate(BaseModel):
     # Note: end_time is calculated from start_time + selected_duration
     end_time: Optional[time] = Field(None, description="Calculated end time (set automatically)")
 
-    # Forbid extra fields to enforce clean architecture
-    model_config = ConfigDict(extra="forbid")
+    # Forbid extra fields and validate assignment to enforce clean architecture
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     if STRICT_SCHEMAS:
 
@@ -136,6 +136,7 @@ class BookingCreate(BaseModel):
 
 
 class BookingRescheduleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """
     Request to reschedule an existing booking by specifying a new date/time and duration.
 
@@ -172,6 +173,7 @@ class BookingRescheduleRequest(BaseModel):
 
 
 class BookingConfirmPayment(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """
     Confirm payment method for a booking after SetupIntent completion.
 
@@ -189,6 +191,7 @@ class BookingConfirmPayment(BaseModel):
 
 
 class BookingUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """
     Schema for updating booking details.
 
@@ -206,6 +209,7 @@ class BookingUpdate(BaseModel):
 
 
 class BookingCancel(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Schema for cancelling a booking."""
 
     reason: str = Field(..., min_length=1, max_length=500, description="Cancellation reason")
@@ -532,6 +536,7 @@ class BookingListResponse(StandardizedModel):
 
 
 class AvailabilityCheckRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """
     Check if a specific time is available for booking.
 
@@ -593,6 +598,8 @@ class AvailabilityCheckRequest(BaseModel):
 
 class AvailabilityCheckResponse(BaseModel):
     """Response for availability check."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     available: bool
     reason: Optional[str] = None

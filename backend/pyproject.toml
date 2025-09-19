@@ -228,6 +228,12 @@ module = [
   "backend.app.routes.payments",
 ]
 strict = true
+
+[[tool.mypy.overrides]]
+module = [
+  "backend.app.routes.bookings",
+]
+strict = true
 [[tool.mypy.overrides]]
 module = [
   "app.services.base",
