@@ -21,6 +21,8 @@ class SavePaymentMethodRequest(BaseModel):
     set_as_default: bool = Field(
         default=False, description="Whether to set as default payment method"
     )
+    # Harden request DTOs
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 class CreateCheckoutRequest(BaseModel):
@@ -31,6 +33,8 @@ class CreateCheckoutRequest(BaseModel):
     save_payment_method: bool = Field(
         default=False, description="Whether to save payment method for future use"
     )
+    # Harden request DTOs
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 # ========== Response Models ==========

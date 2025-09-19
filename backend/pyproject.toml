@@ -236,6 +236,21 @@ module = [
 strict = true
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.schemas.review",
+]
+strict = true
+[[tool.mypy.overrides]]
+module = [
+  "backend.app.schemas.message_requests",
+]
+strict = true
+[[tool.mypy.overrides]]
+module = [
+  "backend.app.schemas.payment_schemas",
+]
+strict = true
+[[tool.mypy.overrides]]
+module = [
   "app.services.base",
 ]
 follow_imports = "normal"

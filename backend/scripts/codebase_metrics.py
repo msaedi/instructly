@@ -42,6 +42,11 @@ class CodebaseAnalyzer:
         "*.egg-info",
     }
 
+    # Auto-generated paths that should never count toward metrics (e.g. OpenAPI d.ts)
+    AUTO_GENERATED_PATTERNS = {
+        "frontend/types/generated",
+    }
+
     # File extensions to analyze
     BACKEND_EXTENSIONS = {".py"}
     FRONTEND_EXTENSIONS = {".ts", ".tsx", ".js", ".jsx"}
@@ -93,6 +98,10 @@ class CodebaseAnalyzer:
             if part in self.EXCLUDE_DIRS or part.startswith("."):
                 return True
             if part.endswith(".egg-info"):
+                return True
+        posix_path = path.as_posix()
+        for pattern in self.AUTO_GENERATED_PATTERNS:
+            if pattern in posix_path:
                 return True
         return False
 
@@ -426,7 +435,12 @@ class CodebaseAnalyzer:
             except:
                 pass
 
-        # Add new metrics
+        # Add new metrics (preserve monotonic git commit count)
+        if history:
+            prev_git = history[-1].get("git_commits", 0)
+            if metrics["git_commits"] < prev_git:
+                metrics["git_commits"] = prev_git
+
         history.append(metrics)
 
         # Keep only last 100 entries

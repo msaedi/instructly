@@ -1,11 +1,11 @@
 [
   {
     "timestamp": "2025-08-13T03:32:36.775600",
-    "total_lines": 137288,
-    "total_files": 720,
+    "total_lines": 121402,
+    "total_files": 719,
     "backend_lines": 95031,
-    "frontend_lines": 42257,
-    "git_commits": 576,
+    "frontend_lines": 26371,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Tasks/Celery": {
@@ -59,8 +59,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2578
+          "files": 8,
+          "lines": 0
         },
         "Pages": {
           "files": 42,
@@ -99,11 +99,11 @@
   },
   {
     "timestamp": "2025-08-17T14:35:24.547238",
-    "total_lines": 143738,
-    "total_files": 745,
+    "total_lines": 127852,
+    "total_files": 744,
     "backend_lines": 98586,
-    "frontend_lines": 45152,
-    "git_commits": 615,
+    "frontend_lines": 29266,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Tasks/Celery": {
@@ -157,8 +157,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Pages": {
           "files": 43,
@@ -197,11 +197,11 @@
   },
   {
     "timestamp": "2025-08-17T15:50:44.137389",
-    "total_lines": 143740,
-    "total_files": 745,
+    "total_lines": 127854,
+    "total_files": 744,
     "backend_lines": 98588,
-    "frontend_lines": 45152,
-    "git_commits": 617,
+    "frontend_lines": 29266,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -255,8 +255,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -295,11 +295,11 @@
   },
   {
     "timestamp": "2025-08-18T03:30:03.061587",
-    "total_lines": 145085,
-    "total_files": 752,
+    "total_lines": 129199,
+    "total_files": 751,
     "backend_lines": 99372,
-    "frontend_lines": 45713,
-    "git_commits": 635,
+    "frontend_lines": 29827,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -353,8 +353,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -393,11 +393,11 @@
   },
   {
     "timestamp": "2025-08-18T15:30:01.357423",
-    "total_lines": 145178,
-    "total_files": 752,
+    "total_lines": 129292,
+    "total_files": 751,
     "backend_lines": 99375,
-    "frontend_lines": 45803,
-    "git_commits": 636,
+    "frontend_lines": 29917,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -451,8 +451,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -491,11 +491,11 @@
   },
   {
     "timestamp": "2025-08-19T05:17:50.567999",
-    "total_lines": 145201,
-    "total_files": 752,
+    "total_lines": 129315,
+    "total_files": 751,
     "backend_lines": 99375,
-    "frontend_lines": 45826,
-    "git_commits": 641,
+    "frontend_lines": 29940,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -549,8 +549,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -589,11 +589,11 @@
   },
   {
     "timestamp": "2025-08-19T15:30:01.210673",
-    "total_lines": 145191,
-    "total_files": 752,
+    "total_lines": 129305,
+    "total_files": 751,
     "backend_lines": 99365,
-    "frontend_lines": 45826,
-    "git_commits": 643,
+    "frontend_lines": 29940,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -671,8 +671,8 @@
           "lines": 5228
         },
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -687,11 +687,11 @@
   },
   {
     "timestamp": "2025-08-20T04:10:18.334430",
-    "total_lines": 151933,
-    "total_files": 770,
+    "total_lines": 136047,
+    "total_files": 769,
     "backend_lines": 103640,
-    "frontend_lines": 48293,
-    "git_commits": 657,
+    "frontend_lines": 32407,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -745,8 +745,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -785,11 +785,11 @@
   },
   {
     "timestamp": "2025-08-20T15:35:24.819921",
-    "total_lines": 151933,
-    "total_files": 770,
+    "total_lines": 136047,
+    "total_files": 769,
     "backend_lines": 103640,
-    "frontend_lines": 48293,
-    "git_commits": 657,
+    "frontend_lines": 32407,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -867,8 +867,8 @@
           "lines": 5236
         },
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -883,11 +883,11 @@
   },
   {
     "timestamp": "2025-08-20T19:57:15.795831",
-    "total_lines": 152406,
-    "total_files": 771,
+    "total_lines": 136520,
+    "total_files": 770,
     "backend_lines": 103791,
-    "frontend_lines": 48615,
-    "git_commits": 657,
+    "frontend_lines": 32729,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -941,8 +941,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -981,11 +981,11 @@
   },
   {
     "timestamp": "2025-08-21T04:06:51.367460",
-    "total_lines": 152745,
-    "total_files": 771,
+    "total_lines": 136859,
+    "total_files": 770,
     "backend_lines": 103817,
-    "frontend_lines": 48928,
-    "git_commits": 659,
+    "frontend_lines": 33042,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -1063,8 +1063,8 @@
           "lines": 5236
         },
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -1079,11 +1079,11 @@
   },
   {
     "timestamp": "2025-08-21T12:59:33.801700",
-    "total_lines": 152745,
-    "total_files": 771,
+    "total_lines": 136859,
+    "total_files": 770,
     "backend_lines": 103817,
-    "frontend_lines": 48928,
-    "git_commits": 659,
+    "frontend_lines": 33042,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -1161,8 +1161,8 @@
           "lines": 5236
         },
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -1177,11 +1177,11 @@
   },
   {
     "timestamp": "2025-08-21T15:30:01.245542",
-    "total_lines": 153784,
-    "total_files": 777,
+    "total_lines": 137898,
+    "total_files": 776,
     "backend_lines": 104682,
-    "frontend_lines": 49102,
-    "git_commits": 659,
+    "frontend_lines": 33216,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -1235,8 +1235,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -1275,11 +1275,11 @@
   },
   {
     "timestamp": "2025-08-22T02:07:30.118913",
-    "total_lines": 157235,
-    "total_files": 783,
+    "total_lines": 141349,
+    "total_files": 782,
     "backend_lines": 108034,
-    "frontend_lines": 49201,
-    "git_commits": 664,
+    "frontend_lines": 33315,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -1357,8 +1357,8 @@
           "lines": 5236
         },
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -1373,11 +1373,11 @@
   },
   {
     "timestamp": "2025-08-22T02:10:51.560605",
-    "total_lines": 157235,
-    "total_files": 783,
+    "total_lines": 141349,
+    "total_files": 782,
     "backend_lines": 108034,
-    "frontend_lines": 49201,
-    "git_commits": 664,
+    "frontend_lines": 33315,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -1455,8 +1455,8 @@
           "lines": 5236
         },
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -1471,11 +1471,11 @@
   },
   {
     "timestamp": "2025-08-22T03:30:01.428078",
-    "total_lines": 157420,
-    "total_files": 783,
+    "total_lines": 141534,
+    "total_files": 782,
     "backend_lines": 108219,
-    "frontend_lines": 49201,
-    "git_commits": 664,
+    "frontend_lines": 33315,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -1553,8 +1553,8 @@
           "lines": 5236
         },
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -1569,11 +1569,11 @@
   },
   {
     "timestamp": "2025-08-22T15:30:01.250595",
-    "total_lines": 158551,
-    "total_files": 789,
+    "total_lines": 142665,
+    "total_files": 788,
     "backend_lines": 109350,
-    "frontend_lines": 49201,
-    "git_commits": 665,
+    "frontend_lines": 33315,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -1627,8 +1627,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2637
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -1667,11 +1667,11 @@
   },
   {
     "timestamp": "2025-08-23T05:01:53.204419",
-    "total_lines": 159867,
-    "total_files": 799,
+    "total_lines": 143981,
+    "total_files": 798,
     "backend_lines": 110426,
-    "frontend_lines": 49441,
-    "git_commits": 671,
+    "frontend_lines": 33555,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -1749,8 +1749,8 @@
           "lines": 5277
         },
         "Types": {
-          "files": 9,
-          "lines": 2641
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -1765,11 +1765,11 @@
   },
   {
     "timestamp": "2025-08-23T15:30:01.425286",
-    "total_lines": 161918,
-    "total_files": 800,
+    "total_lines": 146032,
+    "total_files": 799,
     "backend_lines": 110547,
-    "frontend_lines": 51371,
-    "git_commits": 672,
+    "frontend_lines": 35485,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -1847,8 +1847,8 @@
           "lines": 5277
         },
         "Types": {
-          "files": 9,
-          "lines": 2641
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -1863,11 +1863,11 @@
   },
   {
     "timestamp": "2025-08-23T15:30:02.259538",
-    "total_lines": 161918,
-    "total_files": 800,
+    "total_lines": 146032,
+    "total_files": 799,
     "backend_lines": 110547,
-    "frontend_lines": 51371,
-    "git_commits": 672,
+    "frontend_lines": 35485,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -1921,8 +1921,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2641
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -1961,11 +1961,11 @@
   },
   {
     "timestamp": "2025-08-24T03:52:46.861098",
-    "total_lines": 161786,
-    "total_files": 800,
+    "total_lines": 145900,
+    "total_files": 799,
     "backend_lines": 110654,
-    "frontend_lines": 51132,
-    "git_commits": 675,
+    "frontend_lines": 35246,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2019,8 +2019,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2641
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -2059,11 +2059,11 @@
   },
   {
     "timestamp": "2025-08-24T15:30:01.385357",
-    "total_lines": 163167,
-    "total_files": 804,
+    "total_lines": 147281,
+    "total_files": 803,
     "backend_lines": 111094,
-    "frontend_lines": 52073,
-    "git_commits": 680,
+    "frontend_lines": 36187,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2141,8 +2141,8 @@
           "lines": 5278
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -2157,11 +2157,11 @@
   },
   {
     "timestamp": "2025-08-25T03:30:31.490811",
-    "total_lines": 165908,
-    "total_files": 814,
+    "total_lines": 150022,
+    "total_files": 813,
     "backend_lines": 111932,
-    "frontend_lines": 53976,
-    "git_commits": 691,
+    "frontend_lines": 38090,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2239,8 +2239,8 @@
           "lines": 5295
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -2255,11 +2255,11 @@
   },
   {
     "timestamp": "2025-08-25T15:30:01.413449",
-    "total_lines": 165908,
-    "total_files": 814,
+    "total_lines": 150022,
+    "total_files": 813,
     "backend_lines": 111932,
-    "frontend_lines": 53976,
-    "git_commits": 691,
+    "frontend_lines": 38090,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2337,8 +2337,8 @@
           "lines": 5295
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -2353,11 +2353,11 @@
   },
   {
     "timestamp": "2025-08-26T03:30:01.706476",
-    "total_lines": 168204,
-    "total_files": 829,
+    "total_lines": 152318,
+    "total_files": 828,
     "backend_lines": 113631,
-    "frontend_lines": 54573,
-    "git_commits": 694,
+    "frontend_lines": 38687,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2435,8 +2435,8 @@
           "lines": 5295
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -2451,11 +2451,11 @@
   },
   {
     "timestamp": "2025-08-26T15:55:53.649793",
-    "total_lines": 168204,
-    "total_files": 829,
+    "total_lines": 152318,
+    "total_files": 828,
     "backend_lines": 113631,
-    "frontend_lines": 54573,
-    "git_commits": 694,
+    "frontend_lines": 38687,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2509,8 +2509,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -2549,11 +2549,11 @@
   },
   {
     "timestamp": "2025-08-27T03:49:37.545685",
-    "total_lines": 169114,
-    "total_files": 829,
+    "total_lines": 153228,
+    "total_files": 828,
     "backend_lines": 114070,
-    "frontend_lines": 55044,
-    "git_commits": 696,
+    "frontend_lines": 39158,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2631,8 +2631,8 @@
           "lines": 5295
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -2647,11 +2647,11 @@
   },
   {
     "timestamp": "2025-08-27T15:20:52.195923",
-    "total_lines": 169114,
-    "total_files": 829,
+    "total_lines": 153228,
+    "total_files": 828,
     "backend_lines": 114070,
-    "frontend_lines": 55044,
-    "git_commits": 696,
+    "frontend_lines": 39158,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2705,8 +2705,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -2745,11 +2745,11 @@
   },
   {
     "timestamp": "2025-08-27T15:30:01.231402",
-    "total_lines": 169276,
-    "total_files": 831,
+    "total_lines": 153390,
+    "total_files": 830,
     "backend_lines": 114070,
-    "frontend_lines": 55206,
-    "git_commits": 696,
+    "frontend_lines": 39320,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2827,8 +2827,8 @@
           "lines": 5295
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -2843,11 +2843,11 @@
   },
   {
     "timestamp": "2025-08-28T03:30:02.838268",
-    "total_lines": 170226,
-    "total_files": 844,
+    "total_lines": 154340,
+    "total_files": 843,
     "backend_lines": 114547,
-    "frontend_lines": 55679,
-    "git_commits": 697,
+    "frontend_lines": 39793,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2901,8 +2901,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -2941,11 +2941,11 @@
   },
   {
     "timestamp": "2025-08-28T15:30:01.453086",
-    "total_lines": 170226,
-    "total_files": 844,
+    "total_lines": 154340,
+    "total_files": 843,
     "backend_lines": 114547,
-    "frontend_lines": 55679,
-    "git_commits": 697,
+    "frontend_lines": 39793,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -2999,8 +2999,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -3039,11 +3039,11 @@
   },
   {
     "timestamp": "2025-08-29T03:30:04.982004",
-    "total_lines": 170523,
-    "total_files": 848,
+    "total_lines": 154637,
+    "total_files": 847,
     "backend_lines": 114708,
-    "frontend_lines": 55815,
-    "git_commits": 699,
+    "frontend_lines": 39929,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -3121,8 +3121,8 @@
           "lines": 5392
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -3137,11 +3137,11 @@
   },
   {
     "timestamp": "2025-08-29T15:30:01.316264",
-    "total_lines": 170629,
-    "total_files": 849,
+    "total_lines": 154743,
+    "total_files": 848,
     "backend_lines": 114766,
-    "frontend_lines": 55863,
-    "git_commits": 699,
+    "frontend_lines": 39977,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -3219,8 +3219,8 @@
           "lines": 5392
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -3235,11 +3235,11 @@
   },
   {
     "timestamp": "2025-08-30T06:42:06.206104",
-    "total_lines": 173267,
-    "total_files": 870,
+    "total_lines": 157381,
+    "total_files": 869,
     "backend_lines": 115528,
-    "frontend_lines": 57739,
-    "git_commits": 703,
+    "frontend_lines": 41853,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -3293,8 +3293,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -3333,11 +3333,11 @@
   },
   {
     "timestamp": "2025-08-30T15:30:01.582659",
-    "total_lines": 173304,
-    "total_files": 872,
+    "total_lines": 157418,
+    "total_files": 871,
     "backend_lines": 115528,
-    "frontend_lines": 57776,
-    "git_commits": 703,
+    "frontend_lines": 41890,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -3391,8 +3391,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -3431,11 +3431,11 @@
   },
   {
     "timestamp": "2025-08-31T03:30:01.512925",
-    "total_lines": 173546,
-    "total_files": 874,
+    "total_lines": 157660,
+    "total_files": 873,
     "backend_lines": 115770,
-    "frontend_lines": 57776,
-    "git_commits": 708,
+    "frontend_lines": 41890,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -3489,8 +3489,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -3529,11 +3529,11 @@
   },
   {
     "timestamp": "2025-08-31T15:30:01.587898",
-    "total_lines": 174003,
-    "total_files": 883,
+    "total_lines": 158117,
+    "total_files": 882,
     "backend_lines": 116151,
-    "frontend_lines": 57852,
-    "git_commits": 709,
+    "frontend_lines": 41966,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -3611,8 +3611,8 @@
           "lines": 5462
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -3627,11 +3627,11 @@
   },
   {
     "timestamp": "2025-08-31T16:09:20.434165",
-    "total_lines": 174008,
-    "total_files": 883,
+    "total_lines": 158122,
+    "total_files": 882,
     "backend_lines": 116156,
-    "frontend_lines": 57852,
-    "git_commits": 710,
+    "frontend_lines": 41966,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -3709,8 +3709,8 @@
           "lines": 5462
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -3725,11 +3725,11 @@
   },
   {
     "timestamp": "2025-09-01T03:30:02.617306",
-    "total_lines": 174117,
-    "total_files": 871,
+    "total_lines": 158231,
+    "total_files": 870,
     "backend_lines": 116238,
-    "frontend_lines": 57879,
-    "git_commits": 713,
+    "frontend_lines": 41993,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -3783,8 +3783,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Pages": {
           "files": 64,
@@ -3823,11 +3823,11 @@
   },
   {
     "timestamp": "2025-09-01T15:42:40.633428",
-    "total_lines": 174392,
-    "total_files": 871,
+    "total_lines": 158506,
+    "total_files": 870,
     "backend_lines": 116238,
-    "frontend_lines": 58154,
-    "git_commits": 714,
+    "frontend_lines": 42268,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -3881,8 +3881,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Pages": {
           "files": 64,
@@ -3921,11 +3921,11 @@
   },
   {
     "timestamp": "2025-09-02T03:30:01.389359",
-    "total_lines": 176266,
-    "total_files": 874,
+    "total_lines": 160380,
+    "total_files": 873,
     "backend_lines": 116357,
-    "frontend_lines": 59909,
-    "git_commits": 728,
+    "frontend_lines": 44023,
+    "git_commits": 0,
     "categories": {
       "backend": {
         "Scripts": {
@@ -4003,8 +4003,8 @@
           "lines": 5512
         },
         "Types": {
-          "files": 9,
-          "lines": 2649
+          "files": 8,
+          "lines": 0
         },
         "Utils": {
           "files": 5,
@@ -4023,7 +4023,7 @@
     "total_files": 875,
     "backend_lines": 116369,
     "frontend_lines": 60459,
-    "git_commits": 744,
+    "git_commits": 16,
     "categories": {
       "backend": {
         "Scripts": {
@@ -4121,7 +4121,7 @@
     "total_files": 882,
     "backend_lines": 116472,
     "frontend_lines": 60270,
-    "git_commits": 753,
+    "git_commits": 25,
     "categories": {
       "backend": {
         "Scripts": {
@@ -4219,7 +4219,7 @@
     "total_files": 892,
     "backend_lines": 116635,
     "frontend_lines": 61405,
-    "git_commits": 761,
+    "git_commits": 33,
     "categories": {
       "backend": {
         "Scripts": {
@@ -4317,7 +4317,7 @@
     "total_files": 891,
     "backend_lines": 116639,
     "frontend_lines": 61980,
-    "git_commits": 770,
+    "git_commits": 42,
     "categories": {
       "backend": {
         "Scripts": {
@@ -4411,10 +4411,10 @@
   },
   {
     "timestamp": "2025-09-04T03:33:26.217429",
-    "total_lines": 210332,
-    "total_files": 894,
+    "total_lines": 178572,
+    "total_files": 892,
     "backend_lines": 116734,
-    "frontend_lines": 93598,
+    "frontend_lines": 61838,
     "git_commits": 59,
     "categories": {
       "backend": {
@@ -4469,8 +4469,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 12,
-          "lines": 34434
+          "files": 10,
+          "lines": 2674
         },
         "Pages": {
           "files": 64,
@@ -4509,10 +4509,10 @@
   },
   {
     "timestamp": "2025-09-04T15:30:01.597049",
-    "total_lines": 211069,
-    "total_files": 918,
+    "total_lines": 179309,
+    "total_files": 916,
     "backend_lines": 117270,
-    "frontend_lines": 93799,
+    "frontend_lines": 62039,
     "git_commits": 73,
     "categories": {
       "backend": {
@@ -4591,8 +4591,8 @@
           "lines": 5809
         },
         "Types": {
-          "files": 12,
-          "lines": 34434
+          "files": 10,
+          "lines": 2674
         },
         "Utils": {
           "files": 5,
@@ -4607,11 +4607,11 @@
   },
   {
     "timestamp": "2025-09-05T08:18:25.042645",
-    "total_lines": 211455,
-    "total_files": 924,
+    "total_lines": 179695,
+    "total_files": 922,
     "backend_lines": 117544,
-    "frontend_lines": 93911,
-    "git_commits": 83,
+    "frontend_lines": 62151,
+    "git_commits": 85,
     "categories": {
       "backend": {
         "Scripts": {
@@ -4689,8 +4689,8 @@
           "lines": 5809
         },
         "Types": {
-          "files": 12,
-          "lines": 34434
+          "files": 10,
+          "lines": 2674
         },
         "Utils": {
           "files": 5,
@@ -4705,11 +4705,11 @@
   },
   {
     "timestamp": "2025-09-05T16:47:57.330812",
-    "total_lines": 211455,
-    "total_files": 924,
+    "total_lines": 179695,
+    "total_files": 922,
     "backend_lines": 117544,
-    "frontend_lines": 93911,
-    "git_commits": 83,
+    "frontend_lines": 62151,
+    "git_commits": 85,
     "categories": {
       "backend": {
         "Scripts": {
@@ -4763,8 +4763,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 12,
-          "lines": 34434
+          "files": 10,
+          "lines": 2674
         },
         "Pages": {
           "files": 64,
@@ -4803,11 +4803,11 @@
   },
   {
     "timestamp": "2025-09-06T11:30:01.550289",
-    "total_lines": 211566,
-    "total_files": 925,
+    "total_lines": 179812,
+    "total_files": 924,
     "backend_lines": 117544,
-    "frontend_lines": 94022,
-    "git_commits": 92,
+    "frontend_lines": 62268,
+    "git_commits": 93,
     "categories": {
       "backend": {
         "Scripts": {
@@ -4861,8 +4861,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 12,
-          "lines": 34434
+          "files": 11,
+          "lines": 2680
         },
         "Pages": {
           "files": 64,
@@ -4901,10 +4901,10 @@
   },
   {
     "timestamp": "2025-09-06T23:30:01.795367",
-    "total_lines": 211632,
-    "total_files": 927,
+    "total_lines": 179866,
+    "total_files": 925,
     "backend_lines": 117592,
-    "frontend_lines": 94040,
+    "frontend_lines": 62274,
     "git_commits": 93,
     "categories": {
       "backend": {
@@ -4959,8 +4959,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 13,
-          "lines": 34446
+          "files": 11,
+          "lines": 2680
         },
         "Pages": {
           "files": 64,
@@ -4999,11 +4999,11 @@
   },
   {
     "timestamp": "2025-09-07T11:30:11.007374",
-    "total_lines": 211632,
-    "total_files": 927,
+    "total_lines": 179866,
+    "total_files": 925,
     "backend_lines": 117592,
-    "frontend_lines": 94040,
-    "git_commits": 93,
+    "frontend_lines": 62274,
+    "git_commits": 97,
     "categories": {
       "backend": {
         "Scripts": {
@@ -5081,8 +5081,8 @@
           "lines": 5809
         },
         "Types": {
-          "files": 13,
-          "lines": 34446
+          "files": 11,
+          "lines": 2680
         },
         "Utils": {
           "files": 5,
@@ -5097,11 +5097,11 @@
   },
   {
     "timestamp": "2025-09-07T23:52:03.975448",
-    "total_lines": 214316,
-    "total_files": 930,
+    "total_lines": 182550,
+    "total_files": 928,
     "backend_lines": 120175,
-    "frontend_lines": 94141,
-    "git_commits": 103,
+    "frontend_lines": 62375,
+    "git_commits": 108,
     "categories": {
       "backend": {
         "Scripts": {
@@ -5179,8 +5179,8 @@
           "lines": 5809
         },
         "Types": {
-          "files": 13,
-          "lines": 34446
+          "files": 11,
+          "lines": 2680
         },
         "Utils": {
           "files": 5,
@@ -5195,11 +5195,11 @@
   },
   {
     "timestamp": "2025-09-08T11:30:02.504677",
-    "total_lines": 214436,
-    "total_files": 932,
+    "total_lines": 182664,
+    "total_files": 930,
     "backend_lines": 120216,
-    "frontend_lines": 94220,
-    "git_commits": 108,
+    "frontend_lines": 62448,
+    "git_commits": 116,
     "categories": {
       "backend": {
         "Scripts": {
@@ -5253,8 +5253,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 13,
-          "lines": 34452
+          "files": 11,
+          "lines": 2680
         },
         "Pages": {
           "files": 64,
@@ -5293,11 +5293,11 @@
   },
   {
     "timestamp": "2025-09-08T23:30:01.870175",
-    "total_lines": 214490,
-    "total_files": 932,
+    "total_lines": 182718,
+    "total_files": 930,
     "backend_lines": 120242,
-    "frontend_lines": 94248,
-    "git_commits": 116,
+    "frontend_lines": 62476,
+    "git_commits": 118,
     "categories": {
       "backend": {
         "Scripts": {
@@ -5375,8 +5375,8 @@
           "lines": 5835
         },
         "Types": {
-          "files": 13,
-          "lines": 34452
+          "files": 11,
+          "lines": 2680
         },
         "Utils": {
           "files": 5,
@@ -5391,10 +5391,10 @@
   },
   {
     "timestamp": "2025-09-10T23:30:04.405905",
-    "total_lines": 214572,
-    "total_files": 934,
+    "total_lines": 182800,
+    "total_files": 932,
     "backend_lines": 120242,
-    "frontend_lines": 94330,
+    "frontend_lines": 62558,
     "git_commits": 120,
     "categories": {
       "backend": {
@@ -5449,8 +5449,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 13,
-          "lines": 34452
+          "files": 11,
+          "lines": 2680
         },
         "Pages": {
           "files": 64,
@@ -5489,10 +5489,10 @@
   },
   {
     "timestamp": "2025-09-11T11:43:24.249317",
-    "total_lines": 214572,
-    "total_files": 934,
+    "total_lines": 182800,
+    "total_files": 932,
     "backend_lines": 120242,
-    "frontend_lines": 94330,
+    "frontend_lines": 62558,
     "git_commits": 120,
     "categories": {
       "backend": {
@@ -5547,8 +5547,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 13,
-          "lines": 34452
+          "files": 11,
+          "lines": 2680
         },
         "Pages": {
           "files": 64,
@@ -5587,10 +5587,10 @@
   },
   {
     "timestamp": "2025-09-11T23:34:56.464431",
-    "total_lines": 214572,
-    "total_files": 934,
+    "total_lines": 182800,
+    "total_files": 932,
     "backend_lines": 120242,
-    "frontend_lines": 94330,
+    "frontend_lines": 62558,
     "git_commits": 120,
     "categories": {
       "backend": {
@@ -5645,8 +5645,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 13,
-          "lines": 34452
+          "files": 11,
+          "lines": 2680
         },
         "Pages": {
           "files": 64,
@@ -5685,11 +5685,11 @@
   },
   {
     "timestamp": "2025-09-12T11:30:01.794525",
-    "total_lines": 214592,
-    "total_files": 937,
+    "total_lines": 182820,
+    "total_files": 935,
     "backend_lines": 120242,
-    "frontend_lines": 94350,
-    "git_commits": 120,
+    "frontend_lines": 62578,
+    "git_commits": 130,
     "categories": {
       "backend": {
         "Scripts": {
@@ -5767,8 +5767,8 @@
           "lines": 5835
         },
         "Types": {
-          "files": 14,
-          "lines": 34483
+          "files": 12,
+          "lines": 2711
         },
         "Utils": {
           "files": 6,
@@ -5783,10 +5783,10 @@
   },
   {
     "timestamp": "2025-09-12T23:30:03.388428",
-    "total_lines": 214792,
-    "total_files": 943,
+    "total_lines": 183020,
+    "total_files": 941,
     "backend_lines": 120242,
-    "frontend_lines": 94550,
+    "frontend_lines": 62778,
     "git_commits": 130,
     "categories": {
       "backend": {
@@ -5841,8 +5841,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 14,
-          "lines": 34483
+          "files": 12,
+          "lines": 2711
         },
         "Pages": {
           "files": 64,
@@ -5885,11 +5885,11 @@
   },
   {
     "timestamp": "2025-09-13T11:30:01.994154",
-    "total_lines": 214792,
-    "total_files": 943,
+    "total_lines": 183020,
+    "total_files": 941,
     "backend_lines": 120242,
-    "frontend_lines": 94550,
-    "git_commits": 130,
+    "frontend_lines": 62778,
+    "git_commits": 147,
     "categories": {
       "backend": {
         "Scripts": {
@@ -5971,8 +5971,8 @@
           "lines": 5835
         },
         "Types": {
-          "files": 14,
-          "lines": 34483
+          "files": 12,
+          "lines": 2711
         },
         "Utils": {
           "files": 7,
@@ -5987,10 +5987,10 @@
   },
   {
     "timestamp": "2025-09-15T15:30:01.635285",
-    "total_lines": 215062,
-    "total_files": 946,
+    "total_lines": 183290,
+    "total_files": 944,
     "backend_lines": 120512,
-    "frontend_lines": 94550,
+    "frontend_lines": 62778,
     "git_commits": 157,
     "categories": {
       "backend": {
@@ -6045,8 +6045,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 14,
-          "lines": 34483
+          "files": 12,
+          "lines": 2711
         },
         "Pages": {
           "files": 64,
@@ -6089,10 +6089,10 @@
   },
   {
     "timestamp": "2025-09-16T05:42:25.255230",
-    "total_lines": 215267,
-    "total_files": 949,
+    "total_lines": 183495,
+    "total_files": 947,
     "backend_lines": 120717,
-    "frontend_lines": 94550,
+    "frontend_lines": 62778,
     "git_commits": 167,
     "categories": {
       "backend": {
@@ -6147,8 +6147,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 14,
-          "lines": 34483
+          "files": 12,
+          "lines": 2711
         },
         "Pages": {
           "files": 64,
@@ -6191,10 +6191,10 @@
   },
   {
     "timestamp": "2025-09-16T15:34:42.681045",
-    "total_lines": 215258,
-    "total_files": 949,
+    "total_lines": 183486,
+    "total_files": 947,
     "backend_lines": 120708,
-    "frontend_lines": 94550,
+    "frontend_lines": 62778,
     "git_commits": 170,
     "categories": {
       "backend": {
@@ -6249,8 +6249,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 14,
-          "lines": 34483
+          "files": 12,
+          "lines": 2711
         },
         "Pages": {
           "files": 64,
@@ -6293,10 +6293,10 @@
   },
   {
     "timestamp": "2025-09-19T15:30:01.940969",
-    "total_lines": 216243,
-    "total_files": 965,
+    "total_lines": 184471,
+    "total_files": 963,
     "backend_lines": 121449,
-    "frontend_lines": 94794,
+    "frontend_lines": 63022,
     "git_commits": 217,
     "categories": {
       "backend": {
@@ -6351,8 +6351,8 @@
       },
       "frontend": {
         "Types": {
-          "files": 14,
-          "lines": 34483
+          "files": 12,
+          "lines": 2711
         },
         "Pages": {
           "files": 64,
@@ -6377,6 +6377,108 @@
         "E2E Tests": {
           "files": 19,
           "lines": 4055
+        },
+        "Features": {
+          "files": 67,
+          "lines": 9904
+        },
+        "Components": {
+          "files": 101,
+          "lines": 20280
+        },
+        "Public": {
+          "files": 1,
+          "lines": 7
+        }
+      }
+    }
+  },
+  {
+    "timestamp": "2025-09-19T17:37:21.145448",
+    "total_lines": 184497,
+    "total_files": 964,
+    "backend_lines": 121457,
+    "frontend_lines": 63040,
+    "git_commits": 222,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 154,
+          "lines": 20123
+        },
+        "Alembic": {
+          "files": 35,
+          "lines": 4545
+        },
+        "Tasks/Celery": {
+          "files": 18,
+          "lines": 3493
+        },
+        "Core/Config": {
+          "files": 13,
+          "lines": 2263
+        },
+        "Repositories": {
+          "files": 35,
+          "lines": 11434
+        },
+        "Models": {
+          "files": 22,
+          "lines": 3052
+        },
+        "Schemas": {
+          "files": 42,
+          "lines": 4587
+        },
+        "Routes/APIs": {
+          "files": 81,
+          "lines": 17094
+        },
+        "Services": {
+          "files": 100,
+          "lines": 29533
+        },
+        "Unit Tests": {
+          "files": 23,
+          "lines": 5961
+        },
+        "Integration Tests": {
+          "files": 80,
+          "lines": 20541
+        },
+        "Route Tests": {
+          "files": 34,
+          "lines": 6867
+        }
+      },
+      "frontend": {
+        "Types": {
+          "files": 12,
+          "lines": 2711
+        },
+        "Pages": {
+          "files": 64,
+          "lines": 18370
+        },
+        "Utils": {
+          "files": 8,
+          "lines": 383
+        },
+        "Unit Tests": {
+          "files": 28,
+          "lines": 5071
+        },
+        "Hooks": {
+          "files": 39,
+          "lines": 6251
+        },
+        "API/Lib": {
+          "files": 34,
+          "lines": 6070
+        },
+        "E2E Tests": {
+          "files": 20,
+          "lines": 4071
         },
         "Features": {
           "files": 67,

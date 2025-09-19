@@ -83,6 +83,11 @@ def append_history(self) -> Dict[str, Any]:
         except Exception:
             history = []
 
+    if history:
+        prev_git = history[-1].get("git_commits", 0)
+        if entry["git_commits"] < prev_git:
+            entry["git_commits"] = prev_git
+
     history.append(entry)
     history = history[-1000:]
 
