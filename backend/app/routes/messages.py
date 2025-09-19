@@ -356,10 +356,11 @@ async def send_typing_indicator(
 
 
 # Phase 2: Reactions
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ReactionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     emoji: str
 
 
@@ -414,6 +415,7 @@ async def remove_reaction(
 
 
 class EditMessageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     content: str
 
 

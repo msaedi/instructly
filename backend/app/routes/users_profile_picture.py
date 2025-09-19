@@ -8,7 +8,7 @@ import logging
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user
@@ -25,6 +25,7 @@ router = APIRouter(prefix="/api/users", tags=["users", "assets"])
 
 
 class FinalizeProfilePicturePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     object_key: str
 
 
