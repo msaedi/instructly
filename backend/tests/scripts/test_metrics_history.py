@@ -12,4 +12,3 @@ def test_metrics_history_git_commits_monotonic():
             f"metrics_history.json regress: git_commits {commits} < previous {prev}"
         )
         prev = commits
-
