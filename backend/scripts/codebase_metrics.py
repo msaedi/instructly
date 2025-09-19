@@ -222,9 +222,23 @@ class CodebaseAnalyzer:
         """Get git repository statistics."""
         try:
             # Get total commits
-            commits = subprocess.run(
+            commits_str = subprocess.run(
                 ["git", "rev-list", "--count", "HEAD"], capture_output=True, text=True, cwd=self.root_path
             ).stdout.strip()
+            commits = int(commits_str) if commits_str else 0
+
+            # Prefer the highest value between Git and persisted history (handles shallow clones)
+            history_commits = 0
+            history_file = self.root_path / "metrics_history.json"
+            if history_file.exists():
+                try:
+                    with open(history_file, "r") as f:
+                        history = json.load(f)
+                    if history:
+                        history_commits = int(history[-1].get("git_commits", 0) or 0)
+                except Exception:
+                    history_commits = 0
+            commits = max(commits, history_commits)
 
             # Get contributors
             contributors = (
@@ -262,7 +276,7 @@ class CodebaseAnalyzer:
             ).stdout.strip()
 
             return {
-                "total_commits": int(commits) if commits else 0,
+                "total_commits": commits,
                 "unique_contributors": unique_contributors,
                 "first_commit": first_commit[:10] if first_commit else "N/A",
                 "last_commit": last_commit[:10] if last_commit else "N/A",
@@ -439,7 +453,10 @@ class CodebaseAnalyzer:
         if history:
             prev_git = history[-1].get("git_commits", 0)
             if metrics["git_commits"] < prev_git:
-                metrics["git_commits"] = prev_git
+                raise RuntimeError(
+                    "Refusing to append codebase metrics: git commit total would decrease."
+                    " Run the collector from a full clone or investigate the history file."
+                )
 
         history.append(metrics)
 

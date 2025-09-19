@@ -70,3 +70,9 @@
 - Behavior: scans for `env.get('NEXT_PUBLIC_…')` and `process.env.NEXT_PUBLIC_…` in frontend, filters to changed files in the current diff (PR/base vs `origin/main`).
 - Failure message includes a fix hint:
   - Use `getPublicEnv('FOO')` from `@/lib/publicEnv` or a helper (e.g., `withApiBase`) in client code.
+
+## Codebase metrics snapshots (admin dashboard)
+- Run `python backend/scripts/codebase_metrics.py --save` (or the Celery task) only from a full clone. A shallow checkout reports too few commits and the guardrail now refuses to append history if totals drop.
+- If the collector raises `git commit total would decrease`, fetch the full history (`git fetch --unshallow`) or restore the latest `metrics_history.json` backup before retrying.
+- CI runs `backend/tests/scripts/test_metrics_history.py` to ensure commit totals in `metrics_history.json` stay monotonic.
+- Keep nightly backups of `metrics_history.json` (e.g. artifact/S3) so we can restore a clean baseline if a bad snapshot ever lands.

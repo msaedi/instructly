@@ -86,7 +86,9 @@ def append_history(self) -> Dict[str, Any]:
     if history:
         prev_git = history[-1].get("git_commits", 0)
         if entry["git_commits"] < prev_git:
-            entry["git_commits"] = prev_git
+            raise RuntimeError(
+                "Refusing to append codebase metrics: git commit total would decrease."
+            )
 
     history.append(entry)
     history = history[-1000:]
