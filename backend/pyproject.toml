@@ -170,6 +170,12 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.routes.uploads"
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
   "app.services.base",
 ]
 follow_imports = "normal"
