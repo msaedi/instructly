@@ -154,7 +154,9 @@ class TestAvailabilityCleanArchitecture:
         slot = TimeSlot(start_time=time(9, 0), end_time=time(10, 0))
         assert slot.start_time == time(9, 0)
         assert slot.end_time == time(10, 0)
-        assert not hasattr(slot, "is_available")
+        # Deprecated: `is_available` temporarily accepted for backward-compat and ignored
+        assert hasattr(slot, "is_available")
+        assert slot.is_available is None
 
 
 class TestAvailabilityWindowCleanup:
