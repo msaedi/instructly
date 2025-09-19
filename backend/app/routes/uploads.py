@@ -4,7 +4,7 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user
@@ -22,6 +22,7 @@ router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 
 
 class CreateSignedUploadRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     filename: str = Field(..., description="Original file name, used for extension validation")
     content_type: str = Field(..., description="Browser-reported MIME type")
     size_bytes: int = Field(..., ge=1, le=10 * 1024 * 1024, description="Max 10MB")
@@ -29,6 +30,7 @@ class CreateSignedUploadRequest(BaseModel):
 
 
 class SignedUploadResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     upload_url: str
     object_key: str
     public_url: str | None = None
@@ -106,6 +108,7 @@ def create_signed_upload(
 
 
 class FinalizeProfilePictureRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     object_key: str = Field(..., description="Temporary upload object key from signed PUT")
 
 
