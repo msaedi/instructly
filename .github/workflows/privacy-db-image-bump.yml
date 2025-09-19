@@ -30,11 +30,23 @@ jobs:
           set -euo pipefail
           IMAGE="ghcr.io/msaedi/instructly-ci-postgres:${TAG}"
           echo "Resolving digest for ${IMAGE}"
-          # Query manifest list/index digest
+          # Try buildx imagetools first
+          DIGEST=""
           OUT=$(docker buildx imagetools inspect "${IMAGE}" 2>&1 || true)
-          echo "--- imagetools output ---"
-          echo "$OUT" | sed -n '1,120p'
-          DIGEST=$(echo "$OUT" | grep -m1 -E "^\s*Digest: sha256:" | awk '{print $2}')
+          if echo "$OUT" | grep -q "Digest: sha256:"; then
+            echo "--- imagetools output ---"
+            echo "$OUT" | sed -n '1,120p'
+            DIGEST=$(echo "$OUT" | awk '/^\s*Digest: sha256:/ {print $2; exit}')
+          else
+            echo "imagetools did not return a digest; falling back to docker pull..." >&2
+          fi
+          # Fallback: docker pull and parse the reported Digest line
+          if [ -z "$DIGEST" ]; then
+            PULL_OUT=$(docker pull "${IMAGE}" 2>&1) || { echo "$PULL_OUT" >&2; exit 1; }
+            echo "--- docker pull output ---"
+            echo "$PULL_OUT" | sed -n '1,120p'
+            DIGEST=$(echo "$PULL_OUT" | awk '/Digest: sha256:/ {print $2; exit}')
+          fi
           if [ -z "$DIGEST" ]; then
             echo "Failed to resolve digest for ${IMAGE}" >&2
             exit 1
@@ -84,5 +96,3 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
           merge-method: squash
-
-
