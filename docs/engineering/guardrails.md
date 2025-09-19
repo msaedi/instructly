@@ -102,3 +102,10 @@ Then import from `features/foo/public` in `components/**`.
 - Database image pinned to `ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector` (no fallback)
 - Health-gated + TCP query waits before migrations; guard step asserts resolved `db.image` matches the GHCR image
 - Artifacts: uploads `backend/logs/privacy_audit_report.json` and `.md`
+
+#### How to bump Privacy DB image (digest)
+
+- Use the manual workflow `Privacy DB Image Bump`.
+- Trigger it via `workflow_dispatch` with input `tag` (e.g., `14-postgis-pgvector`).
+- The workflow resolves the digest for `ghcr.io/msaedi/instructly-ci-postgres:<tag>`, updates `DB_IMAGE` in `.github/workflows/privacy-audit.yml` to the new digest, updates the guard to enforce it, and opens a PR with auto‑merge.
+- Workflow Lint enforces the pinned digest and triggers; Privacy must remain green.
