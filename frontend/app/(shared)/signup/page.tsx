@@ -11,7 +11,7 @@
  * @module signup/page
  */
 
-import { useState, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
@@ -81,7 +81,7 @@ function formatPhoneForAPI(phone: string): string {
 function SignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { checkAuth } = useAuth();
+  const { checkAuth, user } = useAuth();
 
   // Get the redirect parameter, but if it's the login page, use home instead
   let redirect = searchParams.get('redirect') || '/';
@@ -101,6 +101,24 @@ function SignUpForm() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
   const [showPassword, setShowPassword] = useState(false);
+  const [postSignupRedirect, setPostSignupRedirect] = useState<{ target: string; expectedUserId: string } | null>(null);
+
+  useEffect(() => {
+    if (!postSignupRedirect) return;
+    if (typeof window === 'undefined') return;
+    const fallback = window.setTimeout(() => {
+      router.push(postSignupRedirect.target);
+      setPostSignupRedirect(null);
+    }, 2000);
+    if (user?.id === postSignupRedirect.expectedUserId) {
+      router.push(postSignupRedirect.target);
+      setPostSignupRedirect(null);
+      window.clearTimeout(fallback);
+    }
+    return () => {
+      window.clearTimeout(fallback);
+    };
+  }, [postSignupRedirect, user, router]);
 
   logger.debug('SignUpForm initialized', {
     redirectTo: redirect,
@@ -466,8 +484,9 @@ function SignUpForm() {
         });
         // Ensure AuthProvider state is up-to-date before hitting gated routes
         await checkAuth();
-        // Redirect based on role
-        router.push(redirect || (hasRole(userData, RoleName.INSTRUCTOR) ? '/instructor/onboarding/welcome' : '/'));
+        // Defer navigation until AuthProvider reflects the newly created account
+        const nextDestination = redirect || (hasRole(userData, RoleName.INSTRUCTOR) ? '/instructor/onboarding/welcome' : '/');
+        setPostSignupRedirect({ target: nextDestination, expectedUserId: userData.id });
       } else {
         logger.warn('Failed to fetch user data after login, using default redirect');
         await checkAuth();
