@@ -1,0 +1,88 @@
+name: Privacy DB Image Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to bump to (e.g., 14-postgis-pgvector)"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Docker versions
+        run: |
+          docker --version
+          docker buildx version || true
+
+      - name: Resolve digest for tag
+        id: digest
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/msaedi/instructly-ci-postgres:${TAG}"
+          echo "Resolving digest for ${IMAGE}"
+          # Query manifest list/index digest
+          OUT=$(docker buildx imagetools inspect "${IMAGE}" 2>&1 || true)
+          echo "--- imagetools output ---"
+          echo "$OUT" | sed -n '1,120p'
+          DIGEST=$(echo "$OUT" | grep -m1 -E "^\s*Digest: sha256:" | awk '{print $2}')
+          if [ -z "$DIGEST" ]; then
+            echo "Failed to resolve digest for ${IMAGE}" >&2
+            exit 1
+          fi
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Resolved: $DIGEST"
+
+      - name: Update privacy-audit.yml DB_IMAGE and guard
+        env:
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          YML=.github/workflows/privacy-audit.yml
+          echo "Pinning DB_IMAGE to digest: ${DIGEST}"
+          sed -i -E "s#^(\s*DB_IMAGE:\s*)ghcr\.io/msaedi/instructly-ci-postgres@sha256:[a-f0-9]+#\1ghcr.io/msaedi/instructly-ci-postgres@${DIGEST}#" "$YML"
+          # Update guard check to enforce the same digest
+          sed -i -E "s#(grep -q '\^ghcr\.io/msaedi/instructly-ci-postgres@sha256:)[a-f0-9]+(\$')#\1${DIGEST#sha256:}\2#" "$YML"
+          echo '--- changed lines ---'
+          grep -nE 'DB_IMAGE:|ghcr\.io/msaedi/instructly-ci-postgres@sha256:' -n "$YML" | sed -n '1,80p'
+
+      - name: Create PR with changes
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ci/privacy-db-image-bump-${{ inputs.tag }}
+          title: "ci(privacy): bump DB image to ${{ inputs.tag }} (digest ${{ steps.digest.outputs.digest }})"
+          body: |
+            Pin Privacy DB image by digest.
+
+            - Tag: `${{ inputs.tag }}`
+            - Digest: `${{ steps.digest.outputs.digest }}`
+            - Guard updated to enforce the same digest in compose config
+
+            This PR is auto-merge enabled. Workflow Lint and Privacy should remain green.
+          commit-message: "ci(privacy): bump DB image to digest ${{ steps.digest.outputs.digest }} (tag ${{ inputs.tag }})"
+          add-paths: |
+            .github/workflows/privacy-audit.yml
+          labels: ci
+          signoff: false
+          draft: false
+          delete-branch: true
+
+      - name: Enable auto-merge (squash)
+        if: steps.cpr.outputs.pull-request-number != ''
+        uses: peter-evans/enable-pull-request-automerge@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          merge-method: squash
+
+
