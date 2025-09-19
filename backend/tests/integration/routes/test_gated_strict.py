@@ -24,4 +24,3 @@ def test_gated_ping_rejects_extra(client: TestClient):
     if res.status_code in (401, 403):
         pytest.skip("Access control prevented schema validation here")
     assert res.status_code == 422
-

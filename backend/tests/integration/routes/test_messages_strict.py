@@ -3,6 +3,8 @@ from importlib import reload
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
+from app.routes.messages import ReactionRequest
 
 
 @pytest.fixture(autouse=True)
@@ -24,3 +26,8 @@ def test_reaction_request_rejects_extra_field(client: TestClient):
     if resp.status_code == 401:
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422
+
+
+def test_reaction_model_rejects_extra_field():
+    with pytest.raises(ValidationError):
+        ReactionRequest(emoji="👍", unexpected=1)
