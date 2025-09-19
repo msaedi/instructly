@@ -37,4 +37,3 @@ def test_record_search_rejects_extra_field(client: TestClient):
     assert resp.headers.get("content-type", "").startswith("application/problem+json")
     body = resp.json()
     assert "title" in body and "detail" in body
-
