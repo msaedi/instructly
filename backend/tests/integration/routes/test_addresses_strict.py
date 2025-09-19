@@ -24,7 +24,7 @@ def test_zip_is_nyc_rejects_extra_query_param(client: TestClient):
 
 def test_delete_response_rejects_extra_body_fields(client: TestClient):
     # Auth likely required; exercise just the model by calling the route with unexpected fields
-    resp = client.delete("/api/addresses/me/some-id", json={"unexpected": True})
+    resp = client.request("DELETE", "/api/addresses/me/some-id", json={"unexpected": True})
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     # If the route executes, it will 404 the entity; we just ensure no 422 from model here

@@ -36,7 +36,7 @@ def test_create_instructor_profile_rejects_extra_field(client: TestClient):
         ],
         "unexpected": 1,
     }
-    resp = client.post("/api/instructors/me", json=body)
+    resp = client.post("/instructors/me", json=body)
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422
