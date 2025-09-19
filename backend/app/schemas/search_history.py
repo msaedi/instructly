@@ -50,10 +50,8 @@ class SearchHistoryCreate(SearchHistoryBase):
     search_context: Optional[Dict[str, Any]] = Field(
         None, description="Additional context like page origin, viewport size, etc."
     )
-
-    # Enable strict mode (forbid extras) when flagged
-    if STRICT_SCHEMAS:
-        model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    # Harden request DTOs: forbid extras and validate assignment
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     device_context: Optional[Dict[str, Any]] = Field(
         None,
         description="Device context from frontend including screen size, connection type, etc.",
@@ -95,8 +93,7 @@ class GuestSearchHistoryCreate(BaseModel):
             raise ValueError("search_query cannot be empty")
         return v.strip()
 
-    if STRICT_SCHEMAS:
-        model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 class SearchHistoryResponse(SearchHistoryBase):
@@ -110,7 +107,7 @@ class SearchHistoryResponse(SearchHistoryBase):
         None, description="ID of the associated search event for tracking interactions"
     )
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 
     @field_serializer("first_searched_at", "last_searched_at")
     def serialize_datetime(self, dt: datetime) -> str:
