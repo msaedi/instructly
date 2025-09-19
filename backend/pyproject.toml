@@ -186,6 +186,12 @@ module = [
   "backend.app.routes.gated",
 ]
 strict = true
+
+[[tool.mypy.overrides]]
+module = [
+  "backend.app.routes.availability_windows",
+]
+strict = true
 [[tool.mypy.overrides]]
 module = [
   "app.services.base",
