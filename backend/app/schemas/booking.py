@@ -605,6 +605,8 @@ class AvailabilityCheckResponse(BaseModel):
     reason: Optional[str] = None
     min_advance_hours: Optional[int] = None
     conflicts_with: Optional[List[Dict[str, Any]]] = None  # List of conflicting bookings if any
+    # Optional metadata sometimes included by handlers; keep optional to preserve strictness
+    time_info: Optional[Dict[str, Any]] = None
 
 
 class BookingStatsResponse(StandardizedModel):
