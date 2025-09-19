@@ -27,6 +27,8 @@ class TimeSlot(BaseModel):
 
     start_time: TimeType
     end_time: TimeType
+    # Back-compat: legacy tests may pass is_available, accept but ignore
+    is_available: Optional[bool] = None
 
 
 class AvailabilityWindowBase(BaseModel):
