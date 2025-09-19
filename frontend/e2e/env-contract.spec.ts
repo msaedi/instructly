@@ -39,6 +39,7 @@ test.describe('env-contract smoke', () => {
   test('429 path triggers limited responses (gated)', async () => {
     test.skip(process.env.E2E_RATE_LIMIT_TEST !== '1', 'Rate limit test disabled');
     const ctx = await request.newContext({ baseURL: base });
+    const dedupeKey = 'env-contract:rate-limit-test';
     // Hit the rate-limited endpoint several times quickly
     const attempts = 10;
     let limited = 0;
@@ -47,6 +48,8 @@ test.describe('env-contract smoke', () => {
       if (res.status() === 429) limited += 1;
     }
     await ctx.dispose();
+    // Log for triage
+    console.info(`[429-triage] dedupeKey=${dedupeKey} limited=${limited} attempts=${attempts}`);
     // Expect exactly one deduped 429 signal
     expect(limited).toBe(1);
   });
