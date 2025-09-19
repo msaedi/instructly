@@ -1,21 +1,36 @@
 name: env-contract
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+    inputs:
+      E2E_HEADERS_TEST:
+        description: "Enable header/CORS checks (1 to enable)"
+        required: false
+        default: "0"
+      E2E_RATE_LIMIT_TEST:
+        description: "Enable 429 dedupe check (1 to enable)"
+        required: false
+        default: "0"
 jobs:
   smoke:
     runs-on: ubuntu-latest
     continue-on-error: true
     env:
       PLAYWRIGHT_BASE_URL: ${{ secrets.PLAYWRIGHT_BASE_URL || vars.PLAYWRIGHT_BASE_URL }}
+      E2E_HEADERS_TEST: ${{ inputs.E2E_HEADERS_TEST }}
+      E2E_RATE_LIMIT_TEST: ${{ inputs.E2E_RATE_LIMIT_TEST }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
       - run: npm ci
         working-directory: frontend
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx --yes playwright install --with-deps
       - name: Run Playwright smoke
         working-directory: frontend
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
-        run: npx playwright test tests/env-contract.spec.ts --reporter=line
+        run: npx --yes playwright test e2e/env-contract.spec.ts --reporter=line
       - name: Summarize endpoint statuses
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
         run: |

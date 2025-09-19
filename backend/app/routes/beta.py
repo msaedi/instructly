@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import requests
 from sqlalchemy.orm import Session
 
@@ -268,6 +268,9 @@ class BetaSettingsPayload(BaseModel):
     beta_disabled: bool
     beta_phase: str
     allow_signup_without_invite: bool
+
+    # Enforce strictness: reject unexpected fields and validate assignment
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 @router.get("/settings", response_model=BetaSettingsPayload)
