@@ -29,4 +29,3 @@ def test_delete_response_rejects_extra_body_fields(client: TestClient):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     # If the route executes, it will 404 the entity; we just ensure no 422 from model here
     assert resp.status_code in (404, 422)
-
