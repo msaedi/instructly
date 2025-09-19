@@ -44,7 +44,6 @@ import logging
 from typing import Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import ConfigDict
 
 from ..api.dependencies.auth import get_current_active_user, require_beta_access
 from ..api.dependencies.services import (

@@ -43,4 +43,3 @@ def test_apply_to_date_range_rejects_extra():
     _ = ApplyToDateRangeRequest(**base)
     with pytest.raises(ValidationError):
         ApplyToDateRangeRequest(**{**base, "unexpected": "x"})
-

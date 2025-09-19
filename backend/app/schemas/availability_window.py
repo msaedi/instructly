@@ -22,6 +22,7 @@ DateTimeType = datetime.datetime
 
 class TimeSlot(BaseModel):
     """Time slot for availability - simplified without is_available."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     start_time: TimeType
@@ -30,6 +31,7 @@ class TimeSlot(BaseModel):
 
 class AvailabilityWindowBase(BaseModel):
     """Base schema for availability windows."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     start_time: TimeType
@@ -95,6 +97,7 @@ class AvailabilityWindowResponse(StandardizedModel):
 
 class BlackoutDateCreate(BaseModel):
     """Schema for creating a blackout date."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     date: DateType
@@ -118,6 +121,7 @@ class BlackoutDateResponse(StandardizedModel):
 
 class TimeRange(BaseModel):
     """Simple time range for schedule entries."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     start_time: TimeType
@@ -138,6 +142,7 @@ class TimeRange(BaseModel):
 
 class WeekSpecificScheduleCreate(BaseModel):
     """Schema for creating schedule for specific dates."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     schedule: List[
@@ -178,6 +183,7 @@ class WeekSpecificScheduleCreate(BaseModel):
 
 class CopyWeekRequest(BaseModel):
     """Schema for copying availability between weeks."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     from_week_start: DateType
@@ -214,6 +220,7 @@ class CopyWeekRequest(BaseModel):
 
 class ApplyToDateRangeRequest(BaseModel):
     """Schema for applying a week pattern to a date range."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     from_week_start: DateType
@@ -250,6 +257,7 @@ class ApplyToDateRangeRequest(BaseModel):
 # Bulk update schemas
 class SlotOperation(BaseModel):
     """Schema for a single slot operation in bulk update."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     action: Literal["add", "remove", "update"]
@@ -287,6 +295,7 @@ class SlotOperation(BaseModel):
 
 class BulkUpdateRequest(BaseModel):
     """Request schema for bulk availability update."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     operations: List[SlotOperation]
@@ -315,6 +324,7 @@ class BulkUpdateResponse(BaseModel):
 # Validation schemas
 class ValidationSlotDetail(BaseModel):
     """Details about a slot operation in validation"""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     operation_index: int
@@ -329,6 +339,7 @@ class ValidationSlotDetail(BaseModel):
 
 class ValidationSummary(BaseModel):
     """Summary of validation results"""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     total_operations: int
@@ -341,6 +352,7 @@ class ValidationSummary(BaseModel):
 
 class WeekValidationResponse(BaseModel):
     """Response for week schedule validation"""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     valid: bool
@@ -351,6 +363,7 @@ class WeekValidationResponse(BaseModel):
 
 class ValidateWeekRequest(BaseModel):
     """Request to validate week changes"""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     current_week: Dict[str, List[TimeSlot]]  # What's currently shown in UI
