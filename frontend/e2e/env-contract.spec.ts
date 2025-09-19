@@ -1,9 +1,15 @@
 import { test, expect, request } from '@playwright/test';
+import { bypassGateIfPresent } from './utils/gate';
 
 const base = process.env.PLAYWRIGHT_BASE_URL;
 
 test.describe('env-contract smoke', () => {
   test.skip(!base, 'PLAYWRIGHT_BASE_URL not set');
+
+  test.beforeEach(async ({ page }) => {
+    const code = process.env.GATE_CODE || '';
+    await bypassGateIfPresent(page, base!, code || undefined);
+  });
 
   test('health headers (gated)', async () => {
     test.skip(process.env.E2E_HEADERS_TEST !== '1', 'Headers test disabled');

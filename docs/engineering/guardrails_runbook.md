@@ -52,6 +52,19 @@
 - Default runs keep it skipped to stay fast.
 - Note: 429 rate-limit assertion is strict (=1). Gate with `E2E_RATE_LIMIT_TEST=1`.
 
+### How to run env-contract
+
+- Preview (automatic):
+  - The `env-contract` workflow defaults `PLAYWRIGHT_BASE_URL` to `${{ vars.PREVIEW_BASE_URL }}` and passes `${{ secrets.PREVIEW_STAFF_CODE }}` as `GATE_CODE`.
+  - Playwright uses a helper to detect the staff gate and submit the token once, then proceeds with the suite. No secrets are printed.
+
+- Beta (manual):
+  - Dispatch the workflow with `base_url=${{ vars.BETA_BASE_URL }}` and provide a one‑time beta code via the `beta_code` input.
+  - The helper submits the provided code for this run only; nothing is persisted in repository secrets.
+
+- Optional admin mint step:
+  - If an admin bearer is later added as `secrets.ADMIN_BEARER`, a disabled‑by‑default step can mint an invite code via `/api/beta/invites/generate` and export `GATE_CODE` for the run.
+
 ## FE public env verify (diff-aware)
 - Script: `frontend/scripts/verify-public-env.mjs`.
 - Behavior: scans for `env.get('NEXT_PUBLIC_…')` and `process.env.NEXT_PUBLIC_…` in frontend, filters to changed files in the current diff (PR/base vs `origin/main`).

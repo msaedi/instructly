@@ -64,7 +64,7 @@ function StaffLoginInner() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+            <form data-testid="staff-gate-form" onSubmit={handleSubmit} className="space-y-6" noValidate>
               <div>
                 <label htmlFor="staff-token-input" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                   Access Token
@@ -74,6 +74,7 @@ function StaffLoginInner() {
                     id="staff-token-input"
                     type="password"
                     autoComplete="off"
+                    data-testid="staff-gate-input"
                     className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix"
                     placeholder="Enter token"
                     value={token}
@@ -88,6 +89,7 @@ function StaffLoginInner() {
               <div>
                 <button
                   type="submit"
+                  data-testid="staff-gate-submit"
                   disabled={isSubmitting}
                   className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6A0DAD] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >

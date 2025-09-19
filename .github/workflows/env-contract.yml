@@ -2,6 +2,14 @@ name: env-contract
 on:
   workflow_dispatch:
     inputs:
+      base_url:
+        description: "Base URL (defaults to PREVIEW_BASE_URL)"
+        required: false
+        type: string
+      beta_code:
+        description: "One-time beta code (only when testing beta)"
+        required: false
+        type: string
       E2E_HEADERS_TEST:
         description: "Enable header/CORS checks (1 to enable)"
         required: false
@@ -10,30 +18,33 @@ on:
         description: "Enable 429 dedupe check (1 to enable)"
         required: false
         default: "0"
-      PLAYWRIGHT_BASE_URL:
-        description: "Base URL to run env-contract against"
-        required: false
-        default: ""
 jobs:
   smoke:
     runs-on: ubuntu-latest
     continue-on-error: true
     env:
-      PLAYWRIGHT_BASE_URL: ${{ inputs.PLAYWRIGHT_BASE_URL || secrets.PLAYWRIGHT_BASE_URL || vars.PLAYWRIGHT_BASE_URL }}
+      PLAYWRIGHT_BASE_URL: ${{ inputs.base_url || vars.PREVIEW_BASE_URL }}
+      GATE_CODE: ${{ inputs.beta_code || secrets.PREVIEW_STAFF_CODE }}
       E2E_HEADERS_TEST: ${{ inputs.E2E_HEADERS_TEST }}
       E2E_RATE_LIMIT_TEST: ${{ inputs.E2E_RATE_LIMIT_TEST }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
         working-directory: frontend
       - name: Install Playwright browsers
         working-directory: frontend
         run: npx --yes playwright install --with-deps
-      - name: Run Playwright smoke
+      - name: Run Playwright tests
         working-directory: frontend
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
+          GATE_CODE: ${{ env.GATE_CODE }}
+          E2E_HEADERS_TEST: ${{ env.E2E_HEADERS_TEST }}
+          E2E_RATE_LIMIT_TEST: ${{ env.E2E_RATE_LIMIT_TEST }}
         run: npx --yes playwright test e2e/env-contract.spec.ts --reporter=line
       - name: Summarize endpoint statuses
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
