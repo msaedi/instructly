@@ -82,6 +82,9 @@ class InstructorFilterParams(BaseModel):
             raise ValueError("age_group must be one of: 'kids', 'adults'")
         return vv
 
+    # Enforce strictness for query param schema when instantiated explicitly
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
 
 class ServiceBase(StandardizedModel):
     """
@@ -203,6 +206,9 @@ class ServiceBase(StandardizedModel):
 
 class ServiceCreate(ServiceBase):
     """Schema for creating a new service."""
+
+    # Harden nested service creation payloads
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 class ServiceResponse(ServiceBase):
@@ -332,6 +338,9 @@ class InstructorProfileCreate(InstructorProfileBase):
             raise ValueError("Duplicate services are not allowed")
         return v
 
+    # Forbid unexpected fields in profile creation
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
 
 class InstructorProfileUpdate(BaseModel):
     """
@@ -363,6 +372,9 @@ class InstructorProfileUpdate(BaseModel):
             if len(catalog_ids) != len(set(catalog_ids)):
                 raise ValueError("Duplicate services are not allowed")
         return v
+
+    # Forbid unexpected fields in profile update
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 class InstructorProfileResponse(InstructorProfileBase):

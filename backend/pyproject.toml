@@ -204,6 +204,18 @@ module = [
   "backend.app.routes.addresses",
 ]
 strict = true
+
+[[tool.mypy.overrides]]
+module = [
+  "backend.app.routes.services",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
+  "backend.app.routes.instructors",
+]
+strict = true
 [[tool.mypy.overrides]]
 module = [
   "app.services.base",

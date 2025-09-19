@@ -20,7 +20,7 @@ class CategoryResponse(BaseModel):
     display_order: int
     icon_name: Optional[str] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 
 
 class CatalogServiceResponse(BaseModel):
@@ -37,7 +37,7 @@ class CatalogServiceResponse(BaseModel):
     min_recommended_price: Optional[float] = None
     max_recommended_price: Optional[float] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 
 
 class CatalogServiceMinimalResponse(BaseModel):
@@ -47,7 +47,7 @@ class CatalogServiceMinimalResponse(BaseModel):
     name: str
     slug: str
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 
 
 class InstructorServiceCreate(BaseModel):
@@ -62,6 +62,8 @@ class InstructorServiceCreate(BaseModel):
     )
 
     model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
         json_schema_extra={
             "example": {
                 "catalog_service_id": 1,
@@ -69,7 +71,7 @@ class InstructorServiceCreate(BaseModel):
                 "custom_description": "Specializing in jazz piano for intermediate students",
                 "duration_options": [30, 45, 60],
             }
-        }
+        },
     )
 
 
@@ -87,4 +89,4 @@ class InstructorServiceResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
