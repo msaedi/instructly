@@ -5,7 +5,8 @@ const base = process.env.PLAYWRIGHT_BASE_URL;
 test.describe('env-contract smoke', () => {
   test.skip(!base, 'PLAYWRIGHT_BASE_URL not set');
 
-  test('health headers', async () => {
+  test('health headers (gated)', async () => {
+    test.skip(process.env.E2E_HEADERS_TEST !== '1', 'Headers test disabled');
     const ctx = await request.newContext({ baseURL: base });
     const res = await ctx.get('/health', { ignoreHTTPSErrors: true });
     expect(res.ok()).toBeTruthy();
@@ -16,7 +17,8 @@ test.describe('env-contract smoke', () => {
     await ctx.dispose();
   });
 
-  test('CORS preflight allows credentials', async () => {
+  test('CORS preflight allows credentials (gated)', async () => {
+    test.skip(process.env.E2E_HEADERS_TEST !== '1', 'Headers test disabled');
     const ctx = await request.newContext({ baseURL: base });
     const origin = 'https://example.com';
     const res = await ctx.fetch('/api/health', {

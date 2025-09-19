@@ -3,7 +3,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user
@@ -75,6 +75,7 @@ def _nyc_zip_to_borough(zip5: str) -> str | None:
 
 
 class NYCZipCheckResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     is_nyc: bool
     borough: str | None = None
 
@@ -137,6 +138,7 @@ def update_my_address(
 
 
 class DeleteResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     success: bool
     message: str
 
@@ -249,6 +251,7 @@ def get_bulk_coverage_geojson(
 
 
 class NeighborhoodItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     id: str
     name: str
     borough: str | None = None
@@ -256,6 +259,7 @@ class NeighborhoodItem(BaseModel):
 
 
 class NeighborhoodsListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     items: list[NeighborhoodItem]
     total: int
     page: int | None = None

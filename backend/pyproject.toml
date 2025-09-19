@@ -198,6 +198,12 @@ module = [
   "backend.app.routes.search_history",
 ]
 strict = true
+
+[[tool.mypy.overrides]]
+module = [
+  "backend.app.routes.addresses",
+]
+strict = true
 [[tool.mypy.overrides]]
 module = [
   "app.services.base",
