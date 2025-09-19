@@ -22,6 +22,17 @@ All checks are non-functional changes focused on type safety, async hygiene, sec
 - CI (fail-gate): `npm run audit:typecov:ci`
 - Notes: uses `frontend/tsconfig.type-coverage.json` to avoid OOM, with ignores passed via CLI. Weekly % summary is posted to CI job summary.
 
+##### Frontend guardrails quickref
+- Dependency‑cruiser:
+  - Config: `frontend/dependency-cruiser.config.cjs`
+  - Run locally: `npm run audit:deps` (CI mode: `npm run audit:deps:ci`)
+- ts‑prune (unused exports):
+  - Allowlist: `frontend/ts-prune-allowlist.txt`
+  - Run locally: `npm run audit:exports` (CI mode writes `.artifacts/ts-prune.txt`)
+- Type coverage (≥99% in CI):
+  - Config: `frontend/tsconfig.type-coverage.json`; summary also tracked via `frontend/package.json#typeCoverage`
+  - Run locally: `npm run audit:typecov` (CI: `npm run audit:typecov:ci`)
+
 #### ESLint async hygiene
 - Rule: `@typescript-eslint/no-floating-promises: error`
 - Scope: `app/**`, `components/**`, `features/**`, `hooks/**`, `lib/**`
