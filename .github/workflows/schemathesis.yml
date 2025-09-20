@@ -41,7 +41,6 @@ jobs:
           schemathesis run "${BASE_URL}/openapi.json" \
             --include-method GET --include-method HEAD \
             --workers=4 \
-            --experimental=openapi-3.1 \
             2>&1 | tee .artifacts/schemathesis-preview.log
 
       - name: Summarize & publish evidence (preview)
@@ -101,7 +100,6 @@ jobs:
           schemathesis run "${BASE_URL}/openapi.json" \
             --include-method GET --include-method HEAD \
             --workers=4 \
-            --experimental=openapi-3.1 \
             2>&1 | tee .artifacts/schemathesis-beta.log
 
       - name: Summarize & publish evidence (beta)
