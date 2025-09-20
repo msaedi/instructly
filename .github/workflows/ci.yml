@@ -149,7 +149,7 @@ jobs:
           check_pkg() {
             local name="$1"
             local ver
-            ver="$(node -e 'const p=require("./package.json"); const v=(p.devDependencies&&p.devDependencies["'"'"'$name'"'"'"'])||(p.dependencies&&p.dependencies["'"'"'$name'"'"'"']); process.stdout.write(v||"")' || true)"
+            ver="$(jq -r --arg name "$name" '.devDependencies[$name] // .dependencies[$name] // ""' package.json)"
             if [ -z "${ver}" ]; then
               echo "OK: ${name} not present"; return 0
             fi
