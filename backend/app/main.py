@@ -215,6 +215,29 @@ if _is_strict_enabled():
 
 
 @app.middleware("http")
+async def add_site_headers(request: Request, call_next):
+    """Emit X-Site-Mode and X-Phase on every response.
+
+    - X-Site-Mode derived from SITE_MODE env (fallback "unset").
+    - X-Phase prefers existing beta header if present; otherwise "beta".
+    """
+    response = await call_next(request)
+    try:
+        site_mode = (os.getenv("SITE_MODE", "") or "").strip().lower() or "unset"
+        # Prefer phase from BetaPhaseHeaderMiddleware (x-beta-phase)
+        existing_phase = response.headers.get("x-beta-phase") or response.headers.get(
+            "X-Beta-Phase"
+        )
+        phase = (existing_phase or "beta").strip()
+        response.headers["X-Site-Mode"] = site_mode
+        response.headers["X-Phase"] = phase
+    except Exception:
+        # Never fail a response due to header attachment
+        pass
+    return response
+
+
+@app.middleware("http")
 async def attach_identity(request: Request, call_next):
     # Attach a normalized identity for rate-limiter dependency (shadow in PR-2)
     try:
@@ -406,6 +429,12 @@ def health_check(response: Response, db: Session = Depends(get_db)) -> HealthRes
         version=API_VERSION,
         environment=settings.environment,
     )
+
+
+@app.get("/api/health", response_model=HealthResponse)
+def api_health(response: Response, db: Session = Depends(get_db)) -> HealthResponse:
+    """Alias of /health under /api path for env-contract and monitors."""
+    return health_check(response, db)
 
 
 @app.get("/health/lite", response_model=HealthLiteResponse)

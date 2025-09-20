@@ -6,6 +6,10 @@ on:
         description: "Base URL (defaults to PREVIEW_BASE_URL)"
         required: false
         type: string
+      api_base_url:
+        description: "API Base URL (defaults to PREVIEW_API_BASE_URL)"
+        required: false
+        type: string
       beta_code:
         description: "One-time beta code (only when testing beta)"
         required: false
@@ -24,6 +28,7 @@ jobs:
     continue-on-error: true
     env:
       PLAYWRIGHT_BASE_URL: ${{ inputs.base_url || vars.PREVIEW_BASE_URL }}
+      PLAYWRIGHT_API_BASE_URL: ${{ inputs.api_base_url || vars.PREVIEW_API_BASE_URL }}
       GATE_CODE: ${{ inputs.beta_code || secrets.PREVIEW_STAFF_CODE }}
       E2E_HEADERS_TEST: ${{ inputs.E2E_HEADERS_TEST }}
       E2E_RATE_LIMIT_TEST: ${{ inputs.E2E_RATE_LIMIT_TEST }}
