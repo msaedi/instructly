@@ -4,6 +4,7 @@ import logging
 import os
 
 from fastapi import Depends, FastAPI, Request, Response
+from datetime import datetime, timezone
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -428,6 +429,7 @@ def health_check(response: Response, db: Session = Depends(get_db)) -> HealthRes
         service=f"{BRAND_NAME.lower()}-api",
         version=API_VERSION,
         environment=settings.environment,
+        timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     )
 
 

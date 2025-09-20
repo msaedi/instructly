@@ -27,6 +27,7 @@ class HealthResponse(BaseModel):
     service: str = Field(description="Service name")
     version: str = Field(description="API version")
     environment: str = Field(description="Environment name")
+    timestamp: str = Field(description="UTC ISO8601Z timestamp of the health response")
 
 
 class HealthLiteResponse(BaseModel):
