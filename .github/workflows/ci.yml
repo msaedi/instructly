@@ -157,7 +157,7 @@ jobs:
               echo "warn: ${pkg} not found; skipping"
               continue
             fi
-            if [[ "${ver}" =~ [\^\~\*] || "${ver}" == "latest" || "${ver}" == *"x" ]]; then
+            if [[ ! "${ver}" =~ ^[0-9]+(\.[0-9]+)*(-[0-9A-Za-z.]+)?$ ]]; then
               echo "error: ${pkg} must be exactly pinned, found \"${ver}\""
               exit 1
             fi
