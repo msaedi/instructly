@@ -1,10 +1,10 @@
 # backend/app/main.py
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 import logging
 import os
 
 from fastapi import Depends, FastAPI, Request, Response
-from datetime import datetime, timezone
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -80,9 +80,8 @@ from .services.template_service import TemplateService
 # Ensure custom rate-limit metrics are registered with our Prometheus REGISTRY
 try:
     from .ratelimit import metrics as _rl_metrics  # noqa: F401
-except Exception:
-    # Don't fail app startup if the optional module misbehaves
-    pass
+except Exception:  # pragma: no cover
+    _rl_metrics = None
 
 # Configure logging
 logging.basicConfig(

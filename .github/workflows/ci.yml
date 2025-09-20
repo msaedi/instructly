@@ -423,26 +423,16 @@ jobs:
         run: npx --yes playwright test e2e/env-contract.spec.ts
 
       - name: Run a11y smoke (non-blocking unless E2E_A11Y_STRICT=1)
+        shell: bash
         working-directory: frontend
-        env:
-          E2E_A11Y_STRICT: ${{ vars.E2E_A11Y_STRICT }}
         run: |
           set -eo pipefail
           status=0
-          set +e
-          npx --yes playwright test e2e/a11y.smoke.spec.ts --reporter=line
-          status=$?
-          set -e
-          echo "A11Y_EXIT=${status:-0}"
-          # Placeholders for parsing if needed later (safe defaults)
-          failed="${FAILED:-0}"; skipped="${SKIPPED:-0}"
-          echo "failed=${failed} skipped=${skipped}"
-          # Upload basic artifact even if it failed (report dir if present)
-          if [ -d playwright-report ]; then
-            mkdir -p .artifacts && tar -czf .artifacts/a11y-report.tgz playwright-report || true
-          fi
-          if [ "${E2E_A11Y_STRICT:-0}" = "1" ] && [ "${status:-0}" -ne 0 ]; then
-            exit "${status:-1}"
+          npx --yes playwright test e2e/a11y.smoke.spec.ts --reporter=line || status=$?
+          echo "A11Y_EXIT=${status}"
+          # Optionally upload reports here, regardless of pass/fail
+          if [ "${E2E_A11Y_STRICT:-0}" = "1" ] && [ "${status}" -ne 0 ]; then
+            exit "${status}"
           fi
 
       - name: Upload a11y artifact
