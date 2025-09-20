@@ -41,8 +41,6 @@ jobs:
           schemathesis run "${BASE_URL}/openapi.json" \
             --include-method GET --include-method HEAD \
             --checks=all \
-            --hypothesis-deadline=500 \
-            --hypothesis-max-examples=50 \
             --workers=4 \
             --validate-schema=on \
             --experimental=openapi-3.1 \
@@ -105,8 +103,6 @@ jobs:
           schemathesis run "${BASE_URL}/openapi.json" \
             --include-method GET --include-method HEAD \
             --checks=all \
-            --hypothesis-deadline=500 \
-            --hypothesis-max-examples=50 \
             --workers=4 \
             --validate-schema=on \
             --experimental=openapi-3.1 \
