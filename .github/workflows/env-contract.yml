@@ -138,3 +138,108 @@ jobs:
       - name: Skip (no base URL provided)
         if: ${{ env.PLAYWRIGHT_BASE_URL == '' }}
         run: echo "PLAYWRIGHT_BASE_URL not set; skipping"
+  beta-api:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      PLAYWRIGHT_BASE_URL: ${{ vars.BETA_BASE_URL }}
+      PLAYWRIGHT_API_BASE_URL: ${{ vars.BETA_API_BASE_URL }}
+      GATE_CODE: ''
+      E2E_HEADERS_TEST: '1'
+      E2E_RATE_LIMIT_TEST: '1'
+      ALLOWED_PHASES: ${{ inputs.allowed_phases || vars.ALLOWED_PHASES || 'beta,open,instructor_only' }}
+      API_ONLY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx --yes playwright install --with-deps
+      - name: Run Playwright tests
+        working-directory: frontend
+        if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
+          PLAYWRIGHT_API_BASE_URL: ${{ env.PLAYWRIGHT_API_BASE_URL }}
+          E2E_HEADERS_TEST: ${{ env.E2E_HEADERS_TEST }}
+          E2E_RATE_LIMIT_TEST: ${{ env.E2E_RATE_LIMIT_TEST }}
+          API_ONLY: ${{ env.API_ONLY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ../.artifacts
+          npx --yes playwright test e2e/env-contract.spec.ts --reporter=line 2>&1 | tee ../.artifacts/pw.log
+      - name: Extract env-contract evidence + write job summary (non-blocking)
+        if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p .artifacts
+          : > .artifacts/env-contract-evidence.txt
+
+          # Parse lines we print from the Playwright test logs
+          SITE_MODE=$(grep -Eo '^\[headers\] X-Site-Mode=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
+          PHASE=$(grep -E '^\[headers\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*X-Phase=([^ ]+).*/\1/' || true)
+          CORS_CREDS=$(grep -Eo '^\[cors\] access-control-allow-credentials=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
+          CORS_ORIGIN=$(grep -E '^\[cors\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*access-control-allow-origin=//' || true)
+          DEDUPE=$(grep -Eo '^\[429-triage\] dedupeKey=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
+          LIMITED=$(grep -E '^\[429-triage\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*limited=([0-9]+).*/\1/' || true)
+          ATTEMPTS=$(grep -E '^\[429-triage\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*attempts=([0-9]+).*/\1/' || true)
+
+          {
+            echo "[headers] X-Site-Mode=${SITE_MODE:-} X-Phase=${PHASE:-}"
+            echo "[cors] access-control-allow-credentials=${CORS_CREDS:-} access-control-allow-origin=${CORS_ORIGIN:-}"
+            echo "[429-triage] dedupeKey=${DEDUPE:-} limited=${LIMITED:-} attempts=${ATTEMPTS:-}"
+          } | tee .artifacts/env-contract-evidence.txt
+
+          {
+            echo "### Env-Contract Evidence"
+            echo
+            echo '```text'
+            cat .artifacts/env-contract-evidence.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Soft alerts (non-blocking): missing or surprising values
+          warn=0
+          for v in SITE_MODE PHASE CORS_CREDS CORS_ORIGIN DEDUPE LIMITED ATTEMPTS; do
+            if [ -z "${!v:-}" ]; then
+              echo "::warning title=env-contract::Missing value for $v (non-blocking)"
+              warn=1
+            fi
+          done
+
+          if [ -n "${LIMITED:-}" ] && [ "$LIMITED" -eq 0 ]; then
+            echo "::warning title=env-contract::No 429s observed; rate-limit probe may be inactive (non-blocking)"
+          fi
+          if [ -n "${LIMITED:-}" ] && [ "$LIMITED" -gt 1 ]; then
+            echo "::warning title=env-contract::Multiple 429s observed (limited=$LIMITED); dedupe may be off (non-blocking)"
+          fi
+
+          # Always succeed; this step is informational by design
+          exit 0
+      - name: Summarize endpoint statuses
+        if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts
+          HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "$PLAYWRIGHT_BASE_URL/health" || true)
+          OPENAPI=$(curl -s -o /dev/null -w "%{http_code}" "$PLAYWRIGHT_BASE_URL/openapi.json" || true)
+          echo "health: $HEALTH" > .artifacts/env-contract-summary.txt
+          echo "openapi.json: $OPENAPI" >> .artifacts/env-contract-summary.txt
+      - name: Upload env-contract evidence (beta)
+        if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: env-contract-evidence-beta
+          path: |
+            .artifacts/env-contract-evidence.txt
+            .artifacts/pw.log
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Skip (no base URL provided)
+        if: ${{ env.PLAYWRIGHT_BASE_URL == '' }}
+        run: echo "PLAYWRIGHT_BASE_URL not set; skipping"
