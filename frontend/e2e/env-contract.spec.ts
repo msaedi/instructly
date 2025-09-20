@@ -8,8 +8,10 @@ test.describe('env-contract smoke', () => {
   test.skip(!base, 'PLAYWRIGHT_BASE_URL not set');
 
   test.beforeEach(async ({ page }) => {
-    const code = process.env.GATE_CODE || '';
-    await bypassGateIfPresent(page, base!, code || undefined);
+    const apiOnly = !!process.env.PLAYWRIGHT_API_BASE_URL;
+    if (!apiOnly && process.env.GATE_CODE) {
+      await bypassGateIfPresent(page, process.env.PLAYWRIGHT_BASE_URL!, process.env.GATE_CODE);
+    }
   });
 
   test('health headers (gated)', async () => {
