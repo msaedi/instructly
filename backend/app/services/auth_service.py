@@ -86,7 +86,7 @@ class AuthService(BaseService):
         existing_user = self.get_user_by_email(email)
         if existing_user:
             self.logger.warning(f"Registration failed - email already exists: {email}")
-            raise ConflictException("Email already registered")
+            raise ValidationException("Email already registered")
 
         # Hash the password
         hashed_password = get_password_hash(password)
