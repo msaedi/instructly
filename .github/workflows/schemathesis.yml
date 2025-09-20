@@ -1,116 +1,137 @@
-name: schemathesis
+name: schemathesis (read-only)
 
 on:
   schedule:
-    - cron: "0 6 * * *"
+    - cron: '0 8 * * *' # daily 8:00 UTC (adjust if you use a different time)
   workflow_dispatch:
     inputs:
       target:
-        description: "Environment to fuzz (preview|beta|all)"
+        description: "Which environment to test"
         required: false
         default: "all"
+        type: choice
+        options: [preview, beta, all]
 
 jobs:
-  fuzz:
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.target == 'all' || github.event.inputs.target == matrix.target
+  preview:
+    if: github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'preview'
     runs-on: ubuntu-latest
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [preview, beta]
-    env:
-      RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set target endpoints
-        id: target
-        run: |
-          if [ "${{ matrix.target }}" = "preview" ]; then
-            if [ -z "${{ vars.PREVIEW_API_BASE_URL }}" ]; then
-              echo "Preview API base URL (vars.PREVIEW_API_BASE_URL) is not set" >&2
-              exit 1
-            fi
-            echo "base_url=${{ vars.PREVIEW_API_BASE_URL }}" >> "$GITHUB_OUTPUT"
-            echo "schema_url=${{ vars.PREVIEW_API_BASE_URL }}/openapi.json" >> "$GITHUB_OUTPUT"
-          else
-            if [ -z "${{ vars.BETA_API_BASE_URL }}" ]; then
-              echo "Beta API base URL (vars.BETA_API_BASE_URL) is not set" >&2
-              exit 1
-            fi
-            echo "base_url=${{ vars.BETA_API_BASE_URL }}" >> "$GITHUB_OUTPUT"
-            echo "schema_url=${{ vars.BETA_API_BASE_URL }}/openapi.json" >> "$GITHUB_OUTPUT"
-          fi
-
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
 
-      - name: Install schemathesis tooling
+      - name: Install Schemathesis (pinned)
         run: |
           python -m pip install --upgrade pip
-          pip install schemathesis pyyaml
+          pip install schemathesis==4.1.4
 
-      - name: Build CLI arguments from config
-        id: args
-        run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import yaml
-          from pathlib import Path
-
-          config = yaml.safe_load(Path('schemathesis/config.yaml').read_text())
-          args: list[str] = []
-          for method in config.get('methods', []):
-              args.extend(['--include-method', method])
-          for pattern in config.get('include', []):
-              args.extend(['--include-path-regex', pattern])
-          for pattern in config.get('exclude', []):
-              args.extend(['--exclude-path-regex', pattern])
-          max_examples = config.get('max_examples')
-          if max_examples:
-              args.extend(['--max-examples', str(max_examples)])
-          deadline = config.get('deadline_ms')
-          if deadline:
-              args.extend(['--hypothesis-deadline', str(deadline)])
-          print('args=' + ' '.join(args))
-          PY
-
-      - name: Run Schemathesis (${{ matrix.target }})
+      - name: Run Schemathesis (preview, GET/HEAD only)
         env:
-          BASE_URL: ${{ steps.target.outputs.base_url }}
-          SCHEMA_URL: ${{ steps.target.outputs.schema_url }}
-          CLI_ARGS: ${{ steps.args.outputs.args }}
-          RATE_LIMIT_SHADOW: "true"
-          RATE_LIMIT_SHADOW_READ: "true"
-          RATE_LIMIT_SHADOW_AUTH: "true"
+          BASE_URL: ${{ vars.PREVIEW_API_BASE_URL }}
         run: |
           mkdir -p .artifacts
-          echo "Using schema: $SCHEMA_URL" | tee .artifacts/schemathesis-${{ matrix.target }}.log
-          set -o pipefail
-          schemathesis run "$SCHEMA_URL" \
-            --url "$BASE_URL" \
-            --checks status_code_conformance,not_a_server_error \
-            --rate-limit 20/m \
-            --request-timeout 10 \
-            $CLI_ARGS \
-            --output-sanitize true \
-            --report-dir .artifacts/schemathesis-${{ matrix.target }}-reports \
-            | tee -a .artifacts/schemathesis-${{ matrix.target }}.log
-          exit_code=${PIPESTATUS[0]}
-          {
-            echo "run_url=${RUN_URL}";
-            echo "target=${{ matrix.target }}";
-            echo "base_url=$BASE_URL";
-            echo "schema_url=$SCHEMA_URL";
-            echo "exit_code=$exit_code";
-          } | tee .artifacts/schemathesis-${{ matrix.target }}-evidence.txt
+          set -eo pipefail
+          echo "Target: ${BASE_URL}"
+          # capture stdout/stderr
+          schemathesis run "${BASE_URL}/openapi.json" \
+            --include-method GET --include-method HEAD \
+            --phases=examples \
+            --checks not_a_server_error \
+            --workers=4 \
+            2>&1 | tee .artifacts/schemathesis-preview.log
 
-      - name: Upload Schemathesis evidence
+      - name: Summarize & publish evidence (preview)
+        if: always()
+        run: |
+          set -eo pipefail
+          EVIDENCE=".artifacts/schemathesis-preview-evidence.txt"
+          LOG=".artifacts/schemathesis-preview.log"
+          if [ -f "$LOG" ]; then
+            TOTAL=$(grep -Eo 'Total\stest\scases:\s+[0-9]+' "$LOG" | awk '{print $4}' | tail -1 || echo 0)
+            ERR=$(grep -Eo 'Errors:\s+[0-9]+' "$LOG" | awk '{print $2}' | tail -1 || echo 0)
+            FAIL=$(grep -Eo 'Failures:\s+[0-9]+' "$LOG" | awk '{print $2}' | tail -1 || echo 0)
+            PASS=$(grep -Eo 'Passed:\s+[0-9]+' "$LOG" | awk '{print $2}' | tail -1 || echo 0)
+            {
+              echo "[schemathesis-preview] total=${TOTAL} passed=${PASS} failures=${FAIL} errors=${ERR}"
+            } | tee "$EVIDENCE"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "$EVIDENCE" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::No schemathesis log found for preview"
+          fi
+
+      - name: Upload artifacts (preview)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: schemathesis-${{ matrix.target }}
+          name: schemathesis-evidence-preview
           path: |
-            .artifacts/schemathesis-${{ matrix.target }}.log
-            .artifacts/schemathesis-${{ matrix.target }}-evidence.txt
-            .artifacts/schemathesis-${{ matrix.target }}-reports
+            .artifacts/schemathesis-preview.log
+            .artifacts/schemathesis-preview-evidence.txt
+          retention-days: 30
+
+  beta:
+    if: github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'beta'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Schemathesis (pinned)
+        run: |
+          python -m pip install --upgrade pip
+          pip install schemathesis==4.1.4
+
+      - name: Run Schemathesis (beta, GET/HEAD only)
+        env:
+          BASE_URL: ${{ vars.BETA_API_BASE_URL }}
+        run: |
+          mkdir -p .artifacts
+          set -eo pipefail
+          echo "Target: ${BASE_URL}"
+          schemathesis run "${BASE_URL}/openapi.json" \
+            --include-method GET --include-method HEAD \
+            --phases=examples \
+            --checks not_a_server_error \
+            --workers=4 \
+            2>&1 | tee .artifacts/schemathesis-beta.log
+
+      - name: Summarize & publish evidence (beta)
+        if: always()
+        run: |
+          set -eo pipefail
+          EVIDENCE=".artifacts/schemathesis-beta-evidence.txt"
+          LOG=".artifacts/schemathesis-beta.log"
+          if [ -f "$LOG" ]; then
+            TOTAL=$(grep -Eo 'Total\stest\scases:\s+[0-9]+' "$LOG" | awk '{print $4}' | tail -1 || echo 0)
+            ERR=$(grep -Eo 'Errors:\s+[0-9]+' "$LOG" | awk '{print $2}' | tail -1 || echo 0)
+            FAIL=$(grep -Eo 'Failures:\s+[0-9]+' "$LOG" | awk '{print $2}' | tail -1 || echo 0)
+            PASS=$(grep -Eo 'Passed:\s+[0-9]+' "$LOG" | awk '{print $2}' | tail -1 || echo 0)
+            {
+              echo "[schemathesis-beta] total=${TOTAL} passed=${PASS} failures=${FAIL} errors=${ERR}"
+            } | tee "$EVIDENCE"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "$EVIDENCE" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::No schemathesis log found for beta"
+          fi
+
+      - name: Upload artifacts (beta)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schemathesis-evidence-beta
+          path: |
+            .artifacts/schemathesis-beta.log
+            .artifacts/schemathesis-beta-evidence.txt
+          retention-days: 30

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from ..api.dependencies.services import get_auth_service
 from ..auth import create_access_token, get_current_user
 from ..core.config import settings
-from ..core.exceptions import ConflictException, NotFoundException
+from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..schemas import (
@@ -127,6 +127,8 @@ async def register(
             roles=[role.name for role in db_user.roles],
             permissions=[],  # TODO: Add permissions if needed
         )
+    except ValidationException as e:
+        raise e.to_http_exception()
     except ConflictException as e:
         raise e.to_http_exception()
     except Exception as e:

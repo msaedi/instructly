@@ -1,6 +1,8 @@
+import os
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
@@ -62,6 +64,14 @@ def _parse_detail(detail: Any) -> tuple[Optional[str], Optional[str], Optional[A
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    strict_schemas = os.getenv("STRICT_SCHEMAS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    default_media_type = "application/problem+json" if strict_schemas else "application/json"
+
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):  # type: ignore[override]
         detail_text, code, errors = _parse_detail(exc.detail)
@@ -70,11 +80,9 @@ def register_error_handlers(app: FastAPI) -> None:
             detail=detail_text,
             instance=request.url.path,
             code=code,
-            errors=errors,
+            errors=jsonable_encoder(errors) if errors is not None else None,
         )
-        return JSONResponse(
-            problem, status_code=exc.status_code, media_type="application/problem+json"
-        )
+        return JSONResponse(problem, status_code=exc.status_code, media_type=default_media_type)
 
     @app.exception_handler(StarletteHTTPException)
     async def starlette_http_exception_handler(request: Request, exc: StarletteHTTPException):  # type: ignore[override]
@@ -84,44 +92,72 @@ def register_error_handlers(app: FastAPI) -> None:
             detail=detail_text,
             instance=request.url.path,
             code=code,
-            errors=errors,
+            errors=jsonable_encoder(errors) if errors is not None else None,
         )
-        return JSONResponse(
-            problem, status_code=exc.status_code, media_type="application/problem+json"
-        )
+        return JSONResponse(problem, status_code=exc.status_code, media_type=default_media_type)
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_exception_handler(request: Request, exc: RequestValidationError):  # type: ignore[override]
-        problem = _problem(
-            status=422,
-            type_="https://example.com/problems/validation",
-            title=_title_from_status(422),
-            detail="Request validation failed",
-            instance=request.url.path,
-            code="validation_error",
-            errors=exc.errors(),
+        if strict_schemas:
+            problem = _problem(
+                status=422,
+                type_="https://example.com/problems/validation",
+                title=_title_from_status(422),
+                detail="Request validation failed",
+                instance=request.url.path,
+                code="validation_error",
+                errors=jsonable_encoder(exc.errors()),
+            )
+            return JSONResponse(problem, status_code=422, media_type=default_media_type)
+        detail_list = jsonable_encoder(exc.errors())
+        return JSONResponse(
+            content={
+                "type": "about:blank",
+                "title": _title_from_status(422),
+                "status": 422,
+                "detail": detail_list,
+                "instance": request.url.path,
+                "code": "validation_error",
+                "errors": detail_list,
+            },
+            status_code=422,
+            media_type="application/json",
         )
-        return JSONResponse(problem, status_code=422, media_type="application/problem+json")
 
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError):  # type: ignore[override]
-        problem = _problem(
-            status=422,
-            type_="https://example.com/problems/validation",
-            title=_title_from_status(422),
-            detail="Validation failed",
-            instance=request.url.path,
-            code="validation_error",
-            errors=exc.errors(),
+        if strict_schemas:
+            problem = _problem(
+                status=422,
+                type_="https://example.com/problems/validation",
+                title=_title_from_status(422),
+                detail="Validation failed",
+                instance=request.url.path,
+                code="validation_error",
+                errors=jsonable_encoder(exc.errors()),
+            )
+            return JSONResponse(problem, status_code=422, media_type=default_media_type)
+        detail_list = jsonable_encoder(exc.errors())
+        return JSONResponse(
+            content={
+                "type": "about:blank",
+                "title": _title_from_status(422),
+                "status": 422,
+                "detail": detail_list,
+                "instance": request.url.path,
+                "code": "validation_error",
+                "errors": detail_list,
+            },
+            status_code=422,
+            media_type="application/json",
         )
-        return JSONResponse(problem, status_code=422, media_type="application/problem+json")
 
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):  # type: ignore[override]
         problem = _problem(
             status=500,
-            detail="An unexpected error occurred",
+            detail="Internal Server Error",
             instance=request.url.path,
             code="internal_server_error",
         )
-        return JSONResponse(problem, status_code=500, media_type="application/problem+json")
+        return JSONResponse(problem, status_code=500, media_type=default_media_type)
