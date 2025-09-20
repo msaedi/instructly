@@ -101,3 +101,12 @@ Notes:
 - If the collector raises `git commit total would decrease`, fetch the full history (`git fetch --unshallow`) or restore the latest `metrics_history.json` backup before retrying.
 - CI runs `backend/tests/scripts/test_metrics_history.py` to ensure commit totals in `metrics_history.json` stay monotonic.
 - Keep nightly backups of `metrics_history.json` (e.g. artifact/S3) so we can restore a clean baseline if a bad snapshot ever lands.
+
+## Nightly env-contract proof
+- When: every day at 09:00 UTC (GitHub Actions schedule).
+- Scope: API-only preview endpoints (no staff code).
+- Evidence: workflow `env-contract` uploads `env-contract-evidence` artifact containing:
+  - `[headers] X-Site-Mode=… X-Phase=…`
+  - `[cors] access-control-allow-credentials=… access-control-allow-origin=…`
+  - `[429-triage] dedupeKey=… limited=… attempts=…`
+Use the artifact to confirm nothing regressed before promoting builds.

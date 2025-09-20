@@ -1,1 +1,6 @@
-.github/workflows/privacy-audit.yml  @msaedi
+# Guardrail-critical paths
+.github/workflows/env-contract.yml    @msaedi
+.github/workflows/ci.yml              @msaedi
+frontend/e2e/env-contract.spec.ts     @msaedi
+frontend/e2e/utils/gate.ts            @msaedi
+docs/engineering/guardrails_runbook.md @msaedi
