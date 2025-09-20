@@ -18,6 +18,8 @@ test.describe('env-contract smoke', () => {
     expect(res.ok()).toBeTruthy();
     const xSiteMode = res.headers()['x-site-mode'];
     const xPhase = res.headers()['x-phase'];
+    // Log for env-contract evidence
+    console.info(`[headers] X-Site-Mode=${xSiteMode} X-Phase=${xPhase}`);
     expect(['preview', 'prod']).toContain((xSiteMode || '').toLowerCase());
     expect(['beta', 'open']).toContain((xPhase || '').toLowerCase());
     await ctx.dispose();
@@ -40,6 +42,8 @@ test.describe('env-contract smoke', () => {
     const allowCreds = res.headers()['access-control-allow-credentials'];
     expect((allowCreds || '').toLowerCase()).toBe('true');
     const echoed = res.headers()['access-control-allow-origin'];
+    // Log for env-contract evidence
+    console.info(`[cors] access-control-allow-credentials=${allowCreds} access-control-allow-origin=${echoed}`);
     expect(echoed === origin).toBeTruthy();
     await ctx.dispose();
   });
