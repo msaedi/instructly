@@ -327,8 +327,8 @@ class TestBulkOperationMissingCoverage:
         week_start = today + timedelta(days=days_until_next_monday)
 
         # Create proper TimeSlot objects with time types
-        morning_slot = TimeSlot(start_time=time(9, 0), end_time=time(10, 0), is_available=True)
-        afternoon_slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0), is_available=True)
+        morning_slot = TimeSlot(start_time=time(9, 0), end_time=time(10, 0))
+        afternoon_slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0))
 
         current_week = {
             week_start.isoformat(): [morning_slot],  # Only morning - will be added
@@ -431,7 +431,7 @@ class TestBulkOperationMissingCoverage:
 
         # Saved week has a slot
         saved_week = {
-            test_date.isoformat(): [TimeSlot(start_time=time(14, 0), end_time=time(15, 0), is_available=True)]
+            test_date.isoformat(): [TimeSlot(start_time=time(14, 0), end_time=time(15, 0))]
         }
 
         # Current week is empty (slot removed)
@@ -470,7 +470,7 @@ class TestBulkOperationMissingCoverage:
         from app.schemas.availability_window import TimeSlot
 
         # Create a TimeSlot
-        slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0), is_available=True)
+        slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0))
 
         # Test string conversion
         start_str = slot.start_time.strftime("%H:%M:%S")
@@ -499,7 +499,7 @@ class TestBulkOperationMissingCoverage:
         from app.schemas.availability_window import TimeSlot
 
         # Create a TimeSlot
-        slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0), is_available=True)
+        slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0))
 
         print(f"\n[DEBUG] TimeSlot inspection:")
         print(f"  Type: {type(slot)}")
@@ -525,7 +525,7 @@ class TestBulkOperationMissingCoverage:
         day2 = week_start + timedelta(days=1)
 
         # The slot that should be removed
-        afternoon_slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0), is_available=True)
+        afternoon_slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0))
 
         # Validation request
         validation_request = ValidateWeekRequest(
@@ -586,7 +586,7 @@ class TestBulkOperationMissingCoverage:
         day2 = week_start + timedelta(days=1)
 
         # The slot to be removed
-        afternoon_slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0), is_available=True)
+        afternoon_slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0))
 
         # Setup data
         current_week = {day2.isoformat(): []}  # Empty

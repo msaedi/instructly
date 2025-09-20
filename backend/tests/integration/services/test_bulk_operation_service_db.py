@@ -276,12 +276,12 @@ class TestBulkOperationServiceIntegration:
 
             # Simulate saved state (what's in DB)
             saved_week[day_str] = [
-                TimeSlot(start_time=time(9, 0), end_time=time(12, 0), is_available=True),
-                TimeSlot(start_time=time(14, 0), end_time=time(17, 0), is_available=True),
+                TimeSlot(start_time=time(9, 0), end_time=time(12, 0)),
+                TimeSlot(start_time=time(14, 0), end_time=time(17, 0)),
             ]
 
             # Simulate current state (user removed afternoon slot)
-            current_week[day_str] = [TimeSlot(start_time=time(9, 0), end_time=time(12, 0), is_available=True)]
+            current_week[day_str] = [TimeSlot(start_time=time(9, 0), end_time=time(12, 0))]
 
         validation_request = ValidateWeekRequest(
             current_week=current_week, saved_week=saved_week, week_start=week_start
