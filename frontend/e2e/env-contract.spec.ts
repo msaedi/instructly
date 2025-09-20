@@ -35,8 +35,10 @@ test.describe('env-contract smoke', () => {
     console.info(`[headers] X-Site-Mode=${xSiteMode} X-Phase=${xPhase}`);
     expect(['preview','prod']).toContain((xSiteMode || '').toLowerCase());
     const phase = (xPhase || '').toLowerCase();
+    const allowedPhasesCsv = (process.env.ALLOWED_PHASES || 'beta,open,instructor_only,instructor-only');
+    const allowedPhases = allowedPhasesCsv.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
     console.info(`[headers-allowed] phase=${phase}`);
-    expect(['beta','open','instructor_only','instructor-only']).toContain(phase);
+    expect(allowedPhases).toContain(phase);
     await ctx.dispose();
   });
 
