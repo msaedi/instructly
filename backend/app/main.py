@@ -204,14 +204,7 @@ app = FastAPI(
 # Register unified error envelope handlers
 from .errors import register_error_handlers  # noqa: E402
 
-
-# Only enable the problem+json envelope when STRICT_SCHEMAS is explicitly enabled
-def _is_strict_enabled() -> bool:
-    return os.getenv("STRICT_SCHEMAS", "false").lower() in {"1", "true", "yes"}
-
-
-if _is_strict_enabled():
-    register_error_handlers(app)
+register_error_handlers(app)
 
 
 @app.middleware("http")

@@ -128,15 +128,15 @@ async def register(
             permissions=[],  # TODO: Add permissions if needed
         )
     except ConflictException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+        raise e.to_http_exception()
     except Exception as e:
         logger.error(f"Unexpected error during registration: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error creating user",
+            detail={
+                "message": "Error creating user",
+                "code": "AUTH_UNEXPECTED_ERROR",
+            },
         )
 
 
@@ -175,7 +175,10 @@ async def login(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail={
+                "message": "Incorrect email or password",
+                "code": "AUTH_INVALID_CREDENTIALS",
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
 

@@ -63,7 +63,11 @@ def validate_instructor_role(user: User) -> None:
     """Validate that user has instructor role."""
     if not user.is_instructor:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="This endpoint requires instructor role"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": "This endpoint requires instructor role",
+                "code": "PAYMENTS_INSTRUCTOR_ONLY",
+            },
         )
 
 
@@ -71,7 +75,11 @@ def validate_student_role(user: User) -> None:
     """Validate that user has student role."""
     if not user.is_student:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="This endpoint requires student role"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": "This endpoint requires student role",
+                "code": "PAYMENTS_STUDENT_ONLY",
+            },
         )
 
 
@@ -110,7 +118,11 @@ async def start_onboarding(
         if not instructor_profile:
             logger.error(f"No instructor profile found for user {current_user.id}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "message": "Instructor profile not found",
+                    "code": "PAYMENTS_INSTRUCTOR_PROFILE_NOT_FOUND",
+                },
             )
 
         # Check if account already exists
@@ -182,12 +194,15 @@ async def start_onboarding(
         raise
     except ServiceException as e:
         logger.error(f"Service error during onboarding: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise e.to_http_exception()
     except Exception as e:
         logger.error(f"Unexpected error during onboarding: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to start onboarding process",
+            detail={
+                "message": "Failed to start onboarding process",
+                "code": "PAYMENTS_ONBOARDING_FAILED",
+            },
         )
 
 

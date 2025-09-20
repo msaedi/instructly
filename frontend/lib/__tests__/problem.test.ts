@@ -1,4 +1,4 @@
-import { isProblemJsonContentType, parseProblem, type Problem } from "../errors/problem";
+import { isProblemJsonContentType, parseProblem, type Problem, normalizeProblem } from "../errors/problem";
 
 function makeRes(headers: Record<string, string>, status = 422) {
   // Minimal Response-like object for our parser
@@ -19,11 +19,12 @@ describe("problem+json parser", () => {
 
   test("parses valid problem body", () => {
     const res = makeRes({ "content-type": "application/problem+json" }, 404);
-    const body: Problem = { type: "about:blank", title: "Not Found", status: 404 };
+    const body: Problem = { type: "about:blank", title: "Not Found", status: 404, detail: "", instance: "" };
     const p = parseProblem(res, body);
     expect(p).not.toBeNull();
     expect(p!.title).toBe("Not Found");
     expect(p!.status).toBe(404);
+    expect(p!.detail).toBe("");
   });
 
   test("returns minimal problem when body shape unknown", () => {
@@ -32,11 +33,21 @@ describe("problem+json parser", () => {
     expect(p).not.toBeNull();
     expect(p!.title).toBe("Unknown error");
     expect(p!.status).toBe(500);
+    expect(p!.detail).toBe("");
   });
 
   test("returns null when not problem json", () => {
     const res = makeRes({ "content-type": "application/json" }, 400);
     const p = parseProblem(res, { title: "Bad Request" });
     expect(p).toBeNull();
+  });
+
+  test("normalizer fills defaults and preserves code", () => {
+    const normalized = normalizeProblem({ title: "Bad Request", code: "SOME_CODE" }, 400);
+    expect(normalized.title).toBe("Bad Request");
+    expect(normalized.type).toBe("about:blank");
+    expect(normalized.status).toBe(400);
+    expect(normalized.detail).toBe("");
+    expect(normalized.code).toBe("SOME_CODE");
   });
 });

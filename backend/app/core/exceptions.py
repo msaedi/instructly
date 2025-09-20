@@ -117,7 +117,7 @@ class ServiceException(DomainException):
         return HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
-                "message": "An error occurred processing your request",
+                "message": self.message or "An error occurred processing your request",
                 "code": self.code,
                 "details": self.details if self.details else {},
             },

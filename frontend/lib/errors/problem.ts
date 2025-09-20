@@ -1,8 +1,8 @@
 export type Problem = {
   type: string;
   title: string;
-  detail?: string;
-  status?: number;
+  detail: string;
+  status: number;
   code?: string;
   request_id?: string;
   instance?: string;
@@ -24,13 +24,32 @@ export function parseProblem(res: ResponseLike, body: unknown): Problem | null {
     const record = body as Record<string, unknown>;
     const maybeTitle = record["title"];
     if (typeof maybeTitle === "string") {
-      return record as unknown as Problem;
+      return normalizeProblem(record, res.status ?? undefined);
     }
   }
 
+  return normalizeProblem({}, res.status ?? undefined);
+}
+
+export function normalizeProblem(problem: Record<string, unknown>, fallbackStatus?: number): Problem {
+  const type = typeof problem.type === 'string' && problem.type.length > 0 ? problem.type : 'about:blank';
+  const title = typeof problem.title === 'string' && problem.title.length > 0 ? problem.title : 'Unknown error';
+  const statusSource = problem.status;
+  const status = typeof statusSource === 'number' ? statusSource : fallbackStatus ?? 500;
+  const detail = typeof problem.detail === 'string' ? problem.detail : '';
+  const instance = typeof problem.instance === 'string' ? problem.instance : '';
+  const code = typeof problem.code === 'string' ? problem.code : undefined;
+  const requestId = typeof problem.request_id === 'string' ? problem.request_id : undefined;
+  const errors = problem.errors;
+
   return {
-    type: "about:blank",
-    title: "Unknown error",
-    status: (res as Response).status ?? ("status" in res ? (res as { status?: number }).status : undefined),
+    type,
+    title,
+    status,
+    detail,
+    instance,
+    code,
+    request_id: requestId,
+    errors,
   };
 }
