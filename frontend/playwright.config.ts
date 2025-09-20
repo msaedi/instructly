@@ -16,7 +16,7 @@ const isCI = env.isCI();
  */
 export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
-  testDir: './e2e/tests',
+  testDir: './e2e',
   /* Run tests in files in parallel */
   fullyParallel: !isCI, // Disable parallel in CI
   /* Fail the build on CI if you accidentally left test.only in the source code. */
