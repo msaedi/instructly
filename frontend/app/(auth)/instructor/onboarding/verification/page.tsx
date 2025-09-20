@@ -129,7 +129,7 @@ export default function Step4Verification() {
       <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
@@ -138,17 +138,17 @@ export default function Step4Verification() {
             <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '284px' }}>
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
                 {/* Head */}
-                <circle cx="8" cy="4" r="2.5" stroke="#6A0DAD" strokeWidth="1.2" fill="none" />
+                <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
                 {/* Body */}
-                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#6A0DAD" strokeWidth="1.2" />
+                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
                 {/* Left arm */}
-                <line x1="8" y1="8" x2="5" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftArm" />
+                <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
                 {/* Right arm */}
-                <line x1="8" y1="8" x2="11" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightArm" />
+                <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
                 {/* Left leg */}
-                <line x1="8" y1="12" x2="6" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftLeg" />
+                <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
                 {/* Right leg */}
-                <line x1="8" y1="12" x2="10" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightLeg" />
+                <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
               </svg>
             </div>
 
@@ -228,7 +228,7 @@ export default function Step4Verification() {
           <div className="relative bg-white rounded-xl border-2 border-purple-200 p-6">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-[#6A0DAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
             </div>
@@ -254,7 +254,7 @@ export default function Step4Verification() {
               <button
                 onClick={startIdentity}
                 disabled={identityLoading}
-                className="mt-5 inline-flex items-center px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] disabled:opacity-50 transition-colors font-medium"
+                className="mt-5 inline-flex items-center px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 transition-colors font-medium"
               >
                 {identityLoading ? (
                   <>
@@ -277,7 +277,7 @@ export default function Step4Verification() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-[#6A0DAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
@@ -288,13 +288,13 @@ export default function Step4Verification() {
               <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-100">
                 <p className="text-sm text-purple-900 font-medium mb-2">Accepted providers:</p>
                 <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#6A0DAD] border border-purple-200">
+                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">
                     Checkr
                   </span>
-                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#6A0DAD] border border-purple-200">
+                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">
                     Sterling
                   </span>
-                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#6A0DAD] border border-purple-200">
+                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">
                     NYC DOE
                   </span>
                 </div>
@@ -307,7 +307,7 @@ export default function Step4Verification() {
               </div>
 
               <div className="mt-5">
-                <label className="inline-flex items-center px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#6A0DAD] font-medium hover:bg-purple-100 transition-colors cursor-pointer">
+                <label className="inline-flex items-center px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#7E22CE] font-medium hover:bg-purple-100 transition-colors cursor-pointer">
                   <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={onFileSelected} disabled={uploading} />
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -338,7 +338,7 @@ export default function Step4Verification() {
             }
             window.location.href = '/instructor/onboarding/payment-setup';
           }}
-          className="w-40 px-5 py-2.5 rounded-lg text-[#6A0DAD] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 justify-center"
+          className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
         >
           Skip for now
         </button>
@@ -350,7 +350,7 @@ export default function Step4Verification() {
             }
             window.location.href = '/instructor/onboarding/payment-setup';
           }}
-          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:!bg-[#6A0DAD] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
         >
           Continue
         </button>

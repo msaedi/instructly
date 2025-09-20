@@ -155,7 +155,7 @@ export default function UserProfileDropdown() {
                 ) : (
                   <>
                     <AlertCircle className="h-4 w-4 text-purple-600" />
-                    <span className="text-[#6A0DAD] font-medium">Finish Onboarding</span>
+                    <span className="text-[#7E22CE] font-medium">Finish Onboarding</span>
                   </>
                 )}
               </button>
@@ -184,7 +184,7 @@ export default function UserProfileDropdown() {
 
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#6A0DAD] hover:bg-purple-50 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#7E22CE] hover:bg-purple-50 transition-colors"
             >
               <LogOut className="h-4 w-4" />
               Sign Out

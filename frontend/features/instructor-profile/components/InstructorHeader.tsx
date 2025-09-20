@@ -133,7 +133,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                 size={224}
                 className="rounded-full ring-1 ring-gray-200 overflow-hidden"
                 fallbackBgColor="#F3E8FF"
-                fallbackTextColor="#6A0DAD"
+                fallbackTextColor="#7E22CE"
                 variant="display"
               />
             </div>
@@ -143,9 +143,9 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
               <div className="flex flex-col space-y-2">
               {/* Name with Heart Button */}
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl lg:text-3xl font-bold text-[#6A0DAD]" data-testid="instructor-profile-name">{displayName}</h1>
+                <h1 className="text-2xl lg:text-3xl font-bold text-[#7E22CE]" data-testid="instructor-profile-name">{displayName}</h1>
                 {instructor.is_verified && (
-                  <CheckCircle className="h-7 w-7 text-[#6A0DAD]" />
+                  <CheckCircle className="h-7 w-7 text-[#7E22CE]" />
                 )}
                 <div className="flex items-center gap-2">
                   <button
@@ -169,7 +169,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                     title={shareCopied ? 'Link copied' : 'Share profile'}
                     style={{ background: 'transparent', border: 'none' }}
                   >
-                    <Share2 className="h-5 w-5 text-[#6A0DAD]" />
+                    <Share2 className="h-5 w-5 text-[#7E22CE]" />
                   </button>
                   {favoriteCount > 0 && (
                     <span className="text-sm text-muted-foreground">

@@ -248,7 +248,7 @@ function Step3SkillsPricingInner() {
       <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
@@ -257,17 +257,17 @@ function Step3SkillsPricingInner() {
             <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '24px' }}>
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
                 {/* Head */}
-                <circle cx="8" cy="4" r="2.5" stroke="#6A0DAD" strokeWidth="1.2" fill="none" />
+                <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
                 {/* Body */}
-                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#6A0DAD" strokeWidth="1.2" />
+                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
                 {/* Left arm */}
-                <line x1="8" y1="8" x2="5" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftArm" />
+                <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
                 {/* Right arm */}
-                <line x1="8" y1="8" x2="11" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightArm" />
+                <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
                 {/* Left leg */}
-                <line x1="8" y1="12" x2="6" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftLeg" />
+                <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
                 {/* Right leg */}
-                <line x1="8" y1="12" x2="10" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightLeg" />
+                <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
               </svg>
             </div>
 
@@ -276,7 +276,7 @@ function Step3SkillsPricingInner() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/profile'}
-                  className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-[#6A0DAD] transition-colors cursor-pointer"
+                  className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-[#7E22CE] transition-colors cursor-pointer"
                   title="Step 1: Account Created - Click to edit profile"
                 >
                   <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -364,9 +364,9 @@ function Step3SkillsPricingInner() {
                   <button
                     key={svc.id}
                     onClick={() => toggleService(svc)}
-                    className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 whitespace-nowrap ${
+                    className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
                       selectedFlag
-                        ? 'bg-purple-100 text-[#6A0DAD] border border-purple-300'
+                        ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
@@ -395,7 +395,7 @@ function Step3SkillsPricingInner() {
                     <div className="text-lg font-medium text-gray-900">{s.name}</div>
                     <div className="flex items-center gap-3 mt-2">
                       <div className="flex items-center gap-1">
-                        <span className="text-2xl font-bold text-[#6A0DAD]">${s.hourly_rate || '0'}</span>
+                        <span className="text-2xl font-bold text-[#7E22CE]">${s.hourly_rate || '0'}</span>
                         <span className="text-sm text-gray-600">/hour</span>
                       </div>
                     </div>
@@ -422,7 +422,7 @@ function Step3SkillsPricingInner() {
                         min={1}
                         step="1"
                         inputMode="decimal"
-                        className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 focus:border-purple-500"
+                        className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
                         placeholder="75"
                         value={s.hourly_rate}
                         onChange={(e) =>
@@ -438,7 +438,7 @@ function Step3SkillsPricingInner() {
                   </div>
                   {s.hourly_rate && Number(s.hourly_rate) > 0 && (
                     <div className="mt-2 text-xs text-gray-600">
-                      You&apos;ll earn <span className="font-semibold text-[#6A0DAD]">${(Number(s.hourly_rate) * 0.85).toFixed(2)}</span> after the 15% platform fee
+                      You&apos;ll earn <span className="font-semibold text-[#7E22CE]">${(Number(s.hourly_rate) * 0.85).toFixed(2)}</span> after the 15% platform fee
                     </div>
                   )}
                 </div>
@@ -483,7 +483,7 @@ function Step3SkillsPricingInner() {
                             }}
                             className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                               isSelected
-                                ? 'bg-purple-100 text-[#6A0DAD] border border-purple-300'
+                                ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                             type="button"
@@ -527,7 +527,7 @@ function Step3SkillsPricingInner() {
                           }
                           className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                             s.location_types.includes(loc)
-                              ? 'bg-purple-100 text-[#6A0DAD] border border-purple-300'
+                              ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                           type="button"
@@ -561,7 +561,7 @@ function Step3SkillsPricingInner() {
                           }
                           className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                             s.levels_taught.includes(lvl)
-                              ? 'bg-purple-100 text-[#6A0DAD] border border-purple-300'
+                              ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                           type="button"
@@ -603,7 +603,7 @@ function Step3SkillsPricingInner() {
                           }
                           className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                             s.duration_options.includes(d)
-                              ? 'bg-purple-100 text-[#6A0DAD] border border-purple-300'
+                              ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                           type="button"
@@ -621,7 +621,7 @@ function Step3SkillsPricingInner() {
                     <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Description (Optional)</label>
                     <textarea
                       rows={2}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 focus:border-purple-500 bg-white"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white"
                       placeholder="Brief description of your teaching style..."
                       value={s.description || ''}
                       onChange={(e) =>
@@ -635,7 +635,7 @@ function Step3SkillsPricingInner() {
                     <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Equipment (Optional)</label>
                     <textarea
                       rows={2}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 focus:border-purple-500 bg-white"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white"
                       placeholder="Yoga mat, tennis racket..."
                       value={s.equipment || ''}
                       onChange={(e) =>
@@ -661,12 +661,12 @@ function Step3SkillsPricingInner() {
             value={requestText}
             onChange={(e) => setRequestText(e.target.value)}
             placeholder="Type your skill here..."
-            className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20"
+            className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20"
           />
           <button
             onClick={submitServiceRequest}
             disabled={!requestText.trim() || requestSubmitting}
-            className="px-4 py-2 rounded-lg text-white bg-[#6A0DAD] hover:!bg-[#6A0DAD] hover:!text-white disabled:opacity-50 shadow-sm"
+            className="px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm"
           >
             Submit request
           </button>
@@ -678,14 +678,14 @@ function Step3SkillsPricingInner() {
         <button
           type="button"
           onClick={() => { window.location.href = '/instructor/onboarding/verification'; }}
-          className="w-40 px-5 py-2.5 rounded-lg text-[#6A0DAD] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 justify-center"
+          className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
         >
           Skip for now
         </button>
         <button
           onClick={save}
           disabled={saving}
-          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:!bg-[#6A0DAD] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
         >
           {saving ? 'Saving...' : 'Save & Continue'}
         </button>

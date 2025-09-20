@@ -92,9 +92,9 @@ export default function ActionButtons({
           onClick={() => handleAction('apply-future', onApplyFuture)}
           disabled={otherDisabled}
           className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg
-                   hover:bg-[#6A0DAD] disabled:opacity-50 disabled:cursor-not-allowed
+                   hover:bg-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed
                    transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
-                   focus:ring-[#6A0DAD]"
+                   focus:ring-[#7E22CE]"
           aria-label="Apply current schedule to future weeks"
         >
           <CalendarDays className="w-4 h-4" />

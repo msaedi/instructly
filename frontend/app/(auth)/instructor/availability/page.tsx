@@ -133,7 +133,7 @@ export default function InstructorAvailabilityPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold text-[#6A0DAD]">Availability</h1>
+      <h1 className="text-2xl font-semibold text-[#7E22CE]">Availability</h1>
       <p className="text-gray-600 mt-1">Set the times you’re available to teach.</p>
       <p className="text-xs text-gray-500 mt-1">Last updated: <span className="font-mono">{lastUpdatedLocal || '—'}</span></p>
 
@@ -170,7 +170,7 @@ export default function InstructorAvailabilityPage() {
             toast.success('Availability saved');
             setLastUpdatedLocal(new Date().toLocaleString());
           }}
-          className={`px-4 py-2 rounded-md text-white ${hasUnsavedChanges ? 'bg-[#6A0DAD] hover:bg-[#6A0DAD]' : 'bg-gray-300 cursor-not-allowed'}`}
+          className={`px-4 py-2 rounded-md text-white ${hasUnsavedChanges ? 'bg-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-300 cursor-not-allowed'}`}
         >
           {isSaving ? 'Saving…' : hasUnsavedChanges ? 'Save changes' : 'Saved'}
         </button>
@@ -244,7 +244,7 @@ export default function InstructorAvailabilityPage() {
                 Cancel
               </button>
               <button
-                className="px-4 py-2 text-sm rounded-md bg-[#6A0DAD] text-white hover:bg-[#6A0DAD]"
+                className="px-4 py-2 text-sm rounded-md bg-[#7E22CE] text-white hover:bg-[#7E22CE]"
                 onClick={async () => {
                   setShowConflictModal(false);
                   await refreshSchedule();
@@ -265,7 +265,7 @@ export default function InstructorAvailabilityPage() {
             <button
               key={d.fullDate}
               onClick={() => setActiveDay(i)}
-              className={`px-3 py-2 rounded-full text-sm border ${i === activeDay ? 'bg-[#6A0DAD] text-white border-[#6A0DAD]' : 'bg-white text-gray-700 border-gray-300'}`}
+              className={`px-3 py-2 rounded-full text-sm border ${i === activeDay ? 'bg-[#7E22CE] text-white border-[#7E22CE]' : 'bg-white text-gray-700 border-gray-300'}`}
             >
               {d.date.toLocaleDateString('en-US', { weekday: 'short' })}
             </button>

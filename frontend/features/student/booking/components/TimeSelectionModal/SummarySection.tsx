@@ -96,7 +96,7 @@ export default function SummarySection({
             w-full py-2.5 px-4 rounded-lg font-medium transition-colors
             ${
               isComplete
-                ? 'bg-[#6A0DAD] text-white hover:bg-[#6A0DAD]'
+                ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }
           `}

@@ -269,7 +269,7 @@ export default function HomePage() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 data-testid="home-brand" className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">
+            <h1 data-testid="home-brand" className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
               iNSTAiNSTRU
             </h1>
           </Link>
@@ -285,7 +285,7 @@ export default function HomePage() {
                         : '/instructor/onboarding/status'
                   }
                   data-testid={hasRole(user, RoleName.STUDENT) ? 'nav-my-lessons' : undefined}
-                  className="text-gray-700 hover:text-[#6A0DAD] font-medium relative"
+                  className="text-gray-700 hover:text-[#7E22CE] font-medium relative"
                 >
                   {hasRole(user, RoleName.STUDENT)
                     ? 'My Lessons'
@@ -302,14 +302,14 @@ export default function HomePage() {
               <div className="flex items-center gap-4">
                 <Link
                   href={hideStudentUi ? '/instructor/join' : '/signup?role=instructor&redirect=%2Finstructor%2Fonboarding%2Fwelcome'}
-                  className="text-gray-700 hover:text-[#6A0DAD] font-medium"
+                  className="text-gray-700 hover:text-[#7E22CE] font-medium"
                 >
                   Become an Instructor
                 </Link>
                 {!hideStudentUi && (
                   <Link
                     href="/login"
-                    className="px-4 py-2 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#6A0DAD] transition-colors font-medium"
+                    className="px-4 py-2 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] transition-colors font-medium"
                   >
                     Sign up / Log in
                   </Link>
@@ -369,7 +369,7 @@ export default function HomePage() {
           <h1 data-testid="home-hero-title" className="text-5xl font-bold mb-8" suppressHydrationWarning aria-label="Instant Learning with iNSTAiNSTRU">
             <div className="leading-tight">
               {isClient && isAuthenticated ? (
-                <span className="text-[#6A0DAD]">Your Next Lesson Awaits</span>
+                <span className="text-[#7E22CE]">Your Next Lesson Awaits</span>
               ) : (
                 <span className="text-gray-900 dark:text-gray-100">Instant learning with</span>
               )}
@@ -380,7 +380,7 @@ export default function HomePage() {
           {!hideStudentUi && (
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
             <div
-              className="relative border border-[#E5E5E5] dark:border-gray-600 rounded-full focus-within:border-[#6A0DAD] dark:focus-within:border-purple-400 bg-white dark:bg-gray-700 overflow-hidden"
+              className="relative border border-[#E5E5E5] dark:border-gray-600 rounded-full focus-within:border-[#7E22CE] dark:focus-within:border-purple-400 bg-white dark:bg-gray-700 overflow-hidden"
               style={{ width: '720px', height: '64px', margin: '0 auto' }}
             >
               <input
@@ -612,7 +612,7 @@ export default function HomePage() {
               </h2>
               <div className="grid grid-cols-3 gap-8">
                 <div className="text-center">
-                  <div className="text-5xl font-bold text-[#6A0DAD] dark:text-purple-400 mb-4">1</div>
+                  <div className="text-5xl font-bold text-[#7E22CE] dark:text-purple-400 mb-4">1</div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
                     Choose a skill
                   </h3>
@@ -621,14 +621,14 @@ export default function HomePage() {
                   </p>
                 </div>
                 <div className="text-center">
-                  <div className="text-5xl font-bold text-[#6A0DAD] dark:text-purple-400 mb-4">2</div>
+                  <div className="text-5xl font-bold text-[#7E22CE] dark:text-purple-400 mb-4">2</div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
                     Schedule an instructor
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400">Pick a time that works for you</p>
                 </div>
                 <div className="text-center">
-                  <div className="text-5xl font-bold text-[#6A0DAD] dark:text-purple-400 mb-4">3</div>
+                  <div className="text-5xl font-bold text-[#7E22CE] dark:text-purple-400 mb-4">3</div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Learn</h3>
                   <p className="text-gray-600 dark:text-gray-400">Meet in-person and level up</p>
                 </div>
@@ -678,7 +678,7 @@ export default function HomePage() {
                       <Clock className="h-4 w-4 mr-1" />
                       <span>Next: {instructor.nextAvailable}</span>
                     </div>
-                    <button className="mt-3 w-full bg-[#6A0DAD] hover:!bg-[#6A0DAD] text-white hover:!text-white py-2 rounded-lg transition-colors duration-200 font-medium">
+                    <button className="mt-3 w-full bg-[#7E22CE] hover:!bg-[#7E22CE] text-white hover:!text-white py-2 rounded-lg transition-colors duration-200 font-medium">
                       Book Now
                     </button>
                   </div>
@@ -686,7 +686,7 @@ export default function HomePage() {
               </div>
               <Link
                 href="/search?available_now=true"
-                className="text-[#6A0DAD] dark:text-purple-400 hover:underline mt-4 inline-block"
+                className="text-[#7E22CE] dark:text-purple-400 hover:underline mt-4 inline-block"
               >
                 View All Available →
               </Link>
@@ -719,7 +719,7 @@ export default function HomePage() {
               </div>
               <Link
                 href="/trending"
-                className="text-[#6A0DAD] dark:text-purple-400 hover:underline mt-4 inline-block"
+                className="text-[#7E22CE] dark:text-purple-400 hover:underline mt-4 inline-block"
               >
                 Explore Trending →
               </Link>
@@ -773,14 +773,14 @@ export default function HomePage() {
               <p className="text-gray-600 dark:text-gray-400 text-sm">Book in under 30 seconds</p>
             </div>
             <div className="text-center">
-              <DollarSign className="h-12 w-12 text-[#6A0DAD] dark:text-purple-400 mx-auto mb-4" />
+              <DollarSign className="h-12 w-12 text-[#7E22CE] dark:text-purple-400 mx-auto mb-4" />
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Fair pricing</h3>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
                 No hidden fees or surprises
               </p>
             </div>
             <div className="text-center">
-              <Shield className="h-12 w-12 text-[#6A0DAD] dark:text-purple-400 mx-auto mb-4" />
+              <Shield className="h-12 w-12 text-[#7E22CE] dark:text-purple-400 mx-auto mb-4" />
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
                 Secure payment
               </h3>
@@ -800,7 +800,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/categories"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     All Categories
                   </Link>
@@ -808,7 +808,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/how-it-works"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     How it Works
                   </Link>
@@ -816,7 +816,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/areas"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     NYC Areas
                   </Link>
@@ -829,7 +829,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/help"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     Help Center
                   </Link>
@@ -837,7 +837,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/trust-safety"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     Trust & Safety
                   </Link>
@@ -845,7 +845,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/contact"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     Contact Us
                   </Link>
@@ -858,7 +858,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/about"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     About Us
                   </Link>
@@ -866,7 +866,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/careers"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     Careers
                   </Link>
@@ -874,7 +874,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/press"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     Press
                   </Link>
@@ -882,7 +882,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/terms"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     Terms
                   </Link>
@@ -890,7 +890,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/privacy"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#6A0DAD] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
                     Privacy
                   </Link>
@@ -916,19 +916,19 @@ export default function HomePage() {
             <div className="flex space-x-4">
               <Link
                 href="#"
-                className="text-[#6A0DAD] dark:text-purple-400 hover:text-[#6A0DAD] dark:hover:text-purple-300"
+                className="text-[#7E22CE] dark:text-purple-400 hover:text-[#7E22CE] dark:hover:text-purple-300"
               >
                 Facebook
               </Link>
               <Link
                 href="#"
-                className="text-[#6A0DAD] dark:text-purple-400 hover:text-[#6A0DAD] dark:hover:text-purple-300"
+                className="text-[#7E22CE] dark:text-purple-400 hover:text-[#7E22CE] dark:hover:text-purple-300"
               >
                 Twitter
               </Link>
               <Link
                 href="#"
-                className="text-[#6A0DAD] dark:text-purple-400 hover:text-[#6A0DAD] dark:hover:text-purple-300"
+                className="text-[#7E22CE] dark:text-purple-400 hover:text-[#7E22CE] dark:hover:text-purple-300"
               >
                 Instagram
               </Link>

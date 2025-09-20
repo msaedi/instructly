@@ -543,7 +543,7 @@ function SearchPageContent() {
       <header ref={headerRef} className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-4 py-2 md:px-6 md:py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 className="text-2xl md:text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-2 md:pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-2 md:pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-2 md:pr-4">
             <UserProfileDropdown />
@@ -610,17 +610,17 @@ function SearchPageContent() {
 
             {loading ? (
               <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#6A0DAD]"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#7E22CE]"></div>
               </div>
             ) : error ? (
               <div className="text-center py-12">
                 <p className="text-red-600">{error}</p>
-                <Link href="/" className="text-[#6A0DAD] hover:underline mt-4 inline-block">Return to Home</Link>
+                <Link href="/" className="text-[#7E22CE] hover:underline mt-4 inline-block">Return to Home</Link>
               </div>
             ) : filteredInstructors.length === 0 ? (
               <div className="text-center py-12" data-testid="no-results">
                 <p className="text-gray-600 text-lg mb-4">No instructors found matching your search.</p>
-                <Link href="/" className="text-[#6A0DAD] hover:underline">Try a different search</Link>
+                <Link href="/" className="text-[#7E22CE] hover:underline">Try a different search</Link>
               </div>
             ) : (
               <>
@@ -670,7 +670,7 @@ function SearchPageContent() {
                   <div ref={loadMoreRef} className="mt-4 md:mt-8 flex justify-center py-4">
                     {loadingMore && (
                       <div className="flex items-center gap-2">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#6A0DAD]"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE]"></div>
                         <span className="text-gray-600">Loading more instructors...</span>
                       </div>
                     )}

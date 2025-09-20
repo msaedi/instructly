@@ -124,7 +124,7 @@ function SummarySection(props: { selectedDate: string | null; selectedTime: stri
         <button
           onClick={onContinue}
           disabled={!isComplete}
-          className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors ${isComplete ? 'bg-[#6A0DAD] text-white hover:bg-[#6A0DAD]' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+          className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors ${isComplete ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
         >
           Select and continue
         </button>
@@ -508,7 +508,7 @@ export default function RescheduleTimeSelectionModal({
                     onClose();
                     onOpenChat();
                   }}
-                  className="flex-1 py-2 px-4 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#6A0DAD] transition-colors"
+                  className="flex-1 py-2 px-4 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] transition-colors"
                 >
                   Chat with Instructor
                 </button>
@@ -575,7 +575,7 @@ export default function RescheduleTimeSelectionModal({
           <div className="flex-1 overflow-y-auto px-4 pb-20">
             {loadingAvailability ? (
               <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#6A0DAD]"></div>
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE]"></div>
                 <p className="mt-2 text-gray-600">Loading availability...</p>
               </div>
             ) : (
@@ -622,7 +622,7 @@ export default function RescheduleTimeSelectionModal({
                       onOpenChat();
                     }
                   }}
-                  className="text-[#6A0DAD] hover:underline"
+                  className="text-[#7E22CE] hover:underline"
                 >
                   Chat to reschedule
                 </button>
@@ -632,7 +632,7 @@ export default function RescheduleTimeSelectionModal({
                 disabled={!selectedDate || !selectedTime}
                 className={`w-full py-3 rounded-lg font-medium transition-colors ${
                   selectedDate && selectedTime
-                    ? 'bg-[#6A0DAD] text-white hover:bg-[#6A0DAD]'
+                    ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}
               >
@@ -715,7 +715,7 @@ export default function RescheduleTimeSelectionModal({
             <div className="flex-1 overflow-y-auto px-8 pb-8">
               {loadingAvailability ? (
                 <div className="text-center py-8">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#6A0DAD]"></div>
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE]"></div>
                   <p className="mt-2 text-gray-600">Loading availability...</p>
                 </div>
               ) : (
@@ -781,7 +781,7 @@ export default function RescheduleTimeSelectionModal({
                       onOpenChat();
                     }
                   }}
-                  className="text-[#6A0DAD] hover:underline"
+                  className="text-[#7E22CE] hover:underline"
                 >
                   Chat to reschedule
                 </button>

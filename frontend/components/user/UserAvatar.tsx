@@ -18,13 +18,14 @@ export function UserAvatar({ user, size = 40, className, variant = 'thumb', fall
   const [url, setUrl] = useState<string | null>(null);
   const initials = useMemo(() => getUserInitials(user), [user]);
   // Use brand purple for fallback background
-  const bgColor = fallbackBgColor ?? '#6A0DAD';
+  const bgColor = fallbackBgColor ?? '#7E22CE';
   const textColor = fallbackTextColor ?? '#ffffff';
 
   useEffect(() => {
     let mounted = true;
     async function load() {
-      if (!user?.id || !user.has_profile_picture) {
+      // If no user id, cannot load. If has_profile_picture is explicitly false, skip.
+      if (!user?.id || user.has_profile_picture === false) {
         setUrl(null);
         return;
       }

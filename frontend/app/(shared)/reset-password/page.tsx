@@ -68,16 +68,16 @@ function ResetPasswordForm() {
 
   const handleGoToLogin = () => { router.push('/login'); };
   const isLoading = requestStatus === RequestStatus.LOADING;
-  if (isVerifying) return (<div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6A0DAD]" role="status" aria-label="Verifying reset link"></div></div>);
+  if (isVerifying) return (<div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7E22CE]" role="status" aria-label="Verifying reset link"></div></div>);
   if (!token || !tokenValid) return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link href="/" className="flex justify-center mb-6"><h1 className="text-4xl font-bold text-[#6A0DAD] dark:text-purple-400">{BRAND.name}</h1></Link>
+        <Link href="/" className="flex justify-center mb-6"><h1 className="text-4xl font-bold text-[#7E22CE] dark:text-purple-400">{BRAND.name}</h1></Link>
         <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10 text-center">
           <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/20 mb-4"><XCircle className="h-6 w-6 text-red-600 dark:text-red-400" aria-hidden="true" /></div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Invalid Reset Link</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">{error || 'This password reset link is invalid or has expired.'}</p>
-          <Link href="/forgot-password" className="text-[#6A0DAD] hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 font-medium">Request a new reset link</Link>
+          <Link href="/forgot-password" className="text-[#7E22CE] hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 font-medium">Request a new reset link</Link>
         </div>
       </div>
     </div>
@@ -85,12 +85,12 @@ function ResetPasswordForm() {
   if (isSuccess) return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link href="/" className="flex justify-center mb-6"><h1 className="text-4xl font-bold text-[#6A0DAD] dark:text-purple-400">{BRAND.name}</h1></Link>
+        <Link href="/" className="flex justify-center mb-6"><h1 className="text-4xl font-bold text-[#7E22CE] dark:text-purple-400">{BRAND.name}</h1></Link>
         <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10 text-center">
           <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 mb-4"><CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" aria-hidden="true" /></div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Password Reset Successful</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Your password has been successfully reset. You can now log in with your new password.</p>
-          <button onClick={handleGoToLogin} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6A0DAD] dark:ring-offset-gray-800">Go to Login</button>
+          <button onClick={handleGoToLogin} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] dark:ring-offset-gray-800">Go to Login</button>
         </div>
       </div>
     </div>
@@ -98,7 +98,7 @@ function ResetPasswordForm() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link href="/" className="flex justify-center mb-6"><h1 className="text-4xl font-bold text-[#6A0DAD] dark:text-purple-400">iNSTAiNSTRU</h1></Link>
+        <Link href="/" className="flex justify-center mb-6"><h1 className="text-4xl font-bold text-[#7E22CE] dark:text-purple-400">iNSTAiNSTRU</h1></Link>
         <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">Reset your password</h2>
       </div>
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -108,7 +108,7 @@ function ResetPasswordForm() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">New Password</label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock className="h-5 w-5 text-gray-400" aria-hidden="true" /></div>
-                <input id="password" name="password" type={showPassword ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed" placeholder="Enter new password" aria-describedby="password-requirements" />
+                <input id="password" name="password" type={showPassword ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed" placeholder="Enter new password" aria-describedby="password-requirements" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center" aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? (<EyeOff className="h-5 w-5 text-gray-400" />) : (<Eye className="h-5 w-5 text-gray-400" />)}</button>
               </div>
             </div>
@@ -116,7 +116,7 @@ function ResetPasswordForm() {
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm New Password</label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock className="h-5 w-5 text-gray-400" aria-hidden="true" /></div>
-                <input id="confirmPassword" name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isLoading} className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed" placeholder="Confirm new password" />
+                <input id="confirmPassword" name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isLoading} className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed" placeholder="Confirm new password" />
                 <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center" aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}>{showConfirmPassword ? (<EyeOff className="h-5 w-5 text-gray-400" />) : (<Eye className="h-5 w-5 text-gray-400" />)}</button>
               </div>
             </div>
@@ -141,7 +141,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6A0DAD]" role="status" aria-label="Loading"></div></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7E22CE]" role="status" aria-label="Loading"></div></div>}>
       <ResetPasswordForm />
     </Suspense>
   );

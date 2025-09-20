@@ -250,7 +250,7 @@ function StudentDashboardContent() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6A0DAD]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7E22CE]"></div>
       </div>
     );
   }
@@ -278,14 +278,14 @@ function StudentDashboardContent() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
               iNSTAiNSTRU
             </h1>
           </Link>
           <div className="flex items-center gap-4 pr-4">
             <Link
               href="/student/lessons"
-              className="text-gray-700 hover:text-[#6A0DAD] font-medium"
+              className="text-gray-700 hover:text-[#7E22CE] font-medium"
             >
               My Lessons
             </Link>
@@ -358,7 +358,7 @@ function StudentDashboardContent() {
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-gray-900">Account Information</h3>
                       <button
-                        className="text-sm font-medium text-[#6A0DAD] hover:text-[#6A0DAD] cursor-pointer"
+                        className="text-sm font-medium text-[#7E22CE] hover:text-[#7E22CE] cursor-pointer"
                         onClick={() => {
                           logger.debug('Edit profile clicked');
                           setShowEditProfile(true);
@@ -399,7 +399,7 @@ function StudentDashboardContent() {
                         )}
                       </div>
                       <div className="space-y-1.5 text-sm text-gray-700">
-                        <p className="text-2xl font-bold text-[#6A0DAD]">{userData?.first_name} {userData?.last_name}</p>
+                        <p className="text-2xl font-bold text-[#7E22CE]">{userData?.first_name} {userData?.last_name}</p>
                         <p>{userData?.email}</p>
                         <p>{formatPhoneReadable(userData?.phone)}</p>
                         <p>
@@ -409,7 +409,7 @@ function StudentDashboardContent() {
                             return info ? `${info.city}, ${info.state}, ${z}` : z || '—';
                           })()}
                         </p>
-                        <p className="text-[#6A0DAD]/90">
+                        <p className="text-[#7E22CE]/90">
                           Member since: {memberSince ? memberSince.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—'}
                         </p>
                       </div>
@@ -423,7 +423,7 @@ function StudentDashboardContent() {
                       <h3 className="text-lg font-semibold text-gray-900">Achievements & Badges</h3>
                       <button
                         onClick={() => setShowAchievementsModal(true)}
-                        className="text-sm font-medium text-[#6A0DAD] hover:text-[#6A0DAD] cursor-pointer"
+                        className="text-sm font-medium text-[#7E22CE] hover:text-[#7E22CE] cursor-pointer"
                       >
                         Explore
                       </button>
@@ -441,7 +441,7 @@ function StudentDashboardContent() {
 
                         {/* Tooltip */}
                         <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                          <div className="bg-white text-[#6A0DAD] text-xs rounded-lg py-2 px-3 whitespace-nowrap border border-purple-200 shadow-lg">
+                          <div className="bg-white text-[#7E22CE] text-xs rounded-lg py-2 px-3 whitespace-nowrap border border-purple-200 shadow-lg">
                             5 Lessons – Completed your first 5 lessons!
                             <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-px">
                               <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
@@ -461,7 +461,7 @@ function StudentDashboardContent() {
 
                         {/* Tooltip */}
                         <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                          <div className="bg-white text-[#6A0DAD] text-xs rounded-lg py-2 px-3 whitespace-nowrap border border-purple-200 shadow-lg">
+                          <div className="bg-white text-[#7E22CE] text-xs rounded-lg py-2 px-3 whitespace-nowrap border border-purple-200 shadow-lg">
                             Quick Learner – Finished 3 lessons in the first week.
                             <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-px">
                               <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
@@ -481,7 +481,7 @@ function StudentDashboardContent() {
 
                         {/* Tooltip */}
                         <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                          <div className="bg-white text-[#6A0DAD] text-xs rounded-lg py-2 px-3 whitespace-nowrap border border-purple-200 shadow-lg">
+                          <div className="bg-white text-[#7E22CE] text-xs rounded-lg py-2 px-3 whitespace-nowrap border border-purple-200 shadow-lg">
                             Top Student – Rated 5 stars by 3 instructors.
                             <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-px">
                               <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
@@ -498,7 +498,7 @@ function StudentDashboardContent() {
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-lg font-semibold text-gray-900">Addresses</h3>
                       <button
-                        className="text-sm font-medium text-[#6A0DAD] hover:text-[#6A0DAD] cursor-pointer"
+                        className="text-sm font-medium text-[#7E22CE] hover:text-[#7E22CE] cursor-pointer"
                         onClick={() => setShowAddressModal({ mode: 'create' })}
                       >
                         + Add
@@ -521,7 +521,7 @@ function StudentDashboardContent() {
                           </p>
                           <div className="mt-2 flex gap-3 text-sm">
                             <button
-                              className="text-[#6A0DAD] hover:text-[#6A0DAD]"
+                              className="text-[#7E22CE] hover:text-[#7E22CE]"
                               onClick={() => setShowAddressModal({ mode: 'edit', address: a })}
                             >
                               Edit
@@ -540,7 +540,7 @@ function StudentDashboardContent() {
                                     <p class="mt-2 text-sm text-gray-600">Are you sure you want to remove this saved address?</p>
                                     <div class="mt-5 flex justify-end gap-3">
                                       <button id="cancelBtn" class="rounded-md border border-gray-200 px-4 py-2 text-sm">Cancel</button>
-                                      <button id="confirmBtn" class="rounded-md bg-[#6A0DAD] px-4 py-2 text-sm text-white hover:bg-[#6A0DAD]">Remove</button>
+                                      <button id="confirmBtn" class="rounded-md bg-[#7E22CE] px-4 py-2 text-sm text-white hover:bg-[#7E22CE]">Remove</button>
                                     </div>
                                   `;
                                   overlay.appendChild(modal);
@@ -685,7 +685,7 @@ function StudentDashboardContent() {
                         value={referralEmails}
                       />
                       <button
-                        className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-[#6A0DAD] px-4 text-sm font-medium text-white hover:bg-[#6A0DAD] cursor-pointer"
+                        className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-[#7E22CE] px-4 text-sm font-medium text-white hover:bg-[#7E22CE] cursor-pointer"
                         onClick={async () => {
                           const emails = referralEmails
                             .split(/[\s,;]+/)
@@ -757,11 +757,11 @@ function StudentDashboardContent() {
                     <div className="mt-3 flex items-center gap-3">
                       <input
                         readOnly
-                        className="h-10 w-full rounded-md appearance-none shadow-none ring-1 ring-gray-300/70 border-0 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#6A0DAD]/25 focus:border-0"
+                        className="h-10 w-full rounded-md appearance-none shadow-none ring-1 ring-gray-300/70 border-0 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-0"
                         value={`https://instainstru.com/ref/${(userData?.first_name || 'USER').toUpperCase().slice(0, 3)}${(userData?.id || '').slice(-3)}`}
                       />
                       <button
-                        className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-[#6A0DAD] px-4 text-sm font-medium text-white hover:bg-[#6A0DAD] cursor-pointer"
+                        className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-[#7E22CE] px-4 text-sm font-medium text-white hover:bg-[#7E22CE] cursor-pointer"
                         onClick={() => {
                           const link = `https://instainstru.com/ref/${(userData?.first_name || 'USER').toUpperCase().slice(0, 3)}${(userData?.id || '').slice(-3)}`;
                           void navigator.clipboard.writeText(link);
@@ -773,7 +773,7 @@ function StudentDashboardContent() {
                       </button>
                     </div>
                     {referralStatus && (
-                      <p className="mt-2 text-sm text-[#6A0DAD] font-medium">{referralStatus}</p>
+                      <p className="mt-2 text-sm text-[#7E22CE] font-medium">{referralStatus}</p>
                     )}
                   </div>
 
@@ -783,7 +783,7 @@ function StudentDashboardContent() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Account Management</h3>
                     <div className="flex flex-wrap gap-3">
                       <button
-                        className="py-2.5 px-4 rounded-lg text-sm font-medium bg-white border border-[#6A0DAD] text-[#6A0DAD] hover:bg-purple-50 transition-colors cursor-pointer"
+                        className="py-2.5 px-4 rounded-lg text-sm font-medium bg-white border border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50 transition-colors cursor-pointer"
                         onClick={() => setShowDelete(true)}
                       >
                         Delete Account
@@ -815,7 +815,7 @@ function StudentDashboardContent() {
                   {!isLoadingFavorites && !favoritesError && (favoritesData?.favorites?.length || 0) === 0 && (
                     <div className="rounded-xl border border-gray-200 p-6 text-sm text-gray-700 flex items-center justify-between">
                       <div>No favorite instructors yet.</div>
-                      <Link href="/" className="rounded-lg bg-[#6A0DAD] px-4 py-2.5 text-white text-sm font-medium hover:bg-[#6A0DAD] transition-all">Find More Instructors</Link>
+                      <Link href="/" className="rounded-lg bg-[#7E22CE] px-4 py-2.5 text-white text-sm font-medium hover:bg-[#7E22CE] transition-all">Find More Instructors</Link>
                     </div>
                   )}
 
@@ -1242,7 +1242,7 @@ function NotificationsTab() {
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/25 focus:border-purple-500 min-w-[120px] text-left"
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500 min-w-[120px] text-left"
         >
           {displayHour}:{minute} {period}
         </button>
@@ -1264,7 +1264,7 @@ function NotificationsTab() {
                         key={h}
                         onClick={() => handleTimeChange(h, minute, period)}
                         className={`w-full px-2 py-1 text-sm hover:bg-purple-50 ${
-                          displayHour === h ? 'bg-purple-100 text-[#6A0DAD] font-medium' : ''
+                          displayHour === h ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
                         }`}
                       >
                         {h}
@@ -1282,7 +1282,7 @@ function NotificationsTab() {
                         key={m}
                         onClick={() => handleTimeChange(displayHour, m, period)}
                         className={`w-full px-2 py-1 text-sm hover:bg-purple-50 ${
-                          minute === m ? 'bg-purple-100 text-[#6A0DAD] font-medium' : ''
+                          minute === m ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
                         }`}
                       >
                         {m}
@@ -1298,7 +1298,7 @@ function NotificationsTab() {
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'AM')}
                       className={`w-full px-2 py-2 text-sm hover:bg-purple-50 ${
-                        period === 'AM' ? 'bg-purple-100 text-[#6A0DAD] font-medium' : ''
+                        period === 'AM' ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
                       }`}
                     >
                       AM
@@ -1306,7 +1306,7 @@ function NotificationsTab() {
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'PM')}
                       className={`w-full px-2 py-2 text-sm hover:bg-purple-50 border-t border-gray-200 ${
-                        period === 'PM' ? 'bg-purple-100 text-[#6A0DAD] font-medium' : ''
+                        period === 'PM' ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
                       }`}
                     >
                       PM
@@ -1486,7 +1486,7 @@ function NotificationsTab() {
             <select
               value={reminderTiming}
               onChange={(e) => setReminderTiming(e.target.value)}
-              className="appearance-none rounded-lg border border-purple-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 shadow-sm hover:border-purple-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#6A0DAD] focus:border-purple-500 transition-all cursor-pointer"
+              className="appearance-none rounded-lg border border-purple-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 shadow-sm hover:border-purple-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-purple-500 transition-all cursor-pointer"
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239333ea' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
                 backgroundPosition: 'right 0.5rem center',
@@ -1547,7 +1547,7 @@ function NotificationsTab() {
           className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
             saving
               ? 'bg-purple-400 cursor-not-allowed'
-              : 'bg-[#6A0DAD] hover:bg-[#6A0DAD]'
+              : 'bg-[#7E22CE] hover:bg-[#7E22CE]'
           }`}
           onClick={handleSave}
           disabled={saving}
@@ -1673,7 +1673,7 @@ function TfaModal({ onClose, onChanged }: { onClose: () => void; onChanged: () =
             </div>
             <div className="flex justify-end gap-3">
               <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors" onClick={onClose}>Close</button>
-              <button className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-purple-300' : 'bg-[#6A0DAD] hover:bg-[#6A0DAD] active:bg-purple-900'}`} onClick={verify} disabled={loading}>
+              <button className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-[#7E22CE] active:bg-purple-900'}`} onClick={verify} disabled={loading}>
                 {loading ? 'Verifying…' : 'Verify & Enable'}
               </button>
             </div>
@@ -1949,7 +1949,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
         </div>
         <div className="mt-5 flex justify-end gap-3">
           <button className="rounded-md border border-gray-200 px-4 py-2 text-sm" onClick={onClose} disabled={loading}>Cancel</button>
-          <button className={`rounded-md px-4 py-2 text-sm text-white ${loading ? 'bg-purple-300' : 'bg-[#6A0DAD] hover:bg-[#6A0DAD]'}`} onClick={save} disabled={loading}>
+          <button className={`rounded-md px-4 py-2 text-sm text-white ${loading ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-[#7E22CE]'}`} onClick={save} disabled={loading}>
             {loading ? 'Saving…' : 'Save'}
           </button>
         </div>
@@ -2047,7 +2047,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
         <div className="mt-5 flex justify-end gap-3">
           <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
           <button
-            className={`rounded-lg px-4 py-2 text-sm font-medium border ${canSubmit ? 'bg-white border-[#6A0DAD] text-[#6A0DAD] hover:bg-purple-50' : 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed'}`}
+            className={`rounded-lg px-4 py-2 text-sm font-medium border ${canSubmit ? 'bg-white border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50' : 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed'}`}
             disabled={!canSubmit}
             onClick={handleSubmit}
           >
@@ -2160,7 +2160,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               }}
               onFocus={() => logger.debug('First name input focused')}
               placeholder="Enter first name"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/25 focus:border-purple-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
             />
             <p className="text-xs text-gray-500 mt-1">Current value: {firstName || '(empty)'}</p>
           </div>
@@ -2171,7 +2171,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/25 focus:border-purple-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
             />
           </div>
 
@@ -2182,7 +2182,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="(555) 123-4567"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/25 focus:border-purple-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
             />
           </div>
 
@@ -2194,7 +2194,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               onChange={(e) => setZipCode(e.target.value)}
               placeholder="10001"
               maxLength={5}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/25 focus:border-purple-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
             />
           </div>
 
@@ -2213,7 +2213,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
             className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
               loading
                 ? 'bg-purple-400 cursor-not-allowed'
-                : 'bg-[#6A0DAD] hover:bg-[#6A0DAD]'
+                : 'bg-[#7E22CE] hover:bg-[#7E22CE]'
             }`}
             onClick={handleSubmit}
             disabled={loading}
@@ -2309,7 +2309,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         <div className="mt-5 flex justify-end gap-3">
           <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
           <button
-            className={`rounded-md px-4 py-2 text-sm text-white ${canSubmit ? 'bg-[#6A0DAD] hover:bg-[#6A0DAD]' : 'bg-purple-300 cursor-not-allowed'}`}
+            className={`rounded-md px-4 py-2 text-sm text-white ${canSubmit ? 'bg-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-purple-300 cursor-not-allowed'}`}
             disabled={!canSubmit}
             onClick={handleSubmit}
           >

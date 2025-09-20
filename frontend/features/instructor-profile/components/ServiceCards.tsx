@@ -93,7 +93,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
                         value={dur}
                         checked={selectedDuration === dur}
                         onChange={() => setSelectedDuration(dur)}
-                        className="w-3 h-3 text-[#6A0DAD] accent-purple-700 border-gray-300 focus:ring-[#6A0DAD]"
+                        className="w-3 h-3 text-[#7E22CE] accent-purple-700 border-gray-300 focus:ring-[#7E22CE]"
                       />
                       <span className="ml-1 text-xs text-gray-700 whitespace-nowrap">
                         {dur}min
@@ -117,7 +117,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
             <button
               className={`py-1.5 px-4 rounded-lg font-medium transition-colors ${
                 canBook
-                  ? 'bg-[#6A0DAD] text-white hover:bg-[#6A0DAD] cursor-pointer'
+                  ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE] cursor-pointer'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
               disabled={!canBook}

@@ -185,8 +185,8 @@ export default function ApplyToFutureWeeksModal({
           </button>
           <button
             onClick={handleConfirm}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-[#6A0DAD]
-                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6A0DAD]
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-[#7E22CE]
+                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]
                      transition-colors flex items-center gap-2"
           >
             <Calendar className="w-4 h-4" />

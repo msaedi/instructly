@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Star, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Star, ArrowLeft, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { reviewsApi, ReviewItem, ReviewListPageResponse } from '@/services/api/reviews';
 import { formatDistanceToNow } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select';
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -35,14 +39,7 @@ export default function InstructorAllReviewsPage() {
   const [minRating, setMinRating] = useState<number | undefined>(undefined);
   const [withText, setWithText] = useState<boolean>(false);
 
-  const ratingOptions = useMemo(() => [
-    { label: 'All ratings', value: undefined },
-    { label: '5 stars', value: 5 },
-    { label: '4 stars & up', value: 4 },
-    { label: '3 stars & up', value: 3 },
-    { label: '2 stars & up', value: 2 },
-    { label: '1 star & up', value: 1 },
-  ], []);
+  // Use explicit options inline for consistency with shared Select styles
 
   useEffect(() => {
     let mounted = true;
@@ -87,63 +84,81 @@ export default function InstructorAllReviewsPage() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
-            <button
+            <Link className="inline-block" href="/">
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            </Link>
+            <Button
+              variant="ghost"
               onClick={() => router.push(`/instructors/${instructorId}`)}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 cursor-pointer"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Profile
-            </button>
+            </Button>
+          </div>
+          <div className="pr-4">
+            <UserProfileDropdown />
           </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-6 max-w-4xl">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-semibold text-gray-700">All Reviews</h1>
-          <div className="text-sm text-muted-foreground">{total} total</div>
+        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-semibold text-gray-700">All Reviews</h1>
+            <div className="text-sm text-muted-foreground">{total} total</div>
+          </div>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          <label className="text-sm text-gray-700">
-            Min rating
-            <select
-              className="ml-2 border rounded px-2 py-1 text-sm"
-              value={minRating ?? ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setPage(1);
-                setMinRating(v === '' ? undefined : Number(v));
-              }}
-            >
-              {ratingOptions.map((o) => (
-                <option key={String(o.value)} value={o.value ?? ''}>{o.label}</option>
-              ))}
-            </select>
-          </label>
+        <div className="bg-white rounded-lg p-4 border border-gray-200 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Min rating */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Min rating</label>
+              <Select
+                value={minRating !== undefined ? String(minRating) : 'all'}
+                onValueChange={(v) => { setPage(1); setMinRating(v === 'all' ? undefined : Number(v)); }}
+              >
+                <SelectTrigger />
+                <SelectContent>
+                  <SelectItem value="all">All ratings</SelectItem>
+                  <SelectItem value="5">5 stars</SelectItem>
+                  <SelectItem value="4">4 stars & up</SelectItem>
+                  <SelectItem value="3">3 stars & up</SelectItem>
+                  <SelectItem value="2">2 stars & up</SelectItem>
+                  <SelectItem value="1">1 star & up</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={withText}
-              onChange={(e) => { setWithText(e.target.checked); setPage(1); }}
-            />
-            With comments only
-          </label>
+            {/* With comments only */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Text filter</label>
+              <button
+                type="button"
+                aria-pressed={withText}
+                onClick={() => { setWithText((v) => !v); setPage(1); }}
+                className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${withText ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 bg-white text-gray-700'} hover:bg-gray-50`}
+              >
+                {withText ? <Check className="h-4 w-4" /> : <span className="h-4 w-4 inline-block border border-gray-300 rounded-sm" />}
+                With comments only
+              </button>
+            </div>
 
-          <label className="text-sm text-gray-700">
-            Per page
-            <select
-              className="ml-2 border rounded px-2 py-1 text-sm"
-              value={perPage}
-              onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
-            >
-              {[12, 24, 36].map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </label>
+            {/* Per page */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Per page</label>
+              <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); }}>
+                <SelectTrigger />
+                <SelectContent>
+                  <SelectItem value="12">12</SelectItem>
+                  <SelectItem value="24">24</SelectItem>
+                  <SelectItem value="36">36</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
 
         {loading && (

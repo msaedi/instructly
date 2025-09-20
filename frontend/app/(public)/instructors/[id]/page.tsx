@@ -411,15 +411,15 @@ function InstructorProfileContent() {
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link className="inline-block" href="/">
-              <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <Button
               variant="ghost"
-              onClick={() => router.back()}
+              onClick={() => router.push('/instructor/dashboard')}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Results
+              Back to Dashboard
             </Button>
           </div>
           <div className="pr-4">
@@ -488,7 +488,7 @@ function InstructorProfileContent() {
                           <div>• DUMBO</div>
                           <div>• Long Island City</div>
                           <div>• Astoria</div>
-                          <button className="text-[#6A0DAD] hover:text-[#6A0DAD] text-xs font-medium mt-1">
+                          <button className="text-[#7E22CE] hover:text-[#7E22CE] text-xs font-medium mt-1">
                             See more
                           </button>
                         </div>

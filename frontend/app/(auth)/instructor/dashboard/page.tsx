@@ -236,7 +236,7 @@ export default function InstructorDashboardNew() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#6A0DAD]" />
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7E22CE]" />
       </div>
     );
   }
@@ -247,7 +247,7 @@ export default function InstructorDashboardNew() {
         <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -260,7 +260,7 @@ export default function InstructorDashboardNew() {
             <p className="text-gray-600 mb-6">{error}</p>
             <Link
               href="/signup?redirect=%2Finstructor%2Fonboarding%2Fstep-2"
-              className="inline-block px-6 py-2.5 bg-[#6A0DAD] text-white rounded-lg hover:bg-[#6A0DAD] transition-colors"
+              className="inline-block px-6 py-2.5 bg-[#7E22CE] text-white rounded-lg"
               onClick={() => logger.debug('Navigating to signup with redirect to step-2 from error state')}
             >
               Complete Profile Setup
@@ -281,7 +281,7 @@ export default function InstructorDashboardNew() {
       <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <UserProfileDropdown />
@@ -298,9 +298,9 @@ export default function InstructorDashboardNew() {
                 onClick={handleViewPublicProfile}
                 aria-label="View public profile"
                 title="View public profile"
-                className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6A0DAD] transition-colors"
+                className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] transition-colors"
               >
-                <svg className="w-6 h-6 text-[#6A0DAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </button>
@@ -312,7 +312,7 @@ export default function InstructorDashboardNew() {
           <button
             onClick={handleViewPublicProfile}
               title="View your public instructor page"
-              className="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-purple-200 text-[#6A0DAD] hover:bg-purple-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6A0DAD] focus-visible:ring-offset-1"
+              className="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-purple-200 text-[#7E22CE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-1"
           >
               <Eye className="h-4 w-4" />
               <span className="hidden sm:inline">Public profile</span>
@@ -324,17 +324,17 @@ export default function InstructorDashboardNew() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Bookings</h3>
-            <p className="text-3xl font-bold text-[#6A0DAD]">0</p>
+            <p className="text-3xl font-bold text-[#7E22CE]">0</p>
             <p className="text-sm text-gray-500 mt-1">Coming soon</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Rating</h3>
-            <p className="text-3xl font-bold text-[#6A0DAD]">-</p>
+            <p className="text-3xl font-bold text-[#7E22CE]">-</p>
             <p className="text-sm text-gray-500 mt-1">Not yet available</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Earnings</h3>
-            <p className="text-3xl font-bold text-[#6A0DAD]">$0</p>
+            <p className="text-3xl font-bold text-[#7E22CE]">$0</p>
             <p className="text-sm text-gray-500 mt-1">Payment integration pending</p>
           </div>
         </div>
@@ -355,7 +355,7 @@ export default function InstructorDashboardNew() {
                   aria-label="Refresh status"
                   className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-300 transition shrink-0"
                 >
-                  <SquareArrowDownLeft className="w-6 h-6 text-[#6A0DAD]" />
+                  <SquareArrowDownLeft className="w-6 h-6 text-[#7E22CE]" />
                 </button>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Payments Setup</h2>
@@ -382,7 +382,7 @@ export default function InstructorDashboardNew() {
                   <ul className="grid grid-cols-2 gap-2">
                     <li className={`flex items-center gap-2 text-sm ${chargesEnabled ? 'text-gray-700' : 'text-gray-500'}`}>
                       {chargesEnabled ? (
-                        <svg className="w-4 h-4 text-[#6A0DAD]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <svg className="w-4 h-4 text-[#7E22CE]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
@@ -392,7 +392,7 @@ export default function InstructorDashboardNew() {
                     </li>
                     <li className={`flex items-center gap-2 text-sm ${detailsSubmitted ? 'text-gray-700' : 'text-gray-500'}`}>
                       {detailsSubmitted ? (
-                        <svg className="w-4 h-4 text-[#6A0DAD]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <svg className="w-4 h-4 text-[#7E22CE]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
@@ -402,7 +402,7 @@ export default function InstructorDashboardNew() {
                     </li>
                     <li className={`flex items-center gap-2 text-sm ${payoutsEnabled ? 'text-gray-700' : 'text-gray-500'}`}>
                       {payoutsEnabled ? (
-                        <svg className="w-4 h-4 text-[#6A0DAD]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <svg className="w-4 h-4 text-[#7E22CE]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
@@ -412,7 +412,7 @@ export default function InstructorDashboardNew() {
                     </li>
                     <li className={`flex items-center gap-2 text-sm ${onboardingCompleted ? 'text-gray-700' : 'text-gray-500'}`}>
                       {onboardingCompleted ? (
-                        <svg className="w-4 h-4 text-[#6A0DAD]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <svg className="w-4 h-4 text-[#7E22CE]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
@@ -457,7 +457,7 @@ export default function InstructorDashboardNew() {
                     }
                   }}
                   disabled={isStartingStripeOnboarding}
-                  className="inline-flex items-center px-3 py-2 text-sm rounded-lg border border-purple-200 bg-purple-50 text-[#6A0DAD] hover:bg-purple-100 disabled:opacity-60"
+                  className="inline-flex items-center px-3 py-2 text-sm rounded-lg border border-purple-200 bg-purple-50 text-[#7E22CE] disabled:opacity-60"
                 >
                   {isStartingStripeOnboarding ? 'Opening…' : 'Complete Stripe onboarding'}
                 </button>
@@ -488,7 +488,7 @@ export default function InstructorDashboardNew() {
                         alert('Unable to open Stripe dashboard right now.');
                       }
                     }}
-                    className="inline-flex items-center px-4 py-2 text-base rounded-lg border border-purple-200 bg-purple-50 text-[#6A0DAD] hover:bg-purple-100 transition-colors"
+                    className="inline-flex items-center px-4 py-2 text-base rounded-lg border border-purple-200 bg-purple-50 text-[#7E22CE]"
                   >
                     View Payouts
                   </button>
@@ -507,7 +507,7 @@ export default function InstructorDashboardNew() {
                         alert('Instant payout request error');
                       }
                     }}
-                    className="inline-flex items-center px-4 py-2 text-base rounded-lg bg-[#6A0DAD] text-white hover:bg-[#6A0DAD] transition-colors"
+                    className="inline-flex items-center px-4 py-2 text-base rounded-lg bg-[#7E22CE] text-white"
                   >
                     Request Instant Payout
                   </button>
@@ -525,7 +525,7 @@ export default function InstructorDashboardNew() {
                 aria-label="Manage Availability"
                 className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] shrink-0"
               >
-                <Calendar className="w-6 h-6 text-[#6A0DAD]" />
+                <Calendar className="w-6 h-6 text-[#7E22CE]" />
               </Link>
               <div>
                 <h3 className="text-lg font-semibold text-gray-700">Availability</h3>
@@ -534,7 +534,7 @@ export default function InstructorDashboardNew() {
             </div>
             <div className="mt-10 flex items-center gap-12 justify-center">
               <div className="flex flex-col items-center">
-                <div className="w-28 h-28 rounded-full bg-purple-50 border border-purple-200 text-[#6A0DAD] flex items-center justify-center text-2xl font-bold" title="Available hours this week">
+                <div className="w-28 h-28 rounded-full bg-purple-50 border border-purple-200 text-[#7E22CE] flex items-center justify-center text-2xl font-bold" title="Available hours this week">
                   {availableHours}h
                 </div>
                 <span className="mt-2 text-sm text-gray-600">Available</span>
@@ -557,7 +557,7 @@ export default function InstructorDashboardNew() {
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <ListTodo className="w-6 h-6 text-[#6A0DAD]" />
+                <ListTodo className="w-6 h-6 text-[#7E22CE]" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-800">Action items</h3>
@@ -633,11 +633,11 @@ export default function InstructorDashboardNew() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-[#6A0DAD]" />
+                  <Clock className="w-6 h-6 text-[#7E22CE]" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-800">{(FORCE_UPCOMING_MOCK || hasAnyBookings === false) ? 'Let\'s get your first booking' : 'Upcoming lessons'}</h3>
               </div>
-              <Link href="/instructor/bookings" className="text-[#6A0DAD] hover:underline text-sm">View all</Link>
+              <Link href="/instructor/bookings" className="text-[#7E22CE] hover:underline text-sm">View all</Link>
             </div>
             {/* Removed small header loader */}
             {(FORCE_UPCOMING_MOCK || hasAnyBookings === false) ? (
@@ -665,7 +665,7 @@ export default function InstructorDashboardNew() {
                     type="button"
                     aria-pressed={suggestionChecks.bio}
                     onClick={() => setSuggestionChecks((p) => ({ ...p, bio: !p.bio }))}
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.bio ? 'bg-[#6A0DAD] border-[#6A0DAD] text-white hover:!bg-[#6A0DAD] hover:!border-[#6A0DAD]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
+                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.bio ? 'bg-[#7E22CE] border-[#7E22CE] text-white hover:!bg-[#7E22CE] hover:!border-[#7E22CE]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
                     title="Mark as done"
                   >
                     {suggestionChecks.bio && (
@@ -677,7 +677,7 @@ export default function InstructorDashboardNew() {
                   <button
                     type="button"
                     onClick={() => { setEditVariant('about'); setShowEditModal(true); }}
-                    className={`${suggestionChecks.bio ? 'text-[#6A0DAD]' : 'text-gray-700'} hover:underline`}
+                    className={`${suggestionChecks.bio ? 'text-[#7E22CE]' : 'text-gray-700'} hover:underline`}
                   >
                     Polish your profile bio
                   </button>
@@ -687,7 +687,7 @@ export default function InstructorDashboardNew() {
                     type="button"
                     aria-pressed={suggestionChecks.refer}
                     onClick={() => setSuggestionChecks((p) => ({ ...p, refer: !p.refer }))}
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.refer ? 'bg-[#6A0DAD] border-[#6A0DAD] text-white hover:!bg-[#6A0DAD] hover:!border-[#6A0DAD]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
+                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.refer ? 'bg-[#7E22CE] border-[#7E22CE] text-white hover:!bg-[#7E22CE] hover:!border-[#7E22CE]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
                     title="Mark as done"
                   >
                     {suggestionChecks.refer && (
@@ -699,7 +699,7 @@ export default function InstructorDashboardNew() {
                   <button
                     type="button"
                     onClick={() => router.push('/instructor/join')}
-                    className={`${suggestionChecks.refer ? 'text-[#6A0DAD]' : 'text-gray-700'} hover:underline`}
+                    className={`${suggestionChecks.refer ? 'text-[#7E22CE]' : 'text-gray-700'} hover:underline`}
                   >
                     Refer your colleagues
                   </button>
@@ -709,7 +709,7 @@ export default function InstructorDashboardNew() {
                     type="button"
                     aria-pressed={suggestionChecks.bring}
                     onClick={() => setSuggestionChecks((p) => ({ ...p, bring: !p.bring }))}
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.bring ? 'bg-[#6A0DAD] border-[#6A0DAD] text-white hover:!bg-[#6A0DAD] hover:!border-[#6A0DAD]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
+                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.bring ? 'bg-[#7E22CE] border-[#7E22CE] text-white hover:!bg-[#7E22CE] hover:!border-[#7E22CE]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
                     title="Mark as done"
                   >
                     {suggestionChecks.bring && (
@@ -721,7 +721,7 @@ export default function InstructorDashboardNew() {
                   <button
                     type="button"
                     onClick={() => { if (profile?.user_id) window.open(`/instructors/${profile.user_id}`, '_blank'); }}
-                    className={`${suggestionChecks.bring ? 'text-[#6A0DAD]' : 'text-gray-700'} hover:underline`}
+                    className={`${suggestionChecks.bring ? 'text-[#7E22CE]' : 'text-gray-700'} hover:underline`}
                   >
                     Bring your students
                   </button>
@@ -731,7 +731,7 @@ export default function InstructorDashboardNew() {
                     type="button"
                     aria-pressed={suggestionChecks.photos}
                     onClick={() => setSuggestionChecks((p) => ({ ...p, photos: !p.photos }))}
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.photos ? 'bg-[#6A0DAD] border-[#6A0DAD] text-white hover:!bg-[#6A0DAD] hover:!border-[#6A0DAD]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
+                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.photos ? 'bg-[#7E22CE] border-[#7E22CE] text-white hover:!bg-[#7E22CE] hover:!border-[#7E22CE]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
                     title="Mark as done"
                   >
                     {suggestionChecks.photos && (
@@ -743,7 +743,7 @@ export default function InstructorDashboardNew() {
                   <button
                     type="button"
                     onClick={() => router.push('/instructor/profile')}
-                    className={`${suggestionChecks.photos ? 'text-[#6A0DAD]' : 'text-gray-700'} hover:underline`}
+                    className={`${suggestionChecks.photos ? 'text-[#7E22CE]' : 'text-gray-700'} hover:underline`}
                   >
                     Add related skill pictures
                   </button>
@@ -753,7 +753,7 @@ export default function InstructorDashboardNew() {
                     type="button"
                     aria-pressed={suggestionChecks.elite}
                     onClick={() => setSuggestionChecks((p) => ({ ...p, elite: !p.elite }))}
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.elite ? 'bg-[#6A0DAD] border-[#6A0DAD] text-white hover:!bg-[#6A0DAD] hover:!border-[#6A0DAD]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
+                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.elite ? 'bg-[#7E22CE] border-[#7E22CE] text-white hover:!bg-[#7E22CE] hover:!border-[#7E22CE]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
                     title="Mark as done"
                   >
                     {suggestionChecks.elite && (
@@ -765,7 +765,7 @@ export default function InstructorDashboardNew() {
                   <button
                     type="button"
                     onClick={() => router.push('/instructor/welcome')}
-                    className={`${suggestionChecks.elite ? 'text-[#6A0DAD]' : 'text-gray-700'} hover:underline`}
+                    className={`${suggestionChecks.elite ? 'text-[#7E22CE]' : 'text-gray-700'} hover:underline`}
                   >
                     Earn Elite status
                   </button>
@@ -788,13 +788,13 @@ export default function InstructorDashboardNew() {
                     ariaLabel="Upload profile photo"
                     trigger={
                       <div id="profile-photo-upload" className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
-                        <Camera className="w-6 h-6 text-[#6A0DAD]" />
+                        <Camera className="w-6 h-6 text-[#7E22CE]" />
                       </div>
                     }
                   />
                   <h3 className="text-base font-semibold text-gray-800">About You</h3>
                 </div>
-                <button onClick={() => { setEditVariant('about'); setShowEditModal(true); }} className="text-[#6A0DAD] hover:underline text-sm">Edit</button>
+                <button onClick={() => { setEditVariant('about'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
               </div>
               <p className="text-gray-600 text-xs">Experience: {profile.years_experience} years</p>
               <p className="text-gray-700 text-sm mt-2">{profile.bio}</p>
@@ -803,7 +803,7 @@ export default function InstructorDashboardNew() {
             <div className="rounded-lg border border-gray-200 p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-base font-semibold text-gray-800">Skills & Pricing</h3>
-                <button onClick={() => { setEditVariant('services'); setShowEditModal(true); }} className="text-[#6A0DAD] hover:underline text-sm">Edit</button>
+                <button onClick={() => { setEditVariant('services'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
               </div>
               <div className="space-y-2">
                 {profile.services.map((service) => (
@@ -812,7 +812,7 @@ export default function InstructorDashboardNew() {
                       <span className="font-medium text-gray-700">{service.skill}</span>
                       {service.description && <p className="text-sm text-gray-600 mt-1">{service.description}</p>}
                     </div>
-                    <span className="font-bold text-[#6A0DAD] text-lg">${service.hourly_rate}/hr</span>
+                    <span className="font-bold text-[#7E22CE] text-lg">${service.hourly_rate}/hr</span>
                   </div>
                 ))}
               </div>
@@ -821,7 +821,7 @@ export default function InstructorDashboardNew() {
             <div className="rounded-lg border border-gray-200 p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-base font-semibold text-gray-800">Service Areas</h3>
-                <button onClick={() => { setEditVariant('areas'); setShowEditModal(true); }} className="text-[#6A0DAD] hover:underline text-sm">Edit</button>
+                <button onClick={() => { setEditVariant('areas'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
               </div>
               {(() => {
                 const areas = (serviceAreaNames && serviceAreaNames.length > 0)
@@ -830,7 +830,7 @@ export default function InstructorDashboardNew() {
                 return areas && areas.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {areas.map((area) => (
-                      <span key={area} className="px-2 py-1 text-xs rounded-full bg-purple-50 text-[#6A0DAD] border border-purple-200">{area}</span>
+                      <span key={area} className="px-2 py-1 text-xs rounded-full bg-purple-50 text-[#7E22CE] border border-purple-200">{area}</span>
                     ))}
               </div>
                 ) : (
@@ -871,7 +871,7 @@ export default function InstructorDashboardNew() {
         <div className="space-y-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-[#6A0DAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
             </div>
@@ -913,7 +913,7 @@ export default function InstructorDashboardNew() {
                   window.location.href = `https://verify.stripe.com/start/${session.client_secret}`;
                 } catch {}
               }}
-              className="inline-flex items-center px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] transition-colors font-medium"
+              className="inline-flex items-center px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] transition-colors font-medium"
             >
               Start Verification
             </button>
@@ -926,7 +926,7 @@ export default function InstructorDashboardNew() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-[#6A0DAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
@@ -937,9 +937,9 @@ export default function InstructorDashboardNew() {
                 <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
                   <p className="text-sm text-purple-900 font-medium mb-2">Accepted providers:</p>
                   <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#6A0DAD] border border-purple-200">Checkr</span>
-                    <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#6A0DAD] border border-purple-200">Sterling</span>
-                    <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#6A0DAD] border border-purple-200">NYC DOE</span>
+                    <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">Checkr</span>
+                    <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">Sterling</span>
+                    <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">NYC DOE</span>
                   </div>
                 </div>
 
@@ -950,7 +950,7 @@ export default function InstructorDashboardNew() {
                 </div>
 
                 <div className="mt-4">
-                  <label className="inline-flex items-center px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#6A0DAD] font-medium hover:bg-purple-100 transition-colors cursor-pointer">
+                  <label className="inline-flex items-center px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#7E22CE] font-medium hover:bg-purple-100 transition-colors cursor-pointer">
                     <input
                       type="file"
                       accept=".pdf,.png,.jpg,.jpeg"

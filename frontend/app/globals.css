@@ -77,8 +77,8 @@ body {
   --foreground-secondary: #6b7280;
 
   /* Brand Colors */
-  --color-primary: #6741D9; /* Elegant Purple */
-  --color-primary-hover: #5B4BC3; /* Elegant Purple (hover) */
+  --color-primary: #7E22CE; /* Brand Purple */
+  --color-primary-hover: #7E22CE; /* Keep solid on hover (no color change) */
   --color-primary-light: #EDE7F6; /* Pastel Lavender for cards */
 
   /* Map to shadcn/ui CSS variables */
@@ -463,31 +463,74 @@ select,
   transform: scale(1.0);
 }
 
-/* Buttons: subtle lift + tint */
+/* Buttons: magnify only on hover (no color change) */
 /* Generic hover treatment (applies to all buttons) */
 button:not(:disabled):hover,
 [role="button"]:not(:disabled):hover {
-  background-color: rgba(0, 0, 0, 0.04);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
   transform: translateZ(0) scale(1.02);
 }
 
-/* Lock brand purple hover to the same fill and readable text, while keeping magnification */
-button.bg-\[\#6A0DAD\]:not(:disabled):hover,
-[role="button"].bg-\[\#6A0DAD\]:not(:disabled):hover {
-  background-color: #6A0DAD !important;
+/* Neutralize Tailwind hover color utilities for buttons (no color change)
+   Exclude brand purple backgrounds so they remain solid on hover */
+button[class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(:disabled):hover,
+[role="button"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(:disabled):hover {
+  background-color: revert !important;
+}
+
+button[class*="hover:text-"]:not([class*="text-white"]):not(:disabled):hover,
+[role="button"][class*="hover:text-"]:not([class*="text-white"]):not(:disabled):hover {
+  color: revert !important;
+}
+
+button[class*="hover:border-"]:not([class*="border-transparent"]):not(:disabled):hover,
+[role="button"][class*="hover:border-"]:not([class*="border-transparent"]):not(:disabled):hover {
+  border-color: revert !important;
+}
+
+/* Anchor elements styled as buttons: keep base background/text/border on hover.
+   Exclude brand purple so it stays solid on hover. */
+a[class*="bg-"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):hover {
+  background-color: revert !important;
+}
+
+a[class*="bg-"][class*="hover:text-"]:not([class*="text-white"]):hover {
+  color: revert !important;
+}
+
+a[class*="bg-"][class*="hover:border-"]:not([class*="border-transparent"]):hover {
+  border-color: revert !important;
+}
+
+/* Keep brand purple buttons solid on hover */
+button.bg-\[\#7E22CE\]:not(:disabled):hover,
+[role="button"].bg-\[\#7E22CE\]:not(:disabled):hover,
+a.bg-\[\#7E22CE\]:hover {
+  background-color: #7E22CE !important;
   color: #ffffff !important;
-  transform: translateZ(0) scale(1.02);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
-/* Explicit lock for brand yellow CTA hover (keep fill and text) */
-button.bg-\[\#FFD700\]:not(:disabled):hover,
-[role="button"].bg-\[\#FFD700\]:not(:disabled):hover {
-  background-color: #FFD700 !important;
-  color: #111827 !important;
-  transform: translateZ(0) scale(1.02);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+/* Support primary token-based buttons (shadcn/ui) */
+button.bg-primary:not(:disabled):hover,
+[role="button"].bg-primary:not(:disabled):hover,
+a.bg-primary:hover {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+/* Keep white buttons solid on hover (no color or border change) */
+button.bg-white:not(:disabled):hover,
+[role="button"].bg-white:not(:disabled):hover,
+a.bg-white:hover {
+  background-color: #ffffff !important;
+  /* Do not force border color; keep whatever base border-* utility set */
+}
+
+button.bg-purple-600:not(:disabled):hover,
+[role="button"].bg-purple-600:not(:disabled):hover,
+a.bg-purple-600:hover {
+  /* Tailwind purple-600 default */
+  background-color: #9333ea !important;
+  color: #ffffff !important;
 }
 
 /* Disable hover effects utility for circular avatar triggers */
@@ -516,6 +559,11 @@ button:not(:disabled):active,
 /* Links: subtle color shift without scaling to avoid layout shift */
 a:hover {
   filter: brightness(0.96);
+}
+
+/* Do not dim anchor elements that are styled as buttons */
+a[class*="bg-"]:hover {
+  filter: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -651,7 +699,7 @@ html {
 .autofill-fix:-webkit-autofill:hover,
 .autofill-fix:-webkit-autofill:focus,
 .autofill-fix:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px #F3E8FF inset !important; /* light lavender */
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important; /* keep white */
   -webkit-text-fill-color: #111827 !important;
   transition: background-color 5000s ease-in-out 0s;
 }

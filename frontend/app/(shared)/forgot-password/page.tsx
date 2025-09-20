@@ -79,7 +79,7 @@ export default function ForgotPasswordPage() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Link href="/" className="flex justify-center mb-6">
-            <h1 className="text-4xl font-bold text-[#6A0DAD] dark:text-purple-400">iNSTAiNSTRU</h1>
+            <h1 className="text-4xl font-bold text-[#7E22CE] dark:text-purple-400">iNSTAiNSTRU</h1>
           </Link>
           <div className="bg-white dark:bg-gray-800 p-8 shadow sm:rounded-lg">
             <div className="text-center">
@@ -91,7 +91,7 @@ export default function ForgotPasswordPage() {
                 We&apos;ve sent a password reset link to <strong className="text-gray-900 dark:text-white">{email}</strong>
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">The link will expire in 1 hour.</p>
-              <Link href="/login" className="text-[#6A0DAD] hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 font-medium">
+              <Link href="/login" className="text-[#7E22CE] hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 font-medium">
                 Back to login
               </Link>
             </div>
@@ -105,7 +105,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <Link href="/" className="flex justify-center mb-6">
-          <h1 className="text-4xl font-bold text-[#6A0DAD] dark:text-purple-400">iNSTAiNSTRU</h1>
+          <h1 className="text-4xl font-bold text-[#7E22CE] dark:text-purple-400">iNSTAiNSTRU</h1>
         </Link>
         <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">Forgot your password?</h2>
         <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">Enter your email and we&apos;ll send you a reset link</p>
@@ -117,7 +117,7 @@ export default function ForgotPasswordPage() {
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
               <div className="mt-1">
                 <input id="email" name="email" type="email" autoComplete="email" required value={email} onChange={handleEmailChange} disabled={isLoading}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Enter your email" aria-invalid={!!error} aria-describedby={error ? 'email-error' : undefined} />
               </div>
             </div>
@@ -128,7 +128,7 @@ export default function ForgotPasswordPage() {
             )}
             <div>
               <button type="submit" disabled={isLoading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6A0DAD] disabled:opacity-50 disabled:cursor-not-allowed dark:ring-offset-gray-800">
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed dark:ring-offset-gray-800">
                 {isLoading ? (
                   <>
                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">

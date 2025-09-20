@@ -105,7 +105,7 @@ export default function Step3PaymentSetup() {
       <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
@@ -114,17 +114,17 @@ export default function Step3PaymentSetup() {
             <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '544px' }}>
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
                 {/* Head */}
-                <circle cx="8" cy="4" r="2.5" stroke="#6A0DAD" strokeWidth="1.2" fill="none" />
+                <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
                 {/* Body */}
-                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#6A0DAD" strokeWidth="1.2" />
+                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
                 {/* Left arm */}
-                <line x1="8" y1="8" x2="5" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftArm" />
+                <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
                 {/* Right arm */}
-                <line x1="8" y1="8" x2="11" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightArm" />
+                <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
                 {/* Left leg */}
-                <line x1="8" y1="12" x2="6" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftLeg" />
+                <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
                 {/* Right leg */}
-                <line x1="8" y1="12" x2="10" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightLeg" />
+                <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
               </svg>
             </div>
 
@@ -225,7 +225,7 @@ export default function Step3PaymentSetup() {
 
               {/* Benefits Section */}
               <div className="p-8">
-                <h3 className="text-sm font-semibold text-[#6A0DAD] uppercase tracking-wide mb-4">What to expect</h3>
+                <h3 className="text-sm font-semibold text-[#7E22CE] uppercase tracking-wide mb-4">What to expect</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
                     <div className="flex items-start gap-3">
@@ -345,13 +345,13 @@ export default function Step3PaymentSetup() {
         <button
           type="button"
           onClick={() => { window.location.href = '/instructor/onboarding/status'; }}
-          className="w-40 px-5 py-2.5 rounded-lg text-[#6A0DAD] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#6A0DAD]/20 justify-center"
+          className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
         >
           Skip for now
         </button>
         <button
           onClick={() => { window.location.href = '/instructor/onboarding/status'; }}
-          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:!bg-[#6A0DAD] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
         >
           Continue
         </button>

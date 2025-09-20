@@ -60,7 +60,7 @@ function JoinInner() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <div className="text-center mb-6">
-            <h1 className="text-4xl font-bold text-[#6A0DAD] hover:text-[#6A0DAD] transition-colors">
+            <h1 className="text-4xl font-bold text-primary transition-colors">
               {BRAND.name}
             </h1>
             <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100 mt-3">
@@ -75,7 +75,7 @@ function JoinInner() {
               <label htmlFor="invite" className="block text-sm font-medium">Enter your founding instructor code</label>
               <input
                 id="invite"
-                className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 placeholder="Enter code (e.g. ZBB5MWQP)"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
@@ -86,7 +86,7 @@ function JoinInner() {
             <button
               type="submit"
               disabled={validating}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#6A0DAD] hover:bg-[#6A0DAD] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6A0DAD] disabled:opacity-50"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--primary)] disabled:opacity-50"
             >
               {validating ? 'Validating…' : 'Continue'}
             </button>

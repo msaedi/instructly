@@ -717,7 +717,7 @@ export function Chat({
                           className={cn(
                             'rounded-2xl px-3.5 py-2 break-words shadow-sm select-text text-[15px] leading-5 sm:text-sm',
                             isOwn
-                              ? 'bg-gradient-to-tr from-purple-700 to-purple-600 text-white ring-1 ring-[#6A0DAD]/10'
+                              ? 'bg-gradient-to-tr from-purple-700 to-purple-600 text-white ring-1 ring-[#7E22CE]/10'
                               : 'bg-white text-gray-900 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700'
                           )}
                         >
@@ -730,7 +730,7 @@ export function Chat({
                                   onChange={(e) => setEditingContent(e.target.value)}
                                   onInput={autosizeEditingTextarea}
                                   rows={1}
-                                  className={cn('w-full resize-none rounded-md px-2 py-1 text-[15px] leading-5 outline-none focus:ring-[#6A0DAD] focus:border-purple-500', isOwn ? 'bg-transparent text-white placeholder:text-blue-100' : 'bg-transparent text-gray-900 placeholder:text-gray-400')}
+                                  className={cn('w-full resize-none rounded-md px-2 py-1 text-[15px] leading-5 outline-none focus:ring-[#7E22CE] focus:border-purple-500', isOwn ? 'bg-transparent text-white placeholder:text-blue-100' : 'bg-transparent text-gray-900 placeholder:text-gray-400')}
                                   style={{ overflowY: 'hidden', height: 'auto' }}
                                 />
                               </div>
@@ -831,7 +831,7 @@ export function Chat({
                                   disabled={isOwnMessage || processingReaction !== null}
                                   className={cn(
                                     'rounded-full px-2 py-0.5 text-xs ring-1 transition',
-                                    mine ? 'bg-[#6A0DAD] text-white ring-[#6A0DAD]' : (isOwn ? 'bg-purple-50 text-[#6A0DAD] ring-purple-200' : 'bg-gray-50 text-gray-700 ring-gray-200'),
+                                    mine ? 'bg-[#7E22CE] text-white ring-[#7E22CE]' : (isOwn ? 'bg-purple-50 text-[#7E22CE] ring-purple-200' : 'bg-gray-50 text-gray-700 ring-gray-200'),
                                     (isOwnMessage || processingReaction !== null) && 'cursor-default'
                                   )}
                                 >
@@ -918,7 +918,7 @@ export function Chat({
       {!isAtBottom && (
         <button
           onClick={() => scrollToBottom()}
-          className="absolute bottom-24 right-4 bg-[#6A0DAD] text-white rounded-full p-2 shadow-lg ring-1 ring-black/5 hover:bg-[#6A0DAD] transition dark:bg-purple-600 dark:hover:bg-[#6A0DAD]"
+          className="absolute bottom-24 right-4 bg-[#7E22CE] text-white rounded-full p-2 shadow-lg ring-1 ring-black/5 hover:bg-[#7E22CE] transition dark:bg-purple-600 dark:hover:bg-[#7E22CE]"
         >
           <ChevronDown className="w-5 h-5" />
         </button>
@@ -942,7 +942,7 @@ export function Chat({
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={1}
-              className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-[#6A0DAD] focus:border-purple-500 shadow-inner dark:border-gray-600 dark:bg-gray-800 dark:placeholder:text-gray-500"
+              className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 shadow-inner dark:border-gray-600 dark:bg-gray-800 dark:placeholder:text-gray-500"
               style={{ minHeight: '40px', maxHeight: '160px' }}
             />
             {/* Removed quick reaction picker next to Send to prevent accidental self-reactions */}
@@ -952,7 +952,7 @@ export function Chat({
               className={cn(
                 'rounded-full p-2 md:p-2.5 transition-colors shadow-sm',
                 inputMessage.trim() && !sendMessage.isPending
-                  ? 'bg-[#6A0DAD] text-white hover:bg-[#6A0DAD] ring-1 ring-[#6A0DAD]/20 dark:bg-purple-600 dark:hover:bg-[#6A0DAD]'
+                  ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE] ring-1 ring-[#7E22CE]/20 dark:bg-purple-600 dark:hover:bg-[#7E22CE]'
                   : 'bg-gray-100 text-gray-400 ring-1 ring-gray-200 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500 dark:ring-gray-700'
               )}
             >
