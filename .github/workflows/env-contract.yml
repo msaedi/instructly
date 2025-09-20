@@ -65,8 +65,8 @@ jobs:
           API_ONLY: ${{ env.API_ONLY }}
         run: |
           set -euo pipefail
-          mkdir -p .artifacts
-          npx --yes playwright test e2e/env-contract.spec.ts --reporter=line | tee .artifacts/playwright.log
+          mkdir -p ../.artifacts
+          npx --yes playwright test e2e/env-contract.spec.ts --reporter=line 2>&1 | tee ../.artifacts/pw.log
       - name: Summarize endpoint statuses
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
         run: |
@@ -83,18 +83,16 @@ jobs:
           mkdir -p .artifacts
           {
             echo "run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}";
-            if [ -f .artifacts/playwright.log ]; then
-              grep -E '^(\[headers]|\[cors]|\[429-triage]).*' .artifacts/playwright.log || true;
+            if [ -f .artifacts/pw.log ]; then
+              grep -E '^\[(headers|cors|429-triage)(-allowed)?\]' -h .artifacts/pw.log || true;
             fi
           } | tee .artifacts/env-contract-evidence.txt
-      - name: Upload env-contract artifact
+      - name: Upload env-contract evidence
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: env-contract
-          path: |
-            .artifacts/env-contract-summary.txt
-            .artifacts/env-contract-evidence.txt
+          name: env-contract-evidence
+          path: .artifacts/env-contract-evidence.txt
       - name: Skip (no base URL provided)
         if: ${{ env.PLAYWRIGHT_BASE_URL == '' }}
         run: echo "PLAYWRIGHT_BASE_URL not set; skipping"
