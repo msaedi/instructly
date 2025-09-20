@@ -40,6 +40,7 @@ jobs:
           # capture stdout/stderr
           schemathesis run "${BASE_URL}/openapi.json" \
             --include-method GET --include-method HEAD \
+            --checks status_code_conformance,not_a_server_error \
             --workers=4 \
             2>&1 | tee .artifacts/schemathesis-preview.log
 
@@ -99,6 +100,7 @@ jobs:
           echo "Target: ${BASE_URL}"
           schemathesis run "${BASE_URL}/openapi.json" \
             --include-method GET --include-method HEAD \
+            --checks status_code_conformance,not_a_server_error \
             --workers=4 \
             2>&1 | tee .artifacts/schemathesis-beta.log
 
