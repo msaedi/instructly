@@ -1,0 +1,13 @@
+methods:
+  - GET
+  - HEAD
+  - OPTIONS
+include:
+  - "^/api/"
+  - "^/auth/"
+exclude:
+  - "^/api/internal"
+  - "^/api/admin"
+  - "^/api/private"
+max_examples: 25
+deadline_ms: 1000

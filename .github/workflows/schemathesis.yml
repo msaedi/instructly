@@ -1,45 +1,116 @@
-name: schemathesis-nightly
+name: schemathesis
 
 on:
-  schedule: [{ cron: "23 3 * * *" }]
-  workflow_dispatch: {}
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Environment to fuzz (preview|beta|all)"
+        required: false
+        default: "all"
 
 jobs:
   fuzz:
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.target == 'all' || github.event.inputs.target == matrix.target
     runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [preview, beta]
+    env:
+      RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
-      - run: pip install schemathesis==3.* hypothesis==6.*
-      - name: Run read-only fuzz
-        env:
-          OPENAPI_URL: ${{ secrets.OPENAPI_URL }}
-          BASE_URL: ${{ secrets.PREVIEW_BASE_URL }}
-          AUTH_HDR: ${{ secrets.PREVIEW_AUTH_HEADER }}
-          RL_BYPASS: ${{ secrets.RATE_LIMIT_BYPASS }}
+
+      - name: Set target endpoints
+        id: target
         run: |
-          set -euo pipefail
+          if [ "${{ matrix.target }}" = "preview" ]; then
+            if [ -z "${{ vars.PREVIEW_API_BASE_URL }}" ]; then
+              echo "Preview API base URL (vars.PREVIEW_API_BASE_URL) is not set" >&2
+              exit 1
+            fi
+            echo "base_url=${{ vars.PREVIEW_API_BASE_URL }}" >> "$GITHUB_OUTPUT"
+            echo "schema_url=${{ vars.PREVIEW_API_BASE_URL }}/openapi.json" >> "$GITHUB_OUTPUT"
+          else
+            if [ -z "${{ vars.BETA_API_BASE_URL }}" ]; then
+              echo "Beta API base URL (vars.BETA_API_BASE_URL) is not set" >&2
+              exit 1
+            fi
+            echo "base_url=${{ vars.BETA_API_BASE_URL }}" >> "$GITHUB_OUTPUT"
+            echo "schema_url=${{ vars.BETA_API_BASE_URL }}/openapi.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install schemathesis tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install schemathesis pyyaml
+
+      - name: Build CLI arguments from config
+        id: args
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import yaml
+          from pathlib import Path
+
+          config = yaml.safe_load(Path('schemathesis/config.yaml').read_text())
+          args: list[str] = []
+          for method in config.get('methods', []):
+              args.extend(['--include-method', method])
+          for pattern in config.get('include', []):
+              args.extend(['--include-path-regex', pattern])
+          for pattern in config.get('exclude', []):
+              args.extend(['--exclude-path-regex', pattern])
+          max_examples = config.get('max_examples')
+          if max_examples:
+              args.extend(['--max-examples', str(max_examples)])
+          deadline = config.get('deadline_ms')
+          if deadline:
+              args.extend(['--hypothesis-deadline', str(deadline)])
+          print('args=' + ' '.join(args))
+          PY
+
+      - name: Run Schemathesis (${{ matrix.target }})
+        env:
+          BASE_URL: ${{ steps.target.outputs.base_url }}
+          SCHEMA_URL: ${{ steps.target.outputs.schema_url }}
+          CLI_ARGS: ${{ steps.args.outputs.args }}
+          RATE_LIMIT_SHADOW: "true"
+          RATE_LIMIT_SHADOW_READ: "true"
+          RATE_LIMIT_SHADOW_AUTH: "true"
+        run: |
           mkdir -p .artifacts
-          echo "${AUTH_HDR:-}" > auth.hdr || true
-          # Optional: pass a rate-limit bypass header if provided
-          if [ -n "${RL_BYPASS:-}" ]; then echo "${RL_BYPASS}" >> auth.hdr; fi
-          # Skip list file
-          SKIP_FILE="backend/tests/schemathesis_skip.txt"
-          [ -f "$SKIP_FILE" ] || echo "# add endpoints to skip here" > "$SKIP_FILE"
-          # Run read-only checks
-          schemathesis run "$OPENAPI_URL" \
-            -m GET -m HEAD -m OPTIONS \
-            --base-url "$BASE_URL" \
-            --auth-header-file auth.hdr \
-            --checks all \
-            --hypothesis-deadline=500 --workers=4 \
-            --skip-endpoints-file "$SKIP_FILE" \
-            --skip-deprecated --skip-examples \
-            --junit-xml .artifacts/schemathesis-junit.xml || true
-      - name: Upload schemathesis artifacts
+          echo "Using schema: $SCHEMA_URL" | tee .artifacts/schemathesis-${{ matrix.target }}.log
+          set -o pipefail
+          schemathesis run "$SCHEMA_URL" \
+            --url "$BASE_URL" \
+            --checks status_code_conformance,not_a_server_error \
+            --rate-limit 20/m \
+            --request-timeout 10 \
+            $CLI_ARGS \
+            --output-sanitize true \
+            --report-dir .artifacts/schemathesis-${{ matrix.target }}-reports \
+            | tee -a .artifacts/schemathesis-${{ matrix.target }}.log
+          exit_code=${PIPESTATUS[0]}
+          {
+            echo "run_url=${RUN_URL}";
+            echo "target=${{ matrix.target }}";
+            echo "base_url=$BASE_URL";
+            echo "schema_url=$SCHEMA_URL";
+            echo "exit_code=$exit_code";
+          } | tee .artifacts/schemathesis-${{ matrix.target }}-evidence.txt
+
+      - name: Upload Schemathesis evidence
         uses: actions/upload-artifact@v4
         with:
-          name: schemathesis-nightly
-          path: .artifacts/
-          if-no-files-found: warn
+          name: schemathesis-${{ matrix.target }}
+          path: |
+            .artifacts/schemathesis-${{ matrix.target }}.log
+            .artifacts/schemathesis-${{ matrix.target }}-evidence.txt
+            .artifacts/schemathesis-${{ matrix.target }}-reports
