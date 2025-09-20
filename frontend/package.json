@@ -128,8 +128,29 @@
   },
   "size-limit": [
     {
-      "path": ".next/static/chunks/*.js",
-      "limit": "550 kB"
+      "name": "framework",
+      "path": ".next/static/chunks/framework-*.js",
+      "limit": "190 kB"
+    },
+    {
+      "name": "main-runtime",
+      "path": ".next/static/chunks/main-*.js",
+      "limit": "140 kB"
+    },
+    {
+      "name": "polyfills",
+      "path": ".next/static/chunks/polyfills-*.js",
+      "limit": "120 kB"
+    },
+    {
+      "name": "shared-first-load",
+      "path": ".next/static/chunks/1255-*.js",
+      "limit": "60 kB"
+    },
+    {
+      "name": "shared-auth",
+      "path": ".next/static/chunks/4bd1b696-*.js",
+      "limit": "60 kB"
     }
   ],
   "typeCoverage": {
