@@ -22,6 +22,10 @@ on:
         description: "Enable 429 dedupe check (1 to enable)"
         required: false
         default: "0"
+      allowed_phases:
+        description: "Comma-separated allowed X-Phase values"
+        required: false
+        type: string
 jobs:
   smoke:
     runs-on: ubuntu-latest
@@ -32,6 +36,7 @@ jobs:
       GATE_CODE: ${{ inputs.beta_code || secrets.PREVIEW_STAFF_CODE }}
       E2E_HEADERS_TEST: ${{ inputs.E2E_HEADERS_TEST }}
       E2E_RATE_LIMIT_TEST: ${{ inputs.E2E_RATE_LIMIT_TEST }}
+      ALLOWED_PHASES: ${{ inputs.allowed_phases || 'beta,open,instructor_only,instructor-only' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
