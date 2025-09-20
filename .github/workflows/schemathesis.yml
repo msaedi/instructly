@@ -39,7 +39,7 @@ jobs:
           echo "Target: ${BASE_URL}"
           # capture stdout/stderr
           schemathesis run "${BASE_URL}/openapi.json" \
-            --method=GET --method=HEAD \
+            --include-method GET --include-method HEAD \
             --checks=all \
             --hypothesis-deadline=500 \
             --hypothesis-max-examples=50 \
@@ -103,7 +103,7 @@ jobs:
           set -eo pipefail
           echo "Target: ${BASE_URL}"
           schemathesis run "${BASE_URL}/openapi.json" \
-            --method=GET --method=HEAD \
+            --include-method GET --include-method HEAD \
             --checks=all \
             --hypothesis-deadline=500 \
             --hypothesis-max-examples=50 \
