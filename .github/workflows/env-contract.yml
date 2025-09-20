@@ -26,6 +26,10 @@ on:
         description: "Comma-separated allowed X-Phase values"
         required: false
         type: string
+      api_only:
+        description: "Run without UI/staff gate (1 = API-only preview)"
+        required: false
+        default: "0"
   schedule:
     - cron: "0 9 * * *"
 jobs:
@@ -33,13 +37,13 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     env:
-      PLAYWRIGHT_BASE_URL: ${{ (github.event_name == 'schedule') && vars.PREVIEW_BASE_URL || inputs.base_url || vars.PREVIEW_BASE_URL }}
-      PLAYWRIGHT_API_BASE_URL: ${{ (github.event_name == 'schedule') && vars.PREVIEW_API_BASE_URL || inputs.api_base_url || vars.PREVIEW_API_BASE_URL }}
-      GATE_CODE: ${{ (github.event_name == 'schedule') && '' || inputs.beta_code || secrets.PREVIEW_STAFF_CODE }}
-      E2E_HEADERS_TEST: ${{ (github.event_name == 'schedule') && '1' || inputs.E2E_HEADERS_TEST }}
-      E2E_RATE_LIMIT_TEST: ${{ (github.event_name == 'schedule') && '1' || inputs.E2E_RATE_LIMIT_TEST }}
-      ALLOWED_PHASES: ${{ (github.event_name == 'schedule') && (vars.ALLOWED_PHASES || 'instructor_only,beta,open') || inputs.allowed_phases || 'beta,open,instructor_only,instructor-only' }}
-      API_ONLY: ${{ github.event_name == 'schedule' }}
+      PLAYWRIGHT_BASE_URL: ${{ (github.event_name == 'schedule' && vars.PREVIEW_BASE_URL) || inputs.base_url || vars.PREVIEW_BASE_URL }}
+      PLAYWRIGHT_API_BASE_URL: ${{ (github.event_name == 'schedule' && vars.PREVIEW_API_BASE_URL) || inputs.api_base_url || vars.PREVIEW_API_BASE_URL }}
+      GATE_CODE: ${{ ((github.event_name == 'schedule') || inputs.api_only == '1') && '' || inputs.beta_code || secrets.PREVIEW_STAFF_CODE }}
+      E2E_HEADERS_TEST: ${{ ((github.event_name == 'schedule') || inputs.api_only == '1') && '1' || inputs.E2E_HEADERS_TEST }}
+      E2E_RATE_LIMIT_TEST: ${{ ((github.event_name == 'schedule') || inputs.api_only == '1') && '1' || inputs.E2E_RATE_LIMIT_TEST }}
+      ALLOWED_PHASES: ${{ ((github.event_name == 'schedule') || inputs.api_only == '1') && (vars.ALLOWED_PHASES || 'instructor_only,beta,open') || inputs.allowed_phases || 'beta,open,instructor_only,instructor-only' }}
+      API_ONLY: ${{ (github.event_name == 'schedule' || inputs.api_only == '1') && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -60,10 +64,12 @@ jobs:
           E2E_RATE_LIMIT_TEST: ${{ env.E2E_RATE_LIMIT_TEST }}
           API_ONLY: ${{ env.API_ONLY }}
         run: |
-          if [ "${API_ONLY}" = "true" ]; then
-            npx --yes playwright test e2e/env-contract.spec.ts --reporter=line --grep "API only"
+          set -euo pipefail
+          mkdir -p .artifacts
+          if [ "${API_ONLY}" = "1" ]; then
+            npx --yes playwright test e2e/env-contract.spec.ts --reporter=line --grep "API only" | tee .artifacts/playwright.log
           else
-            npx --yes playwright test e2e/env-contract.spec.ts --reporter=line
+            npx --yes playwright test e2e/env-contract.spec.ts --reporter=line | tee .artifacts/playwright.log
           fi
       - name: Summarize endpoint statuses
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
@@ -81,7 +87,9 @@ jobs:
           mkdir -p .artifacts
           {
             echo "run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}";
-            grep -RhoE '^(\[headers]|\[cors]|\[429-triage]).*' frontend/.artifacts || true;
+            if [ -f .artifacts/playwright.log ]; then
+              grep -E '^(\[headers]|\[cors]|\[429-triage]).*' .artifacts/playwright.log || true;
+            fi
           } | tee .artifacts/env-contract-evidence.txt
       - name: Upload env-contract artifact
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
