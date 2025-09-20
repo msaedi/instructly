@@ -447,16 +447,34 @@ jobs:
         working-directory: frontend
         run: npx --yes playwright test e2e/env-contract.spec.ts
 
+      - name: Detect component changes
+        id: paths
+        uses: dorny/paths-filter@v3
+        with:
+          base: ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          filters: |
+            components:
+              - 'frontend/components/**'
+
+      - name: Set a11y strict on component changes
+        if: steps.paths.outputs.components == 'true'
+        run: |
+          echo "A11Y_STRICT=1" >> $GITHUB_ENV
+          echo "A11Y_IMPACTS=serious,critical" >> $GITHUB_ENV
+
       - name: Run a11y smoke (non-blocking unless strict)
         shell: bash
         working-directory: frontend
         env:
-          # Only fail on 'critical' by default; teams can tighten to "serious,critical"
-          A11Y_IMPACTS: ${{ vars.A11Y_IMPACTS || secrets.A11Y_IMPACTS || 'critical' }}
-          A11Y_STRICT: ${{ vars.A11Y_STRICT || secrets.A11Y_STRICT || '0' }}
-          E2E_A11Y_STRICT: ${{ vars.E2E_A11Y_STRICT || secrets.E2E_A11Y_STRICT || '' }}
+          DEFAULT_A11Y_IMPACTS: ${{ vars.A11Y_IMPACTS || secrets.A11Y_IMPACTS || 'critical' }}
+          DEFAULT_A11Y_STRICT: ${{ vars.A11Y_STRICT || secrets.A11Y_STRICT || '0' }}
+          DEFAULT_E2E_A11Y_STRICT: ${{ vars.E2E_A11Y_STRICT || secrets.E2E_A11Y_STRICT || '' }}
         run: |
           set -eo pipefail
+          : "${A11Y_IMPACTS:=${DEFAULT_A11Y_IMPACTS}}"
+          : "${A11Y_STRICT:=${DEFAULT_A11Y_STRICT}}"
+          : "${E2E_A11Y_STRICT:=${DEFAULT_E2E_A11Y_STRICT}}"
           status=0
           npx --yes playwright test e2e/a11y.smoke.spec.ts --reporter=line || status=$?
           echo "A11Y_EXIT=${status}"
