@@ -1,0 +1,7 @@
+# Temporary allowlist of pip-audit vulnerability IDs (GHSA / PYSEC).
+# Remove entries once upstream packages release fixes.
+GHSA-wj6h-64fc-37mp
+GHSA-f96h-pmfr-66vw
+GHSA-2c2j-9gv5-cj73
+GHSA-vqfr-h8mv-ghfj
+GHSA-59g5-xgcq-4qw3

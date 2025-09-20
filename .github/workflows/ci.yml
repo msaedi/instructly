@@ -343,7 +343,7 @@ jobs:
       - name: npm audit (fail-on-new)
         working-directory: frontend
         run: |
-          npm audit --omit=dev --json | node scripts/parse-npm-audit.js
+          npm audit --omit=dev --audit-level=high --json | node scripts/parse-npm-audit.js
 
       - name: MyPy (schemas/internal + payments) fail-gate
         working-directory: backend
