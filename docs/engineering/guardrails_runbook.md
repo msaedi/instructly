@@ -110,3 +110,12 @@ Notes:
   - `[cors] access-control-allow-credentials=… access-control-allow-origin=…`
   - `[429-triage] dedupeKey=… limited=… attempts=…`
 Use the artifact to confirm nothing regressed before promoting builds.
+
+### Evidence artifact + Job Summary
+- Both preview (`env-contract-evidence`) and beta (`env-contract-evidence-beta`) runs stash `env-contract-evidence.txt` + `pw.log` and append the same proof lines to the job summary.
+- Job Summary (example)
+  ```text
+  [headers] X-Site-Mode=preview X-Phase=instructor_only
+  [cors] access-control-allow-credentials=true access-control-allow-origin=https://preview.instainstru.com
+  [429-triage] dedupeKey=env-contract:rate-limit-test limited=7 attempts=10
+  ```
