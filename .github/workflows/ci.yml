@@ -141,25 +141,28 @@ jobs:
             frontend/.artifacts/contract-adoption.json
             frontend/.artifacts/contract-adoption.md
 
-      - name: Assert codegen tools are pinned (no ranges)
+      - name: Guardrail #12 – enforce exact pins for codegen/test deps
         shell: bash
         working-directory: frontend
         run: |
           set -euo pipefail
-          check_pkg() {
-            local name="$1"
-            local ver
-            ver="$(jq -r --arg name "$name" '.devDependencies[$name] // .dependencies[$name] // ""' package.json)"
+          must_pin=(
+            "openapi-typescript"
+            "@playwright/test"
+            "@axe-core/playwright"
+          )
+          for pkg in "${must_pin[@]}"; do
+            ver="$(jq -r --arg k "$pkg" '.dependencies[$k] // .devDependencies[$k] // ""' package.json)"
             if [ -z "${ver}" ]; then
-              echo "OK: ${name} not present"; return 0
+              echo "warn: ${pkg} not found; skipping"
+              continue
             fi
-            if [[ "${ver}" == ^* || "${ver}" == ~* ]]; then
-              echo "ERROR: ${name} must be pinned exactly (found ${ver})"
+            if [[ "${ver}" =~ [\^\~\*] || "${ver}" == "latest" || "${ver}" == *"x" ]]; then
+              echo "error: ${pkg} must be exactly pinned, found \"${ver}\""
               exit 1
             fi
-            echo "OK: ${name} pinned as ${ver}"
-          }
-          check_pkg openapi-typescript
+            echo "ok: ${pkg} pinned to ${ver}"
+          done
 
       - name: Build
         working-directory: frontend
