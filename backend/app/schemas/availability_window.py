@@ -21,18 +21,12 @@ DateTimeType = datetime.datetime
 
 
 class TimeSlot(BaseModel):
-    """Time slot for availability (compat: accepts deprecated is_available)."""
+    """Time slot for availability."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     start_time: TimeType
     end_time: TimeType
-    # DEPRECATED — kept only for backward-compat with older tests/callers.
-    # Ignored by business logic; presence has no effect.
-    is_available: bool | None = Field(
-        default=None,
-        description="DEPRECATED – ignored; do not rely on this field.",
-    )
 
 
 class AvailabilityWindowBase(BaseModel):
