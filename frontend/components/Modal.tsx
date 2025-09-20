@@ -109,7 +109,10 @@ const Modal: React.FC<ModalProps> = ({
                       className={`${title ? 'ml-auto' : ''} p-0 bg-transparent cursor-pointer`}
                       aria-label="Close modal"
                     >
-                      <X className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" />
+                      <X
+                        className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                        aria-hidden="true"
+                      />
                     </button>
                   </Dialog.Close>
                 )}
@@ -122,7 +125,10 @@ const Modal: React.FC<ModalProps> = ({
                   className="absolute top-3 right-3 p-0 bg-transparent cursor-pointer"
                   aria-label="Close modal"
                 >
-                  <X className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" />
+                  <X
+                    className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                    aria-hidden="true"
+                  />
                 </button>
               </Dialog.Close>
             )}

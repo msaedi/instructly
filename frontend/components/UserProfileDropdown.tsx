@@ -120,9 +120,15 @@ export default function UserProfileDropdown() {
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 hover:bg-gray-100 rounded-full pr-2 pl-1 py-1 transition-colors"
+        aria-label={isOpen ? 'Close user menu' : 'Open user menu'}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
       >
         <UserAvatar user={user as { id: string; first_name?: string; last_name?: string; has_profile_picture?: boolean; profile_picture_version?: number } | null} size={48} />
-        <ChevronDown className={`h-4 w-4 text-purple-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`h-4 w-4 text-purple-600 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
       </button>
 
       {isOpen && typeof window !== 'undefined' && createPortal(
@@ -149,12 +155,12 @@ export default function UserProfileDropdown() {
               >
                 {instructorOnboardingComplete ? (
                   <>
-                    <User className="h-4 w-4" />
+                    <User className="h-4 w-4" aria-hidden="true" />
                     Dashboard
                   </>
                 ) : (
                   <>
-                    <AlertCircle className="h-4 w-4 text-purple-600" />
+                    <AlertCircle className="h-4 w-4 text-purple-600" aria-hidden="true" />
                     <span className="text-[#7E22CE] font-medium">Finish Onboarding</span>
                   </>
                 )}
@@ -166,7 +172,7 @@ export default function UserProfileDropdown() {
                   onClick={() => handleNavigation('/student/dashboard')}
                   className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <User className="h-4 w-4" />
+                  <User className="h-4 w-4" aria-hidden="true" />
                   My Account
                 </button>
 
@@ -174,7 +180,7 @@ export default function UserProfileDropdown() {
                   onClick={() => handleNavigation('/student/lessons')}
                   className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <Calendar className="h-4 w-4" />
+                  <Calendar className="h-4 w-4" aria-hidden="true" />
                   My Lessons
                 </button>
               </>
@@ -186,7 +192,7 @@ export default function UserProfileDropdown() {
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#7E22CE] hover:bg-purple-50 transition-colors"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-4 w-4" aria-hidden="true" />
               Sign Out
             </button>
           </div>

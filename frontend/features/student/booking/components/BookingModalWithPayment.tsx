@@ -251,8 +251,9 @@ export default function BookingModalWithPayment({
               <button
                 onClick={handleBackButton}
                 className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="Go back"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
               </button>
             )}
             <h2 className="text-xl font-semibold">
@@ -265,8 +266,9 @@ export default function BookingModalWithPayment({
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            aria-label="Close booking modal"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -304,15 +306,15 @@ export default function BookingModalWithPayment({
               {/* Session Details */}
               <div className="space-y-4 mb-6">
                 <div className="flex items-center space-x-3">
-                  <MapPin className="h-5 w-5 text-gray-400" />
+                  <MapPin className="h-5 w-5 text-gray-400" aria-hidden="true" />
                   <span>{instructor.areas_of_service.join(', ')}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Clock className="h-5 w-5 text-gray-400" />
+                  <Clock className="h-5 w-5 text-gray-400" aria-hidden="true" />
                   <span>{selectedDate} at {selectedTime}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <DollarSign className="h-5 w-5 text-gray-400" />
+                  <DollarSign className="h-5 w-5 text-gray-400" aria-hidden="true" />
                   <span className="font-semibold">${totalPrice.toFixed(2)} total</span>
                 </div>
               </div>

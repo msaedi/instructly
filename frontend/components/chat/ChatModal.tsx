@@ -117,7 +117,7 @@ export function ChatModal({
             className="rounded-full p-2 hover:bg-gray-100 transition-colors ring-1 ring-transparent hover:ring-gray-200 dark:hover:bg-gray-800 dark:hover:ring-gray-700"
             aria-label="Close chat"
           >
-            <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            <X className="h-5 w-5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
           </button>
         </div>
 

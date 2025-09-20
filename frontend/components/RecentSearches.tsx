@@ -204,7 +204,7 @@ export function RecentSearches() {
                   className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
                   aria-label="Remove search"
                 >
-                  <X className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                  <X className="h-4 w-4 text-gray-500 dark:text-gray-400" aria-hidden="true" />
                 </button>
               </div>
             );

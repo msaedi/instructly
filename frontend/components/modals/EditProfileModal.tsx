@@ -709,7 +709,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         {error && (
           <div className="px-6 py-4">
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
-              <X className="w-4 h-4 text-red-600 flex-shrink-0" />
+              <X className="w-4 h-4 text-red-600 flex-shrink-0" aria-hidden="true" />
               <p className="text-sm text-red-700">{error}</p>
             </div>
           </div>

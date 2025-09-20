@@ -2,8 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - '**'
   pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -135,6 +140,26 @@ jobs:
             frontend/.artifacts/contract-audit-report.md
             frontend/.artifacts/contract-adoption.json
             frontend/.artifacts/contract-adoption.md
+
+      - name: Assert codegen tools are pinned (no ranges)
+        shell: bash
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          check_pkg() {
+            local name="$1"
+            local ver
+            ver="$(jq -r --arg name "$name" '.devDependencies[$name] // .dependencies[$name] // ""' package.json)"
+            if [ -z "${ver}" ]; then
+              echo "OK: ${name} not present"; return 0
+            fi
+            if [[ "${ver}" == ^* || "${ver}" == ~* ]]; then
+              echo "ERROR: ${name} must be pinned exactly (found ${ver})"
+              exit 1
+            fi
+            echo "OK: ${name} pinned as ${ver}"
+          }
+          check_pkg openapi-typescript
 
       - name: Build
         working-directory: frontend
@@ -422,16 +447,21 @@ jobs:
         working-directory: frontend
         run: npx --yes playwright test e2e/env-contract.spec.ts
 
-      - name: Run a11y smoke (non-blocking unless E2E_A11Y_STRICT=1)
+      - name: Run a11y smoke (non-blocking unless strict)
         shell: bash
         working-directory: frontend
+        env:
+          # Only fail on 'critical' by default; teams can tighten to "serious,critical"
+          A11Y_IMPACTS: ${{ vars.A11Y_IMPACTS || secrets.A11Y_IMPACTS || 'critical' }}
+          A11Y_STRICT: ${{ vars.A11Y_STRICT || secrets.A11Y_STRICT || '0' }}
+          E2E_A11Y_STRICT: ${{ vars.E2E_A11Y_STRICT || secrets.E2E_A11Y_STRICT || '' }}
         run: |
           set -eo pipefail
           status=0
           npx --yes playwright test e2e/a11y.smoke.spec.ts --reporter=line || status=$?
           echo "A11Y_EXIT=${status}"
-          # Optionally upload reports here, regardless of pass/fail
-          if [ "${E2E_A11Y_STRICT:-0}" = "1" ] && [ "${status}" -ne 0 ]; then
+          strict_flag="${A11Y_STRICT:-${E2E_A11Y_STRICT:-0}}"
+          if [ "${strict_flag}" = "1" ] && [ "${status}" -ne 0 ]; then
             exit "${status}"
           fi
 
