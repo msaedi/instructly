@@ -14,6 +14,15 @@ import { WeekDateInfo, AVAILABILITY_CONSTANTS } from '@/types/availability';
 import { logger } from '@/lib/logger';
 import { at } from '@/lib/ts/safe';
 
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+export function assertDateOnly(value: string, context: string = 'date string'): void {
+  if (process.env.NODE_ENV === 'production') return;
+  if (!DATE_ONLY_REGEX.test(value)) {
+    throw new Error(`${context} must be a YYYY-MM-DD date-only string, received "${value}"`);
+  }
+}
+
 /**
  * Format a Date object to API format (YYYY-MM-DD)
  *
@@ -31,9 +40,25 @@ export function formatDateForAPI(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0');
 
   const formatted = `${year}-${month}-${day}`;
+  assertDateOnly(formatted, 'formatDateForAPI output');
   logger.debug('Formatted date for API', { input: date.toISOString(), output: formatted });
 
   return formatted;
+}
+
+export function toDateOnlyString(input: Date | string, context: string = 'date string'): string {
+  if (input instanceof Date) {
+    return formatDateForAPI(input);
+  }
+  if (typeof input === 'string') {
+    const normalized = input.trim();
+    assertDateOnly(normalized, context);
+    return normalized;
+  }
+  if (process.env.NODE_ENV !== 'production') {
+    throw new Error(`${context} must be a Date or YYYY-MM-DD string`);
+  }
+  return String(input);
 }
 
 /**

@@ -13,6 +13,7 @@ import { httpJson } from '@/features/shared/api/http';
 import { withApiBase } from '@/lib/apiBase';
 import { loadCreateBookingSchema } from '@/features/shared/api/schemas/booking';
 import { loadBookingListSchema } from '@/features/shared/api/schemas/bookingList';
+import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 
 // Using generated types from OpenAPI schema
 
@@ -96,11 +97,13 @@ export const bookingsApi = {
    * ```
    */
   checkAvailability: async (data: AvailabilityCheckRequest): Promise<AvailabilityCheckResponse> => {
+    const bookingDate = toDateOnlyString(data.booking_date as Date | string, 'booking_date');
+
     logger.info('Checking time range availability', {
       instructorId: data.instructor_id,
       serviceId: (data as unknown as { service_id?: string; instructor_service_id?: string }).service_id ||
         (data as unknown as { instructor_service_id?: string }).instructor_service_id,
-      date: data.booking_date,
+      date: bookingDate,
       startTime: data.start_time,
       endTime: data.end_time,
     });
@@ -110,7 +113,7 @@ export const bookingsApi = {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, booking_date: bookingDate }),
     });
 
     if (!response.ok) {
@@ -125,11 +128,11 @@ export const bookingsApi = {
       throw new Error(error.detail || 'Failed to check availability');
     }
 
-    const result = await response.json();
-    logger.debug('Availability check successful', {
-      instructorId: data.instructor_id,
-      available: result.available,
-      reason: result.reason,
+      const result = await response.json();
+      logger.debug('Availability check successful', {
+        instructorId: data.instructor_id,
+        available: result.available,
+        reason: result.reason,
     });
     return result;
   },
@@ -154,26 +157,31 @@ export const bookingsApi = {
    * ```
    */
   createBooking: async (data: BookingCreate): Promise<Booking> => {
+    const bookingDate = toDateOnlyString(data.booking_date as Date | string, 'booking_date');
+
     logger.info('Creating time-based booking', {
       instructorId: data.instructor_id,
       serviceId: (data as unknown as { service_id?: string; instructor_service_id?: string }).service_id || (data as unknown as { instructor_service_id?: string }).instructor_service_id,
-      date: data.booking_date,
+      date: bookingDate,
       startTime: data.start_time,
       endTime: data.end_time,
       hasNotes: !!data.student_note,
     });
+
+    const payload = {
+      ...data,
+      booking_date: bookingDate,
+      instructor_service_id:
+        (data as unknown as { instructor_service_id?: string }).instructor_service_id ||
+        (data as unknown as { service_id?: string }).service_id,
+    };
 
     const booking = await httpJson<Booking>(
       withApiBase('/bookings/'),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          instructor_service_id:
-            (data as unknown as { instructor_service_id?: string }).instructor_service_id ||
-            (data as unknown as { service_id?: string }).service_id,
-        }),
+        body: JSON.stringify(payload),
       },
       loadCreateBookingSchema,
       { endpoint: 'POST /bookings' }

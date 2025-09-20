@@ -9,12 +9,24 @@ availability changes.
 """
 
 from datetime import date, datetime, time, timedelta
+import re
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
+
+DATE_ONLY_REGEX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _ensure_date_only(value: object, field_name: str) -> object:
+    if isinstance(value, str):
+        candidate = value.strip()
+        if not DATE_ONLY_REGEX.fullmatch(candidate):
+            raise ValueError(f"{field_name} must be a YYYY-MM-DD date-only string")
+        return candidate
+    return value
 
 
 class RescheduledFromInfo(StandardizedModel):
@@ -57,18 +69,10 @@ class BookingCreate(BaseModel):
     # Forbid extra fields and validate assignment to enforce clean architecture
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    if STRICT_SCHEMAS:
-
-        @field_validator("booking_date", mode="before")
-        @classmethod
-        def _strict_date_only(
-            cls, v: object
-        ) -> object:  # pragma: no cover - exercised via integration tests
-            if isinstance(v, str):
-                # Enforce YYYY-MM-DD (date-only). Let pydantic parse into date afterwards.
-                datetime.strptime(v, "%Y-%m-%d")
-                return v
-            return v
+    @field_validator("booking_date", mode="before")
+    @classmethod
+    def _enforce_date_only(cls, v: object) -> object:
+        return _ensure_date_only(v, "booking_date")
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
@@ -150,6 +154,11 @@ class BookingRescheduleRequest(BaseModel):
     instructor_service_id: Optional[str] = Field(
         None, description="Override service if needed (defaults to old)"
     )
+
+    @field_validator("booking_date", mode="before")
+    @classmethod
+    def _enforce_date_only(cls, v: object) -> object:
+        return _ensure_date_only(v, "booking_date")
 
     @field_validator("start_time", mode="before")
     @classmethod
@@ -575,17 +584,10 @@ class AvailabilityCheckRequest(BaseModel):
             raise ValueError("End time must be after start time")
         return v
 
-    if STRICT_SCHEMAS:
-
-        @field_validator("booking_date", mode="before")
-        @classmethod
-        def _strict_date_only(
-            cls, v: object
-        ) -> object:  # pragma: no cover - exercised via integration tests
-            if isinstance(v, str):
-                datetime.strptime(v, "%Y-%m-%d")
-                return v
-            return v
+    @field_validator("booking_date", mode="before")
+    @classmethod
+    def _enforce_date_only(cls, v: object) -> object:
+        return _ensure_date_only(v, "booking_date")
 
     # NOTE: Date validation moved to services to support user timezones
     # @field_validator("booking_date")

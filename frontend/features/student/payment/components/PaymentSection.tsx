@@ -10,6 +10,7 @@ import PaymentProcessing from './PaymentProcessing';
 import PaymentSuccess from './PaymentSuccess';
 import { logger } from '@/lib/logger';
 import { requireString } from '@/lib/ts/safe';
+import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBooking';
 import { paymentService } from '@/services/api/payments';
 import { protectedApi } from '@/features/shared/api/client';
@@ -188,13 +189,6 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     goToStep(PaymentStep.PROCESSING);
 
     try {
-      // Helper to normalize date input to ISO yyyy-MM-dd
-      const normalizeISODateOnly = (input: Date | string): string => {
-        const d = input instanceof Date ? input : new Date(input);
-        if (Number.isNaN(d.getTime())) throw new Error('Invalid bookingDate');
-        return d.toISOString().slice(0, 10);
-      };
-
       // Helper: convert display times like "6:00am" or "12:30pm" to 24h "HH:MM"
       const toHHMM = (display: string): string => {
         const lower = String(display ?? '').trim().toLowerCase();
@@ -241,7 +235,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           if (slotRaw) {
             const slot = JSON.parse(slotRaw) as { date?: string };
             if (slot?.date) {
-              bookingDate = normalizeISODateOnly(slot.date);
+              bookingDate = toDateOnlyString(slot.date, 'selectedSlot.booking_date');
               // One-time recovery: patch bookingData in memory to avoid repeated missing-date errors
               setUpdatedBookingData((prev) => ({ ...prev, date: new Date(bookingDate) }));
             } else {
@@ -255,7 +249,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           throw new Error('Missing booking date. Please re-select date and time.');
         }
       } else {
-        bookingDate = normalizeISODateOnly(bookingData.date as Date | string);
+        bookingDate = toDateOnlyString(bookingData.date as Date | string, 'booking_date');
       }
 
       // Debug logging to identify missing data
