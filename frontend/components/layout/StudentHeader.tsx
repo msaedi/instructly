@@ -82,7 +82,7 @@ export function StudentHeader() {
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-700'
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4" aria-hidden="true" />
                   <span>{item.label}</span>
                 </Link>
               );
@@ -94,12 +94,15 @@ export function StudentHeader() {
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 transition-colors"
+              aria-label={isUserMenuOpen ? 'Close account menu' : 'Open account menu'}
+              aria-haspopup="menu"
+              aria-expanded={isUserMenuOpen}
             >
               {isMounted && user ? (
                 <UserAvatar user={user} size={32} />
               ) : (
                 <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-primary" />
+                  <User className="h-4 w-4 text-primary" aria-hidden="true" />
                 </div>
               )}
               <span className="hidden md:block">
@@ -107,6 +110,7 @@ export function StudentHeader() {
               </span>
               <ChevronDown
                 className={cn('h-4 w-4 transition-transform', isUserMenuOpen && 'rotate-180')}
+                aria-hidden="true"
               />
             </button>
 
@@ -125,7 +129,7 @@ export function StudentHeader() {
                   className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"
                   onClick={() => setIsUserMenuOpen(false)}
                 >
-                  <User className="h-4 w-4" />
+                  <User className="h-4 w-4" aria-hidden="true" />
                   My Profile
                 </Link>
 
@@ -136,7 +140,7 @@ export function StudentHeader() {
                   }}
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 text-left"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
                   Log Out
                 </button>
               </div>
@@ -147,8 +151,11 @@ export function StudentHeader() {
           <button
             className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={isMobileMenuOpen}
+            aria-haspopup="menu"
           >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -180,7 +187,7 @@ export function StudentHeader() {
                   )}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5" aria-hidden="true" />
                   <span>{item.label}</span>
                 </Link>
               );
@@ -192,7 +199,7 @@ export function StudentHeader() {
                 className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                <User className="h-5 w-5" />
+                <User className="h-5 w-5" aria-hidden="true" />
                 My Profile
               </Link>
 
@@ -203,7 +210,7 @@ export function StudentHeader() {
                 }}
                 className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 text-left"
               >
-                <LogOut className="h-5 w-5" />
+                <LogOut className="h-5 w-5" aria-hidden="true" />
                 Log Out
               </button>
             </div>

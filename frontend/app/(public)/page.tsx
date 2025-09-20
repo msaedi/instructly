@@ -408,6 +408,7 @@ export default function HomePage() {
                   transform: 'translateY(-50%)',
                   boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)',
                 }}
+                aria-label="Search"
                 onMouseEnter={(e) => {
                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 215, 0, 0.4)';
                 }}
@@ -415,7 +416,7 @@ export default function HomePage() {
                   e.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 215, 0, 0.3)';
                 }}
               >
-                <Search className="h-5 w-5 text-white" />
+                <Search className="h-5 w-5 text-white" aria-hidden="true" />
               </button>
             </div>
           </form>
@@ -951,8 +952,9 @@ export default function HomePage() {
               <button
                 onClick={() => setShowPrivacyModal(false)}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                aria-label="Close privacy settings"
               >
-                <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                <X className="h-5 w-5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
               </button>
             </div>
             <div className="p-6">

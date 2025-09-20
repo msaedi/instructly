@@ -65,6 +65,31 @@
 - Optional admin mint step:
   - If an admin bearer is later added as `secrets.ADMIN_BEARER`, a disabled‑by‑default step can mint an invite code via `/api/beta/invites/generate` and export `GATE_CODE` for the run.
 
+## E2E / a11y smoke
+
+- Local strict run (fail on serious+critical):
+
+```bash
+A11Y_IMPACTS=serious,critical npx playwright test e2e/a11y.smoke.spec.ts
+```
+
+- Looser smoke (default, fail only on critical):
+
+```bash
+A11Y_IMPACTS=critical npx playwright test e2e/a11y.smoke.spec.ts
+```
+
+- With staff/beta gate bypass:
+
+```bash
+export PLAYWRIGHT_BASE_URL=http://localhost:3100
+export GATE_CODE="***"
+npx playwright test e2e/a11y.smoke.spec.ts
+```
+
+Notes:
+- The a11y smoke bypasses the staff gate when `GATE_CODE` is set, waits for the app shell, and scans only `<main>` (WCAG 2 A/AA). It logs a concise `[a11y]` summary and remains non-blocking in CI unless `E2E_A11Y_STRICT=1`.
+
 ## FE public env verify (diff-aware)
 - Script: `frontend/scripts/verify-public-env.mjs`.
 - Behavior: scans for `env.get('NEXT_PUBLIC_…')` and `process.env.NEXT_PUBLIC_…` in frontend, filters to changed files in the current diff (PR/base vs `origin/main`).

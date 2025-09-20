@@ -309,7 +309,7 @@ function StudentDashboardContent() {
                 className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800/30 transition-colors mr-4"
                 aria-label="Dismiss notification"
               >
-                <X className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                <X className="h-4 w-4 text-gray-600 dark:text-gray-400" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -908,7 +908,7 @@ function StudentDashboardContent() {
                                 }
                               }}
                             >
-                              <X className="h-4 w-4" />
+                              <X className="h-4 w-4" aria-hidden="true" />
                             </button>
                           </div>
                         );
@@ -999,8 +999,9 @@ function StudentDashboardContent() {
                 <button
                   onClick={() => setShowAchievementsModal(false)}
                   className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  aria-label="Close achievements modal"
                 >
-                  <X className="h-5 w-5 text-gray-500" />
+                  <X className="h-5 w-5 text-gray-500" aria-hidden="true" />
                 </button>
               </div>
               <p className="mt-1 text-sm text-gray-600">

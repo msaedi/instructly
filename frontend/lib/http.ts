@@ -2,6 +2,7 @@
  * Unified HTTP client for browser + SSR.
  */
 
+import { logger } from '@/lib/logger';
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export class ApiError extends Error {
@@ -68,6 +69,17 @@ export async function http<T = unknown>(method: HttpMethod, url: string, options
       data = await anyResp.json();
     }
   } catch {}
+
+  if (process.env.NODE_ENV !== 'production' && resp.status === 429) {
+    try {
+      const dedupeKey =
+        resp.headers.get('x-dedupe-key') ||
+        resp.headers.get('x-rate-limit-dedupe-key') ||
+        resp.headers.get('x-ratelimit-dedupe-key') ||
+        '';
+      logger.info('[429-dev] rate-limit triage', { dedupeKey: dedupeKey || 'unknown' });
+    } catch {}
+  }
 
   if (!resp.ok) {
     const status = resp.status;
