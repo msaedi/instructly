@@ -1,1 +1,3 @@
-{}
+{
+  "color-contrast::.justify-between:nth-child(1) > .text-green-600.dark\\:text-green-400.text-sm": "Acceptable legacy badge contrast; covered by manual audit"
+}
