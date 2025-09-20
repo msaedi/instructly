@@ -66,11 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .artifacts
-          if [ "${API_ONLY}" = "1" ]; then
-            npx --yes playwright test e2e/env-contract.spec.ts --reporter=line --grep "API only" | tee .artifacts/playwright.log
-          else
-            npx --yes playwright test e2e/env-contract.spec.ts --reporter=line | tee .artifacts/playwright.log
-          fi
+          npx --yes playwright test e2e/env-contract.spec.ts --reporter=line | tee .artifacts/playwright.log
       - name: Summarize endpoint statuses
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
         run: |
