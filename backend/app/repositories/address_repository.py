@@ -1,6 +1,6 @@
 """Repositories for address and spatial models."""
 
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from sqlalchemy.orm import Session
 
@@ -108,11 +108,12 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
     ) -> list[InstructorServiceArea]:
         if not instructor_ids:
             return []
-        return (
+        return cast(
+            list[InstructorServiceArea],
             self._build_query()
             .filter(
                 InstructorServiceArea.instructor_id.in_(instructor_ids),
                 InstructorServiceArea.is_active.is_(True),
             )
-            .all()
+            .all(),
         )

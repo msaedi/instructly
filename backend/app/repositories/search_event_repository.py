@@ -6,13 +6,45 @@ Handles data access for individual search events used in analytics.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, TypedDict, cast
 
 from sqlalchemy import desc, func
+from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session
 
 from ..models.search_event import SearchEvent, SearchEventCandidate
 from .base_repository import BaseRepository
+
+
+class PopularSearch(TypedDict):
+    query: Optional[str]
+    count: int
+
+
+class PopularSearchWithAvg(TypedDict):
+    query: Optional[str]
+    search_count: int
+    avg_results: float
+
+
+class DailyCount(TypedDict):
+    date: str
+    count: int
+
+
+class SearchPattern(TypedDict):
+    query: str
+    count: int
+    avg_results: float
+    average_results: float
+    period_days: int
+    daily_counts: List[DailyCount]
+    type_distribution: Dict[Optional[str], int]
+
+
+class HourlySearchCount(TypedDict):
+    hour_start: datetime
+    count: int
 
 
 class SearchEventRepository(BaseRepository[SearchEvent]):
@@ -34,11 +66,12 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         Returns:
             List of SearchEvent records
         """
-        return (
+        return cast(
+            List[SearchEvent],
             self.db.query(SearchEvent)
             .filter(SearchEvent.user_id == user_id)
             .order_by(SearchEvent.searched_at.desc())
-            .all()
+            .all(),
         )
 
     def delete_user_events(self, user_id: str) -> int:
@@ -89,7 +122,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         Returns:
             Count of old events
         """
-        return (
+        return int(
             self.db.query(func.count(SearchEvent.id))
             .filter(SearchEvent.searched_at < cutoff_date)
             .scalar()
@@ -105,9 +138,11 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         Returns:
             Total count of search event records
         """
-        return self.db.query(func.count(SearchEvent.id)).scalar() or 0
+        return int(self.db.query(func.count(SearchEvent.id)).scalar() or 0)
 
-    def create_event(self, event_data: Optional[Dict] = None, **kwargs) -> SearchEvent:
+    def create_event(
+        self, event_data: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> SearchEvent:
         """
         Create a new search event for analytics tracking.
 
@@ -130,7 +165,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
     def bulk_insert_candidates(
         self,
         search_event_id: str,
-        candidates: List[Dict],
+        candidates: Sequence[Dict[str, Any]],
     ) -> int:
         """
         Persist top-N candidates for a search event.
@@ -163,7 +198,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         self.db.flush()
         return len(objects)
 
-    def get_popular_searches(self, limit: int = 10, days: int = 30) -> List[Dict]:
+    def get_popular_searches(self, limit: int = 10, days: int = 30) -> List[PopularSearch]:
         """
         Get popular search queries within a time period.
 
@@ -171,16 +206,26 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         """
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
-        results = (
+        rows = cast(
+            Sequence[Row[Any]],
             self.db.query(SearchEvent.search_query, func.count(SearchEvent.id).label("count"))
             .filter(SearchEvent.searched_at >= cutoff_date)
             .group_by(SearchEvent.search_query)
             .order_by(func.count(SearchEvent.id).desc())
             .limit(limit)
-            .all()
+            .all(),
         )
 
-        return [{"query": query, "count": count} for query, count in results]
+        popular: List[PopularSearch] = []
+        for row in rows:
+            mapping = row._mapping
+            popular.append(
+                {
+                    "query": cast(Optional[str], mapping.get("search_query")),
+                    "count": int(mapping.get("count", 0) or 0),
+                }
+            )
+        return popular
 
     def calculate_search_quality_score(self, event_id: int) -> float:
         """
@@ -230,7 +275,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
     def get_popular_searches_with_avg_results(
         self, limit: int = 10, hours: Optional[int] = None
-    ) -> List[Dict]:
+    ) -> List[PopularSearchWithAvg]:
         """
         Get popular searches with their average result counts.
 
@@ -251,21 +296,25 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
             query = query.filter(SearchEvent.searched_at >= cutoff_time)
 
-        results = (
+        rows = cast(
+            Sequence[Row[Any]],
             query.group_by(SearchEvent.search_query)
             .order_by(func.count(SearchEvent.id).desc())
             .limit(limit)
-            .all()
+            .all(),
         )
 
-        return [
-            {
-                "query": query,
-                "search_count": search_count,
-                "avg_results": float(avg_results) if avg_results else 0.0,
-            }
-            for query, search_count, avg_results in results
-        ]
+        data: List[PopularSearchWithAvg] = []
+        for row in rows:
+            mapping = row._mapping
+            data.append(
+                {
+                    "query": cast(Optional[str], mapping.get("search_query")),
+                    "search_count": int(mapping.get("search_count", 0) or 0),
+                    "avg_results": float(mapping.get("avg_results", 0.0) or 0.0),
+                }
+            )
+        return data
 
     def count_searches_since(self, since: datetime) -> int:
         """
@@ -273,7 +322,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         Used for analytics and rate limiting.
         """
-        return (
+        return int(
             self.db.query(func.count(SearchEvent.id))
             .filter(SearchEvent.searched_at >= since)
             .scalar()
@@ -295,7 +344,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         if limit:
             query = query.limit(limit)
 
-        return query.all()
+        return cast(List[SearchEvent], query.all())
 
     def get_searches_by_session(self, session_id: str) -> List[SearchEvent]:
         """
@@ -303,11 +352,12 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         Used for guest search history.
         """
-        return (
+        return cast(
+            List[SearchEvent],
             self.db.query(SearchEvent)
             .filter(SearchEvent.session_id == session_id)
             .order_by(SearchEvent.searched_at.desc())
-            .all()
+            .all(),
         )
 
     def count_searches_with_interactions(self, since: datetime) -> int:
@@ -329,14 +379,14 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             .subquery()
         )
 
-        return (
+        return int(
             self.db.query(func.count(SearchEvent.id))
             .filter(SearchEvent.searched_at >= since, SearchEvent.id.in_(interaction_subquery))
             .scalar()
             or 0
         )
 
-    def get_search_type_distribution(self, hours: Optional[int] = None) -> Dict[str, int]:
+    def get_search_type_distribution(self, hours: Optional[int] = None) -> Dict[Optional[str], int]:
         """
         Get distribution of search types.
 
@@ -352,9 +402,18 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
             query = query.filter(SearchEvent.searched_at >= cutoff_time)
 
-        results = query.group_by(SearchEvent.search_type).all()
+        rows = cast(
+            Sequence[Row[Any]],
+            query.group_by(SearchEvent.search_type).all(),
+        )
 
-        return {search_type: count for search_type, count in results}
+        distribution: Dict[Optional[str], int] = {}
+        for row in rows:
+            mapping = row._mapping
+            distribution[cast(Optional[str], mapping.get("search_type"))] = int(
+                mapping.get("count", 0) or 0
+            )
+        return distribution
 
     def get_search_patterns(self, query: str, days: int = 30) -> Dict:
         """
@@ -383,7 +442,8 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         # Get daily counts
         date_expr = func.date(SearchEvent.searched_at)
 
-        daily_counts_query = (
+        daily_counts_rows = cast(
+            Sequence[Row[Any]],
             self.db.query(
                 date_expr.label("date"),
                 func.count(SearchEvent.id).label("count"),
@@ -391,28 +451,42 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             .filter(SearchEvent.search_query == query, SearchEvent.searched_at >= cutoff_date)
             .group_by(date_expr)
             .order_by(date_expr)
-            .all()
+            .all(),
         )
 
-        daily_counts = [{"date": str(date), "count": count} for date, count in daily_counts_query]
+        daily_counts: List[DailyCount] = []
+        for row in daily_counts_rows:
+            mapping = row._mapping
+            daily_counts.append(
+                {
+                    "date": str(mapping.get("date")),
+                    "count": int(mapping.get("count", 0) or 0),
+                }
+            )
 
         # Get type distribution
-        type_distribution_query = (
+        type_distribution_rows = cast(
+            Sequence[Row[Any]],
             self.db.query(SearchEvent.search_type, func.count(SearchEvent.id).label("count"))
             .filter(SearchEvent.search_query == query, SearchEvent.searched_at >= cutoff_date)
             .group_by(SearchEvent.search_type)
-            .all()
+            .all(),
         )
 
-        type_distribution = {search_type: count for search_type, count in type_distribution_query}
+        type_distribution: Dict[Optional[str], int] = {}
+        for row in type_distribution_rows:
+            mapping = row._mapping
+            type_distribution[cast(Optional[str], mapping.get("search_type"))] = int(
+                mapping.get("count", 0) or 0
+            )
+
+        avg_results_value = float(avg_results or 0.0)
 
         return {
             "query": query,
-            "count": count,
-            "avg_results": float(avg_results) if avg_results else 0.0,
-            "average_results": float(avg_results)
-            if avg_results
-            else 0.0,  # Alias for compatibility
+            "count": int(count),
+            "avg_results": avg_results_value,
+            "average_results": avg_results_value,
             "period_days": days,
             "daily_counts": daily_counts,
             "type_distribution": type_distribution,
@@ -449,7 +523,10 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         else:
             return None
 
-        return query.order_by(SearchEvent.searched_at.desc()).first()
+        return cast(
+            Optional[SearchEvent],
+            query.order_by(SearchEvent.searched_at.desc()).first(),
+        )
 
     def get_search_event_by_id(self, event_id: int) -> Optional[SearchEvent]:
         """
@@ -480,5 +557,22 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             .order_by(desc("count"), desc("hour_start"))
             .limit(limit)
         )
-        rows = query.all()
-        return [{"hour_start": r.hour_start, "count": int(r.count)} for r in rows]
+        rows = cast(Sequence[Row[Any]], query.all())
+        hourly: List[HourlySearchCount] = []
+        for row in rows:
+            mapping = row._mapping
+            hour_start_value = mapping.get("hour_start")
+            if isinstance(hour_start_value, datetime):
+                hour_start_dt = hour_start_value
+            else:
+                try:
+                    hour_start_dt = datetime.fromisoformat(str(hour_start_value))
+                except (TypeError, ValueError):
+                    continue
+            hourly.append(
+                {
+                    "hour_start": hour_start_dt,
+                    "count": int(mapping.get("count", 0) or 0),
+                }
+            )
+        return hourly

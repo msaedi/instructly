@@ -22,11 +22,12 @@ Methods removed for clean architecture:
 - delete_non_booked_slots() → Use delete_slots_preserving_booked_times()
 """
 
-from datetime import date
+from datetime import date, time
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Sequence, TypedDict, cast
 
 from sqlalchemy import and_, text
+from sqlalchemy.engine import Row
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -36,6 +37,37 @@ from ..models.booking import Booking, BookingStatus
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
+
+
+class BookingTimeRange(TypedDict):
+    start_time: time
+    end_time: time
+
+
+class WeekBookingsSummary(TypedDict):
+    booked_time_ranges_by_date: Dict[str, List[BookingTimeRange]]
+    total_bookings: int
+
+
+class DateRangeBookingsSummary(TypedDict):
+    bookings_by_date: Dict[str, List[BookingTimeRange]]
+    total_bookings: int
+
+
+class SlotStatus(TypedDict):
+    id: int
+    start_time: time
+    end_time: time
+    is_booked: bool
+
+
+class WeekSlotStatus(TypedDict):
+    date: date
+    slot_id: int
+    start_time: time
+    end_time: time
+    booking_status: Optional[str]
+    booking_id: Optional[int]
 
 
 class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
@@ -54,8 +86,8 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
     # Week Booking Queries
 
     def get_week_bookings_with_slots(
-        self, instructor_id: str, week_dates: List[date]
-    ) -> Dict[str, Any]:
+        self, instructor_id: str, week_dates: Sequence[date]
+    ) -> WeekBookingsSummary:
         """
         Get all bookings in a target week.
 
@@ -73,7 +105,8 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
         """
         try:
             # Direct query on bookings - no slot references
-            bookings = (
+            booking_rows = cast(
+                Sequence[Row[Any]],
                 self.db.query(
                     Booking.booking_date,
                     Booking.start_time,
@@ -84,25 +117,30 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                     Booking.booking_date.in_(week_dates),
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
-                .all()
+                .all(),
             )
 
-            # Process booking information
-            booked_time_ranges_by_date: Dict[str, List[Dict[str, Any]]] = {}
+            booked_time_ranges_by_date: Dict[str, List[BookingTimeRange]] = {}
 
-            for booking in bookings:
-                date_str = booking.booking_date.isoformat()
-                if date_str not in booked_time_ranges_by_date:
-                    booked_time_ranges_by_date[date_str] = []
-                booked_time_ranges_by_date[date_str].append(
-                    {"start_time": booking.start_time, "end_time": booking.end_time}
+            for row in booking_rows:
+                mapping = row._mapping
+                booking_date = mapping.get("booking_date")
+                if booking_date is None:
+                    continue
+                date_str = booking_date.isoformat()
+                start_time_value = mapping.get("start_time")
+                end_time_value = mapping.get("end_time")
+                if not isinstance(start_time_value, time) or not isinstance(end_time_value, time):
+                    continue
+                booked_time_ranges_by_date.setdefault(date_str, []).append(
+                    {"start_time": start_time_value, "end_time": end_time_value}
                 )
 
-            self.logger.info(f"Found {len(bookings)} bookings in target week")
+            self.logger.info(f"Found {len(booking_rows)} bookings in target week")
 
             return {
                 "booked_time_ranges_by_date": booked_time_ranges_by_date,
-                "total_bookings": len(bookings),
+                "total_bookings": len(booking_rows),
             }
 
         except SQLAlchemyError as e:
@@ -111,7 +149,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     def get_bookings_in_date_range(
         self, instructor_id: str, start_date: date, end_date: date
-    ) -> Dict[str, Any]:
+    ) -> DateRangeBookingsSummary:
         """
         Get all bookings in a date range for pattern operations.
 
@@ -129,7 +167,8 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
         """
         try:
             # Direct query on bookings
-            bookings = (
+            booking_rows = cast(
+                Sequence[Row[Any]],
                 self.db.query(
                     Booking.booking_date,
                     Booking.start_time,
@@ -141,29 +180,35 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                     Booking.booking_date <= end_date,
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
-                .all()
+                .all(),
             )
 
-            # Organize booking information
-            bookings_by_date: Dict[str, List[Dict[str, Any]]] = {}
+            bookings_by_date: Dict[str, List[BookingTimeRange]] = {}
 
-            for booking in bookings:
-                date_str = booking.booking_date.isoformat()
-                if date_str not in bookings_by_date:
-                    bookings_by_date[date_str] = []
-
-                bookings_by_date[date_str].append(
+            for row in booking_rows:
+                mapping = row._mapping
+                booking_date = mapping.get("booking_date")
+                if booking_date is None:
+                    continue
+                start_time_value = mapping.get("start_time")
+                end_time_value = mapping.get("end_time")
+                if not isinstance(start_time_value, time) or not isinstance(end_time_value, time):
+                    continue
+                date_str = booking_date.isoformat()
+                bookings_by_date.setdefault(date_str, []).append(
                     {
-                        "start_time": booking.start_time,
-                        "end_time": booking.end_time,
+                        "start_time": start_time_value,
+                        "end_time": end_time_value,
                     }
                 )
 
-            self.logger.info(f"Found {len(bookings)} bookings across {len(bookings_by_date)} dates")
+            self.logger.info(
+                "Found %s bookings across %s dates", len(booking_rows), len(bookings_by_date)
+            )
 
             return {
                 "bookings_by_date": bookings_by_date,
-                "total_bookings": len(bookings),
+                "total_bookings": len(booking_rows),
             }
 
         except SQLAlchemyError as e:
@@ -189,7 +234,8 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             List of availability slots
         """
         try:
-            return list(
+            return cast(
+                List[AvailabilitySlot],
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
@@ -197,7 +243,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                     AvailabilitySlot.specific_date <= end_date,
                 )
                 .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
-                .all()
+                .all(),
             )
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting week slots: {str(e)}")
@@ -205,7 +251,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     def get_slots_with_booking_status(
         self, instructor_id: str, target_date: date
-    ) -> List[Dict[str, Any]]:
+    ) -> List[SlotStatus]:
         """
         Get all slots for a date with their booking status.
 
@@ -221,20 +267,21 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
         """
         try:
             # Get all slots for the date
-            slots = (
+            slots = cast(
+                List[AvailabilitySlot],
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
                     AvailabilitySlot.specific_date == target_date,
                 )
-                .all()
+                .all(),
             )
 
             if not slots:
                 return []
 
             # For each slot, check if there's an overlapping booking
-            result: List[Dict[str, Any]] = []
+            result: List[SlotStatus] = []
             for slot in slots:
                 # Check if any booking overlaps with this slot
                 has_booking = (
@@ -253,7 +300,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
                 result.append(
                     {
-                        "id": slot.id,
+                        "id": int(slot.id),
                         "start_time": slot.start_time,
                         "end_time": slot.end_time,
                         "is_booked": has_booking,
@@ -268,7 +315,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     def get_week_with_booking_status(
         self, instructor_id: str, start_date: date, end_date: date
-    ) -> List[Dict[str, Any]]:
+    ) -> List[WeekSlotStatus]:
         """
         Get week availability with booking status for each slot.
 
@@ -319,27 +366,44 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                 """
             )
 
-            results = self.db.execute(
-                query,
-                {
-                    "instructor_id": instructor_id,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                },
+            results = cast(
+                Sequence[Row[Any]],
+                self.db.execute(
+                    query,
+                    {
+                        "instructor_id": instructor_id,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                    },
+                ).fetchall(),
             )
 
-            # Convert to list of dicts
-            return [
-                {
-                    "date": row.specific_date,
-                    "slot_id": row.slot_id,
-                    "start_time": row.start_time,
-                    "end_time": row.end_time,
-                    "booking_status": row.booking_status,
-                    "booking_id": row.booking_id,
-                }
-                for row in results
-            ]
+            week_view: List[WeekSlotStatus] = []
+            for row in results:
+                mapping = row._mapping
+                date_value = mapping.get("specific_date")
+                start_time_value = mapping.get("start_time")
+                end_time_value = mapping.get("end_time")
+                if not isinstance(date_value, date):
+                    continue
+                if not isinstance(start_time_value, time) or not isinstance(end_time_value, time):
+                    continue
+                week_view.append(
+                    {
+                        "date": date_value,
+                        "slot_id": int(mapping.get("slot_id", 0) or 0),
+                        "start_time": start_time_value,
+                        "end_time": end_time_value,
+                        "booking_status": cast(Optional[str], mapping.get("booking_status")),
+                        "booking_id": (
+                            int(mapping.get("booking_id"))
+                            if mapping.get("booking_id") is not None
+                            else None
+                        ),
+                    }
+                )
+
+            return week_view
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting week with status: {str(e)}")
@@ -347,7 +411,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Bulk Operations
 
-    def bulk_create_slots(self, slots: List[Dict[str, Any]]) -> int:
+    def bulk_create_slots(self, slots: Sequence[Dict[str, Any]]) -> int:
         """
         Bulk create slots using high-performance bulk_insert_mappings.
 
@@ -358,12 +422,13 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             Number of slots created
         """
         try:
-            if not slots:
+            slot_records = list(slots)
+            if not slot_records:
                 return 0
 
-            self.db.bulk_insert_mappings(AvailabilitySlot, slots)
+            self.db.bulk_insert_mappings(AvailabilitySlot, slot_records)
             self.db.flush()
-            return len(slots)
+            return len(slot_records)
 
         except IntegrityError as e:
             self.logger.error(f"Integrity error bulk creating slots: {str(e)}")
@@ -372,7 +437,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error bulk creating slots: {str(e)}")
             raise RepositoryException(f"Failed to bulk create slots: {str(e)}")
 
-    def bulk_delete_slots(self, slot_ids: List[int]) -> int:
+    def bulk_delete_slots(self, slot_ids: Sequence[int]) -> int:
         """
         Bulk delete slots by IDs.
 
@@ -385,12 +450,13 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             Number of slots deleted
         """
         try:
-            if not slot_ids:
+            slot_id_list = list(slot_ids)
+            if not slot_id_list:
                 return 0
 
             result = (
                 self.db.query(AvailabilitySlot)
-                .filter(AvailabilitySlot.id.in_(slot_ids))
+                .filter(AvailabilitySlot.id.in_(slot_id_list))
                 .delete(synchronize_session=False)
             )
             self.db.flush()

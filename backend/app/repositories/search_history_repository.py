@@ -11,6 +11,7 @@ from typing import Any, List, Optional, cast
 
 from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Query, Session
+from sqlalchemy.sql import FromClause
 
 from ..models.search_history import SearchHistory
 from ..schemas.search_context import SearchUserContext
@@ -28,7 +29,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         """Initialize with SearchHistory model."""
         super().__init__(db, SearchHistory)
 
-    def _add_user_filter(self, query: Query, context: SearchUserContext) -> Query:
+    def _add_user_filter(self, query: Query[Any], context: SearchUserContext) -> Query[Any]:
         """
         Add user-specific filters to a query.
 
@@ -67,7 +68,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         )
 
         search_query = self._add_user_filter(search_query, context)
-        return search_query.first()
+        return cast(Optional[SearchHistory], search_query.first())
 
     def increment_search_count(self, search_id: int) -> Optional[SearchHistory]:
         """
@@ -124,7 +125,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         else:
             return None
 
-        return query.first()
+        return cast(Optional[SearchHistory], query.first())
 
     def get_recent_searches_unified(
         self, context: SearchUserContext, limit: int = 10, order_by: str = "last_searched_at"
@@ -205,7 +206,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         keep_count: int = 10,
-    ) -> Query:
+    ) -> FromClause:
         """
         Get IDs of searches to keep (most recent).
 
@@ -227,7 +228,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         self,
         user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
-        keep_ids_subquery: Optional[Query] = None,
+        keep_ids_subquery: Optional[FromClause] = None,
     ) -> int:
         """
         Soft delete searches not in the keep list.
@@ -300,7 +301,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         results_count: Optional[int] = None,
         deleted_at: Optional[datetime] = None,
         **kwargs: Any,
-    ) -> SearchHistory:
+    ) -> Optional[SearchHistory]:
         """
         Create a new search history entry.
         """
@@ -477,7 +478,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
             results_count: Number of results returned
 
         Returns:
-            SearchHistory record (new or updated)
+            SearchHistory record (new or updated) if found, otherwise None
         """
         from sqlalchemy.dialects.postgresql import insert
 
@@ -554,7 +555,8 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         from sqlalchemy import and_
 
         if user_id is not None:
-            return (
+            return cast(
+                Optional[SearchHistory],
                 self.db.query(SearchHistory)
                 .filter(
                     and_(
@@ -563,10 +565,11 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
                         SearchHistory.deleted_at.is_(None),
                     )
                 )
-                .first()
+                .first(),
             )
         elif guest_session_id:
-            return (
+            return cast(
+                Optional[SearchHistory],
                 self.db.query(SearchHistory)
                 .filter(
                     and_(
@@ -575,7 +578,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
                         SearchHistory.deleted_at.is_(None),
                     )
                 )
-                .first()
+                .first(),
             )
         return None
 
