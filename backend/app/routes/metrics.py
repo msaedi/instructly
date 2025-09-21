@@ -6,6 +6,7 @@ This gives us immediate visibility without Prometheus complexity.
 """
 
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Mapping, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 import psutil
@@ -20,7 +21,8 @@ from ..api.dependencies.services import (
     get_conflict_checker,
 )
 from ..database import get_db, get_db_pool_status
-from ..middleware.rate_limiter import RateLimitAdmin, RateLimitKeyType, rate_limit
+from ..middleware import rate_limiter as rate_limiter_module
+from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.user import User
 from ..schemas.base_responses import HealthCheckResponse, SuccessResponse
 from ..schemas.monitoring_responses import (
@@ -37,7 +39,13 @@ from ..services.cache_service import CacheService
 router = APIRouter(prefix="/metrics", tags=["monitoring"])
 
 
-def _normalize_service_metrics(raw_metrics: dict) -> dict:
+RateLimitAdmin = cast(Any, getattr(rate_limiter_module, "RateLimitAdmin"))
+
+JsonDict = Dict[str, Any]
+JsonList = List[JsonDict]
+
+
+def _normalize_service_metrics(raw_metrics: Optional[Mapping[str, Any]]) -> JsonDict:
     """Convert BaseService.get_metrics() output into ServiceMetrics shape.
 
     Ensures required fields exist even when no metrics have been recorded yet.
@@ -51,13 +59,16 @@ def _normalize_service_metrics(raw_metrics: dict) -> dict:
         }
 
     # raw_metrics is a mapping: operation_name -> { count, total_time, ... }
-    operations = {}
+    operations: Dict[str, int] = {}
     total_operations = 0
-    for op_name, data in (raw_metrics or {}).items():
-        try:
-            count = int(data.get("count", 0)) if isinstance(data, dict) else 0
-        except Exception:
-            count = 0
+    for op_name, data in raw_metrics.items():
+        count = 0
+        if isinstance(data, Mapping):
+            raw_count = data.get("count", 0)
+            try:
+                count = int(raw_count)
+            except (TypeError, ValueError):
+                count = 0
         operations[op_name] = count
         total_operations += count
 
@@ -85,10 +96,10 @@ async def health_check() -> HealthCheckResponse:
 @router.get("/performance", response_model=PerformanceMetricsResponse)
 async def get_performance_metrics(
     current_user: User = Depends(get_current_user),
-    availability_service=Depends(get_availability_service),
-    booking_service=Depends(get_booking_service),
-    conflict_checker=Depends(get_conflict_checker),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    availability_service: Any = Depends(get_availability_service),
+    booking_service: Any = Depends(get_booking_service),
+    conflict_checker: Any = Depends(get_conflict_checker),
+    cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
     db: Session = Depends(get_db),
 ) -> PerformanceMetricsResponse:
     """Get performance metrics from all services."""
@@ -102,12 +113,14 @@ async def get_performance_metrics(
         raise HTTPException(status_code=403, detail="Unauthorized")
 
     # Cache metrics
-    cache_stats = (
-        cache_service.get_stats() if cache_service else {"error": "Cache service not available"}
+    cache_stats: JsonDict = (
+        cast(JsonDict, cache_service.get_stats())
+        if cache_service
+        else {"error": "Cache service not available"}
     )
 
     # System metrics
-    system_metrics = {
+    system_metrics: JsonDict = {
         "cpu_percent": psutil.cpu_percent(interval=1),
         "memory_percent": psutil.virtual_memory().percent,
         "disk_usage": psutil.disk_usage("/").percent,
@@ -115,15 +128,21 @@ async def get_performance_metrics(
 
     # Database metrics
     db_stats = db.execute(text("SELECT count(*) FROM pg_stat_activity")).scalar()
-    database_metrics = {
+    database_metrics: JsonDict = {
         "active_connections": db_stats,
         "pool_status": get_db_pool_status(),
     }
 
     return PerformanceMetricsResponse(
-        availability_service=_normalize_service_metrics(availability_service.get_metrics()),
-        booking_service=_normalize_service_metrics(booking_service.get_metrics()),
-        conflict_checker=_normalize_service_metrics(conflict_checker.get_metrics()),
+        availability_service=_normalize_service_metrics(
+            cast(Mapping[str, Any], availability_service.get_metrics())
+        ),
+        booking_service=_normalize_service_metrics(
+            cast(Mapping[str, Any], booking_service.get_metrics())
+        ),
+        conflict_checker=_normalize_service_metrics(
+            cast(Mapping[str, Any], conflict_checker.get_metrics())
+        ),
         cache=cache_stats,
         system=system_metrics,
         database=database_metrics,
@@ -133,7 +152,7 @@ async def get_performance_metrics(
 @router.get("/cache", response_model=CacheMetricsResponse)
 async def get_cache_metrics(
     current_user: User = Depends(get_current_user),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
 ) -> CacheMetricsResponse:
     """Get detailed cache metrics including availability-specific stats."""
 
@@ -144,10 +163,10 @@ async def get_cache_metrics(
         raise HTTPException(status_code=503, detail="Cache service not available")
 
     # Get basic cache stats
-    stats = cache_service.get_stats()
+    stats: JsonDict = cast(JsonDict, cache_service.get_stats())
 
     # Add availability-specific metrics
-    availability_stats = {
+    availability_stats: JsonDict = {
         "availability_hit_rate": "0%",
         "availability_total_requests": 0,
         "availability_invalidations": stats.get("availability_invalidations", 0),
@@ -163,7 +182,7 @@ async def get_cache_metrics(
         availability_stats["availability_total_requests"] = avail_total
 
     # Add cache size estimates (if Redis is available)
-    redis_info = None
+    redis_info: Optional[JsonDict] = None
     if hasattr(cache_service, "redis") and cache_service.redis:
         try:
             # Get approximate cache size
@@ -190,9 +209,9 @@ async def get_cache_metrics(
     )
 
 
-def _get_cache_performance_insights(stats):
+def _get_cache_performance_insights(stats: Mapping[str, Any]) -> List[str]:
     """Generate performance insights from cache statistics."""
-    insights = []
+    insights: List[str] = []
 
     total_requests = stats.get("hits", 0) + stats.get("misses", 0)
     if total_requests > 0:
@@ -230,7 +249,7 @@ def _get_cache_performance_insights(stats):
 @router.get("/cache/availability", response_model=AvailabilityCacheMetricsResponse)
 async def get_availability_cache_metrics(
     current_user: User = Depends(get_current_user),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
 ) -> AvailabilityCacheMetricsResponse:
     """Get detailed availability-specific cache metrics and top cached keys."""
 
@@ -260,11 +279,11 @@ async def get_availability_cache_metrics(
     }
 
     # Get top cached keys (if possible)
-    top_keys = []
+    top_keys: List[str] = []
     if hasattr(cache_service, "redis") and cache_service.redis:
         try:
             # Sample some availability-related keys
-            sample_keys = []
+            sample_keys: List[str] = []
             for pattern in ["avail:*", "availability:*"]:
                 keys = list(cache_service.redis.scan_iter(match=pattern, count=10))
                 sample_keys.extend(keys[:5])  # Limit to 5 per pattern
@@ -274,7 +293,7 @@ async def get_availability_cache_metrics(
             top_keys = [f"Error retrieving keys: {e}"]
 
     # Performance recommendations
-    recommendations = []
+    recommendations: List[str] = []
     if avail_total > 0:
         hit_rate = avail_hits / avail_total
         if hit_rate < 0.7:
@@ -326,7 +345,7 @@ async def get_slow_queries(
             )
         )
 
-        slow_queries = []
+        slow_queries: JsonList = []
         for row in result:
             slow_queries.append(
                 {
@@ -352,7 +371,7 @@ async def get_slow_queries(
 @router.post("/cache/reset-stats", response_model=SuccessResponse)
 async def reset_cache_stats(
     current_user: User = Depends(get_current_user),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
 ) -> SuccessResponse:
     """Reset cache statistics."""
 
@@ -383,7 +402,8 @@ def get_rate_limit_stats(
 
     Requires authentication.
     """
-    return RateLimitAdmin.get_rate_limit_stats()
+    stats = cast(JsonDict, RateLimitAdmin.get_rate_limit_stats())
+    return RateLimitStats(**stats)
 
 
 @router.post("/rate-limits/reset", response_model=RateLimitResetResponse)
