@@ -12,6 +12,7 @@ import logging
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, desc, func
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.expression import literal
 
 from ..core.enums import PermissionName
@@ -824,8 +825,8 @@ async def candidates_score_distribution(
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days)
 
-    def count_where(cond):
-        return (
+    def count_where(condition: ColumnElement[bool]) -> int:
+        result = (
             db.query(func.count(SearchEventCandidate.id))
             .filter(
                 and_(
@@ -833,10 +834,10 @@ async def candidates_score_distribution(
                     SearchEventCandidate.created_at <= end_date,
                 )
             )
-            .filter(cond)
+            .filter(condition)
             .scalar()
-            or 0
         )
+        return int(result or 0)
 
     gte_0_90 = count_where(SearchEventCandidate.score >= 0.9)
     gte_0_80_lt_0_90 = count_where(

@@ -6,7 +6,7 @@ These endpoints are secured and used for internal monitoring and operations.
 
 from datetime import datetime, timezone
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
@@ -34,7 +34,7 @@ router = APIRouter(
 
 async def verify_monitoring_api_key(
     api_key: Optional[str] = Header(None, alias="X-Monitoring-API-Key"),
-):
+) -> None:
     """
     Verify access to monitoring endpoints using API key.
 
@@ -150,9 +150,11 @@ async def acknowledge_alert(
         raise HTTPException(status_code=404, detail=f"Alert type '{alert_type}' not found")
 
 
-def _generate_recommendations(performance: Dict[str, Any], cache_health: Dict[str, Any]) -> list:
+def _generate_recommendations(
+    performance: Dict[str, Any], cache_health: Dict[str, Any]
+) -> List[Dict[str, str]]:
     """Generate performance recommendations based on current metrics."""
-    recommendations = []
+    recommendations: List[Dict[str, str]] = []
 
     # Database recommendations
     db_data = performance.get("database", {})
