@@ -6,6 +6,7 @@ Provides user data export, deletion, and privacy management endpoints.
 """
 
 import logging
+from typing import Any, Dict, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -14,7 +15,7 @@ from ..auth import get_current_user as auth_get_current_user
 from ..core.enums import PermissionName
 from ..database import get_db
 from ..dependencies.permissions import require_permission
-from ..models import User
+from ..models.user import User
 from ..schemas.privacy import (
     DataExportResponse,
     PrivacyStatisticsResponse,
@@ -55,7 +56,7 @@ async def get_current_user(
     return user
 
 
-@router.get("/export/me", response_model=DataExportResponse)
+@router.get("/export/me", response_model=DataExportResponse)  # type: ignore[misc]
 async def export_my_data(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -68,7 +69,7 @@ async def export_my_data(
     privacy_service = PrivacyService(db)
 
     try:
-        user_data = privacy_service.export_user_data(current_user.id)
+        user_data = cast(Dict[str, Any], privacy_service.export_user_data(current_user.id))
         return DataExportResponse(
             status="success",
             message="Data export completed successfully",
@@ -82,7 +83,7 @@ async def export_my_data(
         )
 
 
-@router.post("/delete/me", response_model=UserDataDeletionResponse)
+@router.post("/delete/me", response_model=UserDataDeletionResponse)  # type: ignore[misc]
 async def delete_my_data(
     request: UserDataDeletionRequest,
     current_user: User = Depends(get_current_user),
@@ -129,7 +130,7 @@ async def delete_my_data(
         )
 
 
-@router.get("/statistics", response_model=PrivacyStatisticsResponse)
+@router.get("/statistics", response_model=PrivacyStatisticsResponse)  # type: ignore[misc]
 async def get_privacy_statistics(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
     db: Session = Depends(get_db),
@@ -142,7 +143,7 @@ async def get_privacy_statistics(
     privacy_service = PrivacyService(db)
 
     try:
-        stats = privacy_service.get_privacy_statistics()
+        stats = cast(Dict[str, Any], privacy_service.get_privacy_statistics())
         return PrivacyStatisticsResponse(
             status="success",
             statistics=stats,
@@ -155,7 +156,7 @@ async def get_privacy_statistics(
         )
 
 
-@router.post("/retention/apply", response_model=RetentionPolicyResponse)
+@router.post("/retention/apply", response_model=RetentionPolicyResponse)  # type: ignore[misc]
 async def apply_retention_policies(
     current_user: User = Depends(require_permission(PermissionName.MANAGE_USERS)),
     db: Session = Depends(get_db),
@@ -168,7 +169,7 @@ async def apply_retention_policies(
     privacy_service = PrivacyService(db)
 
     try:
-        retention_stats = privacy_service.apply_retention_policies()
+        retention_stats = cast(Dict[str, Any], privacy_service.apply_retention_policies())
         return RetentionPolicyResponse(
             status="success",
             message="Retention policies applied",
@@ -182,7 +183,7 @@ async def apply_retention_policies(
         )
 
 
-@router.get("/export/user/{user_id}", response_model=DataExportResponse)
+@router.get("/export/user/{user_id}", response_model=DataExportResponse)  # type: ignore[misc]
 async def export_user_data_admin(
     user_id: str,
     current_user: User = Depends(require_permission(PermissionName.MANAGE_USERS)),
@@ -196,7 +197,7 @@ async def export_user_data_admin(
     privacy_service = PrivacyService(db)
 
     try:
-        user_data = privacy_service.export_user_data(user_id)
+        user_data = cast(Dict[str, Any], privacy_service.export_user_data(user_id))
         return DataExportResponse(
             status="success",
             message=f"Data export completed for user {user_id}",
@@ -215,7 +216,7 @@ async def export_user_data_admin(
         )
 
 
-@router.post("/delete/user/{user_id}", response_model=UserDataDeletionResponse)
+@router.post("/delete/user/{user_id}", response_model=UserDataDeletionResponse)  # type: ignore[misc]
 async def delete_user_data_admin(
     user_id: str,
     request: UserDataDeletionRequest,

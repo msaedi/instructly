@@ -6,7 +6,7 @@ Provides insights into Redis operations, memory usage, and Celery queue status.
 """
 
 import logging
-from typing import Dict
+from typing import Any, Dict, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 import redis
@@ -39,7 +39,7 @@ def get_redis_client() -> redis.Redis:
     return redis.from_url(redis_url, decode_responses=True)
 
 
-@router.get("/health", response_model=RedisHealthResponse)
+@router.get("/health", response_model=RedisHealthResponse)  # type: ignore[misc]
 async def redis_health() -> RedisHealthResponse:
     """
     Check Redis connection health.
@@ -56,7 +56,7 @@ async def redis_health() -> RedisHealthResponse:
         return RedisHealthResponse(status="unhealthy", connected=False, error=str(e))
 
 
-@router.get("/test", response_model=RedisTestResponse)
+@router.get("/test", response_model=RedisTestResponse)  # type: ignore[misc]
 async def redis_test() -> RedisTestResponse:
     """
     Simple Redis connection test endpoint.
@@ -73,14 +73,14 @@ async def redis_test() -> RedisTestResponse:
         ping_result = client.ping()
 
         # Get server info
-        info = client.info("server")
+        info = cast(Dict[str, Any], client.info("server"))
 
         return RedisTestResponse(
             status="connected",
             ping=ping_result,
             redis_version=info.get("redis_version", "unknown"),
-            uptime_seconds=info.get("uptime_in_seconds", 0),
-            connected_clients=client.info("clients").get("connected_clients", 0),
+            uptime_seconds=cast(int | None, info.get("uptime_in_seconds", 0)),
+            connected_clients=cast(int, client.info("clients").get("connected_clients", 0)),
             message="Redis migration successful! Connection to instainstru-redis:6379 is working.",
         )
     except Exception as e:
@@ -93,7 +93,7 @@ async def redis_test() -> RedisTestResponse:
         )
 
 
-@router.get("/stats", response_model=RedisStatsResponse)
+@router.get("/stats", response_model=RedisStatsResponse)  # type: ignore[misc]
 async def redis_stats(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> RedisStatsResponse:
@@ -114,7 +114,7 @@ async def redis_stats(
         client = get_redis_client()
 
         # Get Redis INFO
-        info = client.info()
+        info = cast(Dict[str, Any], client.info())
 
         # Extract key metrics
         memory_info = {
@@ -172,7 +172,7 @@ async def redis_stats(
         )
 
 
-@router.get("/celery-queues", response_model=RedisCeleryQueuesResponse)
+@router.get("/celery-queues", response_model=RedisCeleryQueuesResponse)  # type: ignore[misc]
 async def celery_queue_status(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> RedisCeleryQueuesResponse:
@@ -230,7 +230,7 @@ def _get_celery_queue_lengths(client: redis.Redis) -> Dict[str, int]:
     return queue_lengths
 
 
-@router.get("/connection-audit", response_model=RedisConnectionAuditResponse)
+@router.get("/connection-audit", response_model=RedisConnectionAuditResponse)  # type: ignore[misc]
 async def redis_connection_audit(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> RedisConnectionAuditResponse:
@@ -256,8 +256,8 @@ async def redis_connection_audit(
 
         # Get active connections from current Redis
         client = get_redis_client()
-        info = client.info("clients")
-        connected_clients = info.get("connected_clients", 0)
+        info = cast(Dict[str, Any], client.info("clients"))
+        connected_clients = cast(int, info.get("connected_clients", 0))
 
         # Parse URLs to identify service
         def parse_redis_url(url: str) -> str:
@@ -327,7 +327,7 @@ async def redis_connection_audit(
         )
 
 
-@router.delete("/flush-queues", response_model=RedisFlushQueuesResponse)
+@router.delete("/flush-queues", response_model=RedisFlushQueuesResponse)  # type: ignore[misc]
 async def flush_celery_queues(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> RedisFlushQueuesResponse:
@@ -354,7 +354,7 @@ async def flush_celery_queues(
             "cache",
         ]
 
-        flushed = {}
+        flushed: Dict[str, int | str] = {}
         total_removed = 0
 
         for queue in queue_names:
