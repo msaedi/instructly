@@ -364,6 +364,14 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.routes.metrics",
+  "backend.app.routes.prometheus",
+  "backend.app.routes.gated",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
   "pydantic",
   "pydantic.*"
 ]
