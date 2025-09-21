@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
+from ._strict_base import StrictRequestModel
 
 DATE_ONLY_REGEX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -140,7 +141,7 @@ class BookingCreate(BaseModel):
 
 
 class BookingRescheduleRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
     """
     Request to reschedule an existing booking by specifying a new date/time and duration.
 
@@ -545,7 +546,7 @@ class BookingListResponse(StandardizedModel):
 
 
 class AvailabilityCheckRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
     """
     Check if a specific time is available for booking.
 
