@@ -48,7 +48,7 @@ async def request_password_reset(
     request: Request,  # Add this for rate limiting
     reset_request: PasswordResetRequest,  # Renamed to avoid confusion
     password_reset_service: PasswordResetService = Depends(get_password_reset_service),
-):
+) -> PasswordResetResponse:
     """
     Request a password reset email.
 
@@ -85,7 +85,7 @@ async def confirm_password_reset(
     request: Request,  # Add this for rate limiting
     confirm_request: PasswordResetConfirm,  # Renamed to avoid confusion
     password_reset_service: PasswordResetService = Depends(get_password_reset_service),
-):
+) -> PasswordResetResponse:
     """
     Confirm password reset with token and new password.
 
@@ -134,7 +134,7 @@ async def verify_reset_token(
     request: Request,  # Add this for rate limiting
     token: str,
     password_reset_service: PasswordResetService = Depends(get_password_reset_service),
-):
+) -> PasswordResetVerifyResponse:
     """
     Verify if a reset token is valid.
 
