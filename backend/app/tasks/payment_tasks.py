@@ -7,7 +7,7 @@ Implements proper retry timing windows based on lesson time.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Dict
+from typing import Any, Callable, Dict, List, Optional, Sequence, TypedDict, TypeVar, Union, cast
 
 from sqlalchemy.orm import Session
 import stripe
@@ -21,6 +21,39 @@ from app.services.notification_service import NotificationService
 from app.services.stripe_service import StripeService
 from app.tasks.celery_app import celery_app
 
+TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
+
+
+def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], TaskCallable]:
+    """Return a typed Celery task decorator for mypy."""
+
+    return cast(Callable[[TaskCallable], TaskCallable], celery_app.task(*task_args, **task_kwargs))
+
+
+class AuthorizationJobResults(TypedDict):
+    success: int
+    failed: int
+    failures: List[Dict[str, Any]]
+    processed_at: str
+
+
+class RetryJobResults(TypedDict):
+    retried: int
+    success: int
+    failed: int
+    cancelled: int
+    warnings_sent: int
+    processed_at: str
+
+
+class CaptureJobResults(TypedDict):
+    captured: int
+    failed: int
+    auto_completed: int
+    expired_handled: int
+    processed_at: str
+
+
 logger = logging.getLogger(__name__)
 
 # Configure Stripe
@@ -31,10 +64,10 @@ STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency
 PLATFORM_FEE_PERCENTAGE = 15  # 15% platform fee
 
 
-@celery_app.task(
+@typed_task(
     bind=True, max_retries=3, name="app.tasks.payment_tasks.process_scheduled_authorizations"
 )
-def process_scheduled_authorizations(self) -> Dict[str, Any]:
+def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
     """
     Process scheduled payment authorizations.
 
@@ -46,7 +79,7 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
     """
     from app.database import SessionLocal
 
-    db = SessionLocal()
+    db: Session = SessionLocal()
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
@@ -58,12 +91,16 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
         _auth_window_end = now + timedelta(hours=24, minutes=30)  # 24.5 hours
 
         # Get bookings that need authorization
-        bookings_to_authorize = booking_repo.get_bookings_for_payment_authorization()
+        bookings_to_authorize = cast(
+            Sequence[Booking],
+            booking_repo.get_bookings_for_payment_authorization(),
+        )
 
-        results = {
+        failures: List[Dict[str, Any]] = []
+        results: AuthorizationJobResults = {
             "success": 0,
             "failed": 0,
-            "failures": [],
+            "failures": failures,
             "processed_at": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -250,10 +287,8 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
         db.close()
 
 
-@celery_app.task(
-    bind=True, max_retries=5, name="app.tasks.payment_tasks.retry_failed_authorizations"
-)
-def retry_failed_authorizations(self) -> Dict[str, Any]:
+@typed_task(bind=True, max_retries=5, name="app.tasks.payment_tasks.retry_failed_authorizations")
+def retry_failed_authorizations(self: Any) -> RetryJobResults:
     """
     Retry failed payment authorizations at specific time windows.
 
@@ -269,7 +304,7 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
     """
     from app.database import SessionLocal
 
-    db = SessionLocal()
+    db: Session = SessionLocal()
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
@@ -278,9 +313,12 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
         now = datetime.now(timezone.utc)
 
         # Find bookings with failed auth
-        bookings_to_retry = booking_repo.get_bookings_for_payment_retry()
+        bookings_to_retry = cast(
+            Sequence[Booking],
+            booking_repo.get_bookings_for_payment_retry(),
+        )
 
-        results = {
+        results: RetryJobResults = {
             "retried": 0,
             "success": 0,
             "failed": 0,
@@ -506,14 +544,17 @@ def attempt_authorization_retry(
         return False
 
 
-def has_event_type(payment_repo: Any, booking_id: str, event_type: str) -> bool:
+def has_event_type(payment_repo: Any, booking_id: Union[int, str], event_type: str) -> bool:
     """Check if a booking has a specific event type in its history."""
-    events = payment_repo.get_payment_events_for_booking(booking_id)
+    events = cast(
+        Sequence[PaymentEvent],
+        payment_repo.get_payment_events_for_booking(booking_id),
+    )
     return any(e.event_type == event_type for e in events)
 
 
-@celery_app.task(bind=True, max_retries=3, name="app.tasks.payment_tasks.capture_completed_lessons")
-def capture_completed_lessons(self) -> Dict[str, Any]:
+@typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.capture_completed_lessons")
+def capture_completed_lessons(self: Any) -> CaptureJobResults:
     """
     Capture payments for completed lessons.
 
@@ -527,13 +568,13 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
     """
     from app.database import SessionLocal
 
-    db = SessionLocal()
+    db: Session = SessionLocal()
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
         now = datetime.now(timezone.utc)
 
-        results = {
+        results: CaptureJobResults = {
             "captured": 0,
             "failed": 0,
             "auto_completed": 0,
@@ -542,7 +583,10 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
         }
 
         # 1. Find bookings ready for capture (24hr after instructor marked complete)
-        all_completed_bookings = booking_repo.get_bookings_for_payment_capture()
+        all_completed_bookings = cast(
+            Sequence[Booking],
+            booking_repo.get_bookings_for_payment_capture(),
+        )
         bookings_to_capture = [
             booking
             for booking in all_completed_bookings
@@ -558,10 +602,13 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
 
         # 2. Auto-complete lessons not marked complete within 24hr of end
         auto_complete_cutoff = now - timedelta(hours=24)
-        all_confirmed_bookings = booking_repo.get_bookings_for_auto_completion()
+        all_confirmed_bookings = cast(
+            Sequence[Booking],
+            booking_repo.get_bookings_for_auto_completion(),
+        )
 
         # Filter to only bookings where lesson ended >24hr ago
-        bookings_to_auto_complete = []
+        bookings_to_auto_complete: List[Booking] = []
         for booking in all_confirmed_bookings:
             lesson_end = datetime.combine(
                 booking.booking_date, booking.end_time, tzinfo=timezone.utc
@@ -597,11 +644,17 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
 
         # 3. Handle expired authorizations (>7 days old)
         seven_days_ago = now - timedelta(days=7)
-        bookings_with_expired_auth = booking_repo.get_bookings_with_expired_auth()
+        bookings_with_expired_auth = cast(
+            Sequence[Booking],
+            booking_repo.get_bookings_with_expired_auth(),
+        )
 
         for booking in bookings_with_expired_auth:
             # Check when authorization was created
-            auth_events = _payment_repo.get_payment_events_for_booking(booking.id)
+            auth_events = cast(
+                Sequence[PaymentEvent],
+                _payment_repo.get_payment_events_for_booking(booking.id),
+            )
             auth_event = next(
                 (
                     e
@@ -658,7 +711,7 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
 
 def attempt_payment_capture(
     booking: Booking, payment_repo: Any, capture_reason: str
-) -> Dict[str, bool]:
+) -> Dict[str, Any]:
     """
     Attempt to capture a payment for a booking.
 
@@ -781,7 +834,7 @@ def attempt_payment_capture(
 
 def create_new_authorization_and_capture(
     booking: Booking, payment_repo: Any, db: Session
-) -> Dict[str, bool]:
+) -> Dict[str, Any]:
     """
     Create a new authorization and immediately capture for expired authorizations.
 
@@ -860,8 +913,8 @@ def create_new_authorization_and_capture(
         return {"success": False, "error": str(e)}
 
 
-@celery_app.task(bind=True, max_retries=3, name="app.tasks.payment_tasks.capture_late_cancellation")
-def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
+@typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.capture_late_cancellation")
+def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[str, Any]:
     """
     Immediately capture payment for late cancellations (<12hr before lesson).
 
@@ -875,7 +928,7 @@ def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
         Dict with capture result
     """
     try:
-        db = next(get_db())
+        db = cast(Session, next(get_db()))
         _payment_repo = RepositoryFactory.get_payment_repository(db)
 
         # Get the booking
@@ -982,7 +1035,7 @@ def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
         db.close()
 
 
-@celery_app.task(name="app.tasks.payment_tasks.check_authorization_health")
+@typed_task(name="app.tasks.payment_tasks.check_authorization_health")
 def check_authorization_health() -> Dict[str, Any]:
     """
     Health check for authorization system.
@@ -993,8 +1046,9 @@ def check_authorization_health() -> Dict[str, Any]:
     Returns:
         Health status dict
     """
+    db: Optional[Session] = None
     try:
-        db = next(get_db())
+        db = cast(Session, next(get_db()))
         _payment_repo = RepositoryFactory.get_payment_repository(db)
 
         now = datetime.now(timezone.utc)
@@ -1004,7 +1058,10 @@ def check_authorization_health() -> Dict[str, Any]:
         overdue_bookings = []
         booking_repo = RepositoryFactory.get_booking_repository(db)
 
-        scheduled_bookings = booking_repo.get_bookings_for_payment_authorization()
+        scheduled_bookings = cast(
+            Sequence[Booking],
+            booking_repo.get_bookings_for_payment_authorization(),
+        )
 
         for booking in scheduled_bookings:
             booking_datetime = datetime.combine(
@@ -1067,19 +1124,18 @@ def check_authorization_health() -> Dict[str, Any]:
             "checked_at": datetime.now(timezone.utc).isoformat(),
         }
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
 
-@celery_app.task(
-    bind=True, max_retries=3, name="app.tasks.payment_tasks.audit_and_fix_payout_schedules"
-)
-def audit_and_fix_payout_schedules(self) -> Dict[str, Any]:
+@typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.audit_and_fix_payout_schedules")
+def audit_and_fix_payout_schedules(self: Any) -> Dict[str, Any]:
     """
     Nightly audit to ensure all connected accounts use weekly Tuesday payouts.
     """
     from app.database import SessionLocal
 
-    db = SessionLocal()
+    db: Session = SessionLocal()
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         stripe_service = StripeService(db)

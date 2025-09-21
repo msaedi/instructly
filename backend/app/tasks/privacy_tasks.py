@@ -8,7 +8,7 @@ and apply data retention policies.
 
 from datetime import datetime, timezone
 import logging
-from typing import Dict
+from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, cast
 
 from celery import Task
 from sqlalchemy.orm import Session
@@ -18,37 +18,59 @@ from ..services.privacy_service import PrivacyService
 from ..services.search_history_cleanup_service import SearchHistoryCleanupService
 from .celery_app import celery_app
 
+TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
+
+
+def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], TaskCallable]:
+    """Return a typed Celery task decorator for mypy."""
+
+    return cast(Callable[[TaskCallable], TaskCallable], celery_app.task(*task_args, **task_kwargs))
+
+
 logger = logging.getLogger(__name__)
 
 
-class DatabaseTask(Task):
+class DatabaseTask(Task):  # type: ignore[misc]
     """
     Base task class that provides database session management.
     """
 
-    _db: Session = None
+    _db: Optional[Session] = None
 
     @property
-    def db(self):
+    def db(self) -> Session:
         if self._db is None:
-            self._db = next(get_db())
+            self._db = cast(Session, next(get_db()))
         return self._db
 
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
+    def on_failure(
+        self,
+        exc: BaseException,
+        task_id: str,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+        einfo: Optional[BaseException],
+    ) -> None:
         """Close database session on task failure."""
         if self._db:
             self._db.close()
             self._db = None
 
-    def on_success(self, retval, task_id, args, kwargs):
+    def on_success(
+        self,
+        retval: object,
+        task_id: str,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> None:
         """Close database session on task success."""
         if self._db:
             self._db.close()
             self._db = None
 
 
-@celery_app.task(bind=True, base=DatabaseTask, name="privacy.apply_retention_policies")
-def apply_retention_policies(self) -> Dict[str, int]:
+@typed_task(bind=True, base=DatabaseTask, name="privacy.apply_retention_policies")
+def apply_retention_policies(self: DatabaseTask) -> Dict[str, int]:
     """
     Apply data retention policies across all data types.
 
@@ -85,8 +107,8 @@ def apply_retention_policies(self) -> Dict[str, int]:
         raise
 
 
-@celery_app.task(bind=True, base=DatabaseTask, name="privacy.cleanup_search_history")
-def cleanup_search_history(self) -> Dict[str, int]:
+@typed_task(bind=True, base=DatabaseTask, name="privacy.cleanup_search_history")
+def cleanup_search_history(self: DatabaseTask) -> Dict[str, Any]:
     """
     Clean up old search history records.
 
@@ -116,8 +138,8 @@ def cleanup_search_history(self) -> Dict[str, int]:
         raise
 
 
-@celery_app.task(bind=True, base=DatabaseTask, name="privacy.generate_privacy_report")
-def generate_privacy_report(self) -> Dict:
+@typed_task(bind=True, base=DatabaseTask, name="privacy.generate_privacy_report")
+def generate_privacy_report(self: DatabaseTask) -> Dict[str, Any]:
     """
     Generate privacy and data retention statistics report.
 
@@ -160,8 +182,8 @@ def generate_privacy_report(self) -> Dict:
         raise
 
 
-@celery_app.task(bind=True, base=DatabaseTask, name="privacy.anonymize_old_bookings")
-def anonymize_old_bookings(self, days_old: int = None) -> int:
+@typed_task(bind=True, base=DatabaseTask, name="privacy.anonymize_old_bookings")
+def anonymize_old_bookings(self: DatabaseTask, days_old: Optional[int] = None) -> int:
     """
     Anonymize bookings older than specified days.
 
@@ -189,13 +211,13 @@ def anonymize_old_bookings(self, days_old: int = None) -> int:
 
             try:
                 retention_stats = privacy_service.apply_retention_policies()
-                anonymized_count = retention_stats.get("old_bookings_anonymized", 0)
+                anonymized_count = int(retention_stats.get("old_bookings_anonymized", 0) or 0)
             finally:
                 # Restore original setting
                 settings.booking_pii_retention_days = original_setting
         else:
             retention_stats = privacy_service.apply_retention_policies()
-            anonymized_count = retention_stats.get("old_bookings_anonymized", 0)
+            anonymized_count = int(retention_stats.get("old_bookings_anonymized", 0) or 0)
 
         logger.info(f"Anonymized {anonymized_count} old bookings")
         return anonymized_count
@@ -206,8 +228,12 @@ def anonymize_old_bookings(self, days_old: int = None) -> int:
 
 
 # Task to process user data export requests
-@celery_app.task(bind=True, base=DatabaseTask, name="privacy.process_data_export_request")
-def process_data_export_request(self, user_id: int, request_id: str = None) -> Dict:
+@typed_task(bind=True, base=DatabaseTask, name="privacy.process_data_export_request")
+def process_data_export_request(
+    self: DatabaseTask,
+    user_id: int,
+    request_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Process a user data export request.
 
@@ -224,7 +250,7 @@ def process_data_export_request(self, user_id: int, request_id: str = None) -> D
 
     try:
         privacy_service = PrivacyService(self.db)
-        export_data = privacy_service.export_user_data(user_id)
+        export_data = cast(Dict[str, Any], privacy_service.export_user_data(user_id))
 
         # Add metadata
         export_data["request_id"] = request_id
@@ -239,10 +265,13 @@ def process_data_export_request(self, user_id: int, request_id: str = None) -> D
 
 
 # Task to process user data deletion requests
-@celery_app.task(bind=True, base=DatabaseTask, name="privacy.process_data_deletion_request")
+@typed_task(bind=True, base=DatabaseTask, name="privacy.process_data_deletion_request")
 def process_data_deletion_request(
-    self, user_id: int, delete_account: bool = False, request_id: str = None
-) -> Dict:
+    self: DatabaseTask,
+    user_id: int,
+    delete_account: bool = False,
+    request_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Process a user data deletion request.
 
@@ -266,7 +295,10 @@ def process_data_deletion_request(
         privacy_service = PrivacyService(self.db)
 
         if delete_account:
-            deletion_stats = privacy_service.delete_user_data(user_id, delete_account=True)
+            deletion_stats = cast(
+                Dict[str, Any],
+                privacy_service.delete_user_data(user_id, delete_account=True),
+            )
         else:
             # Just anonymize
             success = privacy_service.anonymize_user(user_id)

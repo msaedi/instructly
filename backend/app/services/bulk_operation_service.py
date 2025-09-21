@@ -15,7 +15,7 @@ using instructor_id + date.
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -552,6 +552,8 @@ class BulkOperationService(BaseService):
 
         try:
             slot = await self._create_slot_for_operation(instructor_id, operation, validate_only)
+            if slot is None:
+                raise ValueError("Slot creation returned None for add operation")
             return OperationResult(
                 operation_index=operation_index,
                 action="add",
@@ -743,6 +745,13 @@ class BulkOperationService(BaseService):
                 status="failed",
                 reason=error,
             )
+        if slot is None:
+            return OperationResult(
+                operation_index=operation_index,
+                action="update",
+                status="failed",
+                reason=f"Slot {operation.slot_id} could not be loaded for update",
+            )
 
         # 3. Validate timing
         new_start = operation.start_time if operation.start_time else slot.start_time
@@ -786,7 +795,7 @@ class BulkOperationService(BaseService):
 
     def _get_existing_week_slots(
         self, instructor_id: str, week_start: date
-    ) -> Dict[str, List[Dict]]:
+    ) -> Dict[str, List[Dict[str, str]]]:
         """Get existing slots for a week from database."""
         end_date = week_start + timedelta(days=6)
 
@@ -794,7 +803,7 @@ class BulkOperationService(BaseService):
         slots = self.week_operation_repository.get_week_slots(instructor_id, week_start, end_date)
 
         # Organize by date
-        slots_by_date = {}
+        slots_by_date: Dict[str, List[Dict[str, str]]] = {}
         for slot in slots:
             date_str = slot.specific_date.isoformat()
             if date_str not in slots_by_date:
@@ -811,7 +820,7 @@ class BulkOperationService(BaseService):
 
     def _generate_operations_from_states(
         self,
-        existing_slots: Dict[str, List[Dict]],
+        existing_slots: Dict[str, List[Dict[str, str]]],
         current_week: Dict[str, List[Any]],
         saved_week: Dict[str, List[Any]],
         week_start: date,
@@ -962,6 +971,6 @@ class BulkOperationService(BaseService):
         return warnings
 
     @contextmanager
-    def _null_transaction(self):
+    def _null_transaction(self) -> Iterator[Session]:
         """Null context manager for validation-only mode."""
         yield self.db
