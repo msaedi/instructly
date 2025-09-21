@@ -1,6 +1,7 @@
 """Routes for user addresses and instructor service areas."""
 
 import logging
+from typing import Any, Mapping, Sequence, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..api.dependencies.auth import get_current_active_user
 from ..database import get_db as get_session
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
+from ..models.user import User
 from ..schemas.address import (
     AddressCreate,
     AddressListResponse,
@@ -22,6 +24,7 @@ from ..schemas.address import (
 )
 from ..schemas.address_responses import CoverageFeatureCollectionResponse
 from ..services.address_service import AddressService
+from ..services.geocoding.base import AutocompleteResult, GeocodedAddress
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +83,7 @@ class NYCZipCheckResponse(BaseModel):
     borough: str | None = None
 
 
-@router.get("/zip/is-nyc", response_model=NYCZipCheckResponse)
+@router.get("/zip/is-nyc", response_model=NYCZipCheckResponse)  # type: ignore[misc]
 def is_nyc_zip(zip: str) -> NYCZipCheckResponse:
     """Lightweight NYC ZIP check.
 
@@ -103,34 +106,39 @@ def is_nyc_zip(zip: str) -> NYCZipCheckResponse:
     return NYCZipCheckResponse(is_nyc=bool(borough), borough=borough)
 
 
-@router.get("/me", response_model=AddressListResponse)
+@router.get("/me", response_model=AddressListResponse)  # type: ignore[misc]
 def list_my_addresses(
-    current_user=Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
-):
-    items = [AddressResponse(**a) for a in service.list_addresses(current_user.id)]
+) -> AddressListResponse:
+    addresses_raw = cast(
+        Sequence[Mapping[str, Any]],
+        service.list_addresses(current_user.id),
+    )
+    items = [AddressResponse(**address) for address in addresses_raw]
     return AddressListResponse(items=items, total=len(items))
 
 
-@router.post("/me", response_model=AddressResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/me", response_model=AddressResponse, status_code=status.HTTP_201_CREATED)  # type: ignore[misc]
 def create_my_address(
     data: AddressCreate,
-    current_user=Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
-):
-    created = service.create_address(current_user.id, data.model_dump())
+) -> AddressResponse:
+    created = cast(Mapping[str, Any], service.create_address(current_user.id, data.model_dump()))
     return AddressResponse(**created)
 
 
-@router.patch("/me/{address_id}", response_model=AddressResponse)
+@router.patch("/me/{address_id}", response_model=AddressResponse)  # type: ignore[misc]
 def update_my_address(
     address_id: str,
     data: AddressUpdate,
-    current_user=Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
-):
-    updated = service.update_address(
-        current_user.id, address_id, data.model_dump(exclude_unset=True)
+) -> AddressResponse:
+    updated = cast(
+        Mapping[str, Any] | None,
+        service.update_address(current_user.id, address_id, data.model_dump(exclude_unset=True)),
     )
     if not updated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
@@ -143,12 +151,12 @@ class DeleteResponse(BaseModel):
     message: str
 
 
-@router.delete("/me/{address_id}", response_model=DeleteResponse)
+@router.delete("/me/{address_id}", response_model=DeleteResponse)  # type: ignore[misc]
 def delete_my_address(
     address_id: str,
-    current_user=Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
-):
+) -> DeleteResponse:
     ok = service.delete_address(current_user.id, address_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
@@ -156,17 +164,21 @@ def delete_my_address(
 
 
 # Instructor service areas
-@router.get("/service-areas/me", response_model=ServiceAreasResponse)
+@router.get("/service-areas/me", response_model=ServiceAreasResponse)  # type: ignore[misc]
 def list_my_service_areas(
-    current_user=Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
-):
-    items = [ServiceAreaItem(**a) for a in service.list_service_areas(current_user.id)]
+) -> ServiceAreasResponse:
+    service_areas_raw = cast(
+        Sequence[Mapping[str, Any]],
+        service.list_service_areas(current_user.id),
+    )
+    items = [ServiceAreaItem(**area) for area in service_areas_raw]
     return ServiceAreasResponse(items=items, total=len(items))
 
 
-@router.get("/places/autocomplete", response_model=AutocompleteResponse)
-def places_autocomplete(q: str):
+@router.get("/places/autocomplete", response_model=AutocompleteResponse)  # type: ignore[misc]
+def places_autocomplete(q: str) -> AutocompleteResponse:
     """Provider-agnostic autocomplete passthrough.
 
     Uses the configured provider to retrieve suggestions.
@@ -176,8 +188,8 @@ def places_autocomplete(q: str):
     from ..services.geocoding.factory import create_geocoding_provider
 
     provider = create_geocoding_provider()
-    results = anyio.run(provider.autocomplete, q)
-    items = [
+    results: list[AutocompleteResult] = anyio.run(provider.autocomplete, q)
+    items: list[dict[str, Any]] = [
         {
             "text": r.text,
             "place_id": r.place_id,
@@ -189,8 +201,8 @@ def places_autocomplete(q: str):
     return AutocompleteResponse(items=items, total=len(items))
 
 
-@router.get("/places/details", response_model=PlaceDetails)
-def place_details(place_id: str):
+@router.get("/places/details", response_model=PlaceDetails)  # type: ignore[misc]
+def place_details(place_id: str) -> PlaceDetails:
     """Return normalized place details for a selected suggestion.
 
     Frontend uses this to auto-fill form fields without exposing provider payloads.
@@ -200,7 +212,7 @@ def place_details(place_id: str):
     from ..services.geocoding.factory import create_geocoding_provider
 
     provider = create_geocoding_provider()
-    result = anyio.run(provider.get_place_details, place_id)
+    result: GeocodedAddress | None = anyio.run(provider.get_place_details, place_id)
     if not result:
         raise HTTPException(status_code=404, detail="Place not found")
     return PlaceDetails(
@@ -217,19 +229,23 @@ def place_details(place_id: str):
     )
 
 
-@router.put("/service-areas/me", response_model=ServiceAreasResponse)
+@router.put("/service-areas/me", response_model=ServiceAreasResponse)  # type: ignore[misc]
 def replace_my_service_areas(
     payload: ServiceAreasUpdateRequest,
-    current_user=Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
-):
+) -> ServiceAreasResponse:
     service.replace_service_areas(current_user.id, payload.neighborhood_ids)
-    items = [ServiceAreaItem(**a) for a in service.list_service_areas(current_user.id)]
+    service_areas_raw = cast(
+        Sequence[Mapping[str, Any]],
+        service.list_service_areas(current_user.id),
+    )
+    items = [ServiceAreaItem(**area) for area in service_areas_raw]
     return ServiceAreasResponse(items=items, total=len(items))
 
 
 # Public helper for map: bulk coverage for instructor ids
-@router.get("/coverage/bulk", response_model=CoverageFeatureCollectionResponse)
+@router.get("/coverage/bulk", response_model=CoverageFeatureCollectionResponse)  # type: ignore[misc]
 @rate_limit("10/minute", key_type=RateLimitKeyType.IP)
 def get_bulk_coverage_geojson(
     ids: str, service: AddressService = Depends(get_address_service)
@@ -244,7 +260,7 @@ def get_bulk_coverage_geojson(
         return CoverageFeatureCollectionResponse(type="FeatureCollection", features=[])
     if len(instructor_ids) > 100:
         instructor_ids = instructor_ids[:100]
-    geo = service.get_coverage_geojson_for_instructors(instructor_ids)
+    geo = cast(Mapping[str, Any], service.get_coverage_geojson_for_instructors(instructor_ids))
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
     )
@@ -266,19 +282,22 @@ class NeighborhoodsListResponse(BaseModel):
     per_page: int | None = None
 
 
-@router.get("/regions/neighborhoods", response_model=NeighborhoodsListResponse)
+@router.get("/regions/neighborhoods", response_model=NeighborhoodsListResponse)  # type: ignore[misc]
 def list_neighborhoods(
     region_type: str = "nyc",
     borough: str | None = None,
     page: int = 1,
     per_page: int = 100,
     service: AddressService = Depends(get_address_service),
-):
+) -> NeighborhoodsListResponse:
     per_page = max(1, min(per_page, 500))
     page = max(1, page)
     offset = (page - 1) * per_page
-    items_raw = service.list_neighborhoods(
-        region_type=region_type, borough=borough, limit=per_page, offset=offset
+    items_raw = cast(
+        Sequence[Mapping[str, Any]],
+        service.list_neighborhoods(
+            region_type=region_type, borough=borough, limit=per_page, offset=offset
+        ),
     )
-    items = [NeighborhoodItem(**r) for r in items_raw]
+    items = [NeighborhoodItem(**record) for record in items_raw]
     return NeighborhoodsListResponse(items=items, total=len(items), page=page, per_page=per_page)

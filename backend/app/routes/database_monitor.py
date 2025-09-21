@@ -6,8 +6,10 @@ Provides insights into connection pool usage, query performance, and database he
 """
 
 import logging
+from typing import Any, Dict, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.pool import Pool
 
 from app.core.enums import PermissionName
 from app.database import engine, get_db_pool_status
@@ -28,7 +30,7 @@ router = APIRouter(
 )
 
 
-@router.get("/health", response_model=DatabaseHealthResponse)
+@router.get("/health", response_model=DatabaseHealthResponse)  # type: ignore[misc]
 async def database_health() -> DatabaseHealthResponse:
     """
     Simple database health check endpoint.
@@ -40,7 +42,7 @@ async def database_health() -> DatabaseHealthResponse:
     """
     try:
         # Test basic connectivity by getting pool status
-        pool_status = get_db_pool_status()
+        pool_status = cast(Dict[str, Any], get_db_pool_status())
 
         return DatabaseHealthResponse(
             status="healthy",
@@ -56,7 +58,7 @@ async def database_health() -> DatabaseHealthResponse:
         )
 
 
-@router.get("/pool-status", response_model=DatabasePoolStatusResponse)
+@router.get("/pool-status", response_model=DatabasePoolStatusResponse)  # type: ignore[misc]
 async def database_pool_status(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> DatabasePoolStatusResponse:
@@ -73,7 +75,7 @@ async def database_pool_status(
         - Usage percentage
     """
     try:
-        pool = engine.pool
+        pool = cast(Pool, engine.pool)
 
         # Get detailed pool metrics
         pool_size = pool.size()
@@ -81,13 +83,24 @@ async def database_pool_status(
         checked_out = pool.checkedout()
         overflow = pool.overflow()
         total = pool_size + overflow
-        max_size = pool_size + pool._max_overflow
+        max_overflow = cast(int, getattr(pool, "_max_overflow", 0))
+        max_size = pool_size + max_overflow
 
         # Calculate usage percentage
         usage_percent = (checked_out / max_size * 100) if max_size > 0 else 0
 
         # Determine health status
         health_status = "healthy" if usage_percent < 80 else "critical"
+
+        pool_configuration = {
+            "pool_size": cast(
+                int,
+                getattr(getattr(pool, "_pool", None), "maxsize", pool_size),
+            ),
+            "max_overflow": max_overflow,
+            "timeout": cast(float | None, getattr(pool, "_timeout", None)),
+            "recycle": cast(float | None, getattr(pool, "_recycle", None)),
+        }
 
         return DatabasePoolStatusResponse(
             status=health_status,
@@ -100,12 +113,7 @@ async def database_pool_status(
                 "max_size": max_size,
                 "usage_percent": round(usage_percent, 2),
             },
-            configuration={
-                "pool_size": pool._pool.maxsize if hasattr(pool._pool, "maxsize") else pool_size,
-                "max_overflow": pool._max_overflow,
-                "timeout": pool._timeout,
-                "recycle": pool._recycle,
-            },
+            configuration=pool_configuration,
             recommendations={
                 "increase_pool_size": usage_percent > 80,
                 "current_load": "high"
@@ -123,7 +131,7 @@ async def database_pool_status(
         )
 
 
-@router.get("/stats", response_model=DatabaseStatsResponse)
+@router.get("/stats", response_model=DatabaseStatsResponse)  # type: ignore[misc]
 async def database_stats(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> DatabaseStatsResponse:

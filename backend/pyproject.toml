@@ -327,6 +327,16 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.routes.addresses",
+  "backend.app.routes.privacy",
+  "backend.app.routes.favorites",
+  "backend.app.routes.redis_monitor",
+  "backend.app.routes.database_monitor",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
   "pydantic",
   "pydantic.*"
 ]
