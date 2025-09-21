@@ -5,17 +5,38 @@ Repositories for reviews/ratings system.
 Follows repository pattern: no business logic, DB-only operations.
 """
 
+from datetime import datetime
 import logging
-from typing import Dict, List, Optional
+from typing import Any, List, Mapping, Optional, Sequence, TypedDict, cast
 
 from sqlalchemy import and_, func
-from sqlalchemy.orm import Session
+from sqlalchemy.engine import Row
+from sqlalchemy.orm import Query, Session
 
 from ..core.exceptions import RepositoryException
 from ..models.review import Review, ReviewResponse, ReviewStatus, ReviewTip
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
+
+
+class InstructorAggregate(TypedDict):
+    total_reviews: int
+    raw_average: float
+    rating_sum: int
+
+
+class ServiceAggregate(TypedDict):
+    review_count: int
+    raw_average: float
+    rating_sum: int
+
+
+class ServiceBreakdown(TypedDict):
+    instructor_service_id: Optional[str]
+    review_count: int
+    raw_average: float
+    rating_sum: int
 
 
 class ReviewRepository(BaseRepository[Review]):
@@ -25,7 +46,7 @@ class ReviewRepository(BaseRepository[Review]):
         super().__init__(db, Review)
         self.logger = logging.getLogger(__name__)
 
-    def create_review(self, **kwargs) -> Review:
+    def create_review(self, **kwargs: Any) -> Review:
         try:
             review = Review(**kwargs)
             self.db.add(review)
@@ -47,12 +68,15 @@ class ReviewRepository(BaseRepository[Review]):
 
     def get_by_booking_id(self, booking_id: str) -> Optional[Review]:
         try:
-            return self.db.query(Review).filter(Review.booking_id == booking_id).first()
+            return cast(
+                Optional[Review],
+                self.db.query(Review).filter(Review.booking_id == booking_id).first(),
+            )
         except Exception as e:
             self.logger.error(f"Error fetching review by booking: {e}")
             raise RepositoryException(f"Failed to fetch review by booking: {e}")
 
-    def get_instructor_aggregates(self, instructor_id: str) -> Dict:
+    def get_instructor_aggregates(self, instructor_id: str) -> InstructorAggregate:
         """Return total count and sum for published/flagged reviews (exclude hidden/removed)."""
         try:
             q = self.db.query(
@@ -68,16 +92,19 @@ class ReviewRepository(BaseRepository[Review]):
             row = q.first()
             if not row:
                 return {"total_reviews": 0, "raw_average": 0.0, "rating_sum": 0}
+            mapping: Mapping[str, Any] = cast(Row[Any], row)._mapping
             return {
-                "total_reviews": int(row.total_reviews or 0),
-                "raw_average": float(row.raw_average or 0.0),
-                "rating_sum": int(row.rating_sum or 0),
+                "total_reviews": int(mapping.get("total_reviews", 0) or 0),
+                "raw_average": float(mapping.get("raw_average", 0.0) or 0.0),
+                "rating_sum": int(mapping.get("rating_sum", 0) or 0),
             }
         except Exception as e:
             self.logger.error(f"Error aggregating instructor reviews: {e}")
             raise RepositoryException(f"Failed to aggregate reviews: {e}")
 
-    def get_service_aggregates(self, instructor_id: str, instructor_service_id: str) -> Dict:
+    def get_service_aggregates(
+        self, instructor_id: str, instructor_service_id: str
+    ) -> ServiceAggregate:
         try:
             q = self.db.query(
                 func.count(Review.id).label("review_count"),
@@ -93,19 +120,21 @@ class ReviewRepository(BaseRepository[Review]):
             row = q.first()
             if not row:
                 return {"review_count": 0, "raw_average": 0.0, "rating_sum": 0}
+            mapping: Mapping[str, Any] = cast(Row[Any], row)._mapping
             return {
-                "review_count": int(row.review_count or 0),
-                "raw_average": float(row.raw_average or 0.0),
-                "rating_sum": int(row.rating_sum or 0),
+                "review_count": int(mapping.get("review_count", 0) or 0),
+                "raw_average": float(mapping.get("raw_average", 0.0) or 0.0),
+                "rating_sum": int(mapping.get("rating_sum", 0) or 0),
             }
         except Exception as e:
             self.logger.error(f"Error aggregating service reviews: {e}")
             raise RepositoryException(f"Failed to aggregate service reviews: {e}")
 
-    def get_service_breakdown(self, instructor_id: str) -> List[Dict]:
+    def get_service_breakdown(self, instructor_id: str) -> List[ServiceBreakdown]:
         try:
             # Aggregate by instructor_service_id
-            rows = (
+            rows = cast(
+                Sequence[Row[Any]],
                 self.db.query(
                     Review.instructor_service_id.label("instructor_service_id"),
                     func.count(Review.id).label("review_count"),
@@ -121,24 +150,29 @@ class ReviewRepository(BaseRepository[Review]):
                     )
                 )
                 .group_by(Review.instructor_service_id)
-                .all()
+                .all(),
             )
-            return [
-                {
-                    "instructor_service_id": r.instructor_service_id,
-                    "review_count": int(r.review_count or 0),
-                    "raw_average": float(r.raw_average or 0.0),
-                    "rating_sum": int(r.rating_sum or 0),
-                }
-                for r in rows
-            ]
+            breakdown: List[ServiceBreakdown] = []
+            for row in rows:
+                mapping = row._mapping
+                breakdown.append(
+                    {
+                        "instructor_service_id": cast(
+                            Optional[str], mapping.get("instructor_service_id")
+                        ),
+                        "review_count": int(mapping.get("review_count", 0) or 0),
+                        "raw_average": float(mapping.get("raw_average", 0.0) or 0.0),
+                        "rating_sum": int(mapping.get("rating_sum", 0) or 0),
+                    }
+                )
+            return breakdown
         except Exception as e:
             self.logger.error(f"Error getting service breakdown: {e}")
             raise RepositoryException(f"Failed to get service breakdown: {e}")
 
     def _apply_recent_filters(
         self,
-        q,
+        q: Query[Any],
         *,
         instructor_id: str,
         instructor_service_id: Optional[str] = None,
@@ -178,7 +212,10 @@ class ReviewRepository(BaseRepository[Review]):
                 min_rating=min_rating,
                 with_text=with_text,
             )
-            return q.order_by(Review.created_at.desc()).offset(offset).limit(limit).all()
+            return cast(
+                List[Review],
+                q.order_by(Review.created_at.desc()).offset(offset).limit(limit).all(),
+            )
         except Exception as e:
             self.logger.error(f"Error getting recent reviews: {e}")
             raise RepositoryException(f"Failed to get recent reviews: {e}")
@@ -208,8 +245,16 @@ class ReviewRepository(BaseRepository[Review]):
     def get_existing_for_bookings(self, booking_ids: List[str]) -> List[str]:
         """Return booking IDs that already have a review (published/flagged/hidden/removed all count)."""
         try:
-            rows = self.db.query(Review.booking_id).filter(Review.booking_id.in_(booking_ids)).all()
-            return [r[0] if isinstance(r, tuple) else r.booking_id for r in rows]
+            rows = cast(
+                Sequence[Row[Any]],
+                self.db.query(Review.booking_id).filter(Review.booking_id.in_(booking_ids)).all(),
+            )
+            existing: List[str] = []
+            for row in rows:
+                value = row._mapping.get("booking_id")
+                if value is not None:
+                    existing.append(str(value))
+            return existing
         except Exception as e:
             self.logger.error(f"Error checking existing reviews for bookings: {e}")
             raise RepositoryException(f"Failed to check existing reviews: {e}")
@@ -231,7 +276,7 @@ class ReviewRepository(BaseRepository[Review]):
             )
             if instructor_service_id:
                 q = q.filter(Review.instructor_service_id == instructor_service_id)
-            return q.all()
+            return cast(List[Review], q.all())
         except Exception as e:
             self.logger.error(f"Error fetching verified reviews for instructor: {e}")
             raise RepositoryException(f"Failed to fetch verified reviews: {e}")
@@ -243,7 +288,7 @@ class ReviewResponseRepository(BaseRepository[ReviewResponse]):
     def __init__(self, db: Session):
         super().__init__(db, ReviewResponse)
 
-    def create_response(self, **kwargs) -> ReviewResponse:
+    def create_response(self, **kwargs: Any) -> ReviewResponse:
         try:
             response = ReviewResponse(**kwargs)
             self.db.add(response)
@@ -268,7 +313,7 @@ class ReviewTipRepository(BaseRepository[ReviewTip]):
     def __init__(self, db: Session):
         super().__init__(db, ReviewTip)
 
-    def create_tip(self, **kwargs) -> ReviewTip:
+    def create_tip(self, **kwargs: Any) -> ReviewTip:
         try:
             tip = ReviewTip(**kwargs)
             self.db.add(tip)
@@ -277,7 +322,9 @@ class ReviewTipRepository(BaseRepository[ReviewTip]):
         except Exception as e:
             raise RepositoryException(f"Failed to create review tip: {e}")
 
-    def update_tip_status(self, tip_id: str, status: str, processed_at=None) -> Optional[ReviewTip]:
+    def update_tip_status(
+        self, tip_id: str, status: str, processed_at: Optional[datetime] = None
+    ) -> Optional[ReviewTip]:
         try:
             tip = self.db.query(ReviewTip).filter(ReviewTip.id == tip_id).first()
             if not tip:
