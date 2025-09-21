@@ -388,6 +388,12 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.services.search_service",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
   "pydantic",
   "pydantic.*"
 ]
