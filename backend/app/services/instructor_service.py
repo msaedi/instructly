@@ -11,7 +11,7 @@ Now tracks timing for all instructor operations to earn those MEGAWATTS! ⚡
 
 from datetime import datetime, timezone
 import logging
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, cast
 
 import anyio
 from sqlalchemy.orm import Session
@@ -30,6 +30,10 @@ from .geocoding.factory import create_geocoding_provider
 logger = logging.getLogger(__name__)
 
 
+JsonDict = Dict[str, Any]
+JsonList = List[JsonDict]
+
+
 class InstructorService(BaseService):
     """
     Service layer for instructor-related operations.
@@ -45,10 +49,10 @@ class InstructorService(BaseService):
         self,
         db: Session,
         cache_service: Optional[CacheService] = None,
-        profile_repository=None,
-        service_repository=None,
-        user_repository=None,
-        booking_repository=None,
+        profile_repository: Optional[Any] = None,
+        service_repository: Optional[Any] = None,
+        user_repository: Optional[Any] = None,
+        booking_repository: Optional[Any] = None,
     ):
         """Initialize instructor service with database, cache, and repositories."""
         super().__init__(db)
@@ -71,7 +75,9 @@ class InstructorService(BaseService):
         self.analytics_repository = RepositoryFactory.create_service_analytics_repository(db)
 
     @BaseService.measure_operation("get_instructor_profile")
-    def get_instructor_profile(self, user_id: str, include_inactive_services: bool = False) -> Dict:
+    def get_instructor_profile(
+        self, user_id: str, include_inactive_services: bool = False
+    ) -> Dict[str, Any]:
         """
         Get instructor profile with proper service filtering.
 
@@ -99,7 +105,7 @@ class InstructorService(BaseService):
         return self._profile_to_dict(profile, include_inactive_services)
 
     @BaseService.measure_operation("get_all_instructors")
-    def get_all_instructors(self, skip: int = 0, limit: int = 100) -> List[Dict]:
+    def get_all_instructors(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """
         Get all instructor profiles with active services only.
 
@@ -138,7 +144,7 @@ class InstructorService(BaseService):
         age_group: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """
         Get instructor profiles based on filter criteria.
 
@@ -206,7 +212,7 @@ class InstructorService(BaseService):
                 instructors.append(instructor_dict)
 
         # Build metadata about applied filters
-        applied_filters = {}
+        applied_filters: JsonDict = {}
         if search:
             applied_filters["search"] = search
         if service_catalog_id:
@@ -218,7 +224,7 @@ class InstructorService(BaseService):
         if age_group is not None:
             applied_filters["age_group"] = age_group
 
-        metadata = {
+        metadata: JsonDict = {
             "filters_applied": applied_filters,
             "pagination": {"skip": skip, "limit": limit, "count": len(instructors)},
             "total_matches": len(profiles),  # Total found by repository
@@ -244,7 +250,9 @@ class InstructorService(BaseService):
         return {"instructors": instructors, "metadata": metadata}
 
     @BaseService.measure_operation("create_instructor_profile")
-    def create_instructor_profile(self, user: User, profile_data: InstructorProfileCreate) -> Dict:
+    def create_instructor_profile(
+        self, user: User, profile_data: InstructorProfileCreate
+    ) -> Dict[str, Any]:
         """
         Create a new instructor profile.
 
@@ -300,7 +308,9 @@ class InstructorService(BaseService):
         return self._profile_to_dict(profile)
 
     @BaseService.measure_operation("update_instructor_profile")
-    def update_instructor_profile(self, user_id: str, update_data: InstructorProfileUpdate) -> Dict:
+    def update_instructor_profile(
+        self, user_id: str, update_data: InstructorProfileUpdate
+    ) -> Dict[str, Any]:
         """
         Update instructor profile with proper soft delete handling.
 
@@ -544,7 +554,7 @@ class InstructorService(BaseService):
 
     def _profile_to_dict(
         self, profile: InstructorProfile, include_inactive_services: bool = False
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """
         Convert instructor profile to dictionary.
 
@@ -623,7 +633,9 @@ class InstructorService(BaseService):
 
     # Catalog-aware methods
     @BaseService.measure_operation("get_available_catalog_services")
-    def get_available_catalog_services(self, category_slug: Optional[str] = None) -> List[Dict]:
+    def get_available_catalog_services(
+        self, category_slug: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         Get available services from the catalog.
 
@@ -642,7 +654,7 @@ class InstructorService(BaseService):
             cached_result = self.cache_service.get(cache_key)
             if cached_result:
                 logger.debug(f"Cache hit for catalog services: {cache_key}")
-                return cached_result
+                return cast(JsonList, cached_result)
 
         # Get category ID if slug provided
         category_id = None
@@ -668,7 +680,7 @@ class InstructorService(BaseService):
         return result
 
     @BaseService.measure_operation("get_service_categories")
-    def get_service_categories(self) -> List[Dict]:
+    def get_service_categories(self) -> List[Dict[str, Any]]:
         """Get all service categories."""
         categories = self.category_repository.get_all()
         return [
@@ -692,7 +704,7 @@ class InstructorService(BaseService):
         hourly_rate: float,
         custom_description: Optional[str] = None,
         duration_options: Optional[List[int]] = None,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """
         Create an instructor service linked to a catalog entry.
 
@@ -748,7 +760,7 @@ class InstructorService(BaseService):
         service.catalog_entry = catalog_service
         return self._instructor_service_to_dict(service)
 
-    def _catalog_service_to_dict(self, service: ServiceCatalog) -> Dict:
+    def _catalog_service_to_dict(self, service: ServiceCatalog) -> Dict[str, Any]:
         """Convert catalog service to dictionary."""
         return {
             "id": service.id,
@@ -763,7 +775,7 @@ class InstructorService(BaseService):
             "requires_certification": service.requires_certification,
         }
 
-    def _instructor_service_to_dict(self, service: Service) -> Dict:
+    def _instructor_service_to_dict(self, service: Service) -> Dict[str, Any]:
         """Convert instructor service to dictionary with catalog info."""
         return {
             "id": service.id,
@@ -790,7 +802,7 @@ class InstructorService(BaseService):
         online_capable: Optional[bool] = None,
         limit: int = 10,
         threshold: float = 0.7,
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Search services using semantic similarity.
 
@@ -834,7 +846,7 @@ class InstructorService(BaseService):
         return filtered_results
 
     @BaseService.measure_operation("get_popular_services")
-    def get_popular_services(self, limit: int = 10, days: int = 30) -> List[Dict]:
+    def get_popular_services(self, limit: int = 10, days: int = 30) -> List[Dict[str, Any]]:
         """
         Get most popular services based on booking data.
 
@@ -857,7 +869,7 @@ class InstructorService(BaseService):
         return results
 
     @BaseService.measure_operation("get_trending_services")
-    def get_trending_services(self, limit: int = 10) -> List[Dict]:
+    def get_trending_services(self, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Get services trending upward in demand.
 
@@ -888,7 +900,7 @@ class InstructorService(BaseService):
         max_price: Optional[float] = None,
         skip: int = 0,
         limit: int = 50,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """
         Enhanced service search with multiple filters and analytics.
 
@@ -953,7 +965,7 @@ class InstructorService(BaseService):
 
         return {"services": results, "metadata": metadata}
 
-    def _get_service_analytics(self, service_catalog_id: str) -> Dict:
+    def _get_service_analytics(self, service_catalog_id: str) -> Dict[str, Any]:
         """Get or create analytics for a service."""
         analytics = self.analytics_repository.get_or_create(service_catalog_id)
         return analytics.to_dict() if analytics else {}
@@ -977,7 +989,7 @@ class InstructorService(BaseService):
 
         return filtered
 
-    def _calculate_price_range(self, instructor_services: List[Service]) -> Dict:
+    def _calculate_price_range(self, instructor_services: List[Service]) -> Dict[str, Any]:
         """Calculate actual price range from instructor services."""
         if not instructor_services:
             return {"min": None, "max": None}
@@ -986,7 +998,7 @@ class InstructorService(BaseService):
         return {"min": min(prices), "max": max(prices), "avg": sum(prices) / len(prices)}
 
     @BaseService.measure_operation("get_top_services_per_category")
-    def get_top_services_per_category(self, limit: int = 7) -> Dict:
+    def get_top_services_per_category(self, limit: int = 7) -> Dict[str, Any]:
         """
         Get top N services per category for homepage display.
 
@@ -1005,13 +1017,14 @@ class InstructorService(BaseService):
             cached_result = self.cache_service.get(cache_key)
             if cached_result:
                 logger.debug("Cache hit for top services per category")
-                return cached_result
+                return cast(JsonDict, cached_result)
 
         # Get all categories
         categories = self.category_repository.get_all()
 
-        result = {
-            "categories": [],
+        categories_data: JsonList = []
+        result: JsonDict = {
+            "categories": categories_data,
             "metadata": {
                 "services_per_category": limit,
                 "total_categories": len(categories),
@@ -1023,12 +1036,13 @@ class InstructorService(BaseService):
         # For each category, get top N services by display_order
         for category in sorted(categories, key=lambda c: c.display_order):
             # Always create category data - never hide categories
-            category_data = {
+            services_list: JsonList = []
+            category_data: JsonDict = {
                 "id": category.id,
                 "name": category.name,
                 "slug": category.slug,
                 "icon_name": category.icon_name,
-                "services": [],
+                "services": services_list,
             }
 
             # Get top services for this category (already ordered by display_order)
@@ -1044,7 +1058,7 @@ class InstructorService(BaseService):
                 # Only include services with active instructors
                 active_instructors = analytics.active_instructors if analytics else 0
                 if active_instructors > 0:
-                    category_data["services"].append(
+                    services_list.append(
                         {
                             "id": service.id,
                             "name": service.name,
@@ -1057,7 +1071,7 @@ class InstructorService(BaseService):
                     )
 
             # Always add the category, even if it has no services with active instructors
-            result["categories"].append(category_data)
+            categories_data.append(category_data)
 
         # Cache for 1 hour
         if self.cache_service:
@@ -1067,7 +1081,7 @@ class InstructorService(BaseService):
         return result
 
     @BaseService.measure_operation("get_all_services_with_instructors")
-    def get_all_services_with_instructors(self) -> Dict:
+    def get_all_services_with_instructors(self) -> Dict[str, Any]:
         """
         Get all catalog services organized by category with active instructor counts.
 
@@ -1084,13 +1098,14 @@ class InstructorService(BaseService):
             cached_result = self.cache_service.get(cache_key)
             if cached_result:
                 logger.debug("Cache hit for all services with instructors")
-                return cached_result
+                return cast(JsonDict, cached_result)
 
         # Get all categories
         categories = self.category_repository.get_all()
 
-        result = {
-            "categories": [],
+        categories_data: JsonList = []
+        result: JsonDict = {
+            "categories": categories_data,
             "metadata": {
                 "total_categories": len(categories),
                 "cached_for_seconds": 300,  # 5 minutes
@@ -1100,14 +1115,15 @@ class InstructorService(BaseService):
 
         # For each category, get ALL services (not just top N)
         for category in sorted(categories, key=lambda c: c.display_order):
-            category_data = {
+            services_list: JsonList = []
+            category_data: JsonDict = {
                 "id": category.id,
                 "name": category.name,
                 "slug": category.slug,
                 "subtitle": category.subtitle if hasattr(category, "subtitle") else "",
                 "description": category.description,
                 "icon_name": category.icon_name,
-                "services": [],
+                "services": services_list,
             }
 
             # Get ALL services for this category (ordered by display_order)
@@ -1117,7 +1133,7 @@ class InstructorService(BaseService):
             )
 
             # Collect services with analytics data
-            services_with_analytics = []
+            services_with_analytics: JsonList = []
             for service in services:
                 # Get analytics for demand score and instructor count
                 analytics = self.analytics_repository.get_or_create(service.id)
@@ -1169,14 +1185,15 @@ class InstructorService(BaseService):
             # Remove the temporary sorting field and add to category
             for service_data in services_with_analytics:
                 del service_data["_original_display_order"]
-                category_data["services"].append(service_data)
+                services_list.append(service_data)
 
             # Always add the category, even if empty
-            result["categories"].append(category_data)
+            categories_data.append(category_data)
 
         # Add total service count to metadata
-        total_services = sum(len(cat["services"]) for cat in result["categories"])
-        result["metadata"]["total_services"] = total_services
+        total_services = sum(len(cat["services"]) for cat in categories_data)
+        metadata = cast(JsonDict, result["metadata"])
+        metadata["total_services"] = total_services
 
         # Cache for 5 minutes
         if self.cache_service:
@@ -1186,7 +1203,7 @@ class InstructorService(BaseService):
         return result
 
     @BaseService.measure_operation("get_kids_available_services")
-    def get_kids_available_services(self) -> List[Dict]:
+    def get_kids_available_services(self) -> List[Dict[str, Any]]:
         """
         Return catalog services that have at least one active instructor offering to kids.
 
@@ -1196,10 +1213,10 @@ class InstructorService(BaseService):
         if self.cache_service:
             cached = self.cache_service.get(cache_key)
             if cached:
-                return cached
+                return cast(JsonList, cached)
 
         # Delegate to repository per repository pattern
-        result = self.catalog_repository.get_services_available_for_kids_minimal()
+        result = cast(JsonList, self.catalog_repository.get_services_available_for_kids_minimal())
 
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=300)
