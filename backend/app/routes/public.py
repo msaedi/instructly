@@ -13,10 +13,22 @@ Key Design Decisions:
 5. Respects blackout dates
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 import hashlib
 import logging
-from typing import Optional
+from typing import (
+    Any,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    TypedDict,
+    Union,
+    cast,
+)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
@@ -45,6 +57,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/public", tags=["public"])
 
 
+class SlotLike(Protocol):
+    specific_date: date
+    start_time: time
+    end_time: time
+
+
+class BookingLike(Protocol):
+    start_time: time
+    end_time: time
+
+
+class AvailabilitySummaryEntry(TypedDict):
+    date: str
+    morning_available: bool
+    afternoon_available: bool
+    evening_available: bool
+    total_hours: float
+
+
 def get_availability_service(db: Session = Depends(get_db)) -> AvailabilityService:
     """Get availability service instance."""
     return AvailabilityService(db)
@@ -71,12 +102,17 @@ def get_cache_service_dep(db: Session = Depends(get_db)) -> Optional[CacheServic
 
 
 @router.post("/session/guest", response_model=GuestSessionResponse)
-def create_guest_session(response_obj: Response, request: Request) -> GuestSessionResponse:
+def create_guest_session(
+    response_obj: Response, request: Request
+) -> Response | GuestSessionResponse:
     """Issue a first-party guest_id cookie used for optional auth endpoints.
 
     Sets cookie attributes appropriate for cross-site subdomains in preview/prod.
     """
-    guest_id = request.cookies.get("guest_id") if hasattr(request, "cookies") else None
+    guest_id: Optional[str] = None
+    if hasattr(request, "cookies"):
+        cookies = cast(Mapping[str, str], request.cookies)
+        guest_id = cookies.get("guest_id")
     if guest_id:
         # Idempotent: if already set, return 204 No Content with empty body
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -87,7 +123,7 @@ def create_guest_session(response_obj: Response, request: Request) -> GuestSessi
     import os as _os
 
     site_mode = (_os.getenv("SITE_MODE", "").lower().strip()) or "local"
-    cookie_kwargs = {
+    cookie_kwargs: Dict[str, Union[str, bool, int]] = {
         "httponly": True,
         "samesite": "lax",
         "path": "/",
@@ -111,7 +147,7 @@ def public_logout(response_obj: Response, request: Request) -> Response:
     import os as _os
 
     site_mode = (_os.getenv("SITE_MODE", "").lower().strip()) or "local"
-    cookie_kwargs = {"path": "/"}
+    cookie_kwargs: Dict[str, Union[str, bool]] = {"path": "/"}
     if site_mode in {"preview", "prod", "production", "live"}:
         cookie_kwargs["secure"] = True
         cookie_kwargs["domain"] = ".instainstru.com"
@@ -149,7 +185,7 @@ async def get_instructor_public_availability(
     instructor_service: InstructorService = Depends(get_instructor_service),
     cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
     db: Session = Depends(get_db),
-):
+) -> PublicInstructorAvailability:
     """
     Get public availability for an instructor.
 
@@ -218,24 +254,27 @@ async def get_instructor_public_availability(
 
     # Check cache first - include detail level in cache key
     cache_key = f"public_availability:{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}"
-    cached_result = None
+    cached_result: Optional[Dict[str, Any]] = None
     if cache_service:
         try:
             cached_data = cache_service.get(cache_key)
             if cached_data:
                 logger.info(f"Cache hit for public availability: {cache_key}")
-                cached_result = cached_data
+                cached_result = cast(Dict[str, Any], cached_data)
         except Exception as e:
             logger.warning(f"Cache error: {e}")
 
     # Initialize response_data
-    response_data = None
+    response_data: Optional[PublicInstructorAvailability] = None
 
     # Build response based on detail level
     if settings.public_availability_detail_level == "minimal":
         # Minimal: Just check if any availability exists
-        all_slots = availability_service.repository.get_week_availability(
-            instructor_id, start_date, end_date
+        all_slots = cast(
+            Sequence[SlotLike],
+            availability_service.repository.get_week_availability(
+                instructor_id, start_date, end_date
+            ),
         )
 
         response_data = PublicInstructorAvailability(
@@ -258,12 +297,15 @@ async def get_instructor_public_availability(
 
     elif settings.public_availability_detail_level == "summary":
         # Summary: Show counts and time ranges, not specific slots
-        all_slots = availability_service.repository.get_week_availability(
-            instructor_id, start_date, end_date
+        all_slots = cast(
+            Sequence[SlotLike],
+            availability_service.repository.get_week_availability(
+                instructor_id, start_date, end_date
+            ),
         )
 
         # Group by morning/afternoon/evening
-        availability_summary = {}
+        availability_summary: Dict[str, AvailabilitySummaryEntry] = {}
         for slot in all_slots:
             date_str = slot.specific_date.isoformat()
             if date_str not in availability_summary:
@@ -310,17 +352,18 @@ async def get_instructor_public_availability(
 
     else:  # "full" detail level
         # Build availability data
-        availability_by_date = {}
+        availability_by_date: Dict[str, PublicDayAvailability] = {}
         total_available_slots = 0
-        earliest_available_date = None
+        earliest_available_date: Optional[str] = None
 
         # Get blackout dates
         blackout_dates = availability_service.get_blackout_dates(instructor_id)
         blackout_date_set = {b.date for b in blackout_dates}
 
         # Compute merged and booked-subtracted intervals via service
-        computed = availability_service.compute_public_availability(
-            instructor_id, start_date, end_date
+        computed = cast(
+            Dict[str, List[Tuple[time, time]]],
+            availability_service.compute_public_availability(instructor_id, start_date, end_date),
         )
 
         # Process each date in the range
@@ -337,7 +380,7 @@ async def get_instructor_public_availability(
                 continue
 
             intervals = computed.get(date_str, [])
-            available_slots = [
+            available_slots: List[PublicTimeSlot] = [
                 PublicTimeSlot(start_time=st.strftime("%H:%M"), end_time=en.strftime("%H:%M"))
                 for st, en in intervals
             ]
@@ -373,9 +416,11 @@ async def get_instructor_public_availability(
         )
 
     # Get response data (either from cache or freshly built)
-    if cached_result:
+    if cached_result is not None:
         # For cached results, recreate the response model
         response_data = PublicInstructorAvailability(**cached_result)
+
+    assert response_data is not None
 
     # Use model_dump_json with exclude_none to keep responses clean
     response_json = response_data.model_dump_json(exclude_none=True)
@@ -431,7 +476,7 @@ async def get_next_available_slot(
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
     instructor_service: InstructorService = Depends(get_instructor_service),
     db: Session = Depends(get_db),
-):
+) -> NextAvailableSlotResponse:
     """
     Find the next available time slot for booking.
 
@@ -459,18 +504,22 @@ async def get_next_available_slot(
             continue
 
         # Get available slots for this date
-        slots = availability_service.repository.get_week_availability(
-            instructor_id, current_date, current_date
+        slots = cast(
+            Sequence[SlotLike],
+            availability_service.repository.get_week_availability(
+                instructor_id, current_date, current_date
+            ),
         )
 
         if slots:
             # Get booked times
-            booked_bookings = conflict_checker.repository.get_bookings_for_date(
-                instructor_id, current_date
+            booked_bookings = cast(
+                Sequence[BookingLike],
+                conflict_checker.repository.get_bookings_for_date(instructor_id, current_date),
             )
 
             # Convert to time format
-            booked_times = []
+            booked_times: List[Dict[str, time]] = []
             for booking in booked_bookings:
                 booked_times.append(
                     {"start_time": booking.start_time, "end_time": booking.end_time}
@@ -533,13 +582,13 @@ async def get_next_available_slot(
 async def send_referral_invites(
     payload: ReferralSendRequest,
     db: Session = Depends(get_db),
-):
+) -> ReferralSendResponse:
     """
     Send referral invite emails to a list of recipients.
 
     Payload: { "emails": ["a@b.com"], "referral_link": "https://instainstru.com/ref/ABC123", "from_name": "Emma" }
     """
-    emails = payload.emails
+    emails: List[str] = list(payload.emails)
     referral_link = str(payload.referral_link)
     from_name = payload.from_name or "A friend"
 

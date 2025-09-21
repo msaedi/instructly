@@ -6,6 +6,7 @@ Separated from the main instructors routes for better organization.
 """
 
 import logging
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/api/account", tags=["account-management"])
 async def suspend_account(
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
-):
+) -> AccountStatusChangeResponse:
     """
     Suspend the current user's instructor account.
 
@@ -41,11 +42,11 @@ async def suspend_account(
         )
 
     try:
-        result = account_service.suspend_instructor_account(current_user)
+        result: Dict[str, Any] = account_service.suspend_instructor_account(current_user)
         return AccountStatusChangeResponse(**result)
     except BusinessRuleException as e:
         # Extract future bookings info if available
-        has_bookings, future_bookings = account_service.has_future_bookings(current_user)
+        has_bookings, _future_bookings = account_service.has_future_bookings(current_user)
         if has_bookings:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -57,7 +58,7 @@ async def suspend_account(
 async def deactivate_account(
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
-):
+) -> AccountStatusChangeResponse:
     """
     Permanently deactivate the current user's instructor account.
 
@@ -73,11 +74,11 @@ async def deactivate_account(
         )
 
     try:
-        result = account_service.deactivate_instructor_account(current_user)
+        result: Dict[str, Any] = account_service.deactivate_instructor_account(current_user)
         return AccountStatusChangeResponse(**result)
     except BusinessRuleException as e:
         # Extract future bookings info if available
-        has_bookings, future_bookings = account_service.has_future_bookings(current_user)
+        has_bookings, _future_bookings = account_service.has_future_bookings(current_user)
         if has_bookings:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -89,7 +90,7 @@ async def deactivate_account(
 async def reactivate_account(
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
-):
+) -> AccountStatusChangeResponse:
     """
     Reactivate a suspended instructor account.
 
@@ -105,7 +106,7 @@ async def reactivate_account(
         )
 
     try:
-        result = account_service.reactivate_instructor_account(current_user)
+        result: Dict[str, Any] = account_service.reactivate_instructor_account(current_user)
         return AccountStatusChangeResponse(**result)
     except ValidationException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -115,7 +116,7 @@ async def reactivate_account(
 async def check_account_status(
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
-):
+) -> AccountStatusResponse:
     """
     Check the current account status and available status change options.
 
@@ -126,7 +127,7 @@ async def check_account_status(
     - Available status change options based on current state and future bookings
     """
     try:
-        result = account_service.get_account_status(current_user)
+        result: Dict[str, Any] = account_service.get_account_status(current_user)
         return AccountStatusResponse(**result)
     except Exception as e:
         logger.error(f"Error checking account status: {str(e)}")

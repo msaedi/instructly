@@ -372,6 +372,15 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.routes.account_management",
+  "backend.app.routes.password_reset",
+  "backend.app.routes.public",
+  "backend.app.routes.search",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
   "pydantic",
   "pydantic.*"
 ]
