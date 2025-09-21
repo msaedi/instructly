@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 import pytz
 
+from ._strict_base import StrictRequestModel
 from .base import StandardizedModel
 
 
@@ -38,6 +39,8 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
+    model_config = StrictRequestModel.model_config
+
     password: str
     role: Optional[str] = None  # For backward compatibility during registration
     guest_session_id: Optional[str] = None  # For conversion on signup
@@ -75,6 +78,8 @@ class UserUpdate(BaseModel):
 
 
 class UserLogin(BaseModel):
+    model_config = StrictRequestModel.model_config
+
     email: EmailStr
     password: str
     guest_session_id: Optional[str] = None  # For conversion on login
