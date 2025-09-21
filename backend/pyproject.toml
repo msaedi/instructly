@@ -287,6 +287,16 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.repositories.bulk_operation_repository",
+  "backend.app.repositories.conflict_checker_repository",
+  "backend.app.repositories.slot_manager_repository",
+  "backend.app.repositories.search_interaction_repository",
+  "backend.app.repositories.region_boundary_repository",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
   "pydantic",
   "pydantic.*"
 ]

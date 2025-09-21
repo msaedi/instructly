@@ -8,7 +8,7 @@ clicks, hovers, bookmarks, and other user engagement metrics.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
@@ -19,14 +19,14 @@ from .base_repository import BaseRepository
 logger = logging.getLogger(__name__)
 
 
-class SearchInteractionRepository(BaseRepository):
+class SearchInteractionRepository(BaseRepository[SearchInteraction]):
     """Repository for search interaction operations."""
 
     def __init__(self, db: Session):
         """Initialize the repository."""
         super().__init__(db, SearchInteraction)
 
-    def create_interaction(self, interaction_data: Dict) -> SearchInteraction:
+    def create_interaction(self, interaction_data: Dict[str, Any]) -> SearchInteraction:
         """
         Create a new search interaction record.
 
@@ -53,12 +53,13 @@ class SearchInteractionRepository(BaseRepository):
         Returns:
             List of SearchInteraction instances
         """
-        return (
+        return cast(
+            List[SearchInteraction],
             self.db.query(SearchInteraction)
             .filter(SearchInteraction.search_event_id == search_event_id)
             .order_by(SearchInteraction.created_at.desc())
             .limit(limit)
-            .all()
+            .all(),
         )
 
     def get_interactions_by_instructor(
@@ -77,7 +78,8 @@ class SearchInteractionRepository(BaseRepository):
         """
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
-        return (
+        return cast(
+            List[SearchInteraction],
             self.db.query(SearchInteraction)
             .filter(
                 and_(
@@ -87,10 +89,10 @@ class SearchInteractionRepository(BaseRepository):
             )
             .order_by(SearchInteraction.created_at.desc())
             .limit(limit)
-            .all()
+            .all(),
         )
 
-    def get_click_through_rate(self, search_event_ids: List[int]) -> Dict:
+    def get_click_through_rate(self, search_event_ids: Sequence[int]) -> Dict[str, float | int]:
         """
         Calculate click-through rate for given search events.
 
@@ -104,7 +106,7 @@ class SearchInteractionRepository(BaseRepository):
             return {"ctr": 0.0, "total_searches": 0, "total_clicks": 0}
 
         # Count clicks for these search events
-        click_count = (
+        click_count = int(
             self.db.query(func.count(SearchInteraction.id))
             .filter(
                 and_(
@@ -113,6 +115,7 @@ class SearchInteractionRepository(BaseRepository):
                 )
             )
             .scalar()
+            or 0
         )
 
         total_searches = len(search_event_ids)
@@ -150,7 +153,7 @@ class SearchInteractionRepository(BaseRepository):
 
         return float(avg_position) if avg_position else None
 
-    def get_interaction_funnel(self, search_event_id: int) -> Dict:
+    def get_interaction_funnel(self, search_event_id: int) -> Dict[str, int]:
         """
         Get interaction funnel for a search event.
 
@@ -162,16 +165,24 @@ class SearchInteractionRepository(BaseRepository):
         Returns:
             Dictionary with funnel metrics
         """
-        interactions = (
+        interactions = cast(
+            List[Tuple[str, int]],
             self.db.query(
                 SearchInteraction.interaction_type, func.count(SearchInteraction.id).label("count")
             )
             .filter(SearchInteraction.search_event_id == search_event_id)
             .group_by(SearchInteraction.interaction_type)
-            .all()
+            .all(),
         )
 
-        funnel = {"view": 0, "hover": 0, "click": 0, "view_profile": 0, "contact": 0, "book": 0}
+        funnel: Dict[str, int] = {
+            "view": 0,
+            "hover": 0,
+            "click": 0,
+            "view_profile": 0,
+            "contact": 0,
+            "book": 0,
+        }
 
         for interaction_type, count in interactions:
             if interaction_type in funnel:
@@ -179,7 +190,9 @@ class SearchInteractionRepository(BaseRepository):
 
         return funnel
 
-    def get_time_to_first_click(self, search_event_ids: List[int]) -> Dict:
+    def get_time_to_first_click(
+        self, search_event_ids: Sequence[int]
+    ) -> Dict[str, Optional[float] | int]:
         """
         Calculate average time to first click for search events.
 
@@ -193,7 +206,8 @@ class SearchInteractionRepository(BaseRepository):
             return {"avg_time_seconds": None, "median_time_seconds": None}
 
         # Get first clicks for each search event
-        first_clicks = (
+        first_clicks = cast(
+            List[Tuple[int, float]],
             self.db.query(
                 SearchInteraction.search_event_id,
                 func.min(SearchInteraction.time_to_interaction).label("first_click_time"),
@@ -206,7 +220,7 @@ class SearchInteractionRepository(BaseRepository):
                 )
             )
             .group_by(SearchInteraction.search_event_id)
-            .all()
+            .all(),
         )
 
         if not first_clicks:
@@ -230,7 +244,9 @@ class SearchInteractionRepository(BaseRepository):
             "sample_size": len(first_clicks),
         }
 
-    def get_popular_instructors_from_clicks(self, days: int = 7, limit: int = 10) -> List[Dict]:
+    def get_popular_instructors_from_clicks(
+        self, days: int = 7, limit: int = 10
+    ) -> List[Dict[str, Optional[float] | int]]:
         """
         Get most clicked instructors in recent searches.
 
@@ -245,7 +261,8 @@ class SearchInteractionRepository(BaseRepository):
 
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
-        results = (
+        results = cast(
+            List[Tuple[int, int, Optional[float]]],
             self.db.query(
                 SearchInteraction.instructor_id,
                 func.count(SearchInteraction.id).label("click_count"),
@@ -261,7 +278,7 @@ class SearchInteractionRepository(BaseRepository):
             .group_by(SearchInteraction.instructor_id)
             .order_by(func.count(SearchInteraction.id).desc())
             .limit(limit)
-            .all()
+            .all(),
         )
 
         return [
