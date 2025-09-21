@@ -162,9 +162,9 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.routes.internal",
   "backend.app.schemas.base",
-  "backend.app.schemas.search_history_responses",
-  "backend.app.routes.internal"
+  "backend.app.schemas.search_history_responses"
 ]
 strict = true
 
@@ -251,7 +251,7 @@ module = [
 strict = true
 [[tool.mypy.overrides]]
 module = [
-  "app.services.base",
+  "backend.app.services.base",
 ]
 follow_imports = "normal"
 check_untyped_defs = true
@@ -260,7 +260,7 @@ no_implicit_optional = true
 
 [[tool.mypy.overrides]]
 module = [
-  "app.services.stripe_service",
+  "backend.app.services.stripe_service",
 ]
 follow_imports = "normal"
 check_untyped_defs = true
@@ -278,10 +278,10 @@ warn_unused_ignores = true
 [[tool.mypy.overrides]]
 module = [
   "backend.app.repositories.availability_repository",
+  "backend.app.repositories.beta_repository",
   "backend.app.repositories.booking_repository",
   "backend.app.repositories.factory",
   "backend.app.repositories.favorites_repository",
-  "backend.app.repositories.beta_repository",
 ]
 strict = true
 
@@ -289,9 +289,9 @@ strict = true
 module = [
   "backend.app.repositories.bulk_operation_repository",
   "backend.app.repositories.conflict_checker_repository",
-  "backend.app.repositories.slot_manager_repository",
-  "backend.app.repositories.search_interaction_repository",
   "backend.app.repositories.region_boundary_repository",
+  "backend.app.repositories.search_interaction_repository",
+  "backend.app.repositories.slot_manager_repository",
 ]
 strict = true
 
@@ -307,31 +307,30 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
-  "backend.app.repositories.user_repository",
-  "backend.app.repositories.service_catalog_repository",
+  "backend.app.repositories.instructor_profile_repository",
   "backend.app.repositories.message_repository",
   "backend.app.repositories.payment_repository",
-  "backend.app.repositories.instructor_profile_repository",
   "backend.app.repositories.rbac_repository",
+  "backend.app.repositories.service_catalog_repository",
+  "backend.app.repositories.user_repository",
 ]
 strict = true
 
 [[tool.mypy.overrides]]
 module = [
-  "backend.app.services.template_service",
   "backend.app.services.message_notification_service",
   "backend.app.services.personal_asset_service",
   "backend.app.services.search_history_cleanup_service",
+  "backend.app.services.template_service",
 ]
 strict = true
 
 [[tool.mypy.overrides]]
 module = [
-  "backend.app.routes.addresses",
-  "backend.app.routes.privacy",
-  "backend.app.routes.favorites",
-  "backend.app.routes.redis_monitor",
   "backend.app.routes.database_monitor",
+  "backend.app.routes.favorites",
+  "backend.app.routes.privacy",
+  "backend.app.routes.redis_monitor",
 ]
 strict = true
 
@@ -346,10 +345,10 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
-  "backend.app.routes.monitoring",
+  "backend.app.routes.alerts",
   "backend.app.routes.analytics",
   "backend.app.routes.codebase_metrics",
-  "backend.app.routes.alerts",
+  "backend.app.routes.monitoring",
   "backend.app.routes.two_factor_auth",
 ]
 strict = true
@@ -366,7 +365,6 @@ strict = true
 module = [
   "backend.app.routes.metrics",
   "backend.app.routes.prometheus",
-  "backend.app.routes.gated",
 ]
 strict = true
 
