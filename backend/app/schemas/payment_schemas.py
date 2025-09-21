@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._strict_base import StrictRequestModel
+
 # ========== Request Models ==========
 
 
@@ -22,7 +24,7 @@ class SavePaymentMethodRequest(BaseModel):
         default=False, description="Whether to set as default payment method"
     )
     # Harden request DTOs
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
 
 
 class CreateCheckoutRequest(BaseModel):
@@ -34,7 +36,7 @@ class CreateCheckoutRequest(BaseModel):
         default=False, description="Whether to save payment method for future use"
     )
     # Harden request DTOs
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
 
 
 # ========== Response Models ==========
