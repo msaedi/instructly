@@ -6,11 +6,12 @@ from datetime import datetime, timedelta, timezone
 import json
 import logging
 import os
-from typing import Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, cast
 
 from celery import Task
 import httpx
 from sqlalchemy import func
+from sqlalchemy.orm import Session, sessionmaker
 import ulid
 
 from app.core.config import settings
@@ -21,18 +22,32 @@ from app.services.email import EmailService
 from app.services.email_config import EmailConfigService
 from app.tasks.celery_app import celery_app
 
+TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
+
+
+def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], TaskCallable]:
+    """Return a typed Celery task decorator for mypy."""
+
+    return cast(Callable[[TaskCallable], TaskCallable], celery_app.task(*task_args, **task_kwargs))
+
+
 logger = logging.getLogger(__name__)
 
 
-class MonitoringTask(Task):
+class MonitoringTask(Task):  # type: ignore[misc]
     """Base task with database session management."""
 
-    def __init__(self):
+    _db: Optional[Session]
+    _email_service: Optional[EmailService]
+    _email_config_service: Optional[EmailConfigService]
+
+    def __init__(self) -> None:
         self._db = None
         self._email_service = None
+        self._email_config_service = None
 
     @property
-    def db(self):
+    def db(self) -> Session:
         if self._db is None:
             # Check if we should use test database
             if os.getenv("USE_TEST_DATABASE") == "true":
@@ -41,39 +56,55 @@ class MonitoringTask(Task):
                     "postgresql://postgres:postgres@localhost:5432/instainstru_test",
                 )
                 from sqlalchemy import create_engine
-                from sqlalchemy.orm import sessionmaker
 
                 engine = create_engine(test_db_url)
-                TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-                self._db = TestSessionLocal()
+                test_session_factory: sessionmaker[Session] = sessionmaker(
+                    autocommit=False,
+                    autoflush=False,
+                    bind=engine,
+                )
+                self._db = test_session_factory()
                 logger.info(f"MonitoringTask using TEST database: {test_db_url.split('@')[1]}")
             else:
                 self._db = SessionLocal()
         return self._db
 
     @property
-    def email_service(self):
+    def email_service(self) -> EmailService:
         if self._email_service is None:
             self._email_service = EmailService(self.db)
         return self._email_service
 
     @property
-    def email_config_service(self):
-        if not hasattr(self, "_email_config_service") or self._email_config_service is None:
+    def email_config_service(self) -> EmailConfigService:
+        if self._email_config_service is None:
             self._email_config_service = EmailConfigService(self.db)
         return self._email_config_service
 
-    def after_return(self, status, retval, task_id, args, kwargs, einfo):
+    def after_return(
+        self,
+        status: str,
+        retval: object,
+        task_id: str,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+        einfo: Optional[BaseException],
+    ) -> None:
         """Clean up the database session after task execution."""
         if self._db is not None:
             self._db.close()
             self._db = None
 
 
-@celery_app.task(base=MonitoringTask, bind=True, max_retries=3)
+@typed_task(base=MonitoringTask, bind=True, max_retries=3)
 def process_monitoring_alert(
-    self, alert_type: str, severity: str, title: str, message: str, details: Optional[Dict] = None
-):
+    self: MonitoringTask,
+    alert_type: str,
+    severity: str,
+    title: str,
+    message: str,
+    details: Optional[Dict[str, Any]] = None,
+) -> None:
     """
     Process a monitoring alert by sending notifications and creating issues.
 
@@ -99,11 +130,11 @@ def process_monitoring_alert(
 
         # Send email for critical alerts
         if severity == "critical":
-            send_alert_email.delay(alert.id)
+            cast(Any, send_alert_email).delay(alert.id)
 
         # Create GitHub issue for persistent problems
         if should_create_github_issue(self.db, alert_type, severity):
-            create_github_issue_for_alert.delay(alert.id)
+            cast(Any, create_github_issue_for_alert).delay(alert.id)
 
         logger.info(f"Processed {severity} alert: {title}")
 
@@ -112,11 +143,11 @@ def process_monitoring_alert(
         raise self.retry(exc=e, countdown=60)
 
 
-@celery_app.task(base=MonitoringTask, bind=True, max_retries=3)
-def send_alert_email(self, alert_id: str):
+@typed_task(base=MonitoringTask, bind=True, max_retries=3)
+def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
     """Send email notification for an alert."""
     try:
-        alert = self.db.query(AlertHistory).filter_by(id=alert_id).first()
+        alert: Optional[AlertHistory] = self.db.query(AlertHistory).filter_by(id=alert_id).first()
         if not alert:
             logger.error(f"Alert {alert_id} not found")
             return
@@ -201,8 +232,8 @@ def send_alert_email(self, alert_id: str):
         raise self.retry(exc=e, countdown=300)
 
 
-@celery_app.task(base=MonitoringTask, bind=True, max_retries=3)
-def create_github_issue_for_alert(self, alert_id: str):
+@typed_task(base=MonitoringTask, bind=True, max_retries=3)
+def create_github_issue_for_alert(self: MonitoringTask, alert_id: str) -> None:
     """Create a GitHub issue for persistent alerts."""
     try:
         alert = self.db.query(AlertHistory).filter_by(id=alert_id).first()
@@ -276,7 +307,7 @@ def create_github_issue_for_alert(self, alert_id: str):
         raise self.retry(exc=e, countdown=600)
 
 
-def should_create_github_issue(db, alert_type: str, severity: str) -> bool:
+def should_create_github_issue(db: Session, alert_type: str, severity: str) -> bool:
     """
     Determine if a GitHub issue should be created based on alert history.
 
@@ -299,15 +330,15 @@ def should_create_github_issue(db, alert_type: str, severity: str) -> bool:
             )
             .scalar()
         )
-
-        return recent_count >= 3
+        return (recent_count or 0) >= 3
 
     return False
 
 
-@celery_app.task
-def cleanup_old_alerts():
+@typed_task
+def cleanup_old_alerts() -> None:
     """Clean up old alert history records (keep last 30 days)."""
+    db: Optional[Session] = None
     try:
         db = SessionLocal()
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
@@ -323,5 +354,5 @@ def cleanup_old_alerts():
 
     except Exception as e:
         logger.error(f"Failed to cleanup old alerts: {str(e)}")
-        if db:
+        if db is not None:
             db.close()
