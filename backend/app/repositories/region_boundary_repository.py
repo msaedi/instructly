@@ -5,6 +5,7 @@ without introducing a GeoAlchemy dependency in the app layer.
 """
 
 import json
+from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -22,7 +23,7 @@ class RegionBoundaryRepository:
         region_name: str,
         parent_region: str,
         wkt_polygon: str,
-        metadata: dict = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         # Detect which metadata column exists: prefer region_metadata; fallback to metadata; or none
         cols = self.db.execute(
@@ -52,7 +53,7 @@ class RegionBoundaryRepository:
                 "                    (:id, :type, :code, :name, :parent, ST_Multi(ST_GeomFromText(:wkt, 4326)), CAST(:meta AS JSONB), NOW(), NOW())\n"
                 "                ON CONFLICT (id) DO NOTHING\n                "
             )
-            params = {
+            params: Dict[str, Any] = {
                 "id": region_id,
                 "type": region_type,
                 "code": region_code,
@@ -126,7 +127,9 @@ class RegionBoundaryRepository:
         except Exception:
             return False
 
-    def find_region_by_point(self, lat: float, lng: float, region_type: str):
+    def find_region_by_point(
+        self, lat: float, lng: float, region_type: str
+    ) -> Optional[Mapping[str, Any]]:
         """Return the first region row whose boundary intersects the given point.
 
         Returns a mapping with keys: region_type, region_code, region_name, parent_region, region_metadata
@@ -144,10 +147,11 @@ class RegionBoundaryRepository:
                 LIMIT 1
                 """
             )
-            return (
+            return cast(
+                Optional[Mapping[str, Any]],
                 self.db.execute(sql, {"lat": lat, "lng": lng, "rtype": region_type})
                 .mappings()
-                .first()
+                .first(),
             )
         except Exception:
             try:
@@ -160,7 +164,7 @@ class RegionBoundaryRepository:
 
     def list_regions(
         self, region_type: str, parent_region: str | None = None, limit: int = 500, offset: int = 0
-    ):
+    ) -> List[Mapping[str, Any]]:
         """List regions of a given type, optionally filtered by parent (e.g., borough).
 
         Returns mappings with: id, region_type, region_code, region_name, parent_region
@@ -170,12 +174,15 @@ class RegionBoundaryRepository:
                 "SELECT id, region_type, region_code, region_name, parent_region FROM region_boundaries "
                 "WHERE region_type = :rtype"
             )
-            params: dict = {"rtype": region_type, "limit": limit, "offset": offset}
+            params: Dict[str, Any] = {"rtype": region_type, "limit": limit, "offset": offset}
             if parent_region:
                 base_sql += " AND parent_region = :parent"
                 params["parent"] = parent_region
             base_sql += " ORDER BY parent_region, region_name LIMIT :limit OFFSET :offset"
-            return self.db.execute(text(base_sql), params).mappings().all()
+            return cast(
+                List[Mapping[str, Any]],
+                self.db.execute(text(base_sql), params).mappings().all(),
+            )
         except Exception:
             try:
                 self.db.rollback()
@@ -183,12 +190,15 @@ class RegionBoundaryRepository:
                 pass
             return []
 
-    def get_simplified_geojson_by_ids(self, ids: list[str], tolerance: float = 0.0008):
+    def get_simplified_geojson_by_ids(
+        self, ids: Sequence[str], tolerance: float = 0.0008
+    ) -> List[Dict[str, Any]]:
         """Return list of mappings with id, region_name, parent_region, region_type, geometry (parsed GeoJSON)."""
         if not ids:
             return []
         try:
-            rows = (
+            rows = cast(
+                List[Mapping[str, Any]],
                 self.db.execute(
                     text(
                         """
@@ -201,11 +211,11 @@ class RegionBoundaryRepository:
                     {"ids": ids, "tol": tolerance},
                 )
                 .mappings()
-                .all()
+                .all(),
             )
             import json as _json
 
-            results = []
+            results: List[Dict[str, Any]] = []
             for row in rows:
                 results.append(
                     {

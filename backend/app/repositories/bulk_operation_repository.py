@@ -28,7 +28,7 @@ For single slot CRUD operations, use AvailabilityRepository.
 
 from datetime import date, time
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -103,7 +103,8 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
             True if there are confirmed/completed bookings, False otherwise
         """
         try:
-            count = (
+            count = cast(
+                int,
                 self.db.query(Booking)
                 .filter(
                     and_(
@@ -112,7 +113,7 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
                         Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                     )
                 )
-                .count()
+                .count(),
             )
             return count > 0
 
@@ -188,7 +189,7 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Bulk Operations
 
-    def bulk_create_slots(self, slots: List[Dict[str, any]]) -> List[AvailabilitySlot]:
+    def bulk_create_slots(self, slots: List[Dict[str, Any]]) -> List[AvailabilitySlot]:
         """
         Create multiple slots efficiently.
 

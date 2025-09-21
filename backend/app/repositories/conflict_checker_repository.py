@@ -16,7 +16,7 @@ Key changes:
 
 from datetime import date
 import logging
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -80,7 +80,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             if exclude_booking_id:
                 query = query.filter(Booking.id != exclude_booking_id)
 
-            return query.all()
+            return cast(List[Booking], query.all())
 
         except Exception as e:
             self.logger.error(f"Error getting bookings for conflict check: {str(e)}")
@@ -100,7 +100,8 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             List of bookings ordered by start time
         """
         try:
-            return (
+            return cast(
+                List[Booking],
                 self.db.query(Booking)
                 .filter(
                     Booking.instructor_id == instructor_id,
@@ -110,7 +111,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                     ),
                 )
                 .order_by(Booking.start_time)
-                .all()
+                .all(),
             )
 
         except Exception as e:
@@ -131,7 +132,8 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             List of bookings ordered by date and time
         """
         try:
-            return (
+            return cast(
+                List[Booking],
                 self.db.query(Booking)
                 .filter(
                     Booking.instructor_id == instructor_id,
@@ -141,7 +143,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                     ),
                 )
                 .order_by(Booking.booking_date, Booking.start_time)
-                .all()
+                .all(),
             )
 
         except Exception as e:

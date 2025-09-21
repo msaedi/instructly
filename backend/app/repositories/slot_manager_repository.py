@@ -24,7 +24,7 @@ Methods removed:
 
 from datetime import date
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Sequence, cast
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -87,14 +87,15 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             List of slots ordered by start time
         """
         try:
-            return (
+            return cast(
+                List[AvailabilitySlot],
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
                     AvailabilitySlot.specific_date == target_date,
                 )
                 .order_by(AvailabilitySlot.start_time)
-                .all()
+                .all(),
             )
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting ordered slots: {str(e)}")
@@ -148,7 +149,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             Number of slots
         """
         try:
-            return (
+            return int(
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
@@ -175,7 +176,8 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             List of slots ordered by date and start time
         """
         try:
-            return (
+            return cast(
+                List[AvailabilitySlot],
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
@@ -183,7 +185,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
                     AvailabilitySlot.specific_date <= end_date,
                 )
                 .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
-                .all()
+                .all(),
             )
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting slots in date range: {str(e)}")
@@ -201,7 +203,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             Number of slots deleted
         """
         try:
-            count = (
+            count = int(
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
@@ -217,7 +219,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
 
     # Bulk Operations
 
-    def bulk_create_slots(self, slots_data: List[dict]) -> List[AvailabilitySlot]:
+    def bulk_create_slots(self, slots_data: Sequence[Dict[str, Any]]) -> List[AvailabilitySlot]:
         """
         Bulk create multiple slots.
 
@@ -236,7 +238,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error bulk creating slots: {str(e)}")
             raise RepositoryException(f"Failed to bulk create slots: {str(e)}")
 
-    def bulk_delete_slots(self, slot_ids: List[str]) -> int:
+    def bulk_delete_slots(self, slot_ids: Sequence[str]) -> int:
         """
         Bulk delete multiple slots by ID.
 
@@ -250,7 +252,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             if not slot_ids:
                 return 0
 
-            count = (
+            count = int(
                 self.db.query(AvailabilitySlot)
                 .filter(AvailabilitySlot.id.in_(slot_ids))
                 .delete(synchronize_session=False)
