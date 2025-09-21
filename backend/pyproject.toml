@@ -337,6 +337,15 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.services.device_tracking_service",
+  "backend.app.services.two_factor_auth_service",
+  "backend.app.services.week_operation_service",
+  "backend.app.tasks.email",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
   "pydantic",
   "pydantic.*"
 ]
