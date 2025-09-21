@@ -11,14 +11,33 @@ Provides device/browser detection services with:
 
 import logging
 import re
-from typing import Dict, Optional
+from typing import Any, Dict, Mapping, MutableMapping, Optional, Sequence, TypedDict
 
+from fastapi import Request
 from sqlalchemy.orm import Session
 from user_agents import parse
 
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
+
+
+class DeviceInfo(TypedDict, total=False):
+    browser_name: str
+    browser_version: str
+    os_family: str
+    os_version: str
+    device_family: str
+    device_type: str
+    is_mobile: bool
+    is_tablet: bool
+    is_bot: bool
+    raw_user_agent: str
+    client_hints: Dict[str, str]
+    connection_type: str
+    accept_language: Optional[str]
+    accept_encoding: Optional[str]
+    referer: Optional[str]
 
 
 class DeviceTrackingService(BaseService):
@@ -54,9 +73,9 @@ class DeviceTrackingService(BaseService):
 
     def __init__(self, db: Session):
         super().__init__(db)
-        self._user_agent_cache = {}  # Simple in-memory cache for parsing results
+        self._user_agent_cache: MutableMapping[int, DeviceInfo] = {}
 
-    def parse_user_agent(self, user_agent: str) -> Dict:  # no-metrics
+    def parse_user_agent(self, user_agent: str) -> DeviceInfo:  # no-metrics
         """
         Parse user agent string to extract device/browser information.
 
@@ -93,7 +112,7 @@ class DeviceTrackingService(BaseService):
             # Determine device type
             device_type = self._determine_device_type(parsed, user_agent)
 
-            device_info = {
+            device_info: DeviceInfo = {
                 "browser_name": parsed.browser.family,
                 "browser_version": parsed.browser.version_string,
                 "os_family": parsed.os.family,
@@ -116,7 +135,7 @@ class DeviceTrackingService(BaseService):
             logger.warning(f"Failed to parse user agent: {str(e)}")
             return self._get_default_device_info(user_agent)
 
-    def _determine_device_type(self, parsed, user_agent: str) -> str:
+    def _determine_device_type(self, parsed: Any, user_agent: str) -> str:
         """Determine device type with fallback patterns."""
         # Use library's classification first
         if parsed.is_tablet:
@@ -132,13 +151,13 @@ class DeviceTrackingService(BaseService):
 
         return "desktop"
 
-    def extract_client_hints(self, request) -> Dict:  # no-metrics
+    def extract_client_hints(self, request: Request) -> Dict[str, str]:  # no-metrics
         """
         Extract Client Hints from request headers for modern browsers.
 
         Client Hints provide more accurate device information than user agents.
         """
-        hints = {}
+        hints: Dict[str, str] = {}
 
         # Device information
         hints["device_memory"] = request.headers.get("Device-Memory")
@@ -159,7 +178,7 @@ class DeviceTrackingService(BaseService):
         # Remove None values
         return {k: v for k, v in hints.items() if v is not None}
 
-    def get_connection_type(self, request) -> Optional[str]:  # no-metrics
+    def get_connection_type(self, request: Request) -> Optional[str]:  # no-metrics
         """
         Determine connection type from various indicators.
 
@@ -167,12 +186,12 @@ class DeviceTrackingService(BaseService):
         """
         # Check Client Hints first (most accurate)
         ect = request.headers.get("ECT")  # Effective Connection Type
-        if ect:
+        if isinstance(ect, str):
             return ect.lower()
 
         # Check for connection type header (some networks provide this)
         connection_type = request.headers.get("Connection-Type")
-        if connection_type:
+        if isinstance(connection_type, str):
             return connection_type.lower()
 
         # Fallback to user agent analysis
@@ -183,7 +202,7 @@ class DeviceTrackingService(BaseService):
 
         # Check downlink speed if available
         downlink = request.headers.get("Downlink")
-        if downlink:
+        if isinstance(downlink, str):
             try:
                 speed = float(downlink)
                 if speed < 0.15:
@@ -200,7 +219,7 @@ class DeviceTrackingService(BaseService):
         return None
 
     @BaseService.measure_operation("get_device_context_from_request")
-    def get_device_context_from_request(self, request) -> Dict:
+    def get_device_context_from_request(self, request: Request) -> DeviceInfo:
         """
         Extract complete device context from HTTP request.
 
@@ -209,7 +228,7 @@ class DeviceTrackingService(BaseService):
         user_agent = request.headers.get("User-Agent", "")
 
         # Parse user agent
-        device_info = self.parse_user_agent(user_agent)
+        device_info: DeviceInfo = self.parse_user_agent(user_agent)
 
         # Add client hints
         client_hints = self.extract_client_hints(request)
@@ -228,7 +247,7 @@ class DeviceTrackingService(BaseService):
 
         return device_info
 
-    def _get_default_device_info(self, user_agent: str = None) -> Dict:
+    def _get_default_device_info(self, user_agent: Optional[str] = None) -> DeviceInfo:
         """Return default device info for unparseable user agents."""
         return {
             "browser_name": "Unknown",
@@ -243,7 +262,8 @@ class DeviceTrackingService(BaseService):
             "raw_user_agent": user_agent or "",
         }
 
-    def format_for_analytics(self, device_context: Dict) -> Dict:  # no-metrics
+    @BaseService.measure_operation("format_for_analytics")
+    def format_for_analytics(self, device_context: Mapping[str, Any]) -> Dict[str, Any]:
         """
         Format device context for storage in analytics tables.
 
@@ -285,7 +305,8 @@ class DeviceTrackingService(BaseService):
             "connection_type": device_context.get("connection_type"),
         }
 
-    def get_analytics_summary(self, device_contexts: list) -> Dict:  # no-metrics
+    @BaseService.measure_operation("get_analytics_summary")
+    def get_analytics_summary(self, device_contexts: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
         """
         Generate analytics summary from multiple device contexts.
 
@@ -295,9 +316,9 @@ class DeviceTrackingService(BaseService):
             return {}
 
         # Count device types
-        device_types = {}
-        browsers = {}
-        operating_systems = {}
+        device_types: Dict[str, int] = {}
+        browsers: Dict[str, int] = {}
+        operating_systems: Dict[str, int] = {}
 
         for context in device_contexts:
             # Device types

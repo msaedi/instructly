@@ -2,7 +2,7 @@ import base64
 from datetime import datetime, timezone
 import io
 import logging
-from typing import List, Optional
+from typing import Any, Dict, Optional
 
 from cryptography.fernet import Fernet
 import pyotp
@@ -29,7 +29,7 @@ class TwoFactorAuthService(BaseService):
         )
         if not key:
             # Generate ephemeral key in dev if not provided
-            self._fernet = Fernet(Fernet.generate_key())
+            self._fernet: Fernet = Fernet(Fernet.generate_key())
         else:
             try:
                 self._fernet = Fernet(key)
@@ -38,14 +38,17 @@ class TwoFactorAuthService(BaseService):
                 self._fernet = Fernet(Fernet.generate_key())
 
     def _encrypt(self, value: str) -> str:
-        return self._fernet.encrypt(value.encode("utf-8")).decode("utf-8")
+        token: bytes = self._fernet.encrypt(value.encode("utf-8"))
+        return token.decode("utf-8")
 
     def _decrypt(self, token: str) -> str:
-        return self._fernet.decrypt(token.encode("utf-8")).decode("utf-8")
+        decrypted: bytes = self._fernet.decrypt(token.encode("utf-8"))
+        return decrypted.decode("utf-8")
 
     @BaseService.measure_operation("tfa_generate_secret")
     def generate_totp_secret(self) -> str:
-        return pyotp.random_base32()
+        secret: str = pyotp.random_base32()
+        return secret
 
     @BaseService.measure_operation("tfa_generate_qr")
     def generate_qr_code(
@@ -60,7 +63,7 @@ class TwoFactorAuthService(BaseService):
         return data_url, otpauth_url
 
     @BaseService.measure_operation("tfa_setup_initiate")
-    def setup_initiate(self, user: User) -> dict:
+    def setup_initiate(self, user: User) -> Dict[str, str]:
         secret = self.generate_totp_secret()
         data_url, otpauth_url = self.generate_qr_code(email=user.email, secret=secret)
         encrypted = self._encrypt(secret)
@@ -83,10 +86,10 @@ class TwoFactorAuthService(BaseService):
         return bool(totp.verify(code, valid_window=1))
 
     @BaseService.measure_operation("tfa_generate_backup_codes")
-    def generate_backup_codes(self, count: int = 10) -> List[str]:
+    def generate_backup_codes(self, count: int = 10) -> list[str]:
         import secrets
 
-        codes = []
+        codes: list[str] = []
         alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         for _ in range(count):
             code = "-".join(
@@ -96,7 +99,7 @@ class TwoFactorAuthService(BaseService):
         return codes
 
     @BaseService.measure_operation("tfa_setup_verify")
-    def setup_verify(self, user: User, code: str) -> List[str]:
+    def setup_verify(self, user: User, code: str) -> list[str]:
         if not self.verify_totp_code(user, code):
             raise ValueError("Invalid TOTP code")
         backup_codes_plain = self.generate_backup_codes()
@@ -122,7 +125,7 @@ class TwoFactorAuthService(BaseService):
             # repo-pattern-ignore: commit handled by BaseService.transaction context manager
 
     @BaseService.measure_operation("tfa_status")
-    def status(self, user: User) -> dict:
+    def status(self, user: User) -> Dict[str, Any]:
         return {
             "enabled": bool(user.totp_enabled),
             "verified_at": user.totp_verified_at.isoformat() if user.totp_verified_at else None,
