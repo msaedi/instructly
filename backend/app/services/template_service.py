@@ -16,7 +16,7 @@ FIXED IN THIS VERSION:
 from datetime import datetime, timezone
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from sqlalchemy.orm import Session
@@ -24,6 +24,9 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.constants import BRAND_NAME
 from .base import BaseService
+
+if TYPE_CHECKING:
+    from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +60,11 @@ class TemplateService(BaseService):
     CACHE_TTL_CONTEXT = 3600  # 1 hour for common context
     CACHE_TTL_EXISTS = 86400  # 24 hours for template existence
 
-    def __init__(self, db: Optional[Session] = None, cache=None):
+    def __init__(
+        self,
+        db: Optional[Session] = None,
+        cache: Optional["CacheService"] = None,
+    ) -> None:
         """
         Initialize the template service with Jinja2 environment.
 
@@ -107,12 +114,12 @@ class TemplateService(BaseService):
         self.logger.info(f"Template service initialized with template directory: {template_dir}")
         self.logger.info(f"Template caching: {'enabled' if self._caching_enabled else 'disabled'}")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Clean up the database session if we created it."""
         if hasattr(self, "_owns_db") and self._owns_db and hasattr(self, "db"):
             self.db.close()
 
-    def _register_custom_filters(self):
+    def _register_custom_filters(self) -> None:
         """Register any custom Jinja2 filters."""
 
         # Example: Add a currency filter
@@ -140,7 +147,7 @@ class TemplateService(BaseService):
 
         self.env.filters["format_time"] = format_time
 
-    def _get_cache_key(self, prefix: str, *args) -> str:
+    def _get_cache_key(self, prefix: str, *args: object) -> str:
         """
         Generate a cache key from prefix and arguments.
 
@@ -159,7 +166,7 @@ class TemplateService(BaseService):
         return self._caching_enabled and self.cache is not None and hasattr(self.cache, "get")
 
     @BaseService.measure_operation("get_common_context")
-    def get_common_context(self) -> Dict[str, Any]:
+    def get_common_context(self) -> dict[str, Any]:
         """
         Get common context variables used across all templates.
 
@@ -169,18 +176,19 @@ class TemplateService(BaseService):
             Dictionary of common template variables
         """
         # Try cache first if available
-        if self._should_use_cache():
-            cache_key = self.CACHE_PREFIX_CONTEXT
+        cache = self.cache
+        cache_key = self.CACHE_PREFIX_CONTEXT
+        if self._should_use_cache() and cache is not None:
             try:
-                cached_context = self.cache.get(cache_key)
-                if cached_context:
+                cached_context = cache.get(cache_key)
+                if isinstance(cached_context, dict):
                     self.logger.debug("Common context retrieved from cache")
-                    return cached_context
+                    return cast(dict[str, Any], cached_context)
             except Exception as e:
                 self.logger.warning(f"Cache get failed for common context: {e}")
 
         # Build the context
-        context = {
+        context: dict[str, Any] = {
             "brand_name": BRAND_NAME,
             "current_year": datetime.now(timezone.utc).year,
             "frontend_url": settings.frontend_url,
@@ -188,9 +196,9 @@ class TemplateService(BaseService):
         }
 
         # Cache it if possible
-        if self._should_use_cache():
+        if self._should_use_cache() and cache is not None:
             try:
-                self.cache.set(cache_key, context, self.CACHE_TTL_CONTEXT)
+                cache.set(cache_key, context, self.CACHE_TTL_CONTEXT)
                 self.logger.debug("Common context cached")
             except Exception as e:
                 self.logger.warning(f"Failed to cache common context: {e}")
@@ -199,7 +207,7 @@ class TemplateService(BaseService):
 
     @BaseService.measure_operation("render_template")
     def render_template(
-        self, template_name: str, context: Optional[Dict[str, Any]] = None, **kwargs
+        self, template_name: str, context: Optional[dict[str, Any]] = None, **kwargs: Any
     ) -> str:
         """
         Render a template with the given context.
@@ -228,13 +236,13 @@ class TemplateService(BaseService):
             template = self.env.get_template(template_name_str)
 
             # Merge contexts - get_common_context() uses caching
-            full_context = self.get_common_context()
+            full_context: dict[str, Any] = self.get_common_context()
             if context:
                 full_context.update(context)
             full_context.update(kwargs)
 
             # Render and return
-            rendered = template.render(full_context)
+            rendered = cast(str, template.render(full_context))
 
             self.logger.debug(f"Successfully rendered template: {template_name}")
             return rendered
@@ -264,7 +272,7 @@ class TemplateService(BaseService):
                 if context:
                     full_context.update(context)
                 full_context.update(kwargs)
-                rendered = template.render(full_context)
+                rendered = cast(str, template.render(full_context))
                 self.logger.warning(f"Rendered {template_name} via fallback sanitize path")
                 return rendered
             except Exception as inner:
@@ -275,7 +283,7 @@ class TemplateService(BaseService):
 
     @BaseService.measure_operation("render_string")
     def render_string(
-        self, template_string: str, context: Optional[Dict[str, Any]] = None, **kwargs
+        self, template_string: str, context: Optional[dict[str, Any]] = None, **kwargs: Any
     ) -> str:
         """
         Render a template from a string.
@@ -295,13 +303,13 @@ class TemplateService(BaseService):
             template = self.env.from_string(template_string)
 
             # Merge contexts - get_common_context() uses caching
-            full_context = self.get_common_context()
+            full_context: dict[str, Any] = self.get_common_context()
             if context:
                 full_context.update(context)
             full_context.update(kwargs)
 
             # Render and return
-            return template.render(full_context)
+            return cast(str, template.render(full_context))
 
         except Exception as e:
             self.logger.error(f"Error rendering template string: {str(e)}")
@@ -321,11 +329,12 @@ class TemplateService(BaseService):
             True if template exists, False otherwise
         """
         # Try cache first
-        if self._should_use_cache():
-            cache_key = self._get_cache_key(self.CACHE_PREFIX_EXISTS, template_name)
+        cache = self.cache
+        cache_key = self._get_cache_key(self.CACHE_PREFIX_EXISTS, template_name)
+        if self._should_use_cache() and cache is not None:
             try:
-                cached_result = self.cache.get(cache_key)
-                if cached_result is not None:
+                cached_result = cache.get(cache_key)
+                if isinstance(cached_result, bool):
                     self.logger.debug(
                         f"Template existence for '{template_name}' retrieved from cache"
                     )
@@ -345,45 +354,47 @@ class TemplateService(BaseService):
             exists = False
 
         # Cache the result
-        if self._should_use_cache():
+        if self._should_use_cache() and cache is not None:
             try:
-                self.cache.set(cache_key, exists, self.CACHE_TTL_EXISTS)
+                cache.set(cache_key, exists, self.CACHE_TTL_EXISTS)
                 self.logger.debug(f"Template existence for '{template_name}' cached")
             except Exception as e:
                 self.logger.warning(f"Failed to cache template existence: {e}")
 
         return exists
 
-    def invalidate_cache(self) -> None:  # no-metrics
+    def invalidate_cache(self, *keys: str) -> None:  # no-metrics
         """
         Invalidate all template-related caches.
 
         Useful when templates are updated or settings change.
         """
-        if not self._should_use_cache():
+        if keys:
+            super().invalidate_cache(*keys)
+            return
+
+        cache = self.cache
+        if not self._should_use_cache() or cache is None:
             return
 
         try:
-            # Invalidate common context
-            self.cache.delete(self.CACHE_PREFIX_CONTEXT)
-
-            # Invalidate template existence checks (using pattern)
-            self.cache.delete_pattern(f"{self.CACHE_PREFIX_EXISTS}:*")
+            cache.delete(self.CACHE_PREFIX_CONTEXT)
+            cache.delete_pattern(f"{self.CACHE_PREFIX_EXISTS}:*")
 
             self.logger.info("Template cache invalidated")
         except Exception as e:
             self.logger.error(f"Failed to invalidate template cache: {e}")
 
-    def get_cache_stats(self) -> Dict[str, Any]:  # no-metrics
+    def get_cache_stats(self) -> dict[str, Any]:  # no-metrics
         """
         Get cache statistics for monitoring.
 
         Returns:
             Dictionary with cache stats
         """
-        stats = {
+        stats: dict[str, Any] = {
             "caching_enabled": self._caching_enabled,
-            "jinja2_cache_size": self.env.cache.capacity if hasattr(self.env, "cache") else None,
+            "jinja2_cache_size": getattr(getattr(self.env, "cache", None), "capacity", None),
         }
 
         # Add metrics from BaseService

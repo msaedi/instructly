@@ -10,7 +10,7 @@ import base64
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
-from typing import Literal, Optional
+from typing import Any, Literal, Optional, TypedDict, cast
 
 from sqlalchemy.orm import Session
 
@@ -24,7 +24,7 @@ from ..repositories.user_repository import UserRepository
 from .base import BaseService
 from .cache_service import CacheService, get_cache_service
 from .image_processing_service import ImageProcessingService
-from .r2_storage_client import R2StorageClient
+from .r2_storage_client import PresignedUrl, R2StorageClient
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,12 @@ AssetPurpose = Literal["profile_picture", "background_check"]
 @dataclass
 class PresignedView:
     url: str
+    expires_at: str
+
+
+class PresignedPut(TypedDict):
+    upload_url: str
+    headers: dict[str, str]
     expires_at: str
 
 
@@ -76,9 +82,13 @@ class PersonalAssetService(BaseService):
         return f"uploads/{purpose}/{user_id}/{ts}.{ext}"
 
     @BaseService.measure_operation("generate_presigned_put")
-    def generate_presigned_put(self, object_key: str, content_type: str) -> dict:
-        pre = self.storage.generate_presigned_put(object_key, content_type)
-        return {"upload_url": pre.url, "headers": pre.headers, "expires_at": pre.expires_at}
+    def generate_presigned_put(self, object_key: str, content_type: str) -> PresignedPut:
+        pre: PresignedUrl = self.storage.generate_presigned_put(object_key, content_type)
+        return {
+            "upload_url": pre.url,
+            "headers": dict(pre.headers),
+            "expires_at": pre.expires_at,
+        }
 
     # Finalize flows
     @BaseService.measure_operation("finalize_profile_picture")
@@ -114,7 +124,7 @@ class PersonalAssetService(BaseService):
                         object_key,
                     )
                     return True
-                return ok
+                return bool(ok)
             except Exception as e:  # Network/SSL issues on CI when using real R2
                 if bool(getattr(settings, "is_testing", False)):
                     logger.warning(
@@ -132,11 +142,14 @@ class PersonalAssetService(BaseService):
 
         # Update user via repository
         repo = self.users
-        updated = repo.update_profile(
-            user_id=user.id,
-            profile_picture_key=keys["original"],
-            profile_picture_uploaded_at=datetime.now(timezone.utc),
-            profile_picture_version=next_version,
+        updated = cast(
+            Optional[User],
+            repo.update_profile(
+                user_id=user.id,
+                profile_picture_key=keys["original"],
+                profile_picture_uploaded_at=datetime.now(timezone.utc),
+                profile_picture_version=next_version,
+            ),
         )
         if not updated:
             raise RuntimeError("Failed to update user record with profile picture metadata")
@@ -170,11 +183,14 @@ class PersonalAssetService(BaseService):
                 logger.warning("Failed to delete object: %s", k)
 
         # Clear fields
-        updated = self.users.update_profile(
-            user_id=user.id,
-            profile_picture_key=None,
-            profile_picture_uploaded_at=None,
-            profile_picture_version=0,
+        updated = cast(
+            Optional[User],
+            self.users.update_profile(
+                user_id=user.id,
+                profile_picture_key=None,
+                profile_picture_uploaded_at=None,
+                profile_picture_version=0,
+            ),
         )
         # Invalidate cached URLs
         try:
@@ -195,14 +211,19 @@ class PersonalAssetService(BaseService):
             raise ValueError("No profile picture")
         # Cache based on user/version/variant
         cache_key = self._cache_key_profile_url(owner.id, variant, owner.profile_picture_version)
-        if self.cache:
-            cached = self.cache.get(cache_key)
-            if cached and isinstance(cached, dict) and cached.get("url"):
+        cache = self.cache
+        if cache:
+            cached = cache.get(cache_key)
+            if isinstance(cached, dict) and cached.get("url"):
+                cached_map = cast(dict[str, Any], cached)
                 try:
                     profile_pic_url_cache_hits_total.labels(variant=variant).inc()
                 except Exception:
                     pass
-                return PresignedView(url=cached["url"], expires_at=cached.get("expires_at", ""))
+                return PresignedView(
+                    url=str(cached_map.get("url", "")),
+                    expires_at=str(cached_map.get("expires_at", "")),
+                )
 
         keys = self._profile_picture_keys(owner.id, owner.profile_picture_version)
         key = (
@@ -217,10 +238,12 @@ class PersonalAssetService(BaseService):
             pass
 
         # Cache for 45 minutes (pre-expiry)
-        if self.cache:
+        if cache:
             try:
-                self.cache.set(
-                    cache_key, {"url": pre.url, "expires_at": pre.expires_at}, ttl=45 * 60
+                cache.set(
+                    cache_key,
+                    {"url": pre.url, "expires_at": pre.expires_at},
+                    ttl=45 * 60,
                 )
             except Exception:
                 logger.warning("Failed to cache profile picture URL for user %s", owner.id)

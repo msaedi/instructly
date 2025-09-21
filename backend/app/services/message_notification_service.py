@@ -11,7 +11,7 @@ Uses dependency injection pattern - NO SINGLETONS.
 import asyncio
 import json
 import logging
-from typing import Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 import asyncpg
 from asyncpg import Connection
@@ -30,15 +30,15 @@ class MessageNotificationService:
     operations, separate from the main SQLAlchemy connection pool.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the notification service."""
         self.connection: Optional[Connection] = None
-        self.subscribers: Dict[str, Set[asyncio.Queue]] = {}  # booking_id -> set of queues
-        self.listen_task: Optional[asyncio.Task] = None
+        self.subscribers: Dict[str, Set[asyncio.Queue[Dict[str, Any]]]] = {}
+        self.listen_task: Optional[asyncio.Task[None]] = None
         self.is_listening = False
         self.logger = logging.getLogger(__name__)
 
-    async def start(self):
+    async def start(self) -> None:
         """
         Start the notification service.
 
@@ -67,7 +67,7 @@ class MessageNotificationService:
             self.logger.error(f"Failed to start notification service: {str(e)}")
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """
         Stop the notification service.
 
@@ -91,7 +91,7 @@ class MessageNotificationService:
 
         self.logger.info("Message notification service stopped")
 
-    async def subscribe(self, booking_id: str) -> asyncio.Queue:
+    async def subscribe(self, booking_id: str) -> asyncio.Queue[Dict[str, Any]]:
         """
         Subscribe to notifications for a specific booking.
 
@@ -101,7 +101,7 @@ class MessageNotificationService:
         Returns:
             Queue that will receive message notifications
         """
-        queue = asyncio.Queue()
+        queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
 
         if booking_id not in self.subscribers:
             self.subscribers[booking_id] = set()
@@ -116,7 +116,7 @@ class MessageNotificationService:
 
         return queue
 
-    async def unsubscribe(self, booking_id: str, queue: asyncio.Queue):
+    async def unsubscribe(self, booking_id: str, queue: asyncio.Queue[Dict[str, Any]]) -> None:
         """
         Unsubscribe from notifications for a booking.
 
@@ -137,7 +137,7 @@ class MessageNotificationService:
 
         self.logger.info(f"Removed subscriber for booking {booking_id}")
 
-    async def _listen_for_notifications(self):
+    async def _listen_for_notifications(self) -> None:
         """
         Main listener loop that processes PostgreSQL notifications.
 
@@ -183,7 +183,9 @@ class MessageNotificationService:
                 # Wait before retrying
                 await asyncio.sleep(5)
 
-    def _handle_notification(self, connection, pid, channel, payload):
+    def _handle_notification(
+        self, connection: Connection, pid: int, channel: str, payload: str
+    ) -> None:
         """
         Handle incoming PostgreSQL notifications.
 
@@ -201,7 +203,12 @@ class MessageNotificationService:
                 booking_id = channel.replace("booking_chat_", "")
 
                 # Parse the JSON payload
-                message_data = json.loads(payload)
+                decoded = json.loads(payload)
+                message_data: Dict[str, Any]
+                if isinstance(decoded, dict):
+                    message_data = decoded
+                else:
+                    message_data = {"payload": decoded}
 
                 # Send to all subscribers for this booking
                 if booking_id in self.subscribers:
@@ -216,7 +223,9 @@ class MessageNotificationService:
         except Exception as e:
             self.logger.error(f"Error handling notification: {str(e)}")
 
-    async def _send_to_queue(self, queue: asyncio.Queue, message_data: dict):
+    async def _send_to_queue(
+        self, queue: asyncio.Queue[Dict[str, Any]], message_data: Dict[str, Any]
+    ) -> None:
         """
         Send message data to a subscriber queue.
 
@@ -230,7 +239,7 @@ class MessageNotificationService:
         except asyncio.QueueFull:
             self.logger.warning("Subscriber queue is full, dropping message")
 
-    async def send_heartbeat(self, booking_id: str):
+    async def send_heartbeat(self, booking_id: str) -> None:
         """
         Send a heartbeat to all subscribers of a booking.
 
@@ -239,7 +248,10 @@ class MessageNotificationService:
         Args:
             booking_id: ID of the booking
         """
-        heartbeat_data = {"type": "heartbeat", "timestamp": asyncio.get_event_loop().time()}
+        heartbeat_data: Dict[str, Any] = {
+            "type": "heartbeat",
+            "timestamp": asyncio.get_event_loop().time(),
+        }
 
         if booking_id in self.subscribers:
             for queue in self.subscribers[booking_id]:

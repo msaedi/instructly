@@ -32,7 +32,7 @@ class SearchHistoryCleanupService(BaseService):
     def __init__(self, db: Session) -> None:
         """Initialize the cleanup service."""
         super().__init__(db)
-        self.repository = SearchHistoryRepository(db)
+        self.repository: SearchHistoryRepository = SearchHistoryRepository(db)
 
     @BaseService.measure_operation("cleanup_soft_deleted_searches")
     def cleanup_soft_deleted_searches(self) -> int:
@@ -54,7 +54,7 @@ class SearchHistoryCleanupService(BaseService):
 
         try:
             # Find and delete old soft-deleted records
-            deleted_count = self.repository.hard_delete_old_soft_deleted(
+            deleted_count: int = self.repository.hard_delete_old_soft_deleted(
                 days_old=settings.soft_delete_retention_days
             )
 
@@ -95,14 +95,14 @@ class SearchHistoryCleanupService(BaseService):
 
         try:
             # Delete old converted guest searches
-            converted_deleted = self.repository.delete_converted_guest_searches(
+            converted_deleted: int = self.repository.delete_converted_guest_searches(
                 days_old=settings.guest_session_purge_days
             )
 
             # Delete old non-converted guest searches
             # These are guest searches that were never converted and are very old
             expired_days = settings.guest_session_expiry_days + settings.guest_session_purge_days
-            expired_deleted = self.repository.delete_old_unconverted_guest_searches(
+            expired_deleted: int = self.repository.delete_old_unconverted_guest_searches(
                 days_old=expired_days
             )
 
@@ -152,7 +152,7 @@ class SearchHistoryCleanupService(BaseService):
         Returns:
             Dictionary with cleanup statistics
         """
-        stats = {
+        stats: Dict[str, int] = {
             "soft_deleted_eligible": 0,
             "converted_guest_eligible": 0,
             "expired_guest_eligible": 0,
