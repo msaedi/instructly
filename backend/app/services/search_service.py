@@ -11,10 +11,12 @@ This service parses natural language, generates embeddings, and coordinates
 with repositories to find the best matches.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
 import logging
 import re
-from typing import Dict, List
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
 
 from sentence_transformers import SentenceTransformer
 from sqlalchemy.orm import Session
@@ -26,7 +28,23 @@ from .review_service import ReviewService
 logger = logging.getLogger(__name__)
 
 # Module-level model cache to avoid reloading on every request
-_model_cache = {}
+_model_cache: Dict[str, SentenceTransformer] = {}
+
+
+JsonDict = Dict[str, Any]
+JsonList = List[JsonDict]
+
+
+class ParsedQuery(TypedDict, total=False):
+    original_query: str
+    cleaned_query: str
+    normalized_service: str
+    category: str
+    is_category_query: bool
+    price: JsonDict
+    time: JsonDict
+    location: JsonDict
+    level: JsonDict
 
 
 def get_cached_model(model_name: str = "all-MiniLM-L6-v2") -> SentenceTransformer:
@@ -179,7 +197,7 @@ class QueryParser:
         r"\blesson(?:s)?\b",
     ]
 
-    def parse(self, query: str) -> Dict:
+    def parse(self, query: str) -> ParsedQuery:
         """
         Parse a natural language query.
 
@@ -190,9 +208,10 @@ class QueryParser:
             Dictionary with extracted constraints and cleaned query
         """
         query_lower = query.lower()
-        constraints = {
+        cleaned_query = query
+        constraints: ParsedQuery = {
             "original_query": query,
-            "cleaned_query": query,
+            "cleaned_query": cleaned_query,
             "price": {},
             "time": {},
             "location": {},
@@ -217,53 +236,51 @@ class QueryParser:
                     )
 
                 # Remove price from cleaned query
-                constraints["cleaned_query"] = re.sub(pattern, "", constraints["cleaned_query"])
+                cleaned_query = re.sub(pattern, "", cleaned_query)
 
         # Extract time constraints
         for pattern, time_type in self.TIME_PATTERNS:
             if re.search(pattern, query_lower):
                 constraints["time"][time_type] = True
-                constraints["cleaned_query"] = re.sub(pattern, "", constraints["cleaned_query"])
+                cleaned_query = re.sub(pattern, "", cleaned_query)
 
         # Extract location constraints
         for pattern, location_type in self.LOCATION_PATTERNS:
             if re.search(pattern, query_lower):
                 constraints["location"][location_type] = True
-                constraints["cleaned_query"] = re.sub(pattern, "", constraints["cleaned_query"])
+                cleaned_query = re.sub(pattern, "", cleaned_query)
 
         # Extract level constraints
         for pattern, level_type in self.LEVEL_PATTERNS:
             if re.search(pattern, query_lower):
                 constraints["level"][level_type] = True
-                constraints["cleaned_query"] = re.sub(pattern, "", constraints["cleaned_query"])
+                cleaned_query = re.sub(pattern, "", cleaned_query)
 
         # Clean up whitespace
-        constraints["cleaned_query"] = " ".join(constraints["cleaned_query"].split())
+        cleaned_query = " ".join(cleaned_query.split())
 
         # Apply lightweight morphology normalizations (generic, not service-specific)
         for pattern, repl in self.MORPH_NORMALIZATIONS.items():
-            constraints["cleaned_query"] = re.sub(
-                pattern, repl, constraints["cleaned_query"], flags=re.IGNORECASE
-            )
+            cleaned_query = re.sub(pattern, repl, cleaned_query, flags=re.IGNORECASE)
 
         # Remove generic role/format words to improve matching (kept in original_query)
         for pattern in self.ROLE_STOPWORDS:
-            constraints["cleaned_query"] = re.sub(
-                pattern, "", constraints["cleaned_query"], flags=re.IGNORECASE
-            )
+            cleaned_query = re.sub(pattern, "", cleaned_query, flags=re.IGNORECASE)
 
         # Final trim
-        constraints["cleaned_query"] = " ".join(constraints["cleaned_query"].split())
+        cleaned_query = " ".join(cleaned_query.split())
+        constraints["cleaned_query"] = cleaned_query
 
         # Normalize service names
-        cleaned_lower = constraints["cleaned_query"].lower()
+        cleaned_lower = cleaned_query.lower()
         for alias, canonical in self.SERVICE_ALIASES.items():
             # Use word boundaries to avoid partial replacements
             pattern = r"\b" + re.escape(alias) + r"\b"
             if re.search(pattern, cleaned_lower):
-                constraints["cleaned_query"] = re.sub(
-                    pattern, canonical.lower(), constraints["cleaned_query"], flags=re.IGNORECASE
+                cleaned_query = re.sub(
+                    pattern, canonical.lower(), cleaned_query, flags=re.IGNORECASE
                 )
+                constraints["cleaned_query"] = cleaned_query
                 constraints["normalized_service"] = canonical
                 break
 
@@ -295,7 +312,7 @@ class SearchService(BaseService):
     to provide intelligent search results.
     """
 
-    def __init__(self, db: Session, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, db: Session, model_name: str = "all-MiniLM-L6-v2") -> None:
         """
         Initialize search service.
 
@@ -309,7 +326,7 @@ class SearchService(BaseService):
         self.parser = QueryParser()
         self._model_name = model_name
         # Get cached model - loads once, reuses across requests
-        self.model = get_cached_model(model_name)
+        self.model: SentenceTransformer = get_cached_model(model_name)
 
         # Initialize repositories
         self.catalog_repository = RepositoryFactory.create_service_catalog_repository(db)
@@ -318,7 +335,7 @@ class SearchService(BaseService):
         self.review_service = ReviewService(db)
 
     @BaseService.measure_operation("natural_language_search")
-    def search(self, query: str, limit: int = 20, include_availability: bool = False) -> Dict:
+    def search(self, query: str, limit: int = 20, include_availability: bool = False) -> JsonDict:
         """
         Perform natural language search.
 
@@ -335,14 +352,20 @@ class SearchService(BaseService):
         logger.info(f"Parsed query: {parsed}")
 
         # Generate embedding for cleaned query (robust to list/ndarray return types)
-        if parsed["cleaned_query"]:
-            emb0 = self.model.encode([parsed["cleaned_query"]])[0]
+        cleaned_value = parsed.get("cleaned_query")
+        cleaned_query = cleaned_value if isinstance(cleaned_value, str) else ""
+        if cleaned_query:
+            emb0 = self.model.encode([cleaned_query])[0]
         else:
             # If no service query remains, use full query
             emb0 = self.model.encode([query])[0]
 
         # Support both numpy arrays (with tolist) and plain Python lists/tuples
-        query_embedding = emb0.tolist() if hasattr(emb0, "tolist") else list(emb0)
+        if hasattr(emb0, "tolist"):
+            emb_sequence = cast(Sequence[float], emb0.tolist())
+        else:
+            emb_sequence = cast(Sequence[float], emb0)
+        query_embedding: List[float] = list(emb_sequence)
 
         # Search for services using semantic similarity
         services, observability_candidates = self._search_services(
@@ -418,7 +441,7 @@ class SearchService(BaseService):
             "results": results[:limit],
             "total_found": len(results),
             "search_metadata": {
-                "used_semantic_search": bool(parsed["cleaned_query"]),
+                "used_semantic_search": bool(parsed.get("cleaned_query")),
                 "applied_filters": self._get_applied_filters(parsed),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "observability_candidates": observability_candidates,
@@ -426,8 +449,8 @@ class SearchService(BaseService):
         }
 
     def _search_services(
-        self, query_embedding: List[float], parsed: Dict, limit: int
-    ) -> tuple[List[Dict], List[Dict]]:
+        self, query_embedding: List[float], parsed: ParsedQuery, limit: int
+    ) -> Tuple[JsonList, JsonList]:
         """Search for services using embeddings and filters, and prepare top-N candidates for observability."""
 
         # Lightweight helpers for fuzzy token matching (to capitalize on pg_trgm in exact-text phase)
@@ -469,18 +492,23 @@ class SearchService(BaseService):
                         return True
             return False
 
+        cleaned_query_value = parsed.get("cleaned_query")
+        cleaned_query_text = cleaned_query_value if isinstance(cleaned_query_value, str) else ""
+
         # Determine filters
-        online_capable = None
-        if parsed["location"].get("online"):
+        location_value = parsed.get("location")
+        location_constraints: JsonDict = location_value if isinstance(location_value, dict) else {}
+        online_capable: Optional[bool] = None
+        if location_constraints.get("online"):
             online_capable = True
-        elif parsed["location"].get("in_person"):
+        elif location_constraints.get("in_person"):
             online_capable = False
 
         # Always initialize to avoid unbound variable errors in rare branches
-        similar_services = []
+        similar_services: List[Tuple[Any, float]] = []
 
         # Determine search strategy based on query type
-        raw_candidates: List[tuple] = []  # List of (ServiceCatalog, score, source)
+        raw_candidates: List[Tuple[Any, Optional[float], str]] = []
         if parsed.get("is_category_query"):
             # For category queries, use lower threshold for broader results
             # Start at 0.5 and relax to 0.4 for better category breadth like 'dance'
@@ -508,14 +536,14 @@ class SearchService(BaseService):
                     similar_services = filtered
         else:
             # For specific service queries, first try exact match; if none, fall back to semantic search
-            exact_candidates = []  # (service, score)
+            exact_candidates: List[Tuple[Any, float]] = []  # (service, score)
             _performed_vector_search = False
-            if parsed["cleaned_query"]:
+            if cleaned_query_text:
                 # Search for exact/close text matches
                 exact_services = self.catalog_repository.search_services(
-                    query_text=parsed["cleaned_query"], limit=10
+                    query_text=cleaned_query_text, limit=10
                 )
-                query_lower = parsed["cleaned_query"].lower()
+                query_lower = cleaned_query_text.lower()
                 q_tokens = [t for t in query_lower.split() if t]
                 for service in exact_services:
                     service_name_lower = (service.name or "").lower()
@@ -557,7 +585,7 @@ class SearchService(BaseService):
                     ]
 
         # Convert to service dicts with scores
-        services = []
+        services: JsonList = []
         for service, score in similar_services or []:
             # Apply additional filters
             if online_capable is not None and service.online_capable != online_capable:
@@ -573,9 +601,9 @@ class SearchService(BaseService):
 
             # Simple hybrid re-ranking features (tuning pass)
             token_bonus = 0.0
-            if parsed.get("cleaned_query"):
-                q = parsed["cleaned_query"].lower()
-                name_l = service_dict["name"].lower()
+            if cleaned_query_text:
+                q = cleaned_query_text.lower()
+                name_l = str(service_dict.get("name", "")).lower()
                 desc_l = (service_dict.get("description") or "").lower()
                 tokens = [t for t in q.split() if t]
                 if any(tok in name_l for tok in tokens):
@@ -584,7 +612,11 @@ class SearchService(BaseService):
                     token_bonus += 0.025
 
                 # Exact alias handling: if an exact search_terms match, give a meaningful bump
-                terms = [t.lower() for t in (service_dict.get("search_terms") or [])]
+                search_terms_value = service_dict.get("search_terms")
+                if isinstance(search_terms_value, (list, tuple)):
+                    terms = [str(t).lower() for t in search_terms_value]
+                else:
+                    terms = []
                 if terms and (q in terms or any(q == term for term in terms)):
                     token_bonus += 0.08
             service_dict["relevance_score"] = min(
@@ -600,16 +632,18 @@ class SearchService(BaseService):
             # Allow closely related neighbors (e.g., keyboard for piano), drop distant ones
             min_score = max(0.5, top_score * 0.68)
 
-            q_tokens = [
-                t for t in (parsed.get("cleaned_query") or "").lower().split() if len(t) > 2
-            ]
+            q_tokens = [t for t in cleaned_query_text.lower().split() if len(t) > 2]
 
-            def has_token_overlap(svc: Dict) -> bool:
+            def has_token_overlap(svc: JsonDict) -> bool:
                 if not q_tokens:
                     return False
                 name_l = (svc.get("name") or "").lower()
                 desc_l = (svc.get("description") or "").lower()
-                terms = [t.lower() for t in (svc.get("search_terms") or [])]
+                search_terms_value = svc.get("search_terms")
+                if isinstance(search_terms_value, (list, tuple)):
+                    terms = [str(t).lower() for t in search_terms_value]
+                else:
+                    terms = []
                 if any(tok in name_l for tok in q_tokens):
                     return True
                 if any(tok in desc_l for tok in q_tokens):
@@ -702,7 +736,7 @@ class SearchService(BaseService):
                     bonus += 0.02
             return bonus
 
-        obs: List[Dict] = []
+        obs: JsonList = []
         seen = set()
         for idx, (svc, base_score, source) in enumerate(raw_candidates[:10]):
             if svc.id in seen:
@@ -727,18 +761,25 @@ class SearchService(BaseService):
 
         return services, obs
 
+    # TODO(part2): refine instructor matching typing & availability integration.
     def _find_instructors_for_services(
-        self, services: List[Dict], parsed: Dict, limit: int
-    ) -> List[Dict]:
+        self, services: JsonList, parsed: ParsedQuery, limit: int
+    ) -> JsonList:
         """Find instructors offering the matched services."""
-        results = []
+        results: JsonList = []
+        price_value = parsed.get("price")
+        price_constraints = price_value if isinstance(price_value, dict) else {}
+        location_value = parsed.get("location")
+        location_constraints = location_value if isinstance(location_value, dict) else {}
+        level_value = parsed.get("level")
+        level_constraints = level_value if isinstance(level_value, dict) else {}
 
         for service in services:
             # Get instructors for this service with filters
             instructors = self.instructor_repository.find_by_filters(
                 service_catalog_id=service["id"],
-                min_price=parsed["price"].get("min"),
-                max_price=parsed["price"].get("max"),
+                min_price=price_constraints.get("min"),
+                max_price=price_constraints.get("max"),
                 limit=limit,
             )
 
@@ -757,15 +798,15 @@ class SearchService(BaseService):
                     continue
 
                 # Check location constraints
-                if parsed["location"]:
+                if location_constraints:
                     if not self._matches_location_constraints(
-                        instructor_service, instructor_profile, parsed["location"]
+                        instructor_service, instructor_profile, location_constraints
                     ):
                         continue
 
                 # Check level constraints
-                if parsed["level"]:
-                    if not self._matches_level_constraints(instructor_service, parsed["level"]):
+                if level_constraints:
+                    if not self._matches_level_constraints(instructor_service, level_constraints):
                         continue
 
                 # Build result with privacy protection
@@ -833,7 +874,10 @@ class SearchService(BaseService):
         return results
 
     def _matches_location_constraints(
-        self, instructor_service, instructor_profile, location_constraints: Dict
+        self,
+        instructor_service: Any,
+        instructor_profile: Any,
+        location_constraints: JsonDict,
     ) -> bool:
         """Check if instructor matches location constraints."""
         if location_constraints.get("online"):
@@ -862,7 +906,9 @@ class SearchService(BaseService):
 
         return True
 
-    def _matches_level_constraints(self, instructor_service, level_constraints: Dict) -> bool:
+    def _matches_level_constraints(
+        self, instructor_service: Any, level_constraints: JsonDict
+    ) -> bool:
         """Check if instructor matches level constraints."""
         if not instructor_service.levels_taught:
             return True  # No levels specified means all levels
@@ -897,7 +943,7 @@ class SearchService(BaseService):
         return True
 
     def _calculate_match_score(
-        self, relevance_score: float, instructor_service, parsed: Dict
+        self, relevance_score: float, instructor_service: Any, parsed: ParsedQuery
     ) -> float:
         """Calculate overall match score for ranking.
 
@@ -906,11 +952,13 @@ class SearchService(BaseService):
         score = relevance_score * 100  # Base score from semantic similarity
 
         # Boost for exact price match
-        if parsed["price"]:
+        price_value = parsed.get("price")
+        price_constraints = price_value if isinstance(price_value, dict) else {}
+        if price_constraints:
             price = instructor_service.hourly_rate
-            if parsed["price"].get("min") and parsed["price"].get("max"):
+            if price_constraints.get("min") and price_constraints.get("max"):
                 # Price is in range
-                mid_range = (parsed["price"]["min"] + parsed["price"]["max"]) / 2
+                mid_range = (price_constraints["min"] + price_constraints["max"]) / 2
                 price_diff = abs(price - mid_range) / mid_range
                 score *= 1 - price_diff * 0.2  # Up to 20% penalty for price difference
 
@@ -961,14 +1009,14 @@ class SearchService(BaseService):
 
         return min(score, 100)  # Cap at 100
 
-    def _filter_by_availability(self, results: List[Dict], time_constraints: Dict) -> List[Dict]:
+    def _filter_by_availability(self, results: JsonList, time_constraints: JsonDict) -> JsonList:
         """Filter results by instructor availability."""
         # This is a placeholder - actual implementation would check availability
         # For now, just return all results
         logger.info(f"Availability filtering requested for: {time_constraints}")
         return results
 
-    def _track_search_analytics(self, services: List[Dict]) -> None:
+    def _track_search_analytics(self, services: JsonList) -> None:
         """Track search analytics for services."""
         for service in services:
             try:
@@ -976,26 +1024,34 @@ class SearchService(BaseService):
             except Exception as e:
                 logger.error(f"Failed to track analytics for service {service['id']}: {e}")
 
-    def _get_applied_filters(self, parsed: Dict) -> List[str]:
+    def _get_applied_filters(self, parsed: ParsedQuery) -> List[str]:
         """Get list of filters that were applied."""
-        filters = []
+        filters: List[str] = []
 
-        if parsed["price"]:
-            if parsed["price"].get("min") and parsed["price"].get("max"):
-                filters.append(f"price: ${parsed['price']['min']}-${parsed['price']['max']}")
-            elif parsed["price"].get("min"):
-                filters.append(f"price: >${parsed['price']['min']}")
-            elif parsed["price"].get("max"):
-                filters.append(f"price: <${parsed['price']['max']}")
+        price_value = parsed.get("price")
+        price_constraints: JsonDict = price_value if isinstance(price_value, dict) else {}
+        if price_constraints:
+            if price_constraints.get("min") and price_constraints.get("max"):
+                filters.append(f"price: ${price_constraints['min']}-${price_constraints['max']}")
+            elif price_constraints.get("min"):
+                filters.append(f"price: >${price_constraints['min']}")
+            elif price_constraints.get("max"):
+                filters.append(f"price: <${price_constraints['max']}")
 
-        if parsed["time"]:
-            filters.extend([k for k, v in parsed["time"].items() if v])
+        time_value = parsed.get("time")
+        time_constraints: JsonDict = time_value if isinstance(time_value, dict) else {}
+        if time_constraints:
+            filters.extend([k for k, v in time_constraints.items() if v])
 
-        if parsed["location"]:
-            filters.extend([k for k, v in parsed["location"].items() if v])
+        location_value = parsed.get("location")
+        location_constraints = location_value if isinstance(location_value, dict) else {}
+        if location_constraints:
+            filters.extend([k for k, v in location_constraints.items() if v])
 
-        if parsed["level"]:
-            filters.extend([k for k, v in parsed["level"].items() if v])
+        level_value = parsed.get("level")
+        level_constraints = level_value if isinstance(level_value, dict) else {}
+        if level_constraints:
+            filters.extend([k for k, v in level_constraints.items() if v])
 
         return filters
 
@@ -1010,7 +1066,7 @@ class SearchService(BaseService):
         Returns:
             List of suggested queries
         """
-        suggestions = []
+        suggestions: List[str] = []
 
         # Get popular services matching the partial query
         services = self.catalog_repository.search_services(query_text=partial_query, limit=5)
