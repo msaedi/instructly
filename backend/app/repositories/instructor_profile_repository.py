@@ -10,7 +10,7 @@ for commonly accessed relationships.
 """
 
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
@@ -49,7 +49,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         Returns:
             InstructorProfile if found, None otherwise
         """
-        return self.db.query(InstructorProfile).filter(InstructorProfile.user_id == user_id).first()
+        return cast(
+            Optional[InstructorProfile],
+            self.db.query(InstructorProfile).filter(InstructorProfile.user_id == user_id).first(),
+        )
 
     def get_all_with_details(
         self, skip: int = 0, limit: int = 100, include_inactive_services: bool = False
@@ -88,7 +91,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .limit(limit)
             )
 
-            profiles = query.all()
+            profiles = cast(List[InstructorProfile], query.all())
 
             # Return profiles with all services loaded
             # Let the service layer handle filtering
@@ -115,16 +118,19 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             InstructorProfile with all relationships loaded, or None if not found
         """
         try:
-            profile = (
-                self.db.query(InstructorProfile)
-                .options(
-                    joinedload(InstructorProfile.user),
-                    joinedload(InstructorProfile.instructor_services).joinedload(
-                        Service.catalog_entry
-                    ),
-                )
-                .filter(InstructorProfile.user_id == user_id)
-                .first()
+            profile = cast(
+                Optional[InstructorProfile],
+                (
+                    self.db.query(InstructorProfile)
+                    .options(
+                        joinedload(InstructorProfile.user),
+                        joinedload(InstructorProfile.instructor_services).joinedload(
+                            Service.catalog_entry
+                        ),
+                    )
+                    .filter(InstructorProfile.user_id == user_id)
+                    .first()
+                ),
             )
 
             # Return profile with all services loaded
@@ -152,20 +158,23 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             List of profiles that service the area
         """
         try:
-            return (
-                self.db.query(InstructorProfile)
-                .join(User, InstructorProfile.user_id == User.id)
-                .filter(User.account_status == "active")
-                .options(
-                    joinedload(InstructorProfile.user),
-                    joinedload(InstructorProfile.instructor_services).joinedload(
-                        Service.catalog_entry
-                    ),
-                )
-                .filter(InstructorProfile.areas_of_service.ilike(f"%{area}%"))
-                .offset(skip)
-                .limit(limit)
-                .all()
+            return cast(
+                List[InstructorProfile],
+                (
+                    self.db.query(InstructorProfile)
+                    .join(User, InstructorProfile.user_id == User.id)
+                    .filter(User.account_status == "active")
+                    .options(
+                        joinedload(InstructorProfile.user),
+                        joinedload(InstructorProfile.instructor_services).joinedload(
+                            Service.catalog_entry
+                        ),
+                    )
+                    .filter(InstructorProfile.areas_of_service.ilike(f"%{area}%"))
+                    .offset(skip)
+                    .limit(limit)
+                    .all()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Error getting profiles by area: {str(e)}")
@@ -186,20 +195,23 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             List of profiles with sufficient experience
         """
         try:
-            return (
-                self.db.query(InstructorProfile)
-                .join(User, InstructorProfile.user_id == User.id)
-                .filter(User.account_status == "active")
-                .options(
-                    joinedload(InstructorProfile.user),
-                    joinedload(InstructorProfile.instructor_services).joinedload(
-                        Service.catalog_entry
-                    ),
-                )
-                .filter(InstructorProfile.years_experience >= min_years)
-                .offset(skip)
-                .limit(limit)
-                .all()
+            return cast(
+                List[InstructorProfile],
+                (
+                    self.db.query(InstructorProfile)
+                    .join(User, InstructorProfile.user_id == User.id)
+                    .filter(User.account_status == "active")
+                    .options(
+                        joinedload(InstructorProfile.user),
+                        joinedload(InstructorProfile.instructor_services).joinedload(
+                            Service.catalog_entry
+                        ),
+                    )
+                    .filter(InstructorProfile.years_experience >= min_years)
+                    .offset(skip)
+                    .limit(limit)
+                    .all()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Error getting profiles by experience: {str(e)}")
@@ -213,7 +225,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             Number of profiles
         """
         try:
-            return self.db.query(InstructorProfile).count()
+            return cast(int, self.db.query(InstructorProfile).count())
         except Exception as e:
             self.logger.error(f"Error counting active profiles: {str(e)}")
             raise RepositoryException(f"Failed to count profiles: {str(e)}")
@@ -315,7 +327,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
             # Remove duplicates (since joins can create multiple rows per profile)
             # and apply pagination
-            profiles = query.distinct().offset(skip).limit(limit).all()
+            profiles = cast(
+                List[InstructorProfile],
+                query.distinct().offset(skip).limit(limit).all(),
+            )
 
             # Log query performance
             query_time = time.time() - start_time
@@ -343,7 +358,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             raise RepositoryException(f"Failed to find profiles by filters: {str(e)}")
 
     # Override the base eager loading method
-    def _apply_eager_loading(self, query):
+    def _apply_eager_loading(self, query: Any) -> Any:
         """
         Apply eager loading for commonly accessed relationships.
 

@@ -13,7 +13,7 @@ This repository extends BaseRepository with search and analytics capabilities.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TypedDict, cast
 
 from sqlalchemy import distinct, or_, text
 from sqlalchemy.orm import Session, joinedload
@@ -25,6 +25,18 @@ from ..models.user import User
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
+
+
+class PopularServiceMetrics(TypedDict):
+    service: ServiceCatalog
+    analytics: ServiceAnalytics
+    popularity_score: float
+
+
+class MinimalServiceInfo(TypedDict):
+    id: int
+    name: str
+    slug: str
 
 
 class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
@@ -174,9 +186,9 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             query = query.order_by(ServiceCatalog.display_order, ServiceCatalog.name)
 
         # Apply pagination
-        return query.offset(skip).limit(limit).all()
+        return cast(List[ServiceCatalog], query.offset(skip).limit(limit).all())
 
-    def get_popular_services(self, limit: int = 10, days: int = 30) -> List[Dict]:
+    def get_popular_services(self, limit: int = 10, days: int = 30) -> List[PopularServiceMetrics]:
         """
         Get most popular services based on analytics.
 
@@ -200,10 +212,17 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         else:
             query = query.order_by(ServiceAnalytics.booking_count_30d.desc())
 
-        results = query.limit(limit).all()
+        results = cast(List[Tuple[ServiceCatalog, ServiceAnalytics]], query.limit(limit).all())
 
         return [
-            {"service": service, "analytics": analytics, "popularity_score": analytics.demand_score}
+            cast(
+                PopularServiceMetrics,
+                {
+                    "service": service,
+                    "analytics": analytics,
+                    "popularity_score": float(getattr(analytics, "demand_score", 0.0)),
+                },
+            )
             for service, analytics in results
         ]
 
@@ -235,7 +254,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             .order_by((trend_subquery.c.avg_7d - trend_subquery.c.avg_30d).desc())
         )
 
-        return query.limit(limit).all()
+        return cast(List[ServiceCatalog], query.limit(limit).all())
 
     def update_display_order_by_popularity(self) -> int:
         """
@@ -270,7 +289,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
         return 0
 
-    def _apply_eager_loading(self, query):
+    def _apply_eager_loading(self, query: Any) -> Any:
         """Apply eager loading for category relationship."""
         return query.options(joinedload(ServiceCatalog.category))
 
@@ -307,7 +326,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         if limit:
             query = query.limit(limit)
 
-        return query.all()
+        return cast(List[ServiceCatalog], query.all())
 
     def count_active_instructors(self, service_catalog_id: int) -> int:
         """
@@ -332,7 +351,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
         return count or 0
 
-    def get_services_available_for_kids_minimal(self) -> List[Dict]:
+    def get_services_available_for_kids_minimal(self) -> List[MinimalServiceInfo]:
         """
         Return minimal info for catalog services that have at least one active instructor
         whose age_groups includes 'kids'.
@@ -366,8 +385,10 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             else:
                 query = query.filter(InstructorService.age_groups.like('%"kids"%'))
 
-            rows = query.all()
-            return [{"id": r.id, "name": r.name, "slug": r.slug} for r in rows]
+            rows = cast(Sequence[Any], query.all())
+            return [
+                cast(MinimalServiceInfo, {"id": r.id, "name": r.name, "slug": r.slug}) for r in rows
+            ]
         except Exception as e:
             logger.error(f"Error fetching kids-available services: {str(e)}")
             return []
@@ -380,32 +401,32 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         """Initialize with ServiceAnalytics model."""
         super().__init__(db, ServiceAnalytics)
 
-    def get_by_id(
-        self, service_catalog_id: int, load_relationships: bool = True
-    ) -> Optional[ServiceAnalytics]:
+    def get_by_id(self, id: Any, load_relationships: bool = True) -> Optional[ServiceAnalytics]:
         """
         Override get_by_id to use service_catalog_id as primary key.
 
         Args:
-            service_catalog_id: The service catalog ID (primary key)
+            id: The service catalog ID (primary key)
             load_relationships: Whether to load relationships
 
         Returns:
             ServiceAnalytics instance or None
         """
+        service_catalog_id = cast(int, id)
         return self.find_one_by(service_catalog_id=service_catalog_id)
 
-    def update(self, service_catalog_id: int, **kwargs) -> Optional[ServiceAnalytics]:
+    def update(self, id: Any, **kwargs: Any) -> Optional[ServiceAnalytics]:
         """
         Override update to use service_catalog_id as primary key.
 
         Args:
-            service_catalog_id: The service catalog ID (primary key)
+            id: The service catalog ID (primary key)
             **kwargs: Fields to update
 
         Returns:
             Updated ServiceAnalytics instance
         """
+        service_catalog_id = cast(int, id)
         entity = self.find_one_by(service_catalog_id=service_catalog_id)
         if not entity:
             return None
@@ -470,11 +491,14 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         """
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-        return (
-            self.db.query(ServiceAnalytics).filter(ServiceAnalytics.last_calculated < cutoff).all()
+        return cast(
+            List[ServiceAnalytics],
+            self.db.query(ServiceAnalytics).filter(ServiceAnalytics.last_calculated < cutoff).all(),
         )
 
-    def update_from_bookings(self, service_catalog_id: int, booking_stats: Dict) -> None:
+    def update_from_bookings(
+        self, service_catalog_id: int, booking_stats: Mapping[str, Any]
+    ) -> None:
         """
         Update analytics from booking statistics.
 
@@ -484,7 +508,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         """
         analytics = self.get_or_create(service_catalog_id)
 
-        updates = {
+        updates: Dict[str, Any] = {
             "booking_count_7d": booking_stats.get("count_7d", 0),
             "booking_count_30d": booking_stats.get("count_30d", 0),
             "avg_price_booked": booking_stats.get("avg_price"),
@@ -513,10 +537,13 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         existing = self.db.query(ServiceAnalytics.service_catalog_id).subquery()
 
         # Find active services without analytics
-        missing = (
-            self.db.query(ServiceCatalog.id)
-            .filter(ServiceCatalog.is_active == True, ~ServiceCatalog.id.in_(existing))
-            .all()
+        missing_rows = cast(
+            Sequence[Tuple[int]],
+            (
+                self.db.query(ServiceCatalog.id)
+                .filter(ServiceCatalog.is_active == True, ~ServiceCatalog.id.in_(existing))
+                .all()
+            ),
         )
 
-        return [service_id[0] for service_id in missing]
+        return [row[0] for row in missing_rows]

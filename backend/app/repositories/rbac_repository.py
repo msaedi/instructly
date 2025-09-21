@@ -12,7 +12,7 @@ Fixes 20+ violations in PermissionService.
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from sqlalchemy.orm import Session
 
@@ -61,7 +61,7 @@ class RBACRepository:
         Used for administrative interfaces
         """
         try:
-            return self.db.query(Permission).all()
+            return cast(List[Permission], self.db.query(Permission).all())
         except Exception as e:
             self.logger.error(f"Error getting all permissions: {str(e)}")
             return []
@@ -119,11 +119,14 @@ class RBACRepository:
         Fixes: 1 violation in PermissionService
         """
         try:
-            return (
-                self.db.query(UserPermission)
-                .join(Permission)
-                .filter(UserPermission.user_id == user_id)
-                .all()
+            return cast(
+                List[UserPermission],
+                (
+                    self.db.query(UserPermission)
+                    .join(Permission)
+                    .filter(UserPermission.user_id == user_id)
+                    .all()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Error getting user permissions for user {user_id}: {str(e)}")
@@ -174,7 +177,7 @@ class RBACRepository:
         Used for administrative interfaces
         """
         try:
-            return self.db.query(Role).all()
+            return cast(List[Role], self.db.query(Role).all())
         except Exception as e:
             self.logger.error(f"Error getting all roles: {str(e)}")
             return []
@@ -188,7 +191,7 @@ class RBACRepository:
         try:
             role = self.get_role_by_name(role_name)
             if role:
-                return role.permissions
+                return cast(List[Permission], role.permissions)
             return []
         except Exception as e:
             self.logger.error(f"Error getting role permissions for {role_name}: {str(e)}")
