@@ -1,11 +1,23 @@
 # .github/workflows/deploy.yml
 name: Deploy to Vercel
 on:
-  push:
-    branches: [main]
+  pull_request:
     paths:
       - 'frontend/**'
-      - '.github/workflows/deploy.yml'
+      - 'package.json'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - 'package.json'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+
+concurrency:
+  group: vercel-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   deploy-production:
@@ -19,6 +31,7 @@ jobs:
 
       - name: Deploy to Production
         run: |
+          set -eo pipefail
           cd frontend
           # Remove any existing .vercel directory to avoid conflicts
           rm -rf .vercel
@@ -27,11 +40,28 @@ jobs:
           # Link to the production project
           echo '{"projectId":"${{ secrets.VERCEL_PRODUCTION_PROJECT_ID }}","orgId":"${{ secrets.VERCEL_ORG_ID }}"}' > .vercel/project.json
           # Deploy
-          vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
+          LOG=../vercel.log
+          rm -f "$LOG"
+          vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes 2>&1 | tee "$LOG"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PRODUCTION_PROJECT_ID }}
+
+      - name: Soft warn on Vercel rate-limit
+        if: always()
+        run: |
+          set +e
+          LOG="${{ github.workspace }}/vercel.log"
+          if [ -f "$LOG" ]; then
+            CONTENT="$(cat "$LOG")"
+          else
+            CONTENT=""
+          fi
+          echo "$CONTENT" | grep -qiE 'rate limit|build-rate-limit|Too Many Requests' && {
+            echo "::warning::Vercel preview likely hit a rate limit. This check is informational; guardrails remain green.";
+          }
+          set -e
 
   deploy-preview:
     name: Deploy to Preview
@@ -44,6 +74,7 @@ jobs:
 
       - name: Deploy to Preview
         run: |
+          set -eo pipefail
           cd frontend
           # Remove any existing .vercel directory to avoid conflicts
           rm -rf .vercel
@@ -52,8 +83,25 @@ jobs:
           # Link to the preview project
           echo '{"projectId":"${{ secrets.VERCEL_PREVIEW_PROJECT_ID }}","orgId":"${{ secrets.VERCEL_ORG_ID }}"}' > .vercel/project.json
           # Deploy
-          vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
+          LOG=../vercel.log
+          rm -f "$LOG"
+          vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes 2>&1 | tee "$LOG"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PREVIEW_PROJECT_ID }}
+
+      - name: Soft warn on Vercel rate-limit
+        if: always()
+        run: |
+          set +e
+          LOG="${{ github.workspace }}/vercel.log"
+          if [ -f "$LOG" ]; then
+            CONTENT="$(cat "$LOG")"
+          else
+            CONTENT=""
+          fi
+          echo "$CONTENT" | grep -qiE 'rate limit|build-rate-limit|Too Many Requests' && {
+            echo "::warning::Vercel preview likely hit a rate limit. This check is informational; guardrails remain green.";
+          }
+          set -e
