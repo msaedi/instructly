@@ -8,11 +8,13 @@ ensuring consistent initialization and dependency injection.
 This factory will grow as we add more specific repositories.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Type, TypeVar
 
 from sqlalchemy.orm import Session
 
 from .base_repository import BaseRepository
+
+ModelT = TypeVar("ModelT")
 
 # Avoid circular imports
 if TYPE_CHECKING:
@@ -41,7 +43,7 @@ class RepositoryFactory:
     """
 
     @staticmethod
-    def create_base_repository(db: Session, model) -> BaseRepository:
+    def create_base_repository(db: Session, model: Type[ModelT]) -> BaseRepository[ModelT]:
         """
         Create a generic base repository for any model.
 

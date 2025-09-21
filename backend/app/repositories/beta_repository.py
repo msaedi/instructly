@@ -1,7 +1,7 @@
 """Repositories for BetaInvite and BetaAccess (repository pattern)."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional, Sequence
 
 from sqlalchemy.orm import Session
 
@@ -25,8 +25,8 @@ class BetaInviteRepository(BaseRepository[BetaInvite]):
         self.db.flush()
         return True
 
-    def bulk_create_invites(self, invites: List[dict]) -> List[BetaInvite]:
-        return self.bulk_create(invites)
+    def bulk_create_invites(self, invites: Sequence[dict[str, Any]]) -> List[BetaInvite]:
+        return self.bulk_create(list(invites))
 
 
 class BetaAccessRepository(BaseRepository[BetaAccess]):

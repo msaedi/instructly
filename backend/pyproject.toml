@@ -277,6 +277,16 @@ warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.repositories.availability_repository",
+  "backend.app.repositories.booking_repository",
+  "backend.app.repositories.factory",
+  "backend.app.repositories.favorites_repository",
+  "backend.app.repositories.beta_repository",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
   "pydantic",
   "pydantic.*"
 ]
