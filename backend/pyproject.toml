@@ -356,6 +356,14 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.services.cache_service",
+  "backend.app.services.instructor_service",
+  "backend.app.tasks.analytics",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
   "pydantic",
   "pydantic.*"
 ]

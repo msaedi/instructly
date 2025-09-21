@@ -9,7 +9,7 @@ and updating metrics asynchronously.
 from datetime import datetime, timezone
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional, TypeVar, cast
 
 from scripts.calculate_service_analytics import AnalyticsCalculator
 from sqlalchemy.orm import Session
@@ -20,7 +20,17 @@ from app.tasks.celery_app import BaseTask, celery_app
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(
+TaskFunc = TypeVar("TaskFunc", bound=Callable[..., Any])
+
+
+def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskFunc], TaskFunc]:
+    """Helper to hint Celery task decorator returns the original callable."""
+
+    decorator = celery_app.task(*task_args, **task_kwargs)
+    return cast(Callable[[TaskFunc], TaskFunc], decorator)
+
+
+@typed_task(
     base=BaseTask,
     name="app.tasks.analytics.calculate_analytics",
     bind=True,
@@ -28,7 +38,7 @@ logger = logging.getLogger(__name__)
     retry_backoff=True,
     retry_backoff_max=600,
 )
-def calculate_analytics(self, days_back: int = 90) -> Dict[str, Any]:
+def calculate_analytics(self: BaseTask, days_back: int = 90) -> Dict[str, Any]:
     """
     Calculate service analytics for all instructors.
 
@@ -118,13 +128,13 @@ def calculate_analytics(self, days_back: int = 90) -> Dict[str, Any]:
             db.close()
 
 
-@celery_app.task(
+@typed_task(
     base=BaseTask,
     name="app.tasks.analytics.generate_daily_report",
     bind=True,
     max_retries=2,
 )
-def generate_daily_report(self) -> Dict[str, Any]:
+def generate_daily_report(self: BaseTask) -> Dict[str, Any]:
     """
     Generate daily analytics report.
 
@@ -177,12 +187,12 @@ def generate_daily_report(self) -> Dict[str, Any]:
             db.close()
 
 
-@celery_app.task(
+@typed_task(
     base=BaseTask,
     name="app.tasks.analytics.update_service_metrics",
     bind=True,
 )
-def update_service_metrics(self, service_id: int) -> Dict[str, Any]:
+def update_service_metrics(self: BaseTask, service_id: int) -> Dict[str, Any]:
     """
     Update analytics for a specific service.
 
@@ -256,12 +266,12 @@ def update_service_metrics(self, service_id: int) -> Dict[str, Any]:
 
 
 # Optional: Task execution tracking
-@celery_app.task(
+@typed_task(
     name="app.tasks.analytics.record_task_execution",
     bind=True,
 )
 def record_task_execution(
-    self,
+    self: BaseTask,
     task_name: str,
     status: str,
     execution_time: float,
