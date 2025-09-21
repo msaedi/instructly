@@ -23,6 +23,7 @@
 - **“docker-compose: not found”** → some workflow still uses v1. Fix to `docker compose`. Workflow Lint will flag it.
 - **Vector/PostGIS missing** → DB image not pinned/resolved; Workflow Lint guard should catch this. Re-pin via bump workflow.
 - **Flaky DB bring-up** → the workflow already does health + TCP waits. If needed, increase retries/sleep slightly.
+- **Vercel build rate limit** → wait for the cooldown, then use the PR re-run button or push a docs-only no-op commit to retrigger.
 
 ## Date/Time safety (payments)
 - Tests lock the 24h boundary:
