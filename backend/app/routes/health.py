@@ -9,6 +9,7 @@ database connectivity, and service availability.
 from datetime import datetime, timezone
 import logging
 import os
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
@@ -58,9 +59,9 @@ def detailed_health_check(db: Session = Depends(get_db)) -> DetailedHealthCheckR
     Returns:
         Detailed status of all system components.
     """
-    components = {}
+    components: Dict[str, ComponentHealth] = {}
     overall_status = "healthy"
-    cache_stats = None
+    cache_stats: Optional[Dict[str, Any]] = None
 
     # Database check
     try:
@@ -108,7 +109,7 @@ def detailed_health_check(db: Session = Depends(get_db)) -> DetailedHealthCheckR
         # Get cache stats if available
         try:
             cache_stats = cache_service.get_stats()
-        except:
+        except Exception:
             pass
 
     except Exception as e:
