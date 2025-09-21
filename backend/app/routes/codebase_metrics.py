@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import subprocess
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -84,7 +84,7 @@ def _run_codebase_metrics_script(repo_root: Path) -> Dict[str, Any]:
             )
 
         try:
-            data = json.loads(result.stdout)
+            data = cast(Dict[str, Any], json.loads(result.stdout))
         except json.JSONDecodeError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

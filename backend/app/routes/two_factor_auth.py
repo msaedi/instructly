@@ -43,7 +43,7 @@ def setup_initiate(
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
-):
+) -> TFASetupInitiateResponse:
     user = auth_service.get_current_user(email=current_user)
     data = tfa_service.setup_initiate(user)
     return TFASetupInitiateResponse(**data)
@@ -56,7 +56,7 @@ def setup_verify(
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
-):
+) -> TFASetupVerifyResponse:
     user = auth_service.get_current_user(email=current_user)
     try:
         backup_codes = tfa_service.setup_verify(user, req.code)
@@ -84,7 +84,7 @@ def disable(
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
-):
+) -> TFADisableResponse:
     user = auth_service.get_current_user(email=current_user)
     try:
         tfa_service.disable(user, req.current_password)
@@ -106,7 +106,7 @@ def status_endpoint(
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
-):
+) -> TFAStatusResponse:
     user = auth_service.get_current_user(email=current_user)
     data = tfa_service.status(user)
     return TFAStatusResponse(**data)
@@ -117,7 +117,7 @@ def regenerate_backup_codes(
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
-):
+) -> BackupCodesResponse:
     user = auth_service.get_current_user(email=current_user)
     codes = tfa_service.generate_backup_codes()
     # Store hashed
@@ -142,7 +142,7 @@ def verify_login(
     response: Response,
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
-):
+) -> TFAVerifyLoginResponse:
     # temp_token is a normal JWT with sub=email and tfa_pending=true
     from jose import jwt
 
