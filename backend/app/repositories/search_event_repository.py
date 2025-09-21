@@ -362,8 +362,6 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         Returns analytics about how this query is being searched.
         """
-        from sqlalchemy import Date, cast
-
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         # Get count of this search
@@ -383,14 +381,16 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         )
 
         # Get daily counts
+        date_expr = func.date(SearchEvent.searched_at)
+
         daily_counts_query = (
             self.db.query(
-                cast(SearchEvent.searched_at, Date).label("date"),
+                date_expr.label("date"),
                 func.count(SearchEvent.id).label("count"),
             )
             .filter(SearchEvent.search_query == query, SearchEvent.searched_at >= cutoff_date)
-            .group_by(cast(SearchEvent.searched_at, Date))
-            .order_by(cast(SearchEvent.searched_at, Date))
+            .group_by(date_expr)
+            .order_by(date_expr)
             .all()
         )
 
