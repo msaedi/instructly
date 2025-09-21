@@ -6,7 +6,7 @@ Provides methods for adding, removing, and querying favorite instructors.
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from sqlalchemy import and_, func
 from sqlalchemy.exc import IntegrityError
@@ -155,12 +155,13 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
             List of User objects (instructors) that the student has favorited
         """
         try:
-            favorites = (
+            favorites = cast(
+                List[User],
                 self.db.query(User)
                 .join(UserFavorite, UserFavorite.instructor_id == User.id)
                 .filter(UserFavorite.student_id == student_id)
                 .order_by(UserFavorite.created_at.desc())
-                .all()
+                .all(),
             )
 
             self.logger.info(f"Retrieved {len(favorites)} favorites for student {student_id}")
@@ -181,13 +182,14 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
             List of User objects with instructor_profile relationship loaded
         """
         try:
-            favorites = (
+            favorites = cast(
+                List[User],
                 self.db.query(User)
                 .join(UserFavorite, UserFavorite.instructor_id == User.id)
                 .options(joinedload(User.instructor_profile), joinedload(User.roles))
                 .filter(UserFavorite.student_id == student_id)
                 .order_by(UserFavorite.created_at.desc())
-                .all()
+                .all(),
             )
 
             self.logger.info(
