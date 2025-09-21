@@ -16,7 +16,7 @@ This repository handles:
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
@@ -38,7 +38,7 @@ from .base_repository import BaseRepository
 logger = logging.getLogger(__name__)
 
 
-class PaymentRepository(BaseRepository):
+class PaymentRepository(BaseRepository[PaymentIntent]):
     """
     Repository for payment data access.
 
@@ -338,12 +338,17 @@ class PaymentRepository(BaseRepository):
             raise RepositoryException(f"Failed to record payout event: {str(e)}")
 
     # Helper to resolve Stripe account to instructor profile via connected account record
-    def get_connected_account_by_stripe_id(self, stripe_account_id: str):
+    def get_connected_account_by_stripe_id(
+        self, stripe_account_id: str
+    ) -> Optional[StripeConnectedAccount]:
         try:
-            return (
-                self.db.query(StripeConnectedAccount)
-                .filter(StripeConnectedAccount.stripe_account_id == stripe_account_id)
-                .first()
+            return cast(
+                Optional[StripeConnectedAccount],
+                (
+                    self.db.query(StripeConnectedAccount)
+                    .filter(StripeConnectedAccount.stripe_account_id == stripe_account_id)
+                    .first()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Failed to get connected account by stripe id: {str(e)}")
@@ -437,11 +442,14 @@ class PaymentRepository(BaseRepository):
             List of PaymentMethod objects, ordered by is_default DESC, created_at DESC
         """
         try:
-            return (
-                self.db.query(PaymentMethod)
-                .filter(PaymentMethod.user_id == user_id)
-                .order_by(PaymentMethod.is_default.desc(), PaymentMethod.created_at.desc())
-                .all()
+            return cast(
+                List[PaymentMethod],
+                (
+                    self.db.query(PaymentMethod)
+                    .filter(PaymentMethod.user_id == user_id)
+                    .order_by(PaymentMethod.is_default.desc(), PaymentMethod.created_at.desc())
+                    .all()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Failed to get payment methods: {str(e)}")
@@ -513,12 +521,18 @@ class PaymentRepository(BaseRepository):
             ).update({"is_default": False})
 
             # Set the new default
-            result = (
-                self.db.query(PaymentMethod)
-                .filter(
-                    and_(PaymentMethod.id == payment_method_id, PaymentMethod.user_id == user_id)
-                )
-                .update({"is_default": True})
+            result = cast(
+                int,
+                (
+                    self.db.query(PaymentMethod)
+                    .filter(
+                        and_(
+                            PaymentMethod.id == payment_method_id,
+                            PaymentMethod.user_id == user_id,
+                        )
+                    )
+                    .update({"is_default": True})
+                ),
             )
             self.db.flush()
             return result > 0
@@ -540,26 +554,33 @@ class PaymentRepository(BaseRepository):
         try:
             # First check if it's a Stripe payment method ID (starts with pm_)
             if payment_method_id.startswith("pm_"):
-                result = (
-                    self.db.query(PaymentMethod)
-                    .filter(
-                        and_(
-                            PaymentMethod.stripe_payment_method_id == payment_method_id,
-                            PaymentMethod.user_id == user_id,
+                result = cast(
+                    int,
+                    (
+                        self.db.query(PaymentMethod)
+                        .filter(
+                            and_(
+                                PaymentMethod.stripe_payment_method_id == payment_method_id,
+                                PaymentMethod.user_id == user_id,
+                            )
                         )
-                    )
-                    .delete()
+                        .delete()
+                    ),
                 )
             else:
                 # Otherwise treat it as a database ID
-                result = (
-                    self.db.query(PaymentMethod)
-                    .filter(
-                        and_(
-                            PaymentMethod.id == payment_method_id, PaymentMethod.user_id == user_id
+                result = cast(
+                    int,
+                    (
+                        self.db.query(PaymentMethod)
+                        .filter(
+                            and_(
+                                PaymentMethod.id == payment_method_id,
+                                PaymentMethod.user_id == user_id,
+                            )
                         )
-                    )
-                    .delete()
+                        .delete()
+                    ),
                 )
             self.db.flush()
             return result > 0
@@ -683,19 +704,22 @@ class PaymentRepository(BaseRepository):
         """
         try:
             # Simple query - let the relationships load lazily within the session
-            results = (
-                self.db.query(PaymentIntent)
-                .join(Booking, PaymentIntent.booking_id == Booking.id)
-                .filter(
-                    and_(
-                        Booking.student_id == user_id,
-                        PaymentIntent.status.in_(["succeeded", "processing"]),
+            results = cast(
+                List[PaymentIntent],
+                (
+                    self.db.query(PaymentIntent)
+                    .join(Booking, PaymentIntent.booking_id == Booking.id)
+                    .filter(
+                        and_(
+                            Booking.student_id == user_id,
+                            PaymentIntent.status.in_(["succeeded", "processing"]),
+                        )
                     )
-                )
-                .order_by(PaymentIntent.created_at.desc())
-                .limit(limit)
-                .offset(offset)
-                .all()
+                    .order_by(PaymentIntent.created_at.desc())
+                    .limit(limit)
+                    .offset(offset)
+                    .all()
+                ),
             )
 
             return results
@@ -755,11 +779,14 @@ class PaymentRepository(BaseRepository):
             RepositoryException: If query fails
         """
         try:
-            return (
-                self.db.query(PaymentEvent)
-                .filter(PaymentEvent.booking_id == booking_id)
-                .order_by(PaymentEvent.created_at.asc())
-                .all()
+            return cast(
+                List[PaymentEvent],
+                (
+                    self.db.query(PaymentEvent)
+                    .filter(PaymentEvent.booking_id == booking_id)
+                    .order_by(PaymentEvent.created_at.asc())
+                    .all()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Failed to get payment events: {str(e)}")
@@ -788,7 +815,10 @@ class PaymentRepository(BaseRepository):
                 query = query.filter(PaymentEvent.event_type == event_type)
 
             # Order by timestamp primarily; tie-breaker by ULID to ensure stability
-            return (query.order_by(PaymentEvent.created_at.desc(), PaymentEvent.id.desc())).first()
+            return cast(
+                Optional[PaymentEvent],
+                (query.order_by(PaymentEvent.created_at.desc(), PaymentEvent.id.desc())).first(),
+            )
         except Exception as e:
             self.logger.error(f"Failed to get latest payment event: {str(e)}")
             raise RepositoryException(f"Failed to get latest payment event: {str(e)}")
@@ -937,18 +967,26 @@ class PaymentRepository(BaseRepository):
         """
         try:
             now = datetime.now(timezone.utc)
-            return (
-                self.db.query(PlatformCredit)
-                .filter(
-                    and_(
-                        PlatformCredit.user_id == user_id,
-                        PlatformCredit.used_at.is_(None),
-                        # Either no expiration or not expired yet
-                        (PlatformCredit.expires_at.is_(None) | (PlatformCredit.expires_at > now)),
+            return cast(
+                List[PlatformCredit],
+                (
+                    self.db.query(PlatformCredit)
+                    .filter(
+                        and_(
+                            PlatformCredit.user_id == user_id,
+                            PlatformCredit.used_at.is_(None),
+                            # Either no expiration or not expired yet
+                            (
+                                PlatformCredit.expires_at.is_(None)
+                                | (PlatformCredit.expires_at > now)
+                            ),
+                        )
                     )
-                )
-                .order_by(PlatformCredit.expires_at.asc().nullslast())  # Use expiring credits first
-                .all()
+                    .order_by(
+                        PlatformCredit.expires_at.asc().nullslast()
+                    )  # Use expiring credits first
+                    .all()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Failed to get available credits: {str(e)}")

@@ -8,9 +8,10 @@ following the TRUE 100% repository pattern.
 
 from datetime import datetime, timezone
 import logging
-from typing import List, Optional, Tuple
+from typing import Any, List, Mapping, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func
+from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import NotFoundException, RepositoryException
@@ -84,14 +85,17 @@ class MessageRepository(BaseRepository[Message]):
             List of messages ordered by creation time
         """
         try:
-            return (
-                self.db.query(Message)
-                .filter(and_(Message.booking_id == booking_id, Message.is_deleted == False))
-                .options(joinedload(Message.sender))
-                .order_by(Message.created_at.desc())
-                .limit(limit)
-                .offset(offset)
-                .all()
+            return cast(
+                List[Message],
+                (
+                    self.db.query(Message)
+                    .filter(and_(Message.booking_id == booking_id, Message.is_deleted == False))
+                    .options(joinedload(Message.sender))
+                    .order_by(Message.created_at.desc())
+                    .limit(limit)
+                    .offset(offset)
+                    .all()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Error fetching messages for booking {booking_id}: {str(e)}")
@@ -109,20 +113,23 @@ class MessageRepository(BaseRepository[Message]):
             List of unread messages
         """
         try:
-            return (
-                self.db.query(Message)
-                .join(MessageNotification)
-                .filter(
-                    and_(
-                        Message.booking_id == booking_id,
-                        Message.is_deleted == False,
-                        MessageNotification.user_id == user_id,
-                        MessageNotification.is_read == False,
+            return cast(
+                List[Message],
+                (
+                    self.db.query(Message)
+                    .join(MessageNotification)
+                    .filter(
+                        and_(
+                            Message.booking_id == booking_id,
+                            Message.is_deleted == False,
+                            MessageNotification.user_id == user_id,
+                            MessageNotification.is_read == False,
+                        )
                     )
-                )
-                .options(joinedload(Message.sender))
-                .order_by(Message.created_at)
-                .all()
+                    .options(joinedload(Message.sender))
+                    .order_by(Message.created_at)
+                    .all()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Error fetching unread messages: {str(e)}")
@@ -140,22 +147,25 @@ class MessageRepository(BaseRepository[Message]):
             Number of messages marked as read
         """
         try:
-            count = (
-                self.db.query(MessageNotification)
-                .filter(
-                    and_(
-                        MessageNotification.message_id.in_(message_ids),
-                        MessageNotification.user_id == user_id,
-                        MessageNotification.is_read == False,
+            count = cast(
+                int,
+                (
+                    self.db.query(MessageNotification)
+                    .filter(
+                        and_(
+                            MessageNotification.message_id.in_(message_ids),
+                            MessageNotification.user_id == user_id,
+                            MessageNotification.is_read == False,
+                        )
                     )
-                )
-                .update(
-                    {
-                        MessageNotification.is_read: True,
-                        MessageNotification.read_at: datetime.now(timezone.utc),
-                    },
-                    synchronize_session=False,
-                )
+                    .update(
+                        {
+                            MessageNotification.is_read: True,
+                            MessageNotification.read_at: datetime.now(timezone.utc),
+                        },
+                        synchronize_session=False,
+                    )
+                ),
             )
 
             self.logger.info(f"Marked {count} messages as read for user {user_id}")
@@ -194,46 +204,56 @@ class MessageRepository(BaseRepository[Message]):
             raise RepositoryException(f"Failed to count unread messages: {str(e)}")
 
     # --- Aggregations & helpers for services ---
-    def get_read_receipts_for_message_ids(self, message_ids: List[int]) -> List[tuple]:
+    def get_read_receipts_for_message_ids(
+        self, message_ids: Sequence[str]
+    ) -> List[Tuple[str, str, Optional[datetime]]]:
         """
         Return tuples of (message_id, user_id, read_at) for read notifications on given messages.
         """
         try:
-            rows = (
-                self.db.query(
-                    MessageNotification.message_id,
-                    MessageNotification.user_id,
-                    MessageNotification.read_at,
-                )
-                .filter(
-                    and_(
-                        MessageNotification.message_id.in_(message_ids),
-                        MessageNotification.is_read == True,
+            rows = cast(
+                List[Tuple[str, str, Optional[datetime]]],
+                (
+                    self.db.query(
+                        MessageNotification.message_id,
+                        MessageNotification.user_id,
+                        MessageNotification.read_at,
                     )
-                )
-                .all()
+                    .filter(
+                        and_(
+                            MessageNotification.message_id.in_(message_ids),
+                            MessageNotification.is_read == True,
+                        )
+                    )
+                    .all()
+                ),
             )
             return rows
         except Exception as e:
             self.logger.error(f"Error fetching read receipts: {str(e)}")
             raise RepositoryException(f"Failed to fetch read receipts: {str(e)}")
 
-    def get_reaction_counts_for_message_ids(self, message_ids: List[int]) -> List[tuple]:
+    def get_reaction_counts_for_message_ids(
+        self, message_ids: Sequence[str]
+    ) -> List[Tuple[str, str, int]]:
         """
         Return tuples of (message_id, emoji, count) for reactions on given messages.
         """
         try:
             from ..models.message import MessageReaction
 
-            rows = (
-                self.db.query(
-                    MessageReaction.message_id,
-                    MessageReaction.emoji,
-                    func.count(MessageReaction.id),
-                )
-                .filter(MessageReaction.message_id.in_(message_ids))
-                .group_by(MessageReaction.message_id, MessageReaction.emoji)
-                .all()
+            rows = cast(
+                Sequence[Tuple[str, str, Any]],
+                (
+                    self.db.query(
+                        MessageReaction.message_id,
+                        MessageReaction.emoji,
+                        func.count(MessageReaction.id),
+                    )
+                    .filter(MessageReaction.message_id.in_(message_ids))
+                    .group_by(MessageReaction.message_id, MessageReaction.emoji)
+                    .all()
+                ),
             )
             return [(mid, emoji, int(cnt)) for (mid, emoji, cnt) in rows]
         except Exception as e:
@@ -242,22 +262,25 @@ class MessageRepository(BaseRepository[Message]):
 
     def get_user_reactions_for_message_ids(
         self, message_ids: List[str], user_id: str
-    ) -> List[tuple]:
+    ) -> List[Tuple[str, str]]:
         """
         Return tuples of (message_id, emoji) for reactions by the user on given messages.
         """
         try:
             from ..models.message import MessageReaction
 
-            rows = (
-                self.db.query(MessageReaction.message_id, MessageReaction.emoji)
-                .filter(
-                    and_(
-                        MessageReaction.message_id.in_(message_ids),
-                        MessageReaction.user_id == user_id,
+            rows = cast(
+                List[Tuple[str, str]],
+                (
+                    self.db.query(MessageReaction.message_id, MessageReaction.emoji)
+                    .filter(
+                        and_(
+                            MessageReaction.message_id.in_(message_ids),
+                            MessageReaction.user_id == user_id,
+                        )
                     )
-                )
-                .all()
+                    .all()
+                ),
             )
             return rows
         except Exception as e:
@@ -307,7 +330,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error applying message edit: {str(e)}")
             raise RepositoryException(f"Failed to apply message edit: {str(e)}")
 
-    def notify_booking_channel(self, booking_id: str, payload: dict) -> None:
+    def notify_booking_channel(self, booking_id: str, payload: Mapping[str, Any]) -> None:
         """Send a JSON payload to the booking chat LISTEN/NOTIFY channel.
 
         This is allowed at repository level for DB adjacency per repo pattern rules.
@@ -341,15 +364,25 @@ class MessageRepository(BaseRepository[Message]):
             Tuple of (student_id, instructor_id) or None if booking not found
         """
         try:
-            booking = (
-                self.db.query(Booking.student_id, Booking.instructor_id)
-                .filter(Booking.id == booking_id)
-                .first()
+            booking_row = cast(
+                Optional[Row[Any]],
+                (
+                    self.db.query(Booking.student_id, Booking.instructor_id)
+                    .filter(Booking.id == booking_id)
+                    .first()
+                ),
             )
 
-            if booking:
-                return (booking.student_id, booking.instructor_id)
-            return None
+            if booking_row is None:
+                return None
+
+            mapping = booking_row._mapping
+            student_id = cast(Optional[str], mapping.get("student_id"))
+            instructor_id = cast(Optional[str], mapping.get("instructor_id"))
+
+            if student_id is None or instructor_id is None:
+                return None
+            return (student_id, instructor_id)
 
         except Exception as e:
             self.logger.error(f"Error fetching booking participants: {str(e)}")
@@ -385,11 +418,14 @@ class MessageRepository(BaseRepository[Message]):
             Latest message or None
         """
         try:
-            return (
-                self.db.query(Message)
-                .filter(and_(Message.booking_id == booking_id, Message.is_deleted == False))
-                .order_by(Message.created_at.desc())
-                .first()
+            return cast(
+                Optional[Message],
+                (
+                    self.db.query(Message)
+                    .filter(and_(Message.booking_id == booking_id, Message.is_deleted == False))
+                    .order_by(Message.created_at.desc())
+                    .first()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Error fetching latest message: {str(e)}")
@@ -406,7 +442,10 @@ class MessageRepository(BaseRepository[Message]):
             True if deleted, False if not found
         """
         try:
-            message = self.db.query(Message).filter(Message.id == message_id).first()
+            message = cast(
+                Optional[Message],
+                self.db.query(Message).filter(Message.id == message_id).first(),
+            )
             if message:
                 message.is_deleted = True
                 message.updated_at = datetime.now(timezone.utc)

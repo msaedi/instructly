@@ -7,7 +7,7 @@ Provides methods for basic lookups, role checks, and user counts.
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional, Sequence, cast
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -38,7 +38,7 @@ class UserRepository(BaseRepository[User]):
     # Basic Lookups (10+ violations fixed)
     # ==========================================
 
-    def get_by_id(self, user_id: str) -> Optional[User]:
+    def get_by_id(self, id: Any, load_relationships: bool = True) -> Optional[User]:
         """
         Get user by ID.
 
@@ -46,9 +46,15 @@ class UserRepository(BaseRepository[User]):
         Fixes: 10+ violations across services
         """
         try:
-            return self.db.query(User).filter(User.id == user_id).first()
+            if id is None:
+                return None
+            user_id = str(id)
+            return cast(
+                Optional[User],
+                self.db.query(User).filter(User.id == user_id).first(),
+            )
         except Exception as e:
-            self.logger.error(f"Error getting user by ID {user_id}: {str(e)}")
+            self.logger.error(f"Error getting user by ID {id}: {str(e)}")
             return None
 
     def get_by_email(self, email: str) -> Optional[User]:
@@ -58,7 +64,10 @@ class UserRepository(BaseRepository[User]):
         Used by: AuthService and other authentication flows
         """
         try:
-            return self.db.query(User).filter(User.email == email).first()
+            return cast(
+                Optional[User],
+                self.db.query(User).filter(User.email == email).first(),
+            )
         except Exception as e:
             self.logger.error(f"Error getting user by email {email}: {str(e)}")
             return None
@@ -75,11 +84,14 @@ class UserRepository(BaseRepository[User]):
         Fixes: 6 violations in PermissionService
         """
         try:
-            return (
-                self.db.query(User)
-                .options(joinedload(User.roles).joinedload(Role.permissions))
-                .filter(User.id == user_id)
-                .first()
+            return cast(
+                Optional[User],
+                (
+                    self.db.query(User)
+                    .options(joinedload(User.roles).joinedload(Role.permissions))
+                    .filter(User.id == user_id)
+                    .first()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Error getting user with roles/permissions {user_id}: {str(e)}")
@@ -93,11 +105,14 @@ class UserRepository(BaseRepository[User]):
         Fixes: 2 violations in PermissionService
         """
         try:
-            return (
-                self.db.query(User)
-                .options(joinedload(User.roles))
-                .filter(User.id == user_id)
-                .first()
+            return cast(
+                Optional[User],
+                (
+                    self.db.query(User)
+                    .options(joinedload(User.roles))
+                    .filter(User.id == user_id)
+                    .first()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Error getting user with roles {user_id}: {str(e)}")
@@ -119,11 +134,14 @@ class UserRepository(BaseRepository[User]):
         try:
             from ..core.enums import RoleName
 
-            return (
-                self.db.query(User)
-                .join(User.roles)
-                .filter(User.id == user_id, Role.name == RoleName.INSTRUCTOR)
-                .first()
+            return cast(
+                Optional[User],
+                (
+                    self.db.query(User)
+                    .join(User.roles)
+                    .filter(User.id == user_id, Role.name == RoleName.INSTRUCTOR)
+                    .first()
+                ),
             )
         except Exception as e:
             self.logger.error(f"Error getting instructor {user_id}: {str(e)}")
@@ -149,7 +167,7 @@ class UserRepository(BaseRepository[User]):
         Fixes: 1 violation in PrivacyService
         """
         try:
-            return self.db.query(User).count()
+            return cast(int, self.db.query(User).count())
         except Exception as e:
             self.logger.error(f"Error counting all users: {str(e)}")
             return 0
@@ -162,7 +180,7 @@ class UserRepository(BaseRepository[User]):
         Fixes: 1 violation in PrivacyService
         """
         try:
-            return self.db.query(User).filter_by(is_active=True).count()
+            return cast(int, self.db.query(User).filter_by(is_active=True).count())
         except Exception as e:
             self.logger.error(f"Error counting active users: {str(e)}")
             return 0
@@ -171,7 +189,7 @@ class UserRepository(BaseRepository[User]):
     # Update Operations
     # ==========================================
 
-    def update_profile(self, user_id: str, **kwargs) -> Optional[User]:
+    def update_profile(self, user_id: str, **kwargs: object) -> Optional[User]:
         """
         Update user profile fields.
 
@@ -247,14 +265,17 @@ class UserRepository(BaseRepository[User]):
     # Bulk Operations
     # ==========================================
 
-    def get_by_ids(self, user_ids: list[int]) -> list[User]:
+    def get_by_ids(self, user_ids: Sequence[str]) -> list[User]:
         """
         Get multiple users by IDs.
 
         Used for batch operations
         """
         try:
-            return self.db.query(User).filter(User.id.in_(user_ids)).all()
+            return cast(
+                list[User],
+                self.db.query(User).filter(User.id.in_(list(user_ids))).all(),
+            )
         except Exception as e:
             self.logger.error(f"Error getting users by IDs: {str(e)}")
             return []
@@ -266,7 +287,10 @@ class UserRepository(BaseRepository[User]):
         Used for administrative operations
         """
         try:
-            return self.db.query(User).filter_by(is_active=True).all()
+            return cast(
+                list[User],
+                self.db.query(User).filter_by(is_active=True).all(),
+            )
         except Exception as e:
             self.logger.error(f"Error getting all active users: {str(e)}")
             return []
