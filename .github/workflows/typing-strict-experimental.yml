@@ -1,0 +1,62 @@
+name: typing-strict (experimental)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  mypy-strict-preview:
+    name: mypy strict preview (routes + schemas)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run mypy --strict (non-blocking)
+        working-directory: backend
+        run: |
+          set -eo pipefail
+          TARGETS="app/routes app/schemas"
+          python -m mypy --strict $TARGETS > ../.artifacts/mypy-strict.txt || true
+          ERRORS=$(grep -E '^[^ ]+:[0-9]+:' ../.artifacts/mypy-strict.txt | wc -l | tr -d ' ')
+          STATUS="pass"
+          if [ "$ERRORS" -gt 0 ]; then
+            STATUS="warnings"
+          fi
+          echo "Errors: $ERRORS"
+          {
+            echo "### typing-strict experimental"
+            echo
+            echo "- status: $STATUS"
+            echo "- errors: $ERRORS"
+            if [ "$ERRORS" -gt 0 ]; then
+              echo
+              echo '```text'
+              head -n 60 ../.artifacts/mypy-strict.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload mypy log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-strict-experimental
+          path: .artifacts/mypy-strict.txt
+          if-no-files-found: warn
+          retention-days: 7
