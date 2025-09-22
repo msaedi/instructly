@@ -7,8 +7,10 @@ from typing import Any, Dict
 
 from pydantic import BaseModel, Field
 
+from ._strict_base import StrictRequestModel
 
-class UserDataDeletionRequest(BaseModel):
+
+class UserDataDeletionRequest(StrictRequestModel):
     """
     Request schema for user data deletion.
     """
