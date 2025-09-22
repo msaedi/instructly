@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from ._strict_base import StrictRequestModel
+
 
 class AddressBase(BaseModel):
     label: Optional[str] = Field(None, description="home|work|other")
@@ -57,7 +59,7 @@ class AddressListResponse(BaseModel):
     total: int
 
 
-class ServiceAreasUpdateRequest(BaseModel):
+class ServiceAreasUpdateRequest(StrictRequestModel):
     neighborhood_ids: List[str]
 
 

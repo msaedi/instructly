@@ -6,8 +6,10 @@ from typing import List, Optional
 
 from pydantic import AnyUrl, BaseModel, EmailStr, Field
 
+from ._strict_base import StrictRequestModel
 
-class ReferralSendRequest(BaseModel):
+
+class ReferralSendRequest(StrictRequestModel):
     """Request payload for sending referral invites."""
 
     emails: List[EmailStr] = Field(..., description="List of recipient email addresses")
