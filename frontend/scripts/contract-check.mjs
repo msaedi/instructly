@@ -6,6 +6,9 @@ import { tmpdir } from 'node:os';
 
 const isCI = !!(process.env.CI || process.env.GITHUB_ACTIONS);
 
+const args = process.argv.slice(2);
+const shouldWrite = args.includes('--write') || args.includes('-w');
+
 const SPEC = join(process.cwd(), '..', 'backend', 'openapi', 'openapi.json');
 const TARGET = join(process.cwd(), 'types', 'generated', 'api.d.ts');
 
@@ -27,11 +30,16 @@ const expected = readFileSync(TARGET, 'utf8');
 const actual = readFileSync(tmpOut, 'utf8');
 
 if (expected !== actual) {
-  writeFileSync(join(process.cwd(), '.artifacts', 'api.actual.d.ts'), actual);
-  writeFileSync(join(process.cwd(), '.artifacts', 'api.expected.d.ts'), expected);
-  console.error('❌ Contract drift detected between committed types and generated output.');
-  console.error('   See .artifacts/api.expected.d.ts vs .artifacts/api.actual.d.ts');
-  process.exit(1);
+  if (shouldWrite) {
+    writeFileSync(TARGET, actual);
+    console.log('[contract-check] Updated committed api.d.ts to match generated output.');
+  } else {
+    writeFileSync(join(process.cwd(), '.artifacts', 'api.actual.d.ts'), actual);
+    writeFileSync(join(process.cwd(), '.artifacts', 'api.expected.d.ts'), expected);
+    console.error('❌ Contract drift detected between committed types and generated output.');
+    console.error('   See .artifacts/api.expected.d.ts vs .artifacts/api.actual.d.ts');
+    process.exit(1);
+  }
 }
 
 console.log('✅ Contract OK (no drift).');

@@ -14,10 +14,10 @@ UPDATED: Added account_status field for lifecycle management (active, suspended,
 """
 from typing import Sequence, Union
 
-import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
-
 from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import UUID
 
 # Import enums for seed data
 try:
@@ -40,40 +40,6 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-referral_code_status_enum = sa.Enum(
-    "active",
-    "disabled",
-    name="referral_code_status",
-    native_enum=True,
-)
-
-
-reward_side_enum = sa.Enum(
-    "student",
-    "instructor",
-    name="reward_side",
-    native_enum=True,
-)
-
-
-reward_status_enum = sa.Enum(
-    "pending",
-    "unlocked",
-    "redeemed",
-    "void",
-    name="reward_status",
-    native_enum=True,
-)
-
-
-wallet_txn_type_enum = sa.Enum(
-    "referral_credit",
-    "fee_rebate",
-    name="wallet_txn_type",
-    native_enum=True,
-)
-
-
 def upgrade() -> None:
     """Create initial user authentication schema."""
     print("Creating initial schema for users and authentication...")
@@ -81,6 +47,28 @@ def upgrade() -> None:
     # For ULID generation, we'll rely on Python defaults in the models
     # No need for a complex PostgreSQL function
     print("ULID generation will be handled by Python models...")
+
+    enum_definitions = {
+        "referral_code_status": ("active", "disabled"),
+        "reward_side": ("student", "instructor"),
+        "reward_status": ("pending", "unlocked", "redeemed", "void"),
+        "wallet_txn_type": ("referral_credit", "fee_rebate"),
+    }
+
+    for enum_name, values in enum_definitions.items():
+        value_list = ", ".join(f"'{value}'" for value in values)
+        op.execute(
+            f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{enum_name}') THEN
+                    CREATE TYPE {enum_name} AS ENUM ({value_list});
+                END IF;
+            END$$;
+            """
+        )
+        for value in values:
+            op.execute(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{value}';")
 
     # NO LONGER CREATING ENUM TYPE - Using VARCHAR instead
 
@@ -658,12 +646,6 @@ def upgrade() -> None:
     # Referral program schema (Theta Park Slope Beta)
     # ------------------------------------------------------------------
     print("Creating referral program enums and tables...")
-    bind = op.get_bind()
-    referral_code_status_enum.create(bind, checkfirst=True)
-    reward_side_enum.create(bind, checkfirst=True)
-    reward_status_enum.create(bind, checkfirst=True)
-    wallet_txn_type_enum.create(bind, checkfirst=True)
-
     op.create_table(
         "referral_codes",
         sa.Column("id", UUID(as_uuid=True), nullable=False),
@@ -677,12 +659,12 @@ def upgrade() -> None:
         ),
         sa.Column(
             "status",
-            sa.Enum(
+            postgresql.ENUM(
                 "active",
                 "disabled",
                 name="referral_code_status",
-                native_enum=True,
                 create_type=False,
+                validate_strings=True,
             ),
             nullable=False,
             server_default="active",
@@ -773,25 +755,25 @@ def upgrade() -> None:
         ),
         sa.Column(
             "side",
-            sa.Enum(
+            postgresql.ENUM(
                 "student",
                 "instructor",
                 name="reward_side",
-                native_enum=True,
                 create_type=False,
+                validate_strings=True,
             ),
             nullable=False,
         ),
         sa.Column(
             "status",
-            sa.Enum(
+            postgresql.ENUM(
                 "pending",
                 "unlocked",
                 "redeemed",
                 "void",
                 name="reward_status",
-                native_enum=True,
                 create_type=False,
+                validate_strings=True,
             ),
             nullable=False,
             server_default="pending",
@@ -833,12 +815,12 @@ def upgrade() -> None:
         ),
         sa.Column(
             "type",
-            sa.Enum(
+            postgresql.ENUM(
                 "referral_credit",
                 "fee_rebate",
                 name="wallet_txn_type",
-                native_enum=True,
                 create_type=False,
+                validate_strings=True,
             ),
             nullable=False,
         ),
@@ -899,8 +881,6 @@ def downgrade() -> None:
     """Drop all tables and types created in upgrade."""
     print("Dropping initial schema...")
 
-    bind = op.get_bind()
-
     # Drop referral program tables and enums first (added after initial schema)
     op.drop_table("referral_limits")
 
@@ -919,10 +899,10 @@ def downgrade() -> None:
     op.drop_index("idx_referral_codes_referrer_user_id", table_name="referral_codes")
     op.drop_table("referral_codes")
 
-    wallet_txn_type_enum.drop(bind, checkfirst=True)
-    reward_status_enum.drop(bind, checkfirst=True)
-    reward_side_enum.drop(bind, checkfirst=True)
-    referral_code_status_enum.drop(bind, checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS wallet_txn_type;")
+    op.execute("DROP TYPE IF EXISTS reward_status;")
+    op.execute("DROP TYPE IF EXISTS reward_side;")
+    op.execute("DROP TYPE IF EXISTS referral_code_status;")
 
     # Drop ULID function and extension
     op.execute("DROP FUNCTION IF EXISTS generate_ulid()")
@@ -953,7 +933,5 @@ def downgrade() -> None:
 
     # Drop tables
     op.drop_table("users")
-
-    # No enum type to drop anymore
 
     print("Initial schema dropped successfully!")

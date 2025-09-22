@@ -63,3 +63,10 @@ export type BookingStatus = components['schemas']['BookingStatus'];
 
 // Instructor service
 export type InstructorService = components['schemas']['InstructorServiceResponse'];
+
+// Referral program
+export type ReferralLedgerResponse = components['schemas']['ReferralLedgerResponse'];
+export type ReferralClaimResponse = components['schemas']['ReferralClaimResponse'];
+export type ReferralResolveResponse = components['schemas']['ReferralResolveResponse'];
+export type ReferralCheckoutApplyResponse = components['schemas']['CheckoutApplyResponse'];
+export type ReferralErrorResponse = components['schemas']['ReferralErrorResponse'];

@@ -4556,13 +4556,7 @@ export type components = {
              */
             top_cached_keys_sample: string[];
         };
-        /**
-         * AvailabilityCheckRequest
-         * @description Check if a specific time is available for booking.
-         *
-         *     Clean Architecture: Uses instructor, date, and time directly.
-         *     No slot references needed.
-         */
+        /** AvailabilityCheckRequest */
         AvailabilityCheckRequest: {
             /**
              * Booking Date
@@ -4608,6 +4602,10 @@ export type components = {
             min_advance_hours?: number | null;
             /** Reason */
             reason?: string | null;
+            /** Time Info */
+            time_info?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * AvailabilityWindowResponse
@@ -4709,17 +4707,11 @@ export type components = {
         Body_login_auth_login_post: {
             /** Client Id */
             client_id?: string | null;
-            /**
-             * Client Secret
-             * Format: password
-             */
+            /** Client Secret */
             client_secret?: string | null;
             /** Grant Type */
             grant_type?: string | null;
-            /**
-             * Password
-             * Format: password
-             */
+            /** Password */
             password: string;
             /**
              * Scope
@@ -4752,10 +4744,7 @@ export type components = {
              */
             week_start: string;
         };
-        /**
-         * BookingCancel
-         * @description Schema for cancelling a booking.
-         */
+        /** BookingCancel */
         BookingCancel: {
             /**
              * Reason
@@ -4763,14 +4752,7 @@ export type components = {
              */
             reason: string;
         };
-        /**
-         * BookingConfirmPayment
-         * @description Confirm payment method for a booking after SetupIntent completion.
-         *
-         *     Used in the two-step booking flow:
-         *     1. Create booking (returns SetupIntent client_secret)
-         *     2. Confirm payment (this schema) after card details collected
-         */
+        /** BookingConfirmPayment */
         BookingConfirmPayment: {
             /**
              * Payment Method Id
@@ -4981,13 +4963,7 @@ export type components = {
             /** Total Price */
             total_price: number;
         };
-        /**
-         * BookingRescheduleRequest
-         * @description Request to reschedule an existing booking by specifying a new date/time and duration.
-         *
-         *     Frontend will subsequently create a new booking; this endpoint prepares the system by
-         *     cancelling the old booking according to policy and recording audit events.
-         */
+        /** BookingRescheduleRequest */
         BookingRescheduleRequest: {
             /**
              * Booking Date
@@ -5111,12 +5087,7 @@ export type components = {
          * @enum {string}
          */
         BookingStatus: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
-        /**
-         * BookingUpdate
-         * @description Schema for updating booking details.
-         *
-         *     Limited fields can be updated after booking creation.
-         */
+        /** BookingUpdate */
         BookingUpdate: {
             /** Instructor Note */
             instructor_note?: string | null;
@@ -7350,20 +7321,14 @@ export type components = {
             /** Message */
             message: string;
         };
-        /**
-         * PasswordResetConfirm
-         * @description Request model for confirming password reset with new password
-         */
+        /** PasswordResetConfirm */
         PasswordResetConfirm: {
             /** New Password */
             new_password: string;
             /** Token */
             token: string;
         };
-        /**
-         * PasswordResetRequest
-         * @description Request model for initiating password reset
-         */
+        /** PasswordResetRequest */
         PasswordResetRequest: {
             /**
              * Email
@@ -9522,7 +9487,7 @@ export type components = {
         };
         /**
          * TimeSlot
-         * @description Time slot for availability - simplified without is_available.
+         * @description Time slot for availability.
          */
         TimeSlot: {
             /**

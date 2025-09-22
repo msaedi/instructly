@@ -77,7 +77,12 @@ class ReferralCode(Base):
     )
     status: Mapped[ReferralCodeStatus] = mapped_column(
         SAEnum(
-            ReferralCodeStatus, name="referral_code_status", native_enum=True, create_type=False
+            ReferralCodeStatus,
+            name="referral_code_status",
+            native_enum=True,
+            create_type=False,
+            validate_strings=True,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
         ),
         default=ReferralCodeStatus.ACTIVE,
         nullable=False,
@@ -185,10 +190,25 @@ class ReferralReward(Base):
         String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     side: Mapped[RewardSide] = mapped_column(
-        SAEnum(RewardSide, name="reward_side", native_enum=True, create_type=False), nullable=False
+        SAEnum(
+            RewardSide,
+            name="reward_side",
+            native_enum=True,
+            create_type=False,
+            validate_strings=True,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
     )
     status: Mapped[RewardStatus] = mapped_column(
-        SAEnum(RewardStatus, name="reward_status", native_enum=True, create_type=False),
+        SAEnum(
+            RewardStatus,
+            name="reward_status",
+            native_enum=True,
+            create_type=False,
+            validate_strings=True,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
         default=RewardStatus.PENDING,
         nullable=False,
     )
@@ -246,7 +266,14 @@ class WalletTransaction(Base):
         String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     type: Mapped[WalletTransactionType] = mapped_column(
-        SAEnum(WalletTransactionType, name="wallet_txn_type", native_enum=True, create_type=False),
+        SAEnum(
+            WalletTransactionType,
+            name="wallet_txn_type",
+            native_enum=True,
+            create_type=False,
+            validate_strings=True,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
         nullable=False,
     )
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)

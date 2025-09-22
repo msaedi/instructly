@@ -8,7 +8,7 @@ SAFE_EPS_MINUTES = 5
 
 def now_trimmed(base: datetime | None = None) -> datetime:
     dt = base or datetime.now()
-    return dt.replace(microsecond=0)
+    return dt.replace(second=0, microsecond=0)
 
 
 def start_within_24h(base: datetime | None = None, hours: int = 2, minutes: int = SAFE_EPS_MINUTES) -> datetime:
@@ -32,7 +32,7 @@ def start_just_under_24h(base: datetime | None = None, minutes: int = 1) -> date
     candidate = n + timedelta(hours=24) - timedelta(minutes=minutes)
     # If end would wrap past midnight, move earlier to keep end same-day
     if (candidate + timedelta(hours=1)).date() != candidate.date():
-        candidate = n + timedelta(hours=23)
+        candidate = n + timedelta(hours=22)
     return candidate
 
 
@@ -41,7 +41,7 @@ def start_just_over_24h(base: datetime | None = None, minutes: int = 1) -> datet
     candidate = n + timedelta(hours=24, minutes=minutes)
     # If end would wrap past midnight, move further out (still >24h)
     if (candidate + timedelta(hours=1)).date() != candidate.date():
-        candidate = n + timedelta(hours=25)
+        candidate = n + timedelta(hours=26)
     return candidate
 
 

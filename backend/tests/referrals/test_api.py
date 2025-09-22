@@ -65,9 +65,7 @@ def test_referral_redirect_json_mode(db, client, referral_service):
     referrer = _create_user(db, "referrer_json@example.com")
     code = referral_service.issue_code(referrer_user_id=referrer.id)
 
-    response = client.get(
-        f"/r/{code.code}", headers={"accept": "application/json"}, allow_redirects=False
-    )
+    response = client.get(f"/r/{code.code}", headers={"accept": "application/json"}, allow_redirects=False)
 
     assert response.status_code == status.HTTP_200_OK
     payload = response.json()
@@ -103,9 +101,7 @@ def test_claim_authenticated_user(db, client, referral_service):
     attribution_repo = ReferralAttributionRepository(db)
     assert attribution_repo.exists_for_user(user.id)
 
-    response_conflict = client.post(
-        "/api/referrals/claim", json={"code": code.code}, headers=headers
-    )
+    response_conflict = client.post("/api/referrals/claim", json={"code": code.code}, headers=headers)
     assert response_conflict.status_code == status.HTTP_409_CONFLICT
     assert response_conflict.json()["reason"] == "already_attributed"
 
@@ -174,7 +170,7 @@ def _stub_checkout_service(
     *,
     wallet_service: WalletService | None = None,
     error: ReferralCheckoutError | None = None,
-    app_instance = fastapi_app,
+    app_instance=fastapi_app,
 ) -> None:
     class StubService:
         def __init__(self) -> None:

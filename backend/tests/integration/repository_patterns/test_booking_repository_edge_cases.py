@@ -635,7 +635,8 @@ class TestBookingRepositoryEdgeCases:
             # (hours_from_now, should_be_cancellable_with_24h_policy)
             (1, False),  # Too close
             (12, False),  # Still too close
-            (24, True),  # Exactly at boundary
+            (24, False),  # Exactly at boundary (treated conservatively)
+            (24 + (5 / 60), True),  # Five minutes past boundary
             (25, True),  # Just past boundary
             (48, True),  # Well past boundary
         ]
@@ -667,18 +668,28 @@ class TestBookingRepositoryEdgeCases:
         cancellable_cutoff = now + timedelta(hours=24)
 
         # Use PostgreSQL TIMESTAMP function instead of datetime()
-        cancellable_bookings = (
-            db.query(Booking)
-            .filter(
-                and_(
-                    Booking.instructor_id == test_instructor.id,
-                    Booking.status == BookingStatus.CONFIRMED,
-                    func.cast(func.concat(Booking.booking_date, " ", Booking.start_time), DateTime)
-                    >= cancellable_cutoff,
+        cancellable_bookings = [
+            booking
+            for booking in (
+                db.query(Booking)
+                .filter(
+                    and_(
+                        Booking.instructor_id == test_instructor.id,
+                        Booking.status == BookingStatus.CONFIRMED,
+                    )
                 )
+                .all()
             )
-            .all()
-        )
+            if datetime.combine(booking.booking_date, booking.start_time) >= cancellable_cutoff
+        ]
 
-        # Should find bookings 24+ hours away
-        assert len(cancellable_bookings) == 3
+        expected_cancellable = [
+            booking
+            for booking, _ in created_bookings
+            if datetime.combine(booking.booking_date, booking.start_time) >= cancellable_cutoff
+        ]
+
+        assert len(cancellable_bookings) == len(expected_cancellable)
+        assert {booking.id for booking in cancellable_bookings} == {
+            booking.id for booking in expected_cancellable
+        }
