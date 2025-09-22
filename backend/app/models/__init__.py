@@ -25,6 +25,14 @@ from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
 from .payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from .rbac import Permission, Role, RolePermission, UserPermission, UserRole
+from .referrals import (
+    ReferralAttribution,
+    ReferralClick,
+    ReferralCode,
+    ReferralLimit,
+    ReferralReward,
+    WalletTransaction,
+)
 from .region_boundary import RegionBoundary
 from .search_event import SearchEvent, SearchEventCandidate
 from .search_history import SearchHistory
@@ -62,6 +70,13 @@ __all__ = [
     "PaymentMethod",
     "StripeConnectedAccount",
     "StripeCustomer",
+    # Referral models
+    "ReferralCode",
+    "ReferralClick",
+    "ReferralAttribution",
+    "ReferralReward",
+    "WalletTransaction",
+    "ReferralLimit",
     # Messaging models
     "Message",
     "MessageNotification",

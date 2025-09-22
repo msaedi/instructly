@@ -69,6 +69,14 @@ from app.models.instructor import InstructorProfile
 from app.models.region_boundary import RegionBoundary  # noqa: F401
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.referrals import (  # noqa: F401 ensures tables are registered
+    ReferralAttribution,
+    ReferralClick,
+    ReferralCode,
+    ReferralLimit,
+    ReferralReward,
+    WalletTransaction,
+)
 from app.models.user import User
 from app.services.permission_service import PermissionService
 from app.services.template_service import TemplateService

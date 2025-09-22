@@ -22,7 +22,7 @@ from datetime import date, datetime, time, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
 
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Query, Session, joinedload
 
 from ..core.enums import RoleName
@@ -1168,6 +1168,34 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error counting overdue authorizations: {str(e)}")
             raise RepositoryException(f"Failed to count overdue authorizations: {str(e)}")
+
+    def count_completed_lessons(
+        self,
+        *,
+        instructor_user_id: str,
+        window_start: datetime,
+        window_end: datetime,
+    ) -> int:
+        """Count completed lessons for an instructor in a time window."""
+
+        try:
+            return int(
+                self.db.query(func.count(Booking.id))
+                .filter(
+                    Booking.instructor_id == instructor_user_id,
+                    Booking.status == BookingStatus.COMPLETED,
+                    Booking.completed_at.isnot(None),
+                    Booking.completed_at >= window_start,
+                    Booking.completed_at <= window_end,
+                )
+                .scalar()
+                or 0
+            )
+        except Exception as exc:
+            self.logger.error(
+                "Error counting completed lessons for %s: %s", instructor_user_id, exc
+            )
+            raise RepositoryException(f"Failed to count completed lessons: {exc}")
 
     # Additional Repository Methods (from BaseRepository)
     # The following are inherited from BaseRepository:

@@ -43,6 +43,14 @@ from .bulk_operation_repository import BulkOperationRepository
 from .conflict_checker_repository import ConflictCheckerRepository
 from .factory import RepositoryFactory
 from .instructor_profile_repository import InstructorProfileRepository
+from .referral_repository import (
+    ReferralAttributionRepository,
+    ReferralClickRepository,
+    ReferralCodeRepository,
+    ReferralLimitRepository,
+    ReferralRewardRepository,
+    WalletTransactionRepository,
+)
 from .search_event_repository import SearchEventRepository
 from .slot_manager_repository import SlotManagerRepository
 from .week_operation_repository import WeekOperationRepository
@@ -59,6 +67,12 @@ __all__ = [
     "WeekOperationRepository",
     "InstructorProfileRepository",
     "SearchEventRepository",
+    "ReferralCodeRepository",
+    "ReferralClickRepository",
+    "ReferralAttributionRepository",
+    "ReferralRewardRepository",
+    "WalletTransactionRepository",
+    "ReferralLimitRepository",
 ]
 
 # Version info

@@ -15,6 +15,7 @@ UPDATED: Added account_status field for lifecycle management (active, suspended,
 from typing import Sequence, Union
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import UUID
 
 from alembic import op
 
@@ -37,6 +38,40 @@ revision: str = "001_initial_schema"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+
+referral_code_status_enum = sa.Enum(
+    "active",
+    "disabled",
+    name="referral_code_status",
+    native_enum=True,
+)
+
+
+reward_side_enum = sa.Enum(
+    "student",
+    "instructor",
+    name="reward_side",
+    native_enum=True,
+)
+
+
+reward_status_enum = sa.Enum(
+    "pending",
+    "unlocked",
+    "redeemed",
+    "void",
+    name="reward_status",
+    native_enum=True,
+)
+
+
+wallet_txn_type_enum = sa.Enum(
+    "referral_credit",
+    "fee_rebate",
+    name="wallet_txn_type",
+    native_enum=True,
+)
 
 
 def upgrade() -> None:
@@ -619,6 +654,237 @@ def upgrade() -> None:
     )
     op.create_index("idx_search_events_user_date", "search_events", ["user_id", "created_at"])
 
+    # ------------------------------------------------------------------
+    # Referral program schema (Theta Park Slope Beta)
+    # ------------------------------------------------------------------
+    print("Creating referral program enums and tables...")
+    bind = op.get_bind()
+    referral_code_status_enum.create(bind, checkfirst=True)
+    reward_side_enum.create(bind, checkfirst=True)
+    reward_status_enum.create(bind, checkfirst=True)
+    wallet_txn_type_enum.create(bind, checkfirst=True)
+
+    op.create_table(
+        "referral_codes",
+        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("code", sa.String(16), nullable=False, unique=True),
+        sa.Column("vanity_slug", sa.String(64), nullable=True, unique=True),
+        sa.Column(
+            "referrer_user_id",
+            sa.String(26),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "status",
+            sa.Enum(
+                "active",
+                "disabled",
+                name="referral_code_status",
+                native_enum=True,
+                create_type=False,
+            ),
+            nullable=False,
+            server_default="active",
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Referral codes issued to referrers",
+    )
+
+    op.create_index(
+        "idx_referral_codes_referrer_user_id",
+        "referral_codes",
+        ["referrer_user_id"],
+    )
+
+    op.create_table(
+        "referral_clicks",
+        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column(
+            "code_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("referral_codes.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("device_fp_hash", sa.String(64), nullable=True),
+        sa.Column("ip_hash", sa.String(64), nullable=True),
+        sa.Column("ua_hash", sa.String(64), nullable=True),
+        sa.Column("channel", sa.String(32), nullable=True),
+        sa.Column(
+            "ts",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Referral link clicks with coarse device attribution",
+    )
+
+    op.create_index(
+        "idx_referral_clicks_code_ts",
+        "referral_clicks",
+        ["code_id", "ts"],
+        postgresql_using="btree",
+        postgresql_ops={"ts": "DESC"},
+    )
+
+    op.create_table(
+        "referral_attributions",
+        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column(
+            "code_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("referral_codes.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "referred_user_id",
+            sa.String(26),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("source", sa.String(32), nullable=False),
+        sa.Column("ts", sa.DateTime(timezone=True), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("code_id", "referred_user_id", name="uq_referral_attribution_pair"),
+        comment="Attribution of a referred user to a referral code",
+    )
+
+    op.create_table(
+        "referral_rewards",
+        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column(
+            "referrer_user_id",
+            sa.String(26),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "referred_user_id",
+            sa.String(26),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "side",
+            sa.Enum(
+                "student",
+                "instructor",
+                name="reward_side",
+                native_enum=True,
+                create_type=False,
+            ),
+            nullable=False,
+        ),
+        sa.Column(
+            "status",
+            sa.Enum(
+                "pending",
+                "unlocked",
+                "redeemed",
+                "void",
+                name="reward_status",
+                native_enum=True,
+                create_type=False,
+            ),
+            nullable=False,
+            server_default="pending",
+        ),
+        sa.Column("amount_cents", sa.Integer(), nullable=False),
+        sa.Column("unlock_ts", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("expire_ts", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("rule_version", sa.String(16), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint("amount_cents >= 0", name="ck_referral_rewards_amount_non_negative"),
+        comment="Reward units generated by referrals",
+    )
+
+    op.create_index(
+        "idx_referral_rewards_referrer_status",
+        "referral_rewards",
+        ["referrer_user_id", "status"],
+    )
+    op.create_index(
+        "idx_referral_rewards_referred_side",
+        "referral_rewards",
+        ["referred_user_id", "side"],
+    )
+
+    op.create_table(
+        "wallet_transactions",
+        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column(
+            "user_id",
+            sa.String(26),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "type",
+            sa.Enum(
+                "referral_credit",
+                "fee_rebate",
+                name="wallet_txn_type",
+                native_enum=True,
+                create_type=False,
+            ),
+            nullable=False,
+        ),
+        sa.Column("amount_cents", sa.Integer(), nullable=False),
+        sa.Column(
+            "related_reward_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("referral_rewards.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint("amount_cents >= 0", name="ck_wallet_transactions_amount_non_negative"),
+        comment="Ledger of wallet transactions generated by referral system",
+    )
+
+    op.create_index(
+        "idx_wallet_transactions_user_created_at",
+        "wallet_transactions",
+        ["user_id", "created_at"],
+        postgresql_using="btree",
+        postgresql_ops={"created_at": "DESC"},
+    )
+
+    op.create_table(
+        "referral_limits",
+        sa.Column(
+            "user_id",
+            sa.String(26),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("daily_ok", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("weekly_ok", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("month_cap", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("trust_score", sa.SmallInteger(), nullable=False, server_default="0"),
+        sa.Column("last_reviewed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.PrimaryKeyConstraint("user_id"),
+        comment="Rate limits and trust scores for referral program",
+    )
+
     print("Initial schema created successfully!")
     print("- Created users table WITHOUT role field (using RBAC)")
     print("- Created RBAC tables: roles, permissions, user_roles, role_permissions, user_permissions")
@@ -632,6 +898,31 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop all tables and types created in upgrade."""
     print("Dropping initial schema...")
+
+    bind = op.get_bind()
+
+    # Drop referral program tables and enums first (added after initial schema)
+    op.drop_table("referral_limits")
+
+    op.drop_index("idx_wallet_transactions_user_created_at", table_name="wallet_transactions")
+    op.drop_table("wallet_transactions")
+
+    op.drop_index("idx_referral_rewards_referred_side", table_name="referral_rewards")
+    op.drop_index("idx_referral_rewards_referrer_status", table_name="referral_rewards")
+    op.drop_table("referral_rewards")
+
+    op.drop_table("referral_attributions")
+
+    op.drop_index("idx_referral_clicks_code_ts", table_name="referral_clicks")
+    op.drop_table("referral_clicks")
+
+    op.drop_index("idx_referral_codes_referrer_user_id", table_name="referral_codes")
+    op.drop_table("referral_codes")
+
+    wallet_txn_type_enum.drop(bind, checkfirst=True)
+    reward_status_enum.drop(bind, checkfirst=True)
+    reward_side_enum.drop(bind, checkfirst=True)
+    referral_code_status_enum.drop(bind, checkfirst=True)
 
     # Drop ULID function and extension
     op.execute("DROP FUNCTION IF EXISTS generate_ulid()")

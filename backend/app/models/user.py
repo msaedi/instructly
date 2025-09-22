@@ -132,6 +132,48 @@ class User(Base):
         "PlatformCredit", back_populates="user", cascade="all, delete-orphan"
     )
 
+    # Referral relationships
+    referral_codes = relationship(
+        "ReferralCode",
+        back_populates="referrer",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    referral_rewards_earned = relationship(
+        "ReferralReward",
+        back_populates="referrer",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        foreign_keys="ReferralReward.referrer_user_id",
+    )
+    referral_rewards_received = relationship(
+        "ReferralReward",
+        back_populates="referred_user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        foreign_keys="ReferralReward.referred_user_id",
+    )
+    referral_attributions_received = relationship(
+        "ReferralAttribution",
+        back_populates="referred_user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        foreign_keys="ReferralAttribution.referred_user_id",
+    )
+    wallet_transactions = relationship(
+        "WalletTransaction",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    referral_limit = relationship(
+        "ReferralLimit",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
+    )
+
     # Favorites relationships
     # Favorites where this user is the student (instructors they've favorited)
     student_favorites = relationship(

@@ -206,3 +206,45 @@ class RepositoryFactory:
         from .message_repository import MessageRepository
 
         return MessageRepository(db)
+
+    @staticmethod
+    def create_referral_code_repository(db: Session):
+        """Create repository for referral codes."""
+        from .referral_repository import ReferralCodeRepository
+
+        return ReferralCodeRepository(db)
+
+    @staticmethod
+    def create_referral_click_repository(db: Session):
+        """Create repository for referral clicks."""
+        from .referral_repository import ReferralClickRepository
+
+        return ReferralClickRepository(db)
+
+    @staticmethod
+    def create_referral_attribution_repository(db: Session):
+        """Create repository for referral attributions."""
+        from .referral_repository import ReferralAttributionRepository
+
+        return ReferralAttributionRepository(db)
+
+    @staticmethod
+    def create_referral_reward_repository(db: Session):
+        """Create repository for referral rewards."""
+        from .referral_repository import ReferralRewardRepository
+
+        return ReferralRewardRepository(db)
+
+    @staticmethod
+    def create_wallet_transaction_repository(db: Session):
+        """Create repository for referral wallet transactions."""
+        from .referral_repository import WalletTransactionRepository
+
+        return WalletTransactionRepository(db)
+
+    @staticmethod
+    def create_referral_limit_repository(db: Session):
+        """Create repository for referral limits (placeholder)."""
+        from .referral_repository import ReferralLimitRepository
+
+        return ReferralLimitRepository(db)

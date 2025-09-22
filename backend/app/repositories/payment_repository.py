@@ -304,6 +304,23 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.logger.error(f"Failed to get payment by booking ID: {str(e)}")
             raise RepositoryException(f"Failed to get payment by booking ID: {str(e)}")
 
+    def get_payment_by_booking_prefix(self, booking_prefix: str) -> Optional[PaymentIntent]:
+        """Get payment record by booking ID prefix (used for truncated references)."""
+
+        try:
+            return cast(
+                Optional[PaymentIntent],
+                (
+                    self.db.query(PaymentIntent)
+                    .filter(PaymentIntent.booking_id.like(f"{booking_prefix}%"))
+                    .order_by(PaymentIntent.created_at.desc())
+                    .first()
+                ),
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get payment by booking prefix: {str(e)}")
+            raise RepositoryException(f"Failed to get payment by booking prefix: {str(e)}")
+
     # ========== Payout Events (Analytics) ==========
 
     def record_payout_event(

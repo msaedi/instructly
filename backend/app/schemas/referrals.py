@@ -1,10 +1,17 @@
-"""
-Schemas for referral-related endpoints.
-"""
+"""Schemas for referral-related endpoints and primitives."""
 
+from datetime import datetime
 from typing import List, Optional
+from uuid import UUID
 
 from pydantic import AnyUrl, BaseModel, EmailStr, Field
+
+from app.models.referrals import (
+    ReferralCodeStatus,
+    RewardSide,
+    RewardStatus,
+    WalletTransactionType,
+)
 
 from ._strict_base import StrictRequestModel
 
@@ -36,3 +43,34 @@ class ReferralSendResponse(BaseModel):
     errors: List[ReferralSendError] = Field(
         default_factory=list, description="List of errors for individual recipients"
     )
+
+
+class ReferralCodeOut(BaseModel):
+    """Serialized view of a referral code for API responses."""
+
+    code: str
+    vanity_slug: Optional[str] = None
+    status: ReferralCodeStatus
+    created_at: datetime
+
+
+class RewardOut(BaseModel):
+    """Serialized reward payload."""
+
+    id: UUID
+    side: RewardSide
+    status: RewardStatus
+    amount_cents: int
+    unlock_ts: Optional[datetime] = None
+    expire_ts: Optional[datetime] = None
+    created_at: datetime
+
+
+class WalletTxnOut(BaseModel):
+    """Serialized wallet transaction payload."""
+
+    id: UUID
+    type: WalletTransactionType
+    amount_cents: int
+    created_at: datetime
+    related_reward_id: Optional[UUID] = None

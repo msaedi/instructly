@@ -77,7 +77,14 @@ from .public_availability import (
     PublicInstructorAvailability,
     PublicTimeSlot,
 )
-from .referrals import ReferralSendError, ReferralSendRequest, ReferralSendResponse
+from .referrals import (
+    ReferralCodeOut,
+    ReferralSendError,
+    ReferralSendRequest,
+    ReferralSendResponse,
+    RewardOut,
+    WalletTxnOut,
+)
 from .security import PasswordChangeRequest, PasswordChangeResponse
 
 # User and authentication schemas
@@ -160,6 +167,9 @@ __all__ = [
     "ReferralSendRequest",
     "ReferralSendResponse",
     "ReferralSendError",
+    "ReferralCodeOut",
+    "RewardOut",
+    "WalletTxnOut",
     # Public availability schemas
     "PublicTimeSlot",
     "PublicDayAvailability",
