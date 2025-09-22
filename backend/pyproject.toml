@@ -394,6 +394,14 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
+  "backend.app.routes.health",
+  "backend.app.routes.reviews",
+  "backend.app.routes.stripe_webhooks",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
   "pydantic",
   "pydantic.*"
 ]

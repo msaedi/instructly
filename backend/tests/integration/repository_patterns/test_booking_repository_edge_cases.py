@@ -10,7 +10,7 @@ Tests complex scenarios including:
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
 from sqlalchemy import DateTime, and_, func
@@ -24,6 +24,19 @@ from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
+
+
+def _safe_start_end(base: datetime, duration_minutes: int = 60) -> tuple[time, time, date]:
+    """Return (start_time, end_time, booking_date) floored to minute, avoiding midnight wrap."""
+    base = base.replace(second=0, microsecond=0, tzinfo=None)
+    if base.hour == 23:
+        base = base.replace(hour=22, minute=0)
+    start_dt = base
+    end_dt = base + timedelta(minutes=duration_minutes)
+    if end_dt.date() != start_dt.date():
+        start_dt = start_dt.replace(hour=21, minute=0)
+        end_dt = start_dt + timedelta(minutes=duration_minutes)
+    return start_dt.time(), end_dt.time(), start_dt.date()
 
 
 @pytest.fixture
@@ -615,7 +628,7 @@ class TestBookingRepositoryEdgeCases:
     ):
         """Test booking queries with cancellation time windows."""
         BookingRepository(db)
-        now = datetime.now()
+        now = datetime.now(timezone.utc).replace(second=0, microsecond=0, tzinfo=None)
 
         # Create bookings at various times relative to now
         bookings_data = [
@@ -630,20 +643,12 @@ class TestBookingRepositoryEdgeCases:
         created_bookings = []
         for hours_from_now, _ in bookings_data:
             booking_datetime = now + timedelta(hours=hours_from_now)
-            # Ensure end time doesn't wrap to next day causing start > end
-            start_time = booking_datetime.time()
-            end_datetime = booking_datetime + timedelta(hours=1)
-
-            # If end time is on next day, cap it at 23:59 to avoid constraint violation
-            if end_datetime.date() > booking_datetime.date():
-                end_time = time(23, 59)
-            else:
-                end_time = end_datetime.time()
+            start_time, end_time, booking_date = _safe_start_end(booking_datetime, duration_minutes=60)
 
             booking = Booking(
                 instructor_id=test_instructor.id,
                 student_id=test_student.id,
-                booking_date=booking_datetime.date(),
+                booking_date=booking_date,
                 start_time=start_time,
                 end_time=end_time,
                 status=BookingStatus.CONFIRMED,

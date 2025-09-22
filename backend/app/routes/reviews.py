@@ -1,5 +1,5 @@
 # backend/app/routes/reviews.py
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -43,7 +43,7 @@ async def submit_review(
     current_user: User = Depends(get_current_student),
     db: Session = Depends(get_db),
     service: ReviewService = Depends(get_review_service),
-):
+) -> ReviewSubmitResponse:
     try:
         review = service.submit_review(
             student_id=current_user.id,
@@ -67,8 +67,10 @@ async def submit_review(
                     raise HTTPException(
                         status_code=400, detail="Instructor profile not found for tip"
                     )
-                connected = stripe_service.payment_repository.get_connected_account_by_instructor_id(  # type: ignore[attr-defined]
-                    instructor_profile.id
+                connected = (
+                    stripe_service.payment_repository.get_connected_account_by_instructor_id(
+                        instructor_profile.id
+                    )
                 )
                 if not connected or not connected.stripe_account_id:
                     raise HTTPException(
@@ -140,7 +142,7 @@ async def submit_review(
 def get_instructor_ratings(
     instructor_id: str,
     service: ReviewService = Depends(get_review_service),
-):
+) -> InstructorRatingsResponse:
     return InstructorRatingsResponse(**service.get_instructor_ratings(instructor_id))
 
 
@@ -149,7 +151,7 @@ def get_search_rating(
     instructor_id: str,
     instructor_service_id: Optional[str] = Query(None),
     service: ReviewService = Depends(get_review_service),
-):
+) -> SearchRatingResponse:
     return SearchRatingResponse(
         **service.get_rating_for_search_context(instructor_id, instructor_service_id)
     )
@@ -164,8 +166,8 @@ def get_recent_reviews(
     min_rating: Optional[int] = Query(None, ge=1, le=5),
     with_text: Optional[bool] = Query(None),
     service: ReviewService = Depends(get_review_service),
-):
-    reviews = service.get_recent_reviews(
+) -> ReviewListPageResponse:
+    reviews: List[Any] = service.get_recent_reviews(
         instructor_id=instructor_id,
         instructor_service_id=instructor_service_id,
         limit=limit,
@@ -179,13 +181,13 @@ def get_recent_reviews(
         min_rating=min_rating,
         with_text=with_text,
     )
-    items: list[ReviewItem] = []
+    items: List[ReviewItem] = []
     for r in reviews:
         reviewer_name = None
         try:
             from ..models.user import User as _User
 
-            user = service.db.query(_User).filter(_User.id == r.student_id).first()  # type: ignore[attr-defined]
+            user = service.db.query(_User).filter(_User.id == r.student_id).first()
             reviewer_name = _display_name(user)
         except Exception:
             reviewer_name = None
@@ -216,7 +218,7 @@ def get_review_for_booking(
     booking_id: str,
     current_user: User = Depends(get_current_student),
     service: ReviewService = Depends(get_review_service),
-):
+) -> Optional[ReviewItem]:
     review = service.get_review_for_booking(booking_id)
     if not review:
         return None
@@ -234,10 +236,10 @@ def get_review_for_booking(
 
 @router.post("/booking/existing", response_model=list[str])
 def get_existing_reviews_for_bookings(
-    booking_ids: list[str],
+    booking_ids: List[str],
     current_user: User = Depends(get_current_student),
     service: ReviewService = Depends(get_review_service),
-):
+) -> List[str]:
     # Enforce ownership: inject current_student_id into session for service-level guard,
     # and pre-filter ids by ownership using booking repository
     try:
@@ -250,7 +252,8 @@ def get_existing_reviews_for_bookings(
     owned_ids = owner_repo.filter_owned_booking_ids(booking_ids, current_user.id)
     if not owned_ids:
         return []
-    return service.get_existing_reviews_for_bookings(owned_ids)
+    review_ids = service.get_existing_reviews_for_bookings(owned_ids)
+    return [str(rid) for rid in review_ids]
 
 
 @router.post("/reviews/{review_id}/respond", response_model=ReviewResponseModel)
@@ -259,7 +262,7 @@ def respond_to_review(
     response_text: str,
     current_user: User = Depends(get_current_active_user),
     service: ReviewService = Depends(get_review_service),
-):
+) -> ReviewResponseModel:
     # Must be instructor owner of the review
     try:
         response = service.add_instructor_response(
@@ -280,9 +283,9 @@ def respond_to_review(
 def get_ratings_batch(
     payload: RatingsBatchRequest,
     service: ReviewService = Depends(get_review_service),
-):
+) -> RatingsBatchResponse:
     instructor_ids = payload.instructor_ids
-    results = []
+    results: List[Dict[str, Any]] = []
     for iid in instructor_ids:
         data = service.get_instructor_ratings(iid)
         total = int(data.get("overall", {}).get("total_reviews", 0))
