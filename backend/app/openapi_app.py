@@ -32,6 +32,7 @@ from app.routes import (
     prometheus,
     public,
     redis_monitor,
+    referrals,
     reviews,
     search,
     search_history,
@@ -73,6 +74,9 @@ def build_openapi_app() -> FastAPI:
     app.include_router(analytics.router, prefix="/api", tags=["analytics"])
     app.include_router(codebase_metrics.router)
     app.include_router(public.router)
+    app.include_router(referrals.public_router)
+    app.include_router(referrals.router)
+    app.include_router(referrals.admin_router)
     app.include_router(search.router, prefix="/api/search", tags=["search"])
     app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
     app.include_router(addresses.router)

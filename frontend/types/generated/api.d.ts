@@ -273,6 +273,40 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/referrals/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Referral Config */
+        get: operations["get_referral_config_api_admin_referrals_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/referrals/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Referral Summary */
+        get: operations["get_referral_summary_api_admin_referrals_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analytics/codebase/history": {
         parameters: {
             query?: never;
@@ -2308,6 +2342,57 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/referrals/checkout/apply-referral": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Referral Credit */
+        post: operations["apply_referral_credit_api_referrals_checkout_apply_referral_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/referrals/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim Referral Code */
+        post: operations["claim_referral_code_api_referrals_claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/referrals/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Referral Ledger */
+        get: operations["get_my_referral_ledger_api_referrals_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews/booking/existing": {
         parameters: {
             query?: never;
@@ -3833,6 +3918,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/r/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve Referral Slug */
+        get: operations["resolve_referral_slug_r__slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/services/catalog": {
         parameters: {
             query?: never;
@@ -4305,6 +4407,46 @@ export type components = {
             street_line2?: string | null;
             /** Verification Status */
             verification_status?: string | null;
+        };
+        /**
+         * AdminReferralsConfigOut
+         * @description Configuration snapshot for the referral program.
+         */
+        AdminReferralsConfigOut: {
+            /** Expiry Months */
+            expiry_months: number;
+            /** Flags */
+            flags: {
+                [key: string]: boolean;
+            };
+            /** Global Cap */
+            global_cap: number;
+            /** Hold Days */
+            hold_days: number;
+            /** Instructor Amount Cents */
+            instructor_amount_cents: number;
+            /** Min Basket Cents */
+            min_basket_cents: number;
+            /** Student Amount Cents */
+            student_amount_cents: number;
+        };
+        /**
+         * AdminReferralsSummaryOut
+         * @description Aggregate referral summary metrics for admins.
+         */
+        AdminReferralsSummaryOut: {
+            /** Attributions 24H */
+            attributions_24h: number;
+            /** Cap Utilization Percent */
+            cap_utilization_percent: number;
+            /** Clicks 24H */
+            clicks_24h: number;
+            /** Counts By Status */
+            counts_by_status: {
+                [key: string]: number;
+            };
+            /** Top Referrers */
+            top_referrers: components["schemas"]["TopReferrerOut"][];
         };
         /**
          * AlertAcknowledgeResponse
@@ -5365,6 +5507,16 @@ export type components = {
             slug: string;
             /** Subtitle */
             subtitle?: string | null;
+        };
+        /** CheckoutApplyRequest */
+        CheckoutApplyRequest: {
+            /** Order Id */
+            order_id: string;
+        };
+        /** CheckoutApplyResponse */
+        CheckoutApplyResponse: {
+            /** Applied Cents */
+            applied_cents: number;
         };
         /**
          * CheckoutResponse
@@ -8187,6 +8339,53 @@ export type components = {
              */
             uptime_seconds: number | null;
         };
+        /** ReferralClaimRequest */
+        ReferralClaimRequest: {
+            /** Code */
+            code: string;
+        };
+        /** ReferralClaimResponse */
+        ReferralClaimResponse: {
+            /** Attributed */
+            attributed: boolean;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * ReferralErrorResponse
+         * @description Standard error envelope for referral endpoints.
+         */
+        ReferralErrorResponse: {
+            /** Reason */
+            reason: string;
+        };
+        /** ReferralLedgerResponse */
+        ReferralLedgerResponse: {
+            /** Code */
+            code: string;
+            /** Expiry Notice Days */
+            expiry_notice_days: number[];
+            /** Pending */
+            pending: components["schemas"]["RewardOut"][];
+            /** Redeemed */
+            redeemed: components["schemas"]["RewardOut"][];
+            /** Share Url */
+            share_url: string;
+            /** Unlocked */
+            unlocked: components["schemas"]["RewardOut"][];
+        };
+        /**
+         * ReferralResolveResponse
+         * @description Response payload when resolving referral slugs as JSON.
+         */
+        ReferralResolveResponse: {
+            /** Code */
+            code: string;
+            /** Ok */
+            ok: boolean;
+            /** Redirect */
+            redirect: string;
+        };
         /**
          * ReferralSendError
          * @description Details for a failed referral send attempt.
@@ -8429,6 +8628,42 @@ export type components = {
             /** Tip Status */
             tip_status?: string | null;
         };
+        /**
+         * RewardOut
+         * @description Serialized reward payload.
+         */
+        RewardOut: {
+            /** Amount Cents */
+            amount_cents: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Expire Ts */
+            expire_ts?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            side: components["schemas"]["RewardSide"];
+            status: components["schemas"]["RewardStatus"];
+            /** Unlock Ts */
+            unlock_ts?: string | null;
+        };
+        /**
+         * RewardSide
+         * @description Which party receives the reward.
+         * @enum {string}
+         */
+        RewardSide: "student" | "instructor";
+        /**
+         * RewardStatus
+         * @description Lifecycle of a reward.
+         * @enum {string}
+         */
+        RewardStatus: "pending" | "unlocked" | "redeemed" | "void";
         /**
          * SavePaymentMethodRequest
          * @description Request to save a payment method for a user.
@@ -9509,6 +9744,21 @@ export type components = {
             token_type: string;
         };
         /**
+         * TopReferrerOut
+         * @description Top referrer metadata for admin dashboards.
+         */
+        TopReferrerOut: {
+            /** Code */
+            code?: string | null;
+            /** Count */
+            count: number;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
          * TransactionHistoryItem
          * @description Individual transaction in payment history.
          */
@@ -10582,6 +10832,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_referral_config_api_admin_referrals_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReferralsConfigOut"];
+                };
+            };
+        };
+    };
+    get_referral_summary_api_admin_referrals_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReferralsSummaryOut"];
                 };
             };
         };
@@ -13343,6 +13633,92 @@ export interface operations {
             };
         };
     };
+    apply_referral_credit_api_referrals_checkout_apply_referral_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutApplyResponse"] | components["schemas"]["ReferralErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_referral_code_api_referrals_claim_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReferralClaimRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralClaimResponse"] | components["schemas"]["ReferralErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_referral_ledger_api_referrals_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralLedgerResponse"];
+                };
+            };
+        };
+    };
     get_existing_reviews_for_bookings_api_reviews_booking_existing_post: {
         parameters: {
             query?: never;
@@ -15570,6 +15946,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SlowQueriesResponse"];
+                };
+            };
+        };
+    };
+    resolve_referral_slug_r__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralResolveResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
