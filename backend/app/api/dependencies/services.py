@@ -24,8 +24,11 @@ from ...services.instructor_service import InstructorService
 from ...services.notification_service import NotificationService
 from ...services.password_reset_service import PasswordResetService
 from ...services.presentation_service import PresentationService
+from ...services.referral_checkout_service import ReferralCheckoutService
+from ...services.referral_service import ReferralService
 from ...services.slot_manager import SlotManager
 from ...services.two_factor_auth_service import TwoFactorAuthService
+from ...services.wallet_service import WalletService
 from ...services.week_operation_service import WeekOperationService
 from .database import get_db
 
@@ -178,6 +181,27 @@ def get_slot_manager(
         SlotManager instance
     """
     return SlotManager(db, conflict_checker)
+
+
+def get_referral_service(db: Session = Depends(get_db)) -> ReferralService:
+    """Provide referral service instance."""
+
+    return ReferralService(db)
+
+
+def get_wallet_service(db: Session = Depends(get_db)) -> WalletService:
+    """Provide wallet service instance."""
+
+    return WalletService(db)
+
+
+def get_referral_checkout_service(
+    db: Session = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+) -> ReferralCheckoutService:
+    """Provide referral checkout helper service."""
+
+    return ReferralCheckoutService(db, wallet_service)
 
 
 def get_week_operation_service(

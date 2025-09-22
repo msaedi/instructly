@@ -5,10 +5,11 @@ from __future__ import annotations
 import calendar
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Iterable, cast
+from typing import Dict, Iterable, List, Optional, cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
+import ulid
 
 from app.core.config import settings
 from app.events.referral_events import (
@@ -27,6 +28,11 @@ from app.repositories.referral_repository import (
     ReferralClickRepository,
     ReferralCodeRepository,
     ReferralRewardRepository,
+)
+from app.schemas.referrals import (
+    AdminReferralsConfigOut,
+    AdminReferralsSummaryOut,
+    TopReferrerOut,
 )
 from app.services import referral_fraud
 from app.services.base import BaseService
@@ -63,6 +69,16 @@ class ReferralService(BaseService):
     def _ensure_timezone(dt: datetime) -> datetime:
         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
+    @staticmethod
+    def _coerce_user_uuid(user_id: str) -> UUID:
+        """Best-effort conversion of ULID/UUID strings to UUID objects."""
+
+        try:
+            ulid_uuid = ulid.ULID.from_str(user_id).to_uuid()
+            return cast(UUID, ulid_uuid)
+        except ValueError:
+            return UUID(user_id)
+
     @BaseService.measure_operation("referrals.issue_code")
     def issue_code(
         self, *, referrer_user_id: UserID, channel: str | None = "self_service"
@@ -77,6 +93,21 @@ class ReferralService(BaseService):
 
         emit_referral_code_issued(user_id=owner_id, code=code.code, channel=channel)
         return code
+
+    @BaseService.measure_operation("referrals.resolve_code")
+    def resolve_code(self, identifier: str) -> Optional[ReferralCode]:
+        code = self.referral_code_repo.get_by_slug(identifier)
+        if code:
+            return code
+        return self.referral_code_repo.get_by_code(identifier)
+
+    @BaseService.measure_operation("referrals.ensure_code_for_user")
+    def ensure_code_for_user(self, user_id: str) -> ReferralCode:
+        return self.referral_code_repo.get_or_create_for_user(user_id)
+
+    @BaseService.measure_operation("referrals.has_attribution")
+    def has_attribution(self, user_id: str) -> bool:
+        return self.referral_attribution_repo.exists_for_user(user_id)
 
     @BaseService.measure_operation("referrals.record_click")
     def record_click(
@@ -310,6 +341,70 @@ class ReferralService(BaseService):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @BaseService.measure_operation("referrals.get_rewards_by_status")
+    def get_rewards_by_status(
+        self, *, user_id: str, limit: int = 50
+    ) -> Dict[RewardStatus, List[ReferralReward]]:
+        return {
+            RewardStatus.PENDING: self.referral_reward_repo.list_by_user_and_status(
+                user_id=user_id, status=RewardStatus.PENDING, limit=limit
+            ),
+            RewardStatus.UNLOCKED: self.referral_reward_repo.list_by_user_and_status(
+                user_id=user_id, status=RewardStatus.UNLOCKED, limit=limit
+            ),
+            RewardStatus.REDEEMED: self.referral_reward_repo.list_by_user_and_status(
+                user_id=user_id, status=RewardStatus.REDEEMED, limit=limit
+            ),
+        }
+
+    @BaseService.measure_operation("referrals.admin.config")
+    def get_admin_config(self) -> AdminReferralsConfigOut:
+        """Return program configuration for admin dashboards."""
+
+        return AdminReferralsConfigOut(
+            student_amount_cents=settings.referrals_student_amount_cents,
+            instructor_amount_cents=settings.referrals_instructor_amount_cents,
+            min_basket_cents=settings.referrals_min_basket_cents,
+            hold_days=settings.referrals_hold_days,
+            expiry_months=settings.referrals_expiry_months,
+            global_cap=settings.referrals_student_global_cap,
+            flags={"enabled": bool(settings.referrals_enabled)},
+        )
+
+    @BaseService.measure_operation("referrals.admin.summary")
+    def get_admin_summary(self) -> AdminReferralsSummaryOut:
+        """Return aggregated referral metrics for admins."""
+
+        counts = self.referral_reward_repo.counts_by_status()
+        cap = settings.referrals_student_global_cap
+        total_student_rewards = self.referral_reward_repo.total_student_rewards()
+        cap_utilization_percent = 0.0
+        if cap:
+            capped_total = min(total_student_rewards, cap)
+            cap_utilization_percent = round((capped_total / cap) * 100, 2)
+
+        top_referrer_rows = self.referral_reward_repo.top_referrers(limit=20)
+        top_referrers: List[TopReferrerOut] = []
+        for referrer_id, count, code in top_referrer_rows:
+            try:
+                user_uuid = self._coerce_user_uuid(referrer_id)
+            except ValueError:
+                logger.warning("Unable to coerce referrer id %s to UUID", referrer_id)
+                continue
+            top_referrers.append(TopReferrerOut(user_id=user_uuid, count=count, code=code))
+
+        window_start = datetime.now(timezone.utc) - timedelta(hours=24)
+        clicks_24h = self.referral_click_repo.clicks_since(window_start)
+        attributions_24h = self.referral_attribution_repo.attributions_since(window_start)
+
+        return AdminReferralsSummaryOut(
+            counts_by_status=counts,
+            cap_utilization_percent=cap_utilization_percent,
+            top_referrers=top_referrers,
+            clicks_24h=clicks_24h,
+            attributions_24h=attributions_24h,
+        )
 
     def _assert_enabled(self) -> None:
         if not settings.referrals_enabled:

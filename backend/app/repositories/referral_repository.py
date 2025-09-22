@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 import uuid
 from uuid import UUID
 
@@ -89,7 +89,7 @@ class ReferralClickRepository(BaseRepository[ReferralClick]):
     def __init__(self, db: Session):
         super().__init__(db, ReferralClick)
 
-    def create(
+    def create(  # type: ignore[override]
         self,
         *,
         code_id: UUID,
@@ -111,6 +111,17 @@ class ReferralClickRepository(BaseRepository[ReferralClick]):
         self.db.add(click)
         self.db.flush()
         return click
+
+    def count_since(self, since: datetime) -> int:
+        return int(
+            self.db.query(func.count(ReferralClick.id)).filter(ReferralClick.ts >= since).scalar()
+            or 0
+        )
+
+    def clicks_since(self, since: datetime) -> int:
+        """Return click count since the provided timestamp."""
+
+        return self.count_since(since)
 
     def get_fingerprint_snapshot(
         self, code_id: UUID, attribution_ts: datetime
@@ -224,6 +235,19 @@ class ReferralAttributionRepository(BaseRepository[ReferralAttribution]):
         )
 
         return int(daily or 0), int(weekly or 0)
+
+    def count_since(self, since: datetime) -> int:
+        return int(
+            self.db.query(func.count(ReferralAttribution.id))
+            .filter(ReferralAttribution.ts >= since)
+            .scalar()
+            or 0
+        )
+
+    def attributions_since(self, since: datetime) -> int:
+        """Return attribution count since the provided timestamp."""
+
+        return self.count_since(since)
 
 
 class ReferralRewardRepository(BaseRepository[ReferralReward]):
@@ -350,7 +374,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         )
         if lock:
             query = query.with_for_update(skip_locked=True)
-        return query.limit(limit).all()
+        return cast(List[ReferralReward], query.limit(limit).all())
 
     def mark_unlocked(self, reward_id: UUID) -> None:
         reward = (
@@ -437,7 +461,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         )
         if lock:
             query = query.with_for_update(skip_locked=True)
-        return query.all()
+        return cast(List[ReferralReward], query.all())
 
     def void_expired(self, now: datetime) -> List[UUID]:
         rewards = self._expired_rewards(now, lock=True)
@@ -451,6 +475,100 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
 
     def get_expired_reward_ids(self, now: datetime) -> List[UUID]:
         return [reward.id for reward in self._expired_rewards(now, lock=False)]
+
+    def list_by_user_and_status(
+        self, *, user_id: str, status: RewardStatus, limit: int = 50
+    ) -> List[ReferralReward]:
+        return cast(
+            List[ReferralReward],
+            (
+                self.db.query(ReferralReward)
+                .filter(
+                    ReferralReward.referrer_user_id == user_id,
+                    ReferralReward.status == status,
+                )
+                .order_by(ReferralReward.created_at.desc())
+                .limit(limit)
+                .all()
+            ),
+        )
+
+    def counts_by_status(self) -> Dict[str, int]:
+        """Return reward counts grouped by status."""
+
+        rows = (
+            self.db.query(
+                ReferralReward.status,
+                func.count(ReferralReward.id).label("count"),
+            )
+            .group_by(ReferralReward.status)
+            .all()
+        )
+        counts: Dict[str, int] = {status.value: 0 for status in RewardStatus}
+        for status, count in rows:
+            key = status.value if isinstance(status, RewardStatus) else str(status)
+            counts[key] = int(count or 0)
+        return {
+            RewardStatus.PENDING.value: counts[RewardStatus.PENDING.value],
+            RewardStatus.UNLOCKED.value: counts[RewardStatus.UNLOCKED.value],
+            RewardStatus.REDEEMED.value: counts[RewardStatus.REDEEMED.value],
+            RewardStatus.VOID.value: counts[RewardStatus.VOID.value],
+        }
+
+    def total_student_rewards(self) -> int:
+        """Return total number of student-side rewards (active lifecycle only)."""
+
+        result = (
+            self.db.query(func.count(ReferralReward.id))
+            .filter(
+                ReferralReward.side == RewardSide.STUDENT,
+                ReferralReward.status.in_(
+                    [RewardStatus.PENDING, RewardStatus.UNLOCKED, RewardStatus.REDEEMED]
+                ),
+            )
+            .scalar()
+        )
+        return int(result or 0)
+
+    def top_referrers(self, limit: int = 20) -> List[Tuple[str, int, Optional[str]]]:
+        """Return top referrers ranked by unlocked and redeemed student rewards."""
+
+        rows: List[Tuple[str, int]] = (
+            self.db.query(
+                ReferralReward.referrer_user_id,
+                func.count(ReferralReward.id).label("reward_count"),
+            )
+            .filter(
+                ReferralReward.side == RewardSide.STUDENT,
+                ReferralReward.status.in_([RewardStatus.UNLOCKED, RewardStatus.REDEEMED]),
+            )
+            .group_by(ReferralReward.referrer_user_id)
+            .order_by(func.count(ReferralReward.id).desc())
+            .limit(limit)
+            .all()
+        )
+
+        user_ids = [referrer_id for referrer_id, _ in rows]
+        codes_by_user: Dict[str, Optional[str]] = {}
+        if user_ids:
+            code_rows = cast(
+                List[Tuple[str, Optional[str]]],
+                self.db.query(ReferralCode.referrer_user_id, ReferralCode.code)
+                .filter(
+                    ReferralCode.referrer_user_id.in_(user_ids),
+                    ReferralCode.status == ReferralCodeStatus.ACTIVE,
+                )
+                .order_by(ReferralCode.referrer_user_id, ReferralCode.created_at.desc())
+                .all(),
+            )
+            for referrer_id, code in code_rows:
+                if referrer_id not in codes_by_user:
+                    codes_by_user[referrer_id] = code
+
+        return [
+            (referrer_id, int(count or 0), codes_by_user.get(referrer_id))
+            for referrer_id, count in rows
+        ]
 
 
 class WalletTransactionRepository(BaseRepository[WalletTransaction]):

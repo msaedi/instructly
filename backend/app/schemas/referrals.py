@@ -1,7 +1,7 @@
 """Schemas for referral-related endpoints and primitives."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from pydantic import AnyUrl, BaseModel, EmailStr, Field
@@ -74,3 +74,73 @@ class WalletTxnOut(BaseModel):
     amount_cents: int
     created_at: datetime
     related_reward_id: Optional[UUID] = None
+
+
+class ReferralClaimRequest(BaseModel):
+    code: str
+
+
+class ReferralClaimResponse(BaseModel):
+    attributed: bool
+    reason: Optional[str] = None
+
+
+class ReferralLedgerResponse(BaseModel):
+    code: str
+    share_url: str
+    pending: List[RewardOut]
+    unlocked: List[RewardOut]
+    redeemed: List[RewardOut]
+    expiry_notice_days: List[int]
+
+
+class CheckoutApplyRequest(BaseModel):
+    order_id: str
+
+
+class CheckoutApplyResponse(BaseModel):
+    applied_cents: int
+
+
+class ReferralErrorResponse(BaseModel):
+    """Standard error envelope for referral endpoints."""
+
+    reason: str
+
+
+class ReferralResolveResponse(BaseModel):
+    """Response payload when resolving referral slugs as JSON."""
+
+    ok: bool
+    code: str
+    redirect: str
+
+
+class TopReferrerOut(BaseModel):
+    """Top referrer metadata for admin dashboards."""
+
+    user_id: UUID
+    count: int
+    code: Optional[str] = None
+
+
+class AdminReferralsConfigOut(BaseModel):
+    """Configuration snapshot for the referral program."""
+
+    student_amount_cents: int
+    instructor_amount_cents: int
+    min_basket_cents: int
+    hold_days: int
+    expiry_months: int
+    global_cap: int
+    flags: Dict[str, bool]
+
+
+class AdminReferralsSummaryOut(BaseModel):
+    """Aggregate referral summary metrics for admins."""
+
+    counts_by_status: Dict[str, int]
+    cap_utilization_percent: float
+    top_referrers: List[TopReferrerOut]
+    clicks_24h: int
+    attributions_24h: int

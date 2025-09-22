@@ -64,6 +64,10 @@ class Settings(BaseSettings):
 
     # Frontend URL - will use production URL if not set
     frontend_url: str = "https://instructly-ten.vercel.app"
+    frontend_referral_landing_url: str = Field(
+        default="https://instructly-ten.vercel.app/referrals",
+        description="Landing page for public referral links",
+    )
 
     # Environment (derived from SITE_MODE)
     environment: str = (

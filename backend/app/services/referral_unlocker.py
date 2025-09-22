@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
 from typing import Optional
-from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -49,7 +48,7 @@ class ReferralUnlocker(BaseService):
             expired = len(self.referral_reward_repo.get_expired_reward_ids(now))
             return UnlockerResult(processed=processed, unlocked=0, voided=0, expired=expired)
 
-        expired_ids: list[UUID] = []
+        expired_ids: list[str] = []
 
         with self.transaction():
             rewards = self.referral_reward_repo.find_pending_to_unlock(now, limit)
@@ -67,10 +66,11 @@ class ReferralUnlocker(BaseService):
                 unlocked += 1
                 emit_reward_unlocked(reward_id=str(reward.id))
 
-            expired_ids = self.referral_reward_repo.void_expired(now)
+            expired_uuid_list = self.referral_reward_repo.void_expired(now)
+            expired_ids = [str(reward_id) for reward_id in expired_uuid_list]
 
         for reward_id in expired_ids:
-            emit_reward_voided(reward_id=str(reward_id), reason="expired")
+            emit_reward_voided(reward_id=reward_id, reason="expired")
         expired = len(expired_ids)
 
         return UnlockerResult(
