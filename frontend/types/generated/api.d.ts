@@ -2578,6 +2578,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/search-history/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Guest Search
+         * @description Record a guest search with strict validation.
+         */
+        post: operations["record_guest_search_api_search_history_guest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/search-history/interaction": {
         parameters: {
             query?: never;
@@ -5229,7 +5249,12 @@ export type components = {
          * @enum {string}
          */
         BookingStatus: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
-        /** BookingUpdate */
+        /**
+         * BookingUpdate
+         * @description Schema for updating booking details.
+         *
+         *     Limited fields can be updated after booking creation.
+         */
         BookingUpdate: {
             /** Instructor Note */
             instructor_note?: string | null;
@@ -6386,6 +6411,33 @@ export type components = {
              * @description Percentage of engaged sessions
              */
             engagement_rate: number;
+        };
+        /**
+         * GuestSearchHistoryCreate
+         * @description Schema for creating guest search history (no user_id required).
+         */
+        GuestSearchHistoryCreate: {
+            /**
+             * Guest Session Id
+             * @description UUID for guest session tracking
+             */
+            guest_session_id: string;
+            /**
+             * Results Count
+             * @description Number of results returned
+             */
+            results_count?: number | null;
+            /**
+             * Search Query
+             * @description The search query string
+             */
+            search_query: string;
+            /**
+             * Search Type
+             * @description Type of search: natural_language, category, service_pill, filter, or search_history
+             * @default natural_language
+             */
+            search_type: string;
         };
         /** GuestSessionResponse */
         GuestSessionResponse: {
@@ -14032,6 +14084,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SearchHistoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_guest_search_api_search_history_guest_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-guest-session-id"?: string | null;
+                "x-session-id"?: string | null;
+                "x-search-origin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestSearchHistoryCreate"];
             };
         };
         responses: {
