@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
+from ._strict_base import StrictRequestModel
+
 
 class InviteValidateResponse(BaseModel):
     valid: bool
@@ -14,7 +16,7 @@ class InviteValidateResponse(BaseModel):
     used_at: Optional[datetime] = None
 
 
-class InviteGenerateRequest(BaseModel):
+class InviteGenerateRequest(StrictRequestModel):
     count: int = 1
     role: str = "instructor_beta"
     expires_in_days: int = 30
@@ -34,7 +36,7 @@ class InviteGenerateResponse(BaseModel):
     invites: list[InviteRecord]
 
 
-class InviteConsumeRequest(BaseModel):
+class InviteConsumeRequest(StrictRequestModel):
     code: str
     user_id: str
     role: str = "instructor_beta"
@@ -49,7 +51,7 @@ class AccessGrantResponse(BaseModel):
     invited_by_code: Optional[str] = None
 
 
-class InviteSendRequest(BaseModel):
+class InviteSendRequest(StrictRequestModel):
     to_email: EmailStr
     role: str = Field(default="instructor_beta")
     expires_in_days: int = Field(default=14, ge=1, le=180)
@@ -71,7 +73,7 @@ class BetaMetricsSummaryResponse(BaseModel):
     phase_counts_24h: dict[str, int]
 
 
-class InviteBatchSendRequest(BaseModel):
+class InviteBatchSendRequest(StrictRequestModel):
     emails: list[EmailStr] = Field(default_factory=list, min_length=1)
     role: str = Field(default="instructor_beta")
     expires_in_days: int = Field(default=14, ge=1, le=180)

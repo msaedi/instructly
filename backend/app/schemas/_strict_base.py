@@ -1,16 +1,12 @@
-"""Strict request model that only forbids extras when STRICT_SCHEMAS=1."""
-
-import os
+"""Strict request model enforcing forbidden extras by default."""
 
 from pydantic import BaseModel, ConfigDict
 
-STRICT = os.getenv("STRICT_SCHEMAS", "0").lower() in {"1", "true", "yes"}
-
 
 class StrictRequestModel(BaseModel):
-    """Request DTO base that toggles extra handling via STRICT_SCHEMAS."""
+    """Request DTO base that always forbids unexpected fields."""
 
     model_config = ConfigDict(
-        extra="forbid" if STRICT else "ignore",
+        extra="forbid",
         validate_assignment=True,
     )
