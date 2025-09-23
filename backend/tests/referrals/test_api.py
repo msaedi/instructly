@@ -51,7 +51,7 @@ def test_referral_redirect_records_click(db, client, referral_service):
     code.vanity_slug = "p-slope"
     db.commit()
 
-    response = client.get(f"/r/{code.vanity_slug}", allow_redirects=False)
+    response = client.get(f"/r/{code.vanity_slug}", follow_redirects=False)
 
     assert response.status_code == status.HTTP_302_FOUND
     assert response.headers["location"] == settings.frontend_referral_landing_url
@@ -65,7 +65,9 @@ def test_referral_redirect_json_mode(db, client, referral_service):
     referrer = _create_user(db, "referrer_json@example.com")
     code = referral_service.issue_code(referrer_user_id=referrer.id)
 
-    response = client.get(f"/r/{code.code}", headers={"accept": "application/json"}, allow_redirects=False)
+    response = client.get(
+        f"/r/{code.code}", headers={"accept": "application/json"}, follow_redirects=False
+    )
 
     assert response.status_code == status.HTTP_200_OK
     payload = response.json()
