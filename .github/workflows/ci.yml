@@ -398,6 +398,9 @@ jobs:
       - name: Backend routes response_model scanner
         run: python tools/check_routes_response_model.py
 
+      - name: Mypy baseline gate
+        run: bash tools/mypy_strict_gate.sh
+
       - name: Strict schemas & error envelope tests (flagged)
         working-directory: backend
         env:
