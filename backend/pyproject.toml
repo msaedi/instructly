@@ -160,6 +160,10 @@ exclude = [
   "scripts"
 ]
 
+# NOTE: mypy merges [[tool.mypy.overrides]] in order; "last wins".
+# Keep strict-by-default globs first, explicit exceptions later, and custom flags last.
+
+# --- Strict by default for new & existing code (last-wins applies below) ---
 [[tool.mypy.overrides]]
 module = ["backend.app.repositories.*"]
 strict = true
@@ -172,102 +176,14 @@ strict = true
 module = ["backend.app.routes.*"]
 strict = true
 
+# --- Explicit, documented exceptions (SDK glue / base DI) ---
 [[tool.mypy.overrides]]
 module = [
-  "backend.app.services.stripe_service",
-  "backend.app.services.base",
+  "backend.app.services.stripe_service",  # Stripe SDK integration; typed wrappers TBD
+  "backend.app.services.base",            # dynamic/base service wiring
 ]
 strict = false
 
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.internal",
-  "backend.app.schemas.base",
-  "backend.app.schemas.search_history_responses"
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.uploads"
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.messages",
-  "backend.app.routes.users_profile_picture",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.gated",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.availability_windows",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.search_history",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.addresses",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.services",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.instructors",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.beta",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.payments",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.bookings",
-]
-strict = true
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.schemas.review",
-]
-strict = true
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.schemas.message_requests",
-]
-strict = true
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.schemas.payment_schemas",
-]
-strict = true
 [[tool.mypy.overrides]]
 module = [
   "backend.app.services.base",
@@ -287,6 +203,7 @@ disallow_incomplete_defs = true
 no_implicit_optional = true
 warn_unused_ignores = true
 
+# --- Schema-wide flags (we enforce request DTO strict via scanner + StrictRequestModel) ---
 [[tool.mypy.overrides]]
 module = [
   "backend.app.schemas.*"
@@ -294,129 +211,19 @@ module = [
 check_untyped_defs = true
 warn_unused_ignores = true
 
+# --- Targeted strict overrides beyond service/repository/route globs ---
 [[tool.mypy.overrides]]
 module = [
-  "backend.app.repositories.availability_repository",
-  "backend.app.repositories.beta_repository",
-  "backend.app.repositories.booking_repository",
-  "backend.app.repositories.factory",
-  "backend.app.repositories.favorites_repository",
+  "backend.app.schemas.base",
+  "backend.app.schemas.search_history_responses",
+  "backend.app.schemas.review",
+  "backend.app.schemas.message_requests",
+  "backend.app.schemas.payment_schemas",
 ]
 strict = true
 
 [[tool.mypy.overrides]]
-module = [
-  "backend.app.repositories.bulk_operation_repository",
-  "backend.app.repositories.conflict_checker_repository",
-  "backend.app.repositories.region_boundary_repository",
-  "backend.app.repositories.search_interaction_repository",
-  "backend.app.repositories.slot_manager_repository",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.repositories.address_repository",
-  "backend.app.repositories.review_repository",
-  "backend.app.repositories.search_event_repository",
-  "backend.app.repositories.search_history_repository",
-  "backend.app.repositories.week_operation_repository",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.repositories.instructor_profile_repository",
-  "backend.app.repositories.message_repository",
-  "backend.app.repositories.payment_repository",
-  "backend.app.repositories.rbac_repository",
-  "backend.app.repositories.service_catalog_repository",
-  "backend.app.repositories.user_repository",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.services.message_notification_service",
-  "backend.app.services.personal_asset_service",
-  "backend.app.services.search_history_cleanup_service",
-  "backend.app.services.template_service",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.database_monitor",
-  "backend.app.routes.favorites",
-  "backend.app.routes.privacy",
-  "backend.app.routes.redis_monitor",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.services.device_tracking_service",
-  "backend.app.services.two_factor_auth_service",
-  "backend.app.services.week_operation_service",
-  "backend.app.tasks.email",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.alerts",
-  "backend.app.routes.analytics",
-  "backend.app.routes.codebase_metrics",
-  "backend.app.routes.monitoring",
-  "backend.app.routes.two_factor_auth",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.services.cache_service",
-  "backend.app.services.instructor_service",
-  "backend.app.tasks.analytics",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.metrics",
-  "backend.app.routes.prometheus",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.services.bulk_operation_service",
-  "backend.app.tasks.monitoring_tasks",
-  "backend.app.tasks.payment_tasks",
-  "backend.app.tasks.privacy_tasks",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.account_management",
-  "backend.app.routes.password_reset",
-  "backend.app.routes.public",
-  "backend.app.routes.search",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.services.search_service",
-]
-strict = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.routes.health",
-  "backend.app.routes.reviews",
-  "backend.app.routes.stripe_webhooks",
-]
+module = ["backend.app.tasks.*"]
 strict = true
 
 [[tool.mypy.overrides]]
