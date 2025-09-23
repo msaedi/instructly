@@ -389,6 +389,9 @@ jobs:
           COUNT=${COUNT:-0}
           echo "mypy(bookings/availability): ${COUNT} errors" >> $GITHUB_STEP_SUMMARY
 
+      - name: Mypy strict coverage check
+        run: python tools/check_mypy_coverage.py
+
       - name: Strict schemas & error envelope tests (flagged)
         working-directory: backend
         env:

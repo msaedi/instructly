@@ -161,6 +161,25 @@ exclude = [
 ]
 
 [[tool.mypy.overrides]]
+module = ["backend.app.repositories.*"]
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["backend.app.services.*"]
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["backend.app.routes.*"]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
+  "backend.app.services.stripe_service",
+  "backend.app.services.base",
+]
+strict = false
+
+[[tool.mypy.overrides]]
 module = [
   "backend.app.routes.internal",
   "backend.app.schemas.base",
