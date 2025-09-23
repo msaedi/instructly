@@ -27,7 +27,7 @@ Router Endpoints:
 from datetime import datetime, timezone
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import (
@@ -149,7 +149,7 @@ def get_address_service(db: Session = Depends(get_db)) -> AddressService:
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
 )
 async def create_instructor_profile(
-    profile: InstructorProfileCreate,
+    profile: InstructorProfileCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
 ):
@@ -197,7 +197,7 @@ async def get_my_profile(
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
 )
 async def update_profile(
-    profile_update: InstructorProfileUpdate,
+    profile_update: InstructorProfileUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
     cache_service: CacheService = Depends(get_cache_service_dep),

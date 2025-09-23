@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sse_starlette.sse import EventSourceResponse
 
 from ..api.dependencies.auth import get_current_active_user
@@ -87,7 +87,7 @@ def get_message_service(db=Depends(get_db)) -> MessageService:
 )
 @rate_limit("10/minute", key_type=RateLimitKeyType.USER)
 async def send_message(
-    request: SendMessageRequest,
+    request: SendMessageRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
 ):
@@ -541,7 +541,7 @@ async def get_unread_count(
     dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
 )
 async def mark_messages_as_read(
-    request: MarkMessagesReadRequest,
+    request: MarkMessagesReadRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
 ):
