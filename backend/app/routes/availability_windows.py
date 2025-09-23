@@ -43,7 +43,7 @@ from datetime import date, timedelta
 import logging
 from typing import Dict, List, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 
 from ..api.dependencies.auth import get_current_active_user, require_beta_access
 from ..api.dependencies.services import (
@@ -160,8 +160,8 @@ async def get_week_availability(
     dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def save_week_availability(
-    week_data: WeekSpecificScheduleCreate,
     response: Response,
+    payload: WeekSpecificScheduleCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
@@ -183,12 +183,12 @@ async def save_week_availability(
 
         from app.core.timezone_utils import get_user_today_by_id
 
-        if week_data.week_start:
-            monday = week_data.week_start
+        if payload.week_start:
+            monday = payload.week_start
         else:
             # Derive from the earliest schedule date
             dates = []
-            for item in week_data.schedule:
+            for item in payload.schedule:
                 try:
                     dates.append(_date.fromisoformat(str(item["date"])))
                 except Exception:
@@ -209,7 +209,7 @@ async def save_week_availability(
         pre_total = sum(pre_summary.values())
 
         await availability_service.save_week_availability(
-            instructor_id=current_user.id, week_data=week_data
+            instructor_id=current_user.id, week_data=payload
         )
 
         # Get post-save summary
@@ -255,7 +255,7 @@ async def save_week_availability(
     dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def copy_week_availability(
-    copy_data: CopyWeekRequest,
+    payload: CopyWeekRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
@@ -269,8 +269,8 @@ async def copy_week_availability(
 
         result = await week_operation_service.copy_week_availability(
             instructor_id=current_user.id,
-            from_week_start=copy_data.from_week_start,
-            to_week_start=copy_data.to_week_start,
+            from_week_start=payload.from_week_start,
+            to_week_start=payload.to_week_start,
         )
         return result
     except DomainException as e:
@@ -286,7 +286,7 @@ async def copy_week_availability(
     dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def apply_to_date_range(
-    apply_data: ApplyToDateRangeRequest,
+    payload: ApplyToDateRangeRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
@@ -300,20 +300,20 @@ async def apply_to_date_range(
 
         result = await week_operation_service.apply_pattern_to_date_range(
             instructor_id=current_user.id,
-            from_week_start=apply_data.from_week_start,
-            start_date=apply_data.start_date,
-            end_date=apply_data.end_date,
+            from_week_start=payload.from_week_start,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
         )
         # Map service result to response schema
         # Compute weeks_applied as ceiling of days/7 over the inclusive date range
-        days = (apply_data.end_date - apply_data.start_date).days + 1
+        days = (payload.end_date - payload.start_date).days + 1
         weeks_applied = (days + 6) // 7
         windows_created = int(result.get("slots_created", 0))
 
         return ApplyToDateRangeResponse(
             message=result.get("message", "Successfully applied schedule"),
-            start_date=apply_data.start_date,
-            end_date=apply_data.end_date,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
             weeks_applied=weeks_applied,
             windows_created=windows_created,
         )
@@ -434,7 +434,7 @@ async def bulk_update_availability(
 )
 def update_availability_window(
     window_id: str,
-    update_data: AvailabilityWindowUpdate,
+    payload: AvailabilityWindowUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     slot_manager: SlotManager = Depends(get_slot_manager),
 ) -> AvailabilityWindowResponse:
@@ -450,8 +450,8 @@ def update_availability_window(
         # Update the slot - note that AvailabilityWindowUpdate only has start_time and end_time
         updated_slot = slot_manager.update_slot(
             slot_id=window_id,
-            start_time=update_data.start_time,
-            end_time=update_data.end_time,
+            start_time=payload.start_time,
+            end_time=payload.end_time,
         )
 
         # FIX: Map model fields to schema fields correctly
