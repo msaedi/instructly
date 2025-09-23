@@ -389,6 +389,12 @@ jobs:
           COUNT=${COUNT:-0}
           echo "mypy(bookings/availability): ${COUNT} errors" >> $GITHUB_STEP_SUMMARY
 
+      - name: Backend request DTO strict scanner
+        run: python tools/check_request_dto_strict.py
+
+      - name: Backend routes response_model scanner
+        run: python tools/check_routes_response_model.py
+
       - name: Strict schemas & error envelope tests (flagged)
         working-directory: backend
         env:
