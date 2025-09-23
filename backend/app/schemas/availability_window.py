@@ -54,6 +54,8 @@ class AvailabilityWindowBase(StrictRequestModel):
 class SpecificDateAvailabilityCreate(AvailabilityWindowBase):
     """Schema for creating availability on a specific date."""
 
+    model_config = StrictRequestModel.model_config
+
     specific_date: DateType
 
     # Date validation removed - handled in service layer with user timezone context
