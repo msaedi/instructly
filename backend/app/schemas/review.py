@@ -2,18 +2,17 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from pydantic.functional_validators import field_validator
 
+from ._strict_base import StrictRequestModel
 
-class ReviewSubmitRequest(BaseModel):
+
+class ReviewSubmitRequest(StrictRequestModel):
     booking_id: str
     rating: int = Field(..., ge=1, le=5)
     review_text: Optional[str] = Field(None, max_length=500)
     tip_amount_cents: Optional[int] = Field(None, gt=0)
-
-    # Enforce strict payloads
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     @field_validator("review_text")
     @classmethod
@@ -64,10 +63,8 @@ class SearchRatingResponse(BaseModel):
     is_service_specific: bool
 
 
-class RatingsBatchRequest(BaseModel):
+class RatingsBatchRequest(StrictRequestModel):
     instructor_ids: List[str] = Field(..., min_length=1)
-    # Enforce strict payloads
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 class RatingsBatchItem(BaseModel):

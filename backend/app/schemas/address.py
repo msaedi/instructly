@@ -24,11 +24,11 @@ class AddressBase(BaseModel):
     is_default: bool = False
 
 
-class AddressCreate(AddressBase):
+class AddressCreate(StrictRequestModel, AddressBase):
     pass
 
 
-class AddressUpdate(BaseModel):
+class AddressUpdate(StrictRequestModel):
     label: Optional[str] = None
     custom_label: Optional[str] = None
     recipient_name: Optional[str] = None

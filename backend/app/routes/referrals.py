@@ -7,7 +7,7 @@ import hashlib
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.api.dependencies.auth import (
@@ -131,8 +131,8 @@ async def resolve_referral_slug(
     response_model=ReferralClaimResponse | ReferralErrorResponse,
 )
 async def claim_referral_code(
-    payload: ReferralClaimRequest,
     response: Response,
+    payload: ReferralClaimRequest = Body(...),
     current_user: Optional[User] = Depends(get_current_active_user_optional),
     referral_service: ReferralService = Depends(get_referral_service),
 ) -> Response:
@@ -210,8 +210,8 @@ async def get_my_referral_ledger(
     response_model=CheckoutApplyResponse | ReferralErrorResponse,
 )
 async def apply_referral_credit(
-    payload: CheckoutApplyRequest,
     response: Response,
+    payload: CheckoutApplyRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     checkout_service: ReferralCheckoutService = Depends(get_referral_checkout_service),
 ) -> Response:

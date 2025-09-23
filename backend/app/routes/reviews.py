@@ -1,7 +1,7 @@
 # backend/app/routes/reviews.py
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user, get_current_student
@@ -39,7 +39,7 @@ def _display_name(user: Optional[User]) -> Optional[str]:
 
 @router.post("/submit", response_model=ReviewSubmitResponse)
 async def submit_review(
-    payload: ReviewSubmitRequest,
+    payload: ReviewSubmitRequest = Body(...),
     current_user: User = Depends(get_current_student),
     db: Session = Depends(get_db),
     service: ReviewService = Depends(get_review_service),
@@ -281,7 +281,7 @@ def respond_to_review(
 
 @router.post("/ratings/batch", response_model=RatingsBatchResponse)
 def get_ratings_batch(
-    payload: RatingsBatchRequest,
+    payload: RatingsBatchRequest = Body(...),
     service: ReviewService = Depends(get_review_service),
 ) -> RatingsBatchResponse:
     instructor_ids = payload.instructor_ids

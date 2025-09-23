@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Mapping, Sequence, cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
@@ -121,7 +121,7 @@ def list_my_addresses(
 
 @router.post("/me", response_model=AddressResponse, status_code=status.HTTP_201_CREATED)  # type: ignore[misc]
 def create_my_address(
-    data: AddressCreate,
+    data: AddressCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
 ) -> AddressResponse:
@@ -132,7 +132,7 @@ def create_my_address(
 @router.patch("/me/{address_id}", response_model=AddressResponse)  # type: ignore[misc]
 def update_my_address(
     address_id: str,
-    data: AddressUpdate,
+    data: AddressUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
 ) -> AddressResponse:
