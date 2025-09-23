@@ -1,5 +1,6 @@
 # Local build/test artifacts and caches
-**/.artifacts/
+**/.artifacts/*
+!.artifacts/mypy-baseline.txt
 **/.eslintcache
 frontend/.lighthouseci/
 node_modules/
