@@ -410,6 +410,10 @@ jobs:
           python -m pytest -q tests/integration/test_error_envelope.py
           python -m pytest -q tests/integration/search_history/test_strict_schemas.py
 
+      - name: Full guardrails audit (report)
+        working-directory: tools
+        run: python audit_all.py
+
       - name: Strictness summary
         run: |
           echo "problem+json envelope: PASS" >> $GITHUB_STEP_SUMMARY
