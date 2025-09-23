@@ -76,7 +76,7 @@ class WalletTxnOut(BaseModel):
     related_reward_id: Optional[UUID] = None
 
 
-class ReferralClaimRequest(BaseModel):
+class ReferralClaimRequest(StrictRequestModel):
     code: str
 
 
@@ -94,7 +94,7 @@ class ReferralLedgerResponse(BaseModel):
     expiry_notice_days: List[int]
 
 
-class CheckoutApplyRequest(BaseModel):
+class CheckoutApplyRequest(StrictRequestModel):
     order_id: str
 
 

@@ -9,7 +9,7 @@ with a single set of endpoints.
 import logging
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -123,8 +123,8 @@ async def get_recent_searches(
 
 @router.post("/", response_model=SearchHistoryResponse, status_code=status.HTTP_201_CREATED)
 async def record_search(
-    search_data: SearchHistoryCreate,
     request: Request,
+    search_data: SearchHistoryCreate = Body(...),
     context: SearchUserContext = Depends(get_search_context),
     db: Session = Depends(get_db),
 ) -> SearchHistoryResponse:

@@ -12,6 +12,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from ._strict_base import StrictRequestModel
+
 
 class AvailabilitySlotBase(BaseModel):
     """Base schema for availability time slots."""
@@ -28,14 +30,14 @@ class AvailabilitySlotBase(BaseModel):
         return v
 
 
-class AvailabilitySlotCreate(AvailabilitySlotBase):
+class AvailabilitySlotCreate(StrictRequestModel, AvailabilitySlotBase):
     """Schema for creating a new availability slot."""
 
     instructor_id: str
     specific_date: date
 
 
-class AvailabilitySlotUpdate(BaseModel):
+class AvailabilitySlotUpdate(StrictRequestModel):
     """Schema for updating an availability slot."""
 
     start_time: Optional[time] = None

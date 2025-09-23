@@ -11,7 +11,7 @@ UPDATED: Added rate limiting to protect against brute force attacks.
 from datetime import timedelta
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -435,7 +435,7 @@ async def read_users_me(
 
 @router.patch("/me", response_model=UserWithPermissionsResponse)
 async def update_current_user(
-    user_update: UserUpdate,
+    user_update: UserUpdate = Body(...),
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),

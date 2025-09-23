@@ -8,6 +8,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._strict_base import StrictRequestModel
+
 
 class CategoryResponse(BaseModel):
     """Service category response."""
@@ -50,7 +52,7 @@ class CatalogServiceMinimalResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 
 
-class InstructorServiceCreate(BaseModel):
+class InstructorServiceCreate(StrictRequestModel):
     """Create instructor service from catalog."""
 
     catalog_service_id: str = Field(..., description="ID of the catalog service")
@@ -62,8 +64,7 @@ class InstructorServiceCreate(BaseModel):
     )
 
     model_config = ConfigDict(
-        extra="forbid",
-        validate_assignment=True,
+        **StrictRequestModel.model_config,
         json_schema_extra={
             "example": {
                 "catalog_service_id": 1,

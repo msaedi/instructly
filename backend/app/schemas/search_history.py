@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
+from ._strict_base import StrictRequestModel
+
 
 class SearchHistoryBase(BaseModel):
     """Base schema for search history."""
@@ -42,14 +44,12 @@ class SearchHistoryBase(BaseModel):
         return v.strip()
 
 
-class SearchHistoryCreate(SearchHistoryBase):
+class SearchHistoryCreate(StrictRequestModel, SearchHistoryBase):
     """Schema for creating search history."""
 
     search_context: Optional[Dict[str, Any]] = Field(
         None, description="Additional context like page origin, viewport size, etc."
     )
-    # Harden request DTOs: forbid extras and validate assignment
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     device_context: Optional[Dict[str, Any]] = Field(
         None,
         description="Device context from frontend including screen size, connection type, etc.",
@@ -63,7 +63,7 @@ class SearchHistoryCreate(SearchHistoryBase):
     )
 
 
-class GuestSearchHistoryCreate(BaseModel):
+class GuestSearchHistoryCreate(StrictRequestModel):
     """Schema for creating guest search history (no user_id required)."""
 
     search_query: str = Field(..., description="The search query string", min_length=1)
@@ -90,8 +90,6 @@ class GuestSearchHistoryCreate(BaseModel):
         if not v.strip():
             raise ValueError("search_query cannot be empty")
         return v.strip()
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 class SearchHistoryResponse(SearchHistoryBase):

@@ -11,7 +11,7 @@ Provides endpoints for:
 import logging
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 
 from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import get_instructor_service
@@ -59,7 +59,7 @@ async def get_catalog_services(
 
 @router.post("/instructor/add", response_model=InstructorServiceResponse)
 async def add_service_to_profile(
-    service_data: InstructorServiceCreate,
+    service_data: InstructorServiceCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
 ):
