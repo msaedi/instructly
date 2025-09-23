@@ -392,6 +392,12 @@ jobs:
       - name: Mypy strict coverage check
         run: python tools/check_mypy_coverage.py
 
+      - name: Backend request DTO strict scanner
+        run: python tools/check_request_dto_strict.py
+
+      - name: Backend routes response_model scanner
+        run: python tools/check_routes_response_model.py
+
       - name: Strict schemas & error envelope tests (flagged)
         working-directory: backend
         env:
