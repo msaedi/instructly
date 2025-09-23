@@ -47,6 +47,8 @@ class BookingCreate(StrictRequestModel):
     the lesson will occur.
     """
 
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
     instructor_id: str = Field(..., description="Instructor to book")
     instructor_service_id: str = Field(..., description="Instructor service being booked")
     booking_date: date = Field(..., description="Date of the booking")
