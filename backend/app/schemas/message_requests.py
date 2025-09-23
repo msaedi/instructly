@@ -5,17 +5,16 @@ Request schemas for the message/chat system.
 
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
+
+from ._strict_base import StrictRequestModel
 
 
-class SendMessageRequest(BaseModel):
+class SendMessageRequest(StrictRequestModel):
     """Request to send a message."""
 
     booking_id: str = Field(..., description="ID of the booking")
     content: str = Field(..., min_length=1, max_length=1000, description="Message content")
-
-    # Harden request DTOs
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     @field_validator("content")
     @classmethod
@@ -26,16 +25,13 @@ class SendMessageRequest(BaseModel):
         return v.strip()
 
 
-class MarkMessagesReadRequest(BaseModel):
+class MarkMessagesReadRequest(StrictRequestModel):
     """Request to mark messages as read."""
 
     booking_id: Optional[str] = Field(None, description="Mark all messages in this booking as read")
     message_ids: Optional[List[str]] = Field(
         None, description="Specific message IDs to mark as read"
     )
-
-    # Harden request DTOs
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     @model_validator(mode="after")
     def check_either_booking_or_ids(self) -> "MarkMessagesReadRequest":

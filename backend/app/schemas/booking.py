@@ -38,7 +38,7 @@ class RescheduledFromInfo(StandardizedModel):
     start_time: time
 
 
-class BookingCreate(BaseModel):
+class BookingCreate(StrictRequestModel):
     """
     Create a booking with self-contained time information.
 
@@ -46,6 +46,8 @@ class BookingCreate(BaseModel):
     The booking contains all necessary information about when and where
     the lesson will occur.
     """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     instructor_id: str = Field(..., description="Instructor to book")
     instructor_service_id: str = Field(..., description="Instructor service being booked")
@@ -66,9 +68,6 @@ class BookingCreate(BaseModel):
 
     # Note: end_time is calculated from start_time + selected_duration
     end_time: Optional[time] = Field(None, description="Calculated end time (set automatically)")
-
-    # Forbid extra fields and validate assignment to enforce clean architecture
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     @field_validator("booking_date", mode="before")
     @classmethod
@@ -200,8 +199,7 @@ class BookingConfirmPayment(BaseModel):
     )
 
 
-class BookingUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+class BookingUpdate(StrictRequestModel):
     """
     Schema for updating booking details.
 
@@ -522,7 +520,7 @@ class BookingCreateResponse(BookingResponse):
         return cls(**response_data)
 
 
-class BookingPaymentMethodUpdate(BaseModel):
+class BookingPaymentMethodUpdate(StrictRequestModel):
     """
     Request to update a booking's payment method, with optional default flag.
     """
@@ -682,7 +680,7 @@ class UpcomingBookingsListResponse(StandardizedModel):
         return (self.total + self.per_page - 1) // self.per_page
 
 
-class FindBookingOpportunitiesRequest(BaseModel):
+class FindBookingOpportunitiesRequest(StrictRequestModel):
     """
     Request to find available booking opportunities.
 

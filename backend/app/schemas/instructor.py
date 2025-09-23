@@ -21,6 +21,7 @@ from ..core.constants import (
     MIN_BIO_LENGTH,
     MIN_SESSION_DURATION,
 )
+from ._strict_base import StrictRequestModel
 from .base import Money, StandardizedModel
 
 logger = logging.getLogger(__name__)
@@ -204,11 +205,14 @@ class ServiceBase(StandardizedModel):
         return normalized
 
 
-class ServiceCreate(ServiceBase):
+class ServiceCreate(StrictRequestModel, ServiceBase):
     """Schema for creating a new service."""
 
-    # Harden nested service creation payloads
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    # Preserve existing response config (use_enum_values/populate_by_name) while forbidding extras
+    model_config = ConfigDict(
+        **ServiceBase.model_config,
+        **StrictRequestModel.model_config,
+    )
 
 
 class ServiceResponse(ServiceBase):
@@ -316,7 +320,7 @@ class InstructorProfileBase(StandardizedModel):
         return v.strip()
 
 
-class InstructorProfileCreate(InstructorProfileBase):
+class InstructorProfileCreate(StrictRequestModel, InstructorProfileBase):
     """
     Schema for creating an instructor profile.
 
@@ -338,11 +342,14 @@ class InstructorProfileCreate(InstructorProfileBase):
             raise ValueError("Duplicate services are not allowed")
         return v
 
-    # Forbid unexpected fields in profile creation
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    # Maintain populate_by_name/use_enum_values from base while enforcing strict requests
+    model_config = ConfigDict(
+        **InstructorProfileBase.model_config,
+        **StrictRequestModel.model_config,
+    )
 
 
-class InstructorProfileUpdate(BaseModel):
+class InstructorProfileUpdate(StrictRequestModel):
     """
     Schema for updating an instructor profile.
 
@@ -372,9 +379,6 @@ class InstructorProfileUpdate(BaseModel):
             if len(catalog_ids) != len(set(catalog_ids)):
                 raise ValueError("Duplicate services are not allowed")
         return v
-
-    # Forbid unexpected fields in profile update
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 class InstructorProfileResponse(InstructorProfileBase):
