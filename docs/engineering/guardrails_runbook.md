@@ -46,6 +46,13 @@
   - Use `fastapi.testclient` with `reload(main)` and skip with a reason if auth blocks validation.
 - Keep slices small (≤10 files) and commit directly to `main`.
 
+### Mypy overrides (strict by default)
+- We are **strict by default** for backend: `backend.app.repositories.*`, `backend.app.services.*`, `backend.app.routes.*`.
+- **Last wins**: mypy merges `[[tool.mypy.overrides]]` in order. Keep the strict globs **first**, then **documented exceptions** (e.g., `services.stripe_service`, `services.base`), then any custom flags.
+- **Do not add per-file `strict=true` blocks** unless you also need non-default flags; the strict globs already cover new files.
+- **Schemas**: request DTOs are enforced via `StrictRequestModel (extra="forbid")` and a CI scanner; we keep only minimal `schemas.*` flags (e.g., `check_untyped_defs`, `warn_unused_ignores`).
+- The **mypy baseline gate** blocks new typing debt; any increase in errors fails CI.
+
 ## Env-contract smoke: 429 UX (gated)
 - Location: `frontend/e2e/env-contract.spec.ts`.
 - How to run (gated): set `PLAYWRIGHT_BASE_URL` and `E2E_RATE_LIMIT_TEST=1`.
