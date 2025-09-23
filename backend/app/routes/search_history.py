@@ -9,7 +9,7 @@ with a single set of endpoints.
 import logging
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,11 @@ from ..auth import get_current_user_optional as auth_get_current_user_optional
 from ..database import get_db
 from ..models.user import User
 from ..schemas.search_context import SearchUserContext
-from ..schemas.search_history import SearchHistoryCreate, SearchHistoryResponse
+from ..schemas.search_history import (
+    GuestSearchHistoryCreate,
+    SearchHistoryCreate,
+    SearchHistoryResponse,
+)
 from ..schemas.search_history_responses import SearchInteractionResponse
 from ..services.search_history_service import SearchHistoryService
 
@@ -83,6 +87,72 @@ async def get_search_context(
     return context
 
 
+async def _record_search_entry(
+    *,
+    payload: SearchHistoryCreate,
+    request: Request,
+    context: SearchUserContext,
+    db: Session,
+) -> SearchHistoryResponse:
+    """Shared handler logic for recording search history entries."""
+
+    search_service = SearchHistoryService(db)
+
+    # Extract analytics data
+    client_ip = request.headers.get("X-Forwarded-For")
+    if client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+    else:
+        client_ip = request.client.host if request.client else None
+
+    user_agent = request.headers.get("User-Agent")
+
+    device_context = getattr(payload, "device_context", None)
+
+    try:
+        search_dict = {
+            "search_query": payload.search_query,
+            "search_type": payload.search_type,
+            "results_count": payload.results_count,
+            "referrer": context.search_origin,
+            "context": getattr(payload, "search_context", None),
+        }
+
+        search = await search_service.record_search(
+            context=context,
+            search_data=search_dict,
+            request_ip=client_ip,
+            user_agent=user_agent,
+            device_context=device_context,
+            observability_candidates=getattr(payload, "observability_candidates", None),
+        )
+
+        return SearchHistoryResponse(
+            id=search.id,
+            search_query=search.search_query,
+            search_type=search.search_type,
+            results_count=search.results_count,
+            first_searched_at=search.first_searched_at,
+            last_searched_at=search.last_searched_at,
+            search_count=search.search_count,
+            guest_session_id=search.guest_session_id if not context.user_id else None,
+            search_event_id=getattr(search, "search_event_id", None),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:  # pylint: disable=broad-except
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error("Unexpected error recording search: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred",
+        ) from exc
+
+
 @router.get("/", response_model=List[SearchHistoryResponse])
 async def get_recent_searches(
     limit: int = 3,
@@ -123,7 +193,8 @@ async def get_recent_searches(
 
 @router.post("/", response_model=SearchHistoryResponse, status_code=status.HTTP_201_CREATED)
 async def record_search(
-    search_data: SearchHistoryCreate,
+    *,
+    payload: SearchHistoryCreate = Body(...),
     request: Request,
     context: SearchUserContext = Depends(get_search_context),
     db: Session = Depends(get_db),
@@ -145,76 +216,51 @@ async def record_search(
     Returns:
         The created or updated search history entry
     """
-    search_service = SearchHistoryService(db)
 
-    # Extract analytics data
-    # Get client IP (handling proxies)
-    client_ip = request.headers.get("X-Forwarded-For")
-    if client_ip:
-        # Take the first IP if there are multiple
-        client_ip = client_ip.split(",")[0].strip()
-    else:
-        client_ip = request.client.host if request.client else None
+    return await _record_search_entry(
+        payload=payload,
+        request=request,
+        context=context,
+        db=db,
+    )
 
-    # Get user agent
-    user_agent = request.headers.get("User-Agent")
 
-    # Extract device context from request body if provided
-    device_context = None
-    if hasattr(search_data, "device_context"):
-        device_context = search_data.device_context
+@router.post(
+    "/guest",
+    response_model=SearchHistoryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def record_guest_search(
+    *,
+    payload: GuestSearchHistoryCreate = Body(...),
+    request: Request,
+    context: SearchUserContext = Depends(get_search_context),
+    db: Session = Depends(get_db),
+) -> SearchHistoryResponse:
+    """Record a guest search with strict validation."""
 
-    try:
-        # Build search dict with all data including tracking info
-        search_dict = {
-            "search_query": search_data.search_query,
-            "search_type": search_data.search_type,
-            "results_count": search_data.results_count,
-            "referrer": context.search_origin,
-            "context": search_data.search_context
-            if hasattr(search_data, "search_context")
-            else None,
-        }
-
-        search = await search_service.record_search(
-            context=context,
-            search_data=search_dict,
-            request_ip=client_ip,
-            user_agent=user_agent,
-            device_context=device_context,
-            observability_candidates=(
-                search_data.observability_candidates
-                if hasattr(search_data, "observability_candidates")
-                else None
-            ),
-        )
-
-        return SearchHistoryResponse(
-            id=search.id,
-            search_query=search.search_query,
-            search_type=search.search_type,
-            results_count=search.results_count,
-            first_searched_at=search.first_searched_at,
-            last_searched_at=search.last_searched_at,
-            search_count=search.search_count,
-            guest_session_id=search.guest_session_id if not context.user_id else None,
-            search_event_id=getattr(search, "search_event_id", None),
-        )
-    except ValueError as e:
-        # Handle validation errors with 400
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        raise
-    except Exception as e:
-        # Only use 500 for unexpected errors
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.error(f"Unexpected error recording search: {str(e)}")
+    if context.user_id:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Guest endpoint requires a guest session",
         )
+
+    adjusted_context = context
+    if payload.guest_session_id and payload.guest_session_id != context.guest_session_id:
+        adjusted_context = SearchUserContext.from_guest(
+            payload.guest_session_id,
+            session_id=context.session_id,
+        )
+        adjusted_context.search_origin = context.search_origin
+
+    search_payload = SearchHistoryCreate(**payload.model_dump())
+
+    return await _record_search_entry(
+        payload=search_payload,
+        request=request,
+        context=adjusted_context,
+        db=db,
+    )
 
 
 @router.delete("/{search_id}", status_code=status.HTTP_204_NO_CONTENT)
