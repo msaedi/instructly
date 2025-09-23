@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from ._strict_base import StrictRequestModel
 from .base import StandardizedModel
 
 # Type aliases for clarity
@@ -29,10 +30,10 @@ class TimeSlot(BaseModel):
     end_time: TimeType
 
 
-class AvailabilityWindowBase(BaseModel):
+class AvailabilityWindowBase(StrictRequestModel):
     """Base schema for availability windows."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
 
     start_time: TimeType
     end_time: TimeType
@@ -59,12 +60,12 @@ class SpecificDateAvailabilityCreate(AvailabilityWindowBase):
     # Past date validation requires knowing the user's timezone
 
 
-class AvailabilityWindowUpdate(BaseModel):
+class AvailabilityWindowUpdate(StrictRequestModel):
     """Schema for updating an availability window."""
 
     start_time: Optional[TimeType] = None
     end_time: Optional[TimeType] = None
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
 
     @field_validator("end_time")
     @classmethod
@@ -95,10 +96,10 @@ class AvailabilityWindowResponse(StandardizedModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class BlackoutDateCreate(BaseModel):
+class BlackoutDateCreate(StrictRequestModel):
     """Schema for creating a blackout date."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
 
     date: DateType
     reason: Optional[str] = Field(None, max_length=255)
@@ -140,10 +141,10 @@ class TimeRange(BaseModel):
         return v
 
 
-class WeekSpecificScheduleCreate(BaseModel):
+class WeekSpecificScheduleCreate(StrictRequestModel):
     """Schema for creating schedule for specific dates."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
 
     schedule: List[
         Dict[str, Any]
@@ -181,10 +182,10 @@ class WeekSpecificScheduleCreate(BaseModel):
         return v
 
 
-class CopyWeekRequest(BaseModel):
+class CopyWeekRequest(StrictRequestModel):
     """Schema for copying availability between weeks."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
 
     from_week_start: DateType
     to_week_start: DateType
@@ -218,10 +219,10 @@ class CopyWeekRequest(BaseModel):
         return v
 
 
-class ApplyToDateRangeRequest(BaseModel):
+class ApplyToDateRangeRequest(StrictRequestModel):
     """Schema for applying a week pattern to a date range."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
 
     from_week_start: DateType
     start_date: DateType
@@ -293,10 +294,10 @@ class SlotOperation(BaseModel):
         return v
 
 
-class BulkUpdateRequest(BaseModel):
+class BulkUpdateRequest(StrictRequestModel):
     """Request schema for bulk availability update."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
 
     operations: List[SlotOperation]
     validate_only: bool = Field(False, description="If true, only validate without making changes")
@@ -361,10 +362,10 @@ class WeekValidationResponse(BaseModel):
     warnings: List[str] = []  # e.g., ["3 operations affect booked dates"]
 
 
-class ValidateWeekRequest(BaseModel):
+class ValidateWeekRequest(StrictRequestModel):
     """Request to validate week changes"""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = StrictRequestModel.model_config
 
     current_week: Dict[str, List[TimeSlot]]  # What's currently shown in UI
     saved_week: Dict[str, List[TimeSlot]]  # What's saved in database
