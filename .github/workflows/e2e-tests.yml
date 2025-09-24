@@ -569,6 +569,27 @@ jobs:
       - e2e-tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    services:
+      postgres:
+        image: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
+        ports: ['5432:5432']
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: instainstru_test
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
@@ -582,6 +603,9 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
+
+      - name: Append beta-local host alias
+        run: echo "127.0.0.1 beta-local.instainstru.com" | sudo tee -a /etc/hosts
 
       - name: Prepare artifacts directory
         run: |
@@ -682,3 +706,36 @@ jobs:
           CI_LOCAL_E2E: '1'
           PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
         run: npx --yes playwright test e2e/invites.invite-redemption.spec.ts --reporter=line --trace on-first-retry
+
+      - name: Stop services
+        if: always()
+        run: |
+          if [ -f .artifacts/frontend.pid ]; then kill $(cat .artifacts/frontend.pid) || true; fi
+          if [ -f .artifacts/backend.pid ]; then kill $(cat .artifacts/backend.pid) || true; fi
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo '--- backend.log ---'
+          cat .artifacts/backend.log || true
+          echo '--- frontend.log ---'
+          cat .artifacts/frontend.log || true
+
+      - name: Upload service logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invite-e2e-logs
+          path: |
+            .artifacts/backend.log
+            .artifacts/frontend.log
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invite-e2e-playwright
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: ignore
