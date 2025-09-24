@@ -21,7 +21,7 @@ interface DeletePaymentMethodModalProps {
   onConfirm: () => Promise<void>;
 }
 
-export const DeletePaymentMethodModal: React.FC<DeletePaymentMethodModalProps> = ({
+const DeletePaymentMethodModal: React.FC<DeletePaymentMethodModalProps> = ({
   paymentMethod,
   isOpen,
   onClose,

@@ -5,7 +5,7 @@ import { AlertCircle, CheckCircle, Gift, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { applyReferralCredit, type ApplyReferralErrorType } from '@/features/shared/referrals/api';
 
-export interface CheckoutApplyReferralProps {
+interface CheckoutApplyReferralProps {
   orderId: string;
   subtotalCents: number;
   promoApplied: boolean;
@@ -30,7 +30,7 @@ const formatter = new Intl.NumberFormat('en-US', {
 
 const formatCents = (amount: number) => formatter.format(amount / 100);
 
-export function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied }: CheckoutApplyReferralProps) {
+function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied }: CheckoutApplyReferralProps) {
   const [appliedCents, setAppliedCents] = useState<number | null>(null);
   const [error, setError] = useState<ApplyReferralErrorType | null>(null);
   const [isLoading, setIsLoading] = useState(false);

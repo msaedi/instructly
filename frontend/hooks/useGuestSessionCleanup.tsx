@@ -23,5 +23,3 @@ export function useGuestSessionCleanup() {
     }
   }, []);
 }
-
-export default useGuestSessionCleanup;

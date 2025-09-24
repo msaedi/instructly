@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Search, Server, Code, FlaskConical } from 'lucide-react';
 
-export function AdminSidebar() {
+function AdminSidebar() {
   const pathname = usePathname();
 
   const categories = [

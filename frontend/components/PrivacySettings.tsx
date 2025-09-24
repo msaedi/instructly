@@ -75,5 +75,3 @@ export function PrivacySettings({ className = '' }: PrivacySettingsProps) {
     </div>
   );
 }
-
-export default PrivacySettings;

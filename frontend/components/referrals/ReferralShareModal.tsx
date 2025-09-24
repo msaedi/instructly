@@ -7,7 +7,7 @@ import { Copy, Share2 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import { shareOrCopy } from '@/features/shared/referrals/share';
 
-export interface ReferralShareModalProps {
+interface ReferralShareModalProps {
   open: boolean;
   onClose: () => void;
   code: string;
@@ -22,7 +22,7 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 
 const CREDIT_DISPLAY = currencyFormatter.format(20);
 
-export function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModalProps) {
+function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModalProps) {
   const [isProcessing, setIsProcessing] = useState<'share' | 'copy' | null>(null);
 
   const formattedSlug = useMemo(() => {
