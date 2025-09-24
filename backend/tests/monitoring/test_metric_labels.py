@@ -34,10 +34,11 @@ class TestMetricLabels:
         assert http_requests is not None, f"HTTP requests metric not found. Available: {list(families.keys())}"
 
         required_labels = {"method", "endpoint", "status_code"}
+        allowed_methods = {"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"}
         for sample in http_requests.samples:
             assert all(label in sample.labels for label in required_labels)
             # Verify label values are sensible
-            assert sample.labels["method"] in ["GET", "POST", "PUT", "DELETE", "PATCH"]
+            assert sample.labels["method"] in allowed_methods
             assert sample.labels["endpoint"].startswith("/")
             assert sample.labels["status_code"].isdigit()
 

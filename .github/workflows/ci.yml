@@ -7,7 +7,6 @@ on:
   pull_request:
     branches:
       - '**'
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -46,9 +45,14 @@ jobs:
   lint-build:
     needs: contract-check
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      PROD_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
     services:
       postgres:
-        image: postgres:15
+        image: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -59,7 +63,7 @@ jobs:
           --health-cmd="pg_isready -U postgres"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=10
     steps:
       - uses: actions/checkout@v4
 
@@ -322,6 +326,8 @@ jobs:
           pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Wait for Postgres
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
         run: |
           for i in {1..60}; do
             (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1 && echo "Postgres is up" && break
@@ -405,6 +411,7 @@ jobs:
         working-directory: backend
         env:
           STRICT_SCHEMAS: "true"
+          STG_DATABASE_URL: ${{ env.STG_DATABASE_URL }}
           TZ: UTC
         run: |
           python -m pytest -q tests/integration/test_error_envelope.py

@@ -119,7 +119,16 @@ pytest tests/ -v
 cd frontend
 npm test
 
+# Cross-origin invite e2e (requires dev servers running)
+cd frontend
+CI_LOCAL_E2E=1 npx --yes playwright test e2e/invites.invite-redemption.spec.ts --reporter=line
+
 ```
+To exercise the same flow in GitHub Actions, run **e2e-tests → Run workflow** and
+enable the `invite_e2e` input. The workflow now seeds via
+`python scripts/prep_db.py int --migrate --seed-all --force --yes`, matching the
+rest of our end-to-end suites.
+
 📚 API Documentation
 Once the backend is running, visit:
 

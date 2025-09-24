@@ -1,9 +1,8 @@
-"""
-Application-wide constants for InstaInstru platform.
+"""Application-wide constants for InstaInstru platform."""
 
-This module contains all constant values used throughout the application,
-organized by category for easy maintenance and updates.
-"""
+from __future__ import annotations
+
+import os
 
 # Service duration constraints (still needed for service-level overrides)
 MIN_SESSION_DURATION = 30  # minutes
@@ -39,22 +38,24 @@ MAX_SLOTS_PER_DAY = 10  # Maximum time slots per day
 DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 # Frontend URLs
-ALLOWED_ORIGINS = [
-    # Local development
+DEFAULT_DEV_ORIGINS = [
     "http://localhost:3000",
-    "https://localhost:3000",  # HTTPS on standard port
-    "https://localhost:3001",  # HTTPS on alternate port
-    "http://localhost:8000",  # Backend HTTP
-    "https://localhost:8001",  # Backend HTTPS
-    # Current production URLs
-    "https://instructly-ten.vercel.app",  # Current frontend (Vercel)
-    "https://instructly-0949.onrender.com",  # Current backend (Render)
-    "https://api.instainstru.com",  # New production backend URL
-    # Future production URLs (keep for later migration)
-    "https://instainstru.com",  # Future production URL
-    "https://www.instainstru.com",  # Future production URL with www
-    # Note: Vercel preview deployments handled by allow_origin_regex in main.py
+    "http://127.0.0.1:3000",
+    "http://beta-local.instainstru.com:3000",
 ]
+
+
+def _split_env(name: str) -> list[str]:
+    value = os.getenv(name, "")
+    return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+
+ALLOWED_ORIGINS = (
+    _split_env("ALLOWED_ORIGINS")
+    or _split_env("CORS_ALLOW_ORIGINS")
+    or _split_env("CORS_ALLOWED_ORIGINS")
+    or DEFAULT_DEV_ORIGINS
+)
 
 # CORS regex pattern for Vercel preview deployments
 CORS_ORIGIN_REGEX = r"^https://[a-zA-Z0-9-]+\.vercel\.app$"

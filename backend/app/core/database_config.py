@@ -34,6 +34,19 @@ logger = logging.getLogger(__name__)
 DatabaseEnvironment = Literal["int", "stg", "prod"]
 
 
+def _getenv(*names: str, default: str | None = None) -> str | None:
+    """Return the first non-empty env var from a list (case-insensitive)."""
+
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+        value = os.getenv(name.lower())
+        if value:
+            return value
+    return default
+
+
 class DatabaseConfig:
     """
     Manages database selection with safety guarantees and extension points.
@@ -45,14 +58,31 @@ class DatabaseConfig:
     def __init__(self):
         """Initialize database configuration."""
         # Access raw fields directly to avoid circular dependency
-        self.int_url = settings.int_database_url_raw
-        self.stg_url = (
-            settings.stg_database_url_raw
-            if settings.stg_database_url_raw
-            else settings.prod_database_url_raw
+        self.int_url = _getenv(
+            "TEST_DATABASE_URL",
+            "DATABASE_URL",
+            default=settings.int_database_url_raw,
         )
-        self.prod_url = settings.prod_database_url_raw or ""
-        self.preview_url = settings.preview_database_url_raw
+        self.stg_url = _getenv(
+            "STG_DATABASE_URL",
+            "STAGING_DATABASE_URL",
+            "DATABASE_URL",
+            default=settings.stg_database_url_raw or settings.prod_database_url_raw,
+        )
+        self.prod_url = (
+            _getenv(
+                "PROD_DATABASE_URL",
+                "PRODUCTION_DATABASE_URL",
+                "DATABASE_URL",
+                default=settings.prod_database_url_raw,
+            )
+            or ""
+        )
+        self.preview_url = _getenv(
+            "PREVIEW_DATABASE_URL",
+            "DATABASE_URL",
+            default=settings.preview_database_url_raw,
+        )
 
         # Validate configuration on startup
         self.validate_configuration()
