@@ -13,8 +13,11 @@ const config = {
     'features/**/*.{ts,tsx,js,jsx}',
     'hooks/**/*.{ts,tsx,js,jsx}',
     'lib/**/*.{ts,tsx,js,jsx}',
-    '!playwright.config.ts',
-    '!e2e/**',
+    'contexts/**/*.{ts,tsx,js,jsx}',
+    'services/**/*.{ts,tsx,js,jsx}',
+    'utils/**/*.{ts,tsx,js,jsx}',
+    'e2e/**/*.{ts,tsx,js,jsx}',
+    'playwright.config.*',
     '!**/__tests__/**',
     '!type-tests/**',
     '!types/generated/**',
@@ -22,20 +25,6 @@ const config = {
 
   // Ignore non-app infra and flaky resolver targets
   ignore: [
-    'playwright.config.ts',
-    'e2e/**',
-    '**/__tests__/**',
-    'type-tests/**',
-    'types/generated/**',
-    '.next/**',
-    'node_modules/**',
-  ],
-
-  // external is not a valid top-level key in some knip versions; use ignore instead
-  // to suppress false positives for '@/lib/env'
-  ignore: [
-    'playwright.config.ts',
-    'e2e/**',
     '**/__tests__/**',
     'type-tests/**',
     'types/generated/**',

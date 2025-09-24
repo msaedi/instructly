@@ -1,4 +1,4 @@
-import TEST_ULIDS from './ulids';
+import { TEST_ULIDS } from './ulids';
 
 export const testData = {
   search: {

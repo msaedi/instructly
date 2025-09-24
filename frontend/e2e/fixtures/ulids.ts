@@ -8,5 +8,3 @@ export const TEST_ULIDS = {
   user1: '01J5TESTUSER00000000000001',
   user8: '01J5TESTUSER00000000000008',
 };
-
-export default TEST_ULIDS;

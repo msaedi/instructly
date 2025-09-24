@@ -2,13 +2,28 @@
 
 from __future__ import annotations
 
-from typing import Dict
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Dict, ParamSpec, TypeVar
 
 from app.services.referral_unlocker import main as unlocker_main
 from app.tasks.celery_app import celery_app
 
+P = ParamSpec("P")
+R = TypeVar("R")
 
-@celery_app.task(name="app.tasks.referrals.run_unlocker")
+if TYPE_CHECKING:
+
+    def celery_task(*args: object, **kwargs: object) -> Callable[[Callable[P, R]], Callable[P, R]]:
+        def decorator(func: Callable[P, R]) -> Callable[P, R]:
+            return func
+
+        return decorator
+
+else:  # pragma: no cover - runtime registration uses Celery decorator
+    celery_task = celery_app.task
+
+
+@celery_task(name="app.tasks.referrals.run_unlocker")
 def run_unlocker(limit: int = 200, dry_run: bool = False) -> Dict[str, int]:
     """Run the referral unlocker once and return its summary."""
     return unlocker_main(limit=limit, dry_run=dry_run)

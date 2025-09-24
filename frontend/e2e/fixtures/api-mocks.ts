@@ -2,7 +2,7 @@ import { Page, Route } from '@playwright/test';
 import { testData } from './test-data';
 
 // Test ULIDs for consistent E2E testing (single source of truth)
-import TEST_ULIDS from './ulids';
+import { TEST_ULIDS } from './ulids';
 export { TEST_ULIDS };
 
 export async function mockInstructorProfile(page: Page) {
