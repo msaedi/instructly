@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PaymentSection } from '@/features/student/payment';
 import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
+import ReferralShareModal from '@/components/referrals/ReferralShareModal';
+import { fetchMyReferrals } from '@/features/referrals/api';
 // booking helpers are imported elsewhere as needed
 import { BookingType } from '@/features/shared/types/booking';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
@@ -19,6 +21,8 @@ export default function BookingConfirmationPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [paymentComplete, setPaymentComplete] = useState(false);
   const [confirmationNumber, setConfirmationNumber] = useState<string>('');
+  const [referralShare, setReferralShare] = useState<{ code: string; shareUrl: string } | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
@@ -155,6 +159,31 @@ export default function BookingConfirmationPage() {
       router.push('/student/lessons');
     }, 5000); // 5 seconds to show success message
   };
+
+  useEffect(() => {
+    if (!paymentComplete) {
+      return;
+    }
+
+    let active = true;
+
+    const loadReferralSummary = async () => {
+      try {
+        const summary = await fetchMyReferrals();
+        if (!active) return;
+        setReferralShare({ code: summary.code, shareUrl: summary.share_url });
+        setShareModalOpen(true);
+      } catch (error) {
+        logger.warn('[BOOKING CONFIRM] Failed to load referral summary', error as Error);
+      }
+    };
+
+    void loadReferralSummary();
+
+    return () => {
+      active = false;
+    };
+  }, [paymentComplete]);
 
   const handlePaymentError = (error: Error) => {
     logger.error('[BOOKING CONFIRM] Payment failed', error);
@@ -306,6 +335,14 @@ export default function BookingConfirmationPage() {
 
         <div className="px-6 py-6">
           <div className="max-w-md mx-auto">
+            {referralShare && (
+              <ReferralShareModal
+                open={shareModalOpen}
+                onClose={() => setShareModalOpen(false)}
+                code={referralShare.code}
+                shareUrl={referralShare.shareUrl}
+              />
+            )}
             <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-8 text-center">
               {/* Success Icon */}
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -331,9 +368,18 @@ export default function BookingConfirmationPage() {
               </div>
 
               <div className="space-y-3">
+                {referralShare && (
+                  <button
+                    onClick={() => setShareModalOpen(true)}
+                    className="w-full bg-[#7E22CE] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#6b1fb8] transition-colors"
+                    aria-label="Share referral credit"
+                  >
+                    Share &amp; earn $20 credit
+                  </button>
+                )}
                 <button
                   onClick={() => router.push('/student/lessons')}
-                  className="w-full bg-[#7E22CE] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#7E22CE] transition-colors"
+                  className="w-full bg-white text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors"
                 >
                   View My Lessons
                 </button>
@@ -345,6 +391,16 @@ export default function BookingConfirmationPage() {
                   Book Another Lesson
                 </button>
               </div>
+
+              {referralShare && (
+                <p className="mt-5 text-xs text-gray-500">
+                  If your friend books their first $75+ lesson within 30 days, you both receive Theta credits.{' '}
+                  <Link href="/legal/referrals-terms" className="text-[#7E22CE] underline" onClick={() => setShareModalOpen(false)}>
+                    Terms apply
+                  </Link>
+                  .
+                </p>
+              )}
 
               <p className="text-xs text-gray-500 mt-6">
                 Redirecting to your lessons in 5 seconds...

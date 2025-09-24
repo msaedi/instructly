@@ -1,0 +1,308 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { fetchMyReferrals, type RewardOut } from '@/features/referrals/api';
+
+type TabKey = 'unlocked' | 'pending' | 'redeemed';
+
+type ReferralSummaryState = {
+  code: string;
+  shareUrl: string;
+  pending: RewardOut[];
+  unlocked: RewardOut[];
+  redeemed: RewardOut[];
+  expiryNoticeDays?: number[];
+};
+
+const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
+const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const CREDIT_DISPLAY = usd.format(20);
+
+function formatCents(amount: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100);
+}
+
+function computeExpiryBadge(reward: RewardOut) {
+  if (!reward.expire_ts) {
+    return null;
+  }
+  const now = Date.now();
+  const expire = new Date(reward.expire_ts).getTime();
+  if (Number.isNaN(expire)) {
+    return null;
+  }
+  const diffDays = Math.ceil((expire - now) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) {
+    return { tone: 'danger', label: 'Expired' } as const;
+  }
+  if (diffDays <= 3) {
+    return { tone: 'danger', label: `Expires in ${diffDays} day${diffDays === 1 ? '' : 's'}` } as const;
+  }
+  if (diffDays <= 14) {
+    return { tone: 'warn', label: `Expires in ${diffDays} days` } as const;
+  }
+  return { tone: 'neutral', label: `Expires on ${dateFormatter.format(new Date(reward.expire_ts))}` } as const;
+}
+
+const emptyCopy: Record<TabKey, string> = {
+  unlocked: 'You have no unlocked rewards yet. Share your link to start earning credits.',
+  pending: 'No pending rewards yet. When a friend books, their status appears here.',
+  redeemed: 'Redeemed rewards will show here once used at checkout.',
+};
+
+export default function RewardsPage() {
+  const [summary, setSummary] = useState<ReferralSummaryState | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>('unlocked');
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isShareAvailable, setIsShareAvailable] = useState(false);
+  const [isProcessing, setIsProcessing] = useState<'share' | 'copy' | null>(null);
+
+  useEffect(() => {
+    setIsShareAvailable(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const data = await fetchMyReferrals();
+        if (!active) return;
+        setSummary({
+          code: data.code,
+          shareUrl: data.share_url,
+          pending: data.pending,
+          unlocked: data.unlocked,
+          redeemed: data.redeemed,
+          expiryNoticeDays: data.expiry_notice_days ?? [],
+        });
+      } catch (error) {
+        if (!active) return;
+        setLoadError(error instanceof Error ? error.message : 'Failed to load rewards');
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const formattedSlug = useMemo(() => {
+    if (!summary) return '';
+    try {
+      const url = new URL(summary.shareUrl);
+      const slug = url.pathname.split('/').filter(Boolean).pop();
+      return slug ? `/r/${slug}` : `/r/${summary.code}`;
+    } catch {
+      return `/r/${summary?.code ?? ''}`;
+    }
+  }, [summary]);
+
+  const rewardsForTab = useMemo<RewardOut[]>(() => {
+    if (!summary) return [];
+    return summary[activeTab] ?? [];
+  }, [activeTab, summary]);
+
+  const handleCopy = useCallback(async () => {
+    if (!summary) return;
+    setIsProcessing('copy');
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(summary.shareUrl);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = summary.shareUrl;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      toast.success('Referral link copied');
+    } catch {
+      toast.error('Unable to copy link. Try again.');
+    } finally {
+      setIsProcessing((state) => (state === 'copy' ? null : state));
+    }
+  }, [summary]);
+
+  const handleShare = useCallback(async () => {
+    if (!summary) return;
+    if (!isShareAvailable) {
+      await handleCopy();
+      return;
+    }
+
+    setIsProcessing('share');
+    try {
+      await navigator.share({
+        title: 'Give $20, Get $20 on Theta',
+        text: `Book your first $75+ lesson and get ${CREDIT_DISPLAY} off. Use my code ${summary.code}`,
+        url: summary.shareUrl,
+      });
+      toast.success('Share sheet opened');
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        toast.error('Unable to share right now. Try copying the link instead.');
+      }
+    } finally {
+      setIsProcessing((state) => (state === 'share' ? null : state));
+    }
+  }, [handleCopy, isShareAvailable, summary]);
+
+  return (
+    <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+      <header className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Your rewards</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Share your link and you both receive Theta credits when a friend books their first lesson.
+          </p>
+        </div>
+      </header>
+
+      <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#7E22CE]/10 text-[#7E22CE]">
+              <Gift className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Share your link</p>
+              <p className="text-lg font-semibold text-gray-900" aria-label="Referral link">
+                {summary?.shareUrl ?? 'Loading…'}
+              </p>
+              {summary && (
+                <p className="mt-1 text-xs text-gray-500">Direct shortcut: {formattedSlug}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={!summary || isProcessing !== null}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Share2 className="h-4 w-4" aria-hidden="true" />
+              Share
+            </button>
+            <button
+              type="button"
+              onClick={handleCopy}
+              disabled={!summary || isProcessing !== null}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Copy className="h-4 w-4" aria-hidden="true" />
+              Copy
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4">
+          {(['unlocked', 'pending', 'redeemed'] as TabKey[]).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                activeTab === tab
+                  ? 'bg-[#7E22CE] text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+              aria-pressed={activeTab === tab}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-5 space-y-4">
+          {isLoading && (
+            <div className="flex items-center gap-3 text-sm text-gray-500">
+              <Clock className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Loading rewards…
+            </div>
+          )}
+
+          {loadError && !isLoading && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
+
+          {!isLoading && !loadError && rewardsForTab.length === 0 && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-600">
+              {emptyCopy[activeTab]}
+            </div>
+          )}
+
+          {rewardsForTab.map((reward) => {
+            const badge = computeExpiryBadge(reward);
+            return (
+              <article
+                key={reward.id}
+                className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-lg font-semibold text-gray-900">{formatCents(reward.amount_cents)}</p>
+                  <p className="text-sm text-gray-600">
+                    {reward.status === 'pending' && 'Pending — credits unlock after your friend completes their first lesson.'}
+                    {reward.status === 'unlocked' && 'Unlocked — ready to apply at checkout.'}
+                    {reward.status === 'redeemed' && 'Redeemed — already applied to a past booking.'}
+                    {reward.status === 'void' && 'Expired or cancelled reward.'}
+                  </p>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Earned {dateFormatter.format(new Date(reward.created_at))}
+                    {reward.unlock_ts && reward.status !== 'unlocked' && ` • Unlocks ${dateFormatter.format(new Date(reward.unlock_ts))}`}
+                  </p>
+                </div>
+                <div className="flex flex-col items-start gap-2 sm:items-end">
+                  {badge && (
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                        badge.tone === 'danger'
+                          ? 'bg-red-100 text-red-700'
+                          : badge.tone === 'warn'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      <Clock className="h-3 w-3" aria-hidden="true" />
+                      {badge.label}
+                    </span>
+                  )}
+                  {reward.status === 'redeemed' && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                      <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                      Applied
+                    </span>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <p className="mt-8 text-xs text-gray-500">
+        If your friend books, you both receive Theta credits. Credits expire if unused.{' '}
+        <Link href="/legal/referrals-terms" className="text-[#7E22CE] underline">
+          Terms apply
+        </Link>
+        .
+      </p>
+    </main>
+  );
+}

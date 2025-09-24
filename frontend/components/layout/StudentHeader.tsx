@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, Search, Calendar, User, LogOut, ChevronDown } from 'lucide-react';
+import { Home, Search, Calendar, User, LogOut, ChevronDown, Gift } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { BRAND } from '@/app/config/brand';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -46,6 +46,7 @@ export function StudentHeader() {
     { href: '/', label: 'Home', icon: Home },
     { href: '/search', label: 'Search', icon: Search },
     { href: '/student/lessons', label: 'My Lessons', icon: Calendar },
+    { href: '/rewards', label: 'Rewards', icon: Gift },
   ].filter(item => {
     // Hide search button when user is on My Lessons page
     if (item.href === '/search' && pathname.startsWith('/student/lessons')) {
@@ -69,7 +70,8 @@ export function StudentHeader() {
               const Icon = item.icon;
               const isActive =
                 pathname === item.href ||
-                (item.href === '/student/lessons' && pathname.startsWith('/student/lessons'));
+                (item.href === '/student/lessons' && pathname.startsWith('/student/lessons')) ||
+                (item.href === '/rewards' && pathname.startsWith('/rewards'));
 
               return (
                 <Link
@@ -173,7 +175,8 @@ export function StudentHeader() {
               const Icon = item.icon;
               const isActive =
                 pathname === item.href ||
-                (item.href === '/student/lessons' && pathname.startsWith('/student/lessons'));
+                (item.href === '/student/lessons' && pathname.startsWith('/student/lessons')) ||
+                (item.href === '/rewards' && pathname.startsWith('/rewards'));
 
               return (
                 <Link

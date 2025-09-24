@@ -127,6 +127,7 @@ def create_celery_app() -> Celery:
             "app.tasks.codebase_metrics",
             # Ensure privacy tasks are registered (fixes 'unregistered task' errors)
             "app.tasks.privacy_tasks",
+            "app.tasks.referrals",
             # Include legacy cleanup module for completeness
             "app.tasks.search_history_cleanup",
         }

@@ -6,10 +6,11 @@ import argparse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
-from typing import Optional
+from typing import Dict, Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.database import SessionLocal
 from app.events.referral_events import emit_reward_unlocked, emit_reward_voided
 from app.repositories.factory import RepositoryFactory
@@ -39,6 +40,10 @@ class ReferralUnlocker(BaseService):
 
     @BaseService.measure_operation("referrals.unlocker.run")
     def run(self, *, limit: int = 200, dry_run: bool = False) -> UnlockerResult:
+        if not settings.referrals_enabled:
+            logger.info("Referral unlocker skipped: REFERRALS_ENABLED=false")
+            return UnlockerResult(processed=0, unlocked=0, voided=0, expired=0)
+
         now = datetime.now(timezone.utc)
         processed = unlocked = voided = expired = 0
 
@@ -92,26 +97,56 @@ class ReferralUnlocker(BaseService):
         return prefix or None
 
 
-def main() -> None:  # pragma: no cover - CLI entry point
-    parser = argparse.ArgumentParser(description="Referral reward unlocker")
-    parser.add_argument("--dry-run", action="store_true", help="Do not persist changes")
-    parser.add_argument("--limit", type=int, default=200, help="Maximum rewards to process")
-    args = parser.parse_args()
-
+def _execute(limit: int = 200, dry_run: bool = False) -> UnlockerResult:
     session = SessionLocal()
     unlocker = ReferralUnlocker(session)
     try:
-        result = unlocker.run(limit=args.limit, dry_run=args.dry_run)
-        logger.info(
-            "Referral unlocker finished: processed=%s unlocked=%s voided=%s expired=%s dry_run=%s",
-            result.processed,
-            result.unlocked,
-            result.voided,
-            result.expired,
-            args.dry_run,
-        )
+        return unlocker.run(limit=limit, dry_run=dry_run)
     finally:
         session.close()
+
+
+def _result_to_dict(result: UnlockerResult) -> Dict[str, int]:
+    return {
+        "processed": result.processed,
+        "unlocked": result.unlocked,
+        "voided": result.voided,
+        "expired": result.expired,
+    }
+
+
+def main(limit: Optional[int] = None, dry_run: Optional[bool] = None) -> Dict[str, int]:
+    """Run the referral unlocker once.
+
+    When called without parameters, arguments are parsed from the CLI for backward compatibility.
+    """
+
+    cli_invocation = limit is None and dry_run is None
+
+    if cli_invocation:
+        parser = argparse.ArgumentParser(description="Referral reward unlocker")
+        parser.add_argument("--dry-run", action="store_true", help="Do not persist changes")
+        parser.add_argument("--limit", type=int, default=200, help="Maximum rewards to process")
+        args = parser.parse_args()
+        limit = args.limit
+        dry_run = args.dry_run
+    else:
+        limit = 200 if limit is None else limit
+        dry_run = False if dry_run is None else dry_run
+
+    result = _execute(limit=limit, dry_run=dry_run)
+    result_dict = _result_to_dict(result)
+
+    logger.info(
+        "Referral unlocker finished: processed=%s unlocked=%s voided=%s expired=%s dry_run=%s",
+        result.processed,
+        result.unlocked,
+        result.voided,
+        result.expired,
+        dry_run,
+    )
+
+    return result_dict
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry point

@@ -29,6 +29,9 @@ interface PaymentConfirmationProps {
   onCreditAmountChange?: (amount: number) => void;
   cardBrand?: string;
   isDefaultCard?: boolean;
+  promoApplied?: boolean;
+  onPromoStatusChange?: (applied: boolean) => void;
+  referralAppliedCents?: number;
 }
 
 export default function PaymentConfirmation({
@@ -45,6 +48,9 @@ export default function PaymentConfirmation({
   onCreditAmountChange,
   cardBrand = 'Card',
   isDefaultCard = false,
+  promoApplied = false,
+  onPromoStatusChange,
+  referralAppliedCents = 0,
 }: PaymentConfirmationProps) {
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
@@ -53,6 +59,9 @@ export default function PaymentConfirmation({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [instructorServices, setInstructorServices] = useState<InstructorService[]>([]);
   const [loadingInstructor, setLoadingInstructor] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoActive, setPromoActive] = useState(promoApplied);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
   // Track if credits are enabled (slider is shown) separately from amount
   const creditsEnabled = paymentMethod === PaymentMethod.MIXED || paymentMethod === PaymentMethod.CREDITS;
@@ -69,8 +78,18 @@ export default function PaymentConfirmation({
   const hasSavedLocation = booking.location && booking.location !== '';
   const [isLocationExpanded, setIsLocationExpanded] = useState(!hasSavedLocation && !isOnlineLesson);
   const isLastMinute = booking.bookingType === BookingType.LAST_MINUTE;
-  const cardCharge = booking.totalAmount - creditsUsed;
-  const totalAfterCredits = Math.max(0, booking.totalAmount - creditsUsed);
+  const referralCreditAmount = referralAppliedCents / 100;
+  const referralActive = referralCreditAmount > 0;
+  const cardCharge = Math.max(0, booking.totalAmount - creditsUsed - referralCreditAmount);
+  const totalAfterCredits = Math.max(0, booking.totalAmount - creditsUsed - referralCreditAmount);
+  const promoApplyDisabled = !promoActive && (promoCode.trim().length === 0 || referralActive);
+
+  useEffect(() => {
+    setPromoActive(promoApplied);
+    if (!promoApplied) {
+      setPromoError(null);
+    }
+  }, [promoApplied]);
 
   // Check for booking conflicts when component mounts
   useEffect(() => {
@@ -129,6 +148,37 @@ export default function PaymentConfirmation({
 
     void checkForConflicts();
   }, [booking]); // Re-run when booking changes
+
+  const handlePromoAction = () => {
+    if (promoActive) {
+      setPromoActive(false);
+      setPromoError(null);
+      setPromoCode('');
+      onPromoStatusChange?.(false);
+      return;
+    }
+
+    if (!promoCode.trim()) {
+      setPromoError('Enter a promo code to apply.');
+      return;
+    }
+
+    if (referralActive) {
+      setPromoError('Referral credit can’t be combined with a promo code.');
+      return;
+    }
+
+    setPromoActive(true);
+    setPromoError(null);
+    onPromoStatusChange?.(true);
+  };
+
+  const handlePromoInputChange = (value: string) => {
+    setPromoCode(value);
+    if (promoError) {
+      setPromoError(null);
+    }
+  };
 
   // Fetch instructor profile to get the actual service duration options
   useEffect(() => {
@@ -393,15 +443,29 @@ export default function PaymentConfirmation({
                 <input
                   type="text"
                   placeholder="Enter promo code"
-                  className="flex-1 p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                  value={promoCode}
+                  onChange={(event) => handlePromoInputChange(event.target.value)}
+                  disabled={promoActive}
+                  className="flex-1 p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors disabled:bg-gray-100"
                   style={{ outline: 'none' }}
                 />
                 <button
-                  className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg text-sm font-medium hover:bg-[#7E22CE] transition-colors"
+                  type="button"
+                  onClick={handlePromoAction}
+                  className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg text-sm font-medium hover:bg-[#7E22CE] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={promoApplyDisabled}
                 >
-                  Apply
+                  {promoActive ? 'Remove' : 'Apply'}
                 </button>
               </div>
+              {promoError && (
+                <p className="mt-2 text-xs text-red-600">{promoError}</p>
+              )}
+              {promoActive && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Promo applied. Referral credit is disabled while a promo code is active.
+                </p>
+              )}
             </div>
             </>
             )}
@@ -699,6 +763,12 @@ export default function PaymentConfirmation({
                 <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                   <span>Credits applied</span>
                   <span>-${creditsUsed.toFixed(2)}</span>
+                </div>
+              )}
+              {referralCreditAmount > 0 && (
+                <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
+                  <span>Referral credit</span>
+                  <span>- ${referralCreditAmount.toFixed(2)}</span>
                 </div>
               )}
               <div className="border-t border-gray-300 pt-2 mt-2">

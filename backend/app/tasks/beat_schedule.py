@@ -202,6 +202,15 @@ CELERYBEAT_SCHEDULE = {
         },
         # Note: Generate weekly search behavior insights
     },
+    "referrals-unlock-every-15m": {
+        "task": "app.tasks.referrals.run_unlocker",
+        "schedule": crontab(minute="*/15"),  # Every 15 minutes
+        "options": {
+            "queue": "celery",
+            "priority": 5,
+        },
+        # Note: Unlock pending referral rewards on a rolling cadence
+    },
     # Cleanup old data - runs daily at 3 AM
     # "cleanup-old-notifications": {
     #     "task": "app.tasks.cleanup.cleanup_old_notifications",

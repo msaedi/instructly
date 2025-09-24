@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { BookingPayment, PaymentCard, CreditBalance, PaymentMethod } from '../types';
 import { usePaymentFlow, PaymentStep } from '../hooks/usePaymentFlow';
@@ -14,6 +14,7 @@ import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBooking';
 import { paymentService } from '@/services/api/payments';
 import { protectedApi } from '@/features/shared/api/client';
+import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
 
 // Custom error for payment actions that require user interaction
 class PaymentActionError extends Error {
@@ -48,6 +49,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const [confirmationNumber, setConfirmationNumber] = useState<string>('');
   const [updatedBookingData, setUpdatedBookingData] = useState<BookingPayment>(bookingData);
   const [localErrorMessage, setLocalErrorMessage] = useState<string>('');
+  const [referralAppliedCents, setReferralAppliedCents] = useState(0);
+  const [promoApplied, setPromoApplied] = useState(false);
 
   // Real payment data from backend
   const [userCards, setUserCards] = useState<PaymentCard[]>([]);
@@ -89,6 +92,24 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     setUserChangingPayment(false); // Reset flag when a new method is selected
     selectPaymentMethodOriginal(method, cardId, credits);
   }, [selectPaymentMethodOriginal]);
+
+  const subtotalCents = useMemo(() => Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100)), [updatedBookingData.totalAmount]);
+  const effectiveOrderId = updatedBookingData.bookingId || bookingData.bookingId;
+
+  useEffect(() => {
+    setReferralAppliedCents(0);
+  }, [effectiveOrderId]);
+
+  const referralApplyPanel = (
+    <CheckoutApplyReferral
+      orderId={effectiveOrderId ?? ''}
+      subtotalCents={subtotalCents}
+      promoApplied={promoApplied}
+      onApplied={(cents) => {
+        setReferralAppliedCents(cents);
+      }}
+    />
+  );
 
   // Fetch real payment methods and credits from backend
   useEffect(() => {
@@ -310,7 +331,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       });
 
       // Step 2: Process payment if there's an amount due
-      const amountDue = bookingData.totalAmount - creditsToUse;
+      const amountDue = Math.max(0, bookingData.totalAmount - creditsToUse - referralAppliedCents / 100);
 
       try {
         if (amountDue > 0 && selectedCardId) {
@@ -460,9 +481,13 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               onCardAdded={(newCard) => {
                 // Add the new card to the list
                 setUserCards([...userCards, newCard]);
-                logger.info('New card added to list', { cardId: newCard.id });
+              logger.info('New card added to list', { cardId: newCard.id });
               }}
             />
+          </div>
+
+          <div>
+            {referralApplyPanel}
           </div>
 
           {/* Show confirmation details below if payment method is selected */}
@@ -476,6 +501,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               creditsUsed={creditsToUse}
               availableCredits={userCredits.totalAmount}
               {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
+              promoApplied={promoApplied}
+              onPromoStatusChange={setPromoApplied}
+              referralAppliedCents={referralAppliedCents}
               onConfirm={processPayment}
               onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
               onChangePaymentMethod={() => {
@@ -521,6 +549,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               }}
             />
           )}
+
+          {(currentStep === PaymentStep.METHOD_SELECTION || currentStep === PaymentStep.CONFIRMATION) && (
+            <div className="mt-6">
+              {referralApplyPanel}
+            </div>
+          )}
           {currentStep === PaymentStep.CONFIRMATION && (
             <PaymentConfirmation
               booking={updatedBookingData}
@@ -531,6 +565,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               creditsUsed={creditsToUse}
               availableCredits={userCredits.totalAmount}
               {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
+              promoApplied={promoApplied}
+              onPromoStatusChange={setPromoApplied}
+              referralAppliedCents={referralAppliedCents}
               onConfirm={processPayment}
               onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
               onChangePaymentMethod={() => {

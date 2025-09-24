@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, Calendar, LogOut, ChevronDown, AlertCircle } from 'lucide-react';
+import { User, Calendar, LogOut, ChevronDown, AlertCircle, Gift } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { createPortal } from 'react-dom';
 import { RoleName } from '@/types/enums';
@@ -174,6 +174,14 @@ export default function UserProfileDropdown() {
                 >
                   <User className="h-4 w-4" aria-hidden="true" />
                   My Account
+                </button>
+
+                <button
+                  onClick={() => handleNavigation('/rewards')}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Gift className="h-4 w-4" aria-hidden="true" />
+                  Rewards
                 </button>
 
                 <button

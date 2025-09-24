@@ -13,6 +13,7 @@ from app.tasks import (
     codebase_metrics,  # noqa: F401
     monitoring_tasks,  # noqa: F401
     privacy_audit_task,  # noqa: F401
+    referrals,  # noqa: F401
 )
 
 # Import the Celery app first
@@ -34,6 +35,8 @@ ALL_TASKS = [
     "privacy_audit_production",
     # Codebase metrics
     "app.tasks.codebase_metrics.append_history",
+    # Referrals
+    "app.tasks.referrals.run_unlocker",
     # Health check (defined in celery_app.py)
     "app.tasks.health_check",
 ]
