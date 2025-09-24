@@ -52,6 +52,8 @@ jobs:
   lint-build:
     needs: contract-check
     runs-on: ubuntu-latest
+    env:
+      STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
     services:
       postgres:
         image: postgres:15
