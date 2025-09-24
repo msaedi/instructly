@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import CheckoutApplyReferral from '../CheckoutApplyReferral';
-import type { ApplyReferralErrorType } from '@/features/referrals/api';
+import type { ApplyReferralErrorType } from '@/features/shared/referrals/api';
 
 jest.mock('sonner', () => ({
   toast: {
@@ -10,7 +10,7 @@ jest.mock('sonner', () => ({
 }));
 
 const mockApplyReferralCredit = jest.fn();
-jest.mock('@/features/referrals/api', () => ({
+jest.mock('@/features/shared/referrals/api', () => ({
   applyReferralCredit: (...args: unknown[]) => mockApplyReferralCredit(...args),
 }));
 

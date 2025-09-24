@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchMyReferrals, type RewardOut } from '@/features/referrals/api';
-import { shareOrCopy } from '@/features/referrals/share';
+import { fetchMyReferrals, type RewardOut } from '@/features/shared/referrals/api';
+import { shareOrCopy } from '@/features/shared/referrals/share';
 
 type TabKey = 'unlocked' | 'pending' | 'redeemed';
 

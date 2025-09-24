@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { PaymentSection } from '@/features/student/payment';
 import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
 import ReferralShareModal from '@/components/referrals/ReferralShareModal';
-import { fetchMyReferrals } from '@/features/referrals/api';
+import { fetchMyReferrals } from '@/features/shared/referrals/api';
 // booking helpers are imported elsewhere as needed
 import { BookingType } from '@/features/shared/types/booking';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';

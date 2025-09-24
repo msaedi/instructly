@@ -14,7 +14,7 @@ export async function shareOrCopy(payload: ShareData, copyText: string): Promise
       await n.share!(payload);
       return 'shared';
     } catch {
-      // fall through to copy
+      // fall through to copy fallback
     }
   }
 

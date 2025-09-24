@@ -48,7 +48,7 @@ export async function fetchMyReferrals(): Promise<ReferralSummary> {
   const response = await fetch(buildUrl('/api/referrals/me'), {
     method: 'GET',
     credentials: 'include',
-    headers: { 'Accept': 'application/json' },
+    headers: { Accept: 'application/json' },
     cache: 'no-store',
   });
 
@@ -77,7 +77,7 @@ export async function applyReferralCredit(orderId: string): Promise<ReferralChec
     method: 'POST',
     credentials: 'include',
     headers: {
-      'Accept': 'application/json',
+      Accept: 'application/json',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ order_id: orderId }),
@@ -93,7 +93,9 @@ export async function applyReferralCredit(orderId: string): Promise<ReferralChec
   }
 
   if (!response.ok || isReferralError(payload)) {
-    const errorBody = isReferralError(payload) ? payload : { reason: response.status === 409 ? 'promo_conflict' : 'disabled' };
+    const errorBody = isReferralError(payload)
+      ? payload
+      : { reason: response.status === 409 ? 'promo_conflict' : 'disabled' };
     return normalizeError(errorBody.reason, (payload as { message?: string })?.message);
   }
 

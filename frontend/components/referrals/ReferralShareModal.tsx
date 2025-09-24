@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { Copy, Share2 } from 'lucide-react';
 import Modal from '@/components/Modal';
-import { shareOrCopy } from '@/features/referrals/share';
+import { shareOrCopy } from '@/features/shared/referrals/share';
 
 export interface ReferralShareModalProps {
   open: boolean;

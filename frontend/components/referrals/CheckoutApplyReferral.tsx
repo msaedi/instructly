@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle, Gift, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { applyReferralCredit, type ApplyReferralErrorType } from '@/features/referrals/api';
+import { applyReferralCredit, type ApplyReferralErrorType } from '@/features/shared/referrals/api';
 
 export interface CheckoutApplyReferralProps {
   orderId: string;
