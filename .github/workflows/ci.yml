@@ -413,6 +413,7 @@ jobs:
         working-directory: backend
         env:
           STRICT_SCHEMAS: "true"
+          STG_DATABASE_URL: ${{ env.STG_DATABASE_URL }}
           TZ: UTC
         run: |
           python -m pytest -q tests/integration/test_error_envelope.py
