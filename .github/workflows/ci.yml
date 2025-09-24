@@ -12,7 +12,8 @@ on:
       invite_e2e:
         description: 'Run cross-origin invite e2e job'
         required: false
-        default: 'false'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -519,7 +520,7 @@ jobs:
           echo "env-contract: completed (base=${PLAYWRIGHT_BASE_URL})" >> $GITHUB_STEP_SUMMARY
 
   invite-e2e:
-    if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.invite_e2e == 'true') || env.CI_LOCAL_E2E == '1' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.invite_e2e == 'true' }}
     needs:
       - lint-build
       - frontend-tests
