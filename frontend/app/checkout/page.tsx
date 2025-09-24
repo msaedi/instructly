@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+export const dynamic = 'force-dynamic';
+
+import { Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
 
-export default function CheckoutPage() {
+function CheckoutContent() {
   const params = useSearchParams();
   const orderId = params.get('orderId') ?? '';
   const subtotalParam = params.get('subtotalCents') ?? params.get('subtotal') ?? '0';
@@ -39,5 +41,19 @@ export default function CheckoutPage() {
         <p className="mt-1 font-mono text-[11px] text-gray-600">/checkout?orderId=ORDER123&subtotalCents=8200</p>
       </div>
     </main>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+          <p className="text-sm text-gray-500">Loading checkout preview…</p>
+        </main>
+      }
+    >
+      <CheckoutContent />
+    </Suspense>
   );
 }

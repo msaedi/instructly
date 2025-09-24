@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Copy, Share2 } from 'lucide-react';
 import Modal from '@/components/Modal';
+import { shareOrCopy } from '@/features/referrals/share';
 
 export interface ReferralShareModalProps {
   open: boolean;
@@ -22,12 +23,7 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 const CREDIT_DISPLAY = currencyFormatter.format(20);
 
 export function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModalProps) {
-  const [canShare, setCanShare] = useState(false);
   const [isProcessing, setIsProcessing] = useState<'share' | 'copy' | null>(null);
-
-  useEffect(() => {
-    setCanShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
-  }, []);
 
   const formattedSlug = useMemo(() => {
     try {
@@ -63,29 +59,26 @@ export function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralSh
   }, [shareUrl]);
 
   const handleShare = useCallback(async () => {
-    if (!canShare) {
-      await copyToClipboard();
-      return;
-    }
-
     setIsProcessing('share');
     try {
-      await navigator.share({
+      const payload: ShareData = {
         title: 'Give $20, Get $20 on Theta',
         text: `Your first $75+ lesson is ${CREDIT_DISPLAY} off. Use my code ${code}`,
         url: shareUrl,
-      });
-      toast.success('Share sheet opened');
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        // User dismissed share sheet; no toast needed
+      };
+      const outcome = await shareOrCopy(payload, shareUrl);
+
+      if (outcome === 'shared') {
+        toast.success('Share sheet opened');
+      } else if (outcome === 'copied') {
+        toast.success('Referral link copied');
       } else {
         toast.error('Unable to share right now. Try copying the link instead.');
       }
     } finally {
       setIsProcessing((current) => (current === 'share' ? null : current));
     }
-  }, [canShare, code, copyToClipboard, shareUrl]);
+  }, [code, shareUrl]);
 
   return (
     <Modal

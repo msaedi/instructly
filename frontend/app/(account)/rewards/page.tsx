@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchMyReferrals, type RewardOut } from '@/features/referrals/api';
+import { shareOrCopy } from '@/features/referrals/share';
 
 type TabKey = 'unlocked' | 'pending' | 'redeemed';
 
@@ -58,12 +59,7 @@ export default function RewardsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('unlocked');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isShareAvailable, setIsShareAvailable] = useState(false);
   const [isProcessing, setIsProcessing] = useState<'share' | 'copy' | null>(null);
-
-  useEffect(() => {
-    setIsShareAvailable(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -136,27 +132,26 @@ export default function RewardsPage() {
 
   const handleShare = useCallback(async () => {
     if (!summary) return;
-    if (!isShareAvailable) {
-      await handleCopy();
-      return;
-    }
-
     setIsProcessing('share');
     try {
-      await navigator.share({
+      const payload: ShareData = {
         title: 'Give $20, Get $20 on Theta',
         text: `Book your first $75+ lesson and get ${CREDIT_DISPLAY} off. Use my code ${summary.code}`,
         url: summary.shareUrl,
-      });
-      toast.success('Share sheet opened');
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+      };
+      const outcome = await shareOrCopy(payload, summary.shareUrl);
+
+      if (outcome === 'shared') {
+        toast.success('Share sheet opened');
+      } else if (outcome === 'copied') {
+        toast.success('Referral link copied');
+      } else {
         toast.error('Unable to share right now. Try copying the link instead.');
       }
     } finally {
       setIsProcessing((state) => (state === 'share' ? null : state));
     }
-  }, [handleCopy, isShareAvailable, summary]);
+  }, [summary]);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
