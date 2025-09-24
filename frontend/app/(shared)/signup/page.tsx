@@ -15,9 +15,10 @@ import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { API_URL, API_ENDPOINTS, checkIsNYCZip } from '@/lib/api';
+import { API_ENDPOINTS, checkIsNYCZip } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
+import { ApiError, http, httpGet, httpPost } from '@/lib/http';
 import { getGuestSessionId } from '@/lib/searchTracking';
 // Background handled globally via GlobalBackground
 
@@ -27,6 +28,7 @@ import { RequestStatus } from '@/types/api';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName } from '@/types/enums';
+import type { User as AuthUser } from '@/features/shared/hooks/useAuth';
 
 /**
  * Form validation errors interface
@@ -311,10 +313,6 @@ function SignUpForm() {
     setRequestStatus(RequestStatus.LOADING);
     setErrors({});
 
-    // Note: We handle API errors in the try block instead of throwing
-    // This prevents the response body from being consumed twice
-    let response: Response | undefined;
-
     try {
       // Get guest session ID if available
       const guestSessionId = getGuestSessionId();
@@ -340,65 +338,53 @@ function SignUpForm() {
         role: registrationData.role,
       });
       logger.time('registration');
+      try {
+        await httpPost(API_ENDPOINTS.REGISTER, registrationData);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          const status = err.status;
+          const errorData = (err.data ?? {}) as { detail?: unknown };
+          logger.warn('Registration failed', { status, error: errorData });
 
-      // Register the user
-      response = await fetch(`${API_URL}${API_ENDPOINTS.REGISTER}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(registrationData),
-      });
+          let errorMessage = 'Registration failed';
 
-      logger.timeEnd('registration');
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        logger.warn('Registration failed', {
-          status: response.status,
-          error: errorData,
-        });
-
-        let errorMessage = 'Registration failed';
-
-        // Handle rate limit errors specially
-        if (response.status === 429 && errorData.detail) {
-          const detail = errorData.detail;
-          if (detail.retry_after) {
-            const minutes = Math.ceil(detail.retry_after / 60);
-            errorMessage = `${
-              detail.message || 'Too many registration attempts. Please try again later.'
-            } Please wait ${minutes} minute${minutes > 1 ? 's' : ''} before trying again.`;
-          } else if (detail.message) {
-            errorMessage = detail.message;
+          if (status === 429 && errorData.detail) {
+            const detail = errorData.detail as { retry_after?: number; message?: string };
+            if (detail?.retry_after) {
+              const minutes = Math.ceil(detail.retry_after / 60);
+              errorMessage = `${
+                detail.message || 'Too many registration attempts. Please try again later.'
+              } Please wait ${minutes} minute${minutes > 1 ? 's' : ''} before trying again.`;
+            } else if (detail?.message) {
+              errorMessage = detail.message;
+            } else {
+              errorMessage = 'Too many attempts. Please try again later.';
+            }
+          } else if (Array.isArray(errorData.detail)) {
+            errorMessage = (errorData.detail as Array<{ msg?: string }>)
+              .map((e) => e.msg)
+              .filter(Boolean)
+              .join(', ');
+          } else if (
+            status === 400 &&
+            typeof errorData.detail === 'string' &&
+            errorData.detail.includes('already registered')
+          ) {
+            errorMessage = 'An account with this email already exists';
+          } else if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
           } else {
-            errorMessage = 'Too many attempts. Please try again later.';
+            errorMessage = `Registration failed (${status})`;
           }
-        }
-        // Handle validation errors
-        else if (Array.isArray(errorData.detail)) {
-          errorMessage = errorData.detail.map((e: { msg: string }) => e.msg).join(', ');
-        }
-        // Handle email already exists
-        else if (
-          response.status === 400 &&
-          typeof errorData.detail === 'string' &&
-          errorData.detail.includes('already registered')
-        ) {
-          errorMessage = 'An account with this email already exists';
-        }
-        // Handle other string errors
-        else if (typeof errorData.detail === 'string') {
-          errorMessage = errorData.detail;
-        }
-        // Generic error with status
-        else {
-          errorMessage = `Registration failed (${response.status})`;
+
+          setErrors({ general: errorMessage });
+          setRequestStatus(RequestStatus.ERROR);
+          return;
         }
 
-        // Don't throw here, just set the error and return
-        // This prevents the response body from being consumed twice
-        setErrors({ general: errorMessage });
-        setRequestStatus(RequestStatus.ERROR);
-        return;
+        throw err;
+      } finally {
+        logger.timeEnd('registration');
       }
 
       logger.info('Registration successful, attempting auto-login');
@@ -406,72 +392,71 @@ function SignUpForm() {
       // Auto-login after successful registration
       // Use new endpoint if we have a guest session (already converted during registration)
       logger.time('auto-login');
-      const loginEndpoint = getGuestSessionId()
-        ? `${API_URL}/auth/login-with-session`
-        : `${API_URL}${API_ENDPOINTS.LOGIN}`;
-
-      const loginBody = getGuestSessionId()
-        ? JSON.stringify({
+      const loginPath = guestSessionId ? '/auth/login-with-session' : API_ENDPOINTS.LOGIN;
+      const loginHeaders = guestSessionId
+        ? { 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/x-www-form-urlencoded' };
+      const loginPayload = guestSessionId
+        ? {
             email: formData.email,
             password: formData.password,
-            guest_session_id: getGuestSessionId(),
-          })
+            guest_session_id: guestSessionId,
+          }
         : new URLSearchParams({
             username: formData.email,
             password: formData.password,
-          });
+          }).toString();
 
-      const loginHeaders = getGuestSessionId()
-        ? { 'Content-Type': 'application/json' }
-        : { 'Content-Type': 'application/x-www-form-urlencoded' };
-
-      const loginResponse = await fetch(loginEndpoint, {
-        method: 'POST',
-        headers: loginHeaders,
-        body: loginBody,
-      });
-      logger.timeEnd('auto-login');
-
-      if (!loginResponse.ok) {
-        logger.error('Auto-login failed after registration', null, {
-          status: loginResponse.status,
+      let authData: AuthResponse;
+      try {
+        authData = await http<AuthResponse>('POST', loginPath, {
+          headers: loginHeaders,
+          body: loginPayload,
         });
-        // Registration succeeded but login failed - redirect to login
-        // But pass the original redirect, not the login page
-        const originalRedirect = searchParams.get('redirect') || '/';
-        router.push(`/login?redirect=${encodeURIComponent(originalRedirect)}&registered=true`);
-        return;
+      } catch (err) {
+        if (err instanceof ApiError) {
+          logger.error('Auto-login failed after registration', err, { status: err.status });
+          const originalRedirect = searchParams.get('redirect') || '/';
+          router.push(`/login?redirect=${encodeURIComponent(originalRedirect)}&registered=true`);
+          return;
+        }
+        throw err;
+      } finally {
+        logger.timeEnd('auto-login');
       }
 
-      const authData: AuthResponse = await loginResponse.json();
       localStorage.setItem('access_token', authData.access_token);
 
       logger.info('Auto-login successful, fetching user data and updating auth context');
 
       // Session is cookie-based; fetch user data without storing tokens client-side
-      const userResponse = await fetch(`${API_URL}${API_ENDPOINTS.ME}`, {
-        credentials: 'include',
-      });
+      let userData: AuthUser | null = null;
+      try {
+        userData = await httpGet<AuthUser>(API_ENDPOINTS.ME);
+      } catch (fetchError) {
+        logger.warn('Failed to fetch user data after login, using default redirect', fetchError instanceof Error ? fetchError : undefined);
+        await checkAuth();
+        router.push(redirect);
+        setRequestStatus(RequestStatus.SUCCESS);
+        return;
+      }
 
-      if (userResponse.ok) {
-        const userData = await userResponse.json();
-        // If the user signed up via a beta invite, consume it and grant access
+      if (userData) {
         try {
           const inviteCode = searchParams.get('invite_code') || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
           if (inviteCode) {
             logger.info('Consuming beta invite for new user', { inviteCode, userId: userData.id });
-            await fetch(`${API_URL}/api/beta/invites/consume`, {
-              method: 'POST',
+            await http('POST', '/api/beta/invites/consume', {
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${authData.access_token}`,
               },
-              body: JSON.stringify({
+              body: {
                 code: inviteCode,
                 user_id: userData.id,
                 role: 'instructor_beta',
                 phase: 'instructor_only',
-              }),
+              },
             });
           }
         } catch (e) {
@@ -484,13 +469,8 @@ function SignUpForm() {
         });
         // Ensure AuthProvider state is up-to-date before hitting gated routes
         await checkAuth();
-        // Defer navigation until AuthProvider reflects the newly created account
         const nextDestination = redirect || (hasRole(userData, RoleName.INSTRUCTOR) ? '/instructor/onboarding/welcome' : '/');
         setPostSignupRedirect({ target: nextDestination, expectedUserId: userData.id });
-      } else {
-        logger.warn('Failed to fetch user data after login, using default redirect');
-        await checkAuth();
-        router.push(redirect);
       }
 
       setRequestStatus(RequestStatus.SUCCESS);
