@@ -535,7 +535,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:15
+        image: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
