@@ -558,6 +558,10 @@ jobs:
           --health-retries 10
     env:
       PLAYWRIGHT_BASE_URL: http://localhost:3000
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      PROD_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
     steps:
       - uses: actions/checkout@v4
 
@@ -594,8 +598,9 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-          stg_database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
         run: |
+          export stg_database_url="$STG_DATABASE_URL"
+          export prod_database_url="$PROD_DATABASE_URL"
           until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
           psql "postgresql://postgres:postgres@localhost:5432/postgres" -c 'CREATE DATABASE instainstru_test;' || true
           psql "$DATABASE_URL" -c "SELECT extname FROM pg_extension;"
@@ -607,8 +612,9 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-          stg_database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
         run: |
+          export stg_database_url="$STG_DATABASE_URL"
+          export prod_database_url="$PROD_DATABASE_URL"
           alembic upgrade head
           python scripts/reset_and_seed_yaml.py
 
@@ -626,11 +632,16 @@ jobs:
           SITE_MODE: local
           SECRET_KEY: dev-e2e-secret
           ALLOWED_ORIGINS: http://localhost:3000,http://beta-local.instainstru.com:3000
-          stg_database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          PROD_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           redis_url: redis://localhost:6379/0
         run: |
           rm -f ../.artifacts/backend.log
           touch ../.artifacts/backend.log
+          export stg_database_url="$STG_DATABASE_URL"
+          export prod_database_url="$PROD_DATABASE_URL"
           nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 >> ../.artifacts/backend.log 2>&1 &
           echo $! > ../.artifacts/backend.pid
 
