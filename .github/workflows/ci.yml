@@ -8,6 +8,11 @@ on:
     branches:
       - '**'
   workflow_dispatch:
+    inputs:
+      invite_e2e:
+        description: 'Run cross-origin invite e2e job'
+        required: false
+        default: 'false'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -512,3 +517,137 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
         run: |
           echo "env-contract: completed (base=${PLAYWRIGHT_BASE_URL})" >> $GITHUB_STEP_SUMMARY
+
+  invite-e2e:
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.invite_e2e == 'true') || env.CI_LOCAL_E2E == '1' }}
+    needs:
+      - lint-build
+      - frontend-tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: instainstru_test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Append beta-local host alias
+        run: |
+          echo "127.0.0.1 beta-local.instainstru.com" | sudo tee -a /etc/hosts
+
+      - name: Prepare artifacts directory
+        run: mkdir -p .artifacts
+
+      - name: Use Node 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Run migrations and seed data
+        working-directory: backend
+        env:
+          SITE_MODE: local
+          stg_database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        run: |
+          alembic upgrade head
+          python scripts/reset_and_seed_yaml.py
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx --yes playwright install --with-deps
+
+      - name: Start backend
+        working-directory: backend
+        env:
+          SITE_MODE: local
+          SECRET_KEY: dev-e2e-secret
+          ALLOWED_ORIGINS: http://localhost:3000,http://beta-local.instainstru.com:3000
+          stg_database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          redis_url: redis://localhost:6379/0
+        run: |
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > ../.artifacts/backend.log 2>&1 &
+          echo $! > ../.artifacts/backend.pid
+
+      - name: Start frontend (preview/beta)
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_APP_ENV: preview
+          NEXT_PUBLIC_API_BASE: http://localhost:8000
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NODE_ENV: development
+        run: |
+          nohup npm run dev -- --hostname 0.0.0.0 --port 3000 > ../.artifacts/frontend.log 2>&1 &
+          echo $! > ../.artifacts/frontend.pid
+
+      - name: Wait for services
+        run: |
+          npx --yes wait-on http://127.0.0.1:8000/health http://localhost:3000
+          curl -sSf http://beta-local.instainstru.com:3000 >/dev/null
+
+      - name: Run invite redemption e2e
+        working-directory: frontend
+        env:
+          CI_LOCAL_E2E: '1'
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+        run: npx --yes playwright test e2e/invites.invite-redemption.spec.ts --reporter=line
+
+      - name: Stop services
+        if: always()
+        run: |
+          if [ -f .artifacts/frontend.pid ]; then kill $(cat .artifacts/frontend.pid) || true; fi
+          if [ -f .artifacts/backend.pid ]; then kill $(cat .artifacts/backend.pid) || true; fi
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo '--- backend.log ---'
+          cat .artifacts/backend.log || true
+          echo '--- frontend.log ---'
+          cat .artifacts/frontend.log || true
+
+      - name: Upload invite e2e logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invite-e2e-logs
+          path: |
+            .artifacts/backend.log
+            .artifacts/frontend.log
