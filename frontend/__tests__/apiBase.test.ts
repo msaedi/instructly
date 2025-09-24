@@ -6,16 +6,31 @@
 describe('API Base Configuration', () => {
   const originalEnv = process.env;
 
+  function withoutWindow<T>(run: () => T): T {
+    const globalObj = global as Record<string, unknown>;
+    const existingWindow = globalObj.window;
+    delete globalObj.window;
+    try {
+      return run();
+    } finally {
+      if (existingWindow !== undefined) {
+        globalObj.window = existingWindow;
+      }
+    }
+  }
+
   beforeEach(() => {
     // Reset modules before each test
     jest.resetModules();
     // Clear environment
-    process.env = { ...originalEnv };
-    // Clear environment variables to simulate missing config
     const env = process.env as Record<string, string | undefined>;
-    delete env['NEXT_PUBLIC_API_URL'];
-    delete env['NEXT_PUBLIC_API_BASE'];
-    delete env['NEXT_PUBLIC_USE_PROXY'];
+    Object.keys(env).forEach((key) => {
+      delete env[key];
+    });
+    Object.assign(process.env, originalEnv);
+    delete process.env['NEXT_PUBLIC_API_URL'];
+    delete process.env['NEXT_PUBLIC_API_BASE'];
+    delete process.env['NEXT_PUBLIC_USE_PROXY'];
   });
 
   afterAll(() => {
@@ -53,29 +68,39 @@ describe('API Base Configuration', () => {
   });
 
   describe('Phase A.1: Single source of truth', () => {
-    it('should throw error when NEXT_PUBLIC_API_BASE is not set', () => {
-      expect(() => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('@/lib/apiBase');
-      }).toThrow('NEXT_PUBLIC_API_BASE is not set. Refusing to default to localhost.');
+    it('should default to localhost when NEXT_PUBLIC_API_BASE is not set', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { API_BASE, getApiBase } = require('@/lib/apiBase');
+
+      expect(API_BASE).toBe('http://localhost:8000');
+      expect(getApiBase()).toBe('http://localhost:8000');
     });
 
     it('should use NEXT_PUBLIC_API_BASE when set', () => {
-      process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
-
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { API_BASE } = require('@/lib/apiBase');
-
-      expect(API_BASE).toBe('https://api.example.com');
+      withoutWindow(() => {
+        jest.isolateModules(() => {
+          process.env['NEXT_PUBLIC_USE_PROXY'] = 'false';
+          process.env['NEXT_PUBLIC_APP_ENV'] = 'test';
+          process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
+          expect(process.env['NEXT_PUBLIC_API_BASE']).toBe('https://api.example.com');
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { getApiBase } = require('@/lib/apiBase');
+          expect(getApiBase()).toBe('https://api.example.com');
+        });
+      });
     });
 
     it('should remove trailing slashes from API_BASE', () => {
-      process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com///';
-
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { API_BASE } = require('@/lib/apiBase');
-
-      expect(API_BASE).toBe('https://api.example.com');
+      withoutWindow(() => {
+        jest.isolateModules(() => {
+          process.env['NEXT_PUBLIC_USE_PROXY'] = 'false';
+          process.env['NEXT_PUBLIC_APP_ENV'] = 'test';
+          process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com///';
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { getApiBase } = require('@/lib/apiBase');
+          expect(getApiBase()).toBe('https://api.example.com');
+        });
+      });
     });
 
     it('should use proxy path when USE_PROXY is enabled in local env', () => {
@@ -99,32 +124,67 @@ describe('API Base Configuration', () => {
 
       expect(API_BASE).toBe('http://localhost:8000');
     });
+
+    it('should return beta-local API base when window host matches', () => {
+      jest.isolateModules(() => {
+        process.env['NEXT_PUBLIC_USE_PROXY'] = 'false';
+        process.env['NEXT_PUBLIC_APP_ENV'] = 'local';
+        process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
+        (global as unknown as { window?: { location: { hostname: string } } }).window = {
+          location: { hostname: 'beta-local.instainstru.com' },
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getApiBase } = require('@/lib/apiBase');
+        expect(getApiBase()).toBe('http://api.beta-local.instainstru.com:8000');
+
+        delete (global as { window?: unknown }).window;
+      });
+    });
   });
 
   describe('withApiBase helper', () => {
     beforeEach(() => {
-      process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
+      delete (process.env as Record<string, string | undefined>)['NEXT_PUBLIC_API_BASE'];
     });
 
     it('should build correct URL with leading slash', () => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { withApiBase } = require('@/lib/apiBase');
-
-      expect(withApiBase('/users/123')).toBe('https://api.example.com/users/123');
+      withoutWindow(() => {
+        jest.isolateModules(() => {
+          process.env['NEXT_PUBLIC_USE_PROXY'] = 'false';
+          process.env['NEXT_PUBLIC_APP_ENV'] = 'test';
+          process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { withApiBase } = require('@/lib/apiBase');
+          expect(withApiBase('/users/123')).toBe('https://api.example.com/users/123');
+        });
+      });
     });
 
     it('should build correct URL without leading slash', () => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { withApiBase } = require('@/lib/apiBase');
-
-      expect(withApiBase('users/123')).toBe('https://api.example.com/users/123');
+      withoutWindow(() => {
+        jest.isolateModules(() => {
+          process.env['NEXT_PUBLIC_USE_PROXY'] = 'false';
+          process.env['NEXT_PUBLIC_APP_ENV'] = 'test';
+          process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { withApiBase } = require('@/lib/apiBase');
+          expect(withApiBase('users/123')).toBe('https://api.example.com/users/123');
+        });
+      });
     });
 
     it('should handle multiple leading slashes', () => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { withApiBase } = require('@/lib/apiBase');
-
-      expect(withApiBase('///users/123')).toBe('https://api.example.com/users/123');
+      withoutWindow(() => {
+        jest.isolateModules(() => {
+          process.env['NEXT_PUBLIC_USE_PROXY'] = 'false';
+          process.env['NEXT_PUBLIC_APP_ENV'] = 'test';
+          process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { withApiBase } = require('@/lib/apiBase');
+          expect(withApiBase('///users/123')).toBe('https://api.example.com/users/123');
+        });
+      });
     });
   });
 });

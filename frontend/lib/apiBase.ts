@@ -1,59 +1,92 @@
 /**
- * Single source of truth for API base URL configuration
- * ONLY uses NEXT_PUBLIC_API_BASE - fails loudly if missing or if old API_URL is present
+ * API base resolver with host-aware overrides and proxy support.
  */
 
 import { logger } from '@/lib/logger';
-import { API_BASE as PUBLIC_API_BASE, USE_PROXY as PUBLIC_USE_PROXY, APP_ENV, IS_DEVELOPMENT } from '@/lib/publicEnv';
+import { APP_ENV, APP_URL, IS_DEVELOPMENT, USE_PROXY } from '@/lib/publicEnv';
 
-// Phase A.2: Guard against deprecated NEXT_PUBLIC_API_URL
-// Note: We check this using bracket notation to satisfy TypeScript strict mode
-if (typeof process !== 'undefined' && process.env['NEXT_PUBLIC_API_URL']) {
-  // Deliberately crash in dev/preview to catch drift
+const DEPRECATED_API_URL_KEY = 'NEXT_PUBLIC_API_URL';
+const API_BASE_KEY = 'NEXT_PUBLIC_API_BASE';
+const LOCAL_DEFAULT_API = 'http://localhost:8000';
+const LOCAL_BETA_FE_HOST = 'beta-local.instainstru.com';
+const LOCAL_BETA_API_BASE = 'http://api.beta-local.instainstru.com:8000';
+
+function sanitize(base: string): string {
+  return base.replace(/\/+$/, '');
+}
+
+function readEnvBase(): string | undefined {
+  const value = process.env[API_BASE_KEY];
+  return value ? sanitize(value.trim()) : undefined;
+}
+
+function shouldUseProxy(): boolean {
+  return USE_PROXY && (APP_ENV === 'local' || IS_DEVELOPMENT);
+}
+
+// Guard against deprecated NEXT_PUBLIC_API_URL usage
+if (typeof process !== 'undefined' && process.env[DEPRECATED_API_URL_KEY]) {
   if (IS_DEVELOPMENT) {
-    throw new Error(
-      '[apiBase] NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.'
-    );
+    throw new Error('[apiBase] NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.');
   }
   logger.error('[apiBase] WARNING: NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.');
 }
 
-// Phase A.1: Single source of truth
-const rawBase = (PUBLIC_API_BASE ?? '').trim();
-
-// Optional: allow local proxy only in local env
-const USE_PROXY = PUBLIC_USE_PROXY && (APP_ENV === 'local' || IS_DEVELOPMENT);
-
-export const API_BASE = (() => {
-  if (USE_PROXY) return '/api/proxy'; // same-origin dev proxy
-
-  if (!rawBase) {
-    // Fail fast so we notice misconfig right away
-    throw new Error(
-      '[apiBase] NEXT_PUBLIC_API_BASE is not set. Refusing to default to localhost.'
-    );
+/**
+ * Resolve the API base URL for the current execution environment.
+ * Handles SSR, browser runtime, and local host overrides.
+ */
+export function getApiBase(): string {
+  if (shouldUseProxy()) {
+    return '/api/proxy';
   }
 
-  return rawBase.replace(/\/+$/, ''); // Remove trailing slashes
-})();
+  const envBase = readEnvBase();
 
-/**
- * Build a complete API URL for the given path
- * Handles both proxy and direct modes, avoiding double slashes
- */
-export function withApiBase(path: string): string {
-  // Remove leading slashes from path
-  const cleanPath = path.replace(/^\/+/, '');
+  // SSR / RSC branch – rely on env or fall back to localhost API
+  if (typeof window === 'undefined') {
+    return envBase ?? LOCAL_DEFAULT_API;
+  }
 
-  // Ensure single slash between base and path
-  return `${API_BASE}/${cleanPath}`;
+  const host = window.location.hostname;
+
+  if (host === LOCAL_BETA_FE_HOST) {
+    // Same-site API so SameSite=Lax cookies flow between beta-local hosts
+    return LOCAL_BETA_API_BASE;
+  }
+
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return LOCAL_DEFAULT_API;
+  }
+
+  if (envBase) {
+    return envBase;
+  }
+
+  throw new Error('NEXT_PUBLIC_API_BASE must be set for this host');
 }
 
-// Dev-only logging
+/**
+ * Legacy constant export for modules that expect a string.
+ * Note: resolves once per environment – prefer calling getApiBase directly.
+ */
+export const API_BASE = getApiBase();
+
+/**
+ * Prefix a relative path with the resolved API base, avoiding duplicate slashes.
+ */
+export function withApiBase(path: string): string {
+  const base = getApiBase();
+  const cleanPath = path.replace(/^\/+/, '');
+  const normalizedBase = base.replace(/\/+$/, '');
+  return `${normalizedBase}/${cleanPath}`;
+}
+
+// Dev ergonomics: surface resolved base + proxy mode in console
 if (typeof window !== 'undefined' && IS_DEVELOPMENT) {
-  logger.info(`[apiBase] API_BASE = ${API_BASE}`);
-  logger.info(`[apiBase] USE_PROXY = ${USE_PROXY}`);
-  if (USE_PROXY) {
-    logger.info(`[apiBase] Proxy mode active, forwarding to: ${rawBase || '(not set)'}`);
+  logger.info(`[apiBase] resolved base = ${getApiBase()}`);
+  logger.info(`[apiBase] proxy mode = ${shouldUseProxy()}`);
+  if (shouldUseProxy()) {
+    logger.info(`[apiBase] proxying through origin ${APP_URL}`);
   }
 }
