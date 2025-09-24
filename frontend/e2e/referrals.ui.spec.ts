@@ -2,15 +2,16 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { bypassGateIfPresent } from './utils/gate';
 
+type NavShare = Navigator & {
+  share?: (data?: ShareData) => Promise<void>;
+  canShare?: (data?: ShareData) => boolean;
+  clipboard?: Partial<Clipboard>;
+};
+
 declare global {
   interface Window {
     __shared: ShareData | null;
     __copied: string | null;
-  }
-
-  interface Navigator {
-    canShare?: (data?: ShareData) => boolean;
-    share?: (data?: ShareData) => Promise<void>;
   }
 }
 
@@ -21,15 +22,17 @@ test.beforeEach(async ({ context }) => {
     window.__shared = null;
     window.__copied = null;
 
+    const nav = navigator as NavShare;
+
     try {
-      Object.defineProperty(navigator, 'canShare', {
+      Object.defineProperty(nav, 'canShare', {
         configurable: true,
         value: () => true,
       });
     } catch {}
 
     try {
-      Object.defineProperty(navigator, 'share', {
+      Object.defineProperty(nav, 'share', {
         configurable: true,
         value: (data?: ShareData) => {
           window.__shared = data ?? {};
@@ -39,8 +42,8 @@ test.beforeEach(async ({ context }) => {
     } catch {}
 
     try {
-      if (!('clipboard' in navigator)) {
-        Object.defineProperty(navigator, 'clipboard', {
+      if (!('clipboard' in nav)) {
+        Object.defineProperty(nav, 'clipboard', {
           configurable: true,
           value: {
             writeText: (text: string) => {
@@ -50,8 +53,8 @@ test.beforeEach(async ({ context }) => {
             readText: () => Promise.resolve(''),
           },
         });
-      } else if (navigator.clipboard) {
-        Object.defineProperty(navigator.clipboard, 'writeText', {
+      } else if (nav.clipboard) {
+        Object.defineProperty(nav.clipboard, 'writeText', {
           configurable: true,
           value: (text: string) => {
             window.__copied = text;
@@ -59,8 +62,8 @@ test.beforeEach(async ({ context }) => {
           },
         });
 
-        if (!navigator.clipboard.readText) {
-          Object.defineProperty(navigator.clipboard, 'readText', {
+        if (!nav.clipboard.readText) {
+          Object.defineProperty(nav.clipboard, 'readText', {
             configurable: true,
             value: () => Promise.resolve(''),
           });
