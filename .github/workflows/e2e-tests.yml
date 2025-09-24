@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      auth_smoke:
+        description: 'Run SameSite /auth/me smoke test'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   unit-tests:
@@ -734,6 +739,184 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: invite-e2e-playwright
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: ignore
+
+  auth-samesite-smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.auth_smoke == 'true' }}
+    needs:
+      - e2e-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
+        ports: ['5432:5432']
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: instainstru_test
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      PROD_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      SITE_MODE: local
+      SECRET_KEY: dev-e2e-secret
+      ALLOWED_ORIGINS: http://localhost:3000,http://beta-local.instainstru.com:3000
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Append beta-local host aliases
+        run: |
+          echo "127.0.0.1 beta-local.instainstru.com" | sudo tee -a /etc/hosts
+          echo "127.0.0.1 api.beta-local.instainstru.com" | sudo tee -a /etc/hosts
+
+      - name: Prepare artifacts directory
+        run: |
+          mkdir -p .artifacts
+          touch .artifacts/backend.log .artifacts/frontend.log
+
+      - name: Use Node 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Prepare database
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          STG_DATABASE_URL: ${{ env.STG_DATABASE_URL }}
+          PROD_DATABASE_URL: ${{ env.PROD_DATABASE_URL }}
+        run: |
+          export stg_database_url="$STG_DATABASE_URL"
+          export prod_database_url="$PROD_DATABASE_URL"
+          until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
+          psql "postgresql://postgres:postgres@localhost:5432/postgres" -tc "SELECT 1 FROM pg_database WHERE datname = 'instainstru_test'" | grep -q 1 || \
+            psql "postgresql://postgres:postgres@localhost:5432/postgres" -c 'CREATE DATABASE instainstru_test;'
+          python scripts/prep_db.py int --migrate --seed-all --force --yes
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx --yes playwright install --with-deps
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_APP_ENV: preview
+          NEXT_PUBLIC_API_BASE: http://localhost:8000
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+        run: npm run build
+
+      - name: Start backend
+        working-directory: backend
+        env:
+          SECRET_KEY: ${{ env.SECRET_KEY }}
+          SITE_MODE: ${{ env.SITE_MODE }}
+          ALLOWED_ORIGINS: ${{ env.ALLOWED_ORIGINS }}
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          STG_DATABASE_URL: ${{ env.STG_DATABASE_URL }}
+          PROD_DATABASE_URL: ${{ env.PROD_DATABASE_URL }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+        run: |
+          rm -f ../.artifacts/backend.log
+          touch ../.artifacts/backend.log
+          export stg_database_url="$STG_DATABASE_URL"
+          export prod_database_url="$PROD_DATABASE_URL"
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 >> ../.artifacts/backend.log 2>&1 &
+          echo $! > ../.artifacts/backend.pid
+
+      - name: Start frontend (preview)
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_APP_ENV: preview
+          NEXT_PUBLIC_API_BASE: http://localhost:8000
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NODE_ENV: production
+        run: |
+          rm -f ../.artifacts/frontend.log
+          touch ../.artifacts/frontend.log
+          nohup npm run start -- -p 3000 >> ../.artifacts/frontend.log 2>&1 &
+          echo $! > ../.artifacts/frontend.pid
+
+      - name: Wait for services
+        run: |
+          npx --yes wait-on http://127.0.0.1:8000/health http://localhost:3000
+          curl -sSf http://beta-local.instainstru.com:3000 >/dev/null
+
+      - name: Run SameSite auth smoke
+        working-directory: frontend
+        env:
+          CI_LOCAL_E2E: '1'
+          PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
+        run: CI_LOCAL_E2E=1 npx --yes playwright test e2e/auth.samesite-me.spec.ts --reporter=line --trace on-first-retry
+
+      - name: Stop services
+        if: always()
+        run: |
+          if (test -f .artifacts/frontend.pid); then kill $(cat .artifacts/frontend.pid) || true; fi
+          if (test -f .artifacts/backend.pid); then kill $(cat .artifacts/backend.pid) || true; fi
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo '--- backend.log ---'
+          cat .artifacts/backend.log || true
+          echo '--- frontend.log ---'
+          cat .artifacts/frontend.log || true
+
+      - name: Upload service logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-samesite-smoke-logs
+          path: |
+            .artifacts/backend.log
+            .artifacts/frontend.log
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-samesite-playwright
           path: |
             frontend/playwright-report
             frontend/test-results
