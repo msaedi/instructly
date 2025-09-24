@@ -56,7 +56,7 @@ jobs:
       STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
     services:
       postgres:
-        image: postgres:15
+        image: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -540,16 +540,16 @@ jobs:
           --health-cmd="pg_isready -U postgres"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=10
       redis:
-        image: redis:7
+        image: redis:7-alpine
         ports:
           - "6379:6379"
         options: >-
-          --health-cmd="redis-cli ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     env:
       PLAYWRIGHT_BASE_URL: http://localhost:3000
     steps:
@@ -580,10 +580,25 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt
 
+      - name: Prepare database
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          stg_database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
+          psql "postgresql://postgres:postgres@localhost:5432/postgres" -c 'CREATE DATABASE instainstru_test;' || true
+          psql "$DATABASE_URL" -c "SELECT extname FROM pg_extension;"
+
       - name: Run migrations and seed data
         working-directory: backend
         env:
           SITE_MODE: local
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           stg_database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
         run: |
           alembic upgrade head
