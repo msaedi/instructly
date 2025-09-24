@@ -97,4 +97,3 @@ frontend/app/(auth)/instructor/profile/page.tsx.backup
 
 # Local temp venv
 .tmpvenv/
-docs/session-handoffs/
