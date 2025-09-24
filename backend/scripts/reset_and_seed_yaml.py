@@ -155,10 +155,33 @@ class DatabaseSeeder:
             session.commit()
             print("✅ Cleaned all test data, search history, and service catalog from database")
 
+    def ensure_core_roles(self):
+        """Ensure admin/instructor/student roles exist before seeding."""
+        core_roles = {
+            RoleName.ADMIN.value: "Platform administrators with full access",
+            RoleName.INSTRUCTOR.value: "Instructors providing lessons on the platform",
+            RoleName.STUDENT.value: "Students booking lessons",
+        }
+        with Session(self.engine) as session:
+            existing = {
+                role.name for role in session.query(Role).filter(Role.name.in_(tuple(core_roles)))
+            }
+            created = 0
+            for name, description in core_roles.items():
+                if name not in existing:
+                    session.add(Role(name=name, description=description))
+                    created += 1
+            if created:
+                session.commit()
+                print(f"✅ Ensured {created} core role(s) are present")
+            else:
+                print("ℹ️ Core roles already present")
+
     def seed_all(self):
         """Main seeding function"""
         print("🌱 Starting database seeding...")
         self.reset_database()
+        self.ensure_core_roles()
 
         # Seed service catalog first
         print("\n📚 Seeding service catalog...")
