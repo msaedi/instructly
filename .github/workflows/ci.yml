@@ -561,7 +561,9 @@ jobs:
           echo "127.0.0.1 beta-local.instainstru.com" | sudo tee -a /etc/hosts
 
       - name: Prepare artifacts directory
-        run: mkdir -p .artifacts
+        run: |
+          mkdir -p .artifacts
+          touch .artifacts/backend.log .artifacts/frontend.log
 
       - name: Use Node 22.x
         uses: actions/setup-node@v4
@@ -622,7 +624,9 @@ jobs:
           stg_database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
           redis_url: redis://localhost:6379/0
         run: |
-          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > ../.artifacts/backend.log 2>&1 &
+          rm -f ../.artifacts/backend.log
+          touch ../.artifacts/backend.log
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 >> ../.artifacts/backend.log 2>&1 &
           echo $! > ../.artifacts/backend.pid
 
       - name: Start frontend (preview/beta)
@@ -633,7 +637,9 @@ jobs:
           NEXT_PUBLIC_APP_URL: http://localhost:3000
           NODE_ENV: development
         run: |
-          nohup npm run dev -- --hostname 0.0.0.0 --port 3000 > ../.artifacts/frontend.log 2>&1 &
+          rm -f ../.artifacts/frontend.log
+          touch ../.artifacts/frontend.log
+          nohup npm run dev -- --hostname 0.0.0.0 --port 3000 >> ../.artifacts/frontend.log 2>&1 &
           echo $! > ../.artifacts/frontend.pid
 
       - name: Wait for services
@@ -646,7 +652,7 @@ jobs:
         env:
           CI_LOCAL_E2E: '1'
           PLAYWRIGHT_BASE_URL: http://localhost:3000
-        run: npx --yes playwright test e2e/invites.invite-redemption.spec.ts --reporter=line
+        run: npx --yes playwright test e2e/invites.invite-redemption.spec.ts --reporter=line --trace on-first-retry
 
       - name: Stop services
         if: always()
@@ -662,7 +668,7 @@ jobs:
           echo '--- frontend.log ---'
           cat .artifacts/frontend.log || true
 
-      - name: Upload invite e2e logs
+      - name: Upload service logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
