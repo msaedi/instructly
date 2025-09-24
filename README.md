@@ -119,6 +119,10 @@ pytest tests/ -v
 cd frontend
 npm test
 
+# Cross-origin invite e2e (requires dev servers running)
+cd frontend
+CI_LOCAL_E2E=1 npx --yes playwright test e2e/invites.invite-redemption.spec.ts --reporter=line
+
 ```
 📚 API Documentation
 Once the backend is running, visit:
