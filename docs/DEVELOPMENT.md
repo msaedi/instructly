@@ -45,13 +45,14 @@ consumed on the beta origin without CORS failures.
 
 ## Local invite redemption e2e
 
-The CI job `invite-e2e` runs a Playwright scenario that exercises the cross-origin
-beta invite flow. To reproduce locally:
+The `invite-e2e` job now runs inside the `e2e-tests` workflow and uses the same
+`python scripts/prep_db.py int --migrate --seed-all --force --yes` bootstrap as the
+rest of our end-to-end suites. To reproduce the flow locally:
 
 ```bash
 export SITE_MODE=local
 export ALLOWED_ORIGINS=http://localhost:3000,http://beta-local.instainstru.com:3000
-python backend/scripts/reset_and_seed_yaml.py
+python backend/scripts/prep_db.py int --migrate --seed-all --force --yes
 uvicorn backend.app.main:app --port 8000
 
 npm --prefix frontend install
