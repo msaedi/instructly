@@ -333,6 +333,8 @@ jobs:
           pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Wait for Postgres
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
         run: |
           for i in {1..60}; do
             (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1 && echo "Postgres is up" && break
