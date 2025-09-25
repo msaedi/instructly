@@ -64,10 +64,13 @@ jobs:
           username: msaedi
           password: ${{ env.GHCR_PAT }}
 
-      - name: Show Docker versions
+      - name: Docker debug
         run: |
           docker --version
-          docker compose version
+          docker compose version || true
+          docker info || true
+          echo "Pulling a tiny public image for signal..."
+          DOCKER_CLI_HINTS=false docker pull hello-world:latest || true
 
       - name: Pre-pull DB image (fail fast)
         run: |

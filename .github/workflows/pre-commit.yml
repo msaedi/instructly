@@ -44,6 +44,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Docker debug
+      run: |
+        docker --version
+        docker info || true
+        echo "Pulling a tiny public image for signal..."
+        DOCKER_CLI_HINTS=false docker pull hello-world:latest || true
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
