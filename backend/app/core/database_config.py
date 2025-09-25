@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 DatabaseEnvironment = Literal["int", "stg", "prod"]
 
 
-def _getenv(*names: str, default: str | None = None) -> str | None:
+def _getenv(*names: str, default: Optional[str] = None) -> Optional[str]:
     """Return the first non-empty env var from a list (case-insensitive)."""
 
     for name in names:

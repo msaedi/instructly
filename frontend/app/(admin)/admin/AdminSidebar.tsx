@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, Server, Code, FlaskConical } from 'lucide-react';
+import { Search, Server, Code, FlaskConical, Gift } from 'lucide-react';
 
 function AdminSidebar() {
   const pathname = usePathname();
@@ -35,6 +35,15 @@ function AdminSidebar() {
       icon: Code,
       items: [
         { name: 'Codebase', href: '/admin/engineering/codebase' },
+      ],
+    },
+    {
+      key: 'referrals',
+      label: 'Referrals',
+      href: '/admin/referrals',
+      icon: Gift,
+      items: [
+        { name: 'Dashboard', href: '/admin/referrals' },
       ],
     },
     {

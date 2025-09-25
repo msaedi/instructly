@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -23,6 +23,7 @@ from app.models.referrals import ReferralReward, RewardStatus
 from app.models.user import User
 from app.schemas.referrals import (
     AdminReferralsConfigOut,
+    AdminReferralsHealthOut,
     AdminReferralsSummaryOut,
     CheckoutApplyRequest,
     CheckoutApplyResponse,
@@ -128,7 +129,7 @@ async def resolve_referral_slug(
 
 @router.post(
     "/claim",
-    response_model=ReferralClaimResponse | ReferralErrorResponse,
+    response_model=Union[ReferralClaimResponse, ReferralErrorResponse],
 )
 async def claim_referral_code(
     response: Response,
@@ -207,7 +208,7 @@ async def get_my_referral_ledger(
 
 @router.post(
     "/checkout/apply-referral",
-    response_model=CheckoutApplyResponse | ReferralErrorResponse,
+    response_model=Union[CheckoutApplyResponse, ReferralErrorResponse],
 )
 async def apply_referral_credit(
     response: Response,
@@ -249,6 +250,16 @@ async def get_referral_summary(
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return referral_service.get_admin_summary()
+
+
+@admin_router.get("/health", response_model=AdminReferralsHealthOut)
+async def get_referral_health(
+    current_user: User = Depends(get_current_active_user),
+    referral_service: ReferralService = Depends(get_referral_service),
+) -> AdminReferralsHealthOut:
+    if not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return referral_service.get_admin_health()
 
 
 __all__ = ["router", "admin_router", "public_router"]

@@ -515,6 +515,20 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             RewardStatus.VOID.value: counts[RewardStatus.VOID.value],
         }
 
+    def count_pending_due(self, now: datetime) -> int:
+        """Return count of pending rewards whose unlock timestamp has passed."""
+
+        result = (
+            self.db.query(func.count(ReferralReward.id))
+            .filter(
+                ReferralReward.status == RewardStatus.PENDING,
+                ReferralReward.unlock_ts.isnot(None),
+                ReferralReward.unlock_ts <= now,
+            )
+            .scalar()
+        )
+        return int(result or 0)
+
     def total_student_rewards(self) -> int:
         """Return total number of student-side rewards (active lifecycle only)."""
 

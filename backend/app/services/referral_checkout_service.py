@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import status
 from sqlalchemy.orm import Session
@@ -115,7 +115,7 @@ class ReferralCheckoutService(BaseService):
         return False
 
     @staticmethod
-    def _decimal_to_cents(amount: Decimal | float | int) -> int:
+    def _decimal_to_cents(amount: Union[Decimal, float, int]) -> int:
         if isinstance(amount, Decimal):
             quantized = amount.quantize(Decimal("0.01"))
             return int(quantized * 100)

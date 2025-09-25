@@ -75,8 +75,8 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
         self,
         instructor_id: str,
         neighborhood_id: str,
-        coverage_type: str | None = None,
-        max_distance_miles: float | None = None,
+        coverage_type: Optional[str] = None,
+        max_distance_miles: Optional[float] = None,
         is_active: bool = True,
     ) -> InstructorServiceArea:
         existing = (

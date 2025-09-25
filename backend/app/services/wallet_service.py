@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Optional, Union
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -19,7 +19,7 @@ from app.services.base import BaseService
 
 logger = logging.getLogger(__name__)
 
-UserID = str | UUID
+UserID = Union[str, UUID]
 
 
 class WalletService(BaseService):
@@ -40,7 +40,7 @@ class WalletService(BaseService):
         *,
         user_id: UserID,
         payout_id: str,
-        platform_fee_cents: int | None = None,
+        platform_fee_cents: Optional[int] = None,
     ) -> Optional[WalletTransaction]:
         """Redeem an instructor reward against a Stripe payout."""
 

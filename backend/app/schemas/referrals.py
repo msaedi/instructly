@@ -144,3 +144,14 @@ class AdminReferralsSummaryOut(BaseModel):
     top_referrers: List[TopReferrerOut]
     clicks_24h: int
     attributions_24h: int
+
+
+class AdminReferralsHealthOut(BaseModel):
+    """Unlocker worker and data health for admin dashboards."""
+
+    workers_alive: int
+    workers: List[str]
+    backlog_pending_due: int
+    pending_total: int
+    unlocked_total: int
+    void_total: int

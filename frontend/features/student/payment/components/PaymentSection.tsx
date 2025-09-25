@@ -13,7 +13,7 @@ import { requireString } from '@/lib/ts/safe';
 import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBooking';
 import { paymentService } from '@/services/api/payments';
-import { protectedApi } from '@/features/shared/api/client';
+import { protectedApi, type Booking } from '@/features/shared/api/client';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
 
 // Custom error for payment actions that require user interaction
@@ -27,6 +27,53 @@ class PaymentActionError extends Error {
     this.name = 'PaymentActionError';
   }
 }
+
+const normalizeCurrency = (value: unknown, fallback: number): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Number(value.toFixed(2));
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Number(parsed.toFixed(2));
+    }
+  }
+  return Number(fallback.toFixed(2));
+};
+
+const mergeBookingIntoPayment = (booking: Booking, fallback: BookingPayment): BookingPayment => {
+  const durationMinutes = booking.duration_minutes ?? fallback.duration;
+  const hourlyRate = normalizeCurrency(booking.hourly_rate, fallback.basePrice);
+  const computedBase = durationMinutes
+    ? Number(((hourlyRate * durationMinutes) / 60).toFixed(2))
+    : fallback.basePrice;
+  const totalAmount = normalizeCurrency(booking.total_price, fallback.totalAmount);
+  const serviceFee = Number(Math.max(0, totalAmount - computedBase).toFixed(2));
+
+  const bookingDate = booking.booking_date
+    ? new Date(`${booking.booking_date}T00:00:00`)
+    : fallback.date;
+
+  const instructorName = booking.instructor
+    ? `${booking.instructor.first_name} ${booking.instructor.last_initial ?? ''}`.trim()
+    : fallback.instructorName;
+
+  return {
+    ...fallback,
+    bookingId: booking.id || fallback.bookingId,
+    instructorId: booking.instructor_id || fallback.instructorId,
+    instructorName: instructorName || fallback.instructorName,
+    lessonType: booking.service_name || fallback.lessonType,
+    date: bookingDate,
+    startTime: booking.start_time || fallback.startTime,
+    endTime: booking.end_time || fallback.endTime,
+    duration: durationMinutes ?? fallback.duration,
+    location: booking.meeting_location || fallback.location,
+    basePrice: computedBase,
+    serviceFee,
+    totalAmount,
+  };
+};
 
 interface PaymentSectionProps {
   bookingData: BookingPayment & {
@@ -100,14 +147,41 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     setReferralAppliedCents(0);
   }, [effectiveOrderId]);
 
+  const refreshOrderSummary = useCallback(async (orderIdentifier: string) => {
+    try {
+      const response = await protectedApi.getBooking(orderIdentifier);
+      if (response.data) {
+        setUpdatedBookingData(prev => mergeBookingIntoPayment(response.data as Booking, prev));
+      } else if (response.error) {
+        logger.warn('Failed to refresh order summary after referral application', {
+          orderId: orderIdentifier,
+          error: response.error,
+        });
+      }
+    } catch (error) {
+      logger.error('Unexpected error refreshing order summary', error as Error, {
+        orderId: orderIdentifier,
+      });
+    }
+  }, [setUpdatedBookingData]);
+
+  const refreshCurrentOrderSummary = useCallback(async () => {
+    if (!effectiveOrderId) return;
+    await refreshOrderSummary(effectiveOrderId);
+  }, [effectiveOrderId, refreshOrderSummary]);
+
+  const handleReferralApplied = useCallback((cents: number) => {
+    setReferralAppliedCents(cents);
+    setPromoApplied(false);
+  }, []);
+
   const referralApplyPanel = (
     <CheckoutApplyReferral
       orderId={effectiveOrderId ?? ''}
       subtotalCents={subtotalCents}
       promoApplied={promoApplied}
-      onApplied={(cents) => {
-        setReferralAppliedCents(cents);
-      }}
+      onApplied={handleReferralApplied}
+      onRefreshOrderSummary={refreshCurrentOrderSummary}
     />
   );
 
@@ -504,6 +578,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               promoApplied={promoApplied}
               onPromoStatusChange={setPromoApplied}
               referralAppliedCents={referralAppliedCents}
+              referralActive={referralAppliedCents > 0}
               onConfirm={processPayment}
               onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
               onChangePaymentMethod={() => {
@@ -568,6 +643,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               promoApplied={promoApplied}
               onPromoStatusChange={setPromoApplied}
               referralAppliedCents={referralAppliedCents}
+              referralActive={referralAppliedCents > 0}
               onConfirm={processPayment}
               onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
               onChangePaymentMethod={() => {

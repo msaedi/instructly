@@ -1,15 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { AlertCircle, CheckCircle, Gift, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { applyReferralCredit, type ApplyReferralErrorType } from '@/features/shared/referrals/api';
+import { logger } from '@/lib/logger';
+import Link from 'next/link';
 
 interface CheckoutApplyReferralProps {
   orderId: string;
   subtotalCents: number;
   promoApplied: boolean;
   onApplied?: (appliedCents: number) => void;
+  onRefreshOrderSummary?: () => Promise<void> | void;
 }
 
 const MIN_BASKET_CENTS = 75_00;
@@ -30,10 +33,11 @@ const formatter = new Intl.NumberFormat('en-US', {
 
 const formatCents = (amount: number) => formatter.format(amount / 100);
 
-function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied }: CheckoutApplyReferralProps) {
+function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied, onRefreshOrderSummary }: CheckoutApplyReferralProps) {
   const [appliedCents, setAppliedCents] = useState<number | null>(null);
   const [error, setError] = useState<ApplyReferralErrorType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [featureDisabled, setFeatureDisabled] = useState(false);
 
   const subtotalDisplay = formatCents(subtotalCents);
   const creditDisplay = formatCents(CREDIT_VALUE_CENTS);
@@ -41,15 +45,44 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
   const isEligibleSubtotal = subtotalCents >= MIN_BASKET_CENTS;
   const hasOrder = Boolean(orderId);
 
-  const primaryNote = useMemo(() => {
-    if (!hasOrder) return 'We’re finalizing your order details. Referral credit will be available in a moment.';
-    if (promoApplied) return errorMessages.promo_conflict;
-    if (!isEligibleSubtotal) return errorMessages.below_min_basket;
-    if (error) return errorMessages[error];
+  const primaryNote = useMemo<ReactNode>(() => {
+    if (!hasOrder) {
+      return 'We’re finalizing your order details. Referral credit will be available in a moment.';
+    }
+    if (promoApplied) {
+      return 'Referral credit can’t be combined with other promotions.';
+    }
+    if (featureDisabled || error === 'disabled') {
+      return 'Referral credits are unavailable right now. Please try again later.';
+    }
+    if (!isEligibleSubtotal || error === 'below_min_basket') {
+      return `Spend ${formatCents(MIN_BASKET_CENTS)}+ to use your ${creditDisplay} credit.`;
+    }
+    if (error === 'no_unlocked_credit') {
+      return (
+        <span>
+          You don’t have unlocked referral credit yet.{' '}
+          <Link href="/account/rewards" className="font-semibold text-[#7E22CE] underline-offset-2 hover:underline">
+            Invite friends
+          </Link>{' '}
+          to earn rewards.
+        </span>
+      );
+    }
     return null;
-  }, [error, hasOrder, isEligibleSubtotal, promoApplied]);
+  }, [creditDisplay, error, featureDisabled, hasOrder, isEligibleSubtotal, promoApplied]);
 
-  const canApply = hasOrder && !promoApplied && isEligibleSubtotal && appliedCents === null && !isLoading;
+  const bannerMessage = useMemo(() => {
+    if (appliedCents !== null) {
+      return 'Referral credit applied — promotions can’t be combined.';
+    }
+    if (promoApplied || error === 'promo_conflict') {
+      return 'Referral credit can’t be combined with other promotions.';
+    }
+    return null;
+  }, [appliedCents, error, promoApplied]);
+
+  const canApply = hasOrder && !promoApplied && !featureDisabled && isEligibleSubtotal && appliedCents === null && !isLoading;
 
   const handleApply = async () => {
     if (!canApply) return;
@@ -63,8 +96,21 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
       setAppliedCents(result.applied_cents ?? CREDIT_VALUE_CENTS);
       onApplied?.(result.applied_cents ?? CREDIT_VALUE_CENTS);
       toast.success('Referral credit applied');
+      try {
+        await onRefreshOrderSummary?.();
+      } catch (refreshError) {
+        logger.error('Failed to refresh order summary after applying referral credit', refreshError as Error);
+        toast.error('Applied credit, but failed to refresh totals. Please review your order.');
+      }
+      setFeatureDisabled(false);
     } else {
       setError(result.type);
+      if (result.type === 'disabled') {
+        setFeatureDisabled(true);
+      }
+      if (result.type === 'promo_conflict') {
+        setAppliedCents(null);
+      }
       if (result.message) {
         toast.error(result.message);
       } else {
@@ -91,35 +137,53 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
 
       <div className="mt-4 space-y-3">
         {appliedCents !== null ? (
-          <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-            <CheckCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
-            <div>
-              <p className="font-medium">Referral credit applied</p>
-              <p>{formatCents(appliedCents)} will automatically deduct from checkout.</p>
+          <div className="space-y-2">
+            <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              <CheckCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
+              <div>
+                <p className="font-medium">Referral credit applied</p>
+                <p>{formatCents(appliedCents)} will automatically deduct from checkout.</p>
+              </div>
             </div>
+            {bannerMessage && (
+              <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 px-3 py-2 text-sm text-[#4f1790]">
+                <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
+                <p>{bannerMessage}</p>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
-            <div>
-              <p className="text-sm font-medium text-gray-800">Subtotal</p>
-              <p className="text-xs text-gray-500">{subtotalDisplay}</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleApply}
-              disabled={!canApply}
-              aria-label="Apply referral credit"
-              className="inline-flex items-center gap-2 rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Applying…
-                </>
-              ) : (
-                <>Apply {creditDisplay} credit</>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
+              <div>
+                <p className="text-sm font-medium text-gray-800">Subtotal</p>
+                <p className="text-xs text-gray-500">{subtotalDisplay}</p>
+              </div>
+              {!promoApplied && !featureDisabled && (
+                <button
+                  type="button"
+                  onClick={handleApply}
+                  disabled={!canApply}
+                  aria-label="Apply referral credit"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      Applying…
+                    </>
+                  ) : (
+                    <>Apply {creditDisplay} credit</>
+                  )}
+                </button>
               )}
-            </button>
+            </div>
+            {bannerMessage && (
+              <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 px-3 py-2 text-sm text-[#4f1790]">
+                <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
+                <p>{bannerMessage}</p>
+              </div>
+            )}
           </div>
         )}
 

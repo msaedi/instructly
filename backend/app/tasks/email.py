@@ -229,8 +229,8 @@ def send_beta_invites_batch(
     emails: Sequence[str],
     role: str,
     expires_in_days: int,
-    source: str | None,
-    base_url: str | None,
+    source: Optional[str],
+    base_url: Optional[str],
 ) -> Dict[str, Any]:
     """
     Send beta invites to a list of emails, reporting progress.

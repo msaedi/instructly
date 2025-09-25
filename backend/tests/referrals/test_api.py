@@ -20,7 +20,7 @@ from app.repositories.referral_repository import (
     ReferralRewardRepository,
 )
 from app.repositories.user_repository import UserRepository
-from app.schemas.referrals import CheckoutApplyRequest
+from app.schemas.referrals import AdminReferralsHealthOut, CheckoutApplyRequest
 from app.services.referral_checkout_service import ReferralCheckoutError
 from app.services.referral_service import ReferralService
 from app.services.wallet_service import WalletService
@@ -65,9 +65,7 @@ def test_referral_redirect_json_mode(db, client, referral_service):
     referrer = _create_user(db, "referrer_json@example.com")
     code = referral_service.issue_code(referrer_user_id=referrer.id)
 
-    response = client.get(
-        f"/r/{code.code}", headers={"accept": "application/json"}, follow_redirects=False
-    )
+    response = client.get(f"/r/{code.code}", headers={"accept": "application/json"}, follow_redirects=False)
 
     assert response.status_code == status.HTTP_200_OK
     payload = response.json()
@@ -356,3 +354,26 @@ def test_admin_referral_summary(db, client, referral_service, monkeypatch):
     if top_referrers:
         entry = top_referrers[0]
         assert {"user_id", "count", "code"} <= set(entry.keys())
+
+
+def test_admin_referral_health_endpoint(db, client, monkeypatch):
+    admin = _create_user(db, "admin_health@example.com")
+    monkeypatch.setattr(User, "is_admin", property(lambda self: True))
+
+    token = create_access_token(data={"sub": admin.email})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    health_payload = AdminReferralsHealthOut(
+        workers_alive=1,
+        workers=["celery@worker-1"],
+        backlog_pending_due=2,
+        pending_total=5,
+        unlocked_total=3,
+        void_total=1,
+    )
+
+    monkeypatch.setattr(ReferralService, "get_admin_health", lambda self: health_payload)
+
+    response = client.get("/api/admin/referrals/health", headers=headers)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == health_payload.model_dump()

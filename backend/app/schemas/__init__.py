@@ -79,6 +79,7 @@ from .public_availability import (
 )
 from .referrals import (
     AdminReferralsConfigOut,
+    AdminReferralsHealthOut,
     AdminReferralsSummaryOut,
     CheckoutApplyRequest,
     CheckoutApplyResponse,
@@ -187,6 +188,7 @@ __all__ = [
     "CheckoutApplyResponse",
     "AdminReferralsConfigOut",
     "AdminReferralsSummaryOut",
+    "AdminReferralsHealthOut",
     "TopReferrerOut",
     "RewardOut",
     "WalletTxnOut",

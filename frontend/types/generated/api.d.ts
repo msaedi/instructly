@@ -290,6 +290,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/referrals/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Referral Health */
+        get: operations["get_referral_health_api_admin_referrals_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/referrals/summary": {
         parameters: {
             query?: never;
@@ -4449,6 +4466,24 @@ export type components = {
             min_basket_cents: number;
             /** Student Amount Cents */
             student_amount_cents: number;
+        };
+        /**
+         * AdminReferralsHealthOut
+         * @description Unlocker worker and data health for admin dashboards.
+         */
+        AdminReferralsHealthOut: {
+            /** Backlog Pending Due */
+            backlog_pending_due: number;
+            /** Pending Total */
+            pending_total: number;
+            /** Unlocked Total */
+            unlocked_total: number;
+            /** Void Total */
+            void_total: number;
+            /** Workers */
+            workers: string[];
+            /** Workers Alive */
+            workers_alive: number;
         };
         /**
          * AdminReferralsSummaryOut
@@ -10904,6 +10939,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminReferralsConfigOut"];
+                };
+            };
+        };
+    };
+    get_referral_health_api_admin_referrals_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReferralsHealthOut"];
                 };
             };
         };

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import logging
-from typing import Callable, List, Sequence
+from typing import Callable, List, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict
 
@@ -50,14 +50,14 @@ class ReferralEvents:
 class ReferralCodeIssued(ReferralEvent):
     user_id: str
     code: str
-    channel: str | None = None
+    channel: Optional[str] = None
 
 
 class ReferralLinkClicked(ReferralEvent):
     code: str
-    device_fp_hash: str | None = None
-    ip_hash: str | None = None
-    channel: str | None = None
+    device_fp_hash: Optional[str] = None
+    ip_hash: Optional[str] = None
+    channel: Optional[str] = None
     ts: datetime
 
 
@@ -87,7 +87,7 @@ class RewardUnlocked(ReferralEvent):
 
 class RewardRedeemed(ReferralEvent):
     reward_id: str
-    order_id: str | None = None
+    order_id: Optional[str] = None
 
 
 class RewardVoided(ReferralEvent):
@@ -108,7 +108,7 @@ def unregister_listener(listener: ReferralEventListener) -> None:
 
 
 def emit_referral_code_issued(
-    *, user_id: str, code: str, channel: str | None = None
+    *, user_id: str, code: str, channel: Optional[str] = None
 ) -> ReferralCodeIssued:
     event = ReferralCodeIssued(user_id=user_id, code=code, channel=channel)
     ReferralEvents.dispatch(event)
@@ -119,9 +119,9 @@ def emit_referral_link_clicked(
     *,
     code: str,
     ts: datetime,
-    device_fp_hash: str | None = None,
-    ip_hash: str | None = None,
-    channel: str | None = None,
+    device_fp_hash: Optional[str] = None,
+    ip_hash: Optional[str] = None,
+    channel: Optional[str] = None,
 ) -> ReferralLinkClicked:
     event = ReferralLinkClicked(
         code=code,
@@ -178,7 +178,7 @@ def emit_reward_unlocked(*, reward_id: str) -> RewardUnlocked:
     return event
 
 
-def emit_reward_redeemed(*, reward_id: str, order_id: str | None = None) -> RewardRedeemed:
+def emit_reward_redeemed(*, reward_id: str, order_id: Optional[str] = None) -> RewardRedeemed:
     event = RewardRedeemed(reward_id=reward_id, order_id=order_id)
     ReferralEvents.dispatch(event)
     return event

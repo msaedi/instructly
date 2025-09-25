@@ -5,7 +5,7 @@ from __future__ import annotations
 import calendar
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Dict, Iterable, List, Optional, cast
+from typing import Dict, Iterable, List, Optional, Union, cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -31,15 +31,17 @@ from app.repositories.referral_repository import (
 )
 from app.schemas.referrals import (
     AdminReferralsConfigOut,
+    AdminReferralsHealthOut,
     AdminReferralsSummaryOut,
     TopReferrerOut,
 )
 from app.services import referral_fraud
 from app.services.base import BaseService
+from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
-UserID = str | UUID
+UserID = Union[str, UUID]
 
 
 class ReferralService(BaseService):
@@ -81,7 +83,7 @@ class ReferralService(BaseService):
 
     @BaseService.measure_operation("referrals.issue_code")
     def issue_code(
-        self, *, referrer_user_id: UserID, channel: str | None = "self_service"
+        self, *, referrer_user_id: UserID, channel: Optional[str] = "self_service"
     ) -> ReferralCode:
         """Return an existing active code or create a new one for the referrer."""
 
@@ -114,11 +116,11 @@ class ReferralService(BaseService):
         self,
         *,
         code: str,
-        device_fp_hash: str | None = None,
-        ip_hash: str | None = None,
-        ua_hash: str | None = None,
-        channel: str | None = None,
-        ts: datetime | None = None,
+        device_fp_hash: Optional[str] = None,
+        ip_hash: Optional[str] = None,
+        ua_hash: Optional[str] = None,
+        channel: Optional[str] = None,
+        ts: Optional[datetime] = None,
     ) -> None:
         """Record a referral link click."""
 
@@ -154,9 +156,9 @@ class ReferralService(BaseService):
         code: str,
         source: str,
         ts: datetime,
-        device_fp_hash: str | None = None,
-        ip_hash: str | None = None,
-        ua_hash: str | None = None,
+        device_fp_hash: Optional[str] = None,
+        ip_hash: Optional[str] = None,
+        ua_hash: Optional[str] = None,
     ) -> bool:
         """Attribute a new signup to a referral code."""
 
@@ -404,6 +406,40 @@ class ReferralService(BaseService):
             top_referrers=top_referrers,
             clicks_24h=clicks_24h,
             attributions_24h=attributions_24h,
+        )
+
+    @BaseService.measure_operation("referrals.admin.health")
+    def get_admin_health(self) -> AdminReferralsHealthOut:
+        """Return unlocker worker health and reward backlog metrics."""
+
+        now = datetime.now(timezone.utc)
+        counts = self.referral_reward_repo.counts_by_status()
+        backlog_pending_due = self.referral_reward_repo.count_pending_due(now)
+
+        pending_total = counts.get(RewardStatus.PENDING.value, 0)
+        unlocked_total = counts.get(RewardStatus.UNLOCKED.value, 0)
+        void_total = counts.get(RewardStatus.VOID.value, 0)
+
+        workers: List[str] = []
+        workers_alive = 0
+        try:
+            responses = celery_app.control.ping(timeout=1) or []
+            worker_names: List[str] = []
+            for response in responses:
+                if isinstance(response, dict):
+                    worker_names.extend(response.keys())
+            workers = sorted(set(worker_names))
+            workers_alive = len(workers)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning("Celery ping failed during referrals admin health check", exc_info=exc)
+
+        return AdminReferralsHealthOut(
+            workers_alive=workers_alive,
+            workers=workers,
+            backlog_pending_due=backlog_pending_due,
+            pending_total=pending_total,
+            unlocked_total=unlocked_total,
+            void_total=void_total,
         )
 
     def _assert_enabled(self) -> None:
