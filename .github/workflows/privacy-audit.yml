@@ -64,19 +64,6 @@ jobs:
           username: msaedi
           password: ${{ env.GHCR_PAT }}
 
-      - name: Login to Docker Hub (avoid anonymous limits)
-        if: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN }}
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Warn if creds missing
-        run: |
-          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "::warning title=Missing Docker Hub credentials::Set DOCKERHUB_USERNAME and DOCKERHUB_TOKEN repo secrets to avoid anonymous pull failures."
-          fi
-
       - name: Pre-pull DB image (fail fast)
         run: |
           set -e
