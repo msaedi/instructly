@@ -79,10 +79,3 @@ CI_LOCAL_E2E=1 npx --yes playwright test frontend/e2e/invites.invite-redemption.
 The test logs in as `admin@instainstru.com / Test1234`, issues a beta invite from the
 preview host, and redeems it on `beta-local.instainstru.com` to ensure CORS and cookies
 behave correctly.
-
-## GitHub Actions Docker Hub credentials
-
-CI jobs such as `pre-commit`, `e2e-tests`, and the privacy audit start Redis/Postgres
-services directly from Docker Hub. Anonymous pulls now hit Hub rate limits on shared
-runners; add repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (Docker Hub
-access token) so workflows authenticate before pulling those images.
