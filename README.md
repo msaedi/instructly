@@ -85,6 +85,13 @@ docker-compose up -d
 # See: https://dragonflydb.io/docs/getting-started
 
 ```
+## CI Docker Hub credentials
+
+Several GitHub Actions jobs pull `redis:7*` and `postgres:14` images from Docker
+Hub. Configure repository secrets `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN` (Docker Hub access token) to avoid anonymous pull throttling
+on shared runners.
+
 ## 📊 Monitoring
 
 InstaInstru includes a comprehensive monitoring stack with Prometheus and Grafana.
