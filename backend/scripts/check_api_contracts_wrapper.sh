@@ -17,16 +17,8 @@ fi
 cd "$BACKEND_DIR"
 
 # Check if we have Python available
-if command -v python3.11 &> /dev/null; then
-    PYTHON_CMD="python3.11"
-    if ! $PYTHON_CMD -c 'pass' >/dev/null 2>&1; then
-        if command -v pyenv &> /dev/null; then
-            PYENV_311=$(pyenv versions --bare 2>/dev/null | grep '^3\.11' | tail -n 1)
-            if [ -n "$PYENV_311" ]; then
-                export PYENV_VERSION=$PYENV_311
-            fi
-        fi
-    fi
+if command -v python3.12 &> /dev/null; then
+    PYTHON_CMD="python3.12"
 elif command -v python3 &> /dev/null; then
     PYTHON_CMD="python3"
 elif command -v python &> /dev/null; then

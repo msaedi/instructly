@@ -21,7 +21,7 @@ jobs:
       # Python for OpenAPI export (frontend contract audit reads this)
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: backend/requirements-openapi.txt
 
@@ -310,10 +310,10 @@ jobs:
           echo "type-coverage-json: $(cat .artifacts/typecov.json)" >> $GITHUB_STEP_SUMMARY
 
       # Backend setup
-      - name: Setup Python 3.11 for backend checks
+      - name: Setup Python 3.12 for backend checks
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: |
             backend/requirements.txt
