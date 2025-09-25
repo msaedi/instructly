@@ -159,8 +159,8 @@ test.describe('Referral surfaces', () => {
     await bypassGateIfPresent(page, base, process.env.GATE_CODE);
 
     await page.goto(`${base}/checkout?orderId=ORDER-PROMO&subtotalCents=9000&promo=1`, { waitUntil: 'networkidle' });
-    await expect(page.getByText('Referral credit can’t be combined with other promotions.')).toBeVisible();
-    await expect(page.getByRole('button', { name: /apply referral credit/i })).toBeDisabled();
+    await expect(page.getByText('Referral credit can’t be combined with other promotions.').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /apply referral credit/i })).toHaveCount(0);
 
     await page.goto(`${base}/checkout?orderId=ORDER-SMALL&subtotalCents=5000`, { waitUntil: 'networkidle' });
     await expect(page.getByText('Spend $75+ to use your $20 credit.')).toBeVisible();
