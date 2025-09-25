@@ -99,35 +99,18 @@ jobs:
         ports:
           - 5432:5432
 
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
     steps:
     - uses: actions/checkout@v4
-
-    - name: Start Redis service
-      run: |
-        set -euo pipefail
-        docker run -d --name ci-redis-e2e \
-          -p 6379:6379 \
-          --health-cmd "redis-cli ping" \
-          --health-interval 10s \
-          --health-timeout 5s \
-          --health-retries 5 \
-          redis:7
-
-        echo "Waiting for Redis health..."
-        for i in {1..30}; do
-          STATUS=$(docker inspect -f '{{.State.Health.Status}}' ci-redis-e2e 2>/dev/null || echo "unknown")
-          echo "redis health: $STATUS"
-          if [ "$STATUS" = "healthy" ]; then
-            break
-          fi
-          sleep 2
-        done
-
-        if [ "$STATUS" != "healthy" ]; then
-          echo "Redis failed to become healthy"
-          docker logs ci-redis-e2e || true
-          exit 1
-        fi
 
     - name: Ensure required tools are installed
       run: |
@@ -582,8 +565,6 @@ jobs:
         # Force-free ports as last resort
         lsof -ti :8000 -sTCP:LISTEN | xargs -r kill -9 || true
         lsof -ti :3100 -sTCP:LISTEN | xargs -r kill -9 || true
-        docker stop ci-redis-e2e || true
-        docker rm ci-redis-e2e || true
         # Final verification
         ! lsof -i:3100 && ! lsof -i:8000 && echo "✅ Cleanup complete" || echo "⚠️ Some processes may still be running"
 
@@ -606,6 +587,14 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
@@ -618,33 +607,6 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
-
-      - name: Start Redis service
-        run: |
-          set -euo pipefail
-          docker run -d --name ci-redis-invite \
-            -p 6379:6379 \
-            --health-cmd "redis-cli ping" \
-            --health-interval 10s \
-            --health-timeout 5s \
-            --health-retries 5 \
-            redis:7
-
-          echo "Waiting for Redis health..."
-          for i in {1..30}; do
-            STATUS=$(docker inspect -f '{{.State.Health.Status}}' ci-redis-invite 2>/dev/null || echo "unknown")
-            echo "redis health: $STATUS"
-            if [ "$STATUS" = "healthy" ]; then
-              break
-            fi
-            sleep 2
-          done
-
-          if [ "$STATUS" != "healthy" ]; then
-            echo "Redis failed to become healthy"
-            docker logs ci-redis-invite || true
-            exit 1
-          fi
 
       - name: Append beta-local host alias
         run: echo "127.0.0.1 beta-local.instainstru.com" | sudo tee -a /etc/hosts
@@ -754,10 +716,6 @@ jobs:
         run: |
           if [ -f .artifacts/frontend.pid ]; then kill $(cat .artifacts/frontend.pid) || true; fi
           if [ -f .artifacts/backend.pid ]; then kill $(cat .artifacts/backend.pid) || true; fi
-          docker stop ci-redis-auth || true
-          docker rm ci-redis-auth || true
-          docker stop ci-redis-invite || true
-          docker rm ci-redis-invite || true
 
       - name: Dump logs on failure
         if: failure()
@@ -805,6 +763,14 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
@@ -817,33 +783,6 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
-
-      - name: Start Redis service
-        run: |
-          set -euo pipefail
-          docker run -d --name ci-redis-auth \
-            -p 6379:6379 \
-            --health-cmd "redis-cli ping" \
-            --health-interval 10s \
-            --health-timeout 5s \
-            --health-retries 5 \
-            redis:7
-
-          echo "Waiting for Redis health..."
-          for i in {1..30}; do
-            STATUS=$(docker inspect -f '{{.State.Health.Status}}' ci-redis-auth 2>/dev/null || echo "unknown")
-            echo "redis health: $STATUS"
-            if [ "$STATUS" = "healthy" ]; then
-              break
-            fi
-            sleep 2
-          done
-
-          if [ "$STATUS" != "healthy" ]; then
-            echo "Redis failed to become healthy"
-            docker logs ci-redis-auth || true
-            exit 1
-          fi
 
       - name: Append beta-local host aliases
         run: |

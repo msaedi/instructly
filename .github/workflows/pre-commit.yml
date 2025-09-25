@@ -16,63 +16,33 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       REDIS_URL: redis://localhost:6379/0
 
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: instainstru_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
     steps:
     - uses: actions/checkout@v4
-
-    - name: Start Docker services
-      run: |
-        set -euo pipefail
-
-        docker run -d --name ci-postgres \
-          -e POSTGRES_USER=postgres \
-          -e POSTGRES_PASSWORD=postgres \
-          -e POSTGRES_DB=instainstru_test \
-          -p 5432:5432 \
-          --health-cmd "pg_isready -U postgres" \
-          --health-interval 10s \
-          --health-timeout 5s \
-          --health-retries 5 \
-          postgres:14
-
-        docker run -d --name ci-redis \
-          -p 6379:6379 \
-          --health-cmd "redis-cli ping" \
-          --health-interval 10s \
-          --health-timeout 5s \
-          --health-retries 5 \
-          redis:7
-
-        echo "Waiting for PostgreSQL health..."
-        for i in {1..30}; do
-          STATUS=$(docker inspect -f '{{.State.Health.Status}}' ci-postgres 2>/dev/null || echo "unknown")
-          echo "postgres health: $STATUS"
-          if [ "$STATUS" = "healthy" ]; then
-            break
-          fi
-          sleep 2
-        done
-
-        if [ "$STATUS" != "healthy" ]; then
-          echo "Postgres failed to become healthy"
-          docker logs ci-postgres || true
-          exit 1
-        fi
-
-        echo "Waiting for Redis health..."
-        for i in {1..30}; do
-          STATUS=$(docker inspect -f '{{.State.Health.Status}}' ci-redis 2>/dev/null || echo "unknown")
-          echo "redis health: $STATUS"
-          if [ "$STATUS" = "healthy" ]; then
-            break
-          fi
-          sleep 2
-        done
-
-        if [ "$STATUS" != "healthy" ]; then
-          echo "Redis failed to become healthy"
-          docker logs ci-redis || true
-          exit 1
-        fi
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -99,11 +69,3 @@ jobs:
     - name: Run pre-commit hooks
       run: |
         pre-commit run --all-files
-
-    - name: Stop Docker services
-      if: always()
-      run: |
-        docker logs ci-postgres || true
-        docker logs ci-redis || true
-        docker stop ci-postgres ci-redis || true
-        docker rm ci-postgres ci-redis || true
