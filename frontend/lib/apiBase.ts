@@ -32,23 +32,23 @@ if (typeof process !== 'undefined' && process.env[DEPRECATED_API_URL_KEY]) {
   logger.error('[apiBase] WARNING: NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.');
 }
 
-/**
- * Resolve the API base URL for the current execution environment.
- * Handles SSR, browser runtime, and local host overrides.
- */
-export function getApiBase(): string {
-  if (shouldUseProxy()) {
-    return '/api/proxy';
-  }
+type ResolveOpts = {
+  host?: string | null;
+  envBase?: string | undefined;
+  isServer?: boolean;
+};
 
-  const envBase = readEnvBase();
-
-  // SSR / RSC branch – rely on env or fall back to localhost API
-  if (typeof window === 'undefined') {
+export function resolveApiBase({ host, envBase, isServer }: ResolveOpts): string {
+  if (isServer) {
     return envBase ?? LOCAL_DEFAULT_API;
   }
 
-  const host = window.location.hostname;
+  if (!host) {
+    if (envBase) {
+      return envBase;
+    }
+    throw new Error('Host missing and NEXT_PUBLIC_API_BASE not set');
+  }
 
   if (host === LOCAL_BETA_FE_HOST) {
     // Same-site API so SameSite=Lax cookies flow between beta-local hosts
@@ -64,6 +64,21 @@ export function getApiBase(): string {
   }
 
   throw new Error('NEXT_PUBLIC_API_BASE must be set for this host');
+}
+
+/**
+ * Resolve the API base URL for the current execution environment.
+ */
+export function getApiBase(): string {
+  if (shouldUseProxy()) {
+    return '/api/proxy';
+  }
+
+  const envBase = readEnvBase();
+  const isServer = typeof window === 'undefined';
+  const host = isServer ? null : window.location.hostname;
+
+  return resolveApiBase({ host, envBase, isServer });
 }
 
 /**
