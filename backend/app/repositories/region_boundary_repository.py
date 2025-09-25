@@ -165,7 +165,7 @@ class RegionBoundaryRepository:
     def list_regions(
         self,
         region_type: str,
-        parent_region: Optional[str] = None,
+        parent_region: str | None = None,
         limit: int = 500,
         offset: int = 0,
     ) -> List[Mapping[str, Any]]:
@@ -269,7 +269,7 @@ class RegionBoundaryRepository:
         return result
 
     # --- Maintenance helpers (used by tests and admin flows) ---
-    def delete_by_region_name(self, region_name: str, region_type: Optional[str] = None) -> int:
+    def delete_by_region_name(self, region_name: str, region_type: str | None = None) -> int:
         try:
             if region_type:
                 sql = text(
@@ -296,7 +296,7 @@ class RegionBoundaryRepository:
                 pass
             return 0
 
-    def delete_by_region_code(self, region_code: str, region_type: Optional[str] = None) -> int:
+    def delete_by_region_code(self, region_code: str, region_type: str | None = None) -> int:
         try:
             if region_type:
                 sql = text(

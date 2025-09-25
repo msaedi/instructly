@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import logging
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -129,7 +129,7 @@ async def resolve_referral_slug(
 
 @router.post(
     "/claim",
-    response_model=Union[ReferralClaimResponse, ReferralErrorResponse],
+    response_model=ReferralClaimResponse | ReferralErrorResponse,
 )
 async def claim_referral_code(
     response: Response,
@@ -208,7 +208,7 @@ async def get_my_referral_ledger(
 
 @router.post(
     "/checkout/apply-referral",
-    response_model=Union[CheckoutApplyResponse, ReferralErrorResponse],
+    response_model=CheckoutApplyResponse | ReferralErrorResponse,
 )
 async def apply_referral_credit(
     response: Response,

@@ -8,7 +8,7 @@ clicks, hovers, bookmarks, and other user engagement metrics.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
@@ -92,9 +92,7 @@ class SearchInteractionRepository(BaseRepository[SearchInteraction]):
             .all(),
         )
 
-    def get_click_through_rate(
-        self, search_event_ids: Sequence[int]
-    ) -> Dict[str, Union[float, int]]:
+    def get_click_through_rate(self, search_event_ids: Sequence[int]) -> Dict[str, float | int]:
         """
         Calculate click-through rate for given search events.
 
@@ -194,7 +192,7 @@ class SearchInteractionRepository(BaseRepository[SearchInteraction]):
 
     def get_time_to_first_click(
         self, search_event_ids: Sequence[int]
-    ) -> Dict[str, Union[Optional[float], int]]:
+    ) -> Dict[str, float | None | int]:
         """
         Calculate average time to first click for search events.
 
@@ -248,7 +246,7 @@ class SearchInteractionRepository(BaseRepository[SearchInteraction]):
 
     def get_popular_instructors_from_clicks(
         self, days: int = 7, limit: int = 10
-    ) -> List[Dict[str, Union[Optional[float], int]]]:
+    ) -> List[Dict[str, float | None | int]]:
         """
         Get most clicked instructors in recent searches.
 

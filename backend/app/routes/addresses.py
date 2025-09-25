@@ -1,7 +1,7 @@
 """Routes for user addresses and instructor service areas."""
 
 import logging
-from typing import Any, Mapping, Optional, Sequence, cast
+from typing import Any, Mapping, Sequence, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
@@ -36,7 +36,7 @@ def get_address_service(db: Session = Depends(get_session)) -> AddressService:
 
 
 # --- Utility: NYC ZIP validation (approximate, robust without external calls) ---
-def _nyc_zip_to_borough(zip5: str) -> Optional[str]:
+def _nyc_zip_to_borough(zip5: str) -> str | None:
     """Return NYC borough name if ZIP is a known NYC ZIP, else None.
 
     Uses commonly recognized USPS ZIP ranges:
@@ -80,7 +80,7 @@ def _nyc_zip_to_borough(zip5: str) -> Optional[str]:
 class NYCZipCheckResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     is_nyc: bool
-    borough: Optional[str] = None
+    borough: str | None = None
 
 
 @router.get("/zip/is-nyc", response_model=NYCZipCheckResponse)  # type: ignore[misc]
@@ -137,7 +137,7 @@ def update_my_address(
     service: AddressService = Depends(get_address_service),
 ) -> AddressResponse:
     updated = cast(
-        Optional[Mapping[str, Any]],
+        Mapping[str, Any] | None,
         service.update_address(current_user.id, address_id, data.model_dump(exclude_unset=True)),
     )
     if not updated:
@@ -212,7 +212,7 @@ def place_details(place_id: str) -> PlaceDetails:
     from ..services.geocoding.factory import create_geocoding_provider
 
     provider = create_geocoding_provider()
-    result: Optional[GeocodedAddress] = anyio.run(provider.get_place_details, place_id)
+    result: GeocodedAddress | None = anyio.run(provider.get_place_details, place_id)
     if not result:
         raise HTTPException(status_code=404, detail="Place not found")
     return PlaceDetails(
@@ -270,22 +270,22 @@ class NeighborhoodItem(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     id: str
     name: str
-    borough: Optional[str] = None
-    code: Optional[str] = None
+    borough: str | None = None
+    code: str | None = None
 
 
 class NeighborhoodsListResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     items: list[NeighborhoodItem]
     total: int
-    page: Optional[int] = None
-    per_page: Optional[int] = None
+    page: int | None = None
+    per_page: int | None = None
 
 
 @router.get("/regions/neighborhoods", response_model=NeighborhoodsListResponse)  # type: ignore[misc]
 def list_neighborhoods(
     region_type: str = "nyc",
-    borough: Optional[str] = None,
+    borough: str | None = None,
     page: int = 1,
     per_page: int = 100,
     service: AddressService = Depends(get_address_service),

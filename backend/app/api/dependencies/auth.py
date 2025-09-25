@@ -35,7 +35,7 @@ def _from_preview_origin(request: Request) -> bool:
     return bool(front_ok and api_ok)
 
 
-def _preview_bypass(request: Request, user: Optional[User]) -> bool:
+def _preview_bypass(request: Request, user: User | None) -> bool:
     # Kill-switch: allow disabling bypass entirely via env
     if os.getenv("PREVIEW_BYPASS_ENABLED", "true").lower().strip() != "true":
         return False
@@ -110,7 +110,7 @@ def _preview_bypass(request: Request, user: Optional[User]) -> bool:
 from .database import get_db
 
 
-def _testing_bypass(request: Optional[Request]) -> bool:
+def _testing_bypass(request: Request | None) -> bool:
     """Return True when test mode should bypass beta/phase gates.
 
     - Respects explicit enforcement via header: x-enforce-beta-checks=1

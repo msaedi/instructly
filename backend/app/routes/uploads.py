@@ -1,7 +1,7 @@
 """Signed upload endpoints for Cloudflare R2 (S3-compatible)."""
 
 import logging
-from typing import Literal, Optional
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -33,7 +33,7 @@ class SignedUploadResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     upload_url: str
     object_key: str
-    public_url: Optional[str] = None
+    public_url: str | None = None
     headers: dict[str, str]
     expires_at: str
 

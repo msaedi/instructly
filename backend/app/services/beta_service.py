@@ -82,8 +82,8 @@ class BetaService:
         to_email: str,
         role: str,
         expires_in_days: int,
-        source: Optional[str],
-        base_url: Optional[str],
+        source: str | None,
+        base_url: str | None,
     ):
         created = self.bulk_generate(
             count=1, role=role, expires_in_days=expires_in_days, source=source, emails=[to_email]
@@ -125,8 +125,8 @@ class BetaService:
         emails: list[str],
         role: str,
         expires_in_days: int,
-        source: Optional[str],
-        base_url: Optional[str],
+        source: str | None,
+        base_url: str | None,
     ):
         sent: list[tuple[object, str, str, str]] = []  # (invite, email, join, welcome)
         failed: list[tuple[str, str]] = []  # (email, reason)

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import imghdr
 import io
 import logging
-from typing import Optional, Tuple
+from typing import Tuple
 
 from PIL import Image, ImageOps
 
@@ -67,7 +67,7 @@ class ImageProcessingService:
         )
 
     def _encode_jpeg(
-        self, img: Image.Image, size: Optional[Tuple[int, int]] = None, quality: int = 85
+        self, img: Image.Image, size: Tuple[int, int] | None = None, quality: int = 85
     ) -> bytes:
         out = io.BytesIO()
         work = img

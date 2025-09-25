@@ -6,7 +6,7 @@ Provides insights into connection pool usage, query performance, and database he
 """
 
 import logging
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.pool import Pool
@@ -98,8 +98,8 @@ async def database_pool_status(
                 getattr(getattr(pool, "_pool", None), "maxsize", pool_size),
             ),
             "max_overflow": max_overflow,
-            "timeout": cast(Optional[float], getattr(pool, "_timeout", None)),
-            "recycle": cast(Optional[float], getattr(pool, "_recycle", None)),
+            "timeout": cast(float | None, getattr(pool, "_timeout", None)),
+            "recycle": cast(float | None, getattr(pool, "_recycle", None)),
         }
 
         return DatabasePoolStatusResponse(

@@ -6,7 +6,7 @@ and manage their list of favorite instructors.
 """
 
 import logging
-from typing import Any, Mapping, Optional, Sequence, cast
+from typing import Any, Mapping, Sequence, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -65,7 +65,7 @@ async def add_favorite(
     """
     try:
         user_repo = RepositoryFactory.create_user_repository(db)
-        user = cast(Optional[User], user_repo.get_by_email(current_user))
+        user = cast(User | None, user_repo.get_by_email(current_user))
 
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -114,7 +114,7 @@ async def remove_favorite(
     """
     try:
         user_repo = RepositoryFactory.create_user_repository(db)
-        user = cast(Optional[User], user_repo.get_by_email(current_user))
+        user = cast(User | None, user_repo.get_by_email(current_user))
 
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -158,7 +158,7 @@ async def get_favorites(
     """
     try:
         user_repo = RepositoryFactory.create_user_repository(db)
-        user = cast(Optional[User], user_repo.get_by_email(current_user))
+        user = cast(User | None, user_repo.get_by_email(current_user))
 
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -217,7 +217,7 @@ async def check_favorite_status(
     """
     try:
         user_repo = RepositoryFactory.create_user_repository(db)
-        user = cast(Optional[User], user_repo.get_by_email(current_user))
+        user = cast(User | None, user_repo.get_by_email(current_user))
 
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

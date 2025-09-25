@@ -6,7 +6,7 @@ Provides insights into Redis operations, memory usage, and Celery queue status.
 """
 
 import logging
-from typing import Any, Dict, Optional, Union, cast
+from typing import Any, Dict, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 import redis
@@ -79,7 +79,7 @@ async def redis_test() -> RedisTestResponse:
             status="connected",
             ping=ping_result,
             redis_version=info.get("redis_version", "unknown"),
-            uptime_seconds=cast(Optional[int], info.get("uptime_in_seconds", 0)),
+            uptime_seconds=cast(int | None, info.get("uptime_in_seconds", 0)),
             connected_clients=cast(int, client.info("clients").get("connected_clients", 0)),
             message="Redis migration successful! Connection to instainstru-redis:6379 is working.",
         )
@@ -356,7 +356,7 @@ async def flush_celery_queues(
             "cache",
         ]
 
-        flushed: Dict[str, Union[int, str]] = {}
+        flushed: Dict[str, int | str] = {}
         total_removed = 0
 
         for queue in queue_names:

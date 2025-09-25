@@ -14,12 +14,12 @@ def _normalize(value: Optional[str]) -> Optional[str]:
 
 def is_self_referral(
     *,
-    click_device_fp_hash: Optional[str],
-    click_ip_hash: Optional[str],
-    signup_device_fp_hash: Optional[str],
-    signup_ip_hash: Optional[str],
-    payment_fingerprint_referrer: Optional[str] = None,
-    payment_fingerprint_signup: Optional[str] = None,
+    click_device_fp_hash: str | None,
+    click_ip_hash: str | None,
+    signup_device_fp_hash: str | None,
+    signup_ip_hash: str | None,
+    payment_fingerprint_referrer: str | None = None,
+    payment_fingerprint_signup: str | None = None,
 ) -> bool:
     """Detect whether a referral likely originates from the same user."""
 

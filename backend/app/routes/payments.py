@@ -16,7 +16,7 @@ Key Features:
 
 from datetime import datetime, timezone
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
@@ -95,7 +95,7 @@ async def start_onboarding(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
-    return_to: Optional[str] = None,
+    return_to: str | None = None,
 ) -> OnboardingResponse:
     """
     Start Stripe Connect onboarding for an instructor.
@@ -379,8 +379,8 @@ async def refresh_identity_status(
 
 class PayoutScheduleResponse(BaseModel):
     ok: bool
-    account_id: Optional[str] = None
-    settings: Optional[Dict[str, Any]] = None
+    account_id: str | None = None
+    settings: Dict[str, Any] | None = None
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
@@ -506,8 +506,8 @@ async def get_dashboard_link(
 
 class InstantPayoutResponse(BaseModel):
     ok: bool
-    payout_id: Optional[str] = None
-    status: Optional[str] = None
+    payout_id: str | None = None
+    status: str | None = None
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
@@ -1037,7 +1037,7 @@ async def get_credit_balance(
         total_cents = payment_repo.get_total_available_credits(current_user.id)
 
         # Earliest expiration among available credits (if any)
-        earliest_exp: Optional[str] = None
+        earliest_exp: str | None = None
         try:
             credits = payment_repo.get_available_credits(current_user.id)
             expiries = [c.expires_at for c in credits if getattr(c, "expires_at", None) is not None]

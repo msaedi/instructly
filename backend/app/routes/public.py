@@ -104,7 +104,7 @@ def get_cache_service_dep(db: Session = Depends(get_db)) -> Optional[CacheServic
 @router.post("/session/guest", response_model=GuestSessionResponse)
 def create_guest_session(
     response_obj: Response, request: Request
-) -> Union[Response, GuestSessionResponse]:
+) -> Response | GuestSessionResponse:
     """Issue a first-party guest_id cookie used for optional auth endpoints.
 
     Sets cookie attributes appropriate for cross-site subdomains in preview/prod.

@@ -1,5 +1,3 @@
-from typing import Optional
-
 from fastapi import Response
 
 
@@ -8,7 +6,7 @@ def set_rate_headers(
     remaining: int,
     limit: int,
     reset_epoch_s: float,
-    retry_after_s: Optional[float],
+    retry_after_s: float | None,
 ):
     res.headers["X-RateLimit-Remaining"] = str(max(remaining, 0))
     res.headers["X-RateLimit-Limit"] = str(limit)

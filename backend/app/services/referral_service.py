@@ -5,7 +5,7 @@ from __future__ import annotations
 import calendar
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Dict, Iterable, List, Optional, Union, cast
+from typing import Dict, Iterable, List, Optional, cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -41,7 +41,7 @@ from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
-UserID = Union[str, UUID]
+UserID = str | UUID
 
 
 class ReferralService(BaseService):
@@ -83,7 +83,7 @@ class ReferralService(BaseService):
 
     @BaseService.measure_operation("referrals.issue_code")
     def issue_code(
-        self, *, referrer_user_id: UserID, channel: Optional[str] = "self_service"
+        self, *, referrer_user_id: UserID, channel: str | None = "self_service"
     ) -> ReferralCode:
         """Return an existing active code or create a new one for the referrer."""
 
@@ -116,11 +116,11 @@ class ReferralService(BaseService):
         self,
         *,
         code: str,
-        device_fp_hash: Optional[str] = None,
-        ip_hash: Optional[str] = None,
-        ua_hash: Optional[str] = None,
-        channel: Optional[str] = None,
-        ts: Optional[datetime] = None,
+        device_fp_hash: str | None = None,
+        ip_hash: str | None = None,
+        ua_hash: str | None = None,
+        channel: str | None = None,
+        ts: datetime | None = None,
     ) -> None:
         """Record a referral link click."""
 
@@ -156,9 +156,9 @@ class ReferralService(BaseService):
         code: str,
         source: str,
         ts: datetime,
-        device_fp_hash: Optional[str] = None,
-        ip_hash: Optional[str] = None,
-        ua_hash: Optional[str] = None,
+        device_fp_hash: str | None = None,
+        ip_hash: str | None = None,
+        ua_hash: str | None = None,
     ) -> bool:
         """Attribute a new signup to a referral code."""
 

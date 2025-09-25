@@ -1,5 +1,3 @@
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 import requests
@@ -33,8 +31,8 @@ router = APIRouter(prefix="/api/beta", tags=["beta"])
 
 
 def _fetch_prometheus_summary(
-    prometheus_http_url: str, bearer_token: Optional[str]
-) -> Optional[BetaMetricsSummaryResponse]:
+    prometheus_http_url: str, bearer_token: str | None
+) -> BetaMetricsSummaryResponse | None:
     try:
         base = prometheus_http_url.rstrip("/")
         headers = {"Authorization": f"Bearer {bearer_token}"} if bearer_token else None
