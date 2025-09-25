@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { queryFn } from '@/lib/react-query/api';
-import { ApiError } from '@/lib/http';
+import { ApiError, http } from '@/lib/http';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { logger } from '@/lib/logger';
 import {
@@ -10,7 +10,6 @@ import {
   getGuestSessionId,
   clearGuestSession,
 } from '@/lib/searchTracking';
-import { withApiBase } from '@/lib/apiBase';
 import { User } from '@/features/shared/hooks/useAuth';
 
 /**
@@ -83,29 +82,26 @@ export function useAuth() {
       // Use session-aware endpoint if guest session exists
       const endpoint = guestSessionId ? '/auth/login-with-session' : '/auth/login';
 
-      const body = guestSessionId
+      const headers = guestSessionId
+        ? { 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+      const payload = guestSessionId
         ? { email, password, guest_session_id: guestSessionId }
-        : { username: email, password };
+        : new URLSearchParams({ username: email, password }).toString();
 
-      const response = await fetch(
-        withApiBase(endpoint),
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': guestSessionId
-              ? 'application/json'
-              : 'application/x-www-form-urlencoded',
-          },
-          body: guestSessionId ? JSON.stringify(body) : new URLSearchParams(body as unknown as Record<string, string>),
+      try {
+        return await http<LoginResponse>('POST', endpoint, {
+          headers,
+          body: payload,
+        });
+      } catch (error) {
+        if (error instanceof ApiError) {
+          const detail = (error.data as { detail?: string } | undefined)?.detail;
+          throw new ApiError(detail || 'Login failed', error.status, error.data);
         }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new ApiError(error.detail || 'Login failed', response.status);
+        throw error as Error;
       }
-
-      return response.json();
     },
     onSuccess: async (_data) => {
       // Token is cookie-based; no localStorage writes

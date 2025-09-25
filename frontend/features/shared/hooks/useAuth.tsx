@@ -6,14 +6,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { useRouter } from 'next/navigation';
 import { API_ENDPOINTS } from '@/lib/api';
-import { httpGet, ApiError } from '@/lib/http';
+import { http, httpGet, ApiError } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import {
   transferGuestSearchesToAccount,
   getGuestSessionId,
   clearGuestSession,
 } from '@/lib/searchTracking';
-import { withApiBase } from '@/lib/apiBase';
 import { IS_PRODUCTION } from '@/lib/publicEnv';
 // Using generated types from API schema
 // Note: We define User interface manually for now to maintain compatibility
@@ -74,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: queryKeys.user,
     queryFn: async () => {
       logger.info('Checking authentication status');
-      const data = (await httpGet(withApiBase(API_ENDPOINTS.ME))) as User;
+      const data = await httpGet<User>(API_ENDPOINTS.ME);
       return data;
     },
     staleTime: 1000 * 60 * 5,
@@ -123,72 +122,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      // Get guest session ID if available
       const guestSessionId = getGuestSessionId();
       logger.info('Login attempt with guest session:', { guestSessionId, hasGuestSession: !!guestSessionId });
 
-      // Use new endpoint if we have a guest session, otherwise use regular login
       const path = guestSessionId ? '/auth/login-with-session' : '/auth/login';
-      const apiPath = withApiBase(path);
-
-      // Create full URL for fetch - check if apiPath is already absolute
-      const isAbsoluteUrl = apiPath.startsWith('http://') || apiPath.startsWith('https://');
-      const endpoint = typeof window !== 'undefined'
-        ? (isAbsoluteUrl ? apiPath : `${window.location.origin}${apiPath}`)
-        : apiPath;
-
-      logger.info('Login endpoint:', { endpoint, path, apiPath, isAbsoluteUrl });
-
-      const body = guestSessionId
-        ? JSON.stringify({
-            email,
-            password,
-            guest_session_id: guestSessionId,
-          })
-        : new URLSearchParams({
-            username: email,
-            password: password,
-          });
 
       const headers = guestSessionId
         ? { 'Content-Type': 'application/json' }
         : { 'Content-Type': 'application/x-www-form-urlencoded' };
 
+      const loginBody = guestSessionId
+        ? {
+            email,
+            password,
+            guest_session_id: guestSessionId,
+          }
+        : new URLSearchParams({
+            username: email,
+            password,
+          }).toString();
+
       logger.info('Sending login request:', {
-        endpoint,
+        path,
         hasGuestSession: !!guestSessionId,
-        bodyPreview: guestSessionId ? JSON.parse(body as string) : 'form-data'
+        bodyPreview: guestSessionId ? loginBody : 'form-data',
       });
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
+      await http('POST', path, {
         headers,
-        body,
+        body: loginBody,
       });
 
-      if (response.ok) {
-        await response.json();
-        // Transfer guest searches to user account (backend handles this automatically)
-        if (guestSessionId) {
-          logger.info('Initiating guest search transfer for session:', { guestSessionId });
-          await transferGuestSearchesToAccount();
-          logger.info('Guest search transfer completed after login');
-        } else {
-          logger.warn('No guest session ID found during login');
-        }
-
-        // Immediately fetch and cache user data
-        await checkAuth();
-
-        return true;
+      if (guestSessionId) {
+        logger.info('Initiating guest search transfer for session:', { guestSessionId });
+        await transferGuestSearchesToAccount();
+        logger.info('Guest search transfer completed after login');
       } else {
-        const errorData = await response.json();
-        setError(errorData.detail || 'Login failed');
-        return false;
+        logger.warn('No guest session ID found during login');
       }
+
+      await checkAuth();
+
+      return true;
     } catch (err) {
-      logger.error('Login error', err);
-      setError('Network error during login');
+      if (err instanceof ApiError) {
+        const detail = (err.data as { detail?: string } | undefined)?.detail;
+        setError(detail || 'Login failed');
+        logger.warn('Login failed', { status: err.status, detail });
+      } else {
+        logger.error('Login error', err);
+        setError('Network error during login');
+      }
       return false;
     } finally {
       setIsLoading(false);
@@ -201,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearGuestSession();
 
     // Request backend to clear cookies
-    fetch(withApiBase('/api/public/logout'), { method: 'POST', credentials: 'include' })
+    http('POST', '/api/public/logout')
       .catch(() => {})
       .finally(() => {
         // Navigate home after clearing

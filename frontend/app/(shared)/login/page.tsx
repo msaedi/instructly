@@ -7,11 +7,11 @@ import Link from 'next/link';
 // Background handled globally via GlobalBackground
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
+import { API_ENDPOINTS } from '@/lib/api';
+import { ApiError, http, httpGet } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { getGuestSessionId, transferGuestSearchesToAccount } from '@/lib/searchTracking';
-import { withApiBase } from '@/lib/apiBase';
 
 /**
  * LoginForm Component
@@ -56,6 +56,11 @@ function LoginForm() {
   const [trustThisBrowser, setTrustThisBrowser] = useState(false);
   const [isVerifying2FA, setIsVerifying2FA] = useState(false);
 
+  type LoginResponseData = {
+    requires_2fa?: boolean;
+    temp_token?: string | null;
+  };
+
   /**
    * Handle form input changes
    */
@@ -88,65 +93,44 @@ function LoginForm() {
       email: formData.email,
       hasRedirect: redirect !== '/',
       redirectTo: redirect,
-      API_URL,
       LOGIN_ENDPOINT: API_ENDPOINTS.LOGIN,
     });
 
     try {
-      // Get guest session ID if available
       const guestSessionId = getGuestSessionId();
       logger.info('Login attempt with guest session:', { guestSessionId, hasGuestSession: !!guestSessionId });
 
-      // Determine endpoint and body based on guest session
       const loginPath = guestSessionId ? '/auth/login-with-session' : '/auth/login';
-      const apiPath = withApiBase(loginPath);
-      const endpoint = typeof window !== 'undefined'
-        ? new URL(apiPath, window.location.origin).toString()
-        : `${API_URL}${loginPath}`;
-
-      const body = guestSessionId
-        ? JSON.stringify({
-            email: formData['email'],
-            password: formData['password'],
-            guest_session_id: guestSessionId,
-          })
-        : new URLSearchParams({ username: formData['email'], password: formData['password'] }).toString();
-
       const headers = guestSessionId
         ? { 'Content-Type': 'application/json' }
         : { 'Content-Type': 'application/x-www-form-urlencoded' };
 
+      const loginPayload = guestSessionId
+        ? {
+            email: formData['email'],
+            password: formData['password'],
+            guest_session_id: guestSessionId,
+          }
+        : new URLSearchParams({ username: formData['email'], password: formData['password'] }).toString();
+
       logger.info('Sending login request:', {
-        endpoint,
+        path: loginPath,
         hasGuestSession: !!guestSessionId,
-        bodyPreview: guestSessionId ? { email: formData.email, guest_session_id: guestSessionId } : 'form-data'
+        bodyPreview: guestSessionId ? { email: formData.email, guest_session_id: guestSessionId } : 'form-data',
       });
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
+      const data = await http<LoginResponseData>('POST', loginPath, {
         headers,
-        body,
-        credentials: 'include',
+        body: loginPayload,
       });
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setErrors({ password: body.detail || 'Invalid email or password' });
-        return;
-      }
-
-      const data = await res.json();
-      // 2FA required?
-      if (data.requires_2fa) {
+      if (data?.requires_2fa) {
         setRequires2FA(true);
-        setTempToken(data.temp_token || null);
+        setTempToken(data?.temp_token ?? null);
         setIsSubmitting(false);
         return;
       }
 
-      // No 2FA: cookie-based session; do not write tokens to localStorage
-
-      // Transfer guest searches if we had a guest session
       const transferGuestSession = getGuestSessionId();
       if (transferGuestSession) {
         logger.info('Initiating guest search transfer for session:', { guestSessionId: transferGuestSession });
@@ -155,22 +139,23 @@ function LoginForm() {
       }
 
       await checkAuth();
-      // Decide post-login route: respect explicit redirect; otherwise use session fallback; else role-based
+
       try {
         if (redirect && redirect !== '/' && !redirect.startsWith('/login')) {
           router.push(redirect);
           return;
         }
-        // Session fallback set by guards/helpers
+
         const storedRedirect = typeof window !== 'undefined' ? sessionStorage.getItem('post_login_redirect') : null;
         if (storedRedirect && !storedRedirect.startsWith('/login')) {
-          try { sessionStorage.removeItem('post_login_redirect'); } catch {}
+          try {
+            sessionStorage.removeItem('post_login_redirect');
+          } catch {}
           router.push(storedRedirect);
           return;
         }
-        // Determine role first
-        const meUserRes = await fetchWithAuth(API_ENDPOINTS.ME);
-        const meUser = meUserRes.ok ? await meUserRes.json() : null;
+
+        const meUser = await httpGet<{ roles?: string[] }>(API_ENDPOINTS.ME);
         const roles = Array.isArray(meUser?.roles) ? meUser.roles : [];
         const isAdmin = roles.includes('admin');
         const isInstructor = roles.includes('instructor');
@@ -178,25 +163,29 @@ function LoginForm() {
         if (isAdmin) {
           router.push('/admin/engineering/codebase');
         } else if (isInstructor) {
-          // Probe instructor profile; if exists and is_live => dashboard, else status
-          const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-          if (me.ok) {
-            const prof = await me.json();
+          try {
+            const prof = await httpGet<{ is_live?: boolean }>(API_ENDPOINTS.INSTRUCTOR_PROFILE);
             const next = prof?.is_live ? '/instructor/dashboard' : '/instructor/onboarding/status';
             router.push(next);
-          } else {
+          } catch (profileError) {
+            logger.debug('Instructor profile lookup failed after login', profileError instanceof Error ? profileError : undefined);
             router.push('/instructor/onboarding/status');
           }
         } else {
-          // Student (or non-instructor) default landing
           router.push('/');
         }
-      } catch {
+      } catch (routingError) {
+        logger.debug('Post-login routing fallback', routingError instanceof Error ? routingError : undefined);
         router.push('/');
       }
     } catch (error) {
-      logger.error('Login network error', error);
-      setErrors({ password: 'Network error. Please check your connection and try again.' });
+      if (error instanceof ApiError) {
+        const detail = (error.data as { detail?: string } | undefined)?.detail;
+        setErrors({ password: detail || 'Invalid email or password' });
+      } else {
+        logger.error('Login network error', error);
+        setErrors({ password: 'Network error. Please check your connection and try again.' });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -215,21 +204,17 @@ function LoginForm() {
 
     setIsVerifying2FA(true);
     try {
-      const res = await fetch(
-        `${API_URL}/api/auth/2fa/verify-login`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Trust-Browser': trustThisBrowser ? 'true' : 'false' },
-          body: JSON.stringify({ temp_token: tempToken, code: twoFactorCode || undefined, backup_code: backupCode || undefined }),
-          credentials: 'include',
-        }
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setErrors({ twofa: body.detail || "That code didn’t work. Please check the 6‑digit code or use a backup code." });
-        setIsVerifying2FA(false);
-        return;
-      }
+      await http('POST', '/api/auth/2fa/verify-login', {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Trust-Browser': trustThisBrowser ? 'true' : 'false',
+        },
+        body: {
+          temp_token: tempToken,
+          code: twoFactorCode || undefined,
+          backup_code: backupCode || undefined,
+        },
+      });
       // Cookie-based session; do not write tokens to localStorage
       if (trustThisBrowser) {
         try { sessionStorage.setItem('tfa_trusted', 'true'); } catch {}
@@ -247,31 +232,36 @@ function LoginForm() {
           router.push(storedRedirect);
           return;
         }
-        const meUserRes = await fetchWithAuth(API_ENDPOINTS.ME);
-        const meUser = meUserRes.ok ? await meUserRes.json() : null;
+        const meUser = await httpGet<{ roles?: string[] }>(API_ENDPOINTS.ME);
         const roles = Array.isArray(meUser?.roles) ? meUser.roles : [];
         const isAdmin = roles.includes('admin');
         const isInstructor = roles.includes('instructor');
         if (isAdmin) {
           router.push('/admin/engineering/codebase');
         } else if (isInstructor) {
-          const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-          if (me.ok) {
-            const prof = await me.json();
+          try {
+            const prof = await httpGet<{ is_live?: boolean }>(API_ENDPOINTS.INSTRUCTOR_PROFILE);
             const next = prof?.is_live ? '/instructor/dashboard' : '/instructor/onboarding/status';
             router.push(next);
-          } else {
+          } catch (profileErr) {
+            logger.debug('Instructor profile lookup failed after 2FA', profileErr instanceof Error ? profileErr : undefined);
             router.push('/instructor/onboarding/status');
           }
         } else {
           router.push('/student/lessons');
         }
-      } catch {
+      } catch (routingError) {
+        logger.debug('Post-2FA routing fallback', routingError instanceof Error ? routingError : undefined);
         router.push('/student/lessons');
       }
-    } catch (err) {
-      logger.error('2FA verification error', err);
-      setErrors({ twofa: 'Network error verifying code' });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const detail = (error.data as { detail?: string } | undefined)?.detail;
+        setErrors({ twofa: detail || 'Error verifying code. Please try again.' });
+      } else {
+        logger.error('2FA verification error', error);
+        setErrors({ twofa: 'Network error verifying code' });
+      }
     } finally {
       setIsVerifying2FA(false);
     }

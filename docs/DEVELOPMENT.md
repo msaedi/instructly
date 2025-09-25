@@ -43,6 +43,20 @@ Restart any running Next.js dev servers after updating hosts.
 Invites generated in the preview admin (`/admin/beta/invites`) can now be
 consumed on the beta origin without CORS failures.
 
+### Local host mapping
+
+Add the following entries to your `/etc/hosts` file so both the preview and beta
+local hosts resolve to your machine:
+
+```
+127.0.0.1  beta-local.instainstru.com
+127.0.0.1  api.beta-local.instainstru.com
+```
+
+No additional `.env` overrides are required for local testing—the API resolver
+detects the current host at runtime. Vercel preview/beta environments continue
+to rely on `NEXT_PUBLIC_API_BASE`.
+
 ## Local invite redemption e2e
 
 The `invite-e2e` job now runs inside the `e2e-tests` workflow and uses the same

@@ -3,6 +3,8 @@
  */
 
 import { logger } from '@/lib/logger';
+import { getApiBase } from '@/lib/apiBase';
+import { APP_URL } from '@/lib/publicEnv';
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export class ApiError extends Error {
@@ -15,20 +17,41 @@ export class ApiError extends Error {
 export class AuthError extends ApiError {}
 export class ClientError extends ApiError {}
 
+const ABSOLUTE_URL_REGEX = /^https?:\/\//i;
+
 function isJsonLike(body: unknown): boolean {
   return body != null && (typeof body === 'object' || typeof body === 'string');
 }
 
-export interface HttpOptions extends RequestInit {
+function resolveUrl(url: string): string {
+  if (ABSOLUTE_URL_REGEX.test(url)) {
+    return url;
+  }
+
+  // Preserve already-proxied paths
+  if (url.startsWith('/api/proxy')) {
+    return url;
+  }
+
+  const base = getApiBase();
+  const normalizedBase = base.replace(/\/+$/, '');
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${normalizedBase}${cleanPath}`;
+}
+
+export interface HttpOptions extends Omit<RequestInit, 'body'> {
   headers?: Record<string, string>;
   query?: Record<string, string | number | boolean | undefined>;
   auth?: boolean; // allow Authorization header if token is present
+  body?: unknown;
 }
 
 export async function http<T = unknown>(method: HttpMethod, url: string, options: HttpOptions = {}): Promise<T> {
   const { headers = {}, query, body, auth, ...rest } = options;
 
-  const u = new URL(url, typeof window !== 'undefined' ? window.location.origin : undefined);
+  const resolvedUrl = resolveUrl(url);
+  const baseForRelative = typeof window !== 'undefined' ? window.location.origin : APP_URL;
+  const u = new URL(resolvedUrl, baseForRelative);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v !== undefined && v !== null) u.searchParams.append(k, String(v));

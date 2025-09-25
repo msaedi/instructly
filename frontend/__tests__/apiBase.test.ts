@@ -1,130 +1,32 @@
-/**
- * Tests for API Base URL configuration
- * Ensures NEXT_PUBLIC_API_BASE is the single source of truth
- */
+import { resolveApiBase } from '@/lib/apiBase';
 
-describe('API Base Configuration', () => {
-  const originalEnv = process.env;
-
-  beforeEach(() => {
-    // Reset modules before each test
-    jest.resetModules();
-    // Clear environment
-    process.env = { ...originalEnv };
-    // Clear environment variables to simulate missing config
-    const env = process.env as Record<string, string | undefined>;
-    delete env['NEXT_PUBLIC_API_URL'];
-    delete env['NEXT_PUBLIC_API_BASE'];
-    delete env['NEXT_PUBLIC_USE_PROXY'];
+describe('resolveApiBase', () => {
+  it('SSR no env -> localhost:8000', () => {
+    expect(resolveApiBase({ isServer: true, envBase: undefined })).toBe('http://localhost:8000');
   });
 
-  afterAll(() => {
-    process.env = originalEnv;
+  it('SSR with env -> env', () => {
+    expect(resolveApiBase({ isServer: true, envBase: 'https://api.example.com' })).toBe('https://api.example.com');
   });
 
-  describe('Phase A.2: Guard against deprecated NEXT_PUBLIC_API_URL', () => {
-    it('should throw error in development when NEXT_PUBLIC_API_URL is set', () => {
-      process.env = { ...process.env, NODE_ENV: 'development' } as NodeJS.ProcessEnv;
-      process.env['NEXT_PUBLIC_API_URL'] = 'http://old-api.example.com';
-      process.env['NEXT_PUBLIC_API_BASE'] = 'http://api.example.com';
-
-      expect(() => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('@/lib/apiBase');
-      }).toThrow('NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.');
-    });
-
-    it('should log error in production when NEXT_PUBLIC_API_URL is set', () => {
-      process.env = { ...process.env, NODE_ENV: 'production' } as NodeJS.ProcessEnv;
-      process.env['NEXT_PUBLIC_API_URL'] = 'http://old-api.example.com';
-      process.env['NEXT_PUBLIC_API_BASE'] = 'http://api.example.com';
-
-      const mockError = jest.spyOn(console, 'error').mockImplementation();
-
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('@/lib/apiBase');
-
-      expect(mockError).toHaveBeenCalledWith(
-        expect.stringContaining('NEXT_PUBLIC_API_URL is deprecated')
-      );
-
-      mockError.mockRestore();
-    });
+  it('local preview host -> localhost:8000', () => {
+    expect(resolveApiBase({ isServer: false, host: 'localhost' })).toBe('http://localhost:8000');
   });
 
-  describe('Phase A.1: Single source of truth', () => {
-    it('should throw error when NEXT_PUBLIC_API_BASE is not set', () => {
-      expect(() => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('@/lib/apiBase');
-      }).toThrow('NEXT_PUBLIC_API_BASE is not set. Refusing to default to localhost.');
-    });
-
-    it('should use NEXT_PUBLIC_API_BASE when set', () => {
-      process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
-
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { API_BASE } = require('@/lib/apiBase');
-
-      expect(API_BASE).toBe('https://api.example.com');
-    });
-
-    it('should remove trailing slashes from API_BASE', () => {
-      process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com///';
-
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { API_BASE } = require('@/lib/apiBase');
-
-      expect(API_BASE).toBe('https://api.example.com');
-    });
-
-    it('should use proxy path when USE_PROXY is enabled in local env', () => {
-      process.env['NEXT_PUBLIC_APP_ENV'] = 'local';
-      process.env['NEXT_PUBLIC_USE_PROXY'] = 'true';
-      process.env['NEXT_PUBLIC_API_BASE'] = 'http://localhost:8000';
-
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { API_BASE } = require('@/lib/apiBase');
-
-      expect(API_BASE).toBe('/api/proxy');
-    });
-
-    it('should not use proxy when USE_PROXY is false', () => {
-      process.env['NEXT_PUBLIC_APP_ENV'] = 'local';
-      process.env['NEXT_PUBLIC_USE_PROXY'] = 'false';
-      process.env['NEXT_PUBLIC_API_BASE'] = 'http://localhost:8000';
-
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { API_BASE } = require('@/lib/apiBase');
-
-      expect(API_BASE).toBe('http://localhost:8000');
-    });
+  it('beta-local host -> api.beta-local:8000', () => {
+    expect(resolveApiBase({ isServer: false, host: 'beta-local.instainstru.com' }))
+      .toBe('http://api.beta-local.instainstru.com:8000');
   });
 
-  describe('withApiBase helper', () => {
-    beforeEach(() => {
-      process.env['NEXT_PUBLIC_API_BASE'] = 'https://api.example.com';
-    });
+  it('hosted host with env -> env', () => {
+    expect(resolveApiBase({
+      isServer: false,
+      host: 'preview.instainstru.com',
+      envBase: 'https://preview-api.instainstru.com',
+    })).toBe('https://preview-api.instainstru.com');
+  });
 
-    it('should build correct URL with leading slash', () => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { withApiBase } = require('@/lib/apiBase');
-
-      expect(withApiBase('/users/123')).toBe('https://api.example.com/users/123');
-    });
-
-    it('should build correct URL without leading slash', () => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { withApiBase } = require('@/lib/apiBase');
-
-      expect(withApiBase('users/123')).toBe('https://api.example.com/users/123');
-    });
-
-    it('should handle multiple leading slashes', () => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { withApiBase } = require('@/lib/apiBase');
-
-      expect(withApiBase('///users/123')).toBe('https://api.example.com/users/123');
-    });
+  it('hosted host without env -> throws', () => {
+    expect(() => resolveApiBase({ isServer: false, host: 'beta.instainstru.com' })).toThrow();
   });
 });
