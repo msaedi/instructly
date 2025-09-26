@@ -1,6 +1,6 @@
 """Mapbox geocoding provider."""
 
-from typing import List, Optional
+from typing import Any, List, Optional
 from urllib.parse import quote
 
 import httpx
@@ -89,7 +89,7 @@ class MapboxProvider(GeocodingProvider):
                 return None
             return self._parse_feature(features[0])
 
-    def _parse_feature(self, feature: dict) -> GeocodedAddress:
+    def _parse_feature(self, feature: dict[str, Any]) -> GeocodedAddress:
         center = feature.get("center") or [None, None]
         lng, lat = (center[0], center[1]) if len(center) >= 2 else (None, None)
         context = {

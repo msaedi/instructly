@@ -1,12 +1,14 @@
 """
-Favorites Service for InstaInstru Platform
+Favorites Service for InstaInstru Platform.
 
 Manages the business logic for user favorites functionality.
 Handles validation, caching, and coordination between repositories.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
@@ -34,8 +36,8 @@ class FavoritesService(BaseService):
         db: Session,
         cache_service: Optional[CacheService] = None,
         favorites_repository: Optional[FavoritesRepository] = None,
-        user_repository=None,
-    ):
+        user_repository: Any | None = None,
+    ) -> None:
         """Initialize favorites service with dependencies."""
         super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
@@ -48,7 +50,7 @@ class FavoritesService(BaseService):
         self.cache_ttl = 300  # 5 minutes
 
     @BaseService.measure_operation("add_favorite")
-    def add_favorite(self, student_id: str, instructor_id: str) -> Dict[str, any]:
+    def add_favorite(self, student_id: str, instructor_id: str) -> dict[str, Any]:
         """
         Add an instructor to a student's favorites.
 
@@ -101,7 +103,7 @@ class FavoritesService(BaseService):
             raise ValidationException(f"Failed to add favorite: {str(e)}")
 
     @BaseService.measure_operation("remove_favorite")
-    def remove_favorite(self, student_id: str, instructor_id: str) -> Dict[str, any]:
+    def remove_favorite(self, student_id: str, instructor_id: str) -> dict[str, Any]:
         """
         Remove an instructor from a student's favorites.
 
@@ -176,7 +178,7 @@ class FavoritesService(BaseService):
         return is_fav
 
     @BaseService.measure_operation("get_student_favorites")
-    def get_student_favorites(self, student_id: str) -> List[User]:
+    def get_student_favorites(self, student_id: str) -> list[User]:
         """
         Get all instructors favorited by a student.
 
@@ -201,7 +203,7 @@ class FavoritesService(BaseService):
         return favorites
 
     @BaseService.measure_operation("get_instructor_stats")
-    def get_instructor_favorite_stats(self, instructor_id: str) -> Dict[str, any]:
+    def get_instructor_favorite_stats(self, instructor_id: str) -> dict[str, Any]:
         """
         Get favorite statistics for an instructor.
 
@@ -220,7 +222,7 @@ class FavoritesService(BaseService):
         }
 
     @BaseService.measure_operation("bulk_check_favorites")
-    def bulk_check_favorites(self, student_id: str, instructor_ids: List[str]) -> Dict[str, bool]:
+    def bulk_check_favorites(self, student_id: str, instructor_ids: list[str]) -> dict[str, bool]:
         """
         Check favorite status for multiple instructors at once.
         Useful for listing pages.

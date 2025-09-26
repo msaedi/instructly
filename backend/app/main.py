@@ -1,14 +1,20 @@
 # backend/app/main.py
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
 import os
+from types import ModuleType
+from typing import TYPE_CHECKING, AsyncGenerator
 
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .core.config import settings
 from .core.constants import (
@@ -78,7 +84,11 @@ from .schemas.main_responses import (
 from .services.template_registry import TemplateRegistry
 from .services.template_service import TemplateService
 
+if TYPE_CHECKING:
+    pass
+
 # Ensure custom rate-limit metrics are registered with our Prometheus REGISTRY
+_rl_metrics: ModuleType | None
 try:
     from .ratelimit import metrics as _rl_metrics  # noqa: F401
 except Exception:  # pragma: no cover
@@ -94,7 +104,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Lifespan context manager for startup and shutdown events.
 
@@ -126,7 +136,7 @@ async def lifespan(app: FastAPI):
     # Log database selection (this will show which database is being used)
     from .core.database_config import DatabaseConfig
 
-    db_config = DatabaseConfig()
+    db_config = DatabaseConfig()  # type: ignore[no-untyped-call]  # mypy skips runtime module; instantiation safe for startup logging
     logger.info(f"Database safety score: {db_config.get_safety_score()['score']}%")
 
     logger.info(f"Allowed origins: {_DYN_ALLOWED_ORIGINS}")
@@ -209,7 +219,9 @@ register_error_handlers(app)
 
 
 @app.middleware("http")
-async def add_site_headers(request: Request, call_next):
+async def add_site_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     """Emit X-Site-Mode and X-Phase on every response.
 
     - X-Site-Mode derived from SITE_MODE env (fallback "unset").
@@ -232,7 +244,9 @@ async def add_site_headers(request: Request, call_next):
 
 
 @app.middleware("http")
-async def attach_identity(request: Request, call_next):
+async def attach_identity(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     # Attach a normalized identity for rate-limiter dependency (shadow in PR-2)
     try:
         request.state.rate_identity = resolve_identity(request)
@@ -254,27 +268,27 @@ def _compute_allowed_origins() -> list[str]:
     site_mode = os.getenv("SITE_MODE", "").lower().strip()
     if site_mode == "preview":
         # Include preview frontend domain and optional extra CSV
-        origins = {f"https://{settings.preview_frontend_domain}"}
+        origins_set: set[str] = {f"https://{settings.preview_frontend_domain}"}
         extra = os.getenv("CORS_ALLOW_ORIGINS", "")
         if extra:
             for origin in extra.split(","):
                 origin = origin.strip()
                 if origin:
-                    origins.add(origin)
-        return list(origins)
+                    origins_set.add(origin)
+        return list(origins_set)
     if site_mode in {"prod", "production", "live"}:
         csv = (settings.prod_frontend_origins_csv or "").strip()
-        origins = [o.strip() for o in csv.split(",") if o.strip()]
-        return origins or ["https://app.instainstru.com"]
+        origins_list = [o.strip() for o in csv.split(",") if o.strip()]
+        return origins_list or ["https://app.instainstru.com"]
     # local/dev: include env override or constants
-    origins = set(ALLOWED_ORIGINS)
+    origins_set = set(ALLOWED_ORIGINS)
     extra = os.getenv("CORS_ALLOW_ORIGINS", "")
     if extra:
         for origin in extra.split(","):
             origin = origin.strip()
             if origin:
-                origins.add(origin)
-    return list(origins)
+                origins_set.add(origin)
+    return list(origins_set)
 
 
 _DYN_ALLOWED_ORIGINS = _compute_allowed_origins()
@@ -310,7 +324,7 @@ app.add_middleware(
 class SSEAwareGZipMiddleware(GZipMiddleware):
     """GZip middleware that skips SSE endpoints."""
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         # Skip compression for SSE endpoints
         if scope["type"] == "http" and scope.get("path", "").startswith(SSE_PATH_PREFIX):
             await self.app(scope, receive, send)
@@ -449,7 +463,7 @@ def get_performance_metrics() -> PerformanceMetricsResponse:
 
 
 @app.get("/metrics")
-def metrics_endpoint():
+def metrics_endpoint() -> Response:
     """Prometheus metrics endpoint (lightweight)."""
     return Response(generate_latest(PROM_REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
@@ -458,8 +472,9 @@ def metrics_endpoint():
 fastapi_app = app
 
 # Wrap with ASGI middleware for production
-app = TimingMiddlewareASGI(app)
-app = RateLimitMiddlewareASGI(app)
+wrapped_app: ASGIApp = TimingMiddlewareASGI(app)
+wrapped_app = RateLimitMiddlewareASGI(wrapped_app)
+app = wrapped_app
 
 # Export what's needed
 __all__ = ["app", "fastapi_app"]

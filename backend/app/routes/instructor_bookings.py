@@ -74,7 +74,7 @@ async def mark_lesson_complete(
         422: Booking cannot be marked complete (wrong status, not instructor's booking)
     """
     # Check permission
-    check_permission(current_user, PermissionName.UPDATE_BOOKINGS, db)
+    check_permission(current_user, PermissionName.COMPLETE_BOOKINGS, db)
 
     booking_repo = RepositoryFactory.get_booking_repository(db)
     payment_repo = RepositoryFactory.get_payment_repository(db)
@@ -155,7 +155,7 @@ async def get_pending_completion_bookings(
     Returns:
         List of bookings pending completion
     """
-    check_permission(current_user, PermissionName.VIEW_BOOKINGS, db)
+    check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
 
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
@@ -211,23 +211,19 @@ async def get_completed_bookings(
     Returns:
         List of completed bookings
     """
-    check_permission(current_user, PermissionName.VIEW_BOOKINGS, db)
+    check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
 
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
     # Calculate pagination
     offset = (page - 1) * per_page
 
-    # Get bookings with pagination
-    bookings = booking_repo.get_instructor_bookings(
-        instructor_id=current_user.id, status=BookingStatus.COMPLETED, limit=per_page, offset=offset
-    )
-
-    # Get total count
-    total_bookings = booking_repo.get_instructor_bookings(
+    all_bookings = booking_repo.get_instructor_bookings(
         instructor_id=current_user.id, status=BookingStatus.COMPLETED
     )
-    total = len(total_bookings)
+    total = len(all_bookings)
+
+    bookings = all_bookings[offset : offset + per_page]
 
     # Return paginated response
     return PaginatedResponse(
@@ -264,7 +260,7 @@ async def dispute_completion(
     Returns:
         Updated booking information
     """
-    check_permission(current_user, PermissionName.UPDATE_BOOKINGS, db)
+    check_permission(current_user, PermissionName.COMPLETE_BOOKINGS, db)
 
     booking_repo = RepositoryFactory.get_booking_repository(db)
     payment_repo = RepositoryFactory.get_payment_repository(db)

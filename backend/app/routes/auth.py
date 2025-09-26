@@ -96,8 +96,9 @@ async def register(
         # Beta invite consumption (server-side guarantee)
         try:
             invite_code = None
-            if isinstance(getattr(user, "metadata", None), dict):
-                invite_code = user.metadata.get("invite_code")
+            metadata_obj = getattr(user, "metadata", None)
+            if isinstance(metadata_obj, dict):
+                invite_code = metadata_obj.get("invite_code")
             if invite_code:
                 svc = BetaService(db)
                 grant, reason = svc.consume_and_grant(
@@ -163,7 +164,7 @@ async def login(
     response: Response,  # Add this to set cookies
     form_data: OAuth2PasswordRequestForm = Depends(),
     auth_service: AuthService = Depends(get_auth_service),
-):
+) -> LoginResponse:
     """
     Login with username (email) and password.
 
@@ -254,7 +255,7 @@ async def change_password(
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
-):
+) -> PasswordChangeResponse:
     """
     Change password for the current authenticated user.
 
@@ -304,7 +305,7 @@ async def login_with_session(
     login_data: UserLogin,
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
-):
+) -> Token:
     """
     Login with email and password, optionally converting guest searches.
 
@@ -380,7 +381,7 @@ async def read_users_me(
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
-):
+) -> UserWithPermissionsResponse:
     """
     Get current user information with roles and permissions.
 
@@ -449,7 +450,7 @@ async def update_current_user(
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
-):
+) -> UserWithPermissionsResponse:
     """
     Update current user's profile (including timezone).
 

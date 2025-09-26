@@ -6,8 +6,8 @@ track HTTP request metrics including duration, status codes, and
 in-progress requests.
 """
 
+from collections.abc import Awaitable, Callable
 import time
-from typing import Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -19,7 +19,9 @@ from ..monitoring.prometheus_metrics import prometheus_metrics
 class PrometheusMiddleware(BaseHTTPMiddleware):
     """Middleware to collect Prometheus metrics for HTTP requests."""
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """
         Process the request and collect metrics.
 

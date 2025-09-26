@@ -8,7 +8,7 @@ Provides centralized privacy management across all data types.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Dict
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -40,7 +40,7 @@ class PrivacyService(BaseService):
         self.search_event_repository = RepositoryFactory.create_search_event_repository(db)
 
     @BaseService.measure_operation("export_user_data")
-    def export_user_data(self, user_id: str) -> Dict:
+    def export_user_data(self, user_id: str) -> dict[str, Any]:
         """
         Export all user data for GDPR compliance.
 
@@ -54,7 +54,10 @@ class PrivacyService(BaseService):
         if not user:
             raise ValueError(f"User {user_id} not found")
 
-        export_data = {
+        search_history_data: list[dict[str, Any]] = []
+        booking_data: list[dict[str, Any]] = []
+
+        export_data: dict[str, Any] = {
             "export_date": datetime.now(timezone.utc).isoformat(),
             "user_profile": {
                 "id": user.id,
@@ -66,8 +69,8 @@ class PrivacyService(BaseService):
                 "created_at": user.created_at.isoformat() if user.created_at else None,
                 "updated_at": user.updated_at.isoformat() if user.updated_at else None,
             },
-            "search_history": [],
-            "bookings": [],
+            "search_history": search_history_data,
+            "bookings": booking_data,
             "instructor_profile": None,
             "student_profile": None,
         }
@@ -76,7 +79,7 @@ class PrivacyService(BaseService):
         searches = self.search_history_repository.get_user_searches(user_id, exclude_deleted=True)
 
         for search in searches:
-            export_data["search_history"].append(
+            search_history_data.append(
                 {
                     "search_query": search.search_query,
                     "search_type": search.search_type,
@@ -93,7 +96,7 @@ class PrivacyService(BaseService):
         bookings = student_bookings + instructor_bookings
 
         for booking in bookings:
-            export_data["bookings"].append(
+            booking_data.append(
                 {
                     "id": booking.id,
                     "booking_date": booking.booking_date.isoformat(),
@@ -125,7 +128,7 @@ class PrivacyService(BaseService):
         return export_data
 
     @BaseService.measure_operation("delete_user_data")
-    def delete_user_data(self, user_id: str, delete_account: bool = False) -> Dict[str, int]:
+    def delete_user_data(self, user_id: str, delete_account: bool = False) -> dict[str, int]:
         """
         Delete user data for right to be forgotten requests.
 
@@ -155,7 +158,7 @@ class PrivacyService(BaseService):
                 "You have active bookings. Please cancel all upcoming bookings before deleting your account."
             )
 
-        deletion_stats = {
+        deletion_stats: dict[str, int] = {
             "search_history": 0,
             "search_events": 0,
             "bookings": 0,
@@ -227,14 +230,14 @@ class PrivacyService(BaseService):
             raise
 
     @BaseService.measure_operation("apply_retention_policies")
-    def apply_retention_policies(self) -> Dict[str, int]:
+    def apply_retention_policies(self) -> dict[str, int]:
         """
         Apply data retention policies across all data types.
 
         Returns:
             Dictionary with counts of affected records
         """
-        retention_stats = {
+        retention_stats: dict[str, int] = {
             "search_events_deleted": 0,
             "old_bookings_anonymized": 0,
         }
@@ -278,14 +281,14 @@ class PrivacyService(BaseService):
             raise
 
     @BaseService.measure_operation("get_privacy_statistics")
-    def get_privacy_statistics(self) -> Dict:
+    def get_privacy_statistics(self) -> dict[str, Any]:
         """
         Get statistics about data retention and privacy.
 
         Returns:
             Dictionary with privacy-related statistics
         """
-        stats = {
+        stats: dict[str, Any] = {
             "total_users": self.user_repository.count_all(),
             "active_users": self.user_repository.count_active(),
             "search_history_records": self.search_history_repository.count_all_searches(),

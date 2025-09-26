@@ -10,7 +10,7 @@ to generic metadata if enrichment is unavailable or no match is found.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, TypedDict
+from typing import Any, Optional, TypedDict
 
 from sqlalchemy.orm import Session
 
@@ -21,7 +21,7 @@ class EnrichmentResult(TypedDict, total=False):
     district: Optional[str]
     neighborhood: Optional[str]
     subneighborhood: Optional[str]
-    location_metadata: dict
+    location_metadata: dict[str, Any]
 
 
 @dataclass

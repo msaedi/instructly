@@ -2,11 +2,14 @@
 import logging
 import os
 from pathlib import Path
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional, cast
 
 from dotenv import load_dotenv
-from pydantic import ConfigDict, Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import Field, SecretStr, ValidationInfo, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +25,19 @@ if not os.getenv("CI"):
 class Settings(BaseSettings):
     # Use a default secret key for CI/testing environments
     secret_key: SecretStr = Field(
-        default="ci-test-secret-key-not-for-production" if os.getenv("CI") else ...,
+        default=cast(
+            object,
+            SecretStr("ci-test-secret-key-not-for-production") if os.getenv("CI") else ...,
+        ),
         description="Secret key for JWT tokens",
-    )
+    )  # type: ignore[assignment]  # defaults to ellipsis outside CI; SecretStr default provided for CI runs
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 720  # 12 hours
 
     # 2FA / TOTP
     totp_encryption_key: SecretStr = Field(
-        default="", description="Fernet key for encrypting TOTP secrets (optional in dev)"
+        default=SecretStr(""),
+        description="Fernet key for encrypting TOTP secrets (optional in dev)",
     )
     two_factor_trust_days: int = Field(default=30, description="Days to trust a browser for 2FA")
 
@@ -130,7 +137,7 @@ class Settings(BaseSettings):
     ]
 
     # Use ConfigDict instead of Config class (Pydantic V2 style)
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         env_file=".env" if not os.getenv("CI") else None,
         case_sensitive=False,  # Changed to False - allows SECRET_KEY to match secret_key
         extra="ignore",
@@ -241,18 +248,22 @@ class Settings(BaseSettings):
         default="", description="Stripe publishable key for frontend"
     )
     stripe_secret_key: SecretStr = Field(
-        default="", description="Stripe secret key for backend API calls"
+        default=SecretStr(""),
+        description="Stripe secret key for backend API calls",
     )
 
     # Webhook secrets - backward compatible for both local and deployed environments
     stripe_webhook_secret: SecretStr = Field(
-        default="", description="Stripe webhook secret for local dev (Stripe CLI)"
+        default=SecretStr(""),
+        description="Stripe webhook secret for local dev (Stripe CLI)",
     )
     stripe_webhook_secret_platform: SecretStr = Field(
-        default="", description="Platform events webhook secret (deployed)"
+        default=SecretStr(""),
+        description="Platform events webhook secret (deployed)",
     )
     stripe_webhook_secret_connect: SecretStr = Field(
-        default="", description="Connect events webhook secret (deployed)"
+        default=SecretStr(""),
+        description="Connect events webhook secret (deployed)",
     )
 
     stripe_platform_fee_percentage: float = Field(
@@ -278,7 +289,9 @@ class Settings(BaseSettings):
     # Cloudflare R2 (S3-compatible) configuration for asset uploads
     r2_account_id: str = Field(default="", description="Cloudflare R2 Account ID")
     r2_access_key_id: str = Field(default="", description="R2 access key ID")
-    r2_secret_access_key: SecretStr = Field(default="", description="R2 secret access key")
+    r2_secret_access_key: SecretStr = Field(
+        default=SecretStr(""), description="R2 secret access key"
+    )
     r2_bucket_name: str = Field(default="", description="R2 bucket name")
     r2_public_base_url: str = Field(
         default="https://assets.instainstru.com",
@@ -332,13 +345,13 @@ class Settings(BaseSettings):
 
     @field_validator("int_database_url_raw")
     @classmethod
-    def validate_test_database(cls, v: str, info) -> str:
+    def validate_test_database(cls, v: str, info: ValidationInfo) -> str:
         """Ensure test database is not a production database."""
         if not v:
             return v
 
         # Get the list of production indicators from the values
-        prod_indicators = info.data.get("production_database_indicators", [])
+        prod_indicators = cast(list[str], info.data.get("production_database_indicators", []))
 
         # Check if test database URL contains any production indicators
         for indicator in prod_indicators:
@@ -367,12 +380,13 @@ class Settings(BaseSettings):
 
         # Use the new database configuration system
         try:
-            return DatabaseConfig().get_database_url()
+            db_config = DatabaseConfig()  # type: ignore[no-untyped-call]  # constructor not typed
+            return db_config.get_database_url()
         except Exception:
             # Surface error immediately; do not fall back to legacy behavior
             raise
 
-    def is_production_database(self, url: str = None) -> bool:
+    def is_production_database(self, url: str | None = None) -> bool:
         """Check if a database URL appears to be a production database."""
         check_url = url or self.prod_database_url_raw or ""
         return any(
@@ -385,7 +399,8 @@ class Settings(BaseSettings):
         # Import here to avoid circular dependency
         from .database_config import DatabaseConfig
 
-        return DatabaseConfig().get_database_url()
+        db_config = DatabaseConfig()  # type: ignore[no-untyped-call]  # constructor not typed
+        return db_config.get_database_url()
 
     @property
     def test_database_url(self) -> str:

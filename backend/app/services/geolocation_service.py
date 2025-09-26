@@ -12,10 +12,11 @@ Provides IP geolocation services with:
 import hashlib
 import ipaddress
 import logging
-from typing import Dict, Optional
+from typing import Any, cast
 
 import httpx
 from sqlalchemy.orm import Session
+from starlette.requests import Request
 
 from .base import BaseService
 
@@ -42,13 +43,13 @@ class GeolocationService(BaseService):
         "New York": "Manhattan",  # Most APIs return "New York" for Manhattan
     }
 
-    def __init__(self, db: Session, cache_service=None):
+    def __init__(self, db: Session, cache_service: Any | None = None) -> None:
         super().__init__(db)
         self.cache_service = cache_service
         self.client = httpx.AsyncClient(timeout=5.0)
 
     @BaseService.measure_operation("get_location_from_ip")
-    async def get_location_from_ip(self, ip_address: str) -> Optional[Dict]:
+    async def get_location_from_ip(self, ip_address: str) -> dict[str, Any] | None:
         """
         Get geographic location from IP address.
 
@@ -82,7 +83,8 @@ class GeolocationService(BaseService):
         # Check cache first
         cache_key = f"geo:ip:{self._hash_ip(ip_address)}"
         if self.cache_service:
-            cached_result = await self.cache_service.get(cache_key)
+            cached_raw = await self.cache_service.get(cache_key)
+            cached_result = cast(dict[str, Any] | None, cached_raw)
             if cached_result:
                 logger.debug(f"Cache hit for IP geolocation: {ip_address[:8]}...")
                 return cached_result
@@ -109,7 +111,7 @@ class GeolocationService(BaseService):
             logger.error(f"Geolocation lookup failed for {ip_address[:8]}...: {str(e)}")
             return self._get_default_location()
 
-    async def _lookup_with_fallback(self, ip_address: str) -> Optional[Dict]:  # no-metrics
+    async def _lookup_with_fallback(self, ip_address: str) -> dict[str, Any] | None:  # no-metrics
         """Try multiple geolocation services with fallback."""
 
         # Primary service: ipapi.co (free tier: 1000/day)
@@ -130,7 +132,7 @@ class GeolocationService(BaseService):
 
         return None
 
-    async def _lookup_ipapi(self, ip_address: str) -> Optional[Dict]:  # no-metrics
+    async def _lookup_ipapi(self, ip_address: str) -> dict[str, Any] | None:  # no-metrics
         """Lookup using ipapi.co service."""
         url = f"https://ipapi.co/{ip_address}/json/"
 
@@ -154,7 +156,7 @@ class GeolocationService(BaseService):
                 "timezone": data.get("timezone"),
             }
 
-    async def _lookup_ipapi_com(self, ip_address: str) -> Optional[Dict]:  # no-metrics
+    async def _lookup_ipapi_com(self, ip_address: str) -> dict[str, Any] | None:  # no-metrics
         """Lookup using ip-api.com service."""
         url = f"http://ip-api.com/json/{ip_address}"
 
@@ -178,7 +180,7 @@ class GeolocationService(BaseService):
                 "timezone": data.get("timezone"),
             }
 
-    def _enhance_nyc_data(self, location_data: Dict) -> Dict:  # no-metrics
+    def _enhance_nyc_data(self, location_data: dict[str, Any]) -> dict[str, Any]:  # no-metrics
         """Enhance location data with NYC-specific information."""
         city = location_data.get("city", "")
         state = location_data.get("state", "")
@@ -238,7 +240,7 @@ class GeolocationService(BaseService):
         """Create privacy-aware hash of IP address."""
         return hashlib.sha256(ip_address.encode()).hexdigest()[:16]
 
-    def _get_default_location(self) -> Dict:  # no-metrics
+    def _get_default_location(self) -> dict[str, Any]:  # no-metrics
         """Return default location for private/invalid IPs."""
         return {
             "country_code": "US",
@@ -253,7 +255,7 @@ class GeolocationService(BaseService):
             "timezone": "America/New_York",
         }
 
-    def get_ip_from_request(self, request) -> str:  # no-metrics
+    def get_ip_from_request(self, request: Request) -> str:  # no-metrics
         """
         Extract real IP address from request, handling proxies.
 
@@ -278,8 +280,11 @@ class GeolocationService(BaseService):
             return cf_ip.strip()
 
         # Fallback to direct connection
-        return request.client.host if request.client else "127.0.0.1"
+        client = request.client
+        if client and getattr(client, "host", None):
+            return cast(str, client.host)
+        return "127.0.0.1"
 
-    async def close(self):  # no-metrics
+    async def close(self) -> None:  # no-metrics
         """Clean up HTTP client."""
         await self.client.aclose()

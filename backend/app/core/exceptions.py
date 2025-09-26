@@ -19,11 +19,22 @@ class DomainException(Exception):
         message: str,
         code: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         self.message = message
         self.code = code or self.__class__.__name__
         self.details = details or {}
         super().__init__(self.message)
+
+    def to_http_exception(self) -> HTTPException:
+        """Default conversion to HTTPException (override in subclasses)."""
+        return HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "message": self.message,
+                "code": self.code,
+                "details": self.details,
+            },
+        )
 
 
 class ValidationException(DomainException):

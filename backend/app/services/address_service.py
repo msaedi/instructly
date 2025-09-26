@@ -1,6 +1,8 @@
 """Address service with provider-agnostic geocoding and NYC enrichment."""
 
-from typing import List, Optional
+from __future__ import annotations
+
+from typing import Any, Optional, cast
 
 from sqlalchemy.orm import Session
 
@@ -33,12 +35,12 @@ class AddressService(BaseService):
 
     # User addresses
     @BaseService.measure_operation("list_addresses")
-    def list_addresses(self, user_id: str) -> list:
+    def list_addresses(self, user_id: str) -> list[dict[str, Any]]:
         entities = self.address_repo.list_for_user(user_id)
         return [self._to_dict(a) for a in entities]
 
     @BaseService.measure_operation("create_address")
-    def create_address(self, user_id: str, data: dict) -> dict:
+    def create_address(self, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
         # If is_default, unset others first
         if data.get("is_default"):
             self.address_repo.unset_default(user_id)
@@ -136,7 +138,9 @@ class AddressService(BaseService):
         return self._to_dict(entity)
 
     @BaseService.measure_operation("update_address")
-    def update_address(self, user_id: str, address_id: str, data: dict) -> Optional[dict]:
+    def update_address(
+        self, user_id: str, address_id: str, data: dict[str, Any]
+    ) -> Optional[dict[str, Any]]:
         entity = self.address_repo.get_by_id(address_id, load_relationships=False)
         if not entity or entity.user_id != user_id:
             return None
@@ -214,7 +218,7 @@ class AddressService(BaseService):
 
     # Instructor service areas
     @BaseService.measure_operation("list_service_areas")
-    def list_service_areas(self, instructor_id: str) -> List[dict]:
+    def list_service_areas(self, instructor_id: str) -> list[dict[str, Any]]:
         areas = self.service_area_repo.list_for_instructor(instructor_id)
         return [
             {
@@ -227,14 +231,14 @@ class AddressService(BaseService):
         ]
 
     @BaseService.measure_operation("replace_service_areas")
-    def replace_service_areas(self, instructor_id: str, neighborhood_ids: List[str]) -> int:
+    def replace_service_areas(self, instructor_id: str, neighborhood_ids: list[str]) -> int:
         with self.transaction():
             count = self.service_area_repo.replace_areas(instructor_id, neighborhood_ids)
             return count
 
     # Map support utilities
     @BaseService.measure_operation("get_coverage_geojson_for_instructors")
-    def get_coverage_geojson_for_instructors(self, instructor_ids: List[str]) -> dict:
+    def get_coverage_geojson_for_instructors(self, instructor_ids: list[str]) -> dict[str, Any]:
         """Return a GeoJSON FeatureCollection of active coverage polygons for instructors.
 
         Uses simplified boundaries via ST_AsGeoJSON directly from DB through the RegionBoundaryRepository
@@ -249,7 +253,8 @@ class AddressService(BaseService):
             try:
                 ordered = sorted(set(instructor_ids))
                 cache_key = f"coverage:bulk:{','.join(ordered)}"
-                cached = self.cache.get(cache_key)
+                cached_raw = self.cache.get(cache_key)
+                cached = cast(dict[str, Any] | None, cached_raw)
                 if cached:
                     return cached
             except Exception:
@@ -262,7 +267,7 @@ class AddressService(BaseService):
             return {"type": "FeatureCollection", "features": []}
 
         # Fetch minimal boundary JSON via repository helper
-        features: list[dict] = []
+        features: list[dict[str, Any]] = []
         chunk_size = 200
         for i in range(0, len(neighborhood_ids), chunk_size):
             chunk = neighborhood_ids[i : i + chunk_size]
@@ -298,15 +303,16 @@ class AddressService(BaseService):
         borough: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         # Cache key for pagination
         cache_key = None
         if self.cache:
             try:
                 cache_key = f"neighborhoods:{region_type}:{borough or 'all'}:{limit}:{offset}"
-                cached = self.cache.get(cache_key)
-                if cached is not None:
-                    return cached
+                cached_raw = self.cache.get(cache_key)
+                cached_list = cast(list[dict[str, Any]] | None, cached_raw)
+                if cached_list is not None:
+                    return cached_list
             except Exception:
                 pass
 
@@ -330,7 +336,7 @@ class AddressService(BaseService):
         return items
 
     # Helpers
-    def _to_dict(self, a) -> dict:
+    def _to_dict(self, a: Any) -> dict[str, Any]:
         return {
             "id": a.id,
             "label": a.label,

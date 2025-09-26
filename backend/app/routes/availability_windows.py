@@ -272,7 +272,13 @@ async def copy_week_availability(
             from_week_start=payload.from_week_start,
             to_week_start=payload.to_week_start,
         )
-        return result
+        metadata = cast(dict[str, object], result.get("_metadata", {}))
+        return CopyWeekResponse(
+            message=str(metadata.get("message", "Week copied successfully")),
+            source_week_start=payload.from_week_start,
+            target_week_start=payload.to_week_start,
+            windows_copied=int(cast(int | str | None, metadata.get("slots_created", 0)) or 0),
+        )
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:

@@ -1,7 +1,7 @@
 """Provider-agnostic geocoding interfaces."""
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -18,7 +18,7 @@ class GeocodedAddress(BaseModel):
     country: Optional[str] = None
     neighborhood: Optional[str] = None
     provider_id: str
-    provider_data: dict
+    provider_data: dict[str, Any]
     confidence_score: float = 1.0
 
 
@@ -26,7 +26,7 @@ class AutocompleteResult(BaseModel):
     text: str
     place_id: str
     description: str
-    types: List[str] = []
+    types: list[str] = []
 
 
 class GeocodingProvider(ABC):
@@ -41,7 +41,7 @@ class GeocodingProvider(ABC):
     @abstractmethod
     async def autocomplete(
         self, query: str, session_token: Optional[str] = None
-    ) -> List[AutocompleteResult]:
+    ) -> list[AutocompleteResult]:
         pass
 
     @abstractmethod
