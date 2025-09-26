@@ -7,6 +7,13 @@ ARTIFACT_DIR="$ROOT_DIR/.artifacts"
 BASELINE_FILE="$ARTIFACT_DIR/mypy-baseline.txt"
 LATEST_FILE="$ARTIFACT_DIR/mypy-latest.txt"
 
+WRITE_BASELINE=0
+for arg in "$@"; do
+  if [[ "$arg" == "--write-baseline" ]]; then
+    WRITE_BASELINE=1
+  fi
+done
+
 # 2025-09-26: lowered strict baseline from 700 to 597 (pass-2 tightening).
 
 mkdir -p "$ARTIFACT_DIR"
@@ -19,9 +26,14 @@ COUNT=$(grep -Eo 'Found [0-9]+ errors' "$LATEST_FILE" | tail -n1 | awk '{print $
 COUNT=${COUNT:-0}
 
 if [[ ! -f "$BASELINE_FILE" ]]; then
-  echo "$COUNT" > "$BASELINE_FILE"
-  echo "mypy baseline initialized at ${COUNT} errors"
-  exit 0
+  if [[ "$WRITE_BASELINE" -eq 1 ]]; then
+    echo "$COUNT" > "$BASELINE_FILE"
+    echo "mypy baseline initialized at ${COUNT} errors"
+    exit 0
+  fi
+
+  echo "mypy strict gate: baseline file missing; rerun with --write-baseline to initialize" >&2
+  exit 1
 fi
 
 BASELINE=$(cat "$BASELINE_FILE" | tr -d '\r')
@@ -32,11 +44,17 @@ if (( COUNT > BASELINE )); then
   exit 1
 fi
 
-echo "$COUNT" > "$BASELINE_FILE"
-
 if (( COUNT < BASELINE )); then
-  echo "mypy strict gate: error count decreased from ${BASELINE} to ${COUNT}" >&2
+  if [[ "$WRITE_BASELINE" -eq 1 ]]; then
+    echo "$COUNT" > "$BASELINE_FILE"
+    echo "mypy strict gate: error count decreased from ${BASELINE} to ${COUNT}" >&2
+  else
+    echo "mypy strict gate: error count decreased from ${BASELINE} to ${COUNT} (baseline unchanged)" >&2
+  fi
 else
+  if [[ "$WRITE_BASELINE" -eq 1 ]]; then
+    echo "$COUNT" > "$BASELINE_FILE"
+  fi
   echo "mypy strict gate: error count stable at ${COUNT}" >&2
 fi
 
