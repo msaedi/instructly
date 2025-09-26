@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from ...services.account_lifecycle_service import AccountLifecycleService
 from ...services.auth_service import AuthService
 from ...services.availability_service import AvailabilityService
+from ...services.base import BaseService
 from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
 from ...services.cache_service import CacheService, get_cache_service
@@ -32,8 +33,8 @@ from ...services.wallet_service import WalletService
 from ...services.week_operation_service import WeekOperationService
 from .database import get_db
 
-# Service instance cache
-_service_instances = {}
+# Service instance cache keyed by service type
+_service_instances: dict[type[BaseService], BaseService] = {}
 
 
 @lru_cache(maxsize=1)

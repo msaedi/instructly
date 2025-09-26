@@ -9,7 +9,7 @@ Provides endpoints for:
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/services", tags=["services"])
 @router.get("/categories", response_model=List[CategoryResponse])
 async def get_service_categories(
     instructor_service: InstructorService = Depends(get_instructor_service),
-):
+) -> List[CategoryResponse]:
     """Get all service categories."""
     return instructor_service.get_service_categories()
 
@@ -41,7 +41,7 @@ async def get_service_categories(
 async def get_catalog_services(
     category: Optional[str] = Query(None, description="Filter by category slug"),
     instructor_service: InstructorService = Depends(get_instructor_service),
-):
+) -> List[CatalogServiceResponse]:
     """
     Get available services from the catalog.
 
@@ -62,7 +62,7 @@ async def add_service_to_profile(
     service_data: InstructorServiceCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-):
+) -> InstructorServiceResponse:
     """
     Add a service from the catalog to instructor's profile.
 
@@ -95,7 +95,7 @@ async def add_service_to_profile(
 async def search_services(
     q: str = Query(..., min_length=2, description="Search query"),
     instructor_service: InstructorService = Depends(get_instructor_service),
-):
+) -> Dict[str, Any]:
     """
     Search for instructors by service.
 
@@ -116,7 +116,7 @@ async def search_services(
 async def get_top_services_per_category(
     limit: int = Query(7, ge=1, le=20, description="Number of top services per category"),
     instructor_service: InstructorService = Depends(get_instructor_service),
-):
+) -> Dict[str, Any]:
     """
     Get top N services per category for homepage capsules.
 
@@ -136,7 +136,7 @@ async def get_top_services_per_category(
 @router.get("/catalog/all-with-instructors", response_model=Dict)
 async def get_all_services_with_instructors(
     instructor_service: InstructorService = Depends(get_instructor_service),
-):
+) -> Dict[str, Any]:
     """
     Get all catalog services organized by category with active instructor counts.
 
@@ -153,7 +153,7 @@ async def get_all_services_with_instructors(
 @router.get("/catalog/kids-available", response_model=List[CatalogServiceMinimalResponse])
 async def get_kids_available_services(
     instructor_service: InstructorService = Depends(get_instructor_service),
-):
+) -> List[CatalogServiceMinimalResponse]:
     """
     Return catalog services that have at least one active instructor who teaches kids.
 
