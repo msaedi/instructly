@@ -42,7 +42,7 @@ export function getBetaConfig(hostname?: string | null): BetaConfig {
       phase: 'instructor_only',
       studentAccess: 'hidden',
       showBanner: true,
-      bannerMessage: '🎯 NYC Instructor Beta',
+      bannerMessage: 'NYC Instructor Beta',
     };
   }
 
@@ -53,7 +53,7 @@ export function getBetaConfig(hostname?: string | null): BetaConfig {
       phase: 'instructor_only',
       studentAccess: 'hidden',
       showBanner: true,
-      bannerMessage: '🎯 NYC Instructor Beta (Local)',
+      bannerMessage: 'NYC Instructor Beta (Local)',
     };
   }
 

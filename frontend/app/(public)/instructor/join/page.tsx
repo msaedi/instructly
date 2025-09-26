@@ -46,7 +46,11 @@ function JoinInner() {
       setError(null);
       const { data, trimmed: resolvedCode } = await validateInviteCode(code, params.get('email'));
       if (!data.valid) {
-        setError(data.reason || 'Invalid or expired code');
+        const rawReason = (data?.reason ?? '').toString().toLowerCase();
+        const friendly = rawReason.includes('used')
+          ? 'Opps! This code was already redeemd.'
+          : (data?.reason || 'Invalid or expired code');
+        setError(friendly);
         return;
       }
       try { sessionStorage.setItem('invite_code', resolvedCode); } catch {}
@@ -95,22 +99,24 @@ function JoinInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--primary)] disabled:opacity-50"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary hover:!bg-[var(--primary)] hover:!text-white focus:!bg-[var(--primary)] active:!bg-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--primary)] disabled:opacity-50 transform-gpu will-change-transform transition-transform antialiased"
             >
-              {submitting ? 'Validating…' : 'Continue'}
+              {submitting ? 'Validating…' : 'Join!'}
             </button>
           </form>
-          <p className="mt-6 text-xs text-gray-500">
-            Don&apos;t have a code? We&apos;re currently selecting founding instructors. Join our Profile Clinic or apply at
-            {' '}<a className="underline" href="https://instainstru.com/teach" target="_blank" rel="noopener noreferrer">instainstru.com/teach</a>{' '}
-            (or email{' '}
-            <a
-              className="underline"
-              href="mailto:teach@instainstru.com?subject=Founding%20Instructor%20%E2%80%94%20Park%20Slope&body=Name:%0ACategory:%0AYears%20teaching:%0AAvailability:%0ARate%20range:%0ALinks:%0A"
-            >
-              teach@instainstru.com
-            </a>
-            ) if you teach in NYC.
+          <p className="mt-6 text-xs text-gray-500 text-center">
+            <span className="block">Don’t have a code? We’re handpicking our founding instructors. Request to join our Profile Clinic.</span>
+            <span className="block h-2" aria-hidden="true"></span>
+            <span className="block">
+              Apply at{' '}
+              <a className="underline" href="https://instainstru.com/teach" target="_blank" rel="noopener noreferrer">instainstru.com/teach</a>{' '}
+              or email{' '}
+              <a className="underline" href="mailto:teach@instainstru.com">teach@instainstru.com</a>.
+            </span>
+          </p>
+          <p className="mt-6 text-xs text-gray-500 text-center">
+            Already have an account?{' '}
+            <a href="/login" className="text-[#7E22CE] hover:underline">Sign in</a>
           </p>
         </div>
       </div>

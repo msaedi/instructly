@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import ImageCropModal from '@/components/modals/ImageCropModal';
 import { toast } from 'sonner';
-import { createSignedUpload, finalizeProfilePicture } from '@/lib/api';
+import { createSignedUpload, finalizeProfilePicture, getProfilePictureUrl } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
@@ -22,14 +22,52 @@ interface Props {
 }
 
 export function ProfilePictureUpload({ onCompleted, className, size = 64, trigger, ariaLabel }: Props) {
-  const { checkAuth } = useAuth(); // user available via hook if needed
+  const { checkAuth, user } = useAuth();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [existingUrl, setExistingUrl] = useState<string | null>(null);
+  const [overlaySize, setOverlaySize] = useState<number>(size);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showCrop, setShowCrop] = useState(false);
+  // Load existing profile picture URL on mount/when user changes
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadExisting() {
+      try {
+        if (!user?.id) return;
+        const res = await getProfilePictureUrl(String(user.id), 'display');
+        if (!cancelled && res?.success && res.data?.url) {
+          setExistingUrl(res.data.url);
+        }
+      } catch {
+        if (!cancelled) setExistingUrl(null);
+      }
+    }
+    void loadExisting();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // Measure trigger circle size if custom trigger provided
+  React.useEffect(() => {
+    if (!trigger) return;
+    const el = buttonRef.current;
+    if (!el) return;
+    try {
+      const circle = el.querySelector('.rounded-full') as HTMLElement | null;
+      const rect = (circle || el).getBoundingClientRect();
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+      if (w && h) {
+        const s = Math.min(w, h);
+        if (Math.abs(s - overlaySize) > 1) setOverlaySize(s);
+      }
+    } catch {}
+  }, [trigger, overlaySize]);
+
 
   // User initials available via: useMemo(() => getUserInitials(user), [user])
   // Avatar color available via: useMemo(() => (user?.id ? getAvatarColor(user.id) : '#999'), [user?.id])
@@ -117,6 +155,7 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
       {trigger ? (
         <button
           type="button"
+          ref={buttonRef}
           onClick={onPick}
           disabled={isUploading}
           aria-label={ariaLabel || 'Change profile picture'}
@@ -126,18 +165,20 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
         >
           {/* underlying trigger */}
           <span className="block transition-transform group-hover:scale-105">{trigger}</span>
-          {/* optimistic preview overlay */}
-          {previewUrl && (
+          {/* current or preview image overlay constrained to the circle area */}
+          {(previewUrl || existingUrl) && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={previewUrl}
-              alt="Preview"
-              className="absolute inset-0 w-full h-full object-cover rounded-full"
-              style={{ filter: isUploading ? 'grayscale(20%) opacity(0.9)' : undefined }}
+              src={previewUrl || existingUrl || ''}
+              alt="Profile"
+              className="absolute top-0 object-cover rounded-full"
+              style={{ width: overlaySize, height: overlaySize, left: '50%', transform: 'translateX(-50%)', filter: isUploading ? 'grayscale(20%) opacity(0.9)' : undefined }}
             />
           )}
           {isUploading && (
-            <span className="absolute inset-0 flex items-center justify-center">
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 flex items-center justify-center rounded-full"
+              style={{ width: overlaySize, height: overlaySize }}
+            >
               <span className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent" />
             </span>
           )}

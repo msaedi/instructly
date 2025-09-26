@@ -69,7 +69,7 @@ body {
  * Root CSS Custom Properties
  * Define global design tokens for consistent theming
  */
-:root {
+ :root {
   /* Color Variables */
   --background: #ffffff;
   --foreground: #171717;
@@ -470,6 +470,18 @@ button:not(:disabled):hover,
   transform: translateZ(0) scale(1.02);
 }
 
+/* Ensure text scales smoothly with interactive elements to avoid jitter on hover */
+button:not(:disabled),
+[role="button"]:not(:disabled),
+.clickable,
+a[role="button"] {
+  transform-origin: center center;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 /* Neutralize Tailwind hover color utilities for buttons (no color change)
    Exclude brand purple backgrounds so they remain solid on hover */
 button[class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(:disabled):hover,
@@ -509,7 +521,31 @@ a.bg-\[\#7E22CE\]:hover {
   color: #ffffff !important;
 }
 
-/* Support primary token-based buttons (shadcn/ui) */
+/* Ensure crisp, bright white typography on brand purple buttons */
+button.bg-\[\#7E22CE\],
+[role="button"].bg-\[\#7E22CE\],
+a.bg-\[\#7E22CE\],
+button.bg-primary,
+[role="button"].bg-primary,
+a.bg-primary {
+  color: var(--primary-foreground) !important;
+  font-weight: 600; /* match the crisp Save button */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Support primary token-based tokens (base + hover) */
+.bg-primary {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+.text-primary {
+  color: var(--primary) !important;
+}
+
+/* Hover treatment for primary tokens */
 button.bg-primary:not(:disabled):hover,
 [role="button"].bg-primary:not(:disabled):hover,
 a.bg-primary:hover {
@@ -642,6 +678,24 @@ html {
 
 .animate-fade-in {
   animation: fadeIn var(--transition-base) ease-out;
+}
+
+/* Subtle blinking for attention cards */
+@keyframes blinkSoft {
+  0%, 100% {
+    box-shadow: var(--shadow-sm);
+    border-color: #e5e7eb; /* gray-200 */
+    transform: translateZ(0) scale(1.0);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(126, 34, 206, 0.12), 0 2px 8px rgba(0,0,0,0.08);
+    border-color: #7E22CE;
+    transform: translateZ(0) scale(1.01);
+  }
+}
+
+.blink-card {
+  animation: blinkSoft 1.8s ease-in-out infinite;
 }
 
 /* Fade In Up Animation for Service Capsules */

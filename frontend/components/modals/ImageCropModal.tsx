@@ -140,21 +140,21 @@ export default function ImageCropModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Adjust your profile picture"
+      title={"Adjust your profile picture"}
       size="lg"
       footer={
         <div className="flex justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+            className="h-10 min-w-[112px] inline-flex items-center justify-center px-4 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSave}
-            className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 cursor-pointer"
+            className="h-10 min-w-[112px] inline-flex items-center justify-center px-4 bg-[#7E22CE] text-white rounded-md hover:bg-[#7E22CE] cursor-pointer"
           >
             Save
           </button>
@@ -174,7 +174,7 @@ export default function ImageCropModal({
               const t = parseFloat(e.target.value);
               setScale(minScale + t * (maxScale - minScale));
             }}
-            className="w-64"
+            className="w-64 accent-[#7E22CE]"
           />
           <span className="text-xs text-gray-500 w-14 text-right">{Math.round((currentScale / minScale) * 100)}%</span>
         </div>

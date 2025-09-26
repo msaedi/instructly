@@ -154,13 +154,7 @@ function SignUpForm() {
     }));
 
     // Field-specific live validation and error updates
-    if (name === 'email') {
-      const invalid = nextValue.trim().length > 0 && !/\S+@\S+\.\S+/.test(nextValue);
-      setErrors((prev) => ({
-        ...prev,
-        ...(invalid ? { email: 'Please enter a valid email' } : {}),
-      }));
-    } else if (name === 'phone') {
+    if (name === 'phone') {
       const cleaned = nextValue.replace(/\D/g, '');
       const invalid = nextValue.trim().length > 0 && cleaned.length !== 10;
       setErrors((prev) => ({
@@ -186,6 +180,27 @@ function SignUpForm() {
         }));
       }
     }
+  };
+
+  // Validate email on blur (not on first keystroke)
+  const handleEmailBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = (e.target.value || '').trim();
+    if (!value) {
+      // Do not show "required" on blur; defer to submit
+      setErrors((prev) => {
+        const { email, ...rest } = prev;
+        return rest;
+      });
+      return;
+    }
+    const invalid = !/\S+@\S+\.\S+/.test(value);
+    setErrors((prev) => {
+      if (invalid) {
+        return { ...prev, email: 'Please enter a valid email' };
+      }
+      const { email, ...rest } = prev;
+      return rest;
+    });
   };
 
   // Validate ZIP against backend NYC checker for instructor flow
@@ -539,7 +554,7 @@ function SignUpForm() {
             <div>
               <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
               <div className="mt-1">
-                <input id="firstName" name="firstName" type="text" autoComplete="given-name" required value={formData.firstName} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.firstName} aria-describedby={errors.firstName ? 'firstName-error' : undefined} />
+                <input id="firstName" name="firstName" type="text" autoComplete="given-name" required value={formData.firstName} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.firstName} aria-describedby={errors.firstName ? 'firstName-error' : undefined} />
                 {errors.firstName && (<p id="firstName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.firstName}</p>)}
               </div>
             </div>
@@ -548,7 +563,7 @@ function SignUpForm() {
             <div>
               <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Last Name</label>
               <div className="mt-1">
-                <input id="lastName" name="lastName" type="text" autoComplete="family-name" required value={formData.lastName} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.lastName} aria-describedby={errors.lastName ? 'lastName-error' : undefined} />
+                <input id="lastName" name="lastName" type="text" autoComplete="family-name" required value={formData.lastName} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.lastName} aria-describedby={errors.lastName ? 'lastName-error' : undefined} />
                 {errors.lastName && (<p id="lastName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.lastName}</p>)}
               </div>
             </div>
@@ -558,7 +573,7 @@ function SignUpForm() {
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
             <div className="mt-1">
-              <input id="email" name="email" type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" inputMode="email" required value={formData.email} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} />
+              <input id="email" name="email" type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" inputMode="email" required value={formData.email} onChange={handleChange} onBlur={handleEmailBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} />
               {errors.email && (<p id="email-error" role="alert" aria-live="polite" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>)}
             </div>
           </div>
@@ -569,7 +584,7 @@ function SignUpForm() {
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
               <div className="mt-1">
-                <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder="(555) 555-5555" value={formData.phone} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} />
+                <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder="(555) 555-5555" value={formData.phone} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} />
                 {errors.phone && (<p id="phone-error" role="alert" aria-live="polite" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.phone}</p>)}
               </div>
             </div>
@@ -578,7 +593,7 @@ function SignUpForm() {
             <div>
               <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Zip Code</label>
               <div className="mt-1">
-                <input id="zipCode" name="zipCode" type="text" inputMode="numeric" pattern="\\d{5}" autoComplete="postal-code" required placeholder="10001" maxLength={5} value={formData.zipCode} onChange={handleChange} onBlur={handleZipBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.zipCode} aria-describedby={errors.zipCode ? 'zipCode-error' : undefined} />
+                <input id="zipCode" name="zipCode" type="text" inputMode="numeric" pattern="\\d{5}" autoComplete="postal-code" required placeholder="10001" maxLength={5} value={formData.zipCode} onChange={handleChange} onBlur={handleZipBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.zipCode} aria-describedby={errors.zipCode ? 'zipCode-error' : undefined} />
                 {errors.zipCode && (
                   <p id="zipCode-error" role="alert" aria-live="polite" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.zipCode}</p>
                 )}

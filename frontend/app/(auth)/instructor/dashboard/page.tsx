@@ -305,7 +305,7 @@ export default function InstructorDashboardNew() {
                 </svg>
               </button>
               <div className="min-w-0">
-                <h1 className="text-3xl font-bold text-gray-800">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
                 <p className="text-gray-600 text-sm">Your profile, schedule, and earnings at a glance</p>
               </div>
         </div>
@@ -318,6 +318,81 @@ export default function InstructorDashboardNew() {
               <span className="hidden sm:inline">Public profile</span>
           </button>
           </div>
+        </div>
+
+        {/* Action items - moved directly under welcome card, full width */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+              <ListTodo className="w-6 h-6 text-[#7E22CE]" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">Action items</h3>
+              <p className="text-xs text-black mt-0.5"><span className="text-[#FFD700] font-bold mr-1">*</span>Required to go live</p>
+            </div>
+          </div>
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <li
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              role="button"
+              tabIndex={0}
+              onClick={() => { const el = document.getElementById('profile-photo-upload'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const el = document.getElementById('profile-photo-upload'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } }}
+            >
+              <span className="text-gray-700">Upload a profile photo</span>
+              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
+            </li>
+            <li
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              role="button"
+              tabIndex={0}
+              onClick={() => { setEditVariant('areas'); setShowEditModal(true); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEditVariant('areas'); setShowEditModal(true); } }}
+            >
+              <span className="text-gray-700">Set your service area (where you can teach)</span>
+              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
+            </li>
+            <li
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              role="button"
+              tabIndex={0}
+              onClick={() => { setEditVariant('services'); setShowEditModal(true); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEditVariant('services'); setShowEditModal(true); } }}
+            >
+              <span className="text-gray-700">Set your skills</span>
+              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
+            </li>
+            <li
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              role="button"
+              tabIndex={0}
+              onClick={() => setShowVerifyModal(true)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowVerifyModal(true); }}
+            >
+              <span className="text-gray-700">Verify your identity</span>
+              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
+            </li>
+            <li
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              role="button"
+              tabIndex={0}
+              onClick={() => { const el = document.getElementById('payments-setup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const el = document.getElementById('payments-setup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } }}
+            >
+              <span className="text-gray-700">Set payment details (so you can get paid)</span>
+              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
+            </li>
+            <li
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              role="button"
+              tabIndex={0}
+              onClick={() => router.push('/instructor/availability')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push('/instructor/availability'); }}
+            >
+              <span className="text-gray-700">Set your availability</span>
+              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
+            </li>
+          </ul>
         </div>
 
         {/* Snapshot Cards directly under header */}
@@ -866,37 +941,37 @@ export default function InstructorDashboardNew() {
           variant={editVariant}
         />
       )}
-      <Modal isOpen={showVerifyModal} onClose={() => setShowVerifyModal(false)} title="Verify your identity" size="xl">
-        {/* Inline minimal content from verification page */}
+      <Modal isOpen={showVerifyModal} onClose={() => setShowVerifyModal(false)} title="" size="xl">
+        {/* Identity Verification section (matches onboarding step) */}
         <div className="space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="grid grid-cols-[3rem_1fr] gap-4">
+            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+              <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Identity Verification</h2>
-              <p className="text-gray-600 mt-1">Verify your identity with a government ID and selfie</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-6 text-sm text-gray-500">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>~5 minutes</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <span>Secure & encrypted</span>
-            </div>
-          </div>
-          <div>
-            <button
-              onClick={async () => {
+            <h2 className="text-xl font-bold text-gray-900 self-center">Identity Verification</h2>
+            <p className="text-gray-600 mt-2 col-span-2">Verify your identity with a government-issued ID and a selfie</p>
+
+            <div className="mt-2 col-span-2 grid grid-cols-[1fr_auto] gap-4 items-end">
+              <div className="space-y-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>~5 minutes</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span>Secure & encrypted</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">Your information is safe and will only be used for verification purposes.</p>
+              </div>
+
+              <button
+                onClick={async () => {
                 try {
                   setShowVerifyModal(false);
                   const session = await createStripeIdentitySession();
@@ -912,83 +987,81 @@ export default function InstructorDashboardNew() {
                   } catch {}
                   window.location.href = `https://verify.stripe.com/start/${session.client_secret}`;
                 } catch {}
-              }}
-              className="inline-flex items-center px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] transition-colors font-medium"
-            >
-              Start Verification
-            </button>
+                }}
+                className="inline-flex items-center justify-center w-56 whitespace-nowrap px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] transition-colors font-medium"
+              >
+                Start Verification
+              </button>
+            </div>
           </div>
 
-          {/* Divider */}
-          <div className="h-px bg-gray-200 my-2"></div>
+          {/* Divider removed to match onboarding look */}
 
-          {/* Background Check (from verification page) */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          {/* Background Check (from verification page) - no border in modal */}
+          <div className="p-0 mt-2">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
                 <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <div className="flex-1">
                 <h2 className="text-base font-semibold text-gray-900">Background Check</h2>
-                <p className="text-gray-600 mt-1 text-sm">Upload your background check document (optional)</p>
+                <p className="text-gray-600 mt-1 text-sm">Upload your background check document</p>
 
-                <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
-                  <p className="text-sm text-purple-900 font-medium mb-2">Accepted providers:</p>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">Checkr</span>
-                    <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">Sterling</span>
-                    <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">NYC DOE</span>
+                <div className="mt-2 grid grid-cols-[1fr_auto] items-end gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">We accept background checks from Checkr, Sterling, or NYC DOE.</p>
+                    <p className="mt-2 text-xs text-gray-500">All uploaded files are securely encrypted and will remain confidential</p>
+                    <div className="mt-4">
+                      <p className="text-xs text-gray-500 whitespace-nowrap mb-1">File Requirements:</p>
+                      <ul className="list-disc pl-5 text-xs text-gray-500 space-y-1">
+                        <li className="whitespace-nowrap">Formats: PDF, JPG, PNG</li>
+                        <li className="whitespace-nowrap">Maximum size: 10 MB</li>
+                      </ul>
+                    </div>
                   </div>
-                </div>
-
-                <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
-                  <span>PDF, JPG, PNG</span>
-                  <span>•</span>
-                  <span>Max 10MB</span>
-                </div>
-
-                <div className="mt-4">
-                  <label className="inline-flex items-center px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#7E22CE] font-medium hover:bg-purple-100 transition-colors cursor-pointer">
-                    <input
-                      type="file"
-                      accept=".pdf,.png,.jpg,.jpeg"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        try {
-                          setBgUploading(true);
-                          const signed = await createSignedUpload({
-                            filename: f.name,
-                            content_type: f.type || 'application/octet-stream',
-                            size_bytes: f.size,
-                            purpose: 'background_check',
-                          });
-                          const putRes = await fetch(signed.upload_url, {
-                            method: 'PUT',
-                            headers: signed.headers,
-                            body: f,
-                          });
-                          if (!putRes.ok) throw new Error('Upload failed');
-                          setBgFileInfo({ name: f.name, size: f.size });
-                        } catch (err) {
-                          logger.error('Background check upload failed', err);
-                          alert('Upload failed');
-                        } finally {
-                          setBgUploading(false);
-                        }
-                      }}
-                      disabled={bgUploading}
-                    />
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <span>{bgUploading ? 'Uploading…' : 'Choose File'}</span>
-                  </label>
+                  <div className="flex justify-end">
+                    <label className="inline-flex items-center justify-center w-40 px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#7E22CE] font-medium hover:bg-purple-100 transition-colors cursor-pointer">
+                      <input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          try {
+                            setBgUploading(true);
+                            const signed = await createSignedUpload({
+                              filename: f.name,
+                              content_type: f.type || 'application/octet-stream',
+                              size_bytes: f.size,
+                              purpose: 'background_check',
+                            });
+                            const putRes = await fetch(signed.upload_url, {
+                              method: 'PUT',
+                              headers: signed.headers,
+                              body: f,
+                            });
+                            if (!putRes.ok) throw new Error('Upload failed');
+                            setBgFileInfo({ name: f.name, size: f.size });
+                          } catch (err) {
+                            logger.error('Background check upload failed', err);
+                            alert('Upload failed');
+                          } finally {
+                            setBgUploading(false);
+                          }
+                        }}
+                        disabled={bgUploading}
+                      />
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <span>{bgUploading ? 'Uploading…' : 'Choose File'}</span>
+                    </label>
+                  </div>
                   {bgFileInfo && (
-                    <div className="mt-3 flex items-center gap-2 text-sm text-green-700">
+                    <div className="col-start-2 mt-3 flex items-center gap-2 text-sm text-green-700">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                       </svg>

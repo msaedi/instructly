@@ -161,7 +161,7 @@ export default function UserProfileDropdown() {
                 ) : (
                   <>
                     <AlertCircle className="h-4 w-4 text-purple-600" aria-hidden="true" />
-                    <span className="text-[#7E22CE] font-medium">Finish Onboarding</span>
+                    <span className="text-[#7E22CE] font-medium whitespace-nowrap">Finish Onboarding</span>
                   </>
                 )}
               </button>

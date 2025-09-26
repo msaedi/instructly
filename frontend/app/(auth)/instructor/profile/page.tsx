@@ -381,7 +381,7 @@ export default function InstructorProfileSettingsPage() {
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
+          <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
             {/* Walking Stick Figure - profile page variant */}
             <div className="absolute inst-anim-walk-profile" style={{ top: '-12px', left: '4px' }}>
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
@@ -467,7 +467,7 @@ export default function InstructorProfileSettingsPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div>
-                <h1 className="text-3xl font-bold text-gray-800">Set up your profile</h1>
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">Set up your profile</h1>
                 <p className="text-gray-600">Complete your instructor profile to start teaching</p>
               </div>
             </div>
@@ -949,7 +949,7 @@ export default function InstructorProfileSettingsPage() {
           <button
             onClick={save}
             disabled={saving}
-            className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm justify-center"
+            className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm justify-center"
           >
             {saving ? 'Saving...' : 'Save & Continue'}
           </button>

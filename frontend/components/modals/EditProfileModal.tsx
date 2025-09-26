@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { X, Plus, Trash2, DollarSign, ChevronDown } from 'lucide-react';
+import { X, Plus, Trash2, DollarSign, ChevronDown, MapPin, BookOpen } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import Modal from '@/components/Modal';
@@ -146,6 +146,12 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   const [, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   const [openBoroughs, setOpenBoroughs] = useState<Set<string>>(new Set());
   const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState('');
+  // Preferred locations (teaching address and public spaces) — UI-only like onboarding
+  const [preferredAddress, setPreferredAddress] = useState('');
+  const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
+  const [preferredLocationTitles, setPreferredLocationTitles] = useState<Record<string, string>>({});
+  const [neutralLocationInput, setNeutralLocationInput] = useState('');
+  const [neutralPlaces, setNeutralPlaces] = useState<string[]>([]);
   // Services & Pricing (onboarding-like)
   type AgeGroup = 'kids' | 'adults' | 'both';
   type SelectedService = {
@@ -165,6 +171,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const [svcLoading, setSvcLoading] = useState(false);
   const [svcSaving, setSvcSaving] = useState(false);
+  const [skillsFilter, setSkillsFilter] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -785,9 +792,17 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         {/* Areas of Service Section */}
         {!isAboutOnly && !isServicesOnly && (
           <div className="px-6 py-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Service Areas</h3>
             {isAreasOnly ? (
               <>
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <MapPin className="w-6 h-6 text-[#7E22CE]" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Service Areas</h3>
+                    <p className="text-xs text-gray-600 mt-0.5">Select the neighborhoods where you teach</p>
+                  </div>
+                </div>
                 {/* Global neighborhood search (no wrapper label) */}
                 <div className="mb-3">
                   <input
@@ -913,6 +928,115 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                     );
                   })}
                 </div>
+                {/* Preferred Teaching Location */}
+                <div className="mt-6">
+                  <p className="text-gray-600 mt-1 mb-2">Preferred Teaching Location</p>
+                  <p className="text-xs text-gray-600 mb-2">Add a studio, gym, or home address if you teach from a fixed location.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={preferredAddress}
+                          onChange={(e) => setPreferredAddress(e.target.value)}
+                          placeholder="Type address..."
+                          className="w-full h-10 rounded-md border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:outline-none focus:border-purple-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const v = preferredAddress.trim();
+                            if (!v) return;
+                            if (preferredLocations.length >= 2) return;
+                            if (!preferredLocations.includes(v)) setPreferredLocations((prev) => [...prev, v]);
+                            setPreferredAddress('');
+                          }}
+                          aria-label="Add address"
+                          disabled={preferredLocations.length >= 2}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                        >
+                          <span className="text-base leading-none">+</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="min-h-10 flex flex-nowrap items-end gap-4 w-full">
+                      {preferredLocations.map((loc) => (
+                        <div key={loc} className="relative w-1/2 min-w-0">
+                          <input
+                            type="text"
+                            placeholder="..."
+                            value={preferredLocationTitles[loc] || ''}
+                            onChange={(e) => setPreferredLocationTitles((prev) => ({ ...prev, [loc]: e.target.value }))}
+                            className="absolute -top-5 left-1 text-xs text-[#7E22CE] bg-gray-100 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-transparent focus-visible:border-transparent cursor-text"
+                            style={{ outline: 'none', outlineOffset: 0, boxShadow: 'none' }}
+                          />
+                          <span className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0">
+                            <span className="truncate min-w-0" title={loc}>{loc}</span>
+                            <button
+                              type="button"
+                              aria-label={`Remove ${loc}`}
+                              className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
+                              onClick={() => setPreferredLocations((prev) => prev.filter((x) => x !== loc))}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preferred Public Spaces */}
+                <div className="mt-6">
+                  <p className="text-gray-600 mt-1 mb-2">Preferred Public Spaces</p>
+                  <p className="text-xs text-gray-600 mb-2">Suggest public spaces where you’re comfortable teaching (e.g., library, park, coffee shop).</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={neutralLocationInput}
+                          onChange={(e) => setNeutralLocationInput(e.target.value)}
+                          placeholder="Type location..."
+                          className="w-full h-10 rounded-md border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:outline-none focus:border-purple-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const v = neutralLocationInput.trim();
+                            if (!v) return;
+                            if (neutralPlaces.length >= 2) return;
+                            if (!neutralPlaces.includes(v)) setNeutralPlaces((prev) => [...prev, v]);
+                            setNeutralLocationInput('');
+                          }}
+                          aria-label="Add public space"
+                          disabled={neutralPlaces.length >= 2}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                        >
+                          <span className="text-base leading-none">+</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="min-h-10 flex flex-nowrap items-end gap-4 w-full">
+                      {neutralPlaces.map((place) => (
+                        <div key={place} className="relative w-1/2 min-w-0">
+                          <span className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0">
+                            <span className="truncate min-w-0" title={place}>{place}</span>
+                            <button
+                              type="button"
+                              aria-label={`Remove ${place}`}
+                              className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
+                              onClick={() => setNeutralPlaces((prev) => prev.filter((x) => x !== place))}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
                 <div className="mt-4 flex justify-end">
                   <button
                     type="button"
@@ -938,6 +1062,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
               </>
             ) : (
               <>
+                <h3 className="text-lg font-medium text-gray-900 mb-1">Service Areas</h3>
                 <p className="text-xs text-gray-600 mb-4">
                   Select all NYC areas where you provide services <span className="text-red-500">*</span>
                 </p>
@@ -1109,13 +1234,84 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         )}
 
         {variant === 'services' && (
-          <div className="px-6 py-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Skills & Pricing</h3>
+        <div className="px-6 py-6">
+          <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 mb-2">
+            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+              <BookOpen className="w-6 h-6 text-[#7E22CE]" />
+            </div>
+            <span>Service categories</span>
+          </div>
             {svcLoading ? (
               <div className="p-3 text-sm text-gray-600">Loading…</div>
             ) : (
               <>
-                <div className="mt-2 space-y-4">
+              <div className="mt-2 space-y-4">
+                <p className="text-gray-600 mt-1 mb-2">Select the service categories you teach</p>
+                {/* Global skills search */}
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    value={skillsFilter}
+                    onChange={(e) => setSkillsFilter(e.target.value)}
+                    placeholder="Search skills..."
+                    className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+                  />
+                </div>
+                {selectedServices.length > 0 && (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {selectedServices.map((s) => (
+                      <span
+                        key={`sel-${s.catalog_service_id}`}
+                        className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0"
+                      >
+                        <span className="truncate max-w-[14rem]" title={s.name}>{s.name}</span>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${s.name}`}
+                          className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
+                          onClick={() => setSelectedServices((prev) => prev.filter((x) => x.catalog_service_id !== s.catalog_service_id))}
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {skillsFilter.trim().length > 0 && (
+                  <div className="mb-3">
+                    <div className="text-sm text-gray-700 mb-2">Results</div>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.values(servicesByCategory)
+                        .flat()
+                        .filter((svc) => (svc.name || '').toLowerCase().includes(skillsFilter.toLowerCase()))
+                        .map((svc) => {
+                          const isSel = selectedServices.some((s) => s.catalog_service_id === svc.id);
+                          return (
+                            <button
+                              key={`global-${svc.id}`}
+                              onClick={() => {
+                                const exists = selectedServices.some((s) => s.catalog_service_id === svc.id);
+                                if (exists) setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== svc.id));
+                                else setSelectedServices((prev) => ([...prev, { catalog_service_id: svc.id, name: svc.name, hourly_rate: '', ageGroup: 'adults', description: '', equipment: '', levels_taught: ['beginner','intermediate','advanced'], duration_options: [60], location_types: ['in-person'] }]));
+                              }}
+                              className={`px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
+                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                              type="button"
+                            >
+                              {svc.name} {isSel ? '✓' : '+'}
+                            </button>
+                          );
+                        })
+                        .slice(0, 200)}
+                      {Object.values(servicesByCategory)
+                        .flat()
+                        .filter((svc) => (svc.name || '').toLowerCase().includes(skillsFilter.toLowerCase())).length === 0 && (
+                          <div className="text-sm text-gray-500">No matches found</div>
+                      )}
+                    </div>
+                  </div>
+                )}
                   {categories.map((cat) => {
                     const isCollapsed = collapsed[cat.slug] === true;
                     return (
@@ -1131,7 +1327,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                           </svg>
                         </button>
                         {!isCollapsed && (
-                          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                             {(servicesByCategory[cat.slug] || []).map((svc) => {
                               const isSel = selectedServices.some((s) => s.catalog_service_id === svc.id);
                               return (
@@ -1206,6 +1402,11 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                                 <span className="text-gray-500">/hr</span>
                               </div>
                             </div>
+                            {s.hourly_rate && Number(s.hourly_rate) > 0 && (
+                              <div className="mt-2 text-xs text-gray-600">
+                                You&apos;ll earn <span className="font-semibold text-[#7E22CE]">${(Number(s.hourly_rate) * 0.85).toFixed(2)}</span> after the 15% platform fee
+                              </div>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">

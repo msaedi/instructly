@@ -2,6 +2,8 @@
 
 import WeekNavigator from '@/components/availability/WeekNavigator';
 import InteractiveGrid from '@/components/availability/InteractiveGrid';
+import Link from 'next/link';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useAvailability } from '@/hooks/availability/useAvailability';
 import { useBookedSlots } from '@/hooks/availability/useBookedSlots';
 import { useEffect, useMemo, useState } from 'react';
@@ -10,6 +12,7 @@ import { useAuth } from '@/hooks/queries/useAuth';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
+
 
 export default function InstructorAvailabilityPage() {
   const { user } = useAuth();
@@ -132,20 +135,33 @@ export default function InstructorAvailabilityPage() {
   ), [currentWeekStart, navigateWeek, hasUnsavedChanges, isLoading]);
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold text-[#7E22CE]">Availability</h1>
-      <p className="text-gray-600 mt-1">Set the times you’re available to teach.</p>
-      <p className="text-xs text-gray-500 mt-1">Last updated: <span className="font-mono">{lastUpdatedLocal || '—'}</span></p>
+    <div className="min-h-screen">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full">
+          <Link href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+          </Link>
+          <div className="pr-4"><UserProfileDropdown /></div>
+        </div>
+      </header>
 
-      {header}
+      <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
+        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
+          <h2 className="text-3xl font-bold text-gray-600 mb-2">Availability</h2>
+          <p className="text-gray-600">Set the times you’re available to teach.</p>
+          <p className="text-xs text-gray-500 mt-1">Last updated: <span>{lastUpdatedLocal || '—'}</span></p>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        {header}
 
       {/* Actions (top of grid) */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mt-4 mb-4 flex flex-wrap items-center gap-3">
         {/* Repeat dropdown */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-700">Repeat this schedule:</span>
           <select
-            className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+            className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
             value={repeatWeeks}
             onChange={(e) => setRepeatWeeks(parseInt(e.target.value, 10))}
           >
@@ -170,7 +186,7 @@ export default function InstructorAvailabilityPage() {
             toast.success('Availability saved');
             setLastUpdatedLocal(new Date().toLocaleString());
           }}
-          className={`px-4 py-2 rounded-md text-white ${hasUnsavedChanges ? 'bg-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-300 cursor-not-allowed'}`}
+          className={`px-4 py-2 rounded-md text-white ${hasUnsavedChanges ? 'bg-[#7E22CE] hover:!bg-[#7E22CE]' : 'bg-gray-300 cursor-not-allowed'}`}
         >
           {isSaving ? 'Saving…' : hasUnsavedChanges ? 'Save changes' : 'Saved'}
         </button>
@@ -186,7 +202,7 @@ export default function InstructorAvailabilityPage() {
             }
             toast.success(`Applied through ${endISO}`);
           }}
-          className="px-3 py-2 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+          className="px-3 py-2 rounded-md border border-purple-200 bg-purple-50 text-sm text-[#7E22CE] hover:bg-purple-100"
         >
           Apply
         </button>
@@ -195,7 +211,7 @@ export default function InstructorAvailabilityPage() {
         <div className="ml-auto flex items-center gap-2">
           <span className="text-sm text-gray-700">Hours:</span>
           <select
-            className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+            className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
             value={startHour}
             onChange={(e) => {
               const v = parseInt(e.target.value, 10);
@@ -210,7 +226,7 @@ export default function InstructorAvailabilityPage() {
           </select>
           <span className="text-gray-500">to</span>
           <select
-            className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+            className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
             value={endHour}
             onChange={(e) => {
               const v = parseInt(e.target.value, 10);
@@ -274,7 +290,7 @@ export default function InstructorAvailabilityPage() {
       )}
 
       {/* Interactive Grid */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="mt-2">
         <InteractiveGrid
           weekDates={weekDateInfo}
           weekSchedule={weekSchedule}
@@ -288,8 +304,8 @@ export default function InstructorAvailabilityPage() {
           endHour={endHour}
         />
       </div>
-
-
+      </div>
+      </div>
     </div>
   );
 }

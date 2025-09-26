@@ -109,7 +109,7 @@ export default function Step3PaymentSetup() {
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
+          <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
             {/* Walking Stick Figure Animation - positioned on the line between step 3 and 4 */}
             <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '544px' }}>
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
@@ -189,8 +189,8 @@ export default function Step3PaymentSetup() {
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - match verification */}
         <div className="bg-white rounded-lg p-6 mb-8 border border-gray-200">
-          <div className="mb-3">
-            <h1 className="text-3xl font-bold text-gray-800">Get Paid for Your Lessons</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Get Paid for Your Lessons</h1>
             <p className="text-gray-600">Connect your bank securely through Stripe{skillsSkipped ? ' • You can add skills later' : ''}</p>
           </div>
         </div>
@@ -204,28 +204,25 @@ export default function Step3PaymentSetup() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Main Card with gradient border */}
+          {/* Main Card */}
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-purple-400 rounded-xl opacity-10"></div>
-            <div className="relative bg-white rounded-xl border-2 border-purple-200 overflow-hidden">
+            <div className="relative bg-white rounded-lg border border-gray-200 overflow-hidden">
               {/* Card Header with Icon */}
-              <div className="bg-gradient-to-r from-purple-50 to-white p-8 border-b border-purple-100">
-                <div className="flex items-start gap-6">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center shadow-lg">
-                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-white p-6">
+                <div className="grid grid-cols-[3rem_1fr] gap-4">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
                   </div>
-                  <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Connect Your Bank Account</h2>
-                    <p className="text-gray-600 leading-relaxed">You&apos;ll be redirected to Stripe to link your bank account securely. Once connected, payments from students will be deposited directly to you.</p>
-                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 self-center">Connect Your Bank Account</h2>
+                  <p className="text-gray-600 mt-2 col-span-2">You&apos;ll be redirected to Stripe to link your bank account securely. Once connected, payments from students will be deposited directly to you.</p>
                 </div>
               </div>
 
               {/* Benefits Section */}
-              <div className="p-8">
-                <h3 className="text-sm font-semibold text-[#7E22CE] uppercase tracking-wide mb-4">What to expect</h3>
+              <div className="px-8 pt-4 pb-8">
+                <p className="text-gray-600 mb-2">What to expect</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
                     <div className="flex items-start gap-3">
@@ -270,6 +267,8 @@ export default function Step3PaymentSetup() {
                   </div>
                 </div>
 
+
+
                 {/* Success State */}
                 {connectStatus?.onboarding_completed ? (
                   <div className="mt-6 bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-lg p-4">
@@ -286,58 +285,34 @@ export default function Step3PaymentSetup() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-8">
-                    <button
-                      onClick={enrollStripeConnect}
-                      disabled={connectLoading}
-                      className={`w-full py-4 rounded-lg font-semibold text-white shadow-lg transition-all transform ${
-                        connectLoading
-                          ? 'bg-gray-400 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 hover:shadow-xl hover:-translate-y-0.5'
-                      }`}
-                    >
-                      {connectLoading ? (
-                        <span className="flex items-center justify-center gap-3">
-                          <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Opening Stripe...
-                        </span>
-                      ) : (
-                        'Connect with Stripe →'
-                      )}
-                    </button>
-                    <p className="text-center text-xs text-gray-500 mt-3">
-                      You&apos;ll be redirected to Stripe&apos;s secure portal
-                    </p>
+                  <div className="mt-8 flex items-end justify-end">
+                    <div className="text-right">
+                      <button
+                        onClick={enrollStripeConnect}
+                        disabled={connectLoading}
+                        className="inline-flex items-center justify-center w-56 px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] disabled:opacity-50 shadow-sm whitespace-nowrap"
+                      >
+                        {connectLoading ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4 mr-2 text-white" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Opening Stripe...
+                          </>
+                        ) : (
+                          <>Connect with Stripe →</>
+                        )}
+                      </button>
+                      <p className="text-xs text-gray-500 mt-3">You&apos;ll be redirected to Stripe&apos;s secure portal</p>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Trust Badges */}
-          <div className="flex items-center justify-center gap-8 py-4">
-            <div className="flex items-center gap-2 text-gray-500">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <span className="text-sm">256-bit encryption</span>
-            </div>
-            <div className="flex items-center gap-2 text-gray-500">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <span className="text-sm">No hidden fees</span>
-            </div>
-            <div className="flex items-center gap-2 text-gray-500">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-              </svg>
-              <span className="text-sm">Fast payouts</span>
-            </div>
-          </div>
+
         </div>
       )}
 

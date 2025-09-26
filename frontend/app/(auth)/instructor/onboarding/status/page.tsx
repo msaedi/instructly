@@ -82,10 +82,21 @@ export default function OnboardingStatusPage() {
       (profile['identity_verified_at'] || profile['identity_verification_session_id'])
   );
 
+  const needsStripe = !(connectStatus && connectStatus.onboarding_completed);
+  const needsIdentity = !(profile && (profile['identity_verified_at'] || profile['identity_verification_session_id']));
+  const needsSkills = !(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)));
+
+  // Compute pending in canonical step order for display
   const pendingRequired: string[] = [];
-  if (!(connectStatus && connectStatus.onboarding_completed)) pendingRequired.push('Stripe Connect');
-  if (!(profile && (profile['identity_verified_at'] || profile['identity_verification_session_id']))) pendingRequired.push('ID verification');
-  if (!(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)))) pendingRequired.push('Skills & pricing');
+  if (needsSkills) pendingRequired.push('Skills & pricing');
+  if (needsIdentity) pendingRequired.push('ID verification');
+  if (needsStripe) pendingRequired.push('Stripe Connect');
+
+  // User-facing labels for the fun/actionable card in the desired order
+  const pendingLabels: string[] = [];
+  if (needsSkills) pendingLabels.push('Add skills');
+  if (needsIdentity) pendingLabels.push('Verify Identity');
+  if (needsStripe) pendingLabels.push('Payment setup');
 
   const formatList = (items: string[]) => {
     if (items.length <= 1) return items.join('');
@@ -200,8 +211,8 @@ export default function OnboardingStatusPage() {
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
 
-          {/* Progress Bar - 4 Steps - Absolutely centered (no walking figure on status page) */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
+          {/* Progress Bar - 4 Steps - Absolutely centered (hide on smaller screens to avoid overlap) */}
+          <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
 
             {/* Step 1 - Completed */}
             <div className="flex items-center">
@@ -318,14 +329,48 @@ export default function OnboardingStatusPage() {
           <p className="text-gray-600">Finish these steps to go live.</p>
         </div>
 
+        {pendingRequired.length > 0 && (
+          <div className="bg-white rounded-lg p-4 mb-6 border border-gray-200 blink-card text-center">
+            <p className="text-sm text-gray-800 font-medium">
+              You&apos;re close! Finish {formatList(pendingLabels)} to go live.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 justify-center">
+              {needsSkills && (
+                <Link
+                  href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus"
+                  className="px-3 py-1.5 rounded-md bg-primary hover:bg-primary text-white shadow-sm text-xs"
+                >
+                  Add skills
+                </Link>
+              )}
+              {needsIdentity && (
+                <button
+                  onClick={startIdentity}
+                  className="px-3 py-1.5 rounded-md bg-primary hover:bg-primary text-white shadow-sm text-xs"
+                >
+                  Start ID check
+                </button>
+              )}
+              {needsStripe && (
+                <button
+                  onClick={enrollStripeConnect}
+                  className="px-3 py-1.5 rounded-md bg-primary hover:bg-primary text-white shadow-sm text-xs"
+                >
+                  Connect Stripe
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 space-y-4">
           {/* 1) Skills & pricing */}
           <Row label="Skills & pricing" ok={Boolean(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-[#7E22CE] hover:underline">Edit</Link>} />
           {/* 2) ID verification */}
           <Row label="ID verification" ok={Boolean(profile?.['identity_verified_at'])} action={profile?.['identity_verified_at'] ? <span className="text-gray-400">Completed</span> : <button onClick={startIdentity} className="text-[#7E22CE] hover:underline">Start</button>} />
-          {/* 3) Background check (optional) */}
+          {/* 3) Background check */}
           <Row
-            label="Background check (optional)"
+            label="Background check"
             ok={Boolean(profile?.['background_check_uploaded_at'])}
             action={
               <div>
@@ -351,18 +396,16 @@ export default function OnboardingStatusPage() {
           <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={<button onClick={enrollStripeConnect} className="text-[#7E22CE] hover:underline disabled:text-gray-400" disabled={!!connectStatus?.onboarding_completed || connectLoading}>{connectStatus?.onboarding_completed ? 'Completed' : (connectLoading ? 'Opening…' : 'Enroll')}</button>} />
         </div>
 
-        <div className="mt-8">
+        <div className="mt-8 flex justify-end">
         <button
           disabled={!canGoLive || saving}
           onClick={goLive}
-          className={`px-5 py-2.5 rounded-lg text-white ${canGoLive ? 'bg-[#7E22CE]' : 'bg-gray-300 cursor-not-allowed'} shadow-sm`}
+          className={`px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm`}
         >
           {canGoLive ? 'Go live' : 'Complete required steps to go live'}
         </button>
-        {pendingRequired.length === 0 ? (
-          <p className="text-sm text-gray-500 mt-2">All required steps complete.</p>
-        ) : (
-          <p className="text-sm text-gray-500 mt-2">Pending: {formatList(pendingRequired)}. Background check is optional.</p>
+        {pendingRequired.length === 0 && (
+          <p className="text-sm text-gray-500 mt-2 text-right w-full">All required steps complete.</p>
         )}
       </div>
       </div>
@@ -376,7 +419,7 @@ function Row({ label, ok, action }: { label: string; ok: boolean; action?: React
   return (
     <div className="flex items-center justify-between border border-gray-100 rounded-md px-4 py-3 bg-white shadow-sm">
       <div className="text-gray-800">{label}</div>
-      <div className={ok ? 'text-green-600' : 'text-gray-400'}>{ok ? '✓' : '•'}</div>
+      {ok ? <div className="text-green-600">✓</div> : null}
       <div>{action}</div>
     </div>
   );

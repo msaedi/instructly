@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import GlobalBackground from '@/components/ui/GlobalBackground';
 import Link from 'next/link';
 
 export default function WelcomeStep() {
@@ -13,6 +14,8 @@ export default function WelcomeStep() {
 
   return (
     <div className="fixed inset-0 z-50">
+      {/* Restore global background behind the overlay */}
+      <GlobalBackground />
       {/* Overlay */}
       <div className="absolute inset-0 bg-black/50 animate-fade-in" aria-hidden="true" />
 

@@ -14,31 +14,16 @@ export default function Step4Verification() {
   const [uploading, setUploading] = useState(false);
   const [fileInfo, setFileInfo] = useState<{ name: string; size: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [skillsSkipped, setSkillsSkipped] = useState<boolean>(() => {
-    if (typeof window !== 'undefined' && sessionStorage.getItem('skillsSkipped') === 'true') {
-      return true;
-    }
-    return false;
-  });
+  // Note: we no longer use a local skillsSkipped state here
   const [verificationComplete, setVerificationComplete] = useState<boolean>(false);
-  const [verificationSkipped, setVerificationSkipped] = useState<boolean>(() => {
-    if (typeof window !== 'undefined' && sessionStorage.getItem('verificationSkipped') === 'true') {
-      return true;
-    }
-    return false;
-  });
+  // Note: we no longer use a local verificationSkipped state here
 
   useEffect(() => {
     const load = async () => {
       try {
         // Check sessionStorage for skip flags
         if (typeof window !== 'undefined') {
-          if (sessionStorage.getItem('skillsSkipped') === 'true') {
-            setSkillsSkipped(true);
-          }
-          if (sessionStorage.getItem('verificationSkipped') === 'true') {
-            setVerificationSkipped(true);
-          }
+          // read-only checks removed; state no longer used
         }
 
         // Check if instructor has completed verification or has no skills in profile
@@ -46,9 +31,7 @@ export default function Step4Verification() {
           const profileRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
           if (profileRes.ok) {
             const profile = await profileRes.json();
-            if (!profile.services || profile.services.length === 0) {
-              setSkillsSkipped(true);
-            }
+            // skills presence is no longer used to set local state
             // Check if verification is complete
             if (profile.identity_verified_at || profile.identity_verification_session_id) {
               setVerificationComplete(true);
@@ -133,7 +116,7 @@ export default function Step4Verification() {
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
+          <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
             {/* Walking Stick Figure Animation - positioned on the line between step 2 and 3 */}
             <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '284px' }}>
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
@@ -213,30 +196,29 @@ export default function Step4Verification() {
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header with subtle purple accent */}
         <div className="bg-white rounded-lg p-6 mb-8 border border-gray-200">
-          <div className="mb-3">
-            <h1 className="text-3xl font-bold text-gray-800">Build Trust With Students</h1>
-            <p className="text-gray-600">Complete verification to start teaching on iNSTAiNSTRU</p>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Build Trust With Students</h1>
+            <p className="text-gray-600">Complete your verification to start teaching confidently on iNSTAiNSTRU.</p>
           </div>
         </div>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 border border-red-200">{error}</div>}
 
       <div className="grid gap-6">
-        {/* ID Verification Card - Enhanced with gradient */}
+        {/* ID Verification Card */}
         <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-purple-400 rounded-xl opacity-10"></div>
-          <div className="relative bg-white rounded-xl border-2 border-purple-200 p-6">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="relative bg-white rounded-lg border border-gray-200 p-6 hover:shadow-sm transition-shadow">
+          <div className="grid grid-cols-[3rem_1fr] gap-4">
+            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+              <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
             </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900">Identity Verification</h2>
-              <p className="text-gray-600 mt-1">Verify your identity with a government ID and selfie</p>
+            <h2 className="text-xl font-bold text-gray-900 self-center">Identity Verification</h2>
+            <p className="text-gray-600 mt-2 col-span-2">Verify your identity with a government-issued ID and a selfie</p>
 
-              <div className="mt-4 flex items-center gap-6 text-sm text-gray-500">
+            <div className="mt-4 col-span-2 grid grid-cols-[1fr_auto] gap-4 items-end">
+              <div className="space-y-2 text-sm text-gray-500">
                 <div className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -249,12 +231,14 @@ export default function Step4Verification() {
                   </svg>
                   <span>Secure & encrypted</span>
                 </div>
+                <p className="text-xs text-gray-500 mt-2">Your information is safe and will only be used for verification purposes.</p>
               </div>
 
               <button
                 onClick={startIdentity}
                 disabled={identityLoading}
-                className="mt-5 inline-flex items-center px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 transition-colors font-medium"
+                aria-label="Start verification"
+                className="inline-flex items-center justify-center w-56 whitespace-nowrap px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm"
               >
                 {identityLoading ? (
                   <>
@@ -274,48 +258,40 @@ export default function Step4Verification() {
         </div>
 
         {/* Background Check Card - Enhanced */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow p-6">
+          <div className="grid grid-cols-[3rem_1fr] gap-4">
+            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+              <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900">Background Check</h2>
-              <p className="text-gray-600 mt-1">Upload your background check document (optional){skillsSkipped || verificationSkipped ? ' • You can finish skipped steps later' : ''}</p>
+            <h2 className="text-xl font-bold text-gray-900 self-center">Background Check</h2>
+            <p className="text-gray-600 mt-2 col-span-2">Upload your background check document</p>
 
-              <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-100">
-                <p className="text-sm text-purple-900 font-medium mb-2">Accepted providers:</p>
-                <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">
-                    Checkr
-                  </span>
-                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">
-                    Sterling
-                  </span>
-                  <span className="inline-flex items-center px-2.5 py-1 bg-white rounded-md text-xs text-[#7E22CE] border border-purple-200">
-                    NYC DOE
-                  </span>
+              <div className="mt-2 col-span-2 grid grid-cols-[1fr_auto] items-end gap-4">
+                <div>
+                  <p className="text-xs text-gray-500">We accept background checks from Checkr, Sterling, or NYC DOE.</p>
+                  <p className="mt-2 text-xs text-gray-500">All uploaded files are securely encrypted and will remain confidential</p>
+
+                  <div className="mt-4">
+                    <p className="text-xs text-gray-500 whitespace-nowrap mb-1">File Requirements:</p>
+                    <ul className="list-disc pl-5 text-xs text-gray-500 space-y-1">
+                      <li className="whitespace-nowrap">Formats: PDF, JPG, PNG</li>
+                      <li className="whitespace-nowrap">Maximum size: 10 MB</li>
+                    </ul>
+                  </div>
                 </div>
-              </div>
-
-              <div className="mt-4 flex items-center gap-4 text-xs text-gray-500">
-                <span>PDF, JPG, PNG</span>
-                <span>•</span>
-                <span>Max 10MB</span>
-              </div>
-
-              <div className="mt-5">
-                <label className="inline-flex items-center px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#7E22CE] font-medium hover:bg-purple-100 transition-colors cursor-pointer">
-                  <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={onFileSelected} disabled={uploading} />
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  <span>{uploading ? 'Uploading…' : 'Choose File'}</span>
-                </label>
+                <div className="flex justify-end">
+                  <label className="inline-flex items-center justify-center w-40 px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#7E22CE] font-medium hover:bg-purple-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20">
+                    <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={onFileSelected} disabled={uploading} />
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <span>{uploading ? 'Uploading…' : 'Choose File'}</span>
+                  </label>
+                </div>
                 {fileInfo && (
-                  <div className="mt-3 flex items-center gap-2 text-sm text-green-700">
+                  <div className="col-start-2 mt-3 flex items-center gap-2 text-sm text-green-700">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
@@ -323,7 +299,6 @@ export default function Step4Verification() {
                   </div>
                 )}
               </div>
-            </div>
           </div>
         </div>
       </div>

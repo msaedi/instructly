@@ -2,6 +2,7 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { BookOpen, CheckSquare, Lightbulb } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { publicApi } from '@/features/shared/api/client';
 import { fetchWithAuth, API_ENDPOINTS, getErrorMessage, isNetworkError } from '@/lib/api';
@@ -38,6 +39,7 @@ function Step3SkillsPricingInner() {
   const [requestText, setRequestText] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
+  const [skillsFilter, setSkillsFilter] = useState<string>('');
 
   useEffect(() => {
     const load = async () => {
@@ -252,7 +254,7 @@ function Step3SkillsPricingInner() {
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
+          <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
             {/* Walking Stick Figure Animation - positioned on the line between step 1 and 2 */}
             <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '24px' }}>
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
@@ -342,48 +344,136 @@ function Step3SkillsPricingInner() {
 
       {error && <div className="mt-4 rounded-md bg-red-50 text-red-700 px-4 py-2">{error}</div>}
 
-      <div className="mt-6 space-y-4">
-        {categories.map((cat) => {
-          const isCollapsed = collapsed[cat.slug] === true;
-          return (
-          <div key={cat.slug} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
-            <button
-              className="w-full px-4 py-3 flex items-center justify-between text-gray-700 hover:bg-gray-50 transition-colors"
-              onClick={() => setCollapsed((prev) => ({ ...prev, [cat.slug]: !isCollapsed }))}
-            >
-              <span className="font-bold">{cat.name}</span>
-              <svg className={`h-4 w-4 text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {!isCollapsed && (
-            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {(servicesByCategory[cat.slug] || []).map((svc) => {
-                const selectedFlag = selected.some((s) => s.catalog_service_id === svc.id);
-                return (
-                  <button
-                    key={svc.id}
-                    onClick={() => toggleService(svc)}
-                    className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
-                      selectedFlag
-                        ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {svc.name} {selectedFlag ? '✓' : '+'}
-                  </button>
-                );
-              })}
+      <div className="mt-6 bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <BookOpen className="w-6 h-6 text-[#7E22CE]" />
+              </div>
+              <span>Service categories</span>
             </div>
-            )}
           </div>
-        );})}
+        </div>
+        <div className="mt-2 space-y-4">
+          <p className="text-gray-600 mt-1 mb-2">Select the service categories you teach</p>
+          {/* Global skills search (mirrors service areas search) */}
+          <div className="mb-3">
+            <input
+              type="text"
+              value={skillsFilter}
+              onChange={(e) => setSkillsFilter(e.target.value)}
+              placeholder="Search skills..."
+              className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            />
+          </div>
+          {selected.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {selected.map((s) => (
+                <span
+                  key={`sel-${s.catalog_service_id}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0"
+                >
+                  <span className="truncate max-w-[14rem]" title={s.name}>{s.name}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${s.name}`}
+                    className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
+                    onClick={() => removeService(s.catalog_service_id)}
+                  >
+                    &times;
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {skillsFilter.trim().length > 0 && (
+            <div className="mb-3">
+              <div className="text-sm text-gray-700 mb-2">Results</div>
+              <div className="flex flex-wrap gap-2">
+                {Object.values(servicesByCategory)
+                  .flat()
+                  .filter((svc) => (svc.name || '').toLowerCase().includes(skillsFilter.toLowerCase()))
+                  .map((svc) => {
+                    const selectedFlag = selected.some((s) => s.catalog_service_id === svc.id);
+                    return (
+                      <button
+                        key={`global-${svc.id}`}
+                        type="button"
+                        onClick={() => toggleService(svc)}
+                        aria-pressed={selectedFlag}
+                        className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                          selectedFlag
+                            ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        <span className="truncate text-left">{svc.name}</span>
+                        <span className="ml-2">{selectedFlag ? '✓' : '+'}</span>
+                      </button>
+                    );
+                  })
+                  .slice(0, 200)}
+                {Object.values(servicesByCategory)
+                  .flat()
+                  .filter((svc) => (svc.name || '').toLowerCase().includes(skillsFilter.toLowerCase())).length === 0 && (
+                    <div className="text-sm text-gray-500">No matches found</div>
+                )}
+              </div>
+            </div>
+          )}
+          {categories.map((cat) => {
+            const isCollapsed = collapsed[cat.slug] === true;
+            return (
+            <div key={cat.slug} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
+              <button
+                className="w-full px-4 py-3 flex items-center justify-between text-gray-700 hover:bg-gray-50 transition-colors"
+                onClick={() => setCollapsed((prev) => ({ ...prev, [cat.slug]: !isCollapsed }))}
+              >
+                <span className="font-bold">{cat.name}</span>
+                <svg className={`h-4 w-4 text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {!isCollapsed && (
+              <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {(servicesByCategory[cat.slug] || []).map((svc) => {
+                  const selectedFlag = selected.some((s) => s.catalog_service_id === svc.id);
+                  return (
+                    <button
+                      key={svc.id}
+                      onClick={() => toggleService(svc)}
+                      className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                        selectedFlag
+                          ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <span className="truncate text-left">{svc.name}</span>
+                      <span className="ml-2">{selectedFlag ? '✓' : '+'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              )}
+            </div>
+          );})}
+        </div>
       </div>
 
       {/* Global age group selector removed; per-service selection is below */}
 
       <div className="mt-8 bg-white rounded-lg p-6 border border-gray-200">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Your selected skills</h2>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <CheckSquare className="w-6 h-6 text-[#7E22CE]" />
+              </div>
+              <span>Your selected skills</span>
+            </div>
+          </div>
+        </div>
         {selected.length === 0 ? (
           <p className="text-gray-500">You can add skills now or later.</p>
         ) : (
@@ -654,7 +744,16 @@ function Step3SkillsPricingInner() {
 
       {/* Request a new service */}
       <div className="mt-8 bg-white rounded-lg p-6 border border-gray-200">
-        <h2 className="text-lg font-medium text-gray-900">Don&apos;t see your skill? We&apos;d love to add it!</h2>
+        <div className="flex items-start justify-between mb-2">
+          <div>
+            <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Lightbulb className="w-6 h-6 text-[#7E22CE]" />
+              </div>
+              <span>Don&apos;t see your skill? We&apos;d love to add it!</span>
+            </div>
+          </div>
+        </div>
         <div className="mt-3 flex flex-col sm:flex-row gap-3">
           <input
             type="text"
@@ -685,7 +784,7 @@ function Step3SkillsPricingInner() {
         <button
           onClick={save}
           disabled={saving}
-          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+          className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
         >
           {saving ? 'Saving...' : 'Save & Continue'}
         </button>

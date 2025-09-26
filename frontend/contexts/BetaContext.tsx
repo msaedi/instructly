@@ -43,12 +43,12 @@ export function BetaBanner() {
 
   if (!visible) return null;
 
-  const colorClass = config.phase === 'instructor_only' ? 'bg-amber-100 text-amber-900 border-amber-300'
-                    : config.phase === 'alpha' ? 'bg-blue-100 text-blue-900 border-blue-300'
-                    : 'bg-green-100 text-green-900 border-green-300';
+  const colorClass = config.phase === 'instructor_only' ? 'bg-[#FFD400] text-black'
+                    : config.phase === 'alpha' ? 'bg-blue-100 text-blue-900'
+                    : 'bg-green-100 text-green-900';
 
   return (
-    <div className={`w-full ${colorClass} border-b py-2 px-4 text-sm flex items-center justify-between`}>
+    <div className={`w-full ${colorClass} py-3 px-6 text-sm font-semibold flex items-center justify-between mt-2`}>
       <span>{config.bannerMessage || (config.phase === 'instructor_only' ? 'NYC Instructor Beta' : config.phase === 'alpha' ? 'Alpha Testing' : 'Open Beta')}</span>
       <button
         className="underline"
