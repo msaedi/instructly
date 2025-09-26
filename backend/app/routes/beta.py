@@ -1,7 +1,6 @@
 import base64
 import hashlib
 import hmac
-import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, SecretStr
@@ -32,6 +31,7 @@ from ..schemas.beta import (
 )
 from ..services.beta_service import BetaService
 from ..tasks.celery_app import celery_app
+from ..utils.invite_cookie import invite_cookie_name
 
 router = APIRouter(prefix="/api/beta", tags=["beta"])
 
@@ -40,24 +40,14 @@ CONTRACT_EMPTY_RESPONSE_MODEL = EmptyResponse  # response_model=EmptyResponse  #
 INVITE_COOKIE_TTL_SECONDS = 15 * 60
 
 
-def _invite_cookie_name() -> str:
-    site_mode = os.getenv("SITE_MODE", "").strip().lower()
-    if site_mode == "preview":
-        return "iv_preview"
-    if site_mode in {"prod", "production", "live"}:
-        return "iv_prod"
-    return "iv_local"
-
-
 def _invite_cookie_kwargs() -> dict[str, int | bool | str]:
-    site_mode = os.getenv("SITE_MODE", "").strip().lower()
     kwargs: dict[str, int | bool | str] = {
         "max_age": INVITE_COOKIE_TTL_SECONDS,
         "httponly": True,
         "samesite": "lax",
         "path": "/",
     }
-    if site_mode and site_mode != "local":
+    if settings.site_mode != "local":
         kwargs["secure"] = True
     return kwargs
 
@@ -153,7 +143,7 @@ def validate_invite(
         expires_at=getattr(invite, "expires_at", None) if invite else None,
         used_at=getattr(invite, "used_at", None) if invite else None,
     )
-    cookie_name = _invite_cookie_name()
+    cookie_name = invite_cookie_name()
     existing_marker = request.cookies.get(cookie_name)
     if ok and invite:
         marker = _encode_invite_marker(invite.code)
@@ -171,7 +161,7 @@ def validate_invite(
     response_class=Response,
 )
 def invite_verified(request: Request) -> Response:
-    cookie_name = _invite_cookie_name()
+    cookie_name = invite_cookie_name()
     marker = request.cookies.get(cookie_name)
     payload = _decode_invite_marker(marker or "")
     if not payload:
