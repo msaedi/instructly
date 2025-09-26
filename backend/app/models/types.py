@@ -5,14 +5,20 @@ Custom SQLAlchemy types that work across different database backends.
 
 from datetime import datetime
 import json
+from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import DateTime, String, TypeDecorator
+from sqlalchemy import DateTime, Integer, String, TypeDecorator
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 from sqlalchemy.sql import func
 
 # Base class for all models
 Base = declarative_base()
+
+if TYPE_CHECKING:
+    from sqlalchemy.sql.type_api import TypeDecorator as _TypeDecorator
+
+    TypeDecorator = cast("type[_TypeDecorator[Any]]", TypeDecorator)
 
 
 class TimestampMixin:
@@ -35,28 +41,25 @@ class ArrayType(TypeDecorator):
     impl = String
     cache_ok = True
 
-    def load_dialect_impl(self, dialect):
+    def load_dialect_impl(self, dialect: Any) -> Any:
         if dialect.name == "postgresql":
             return dialect.type_descriptor(ARRAY(Integer))
         else:
             return dialect.type_descriptor(String(255))
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
         if value is None:
             return value
         if dialect.name == "postgresql":
             return value
         return json.dumps(value)
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
         if value is None:
             return value
         if dialect.name == "postgresql":
             return value
         return json.loads(value)
-
-
-from sqlalchemy import Integer
 
 
 class IntegerArrayType(TypeDecorator):
@@ -68,13 +71,13 @@ class IntegerArrayType(TypeDecorator):
     impl = String
     cache_ok = True
 
-    def load_dialect_impl(self, dialect):
+    def load_dialect_impl(self, dialect: Any) -> Any:
         if dialect.name == "postgresql":
             return dialect.type_descriptor(ARRAY(Integer))
         else:
             return dialect.type_descriptor(String(255))
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
         if value is None:
             return value
         if dialect.name == "postgresql":
@@ -84,7 +87,7 @@ class IntegerArrayType(TypeDecorator):
             return json.dumps([int(v) for v in value])
         return json.dumps([int(value)])
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
         if value is None:
             return value
         if dialect.name == "postgresql":
@@ -103,13 +106,13 @@ class StringArrayType(TypeDecorator):
     impl = String
     cache_ok = True
 
-    def load_dialect_impl(self, dialect):
+    def load_dialect_impl(self, dialect: Any) -> Any:
         if dialect.name == "postgresql":
             return dialect.type_descriptor(ARRAY(String))
         else:
             return dialect.type_descriptor(String(1024))  # Larger size for string arrays
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
         if value is None:
             return value
         if dialect.name == "postgresql":
@@ -119,7 +122,7 @@ class StringArrayType(TypeDecorator):
             return json.dumps([str(v) for v in value])
         return json.dumps([str(value)])
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
         if value is None:
             return value
         if dialect.name == "postgresql":

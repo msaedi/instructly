@@ -19,10 +19,10 @@ from pathlib import Path
 import re
 import time
 import traceback
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import httpx
-import yaml
+import yaml  # type: ignore[import-untyped]  # third-party package lacks typing stubs
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class AuditResult:
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     coverage: Dict[str, str] = field(default_factory=dict)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "summary": self.summary,
@@ -142,7 +142,9 @@ class PrivacyAuditor:
         self.test_mode = test_mode
         self.verbose = verbose
         self.violations: List[Violation] = []
-        self.config = self._load_config(config_file)
+        self.config: Dict[str, Any] = self._load_config(config_file)
+        self.filter_category: Optional[str] = None
+        self.filter_endpoint: Optional[str] = None
         self._setup_logging()
 
         # Test users (only used in test_mode)
@@ -157,9 +159,9 @@ class PrivacyAuditor:
         # HTTP client with connection pooling
         self.client = httpx.AsyncClient(base_url=self.base_url, timeout=30.0, follow_redirects=True)
 
-    def _load_config(self, config_file: Optional[str]) -> dict:
+    def _load_config(self, config_file: Optional[str]) -> Dict[str, Any]:
         """Load configuration from YAML file."""
-        default_config = {
+        default_config: Dict[str, Any] = {
             "rules": {
                 "public_endpoints": {
                     "forbidden_fields": ["last_name", "email", "phone", "zip_code"],
@@ -177,13 +179,13 @@ class PrivacyAuditor:
 
         if config_file and Path(config_file).exists():
             with open(config_file, "r") as f:
-                user_config = yaml.safe_load(f)
+                user_config = cast(Dict[str, Any], yaml.safe_load(f) or {})
                 # Merge with defaults
                 default_config.update(user_config)
 
         return default_config
 
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """Configure logging based on verbosity."""
         level = logging.DEBUG if self.verbose else logging.INFO
         logging.basicConfig(
@@ -201,8 +203,9 @@ class PrivacyAuditor:
             )
             if response.status_code == 200:
                 data = response.json()
-                token = data.get("access_token")
-                self.auth_tokens[email] = token
+                token = cast(Optional[str], data.get("access_token"))
+                if token is not None:
+                    self.auth_tokens[email] = token
                 return token
         except Exception as e:
             logger.error(f"Failed to authenticate {email}: {e}")
@@ -217,7 +220,7 @@ class PrivacyAuditor:
 
         Returns list of (path, value) tuples where field was found.
         """
-        findings = []
+        findings: List[Tuple[str, Any]] = []
 
         if isinstance(data, dict):
             for key, value in data.items():
@@ -236,7 +239,7 @@ class PrivacyAuditor:
         self, data: Any, rules: PrivacyRule, endpoint: str, method: str
     ) -> List[Violation]:
         """Check data against privacy rules and return violations."""
-        violations = []
+        violations: List[Violation] = []
 
         # Check for forbidden fields
         for field_name in rules.forbidden_fields:
@@ -273,7 +276,7 @@ class PrivacyAuditor:
 
         return violations
 
-    def _matches_format(self, value: str, format_spec: str) -> bool:
+    def _matches_format(self, value: Any, format_spec: str) -> bool:
         """Check if a value matches the expected format."""
         if format_spec == "first_name last_initial":
             # Should be like "John D." or "Sarah C."
@@ -285,8 +288,8 @@ class PrivacyAuditor:
         self, endpoint: EndpointTest, as_user: Optional[str] = None
     ) -> List[Violation]:
         """Test a single endpoint for privacy violations."""
-        violations = []
-        headers = {}
+        violations: List[Violation] = []
+        headers: Dict[str, str] = {}
 
         # Add authentication if required
         if endpoint.auth_required and as_user:
@@ -379,10 +382,10 @@ class PrivacyAuditor:
         For now, we'll define critical endpoints manually.
         """
         # Check for filters
-        filter_category = getattr(self, "filter_category", None)
-        filter_endpoint = getattr(self, "filter_endpoint", None)
+        filter_category = self.filter_category
+        filter_endpoint = self.filter_endpoint
 
-        endpoints = [
+        endpoints: List[EndpointTest] = [
             # Public endpoints
             EndpointTest(
                 path="/api/search/instructors",
@@ -450,7 +453,7 @@ class PrivacyAuditor:
 
         # Filter out skipped endpoints
         skip_patterns = self.config.get("skip_endpoints", [])
-        filtered = []
+        filtered: List[EndpointTest] = []
         for endpoint in endpoints:
             skip = False
             for pattern in skip_patterns:
@@ -515,7 +518,7 @@ class PrivacyAuditor:
 
         return result
 
-    async def close(self):
+    async def close(self) -> None:
         """Clean up resources."""
         await self.client.aclose()
 
@@ -534,7 +537,7 @@ class PrivacyAuditor:
             return json.dumps(result.to_dict(), indent=2, default=str)
 
         elif format == "markdown":
-            report = ["# Privacy Audit Report\n"]
+            report: List[str] = ["# Privacy Audit Report\n"]
             report.append(
                 f"**Date**: {result.timestamp.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n"
             )

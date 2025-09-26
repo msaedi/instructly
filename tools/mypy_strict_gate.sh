@@ -7,7 +7,7 @@ ARTIFACT_DIR="$ROOT_DIR/.artifacts"
 BASELINE_FILE="$ARTIFACT_DIR/mypy-baseline.txt"
 LATEST_FILE="$ARTIFACT_DIR/mypy-latest.txt"
 
-# 2025-09-25: lowered strict baseline from 728 to 700 (pass-1 tightening).
+# 2025-09-26: lowered strict baseline from 700 to 597 (pass-2 tightening).
 
 mkdir -p "$ARTIFACT_DIR"
 

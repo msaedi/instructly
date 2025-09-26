@@ -73,7 +73,7 @@ def register_error_handlers(app: FastAPI) -> None:
     default_media_type = "application/problem+json" if strict_schemas else "application/json"
 
     @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException):  # type: ignore[override]
+    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
         detail_text, code, errors = _parse_detail(exc.detail)
         problem = _problem(
             status=exc.status_code,
@@ -85,7 +85,9 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(problem, status_code=exc.status_code, media_type=default_media_type)
 
     @app.exception_handler(StarletteHTTPException)
-    async def starlette_http_exception_handler(request: Request, exc: StarletteHTTPException):  # type: ignore[override]
+    async def starlette_http_exception_handler(
+        request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
         detail_text, code, errors = _parse_detail(exc.detail)
         problem = _problem(
             status=exc.status_code,
@@ -97,7 +99,9 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(problem, status_code=exc.status_code, media_type=default_media_type)
 
     @app.exception_handler(RequestValidationError)
-    async def request_validation_exception_handler(request: Request, exc: RequestValidationError):  # type: ignore[override]
+    async def request_validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
         if strict_schemas:
             problem = _problem(
                 status=422,
@@ -125,7 +129,7 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(ValidationError)
-    async def validation_exception_handler(request: Request, exc: ValidationError):  # type: ignore[override]
+    async def validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
         if strict_schemas:
             problem = _problem(
                 status=422,
@@ -153,7 +157,7 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(Exception)
-    async def generic_exception_handler(request: Request, exc: Exception):  # type: ignore[override]
+    async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         problem = _problem(
             status=500,
             detail="Internal Server Error",

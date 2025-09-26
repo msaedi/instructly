@@ -13,9 +13,9 @@ using instructor_id + date.
 """
 
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Set, Tuple, cast
 
 from sqlalchemy.orm import Session
 
@@ -444,19 +444,22 @@ class BulkOperationService(BaseService):
         """Validate time constraints and alignment."""
         # Check for past dates using instructor's timezone
         instructor_today = get_user_today_by_id(instructor_id, self.db)
-        if operation.date < instructor_today:
+        operation_date = cast(date, operation.date)  # validated upstream
+        if operation_date < instructor_today:
             return (
-                f"Cannot add availability for past date {operation.date.isoformat()} "
+                f"Cannot add availability for past date {operation_date.isoformat()} "
                 f"(today is {instructor_today.isoformat()} in your timezone)"
             )
 
         # Check if it's today and time has passed
-        if operation.date == instructor_today:
+        if operation_date == instructor_today:
             now = datetime.now().time()
-            if operation.end_time <= now:
+            start_time = cast(time, operation.start_time)  # validated upstream
+            end_time = cast(time, operation.end_time)  # validated upstream
+            if end_time <= now:
                 return (
-                    f"Cannot add availability for past time slot {operation.start_time.strftime('%H:%M')}-"
-                    f"{operation.end_time.strftime('%H:%M')} (current time is {now.strftime('%H:%M')})"
+                    f"Cannot add availability for past time slot {start_time.strftime('%H:%M')}-"
+                    f"{end_time.strftime('%H:%M')} (current time is {now.strftime('%H:%M')})"
                 )
 
         return None
@@ -465,16 +468,19 @@ class BulkOperationService(BaseService):
         self, instructor_id: str, operation: SlotOperation
     ) -> Optional[str]:
         """Check for booking conflicts and blackout dates."""
+        operation_date = cast(date, operation.date)  # validated upstream
+        start_time = cast(time, operation.start_time)  # validated upstream
+        end_time = cast(time, operation.end_time)  # validated upstream
         # Check if slot already exists
         if self.availability_repository.slot_exists(
             instructor_id,
-            target_date=operation.date,
-            start_time=operation.start_time,
-            end_time=operation.end_time,
+            target_date=operation_date,
+            start_time=start_time,
+            end_time=end_time,
         ):
             return (
-                f"Time slot {operation.start_time.strftime('%H:%M')}-{operation.end_time.strftime('%H:%M')} "
-                f"already exists on {operation.date.isoformat()}"
+                f"Time slot {start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')} "
+                f"already exists on {operation_date.isoformat()}"
             )
         return None
 
@@ -487,18 +493,21 @@ class BulkOperationService(BaseService):
 
         try:
             # Create slot directly using slot manager
+            operation_date = cast(date, operation.date)  # validated upstream
+            start_time = cast(time, operation.start_time)  # validated upstream
+            end_time = cast(time, operation.end_time)  # validated upstream
             new_slot = self.slot_manager.create_slot(
                 instructor_id=instructor_id,
-                target_date=operation.date,
-                start_time=operation.start_time,
-                end_time=operation.end_time,
+                target_date=operation_date,
+                start_time=start_time,
+                end_time=end_time,
                 auto_merge=True,
             )
             return new_slot
         except Exception as e:
             raise Exception(
-                f"Failed to create slot {operation.start_time.strftime('%H:%M')}-"
-                f"{operation.end_time.strftime('%H:%M')} on {operation.date.isoformat()}: {str(e)}"
+                f"Failed to create slot {start_time.strftime('%H:%M')}-"
+                f"{end_time.strftime('%H:%M')} on {operation_date.isoformat()}: {str(e)}"
             )
 
     @BaseService.measure_operation("process_add_operation")
@@ -569,7 +578,7 @@ class BulkOperationService(BaseService):
             )
 
     async def _validate_remove_operation(
-        self, instructor_id: str, slot_id: str
+        self, instructor_id: str, slot_id: Optional[str]
     ) -> Tuple[Optional[Any], Optional[str]]:
         """Validate slot exists and belongs to instructor."""
         if not slot_id:
@@ -625,8 +634,10 @@ class BulkOperationService(BaseService):
                 reason=error,
             )
 
+        slot_id = cast(str, operation.slot_id)
+
         # 2. Check bookings (not needed with layer independence)
-        if error := await self._check_remove_operation_bookings(operation.slot_id):
+        if error := await self._check_remove_operation_bookings(slot_id):
             return OperationResult(
                 operation_index=operation_index,
                 action="remove",
@@ -644,12 +655,12 @@ class BulkOperationService(BaseService):
             )
 
         try:
-            await self._execute_slot_removal(slot, operation.slot_id, validate_only)
+            await self._execute_slot_removal(slot, slot_id, validate_only)
             return OperationResult(
                 operation_index=operation_index,
                 action="remove",
                 status="success",
-                reason=f"Successfully removed slot {operation.slot_id}",
+                reason=f"Successfully removed slot {slot_id}",
             )
         except Exception as e:
             return OperationResult(
@@ -702,15 +713,16 @@ class BulkOperationService(BaseService):
             return None
 
         try:
+            slot_id = cast(str, operation.slot_id)  # validated upstream
             updated_slot = self.slot_manager.update_slot(
-                slot_id=operation.slot_id,
+                slot_id=slot_id,
                 start_time=new_start,
                 end_time=new_end,
             )
             return updated_slot
         except Exception as e:
             raise Exception(
-                f"Failed to update slot {operation.slot_id} to {new_start.strftime('%H:%M')}-"
+                f"Failed to update slot {slot_id} to {new_start.strftime('%H:%M')}-"
                 f"{new_end.strftime('%H:%M')}: {str(e)}"
             )
 
@@ -737,7 +749,9 @@ class BulkOperationService(BaseService):
             )
 
         # 2. Find slot
-        slot, error = await self._find_slot_for_update(instructor_id, operation.slot_id)
+        slot_id = cast(str, operation.slot_id)
+
+        slot, error = await self._find_slot_for_update(instructor_id, slot_id)
         if error:
             return OperationResult(
                 operation_index=operation_index,
@@ -750,7 +764,7 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action="update",
                 status="failed",
-                reason=f"Slot {operation.slot_id} could not be loaded for update",
+                reason=f"Slot {slot_id} could not be loaded for update",
             )
 
         # 3. Validate timing
@@ -782,8 +796,8 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action="update",
                 status="success",
-                slot_id=operation.slot_id,
-                reason=f"Successfully updated slot {operation.slot_id} to {new_start.strftime('%H:%M')}-{new_end.strftime('%H:%M')}",
+                slot_id=slot_id,
+                reason=f"Successfully updated slot {slot_id} to {new_start.strftime('%H:%M')}-{new_end.strftime('%H:%M')}",
             )
         except Exception as e:
             return OperationResult(
