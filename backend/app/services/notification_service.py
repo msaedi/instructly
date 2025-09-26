@@ -19,7 +19,7 @@ import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
 import logging
-from typing import Any, Callable, List, Optional
+from typing import Any, Awaitable, Callable, List, Optional, ParamSpec, TypeVar
 
 from jinja2.exceptions import TemplateNotFound
 from sqlalchemy.orm import Session
@@ -34,8 +34,13 @@ from ..services.template_service import TemplateService
 
 logger = logging.getLogger(__name__)
 
+P = ParamSpec("P")
+R = TypeVar("R")
 
-def retry(max_attempts: int = 3, backoff_seconds: float = 1.0) -> Callable:
+
+def retry(
+    max_attempts: int = 3, backoff_seconds: float = 1.0
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
     """
     Decorator for retrying failed operations with exponential backoff.
 
@@ -47,10 +52,10 @@ def retry(max_attempts: int = 3, backoff_seconds: float = 1.0) -> Callable:
         Decorated function with retry logic
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         @wraps(func)
-        async def wrapper(*args, **kwargs) -> Any:
-            last_exception = None
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            last_exception: Exception | None = None
 
             for attempt in range(max_attempts):
                 try:
@@ -69,7 +74,9 @@ def retry(max_attempts: int = 3, backoff_seconds: float = 1.0) -> Callable:
                             f"All {max_attempts} attempts failed for {func.__name__}: {str(e)}"
                         )
 
-            raise last_exception
+            if last_exception is not None:
+                raise last_exception
+            raise RuntimeError("Retry failed without capturing exception")
 
         return wrapper
 
@@ -87,10 +94,10 @@ class NotificationService(BaseService):
     def __init__(
         self,
         db: Optional[Session] = None,
-        cache=None,
+        cache: Any | None = None,
         template_service: Optional[TemplateService] = None,
         email_service: Optional[EmailService] = None,
-    ):
+    ) -> None:
         """
         Initialize the notification service.
 
@@ -132,7 +139,7 @@ class NotificationService(BaseService):
 
         self.frontend_url = settings.frontend_url
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Clean up the database session if we created it."""
         if hasattr(self, "_owns_db") and self._owns_db and hasattr(self, "db"):
             self.db.close()

@@ -1,15 +1,19 @@
 # backend/app/middleware/https_redirect.py
 """
-HTTPS Redirect Middleware for InstaInstru
-Forces all HTTP traffic to redirect to HTTPS in production
+HTTPS redirect middleware for InstaInstru.
+
+Forces HTTP traffic to HTTPS in production environments.
 """
 
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
 import logging
-from typing import Callable
 
 from fastapi import Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +26,21 @@ class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
     Checks the X-Forwarded-Proto header which is set by load balancers/proxies.
     """
 
-    def __init__(self, app, force_https: bool = True, exclude_paths: list[str] = None):
+    def __init__(
+        self,
+        app: ASGIApp,
+        force_https: bool = True,
+        exclude_paths: list[str] | None = None,
+    ) -> None:
         super().__init__(app)
         self.force_https = force_https
         self.exclude_paths = exclude_paths or ["/health", "/metrics"]
 
-    async def dispatch(self, request: Request, call_next: Callable):
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         # Skip HTTPS redirect for excluded paths (health checks, etc.)
         if request.url.path in self.exclude_paths:
             return await call_next(request)
@@ -65,7 +78,9 @@ class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def create_https_redirect_middleware(force_https: bool = True) -> type:
+def create_https_redirect_middleware(
+    force_https: bool = True,
+) -> type[HTTPSRedirectMiddleware]:
     """
     Factory function to create HTTPS redirect middleware with configuration.
 
@@ -77,7 +92,7 @@ def create_https_redirect_middleware(force_https: bool = True) -> type:
     """
 
     class ConfiguredHTTPSRedirectMiddleware(HTTPSRedirectMiddleware):
-        def __init__(self, app):
+        def __init__(self, app: ASGIApp) -> None:
             super().__init__(app, force_https=force_https)
 
     return ConfiguredHTTPSRedirectMiddleware

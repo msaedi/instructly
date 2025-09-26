@@ -83,7 +83,7 @@ class NYCZipCheckResponse(BaseModel):
     borough: str | None = None
 
 
-@router.get("/zip/is-nyc", response_model=NYCZipCheckResponse)  # type: ignore[misc]
+@router.get("/zip/is-nyc", response_model=NYCZipCheckResponse)
 def is_nyc_zip(zip: str) -> NYCZipCheckResponse:
     """Lightweight NYC ZIP check.
 
@@ -106,7 +106,7 @@ def is_nyc_zip(zip: str) -> NYCZipCheckResponse:
     return NYCZipCheckResponse(is_nyc=bool(borough), borough=borough)
 
 
-@router.get("/me", response_model=AddressListResponse)  # type: ignore[misc]
+@router.get("/me", response_model=AddressListResponse)
 def list_my_addresses(
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
@@ -119,7 +119,7 @@ def list_my_addresses(
     return AddressListResponse(items=items, total=len(items))
 
 
-@router.post("/me", response_model=AddressResponse, status_code=status.HTTP_201_CREATED)  # type: ignore[misc]
+@router.post("/me", response_model=AddressResponse, status_code=status.HTTP_201_CREATED)
 def create_my_address(
     data: AddressCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
@@ -129,7 +129,7 @@ def create_my_address(
     return AddressResponse(**created)
 
 
-@router.patch("/me/{address_id}", response_model=AddressResponse)  # type: ignore[misc]
+@router.patch("/me/{address_id}", response_model=AddressResponse)
 def update_my_address(
     address_id: str,
     data: AddressUpdate = Body(...),
@@ -151,7 +151,7 @@ class DeleteResponse(BaseModel):
     message: str
 
 
-@router.delete("/me/{address_id}", response_model=DeleteResponse)  # type: ignore[misc]
+@router.delete("/me/{address_id}", response_model=DeleteResponse)
 def delete_my_address(
     address_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -164,7 +164,7 @@ def delete_my_address(
 
 
 # Instructor service areas
-@router.get("/service-areas/me", response_model=ServiceAreasResponse)  # type: ignore[misc]
+@router.get("/service-areas/me", response_model=ServiceAreasResponse)
 def list_my_service_areas(
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
@@ -177,7 +177,7 @@ def list_my_service_areas(
     return ServiceAreasResponse(items=items, total=len(items))
 
 
-@router.get("/places/autocomplete", response_model=AutocompleteResponse)  # type: ignore[misc]
+@router.get("/places/autocomplete", response_model=AutocompleteResponse)
 def places_autocomplete(q: str) -> AutocompleteResponse:
     """Provider-agnostic autocomplete passthrough.
 
@@ -201,7 +201,7 @@ def places_autocomplete(q: str) -> AutocompleteResponse:
     return AutocompleteResponse(items=items, total=len(items))
 
 
-@router.get("/places/details", response_model=PlaceDetails)  # type: ignore[misc]
+@router.get("/places/details", response_model=PlaceDetails)
 def place_details(place_id: str) -> PlaceDetails:
     """Return normalized place details for a selected suggestion.
 
@@ -229,7 +229,7 @@ def place_details(place_id: str) -> PlaceDetails:
     )
 
 
-@router.put("/service-areas/me", response_model=ServiceAreasResponse)  # type: ignore[misc]
+@router.put("/service-areas/me", response_model=ServiceAreasResponse)
 def replace_my_service_areas(
     payload: ServiceAreasUpdateRequest,
     current_user: User = Depends(get_current_active_user),
@@ -245,7 +245,7 @@ def replace_my_service_areas(
 
 
 # Public helper for map: bulk coverage for instructor ids
-@router.get("/coverage/bulk", response_model=CoverageFeatureCollectionResponse)  # type: ignore[misc]
+@router.get("/coverage/bulk", response_model=CoverageFeatureCollectionResponse)
 @rate_limit("10/minute", key_type=RateLimitKeyType.IP)
 def get_bulk_coverage_geojson(
     ids: str, service: AddressService = Depends(get_address_service)
@@ -282,7 +282,7 @@ class NeighborhoodsListResponse(BaseModel):
     per_page: int | None = None
 
 
-@router.get("/regions/neighborhoods", response_model=NeighborhoodsListResponse)  # type: ignore[misc]
+@router.get("/regions/neighborhoods", response_model=NeighborhoodsListResponse)
 def list_neighborhoods(
     region_type: str = "nyc",
     borough: str | None = None,

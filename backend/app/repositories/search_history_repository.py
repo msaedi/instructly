@@ -292,27 +292,24 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         return result > 0
 
-    def create(
-        self,
-        user_id: Optional[str] = None,
-        guest_session_id: Optional[str] = None,
-        search_query: Optional[str] = None,
-        search_type: str = "natural_language",
-        results_count: Optional[int] = None,
-        deleted_at: Optional[datetime] = None,
-        **kwargs: Any,
-    ) -> Optional[SearchHistory]:
+    def create(self, **kwargs: Any) -> SearchHistory:
         """
         Create a new search history entry.
         """
         # Handle the new timestamp fields
         now = datetime.now(timezone.utc)
-        first_searched_at = kwargs.get("first_searched_at", now)
-        last_searched_at = kwargs.get("last_searched_at", now)
-        search_count = kwargs.get("search_count", 1)
+        user_id = cast(Optional[str], kwargs.get("user_id"))
+        guest_session_id = cast(Optional[str], kwargs.get("guest_session_id"))
+        search_query = cast(Optional[str], kwargs.get("search_query"))
+        search_type = cast(str, kwargs.get("search_type", "natural_language"))
+        results_count = cast(Optional[int], kwargs.get("results_count"))
+        deleted_at = cast(Optional[datetime], kwargs.get("deleted_at"))
+        first_searched_at = cast(datetime, kwargs.get("first_searched_at", now))
+        last_searched_at = cast(datetime, kwargs.get("last_searched_at", now))
+        search_count = cast(int, kwargs.get("search_count", 1))
 
         # Normalize the query for deduplication
-        normalized_query = kwargs.get("normalized_query")
+        normalized_query = cast(Optional[str], kwargs.get("normalized_query"))
         if not normalized_query and search_query:
             normalized_query = search_query.strip().lower()
 
@@ -462,7 +459,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         normalized_query: Optional[str] = None,
         search_type: str = "natural_language",
         results_count: Optional[int] = None,
-    ) -> SearchHistory:
+    ) -> Optional[SearchHistory]:
         """
         Atomic UPSERT operation for search history.
 

@@ -3,9 +3,9 @@
 Request timing middleware for performance monitoring.
 """
 
+from collections.abc import Awaitable, Callable
 import logging
 import time
-from typing import Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -18,7 +18,9 @@ class TimingMiddleware(BaseHTTPMiddleware):
     Middleware to measure and log request processing time.
     """
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         # Skip timing for health and metrics endpoints
         if request.url.path in [
             "/health",

@@ -1,7 +1,7 @@
 """ULID generation helper utilities."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, cast
 
 import ulid
 
@@ -24,10 +24,13 @@ def get_timestamp_from_ulid(ulid_str: str) -> Optional[datetime]:
     parsed = parse_ulid(ulid_str)
     if parsed:
         try:
-            return parsed.timestamp().datetime
+            timestamp_obj = parsed.timestamp()
+            if hasattr(timestamp_obj, "datetime"):
+                return cast(datetime, timestamp_obj.datetime)
         except AttributeError:
-            # Fallback for different ULID library versions
-            return parsed.datetime
+            pass
+        if hasattr(parsed, "datetime"):
+            return cast(datetime, parsed.datetime)
     return None
 
 

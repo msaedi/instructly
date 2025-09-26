@@ -152,13 +152,15 @@ async def create_instructor_profile(
     profile: InstructorProfileCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-):
+) -> InstructorProfileResponse:
     """Create a new instructor profile."""
     try:
         profile_data = instructor_service.create_instructor_profile(
             user=current_user, profile_data=profile
         )
-        return profile_data
+        if hasattr(profile_data, "id"):
+            return InstructorProfileResponse.from_orm(profile_data)
+        return InstructorProfileResponse(**profile_data)
     except Exception as e:
         if "already exists" in str(e):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -171,7 +173,7 @@ async def create_instructor_profile(
 async def get_my_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-):
+) -> InstructorProfileResponse:
     """Get current instructor's profile."""
     if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
@@ -201,7 +203,7 @@ async def update_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
-):
+) -> InstructorProfileResponse:
     """Update instructor profile with soft delete support."""
     if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
@@ -217,7 +219,9 @@ async def update_profile(
         profile_data = instructor_service.update_instructor_profile(
             user_id=current_user.id, update_data=profile_update
         )
-        return profile_data
+        if hasattr(profile_data, "id"):
+            return InstructorProfileResponse.from_orm(profile_data)
+        return InstructorProfileResponse(**profile_data)
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
@@ -233,7 +237,7 @@ async def go_live(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
     db: Session = Depends(get_db),
-):
+) -> InstructorProfileResponse:
     """Mark instructor profile as live if all mandatory steps are completed.
 
     Mandatory steps:
@@ -320,7 +324,10 @@ async def go_live(
         )
 
     # Return updated profile
-    return instructor_service.get_instructor_profile(current_user.id)
+    updated_profile = instructor_service.get_instructor_profile(current_user.id)
+    if hasattr(updated_profile, "id"):
+        return InstructorProfileResponse.from_orm(updated_profile)
+    return InstructorProfileResponse(**updated_profile)
 
 
 @router.delete(
@@ -332,7 +339,7 @@ async def delete_instructor_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
-):
+) -> None:
     """Delete instructor profile and revert to student role."""
     if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
@@ -351,6 +358,8 @@ async def delete_instructor_profile(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
         raise
 
+    return None
+
 
 @router.get(
     "/{instructor_id}",
@@ -362,7 +371,7 @@ async def get_instructor_profile(
     instructor_service: InstructorService = Depends(get_instructor_service),
     favorites_service: FavoritesService = Depends(get_favorites_service),
     current_user: User = Depends(get_current_active_user_optional),
-):
+) -> InstructorProfileResponse:
     """Get a specific instructor's profile by user ID with privacy protection and favorite status."""
     try:
         profile_data = instructor_service.get_instructor_profile(instructor_id)
@@ -401,7 +410,7 @@ async def get_instructor_profile(
 async def get_instructor_coverage(
     instructor_id: str,
     address_service: AddressService = Depends(get_address_service),
-):
+) -> CoverageFeatureCollectionResponse:
     if not is_valid_ulid(instructor_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid instructor id")
     geo = address_service.get_coverage_geojson_for_instructors([instructor_id])

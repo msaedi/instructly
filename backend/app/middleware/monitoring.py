@@ -3,10 +3,15 @@
 Simple performance monitoring to track real-world metrics.
 """
 
+from __future__ import annotations
+
 from collections import defaultdict, deque
 from datetime import datetime
 import logging
 import time
+from typing import Any, DefaultDict, Deque
+
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from ..core.constants import SSE_PATH_PREFIX
 
@@ -16,13 +21,15 @@ logger = logging.getLogger(__name__)
 class PerformanceMonitor:
     """Track performance metrics for analysis."""
 
-    def __init__(self, window_size: int = 1000):
-        self.response_times = deque(maxlen=window_size)
-        self.endpoint_stats = defaultdict(lambda: deque(maxlen=100))
-        self.slow_requests = deque(maxlen=50)
-        self.hourly_stats = defaultdict(list)
+    def __init__(self, window_size: int = 1000) -> None:
+        self.response_times: Deque[float] = deque(maxlen=window_size)
+        self.endpoint_stats: DefaultDict[str, Deque[float]] = defaultdict(lambda: deque(maxlen=100))
+        self.slow_requests: Deque[dict[str, Any]] = deque(maxlen=50)
+        self.hourly_stats: DefaultDict[str, list[float]] = defaultdict(list)
 
-    def record_request(self, endpoint: str, method: str, duration_ms: float, status_code: int):
+    def record_request(
+        self, endpoint: str, method: str, duration_ms: float, status_code: int
+    ) -> None:
         """Record a request's performance."""
         self.response_times.append(duration_ms)
         self.endpoint_stats[f"{method} {endpoint}"].append(duration_ms)
@@ -43,7 +50,7 @@ class PerformanceMonitor:
         hour_key = datetime.now().strftime("%Y-%m-%d %H:00")
         self.hourly_stats[hour_key].append(duration_ms)
 
-    def get_stats(self):
+    def get_stats(self) -> dict[str, Any]:
         """Get current performance statistics."""
         if not self.response_times:
             return {"message": "No data yet"}
@@ -78,10 +85,10 @@ monitor = PerformanceMonitor()
 class MonitoringMiddleware:
     """Middleware to track performance metrics."""
 
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -94,7 +101,7 @@ class MonitoringMiddleware:
 
         start_time = time.time()
 
-        async def send_wrapper(message):
+        async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
                 # Calculate duration when response starts
                 duration_ms = (time.time() - start_time) * 1000

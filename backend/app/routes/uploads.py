@@ -59,7 +59,7 @@ def create_signed_upload(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
     asset_service: PersonalAssetService = Depends(get_personal_asset_service),
-):
+) -> SignedUploadResponse:
     """Create a short-lived signed PUT URL for uploading files to R2.
 
     We implement SigV4 signing locally to avoid requiring boto3.
@@ -123,7 +123,7 @@ def finalize_profile_picture(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
     asset_service: PersonalAssetService = Depends(get_personal_asset_service),
-):
+) -> SuccessResponse:
     """Finalize a previously uploaded profile picture: validate, process, version, store."""
     try:
         asset_service.finalize_profile_picture(current_user, payload.object_key)

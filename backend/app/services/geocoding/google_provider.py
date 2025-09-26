@@ -1,6 +1,6 @@
 """Google Maps geocoding provider."""
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import httpx
 
@@ -49,7 +49,7 @@ class GoogleMapsProvider(GeocodingProvider):
             if resp.status_code != 200:
                 return []
             data = resp.json()
-            results = []
+            results: List[AutocompleteResult] = []
             for p in data.get("predictions", []):
                 results.append(
                     AutocompleteResult(
@@ -86,7 +86,7 @@ class GoogleMapsProvider(GeocodingProvider):
                 return None
             return parsed
 
-    def _parse_result(self, result: dict) -> GeocodedAddress:
+    def _parse_result(self, result: dict[str, Any]) -> GeocodedAddress:
         comps = {}
         # Google returns 'address_components' in Details; support both keys defensively
         addr_components = result.get("address_components") or result.get("address_component") or []

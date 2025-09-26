@@ -6,10 +6,12 @@ Unified implementation that handles both authenticated and guest users
 without code duplication.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Optional, cast
 
 from sqlalchemy.orm import Session
 
@@ -51,17 +53,17 @@ class SearchHistoryService(BaseService):
     @BaseService.measure_operation("record_search")
     async def record_search(
         self,
-        user_id: Optional[str] = None,
-        guest_session_id: Optional[str] = None,
-        query: str = None,
+        user_id: str | None = None,
+        guest_session_id: str | None = None,
+        query: str | None = None,
         search_type: str = "natural_language",
-        results_count: Optional[int] = None,
-        context: Optional[SearchUserContext] = None,
-        search_data: Optional[dict] = None,
-        request_ip: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        device_context: Optional[Dict] = None,
-        observability_candidates: Optional[List[Dict]] = None,
+        results_count: int | None = None,
+        context: SearchUserContext | None = None,
+        search_data: dict[str, Any] | None = None,
+        request_ip: str | None = None,
+        user_agent: str | None = None,
+        device_context: dict[str, Any] | None = None,
+        observability_candidates: list[dict[str, Any]] | None = None,
     ) -> SearchHistory:
         """
         Record a search - supports both old and new API.
@@ -108,11 +110,11 @@ class SearchHistoryService(BaseService):
     async def _record_search_impl(
         self,
         context: SearchUserContext,
-        search_data: dict,
-        request_ip: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        device_context: Optional[Dict] = None,
-        observability_candidates: Optional[List[Dict]] = None,
+        search_data: dict[str, Any],
+        request_ip: str | None = None,
+        user_agent: str | None = None,
+        device_context: dict[str, Any] | None = None,
+        observability_candidates: list[dict[str, Any]] | None = None,
     ) -> SearchHistory:
         """
         Internal implementation of search recording using PostgreSQL UPSERT.
@@ -145,9 +147,9 @@ class SearchHistoryService(BaseService):
             self._enforce_search_limit(context)
 
             # Process analytics data
-            ip_hash = None
-            geo_data = None
-            browser_info = None
+            ip_hash: str | None = None
+            geo_data: dict[str, Any] | None = None
+            browser_info: dict[str, Any] | None = None
 
             # Hash IP address for privacy
             if request_ip:
@@ -188,7 +190,8 @@ class SearchHistoryService(BaseService):
             if context.user_id:
                 # Check if user has searched before
                 previous_search = self.event_repository.get_previous_search_event(
-                    user_id=context.user_id, before_time=datetime.now(timezone.utc)
+                    user_id=cast(Any, context.user_id),
+                    before_time=datetime.now(timezone.utc),
                 )
                 is_returning = previous_search is not None
             elif context.guest_session_id:
@@ -272,11 +275,11 @@ class SearchHistoryService(BaseService):
     @BaseService.measure_operation("get_recent_searches")
     def get_recent_searches(
         self,
-        user_id: Optional[str] = None,
-        guest_session_id: Optional[str] = None,
-        context: Optional[SearchUserContext] = None,
+        user_id: str | None = None,
+        guest_session_id: str | None = None,
+        context: SearchUserContext | None = None,
         limit: int = 10,
-    ) -> List[SearchHistory]:
+    ) -> list[SearchHistory]:
         """
         Get recent searches ordered by last_searched_at.
 
@@ -325,9 +328,9 @@ class SearchHistoryService(BaseService):
     @BaseService.measure_operation("delete_search")
     def delete_search(
         self,
-        user_id: Optional[str] = None,
-        guest_session_id: Optional[str] = None,
-        search_id: int = None,
+        user_id: str | None = None,
+        guest_session_id: str | None = None,
+        search_id: str | None = None,
     ) -> bool:
         """
         Soft delete a search for any user type.
@@ -348,7 +351,8 @@ class SearchHistoryService(BaseService):
             identifier = f"user_{user_id}"
         elif guest_session_id:
             deleted = self.repository.soft_delete_guest_search(
-                search_id=search_id, guest_session_id=guest_session_id
+                search_id=cast(Any, search_id),  # repository accepts ULIDs; annotation is outdated
+                guest_session_id=guest_session_id,
             )
             identifier = f"guest_{guest_session_id}"
         else:

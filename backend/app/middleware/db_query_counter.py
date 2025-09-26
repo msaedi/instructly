@@ -6,7 +6,7 @@ This module provides SQLAlchemy event listeners to count queries per request.
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import Request
 from sqlalchemy import event
@@ -19,7 +19,7 @@ class QueryCounter:
     """Tracks database queries per request."""
 
     @staticmethod
-    def setup_query_counting(engine: Engine):
+    def setup_query_counting(engine: Engine) -> None:
         """
         Set up SQLAlchemy event listeners for query counting.
 
@@ -28,7 +28,14 @@ class QueryCounter:
         """
 
         @event.listens_for(engine, "before_cursor_execute")
-        def increment_query_count(conn, cursor, statement, parameters, context, executemany):
+        def increment_query_count(
+            conn: Any,
+            cursor: Any,
+            statement: str,
+            parameters: Any,
+            context: Any,
+            executemany: Any,
+        ) -> None:
             """Increment query count for current request."""
             # Try to get the current request from context
             request = QueryCounter.get_current_request()
@@ -56,7 +63,7 @@ class QueryCounter:
         return None
 
 
-def track_cache_operations(request: Request, operation: str, hit: bool = True):
+def track_cache_operations(request: Request, operation: str, hit: bool = True) -> None:
     """
     Track cache operations for the current request.
 

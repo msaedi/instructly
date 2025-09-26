@@ -6,7 +6,9 @@ These dependencies provide decorators and functions to check user permissions
 before allowing access to protected endpoints.
 """
 
-from typing import Union
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -16,6 +18,8 @@ from ..core.enums import PermissionName
 from ..database import get_db
 from ..models.user import User
 from ..services.permission_service import PermissionService
+
+PermissionDependency = Callable[..., Awaitable[User]]
 
 
 def get_permission_service(db: Session = Depends(get_db)) -> PermissionService:
@@ -31,7 +35,7 @@ def get_permission_service(db: Session = Depends(get_db)) -> PermissionService:
     return PermissionService(db)
 
 
-def require_permission(permission_name: Union[str, PermissionName]):
+def require_permission(permission_name: str | PermissionName) -> PermissionDependency:
     """
     Create a dependency that requires a specific permission.
 
@@ -53,7 +57,7 @@ def require_permission(permission_name: Union[str, PermissionName]):
     async def permission_checker(
         current_user: User = Depends(get_current_user),
         permission_service: PermissionService = Depends(get_permission_service),
-    ):
+    ) -> User:
         if not permission_service.user_has_permission(current_user.id, permission_name):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -64,7 +68,7 @@ def require_permission(permission_name: Union[str, PermissionName]):
     return permission_checker
 
 
-def require_any_permission(*permission_names: str):
+def require_any_permission(*permission_names: str) -> PermissionDependency:
     """
     Create a dependency that requires at least one of the specified permissions.
 
@@ -78,7 +82,7 @@ def require_any_permission(*permission_names: str):
     async def permission_checker(
         current_user: User = Depends(get_current_user),
         permission_service: PermissionService = Depends(get_permission_service),
-    ):
+    ) -> User:
         for permission_name in permission_names:
             if permission_service.user_has_permission(current_user.id, permission_name):
                 return current_user
@@ -91,7 +95,7 @@ def require_any_permission(*permission_names: str):
     return permission_checker
 
 
-def require_all_permissions(*permission_names: str):
+def require_all_permissions(*permission_names: str) -> PermissionDependency:
     """
     Create a dependency that requires all of the specified permissions.
 
@@ -105,7 +109,7 @@ def require_all_permissions(*permission_names: str):
     async def permission_checker(
         current_user: User = Depends(get_current_user),
         permission_service: PermissionService = Depends(get_permission_service),
-    ):
+    ) -> User:
         missing_permissions = []
 
         for permission_name in permission_names:
@@ -123,7 +127,7 @@ def require_all_permissions(*permission_names: str):
     return permission_checker
 
 
-def require_role(role_name: str):
+def require_role(role_name: str) -> PermissionDependency:
     """
     Create a dependency that requires a specific role.
 
@@ -140,7 +144,7 @@ def require_role(role_name: str):
     async def role_checker(
         current_user: User = Depends(get_current_user),
         permission_service: PermissionService = Depends(get_permission_service),
-    ):
+    ) -> User:
         user_roles = permission_service.get_user_roles(current_user.id)
 
         if role_name not in user_roles:
@@ -168,23 +172,23 @@ class PermissionChecker:
             return {"data": "analytics"}
     """
 
-    def __init__(self):
-        self._cache = {}
+    def __init__(self) -> None:
+        self._cache: dict[str, PermissionDependency] = {}
 
-    def require(self, permission_name: str):
+    def require(self, permission_name: str) -> PermissionDependency:
         """Get or create a permission checker for the specified permission."""
         if permission_name not in self._cache:
             self._cache[permission_name] = require_permission(permission_name)
         return self._cache[permission_name]
 
-    def require_any(self, *permission_names: str):
+    def require_any(self, *permission_names: str) -> PermissionDependency:
         """Get or create a checker that requires any of the permissions."""
         cache_key = f"any:{','.join(sorted(permission_names))}"
         if cache_key not in self._cache:
             self._cache[cache_key] = require_any_permission(*permission_names)
         return self._cache[cache_key]
 
-    def require_all(self, *permission_names: str):
+    def require_all(self, *permission_names: str) -> PermissionDependency:
         """Get or create a checker that requires all of the permissions."""
         cache_key = f"all:{','.join(sorted(permission_names))}"
         if cache_key not in self._cache:

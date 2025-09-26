@@ -4,7 +4,7 @@ No external dependencies, 99% accurate for US zip codes.
 Uses @lru_cache for ultra-fast lookups.
 """
 
-from functools import lru_cache
+from functools import _CacheInfo as CacheInfo, lru_cache
 import logging
 from typing import Optional
 
@@ -137,12 +137,12 @@ def validate_timezone(timezone: str) -> bool:
     return timezone in valid_timezones
 
 
-def clear_cache():
+def clear_cache() -> None:
     """Clear the LRU cache (useful for testing)."""
     get_timezone_from_zip.cache_clear()
     logger.info("Cleared timezone LRU cache")
 
 
-def cache_info():
+def cache_info() -> CacheInfo:
     """Get cache statistics (hits, misses, size, etc.)."""
     return get_timezone_from_zip.cache_info()

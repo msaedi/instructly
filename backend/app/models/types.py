@@ -5,7 +5,7 @@ Custom SQLAlchemy types that work across different database backends.
 
 from datetime import datetime
 import json
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import DateTime, Integer, String, TypeDecorator
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -18,7 +18,9 @@ Base = declarative_base()
 if TYPE_CHECKING:
     from sqlalchemy.sql.type_api import TypeDecorator as _TypeDecorator
 
-    TypeDecorator = cast("type[_TypeDecorator[Any]]", TypeDecorator)
+    TypeDecoratorProtocol = _TypeDecorator[Any]
+else:
+    TypeDecoratorProtocol = TypeDecorator
 
 
 class TimestampMixin:
@@ -32,7 +34,7 @@ class TimestampMixin:
     )
 
 
-class ArrayType(TypeDecorator):
+class ArrayType(TypeDecoratorProtocol):
     """
     A custom type that uses PostgreSQL ARRAY when available,
     but falls back to JSON serialization for other databases (like SQLite).
@@ -62,7 +64,7 @@ class ArrayType(TypeDecorator):
         return json.loads(value)
 
 
-class IntegerArrayType(TypeDecorator):
+class IntegerArrayType(TypeDecoratorProtocol):
     """
     A custom type for integer arrays that works across different database backends.
     Uses PostgreSQL ARRAY when available, falls back to JSON for others.
@@ -97,7 +99,7 @@ class IntegerArrayType(TypeDecorator):
         return value
 
 
-class StringArrayType(TypeDecorator):
+class StringArrayType(TypeDecoratorProtocol):
     """
     A custom type for string arrays that works across different database backends.
     Uses PostgreSQL ARRAY when available, falls back to JSON for others.

@@ -25,7 +25,7 @@ import logging
 import os
 from pathlib import Path
 import sys
-from typing import Dict, Literal, Optional
+from typing import Any, Literal, Optional
 
 from .config import settings
 
@@ -365,7 +365,7 @@ class DatabaseConfig:
                 "Database configuration errors:\n" + "\n".join(f"  - {error}" for error in errors)
             )
 
-    def get_safety_score(self) -> Dict[str, any]:
+    def get_safety_score(self) -> dict[str, Any]:
         """
         Calculate and return current database safety metrics.
 
@@ -415,7 +415,7 @@ class DatabaseConfig:
             return prefix + suffix
         return url
 
-    def _audit_log_operation(self, operation: str, details: dict) -> None:
+    def _audit_log_operation(self, operation: str, details: dict[str, Any]) -> None:
         """
         Log database operations for audit trail.
 
@@ -457,6 +457,7 @@ class DatabaseConfig:
         - Time-based access restrictions
         - Maintenance window checks
         """
+        return None
 
     def _post_production_approval(self) -> None:
         """
@@ -467,6 +468,7 @@ class DatabaseConfig:
         - Start session recording
         - Enable additional logging
         """
+        return None
 
     def _create_backup_if_needed(self, operation: str) -> Optional[str]:
         """
@@ -478,6 +480,7 @@ class DatabaseConfig:
         Returns:
             Optional[str]: Backup identifier if backup was created
         """
+        return None
 
     def _validate_schema_version(self) -> bool:
         """
@@ -486,6 +489,7 @@ class DatabaseConfig:
         Returns:
             bool: True if schema is compatible
         """
+        return False
 
     def _check_dry_run_mode(self) -> bool:
         """
@@ -494,6 +498,7 @@ class DatabaseConfig:
         Returns:
             bool: True if in dry-run mode
         """
+        return False
 
     def _rate_limit_check(self, operation: str) -> bool:
         """
@@ -505,3 +510,4 @@ class DatabaseConfig:
         Returns:
             bool: True if operation is allowed
         """
+        return False

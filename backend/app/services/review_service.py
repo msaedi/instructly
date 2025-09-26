@@ -10,8 +10,12 @@ Implements:
 - Instructor response (one per review) with ownership enforcement
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Any, Optional, TypedDict, cast
+
+from sqlalchemy.orm import Session
 
 from ..core.exceptions import NotFoundException, ValidationException
 from ..models.booking import BookingStatus
@@ -35,6 +39,31 @@ from .ratings_math import (
 )
 
 
+class RatingComputation(TypedDict):
+    rating: float
+    total_reviews: int
+    display_rating: str | None
+
+
+class ServiceBreakdownSummary(TypedDict):
+    instructor_service_id: str
+    rating: float | None
+    review_count: int
+    display_rating: str | None
+
+
+class InstructorRatingsSummary(TypedDict):
+    overall: RatingComputation
+    by_service: list[ServiceBreakdownSummary]
+    confidence_level: str
+
+
+class SearchRatingSummary(TypedDict):
+    primary_rating: float | None
+    review_count: int
+    is_service_specific: bool
+
+
 class ReviewService(BaseService):
     """Service layer for reviews & ratings."""
 
@@ -44,15 +73,17 @@ class ReviewService(BaseService):
 
     def __init__(
         self,
-        db,
+        db: Session,
         cache: Optional[CacheService] = None,
         config: RatingsConfig = DEFAULT_RATINGS_CONFIG,
-    ):
+    ) -> None:
         super().__init__(db, cache)
         self.repository: ReviewRepository = ReviewRepository(db)
         self.response_repository: ReviewResponseRepository = ReviewResponseRepository(db)
         self.tip_repository: ReviewTipRepository = ReviewTipRepository(db)
-        self.booking_repository: BookingRepository = RepositoryFactory.create_booking_repository(db)
+        self.booking_repository: BookingRepository = cast(
+            BookingRepository, RepositoryFactory.create_booking_repository(db)
+        )
         self.config = config
 
     @BaseService.measure_operation("submit_review")
@@ -119,7 +150,8 @@ class ReviewService(BaseService):
             if booking.end_time is not None:
                 local_end_naive = datetime.combine(booking.booking_date, booking.end_time)
                 if user_tz and hasattr(user_tz, "localize"):
-                    local_end = user_tz.localize(local_end_naive)  # type: ignore[attr-defined]
+                    tz_with_localize = cast(Any, user_tz)  # pytz tzinfo exposes localize()
+                    local_end = tz_with_localize.localize(local_end_naive)
                 else:
                     local_end = local_end_naive.replace(tzinfo=user_tz or timezone.utc)
                 effective_completed_at_utc = local_end.astimezone(timezone.utc)
@@ -169,27 +201,29 @@ class ReviewService(BaseService):
         return review
 
     @BaseService.measure_operation("get_instructor_ratings")
-    def get_instructor_ratings(self, instructor_id: str) -> Dict:
+    def get_instructor_ratings(self, instructor_id: str) -> InstructorRatingsSummary:
         cache_key = f"ratings:{self.CACHE_VERSION}:instructor:{instructor_id}"
         if self.cache:
             cached = self.cache.get(cache_key)
             if cached:
-                return cached
+                return cast(InstructorRatingsSummary, cached)
 
         # Compute Dirichlet-smoothed rating with recency weighting
         overall = self._compute_dirichlet_rating(instructor_id)
         breakdown_rows = self.repository.get_service_breakdown(instructor_id)
 
-        by_service: List[Dict] = []
+        by_service: list[ServiceBreakdownSummary] = []
         for s in breakdown_rows:
             # For service breakdown, fall back to simple shrinkage per-service to avoid heavy histogram compute
+            rating_sum_raw = s.get("rating_sum", 0) or 0
+            review_count_raw = s.get("review_count", 0) or 0
             bayes = compute_simple_shrinkage(
-                s.get("rating_sum", 0), s.get("review_count", 0), self.config
+                float(rating_sum_raw), int(review_count_raw), self.config
             )
-            count = int(s.get("review_count", 0))
+            count = int(review_count_raw)
             by_service.append(
                 {
-                    "instructor_service_id": s["instructor_service_id"],
+                    "instructor_service_id": str(s["instructor_service_id"]),
                     "rating": round(bayes, 1)
                     if count >= self.config.min_reviews_to_display
                     else None,
@@ -198,10 +232,10 @@ class ReviewService(BaseService):
                 }
             )
 
-        result = {
+        result: InstructorRatingsSummary = {
             "overall": overall,
             "by_service": by_service,
-            "confidence_level": confidence_label(int(overall.get("total_reviews", 0))),
+            "confidence_level": confidence_label(overall["total_reviews"]),
         }
 
         if self.cache:
@@ -219,7 +253,7 @@ class ReviewService(BaseService):
         page: int = 1,
         min_rating: Optional[int] = None,
         with_text: Optional[bool] = None,
-    ) -> List[Review]:
+    ) -> list[Review]:
         offset = max(0, (page - 1) * max(1, limit))
         return self.repository.get_recent_reviews(
             instructor_id,
@@ -251,7 +285,7 @@ class ReviewService(BaseService):
         return self.repository.get_by_booking_id(booking_id)
 
     @BaseService.measure_operation("get_existing_reviews_for_bookings")
-    def get_existing_reviews_for_bookings(self, booking_ids: List[str]) -> List[str]:
+    def get_existing_reviews_for_bookings(self, booking_ids: list[str]) -> list[str]:
         if not booking_ids:
             return []
         try:
@@ -275,22 +309,22 @@ class ReviewService(BaseService):
     @BaseService.measure_operation("get_rating_for_search_context")
     def get_rating_for_search_context(
         self, instructor_id: str, instructor_service_id: Optional[str] = None
-    ) -> Dict:
+    ) -> SearchRatingSummary:
         cache_key = (
             f"ratings:search:{self.CACHE_VERSION}:{instructor_id}:{instructor_service_id or 'all'}"
         )
         if self.cache:
             cached = self.cache.get(cache_key)
             if cached:
-                return cached
+                return cast(SearchRatingSummary, cached)
 
         if instructor_service_id:
             sr = self._compute_dirichlet_rating_for_service(instructor_id, instructor_service_id)
-            result = {
+            result: SearchRatingSummary = {
                 "primary_rating": sr["rating"]
                 if sr["total_reviews"] >= self.config.min_reviews_to_display
                 else None,
-                "review_count": int(sr["total_reviews"]),
+                "review_count": sr["total_reviews"],
                 "is_service_specific": True,
             }
             if self.cache:
@@ -298,11 +332,11 @@ class ReviewService(BaseService):
             return result
 
         overall = self._compute_dirichlet_rating(instructor_id)
-        result = {
+        result: SearchRatingSummary = {
             "primary_rating": overall["rating"]
-            if overall.get("total_reviews", 0) >= self.config.min_reviews_to_display
+            if overall["total_reviews"] >= self.config.min_reviews_to_display
             else None,
-            "review_count": int(overall.get("total_reviews", 0)),
+            "review_count": overall["total_reviews"],
             "is_service_specific": False,
         }
         if self.cache:
@@ -353,17 +387,19 @@ class ReviewService(BaseService):
         # Backward-compatible wrapper for simple shrinkage used in per-service breakdown.
         return compute_simple_shrinkage(rating_sum, count)
 
-    def _compute_dirichlet_rating(self, instructor_id: str) -> Dict:
+    def _compute_dirichlet_rating(self, instructor_id: str) -> RatingComputation:
         """Compute overall rating using a Dirichlet prior with recency weighting.
 
         Returns a dict: { rating: float, total_reviews: int, display_rating: str|None }
         """
         reviews = self.repository.get_published_verified_for_instructor(instructor_id)
         result = compute_dirichlet_rating(reviews, config=self.config)
+        rating_value = float(result.get("rating", 0.0) or 0.0)
+        total_reviews = int(result.get("total_reviews", 0) or 0)
         return {
-            "rating": result["rating"],
-            "total_reviews": int(result.get("total_reviews", 0)),
-            "display_rating": self._display(result["rating"], int(result.get("total_reviews", 0))),
+            "rating": rating_value,
+            "total_reviews": total_reviews,
+            "display_rating": self._display(rating_value, total_reviews),
         }
 
     def _dirichlet_prior_mean(self) -> float:
@@ -371,16 +407,18 @@ class ReviewService(BaseService):
 
     def _compute_dirichlet_rating_for_service(
         self, instructor_id: str, instructor_service_id: str
-    ) -> Dict:
+    ) -> RatingComputation:
         """Compute service-specific rating using a Dirichlet prior with recency weighting."""
         reviews = self.repository.get_published_verified_for_instructor(
             instructor_id, instructor_service_id
         )
         result = compute_dirichlet_rating(reviews, config=self.config)
+        rating_value = float(result.get("rating", 0.0) or 0.0)
+        total_reviews = int(result.get("total_reviews", 0) or 0)
         return {
-            "rating": result["rating"],
-            "total_reviews": int(result.get("total_reviews", 0)),
-            "display_rating": self._display(result["rating"], int(result.get("total_reviews", 0))),
+            "rating": rating_value,
+            "total_reviews": total_reviews,
+            "display_rating": self._display(rating_value, total_reviews),
         }
 
     def _display(self, rating: float, count: int) -> Optional[str]:
