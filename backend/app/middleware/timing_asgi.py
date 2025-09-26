@@ -9,6 +9,7 @@ import logging
 import time
 
 from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from ..core.constants import SSE_PATH_PREFIX
 
@@ -20,10 +21,10 @@ class TimingMiddlewareASGI:
     Pure ASGI middleware to measure and log request processing time.
     """
 
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI application entrypoint."""
 
         # Only handle HTTP requests
@@ -55,7 +56,7 @@ class TimingMiddlewareASGI:
         start_time = time.time()
 
         # Create a wrapper for send to add timing header
-        async def send_wrapper(message):
+        async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
                 # Calculate processing time
                 process_time = (time.time() - start_time) * 1000  # Convert to ms
