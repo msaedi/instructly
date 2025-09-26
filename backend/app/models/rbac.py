@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from .user import User
 
 
-class Role(Base):
+class Role(Base):  # type: ignore[misc]
     """
     User roles for access control.
 
@@ -63,11 +63,11 @@ class Role(Base):
         "User", secondary="user_roles", back_populates="roles"
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Role {self.name}>"
 
 
-class Permission(Base):
+class Permission(Base):  # type: ignore[misc]
     """
     System permissions for granular access control.
 
@@ -100,11 +100,11 @@ class Permission(Base):
         secondary="role_permissions", back_populates="permissions"
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Permission {self.name}>"
 
 
-class UserRole(Base):
+class UserRole(Base):  # type: ignore[misc]
     """
     Junction table for user-to-role mapping.
 
@@ -129,7 +129,7 @@ class UserRole(Base):
     )
 
 
-class RolePermission(Base):
+class RolePermission(Base):  # type: ignore[misc]
     """
     Junction table for role-to-permission mapping.
 
@@ -150,7 +150,7 @@ class RolePermission(Base):
     )
 
 
-class UserPermission(Base):
+class UserPermission(Base):  # type: ignore[misc]
     """
     Individual permission overrides for users.
 

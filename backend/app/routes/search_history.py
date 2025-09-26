@@ -7,7 +7,7 @@ with a single set of endpoints.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -344,11 +344,11 @@ async def track_interaction(
 
     try:
         # Extract interaction data
-        search_event_id = interaction_data.get("search_event_id")
-        interaction_type = interaction_data.get("interaction_type")
-        instructor_id = interaction_data.get("instructor_id")
-        result_position = interaction_data.get("result_position")
-        time_to_interaction = interaction_data.get("time_to_interaction")
+        search_event_id = cast(int | None, interaction_data.get("search_event_id"))
+        interaction_type = cast(str | None, interaction_data.get("interaction_type"))
+        instructor_id = cast(str | None, interaction_data.get("instructor_id"))
+        result_position = cast(int | None, interaction_data.get("result_position"))
+        time_to_interaction = cast(float | None, interaction_data.get("time_to_interaction"))
 
         logger.info(
             "Track interaction request",

@@ -92,7 +92,10 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             StripeCustomer if found, None otherwise
         """
         try:
-            return self.db.query(StripeCustomer).filter(StripeCustomer.user_id == user_id).first()
+            customer = (
+                self.db.query(StripeCustomer).filter(StripeCustomer.user_id == user_id).first()
+            )
+            return cast(Optional[StripeCustomer], customer)
         except Exception as e:
             self.logger.error(f"Failed to get customer by user ID: {str(e)}")
             raise RepositoryException(f"Failed to get customer by user ID: {str(e)}")
@@ -108,11 +111,12 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             StripeCustomer if found, None otherwise
         """
         try:
-            return (
+            customer = (
                 self.db.query(StripeCustomer)
                 .filter(StripeCustomer.stripe_customer_id == stripe_customer_id)
                 .first()
             )
+            return cast(Optional[StripeCustomer], customer)
         except Exception as e:
             self.logger.error(f"Failed to get customer by Stripe ID: {str(e)}")
             raise RepositoryException(f"Failed to get customer by Stripe ID: {str(e)}")
@@ -163,11 +167,12 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             StripeConnectedAccount if found, None otherwise
         """
         try:
-            return (
+            account = (
                 self.db.query(StripeConnectedAccount)
                 .filter(StripeConnectedAccount.instructor_profile_id == instructor_profile_id)
                 .first()
             )
+            return cast(Optional[StripeConnectedAccount], account)
         except Exception as e:
             self.logger.error(f"Failed to get connected account: {str(e)}")
             raise RepositoryException(f"Failed to get connected account: {str(e)}")
@@ -194,7 +199,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             if account:
                 account.onboarding_completed = completed
                 self.db.flush()
-            return account
+            return cast(Optional[StripeConnectedAccount], account)
         except Exception as e:
             self.logger.error(f"Failed to update onboarding status: {str(e)}")
             raise RepositoryException(f"Failed to update onboarding status: {str(e)}")
@@ -261,7 +266,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             if payment:
                 payment.status = status
                 self.db.flush()
-            return payment
+            return cast(Optional[PaymentIntent], payment)
         except Exception as e:
             self.logger.error(f"Failed to update payment status: {str(e)}")
             raise RepositoryException(f"Failed to update payment status: {str(e)}")
@@ -277,11 +282,12 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             PaymentIntent if found, None otherwise
         """
         try:
-            return (
+            payment = (
                 self.db.query(PaymentIntent)
                 .filter(PaymentIntent.stripe_payment_intent_id == payment_intent_id)
                 .first()
             )
+            return cast(Optional[PaymentIntent], payment)
         except Exception as e:
             self.logger.error(f"Failed to get payment by intent ID: {str(e)}")
             raise RepositoryException(f"Failed to get payment by intent ID: {str(e)}")
@@ -297,9 +303,10 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             PaymentIntent if found, None otherwise
         """
         try:
-            return (
+            payment = (
                 self.db.query(PaymentIntent).filter(PaymentIntent.booking_id == booking_id).first()
             )
+            return cast(Optional[PaymentIntent], payment)
         except Exception as e:
             self.logger.error(f"Failed to get payment by booking ID: {str(e)}")
             raise RepositoryException(f"Failed to get payment by booking ID: {str(e)}")
@@ -424,7 +431,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                     existing_method.is_default = True
                     self.db.flush()
 
-                return existing_method
+                return cast(PaymentMethod, existing_method)
             else:
                 # Create new method
                 # If setting as default, unset other defaults first
@@ -483,11 +490,12 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             Default PaymentMethod if found, None otherwise
         """
         try:
-            return (
+            method = (
                 self.db.query(PaymentMethod)
                 .filter(and_(PaymentMethod.user_id == user_id, PaymentMethod.is_default == True))
                 .first()
             )
+            return cast(Optional[PaymentMethod], method)
         except Exception as e:
             self.logger.error(f"Failed to get default payment method: {str(e)}")
             raise RepositoryException(f"Failed to get default payment method: {str(e)}")
@@ -506,7 +514,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             PaymentMethod if found, None otherwise
         """
         try:
-            return (
+            method = (
                 self.db.query(PaymentMethod)
                 .filter(
                     and_(
@@ -516,6 +524,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 )
                 .first()
             )
+            return cast(Optional[PaymentMethod], method)
         except Exception as e:
             self.logger.error(f"Failed to get payment method by Stripe ID: {str(e)}")
             raise RepositoryException(f"Failed to get payment method by Stripe ID: {str(e)}")
@@ -634,12 +643,19 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 query = query.filter(PaymentIntent.created_at <= end_date)
 
             result = query.first()
+            if result is None:
+                return {
+                    "total_amount": 0,
+                    "total_fees": 0,
+                    "payment_count": 0,
+                    "average_transaction": 0.0,
+                }
 
             return {
-                "total_amount": result.total_amount or 0,
-                "total_fees": result.total_fees or 0,
-                "payment_count": result.payment_count or 0,
-                "average_transaction": float(result.average_transaction or 0),
+                "total_amount": getattr(result, "total_amount", 0) or 0,
+                "total_fees": getattr(result, "total_fees", 0) or 0,
+                "payment_count": getattr(result, "payment_count", 0) or 0,
+                "average_transaction": float(getattr(result, "average_transaction", 0) or 0),
             }
         except Exception as e:
             self.logger.error(f"Failed to get platform revenue stats: {str(e)}")
@@ -691,12 +707,19 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 query = query.filter(PaymentIntent.created_at <= end_date)
 
             result = query.first()
+            if result is None:
+                return {
+                    "total_earned": 0,
+                    "total_fees": 0,
+                    "booking_count": 0,
+                    "average_earning": 0.0,
+                }
 
             return {
-                "total_earned": result.total_earned or 0,
-                "total_fees": result.total_fees or 0,
-                "booking_count": result.booking_count or 0,
-                "average_earning": float(result.average_earning or 0),
+                "total_earned": getattr(result, "total_earned", 0) or 0,
+                "total_fees": getattr(result, "total_fees", 0) or 0,
+                "booking_count": getattr(result, "booking_count", 0) or 0,
+                "average_earning": float(getattr(result, "average_earning", 0) or 0),
             }
         except Exception as e:
             self.logger.error(f"Failed to get instructor earnings: {str(e)}")
@@ -1062,6 +1085,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             if credit.used_at:
                 raise RepositoryException(f"Platform credit {credit_id} already used")
 
+            credit = cast(PlatformCredit, credit)
             credit.used_at = datetime.now(timezone.utc)
             credit.used_booking_id = used_booking_id
             self.db.flush()

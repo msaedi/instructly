@@ -12,6 +12,7 @@ from typing import Optional
 
 from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from ..core.config import settings
 from ..core.constants import ALLOWED_ORIGINS, CORS_ORIGIN_REGEX, SSE_PATH_PREFIX
@@ -28,12 +29,12 @@ class RateLimitMiddlewareASGI:
     by working directly with ASGI scope, receive, and send.
     """
 
-    def __init__(self, app, rate_limiter: Optional[RateLimiter] = None):
+    def __init__(self, app: ASGIApp, rate_limiter: Optional[RateLimiter] = None) -> None:
         self.app = app
         self.rate_limiter = rate_limiter or RateLimiter()
         self.general_limit = getattr(settings, "rate_limit_general_per_minute", 100)
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI application entrypoint."""
 
         # Only handle HTTP requests
@@ -45,7 +46,7 @@ class RateLimitMiddlewareASGI:
         try:
             if getattr(settings, "is_testing", False):
 
-                async def send_wrapper(message):
+                async def send_testing_wrapper(message: Message) -> None:
                     if message["type"] == "http.response.start":
                         headers = MutableHeaders(scope=message)
                         headers["X-RateLimit-Limit"] = str(self.general_limit)
@@ -53,7 +54,7 @@ class RateLimitMiddlewareASGI:
                         headers["X-RateLimit-Reset"] = str(int(time.time()) + 60)
                     await send(message)
 
-                await self.app(scope, receive, send_wrapper)
+                await self.app(scope, receive, send_testing_wrapper)
                 return
         except Exception:
             pass
@@ -109,7 +110,7 @@ class RateLimitMiddlewareASGI:
             except Exception:
                 origin_header = None
 
-            cors_headers = {}
+            cors_headers: dict[str, str] = {}
             try:
                 if origin_header:
                     origin_allowed = origin_header in ALLOWED_ORIGINS or (
@@ -169,7 +170,7 @@ class RateLimitMiddlewareASGI:
         )
 
         # Create a wrapper for send to add rate limit headers
-        async def send_wrapper(message):
+        async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
                 # Add rate limit headers
                 headers = MutableHeaders(scope=message)

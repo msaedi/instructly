@@ -328,7 +328,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
         return cast(List[ServiceCatalog], query.all())
 
-    def count_active_instructors(self, service_catalog_id: int) -> int:
+    def count_active_instructors(self, service_catalog_id: str) -> int:
         """
         Count the number of active instructors offering a specific service.
 
@@ -412,7 +412,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         Returns:
             ServiceAnalytics instance or None
         """
-        service_catalog_id = cast(int, id)
+        service_catalog_id = cast(str, id)
         return self.find_one_by(service_catalog_id=service_catalog_id)
 
     def update(self, id: Any, **kwargs: Any) -> Optional[ServiceAnalytics]:
@@ -426,7 +426,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         Returns:
             Updated ServiceAnalytics instance
         """
-        service_catalog_id = cast(int, id)
+        service_catalog_id = cast(str, id)
         entity = self.find_one_by(service_catalog_id=service_catalog_id)
         if not entity:
             return None
@@ -438,7 +438,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         self.db.refresh(entity)
         return entity
 
-    def get_or_create(self, service_catalog_id: int) -> ServiceAnalytics:
+    def get_or_create(self, service_catalog_id: str) -> ServiceAnalytics:
         """
         Get existing analytics or create new with defaults.
 
@@ -463,7 +463,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
 
         return analytics
 
-    def increment_search_count(self, service_catalog_id: int) -> None:
+    def increment_search_count(self, service_catalog_id: str) -> None:
         """
         Increment search count for a service.
 
@@ -497,7 +497,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         )
 
     def update_from_bookings(
-        self, service_catalog_id: int, booking_stats: Mapping[str, Any]
+        self, service_catalog_id: str, booking_stats: Mapping[str, Any]
     ) -> None:
         """
         Update analytics from booking statistics.
@@ -526,7 +526,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
 
         self.update(analytics.service_catalog_id, **updates)
 
-    def get_services_needing_analytics(self) -> List[int]:
+    def get_services_needing_analytics(self) -> List[str]:
         """
         Get service IDs that don't have analytics records.
 
@@ -538,7 +538,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
 
         # Find active services without analytics
         missing_rows = cast(
-            Sequence[Tuple[int]],
+            Sequence[Tuple[str]],
             (
                 self.db.query(ServiceCatalog.id)
                 .filter(ServiceCatalog.is_active == True, ~ServiceCatalog.id.in_(existing))

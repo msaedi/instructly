@@ -39,16 +39,18 @@ class ReferralCodeRepository(BaseRepository[ReferralCode]):
         super().__init__(db, ReferralCode)
 
     def get_by_code(self, code: str) -> Optional[ReferralCode]:
-        return self.db.query(ReferralCode).filter(ReferralCode.code == code.upper()).first()
+        result = self.db.query(ReferralCode).filter(ReferralCode.code == code.upper()).first()
+        return cast(Optional[ReferralCode], result)
 
     def get_by_slug(self, slug: str) -> Optional[ReferralCode]:
-        return self.db.query(ReferralCode).filter(ReferralCode.vanity_slug == slug).first()
+        result = self.db.query(ReferralCode).filter(ReferralCode.vanity_slug == slug).first()
+        return cast(Optional[ReferralCode], result)
 
     def get_by_id(self, code_id: UUID, for_update: bool = False) -> Optional[ReferralCode]:
         query = self.db.query(ReferralCode).filter(ReferralCode.id == code_id)
         if for_update:
             query = query.with_for_update()
-        return query.first()
+        return cast(Optional[ReferralCode], query.first())
 
     def get_or_create_for_user(self, user_id: str) -> ReferralCode:
         """Fetch existing active code or create a new unique code."""
@@ -63,7 +65,7 @@ class ReferralCodeRepository(BaseRepository[ReferralCode]):
             .first()
         )
         if existing:
-            return existing
+            return cast(ReferralCode, existing)
 
         attempts = 0
         while attempts < 10:
@@ -176,7 +178,7 @@ class ReferralAttributionRepository(BaseRepository[ReferralAttribution]):
         )
         if for_update:
             query = query.with_for_update()
-        return query.first()
+        return cast(Optional[ReferralAttribution], query.first())
 
     def create_if_absent(
         self,
@@ -292,7 +294,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             .first()
         )
         if reward:
-            return reward
+            return cast(ReferralReward, reward)
 
         reward = ReferralReward(
             id=uuid.uuid4(),
@@ -385,7 +387,8 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         )
         if not reward:
             raise RepositoryException(f"ReferralReward {reward_id} not found")
-        reward.status = RewardStatus.UNLOCKED
+        typed_reward = cast(ReferralReward, reward)
+        typed_reward.status = RewardStatus.UNLOCKED
         self.db.flush()
 
     def mark_void(self, reward_id: UUID) -> None:
@@ -396,7 +399,8 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             .first()
         )
         if reward:
-            reward.status = RewardStatus.VOID
+            typed_reward = cast(ReferralReward, reward)
+            typed_reward.status = RewardStatus.VOID
             self.db.flush()
 
     def void_rewards(self, reward_ids: List[UUID]) -> None:
@@ -424,7 +428,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             .first()
         )
         if reward and reward.amount_cents > 0 and max_cents > 0:
-            return reward
+            return cast(ReferralReward, reward)
         return None
 
     def pop_oldest_unlocked_instructor_reward(self, user_id: str) -> Optional[ReferralReward]:
@@ -439,7 +443,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             .with_for_update()
             .first()
         )
-        return reward
+        return cast(Optional[ReferralReward], reward)
 
     def mark_redeemed(self, reward_id: UUID) -> None:
         reward = (
@@ -450,7 +454,8 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         )
         if not reward:
             raise RepositoryException(f"ReferralReward {reward_id} not found")
-        reward.status = RewardStatus.REDEEMED
+        typed_reward = cast(ReferralReward, reward)
+        typed_reward.status = RewardStatus.REDEEMED
         self.db.flush()
 
     def _expired_rewards(self, now: datetime, *, lock: bool) -> List[ReferralReward]:

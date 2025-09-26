@@ -299,8 +299,8 @@ class InstructorService(BaseService):
             self.user_repository.update(user.id, role=RoleName.INSTRUCTOR)
 
             # Load user for response
-            user = self.user_repository.get_by_id(user.id)
-            profile.user = user
+            refreshed_user = self.user_repository.get_by_id(user.id)
+            profile.user = refreshed_user or user
             profile.instructor_services = services
 
         logger.info(f"Created instructor profile for user {user.id}")
@@ -343,14 +343,14 @@ class InstructorService(BaseService):
                 if "bio" not in basic_updates and missing_bio:
                     # Generate a bio like: "John is a New York-based yoga, tennis, and painting instructor."
                     try:
-                        user = self.user_repository.get_by_id(user_id)
-                        first_name = getattr(user, "first_name", "") or ""
+                        user_record = cast("User | None", self.user_repository.get_by_id(user_id))
+                        first_name = getattr(user_record, "first_name", "") or ""
                         # Determine city from zip via geocoding
                         city = "New York"
                         try:
-                            if getattr(user, "zip_code", None):
+                            if user_record and getattr(user_record, "zip_code", None):
                                 provider = create_geocoding_provider()
-                                geocoded = anyio.run(provider.geocode, user.zip_code)
+                                geocoded = anyio.run(provider.geocode, user_record.zip_code)
                                 if geocoded and getattr(geocoded, "city", None):
                                     city = geocoded.city
                         except Exception:
@@ -360,10 +360,12 @@ class InstructorService(BaseService):
                         skill_names: List[str] = []
                         try:
                             for svc in update_data.services or []:
-                                cs = self.catalog_repository.get_by_id(svc.service_catalog_id)
-                                if cs and getattr(cs, "name", None):
+                                catalog_entry = self.catalog_repository.get_by_id(
+                                    svc.service_catalog_id
+                                )
+                                if catalog_entry and getattr(catalog_entry, "name", None):
                                     # Use lowercase for natural phrasing (e.g., 'yoga')
-                                    skill_names.append(str(cs.name).strip().lower())
+                                    skill_names.append(str(catalog_entry.name).strip().lower())
                         except Exception:
                             pass
 
@@ -452,7 +454,7 @@ class InstructorService(BaseService):
 
     # Private helper methods
 
-    def _validate_catalog_ids(self, catalog_ids: List[int]) -> None:
+    def _validate_catalog_ids(self, catalog_ids: List[str]) -> None:
         """
         Validate that all catalog IDs exist in the database.
 
@@ -463,7 +465,7 @@ class InstructorService(BaseService):
             ValidationException: If any catalog ID is invalid
         """
         # Use repository to check existence
-        valid_ids = set()
+        valid_ids: Set[str] = set()
         for catalog_id in catalog_ids:
             if self.catalog_repository.exists(id=catalog_id, is_active=True):
                 valid_ids.add(catalog_id)
@@ -497,7 +499,7 @@ class InstructorService(BaseService):
         }
 
         # Track which services are in the update
-        updated_catalog_ids: Set[int] = set()
+        updated_catalog_ids: Set[str] = set()
 
         # Process updates and new services
         for service_data in services_data:

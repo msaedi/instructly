@@ -39,7 +39,7 @@ def get_redis_client() -> redis.Redis:
     return redis.from_url(redis_url, decode_responses=True)
 
 
-@router.get("/health", response_model=RedisHealthResponse)  # type: ignore[misc]
+@router.get("/health", response_model=RedisHealthResponse)
 async def redis_health() -> RedisHealthResponse:
     """
     Check Redis connection health.
@@ -56,7 +56,7 @@ async def redis_health() -> RedisHealthResponse:
         return RedisHealthResponse(status="unhealthy", connected=False, error=str(e))
 
 
-@router.get("/test", response_model=RedisTestResponse)  # type: ignore[misc]
+@router.get("/test", response_model=RedisTestResponse)
 async def redis_test() -> RedisTestResponse:
     """
     Simple Redis connection test endpoint.
@@ -93,7 +93,7 @@ async def redis_test() -> RedisTestResponse:
         )
 
 
-@router.get("/stats", response_model=RedisStatsResponse)  # type: ignore[misc]
+@router.get("/stats", response_model=RedisStatsResponse)
 async def redis_stats(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> RedisStatsResponse:
@@ -172,7 +172,7 @@ async def redis_stats(
         )
 
 
-@router.get("/celery-queues", response_model=RedisCeleryQueuesResponse)  # type: ignore[misc]
+@router.get("/celery-queues", response_model=RedisCeleryQueuesResponse)
 async def celery_queue_status(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> RedisCeleryQueuesResponse:
@@ -230,7 +230,7 @@ def _get_celery_queue_lengths(client: redis.Redis) -> Dict[str, int]:
     return queue_lengths
 
 
-@router.get("/connection-audit", response_model=RedisConnectionAuditResponse)  # type: ignore[misc]
+@router.get("/connection-audit", response_model=RedisConnectionAuditResponse)
 async def redis_connection_audit(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> RedisConnectionAuditResponse:
@@ -329,7 +329,7 @@ async def redis_connection_audit(
         )
 
 
-@router.delete("/flush-queues", response_model=RedisFlushQueuesResponse)  # type: ignore[misc]
+@router.delete("/flush-queues", response_model=RedisFlushQueuesResponse)
 async def flush_celery_queues(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> RedisFlushQueuesResponse:

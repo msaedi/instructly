@@ -26,6 +26,14 @@ if TYPE_CHECKING:
     from .message_repository import MessageRepository
     from .payment_repository import PaymentRepository
     from .rbac_repository import RBACRepository
+    from .referral_repository import (
+        ReferralAttributionRepository,
+        ReferralClickRepository,
+        ReferralCodeRepository,
+        ReferralLimitRepository,
+        ReferralRewardRepository,
+        WalletTransactionRepository,
+    )
     from .search_event_repository import SearchEventRepository
     from .search_history_repository import SearchHistoryRepository
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
@@ -208,42 +216,42 @@ class RepositoryFactory:
         return MessageRepository(db)
 
     @staticmethod
-    def create_referral_code_repository(db: Session):
+    def create_referral_code_repository(db: Session) -> "ReferralCodeRepository":
         """Create repository for referral codes."""
         from .referral_repository import ReferralCodeRepository
 
         return ReferralCodeRepository(db)
 
     @staticmethod
-    def create_referral_click_repository(db: Session):
+    def create_referral_click_repository(db: Session) -> "ReferralClickRepository":
         """Create repository for referral clicks."""
         from .referral_repository import ReferralClickRepository
 
         return ReferralClickRepository(db)
 
     @staticmethod
-    def create_referral_attribution_repository(db: Session):
+    def create_referral_attribution_repository(db: Session) -> "ReferralAttributionRepository":
         """Create repository for referral attributions."""
         from .referral_repository import ReferralAttributionRepository
 
         return ReferralAttributionRepository(db)
 
     @staticmethod
-    def create_referral_reward_repository(db: Session):
+    def create_referral_reward_repository(db: Session) -> "ReferralRewardRepository":
         """Create repository for referral rewards."""
         from .referral_repository import ReferralRewardRepository
 
         return ReferralRewardRepository(db)
 
     @staticmethod
-    def create_wallet_transaction_repository(db: Session):
+    def create_wallet_transaction_repository(db: Session) -> "WalletTransactionRepository":
         """Create repository for referral wallet transactions."""
         from .referral_repository import WalletTransactionRepository
 
         return WalletTransactionRepository(db)
 
     @staticmethod
-    def create_referral_limit_repository(db: Session):
+    def create_referral_limit_repository(db: Session) -> "ReferralLimitRepository":
         """Create repository for referral limits (placeholder)."""
         from .referral_repository import ReferralLimitRepository
 

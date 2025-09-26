@@ -64,7 +64,7 @@ class WalletTransactionType(str, Enum):
     FEE_REBATE = "fee_rebate"
 
 
-class ReferralCode(Base):
+class ReferralCode(Base):  # type: ignore[misc]
     """Referral code assigned to a referrer."""
 
     __tablename__ = "referral_codes"
@@ -112,7 +112,7 @@ class ReferralCode(Base):
         )
 
 
-class ReferralClick(Base):
+class ReferralClick(Base):  # type: ignore[misc]
     """Click tracking for referral links."""
 
     __tablename__ = "referral_clicks"
@@ -147,7 +147,7 @@ class ReferralClick(Base):
         return f"<ReferralClick code_id={self.code_id} channel={self.channel}>"
 
 
-class ReferralAttribution(Base):
+class ReferralAttribution(Base):  # type: ignore[misc]
     """Association between a referral code and a newly referred user."""
 
     __tablename__ = "referral_attributions"
@@ -177,7 +177,7 @@ class ReferralAttribution(Base):
         return f"<ReferralAttribution code_id={self.code_id} referred_user={self.referred_user_id}>"
 
 
-class ReferralReward(Base):
+class ReferralReward(Base):  # type: ignore[misc]
     """Reward entries created for referral activity."""
 
     __tablename__ = "referral_rewards"
@@ -256,7 +256,7 @@ class ReferralReward(Base):
         )
 
 
-class WalletTransaction(Base):
+class WalletTransaction(Base):  # type: ignore[misc]
     """Wallet ledger entries related to referral rewards."""
 
     __tablename__ = "wallet_transactions"
@@ -308,7 +308,7 @@ class WalletTransaction(Base):
         )
 
 
-class ReferralLimit(Base):
+class ReferralLimit(Base):  # type: ignore[misc]
     """Soft limits and trust metrics for a referrer."""
 
     __tablename__ = "referral_limits"

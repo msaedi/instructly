@@ -127,13 +127,16 @@ class SearchHistoryService(BaseService):
             _now = datetime.now(timezone.utc)
 
             # Use repository for atomic UPSERT operation
-            result = self.repository.upsert_search(
-                user_id=context.user_id,
-                guest_session_id=context.guest_session_id,
-                search_query=query,
-                normalized_query=normalized_query,
-                search_type=search_data.get("search_type", "natural_language"),
-                results_count=search_data.get("results_count"),
+            result = cast(
+                SearchHistory,
+                self.repository.upsert_search(
+                    user_id=context.user_id,
+                    guest_session_id=context.guest_session_id,
+                    search_query=query,
+                    normalized_query=normalized_query,
+                    search_type=search_data.get("search_type", "natural_language"),
+                    results_count=search_data.get("results_count"),
+                ),
             )
 
             # Log what happened

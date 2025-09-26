@@ -13,6 +13,31 @@ class RateLimitKeyType:
     ENDPOINT: Any
     COMPOSITE: Any
 
+
+class RateLimiter:
+    def __init__(self, cache_service: Any | None = ...) -> None: ...
+
+    def check_rate_limit(
+        self,
+        identifier: str,
+        limit: int,
+        window_seconds: int,
+        window_name: str | None = ...,
+    ) -> tuple[bool, int, int]: ...
+
+    def reset_limit(self, identifier: str, window_name: str) -> bool: ...
+
+    def get_remaining_requests(
+        self,
+        identifier: str,
+        limit: int,
+        window_seconds: int,
+        window_name: str | None = ...,
+    ) -> int: ...
+
+    @staticmethod
+    def get_rate_limit_stats() -> dict[str, Any]: ...
+
 @overload
 def rate_limit(func: Callable[P, R]) -> Callable[P, R]: ...
 @overload

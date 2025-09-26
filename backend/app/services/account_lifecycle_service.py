@@ -12,7 +12,7 @@ Students cannot change their account status - they are always active.
 """
 
 import logging
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -73,7 +73,7 @@ class AccountLifecycleService(BaseService):
         return len(future_bookings) > 0, future_bookings
 
     @BaseService.measure_operation("suspend_account")
-    def suspend_instructor_account(self, instructor: User) -> Dict[str, any]:
+    def suspend_instructor_account(self, instructor: User) -> Dict[str, Any]:
         """
         Suspend an instructor account.
 
@@ -122,7 +122,7 @@ class AccountLifecycleService(BaseService):
         }
 
     @BaseService.measure_operation("deactivate_account")
-    def deactivate_instructor_account(self, instructor: User) -> Dict[str, any]:
+    def deactivate_instructor_account(self, instructor: User) -> Dict[str, Any]:
         """
         Permanently deactivate an instructor account.
 
@@ -173,7 +173,7 @@ class AccountLifecycleService(BaseService):
         }
 
     @BaseService.measure_operation("reactivate_account")
-    def reactivate_instructor_account(self, instructor: User) -> Dict[str, any]:
+    def reactivate_instructor_account(self, instructor: User) -> Dict[str, Any]:
         """
         Reactivate a suspended or deactivated instructor account.
 
@@ -219,7 +219,7 @@ class AccountLifecycleService(BaseService):
         }
 
     @BaseService.measure_operation("get_account_status")
-    def get_account_status(self, user: User) -> Dict[str, any]:
+    def get_account_status(self, user: User) -> Dict[str, Any]:
         """
         Get the current account status and related information.
 

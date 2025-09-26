@@ -7,7 +7,7 @@ payment intents, payment methods, payment events, and platform credits.
 """
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSON
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class StripeCustomer(Base):
+class StripeCustomer(Base):  # type: ignore[misc]
     """Maps users to their Stripe customer IDs."""
 
     __tablename__ = "stripe_customers"
@@ -48,7 +48,7 @@ class StripeCustomer(Base):
         return f"<StripeCustomer(user_id={self.user_id}, stripe_id={self.stripe_customer_id})>"
 
 
-class StripeConnectedAccount(Base):
+class StripeConnectedAccount(Base):  # type: ignore[misc]
     """Instructor Stripe Connect accounts for receiving payments."""
 
     __tablename__ = "stripe_connected_accounts"
@@ -77,7 +77,7 @@ class StripeConnectedAccount(Base):
         return f"<StripeConnectedAccount(instructor_id={self.instructor_profile_id}, completed={self.onboarding_completed})>"
 
 
-class PaymentIntent(Base):
+class PaymentIntent(Base):  # type: ignore[misc]
     """Stripe payment intents for booking payments."""
 
     __tablename__ = "payment_intents"
@@ -108,7 +108,7 @@ class PaymentIntent(Base):
         return f"<PaymentIntent(booking_id={self.booking_id}, amount={self.amount}, status={self.status})>"
 
 
-class PaymentMethod(Base):
+class PaymentMethod(Base):  # type: ignore[misc]
     """User payment methods (cards)."""
 
     __tablename__ = "payment_methods"
@@ -137,7 +137,7 @@ class PaymentMethod(Base):
         return f"<PaymentMethod(user_id={self.user_id}, last4={self.last4}, default={self.is_default})>"
 
 
-class PaymentEvent(Base):
+class PaymentEvent(Base):  # type: ignore[misc]
     """Track all payment state changes for bookings."""
 
     __tablename__ = "payment_events"
@@ -168,7 +168,7 @@ class PaymentEvent(Base):
         return f"<PaymentEvent(booking_id={self.booking_id}, type={self.event_type})>"
 
 
-class PlatformCredit(Base):
+class PlatformCredit(Base):  # type: ignore[misc]
     """Platform credits for 12-24 hour cancellations."""
 
     __tablename__ = "platform_credits"
@@ -216,9 +216,12 @@ class PlatformCredit(Base):
         if not self.expires_at:
             return False
         # Always compare using timezone-aware UTC now to avoid naive/aware mismatches
-        if self.expires_at.tzinfo is None:
-            return datetime.now(timezone.utc) > self.expires_at.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc).astimezone(self.expires_at.tzinfo) > self.expires_at
+        expires_at = cast(datetime, self.expires_at)
+        if expires_at.tzinfo is None:
+            normalized = expires_at.replace(tzinfo=timezone.utc)
+            return datetime.now(timezone.utc) > normalized
+        current = datetime.now(timezone.utc).astimezone(expires_at.tzinfo)
+        return current > expires_at
 
     @property
     def is_available(self) -> bool:
@@ -229,7 +232,7 @@ class PlatformCredit(Base):
         return f"<PlatformCredit(user_id={self.user_id}, amount={self.amount_cents}, available={self.is_available})>"
 
 
-class InstructorPayoutEvent(Base):
+class InstructorPayoutEvent(Base):  # type: ignore[misc]
     """Persist payout-related events per instructor for analytics/auditing."""
 
     __tablename__ = "instructor_payout_events"

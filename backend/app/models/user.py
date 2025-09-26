@@ -12,7 +12,7 @@ Classes:
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # UserRole enum removed - now using RBAC system with roles table
 
 
-class User(Base):
+class User(Base):  # type: ignore[misc]
     """
     Main user model for authentication and profile management.
 
@@ -200,69 +200,88 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize a new user and log the creation."""
         super().__init__(**kwargs)
         logger.info(
             f"Creating new {kwargs.get('role', 'unknown')} user with email: {kwargs.get('email', 'unknown')}"
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """String representation of the User object."""
         role_names = [role.name for role in self.roles] if self.roles else ["no roles"]
         return f"<User {self.email} ({', '.join(role_names)})>"
 
     @property
-    def role(self):
+    def role(self) -> Optional[str]:
         """Get primary role name for backward compatibility."""
         return self.roles[0].name if self.roles else None
 
     @property
-    def is_instructor(self):
+    def is_instructor(self) -> bool:
         """Check if user has instructor role."""
         from app.core.enums import RoleName
 
-        return any(role.name == RoleName.INSTRUCTOR for role in self.roles)
+        roles = cast(list[Any], getattr(self, "roles", []) or [])
+        for role in roles:
+            role_name = cast(str, getattr(role, "name", ""))
+            if role_name == RoleName.INSTRUCTOR:
+                return True
+        return False
 
     @property
-    def is_student(self):
+    def is_student(self) -> bool:
         """Check if user has student role."""
         from app.core.enums import RoleName
 
-        return any(role.name == RoleName.STUDENT for role in self.roles)
+        roles = cast(list[Any], getattr(self, "roles", []) or [])
+        for role in roles:
+            role_name = cast(str, getattr(role, "name", ""))
+            if role_name == RoleName.STUDENT:
+                return True
+        return False
 
     @property
-    def is_admin(self):
+    def is_admin(self) -> bool:
         """Check if the user has admin role."""
         from app.core.enums import RoleName
 
-        return any(role.name == RoleName.ADMIN for role in self.roles)
+        roles = cast(list[Any], getattr(self, "roles", []) or [])
+        for role in roles:
+            role_name = cast(str, getattr(role, "name", ""))
+            if role_name == RoleName.ADMIN:
+                return True
+        return False
 
     # Account status helper properties
     @property
-    def is_account_active(self):
+    def is_account_active(self) -> bool:
         """Check if the account is in active status."""
-        return self.account_status == "active"
+        status = cast(str, getattr(self, "account_status", ""))
+        return status == "active"
 
     @property
-    def is_suspended(self):
+    def is_suspended(self) -> bool:
         """Check if the account is suspended."""
-        return self.account_status == "suspended"
+        status = cast(str, getattr(self, "account_status", ""))
+        return status == "suspended"
 
     @property
-    def is_deactivated(self):
+    def is_deactivated(self) -> bool:
         """Check if the account is deactivated."""
-        return self.account_status == "deactivated"
+        status = cast(str, getattr(self, "account_status", ""))
+        return status == "deactivated"
 
     @property
-    def can_receive_bookings(self):
+    def can_receive_bookings(self) -> bool:
         """Check if the user can receive bookings (active instructors only)."""
         return self.is_account_active and self.is_instructor
 
     @property
-    def can_login(self):
+    def can_login(self) -> bool:
         """Check if the user can login (active or suspended, but not deactivated)."""
-        return self.account_status in ["active", "suspended"]
+        status = cast(str, getattr(self, "account_status", ""))
+        return status in {"active", "suspended"}
 
     @property
     def has_profile_picture(self) -> bool:

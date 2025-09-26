@@ -1,19 +1,19 @@
-from typing import Any, Generator, TypeVar
+from typing import Generator
 
-from sqlalchemy.orm import Session
-
-
-Base: Any
+from sqlalchemy.orm import DeclarativeMeta, Session
 
 
-class _SessionLocal:
+class Base(metaclass=DeclarativeMeta): ...
+
+
+class _SessionFactory:
     def __call__(self) -> Session: ...
 
 
-SessionLocal: _SessionLocal
+SessionLocal: _SessionFactory
 
 
 def get_db() -> Generator[Session, None, None]: ...
 
 
-def get_db_pool_status() -> dict[str, Any]: ...
+def get_db_pool_status() -> dict[str, int]: ...

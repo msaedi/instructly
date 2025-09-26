@@ -502,7 +502,7 @@ class CacheService(BaseService):
 
     @BaseService.measure_operation("cache_week_availability")
     def cache_week_availability(
-        self, instructor_id: int, week_start: date, availability_data: Dict[str, Any]
+        self, instructor_id: str, week_start: date, availability_data: Dict[str, Any]
     ) -> bool:
         """Cache week availability with smart TTL."""
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
@@ -517,7 +517,7 @@ class CacheService(BaseService):
 
     @BaseService.measure_operation("get_week_availability")
     def get_week_availability(
-        self, instructor_id: int, week_start: date
+        self, instructor_id: str, week_start: date
     ) -> Optional[Dict[str, Any]]:
         """Get cached week availability."""
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
@@ -534,7 +534,7 @@ class CacheService(BaseService):
     @BaseService.measure_operation("cache_instructor_availability_date_range")
     def cache_instructor_availability_date_range(
         self,
-        instructor_id: int,
+        instructor_id: str,
         start_date: date,
         end_date: date,
         availability_data: List[Dict[str, Any]],
@@ -552,7 +552,7 @@ class CacheService(BaseService):
 
     @BaseService.measure_operation("get_instructor_availability_date_range")
     def get_instructor_availability_date_range(
-        self, instructor_id: int, start_date: date, end_date: date
+        self, instructor_id: str, start_date: date, end_date: date
     ) -> Optional[List[Dict[str, Any]]]:
         """Get cached instructor availability for date range."""
         key = self.key_builder.build("availability", "range", instructor_id, start_date, end_date)
@@ -568,7 +568,7 @@ class CacheService(BaseService):
 
     @BaseService.measure_operation("cache_instructor_weekly_availability")
     def cache_instructor_weekly_availability(
-        self, instructor_id: int, weekly_data: Dict[str, List[Dict[str, Any]]]
+        self, instructor_id: str, weekly_data: Dict[str, List[Dict[str, Any]]]
     ) -> bool:
         """Cache instructor's weekly availability pattern with 5-minute TTL."""
         key = self.key_builder.build("availability", "weekly", instructor_id)
@@ -576,7 +576,7 @@ class CacheService(BaseService):
 
     @BaseService.measure_operation("get_instructor_weekly_availability")
     def get_instructor_weekly_availability(
-        self, instructor_id: int
+        self, instructor_id: str
     ) -> Optional[Dict[str, List[Dict[str, Any]]]]:
         """Get cached instructor weekly availability pattern."""
         key = self.key_builder.build("availability", "weekly", instructor_id)
@@ -652,7 +652,7 @@ class CacheService(BaseService):
     @BaseService.measure_operation("cache_booking_conflicts")
     def cache_booking_conflicts(
         self,
-        instructor_id: int,
+        instructor_id: str,
         check_date: date,
         start_time: time,
         end_time: time,
@@ -674,7 +674,7 @@ class CacheService(BaseService):
     # Cache Warming
 
     @BaseService.measure_operation("warm_instructor_cache")
-    async def warm_instructor_cache(self, instructor_id: int, weeks_ahead: int = 4) -> int:
+    async def warm_instructor_cache(self, instructor_id: str, weeks_ahead: int = 4) -> int:
         """Pre-populate cache for an instructor's upcoming weeks."""
         from ..services.availability_service import AvailabilityService
 

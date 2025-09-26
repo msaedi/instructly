@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, Dict, Optional
 
+from celery import Task
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -19,12 +20,12 @@ from app.tasks.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(
+@celery_app.task(  # type: ignore[misc]
     name="app.tasks.search_analytics.process_search_event",
     bind=True,
     max_retries=3,
 )
-def process_search_event(self, event_id: int) -> Dict[str, Any]:
+def process_search_event(self: Task, event_id: int) -> Dict[str, Any]:
     """
     Process a single search event asynchronously.
 
@@ -75,11 +76,11 @@ def process_search_event(self, event_id: int) -> Dict[str, Any]:
             db.close()
 
 
-@celery_app.task(
+@celery_app.task(  # type: ignore[misc]
     name="app.tasks.search_analytics.calculate_search_metrics",
     bind=True,
 )
-def calculate_search_metrics(self, hours_back: int = 24) -> Dict[str, Any]:
+def calculate_search_metrics(self: Task, hours_back: int = 24) -> Dict[str, Any]:
     """
     Calculate aggregate search metrics for the specified time period.
 
@@ -143,11 +144,11 @@ def calculate_search_metrics(self, hours_back: int = 24) -> Dict[str, Any]:
             db.close()
 
 
-@celery_app.task(
+@celery_app.task(  # type: ignore[misc]
     name="app.tasks.search_analytics.generate_search_insights",
     bind=True,
 )
-def generate_search_insights(self, days_back: int = 7) -> Dict[str, Any]:
+def generate_search_insights(self: Task, days_back: int = 7) -> Dict[str, Any]:
     """
     Generate insights from search behavior patterns.
 

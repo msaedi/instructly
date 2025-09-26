@@ -223,9 +223,11 @@ class BookingService(BaseService):
             if rescheduled_from_booking_id:
                 try:
                     # Use repository to persist linkage (repository handles flush within transaction)
-                    booking = self.repository.update(
+                    updated_booking = self.repository.update(
                         booking.id, rescheduled_from_booking_id=rescheduled_from_booking_id
                     )
+                    if updated_booking is not None:
+                        booking = updated_booking
                 except Exception:
                     # Non-fatal; linkage is analytics-only
                     pass
@@ -644,8 +646,10 @@ class BookingService(BaseService):
         Returns:
             List of bookings
         """
-        if any(role.name == RoleName.STUDENT for role in user.roles):
-            return self.repository.get_student_bookings(
+        roles = cast(list[Any], getattr(user, "roles", []) or [])
+        is_student = any(cast(str, getattr(role, "name", "")) == RoleName.STUDENT for role in roles)
+        if is_student:
+            student_bookings: List[Booking] = self.repository.get_student_bookings(
                 student_id=user.id,
                 status=status,
                 upcoming_only=upcoming_only,
@@ -653,8 +657,9 @@ class BookingService(BaseService):
                 include_past_confirmed=include_past_confirmed,
                 limit=limit,
             )
+            return student_bookings
         else:  # INSTRUCTOR
-            return self.repository.get_instructor_bookings(
+            bookings: List[Booking] = self.repository.get_instructor_bookings(
                 instructor_id=user.id,
                 status=status,
                 upcoming_only=upcoming_only,
@@ -662,6 +667,7 @@ class BookingService(BaseService):
                 include_past_confirmed=include_past_confirmed,
                 limit=limit,
             )
+            return bookings
 
     @BaseService.measure_operation("get_booking_stats_for_instructor")
     def get_booking_stats_for_instructor(self, instructor_id: str) -> Dict[str, Any]:
@@ -784,10 +790,15 @@ class BookingService(BaseService):
                 update_dict["meeting_location"] = update_data.meeting_location
 
             if update_dict:
-                booking = self.repository.update(booking_id, **update_dict)
+                updated_booking = self.repository.update(booking_id, **update_dict)
+                if updated_booking is not None:
+                    booking = updated_booking
 
             # Reload with relationships
-            booking = self.repository.get_booking_with_details(booking_id)
+            refreshed_booking = self.repository.get_booking_with_details(booking_id)
+            if not refreshed_booking:
+                raise NotFoundException("Booking not found")
+            booking = refreshed_booking
 
         # Cache invalidation outside transaction
         self._invalidate_booking_caches(booking)
@@ -811,7 +822,11 @@ class BookingService(BaseService):
             ValidationException: If user is not instructor
             BusinessRuleException: If booking cannot be completed
         """
-        if not any(role.name == RoleName.INSTRUCTOR for role in instructor.roles):
+        instructor_roles = cast(list[Any], getattr(instructor, "roles", []) or [])
+        is_instructor = any(
+            cast(str, getattr(role, "name", "")) == RoleName.INSTRUCTOR for role in instructor_roles
+        )
+        if not is_instructor:
             raise ValidationException("Only instructors can mark bookings as complete")
 
         with self.transaction():
@@ -830,14 +845,19 @@ class BookingService(BaseService):
                 )
 
             # Mark as complete using repository method
-            booking = self.repository.complete_booking(booking_id)
+            completed_booking = self.repository.complete_booking(booking_id)
+            if completed_booking is None:
+                raise NotFoundException("Booking not found")
+            booking = completed_booking
 
         # External operations outside transaction
         # Reload booking with details for cache invalidation
-        booking = self.repository.get_booking_with_details(booking_id)
-        self._invalidate_booking_caches(booking)
+        refreshed_booking = self.repository.get_booking_with_details(booking_id)
+        if refreshed_booking is None:
+            raise NotFoundException("Booking not found")
+        self._invalidate_booking_caches(refreshed_booking)
 
-        return booking
+        return refreshed_booking
 
     @BaseService.measure_operation("check_availability")
     async def check_availability(
@@ -881,18 +901,22 @@ class BookingService(BaseService):
 
         # Get instructor profile
         instructor_profile = self.conflict_checker_repository.get_instructor_profile(instructor_id)
+        if instructor_profile is None:
+            return {
+                "available": False,
+                "reason": "Instructor profile not found",
+            }
 
         # Check minimum advance booking
         booking_datetime = datetime.combine(booking_date, start_time, tzinfo=timezone.utc)
-        min_booking_time = datetime.now(timezone.utc) + timedelta(
-            hours=instructor_profile.min_advance_booking_hours
-        )
+        min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0)
+        min_booking_time = datetime.now(timezone.utc) + timedelta(hours=min_advance_hours)
 
         if booking_datetime < min_booking_time:
             return {
                 "available": False,
-                "reason": f"Must book at least {instructor_profile.min_advance_booking_hours} hours in advance",
-                "min_advance_hours": instructor_profile.min_advance_booking_hours,
+                "reason": f"Must book at least {min_advance_hours} hours in advance",
+                "min_advance_hours": min_advance_hours,
             }
 
         return {
@@ -1049,6 +1073,9 @@ class BookingService(BaseService):
             BusinessRuleException: If business rules violated
         """
         # Check for instructor time conflicts
+        if booking_data.end_time is None:
+            raise ValidationException("End time must be specified before conflict checks")
+
         existing_conflicts = self.repository.check_time_conflict(
             instructor_id=booking_data.instructor_id,
             booking_date=booking_data.booking_date,
@@ -1184,9 +1211,9 @@ class BookingService(BaseService):
         Returns:
             List of availability slots
         """
-        availability_slots = self.availability_repository.get_slots_by_date(
-            instructor_id, target_date
-        )
+        availability_slots: List[
+            "AvailabilitySlot"
+        ] = self.availability_repository.get_slots_by_date(instructor_id, target_date)
 
         # Filter slots within time range
         return [
@@ -1214,12 +1241,13 @@ class BookingService(BaseService):
         Returns:
             List of existing bookings
         """
-        return self.repository.get_bookings_by_time_range(
+        bookings: List[Booking] = self.repository.get_bookings_by_time_range(
             instructor_id=instructor_id,
             booking_date=target_date,
             start_time=earliest_time,
             end_time=latest_time,
         )
+        return bookings
 
     def _calculate_booking_opportunities(
         self,
@@ -1290,7 +1318,7 @@ class BookingService(BaseService):
         Returns:
             List of opportunities in this slot
         """
-        opportunities = []
+        opportunities: List[Dict[str, Any]] = []
         current_time = slot_start
 
         while current_time < slot_end:
@@ -1344,7 +1372,7 @@ class BookingService(BaseService):
         user_tz = get_user_timezone(user)
         booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
         # Make the booking datetime timezone-aware in user's timezone
-        booking_datetime_aware = user_tz.localize(booking_datetime)
+        booking_datetime_aware = cast(Any, user_tz).localize(booking_datetime)
         cancellation_deadline = booking_datetime_aware - timedelta(hours=2)
 
         # Compare with current time in user's timezone
