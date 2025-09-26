@@ -79,7 +79,7 @@ def test_dev_beta_aliases_receive_cors_headers(client, db, test_password, origin
             "Origin": origin,
             "Content-Type": "application/x-www-form-urlencoded",
         },
-        data=f"username={email}&password={test_password}",
+        content=f"username={email}&password={test_password}",
     )
 
     assert response.status_code == 200
