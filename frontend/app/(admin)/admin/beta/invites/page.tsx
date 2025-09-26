@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { withApiBase } from '@/lib/apiBase';
+import { copyToClipboard } from '@/lib/copy';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import * as Tooltip from '@radix-ui/react-tooltip';
@@ -228,7 +229,7 @@ export default function BetaInvitesAdminPage() {
                       <Tooltip.Provider>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
-                            <button onClick={() => { void navigator.clipboard.writeText(result.code); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
+                            <button onClick={() => { void copyToClipboard(result.code); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
                           </Tooltip.Trigger>
                           <Tooltip.Portal>
                             <Tooltip.Content side="left" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Copy code</Tooltip.Content>
@@ -236,13 +237,13 @@ export default function BetaInvitesAdminPage() {
                         </Tooltip.Root>
                       </Tooltip.Provider>
                     </div>
-                    <div className="grid grid-cols-[110px_1fr_auto] items-center gap-2">
-                      <div className="text-gray-600 dark:text-gray-400">Join URL:</div>
+                    <div className="grid grid-cols-[150px_1fr_auto] items-center gap-2">
+                      <div className="text-gray-600 dark:text-gray-400">User link (canonical):</div>
                       <a className="truncate text-indigo-600 hover:underline" href={result.join_url} target="_blank" rel="noreferrer">{result.join_url}</a>
                       <Tooltip.Provider>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
-                            <button onClick={() => { void navigator.clipboard.writeText(result.join_url); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
+                            <button onClick={() => { void copyToClipboard(result.join_url); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
                           </Tooltip.Trigger>
                           <Tooltip.Portal>
                             <Tooltip.Content side="left" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Copy join URL</Tooltip.Content>
@@ -250,13 +251,13 @@ export default function BetaInvitesAdminPage() {
                         </Tooltip.Root>
                       </Tooltip.Provider>
                     </div>
-                    <div className="grid grid-cols-[110px_1fr_auto] items-center gap-2">
-                      <div className="text-gray-600 dark:text-gray-400">Welcome URL:</div>
+                    <div className="grid grid-cols-[150px_1fr_auto] items-center gap-2">
+                      <div className="text-gray-600 dark:text-gray-400">Resume link (support):</div>
                       <a className="truncate text-indigo-600 hover:underline" href={result.welcome_url} target="_blank" rel="noreferrer">{result.welcome_url}</a>
                       <Tooltip.Provider>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
-                            <button onClick={() => { void navigator.clipboard.writeText(result.welcome_url); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
+                            <button onClick={() => { void copyToClipboard(result.welcome_url); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
                           </Tooltip.Trigger>
                           <Tooltip.Portal>
                             <Tooltip.Content side="left" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Copy welcome URL</Tooltip.Content>
@@ -363,8 +364,8 @@ export default function BetaInvitesAdminPage() {
                                     <div key={it.id} className="flex items-center justify-between gap-2">
                                       <div className="truncate">{it.email} — <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">{it.code}</code></div>
                                       <div className="flex gap-1">
-                                        <button onClick={() => { void navigator.clipboard.writeText(it.code); }} className="px-1 py-0.5 rounded ring-1 ring-gray-300 dark:ring-gray-700">Copy code</button>
-                                        <button onClick={() => { void navigator.clipboard.writeText(it.join_url); }} className="px-1 py-0.5 rounded ring-1 ring-gray-300 dark:ring-gray-700">Copy join</button>
+                                        <button onClick={() => { void copyToClipboard(it.code); }} className="px-1 py-0.5 rounded ring-1 ring-gray-300 dark:ring-gray-700">Copy code</button>
+                                        <button onClick={() => { void copyToClipboard(it.join_url); }} className="px-1 py-0.5 rounded ring-1 ring-gray-300 dark:ring-gray-700">Copy user link</button>
                                       </div>
                                     </div>
                                   ))}

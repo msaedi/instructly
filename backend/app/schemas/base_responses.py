@@ -13,6 +13,12 @@ from pydantic import BaseModel, ConfigDict, Field
 T = TypeVar("T")
 
 
+class EmptyResponse(BaseModel):
+    """Empty response body placeholder (use with 204 No Content)."""
+
+    model_config = ConfigDict(json_schema_extra={"example": {}})
+
+
 class PaginatedResponse(BaseModel, Generic[T]):
     """
     Standard paginated response for all list endpoints.

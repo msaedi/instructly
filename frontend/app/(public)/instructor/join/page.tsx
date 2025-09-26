@@ -1,17 +1,22 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { BRAND } from '@/app/config/brand';
-
-const API_BASE_URL = process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000';
+import { validateInviteCode } from '@/app/(public)/instructor/join/validateInvite';
 
 function JoinInner() {
   const params = useSearchParams();
+  const router = useRouter();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const inFlightRef = useRef(false);
+  const prefilledRef = useRef(false);
 
   useEffect(() => {
+    if (prefilledRef.current) return;
+    prefilledRef.current = true;
     // Prefill from query param if present; fall back to sessionStorage
     const qp = (params.get('invite_code') || '').trim();
     if (qp) {
@@ -20,11 +25,11 @@ function JoinInner() {
       try { sessionStorage.setItem('invite_code', up); } catch {}
     } else {
       const stored = typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') : null;
-      if (stored && !code) setCode(stored);
+      if (stored) {
+        setCode((prev) => (prev ? prev : stored));
+      }
     }
-  }, [code, params]);
-
-  const [validating, setValidating] = useState(false);
+  }, [params]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,25 +38,29 @@ function JoinInner() {
       setError('Invalid or expired code');
       return;
     }
+    if (inFlightRef.current) return;
     // Call backend to validate
-    setValidating(true);
+    inFlightRef.current = true;
+    setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/beta/invites/validate?code=${encodeURIComponent(trimmed)}`);
-      const data = await res.json();
+      setError(null);
+      const { data, trimmed: resolvedCode } = await validateInviteCode(code, params.get('email'));
       if (!data.valid) {
         setError(data.reason || 'Invalid or expired code');
-        setValidating(false);
         return;
       }
-      try { sessionStorage.setItem('invite_code', trimmed); } catch {}
-      const next = new URL(window.location.origin + '/instructor/welcome');
-      next.searchParams.set('invite_code', trimmed);
+      try { sessionStorage.setItem('invite_code', resolvedCode); } catch {}
+      const next = new URL('/instructor/welcome', window.location.origin);
+      next.searchParams.set('invite_code', resolvedCode);
       const prefill = params.get('email') || data.email;
       if (prefill) next.searchParams.set('email', prefill);
-      window.location.href = next.toString();
-    } catch {
-      setError('Unable to validate code. Please try again.');
-      setValidating(false);
+      router.replace(next.toString());
+    } catch (err: unknown) {
+      const message = err instanceof Error && err.message ? err.message : 'Unable to validate code. Please try again.';
+      setError(message);
+    } finally {
+      setSubmitting(false);
+      inFlightRef.current = false;
     }
   };
 
@@ -85,10 +94,10 @@ function JoinInner() {
             </div>
             <button
               type="submit"
-              disabled={validating}
+              disabled={submitting}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--primary)] disabled:opacity-50"
             >
-              {validating ? 'Validating…' : 'Continue'}
+              {submitting ? 'Validating…' : 'Continue'}
             </button>
           </form>
           <p className="mt-6 text-xs text-gray-500">

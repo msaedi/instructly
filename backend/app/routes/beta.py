@@ -1,6 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
-import requests
+import base64
+import hashlib
+import hmac
+import os
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from pydantic import BaseModel, ConfigDict, SecretStr
+import requests  # type: ignore[import-untyped]  # third-party stubs unavailable
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -8,6 +13,7 @@ from ..database import get_db
 from ..dependencies.permissions import require_role
 from ..monitoring.prometheus_metrics import prometheus_metrics
 from ..repositories.beta_repository import BetaSettingsRepository
+from ..schemas.base_responses import EmptyResponse
 from ..schemas.beta import (
     AccessGrantResponse,
     BetaMetricsSummaryResponse,
@@ -28,6 +34,58 @@ from ..services.beta_service import BetaService
 from ..tasks.celery_app import celery_app
 
 router = APIRouter(prefix="/api/beta", tags=["beta"])
+
+INVITE_COOKIE_TTL_SECONDS = 15 * 60
+
+
+def _invite_cookie_name() -> str:
+    site_mode = os.getenv("SITE_MODE", "").strip().lower()
+    if site_mode == "preview":
+        return "iv_preview"
+    if site_mode in {"prod", "production", "live"}:
+        return "iv_prod"
+    return "iv_local"
+
+
+def _invite_cookie_kwargs() -> dict[str, int | bool | str]:
+    site_mode = os.getenv("SITE_MODE", "").strip().lower()
+    kwargs: dict[str, int | bool | str] = {
+        "max_age": INVITE_COOKIE_TTL_SECONDS,
+        "httponly": True,
+        "samesite": "lax",
+        "path": "/",
+    }
+    if site_mode and site_mode != "local":
+        kwargs["secure"] = True
+    return kwargs
+
+
+def _secret_bytes() -> bytes:
+    secret_value = settings.secret_key
+    if isinstance(secret_value, SecretStr):
+        return secret_value.get_secret_value().encode("utf-8")
+    return str(secret_value).encode("utf-8")
+
+
+def _signature_for_payload(payload: str) -> str:
+    digest = hmac.new(_secret_bytes(), payload.encode("utf-8"), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest[:18]).decode("utf-8").rstrip("=")
+
+
+def _encode_invite_marker(code: str) -> str:
+    payload = code.upper()
+    signature = _signature_for_payload(payload)
+    return f"{payload}.{signature}"
+
+
+def _decode_invite_marker(marker: str) -> str | None:
+    if not marker or "." not in marker:
+        return None
+    payload, signature = marker.rsplit(".", 1)
+    expected = _signature_for_payload(payload)
+    if hmac.compare_digest(signature, expected):
+        return payload
+    return None
 
 
 def _fetch_prometheus_summary(
@@ -70,10 +128,19 @@ def _fetch_prometheus_summary(
 
 
 @router.get("/invites/validate", response_model=InviteValidateResponse)
-def validate_invite(code: str = Query(...), db: Session = Depends(get_db)):
+def validate_invite(
+    response_obj: Response,
+    code: str | None = Query(default=None),
+    invite_code: str | None = Query(default=None),
+    email: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> InviteValidateResponse:
+    lookup_code = (invite_code or code or "").strip()
+    if not lookup_code:
+        raise HTTPException(status_code=400, detail="invite_code_required")
     svc = BetaService(db)
-    ok, reason, invite = svc.validate_invite(code)
-    return InviteValidateResponse(
+    ok, reason, invite = svc.validate_invite(lookup_code)
+    payload = InviteValidateResponse(
         valid=ok,
         reason=reason,
         code=invite.code if invite else None,
@@ -82,14 +149,38 @@ def validate_invite(code: str = Query(...), db: Session = Depends(get_db)):
         expires_at=getattr(invite, "expires_at", None) if invite else None,
         used_at=getattr(invite, "used_at", None) if invite else None,
     )
+    cookie_name = _invite_cookie_name()
+    if ok and invite:
+        marker = _encode_invite_marker(invite.code)
+        cookie_kwargs = _invite_cookie_kwargs()
+        response_obj.set_cookie(cookie_name, marker, **cookie_kwargs)
+    else:
+        response_obj.delete_cookie(cookie_name, path="/")
+    return payload
+
+
+@router.get(
+    "/invites/verified",
+    response_model=EmptyResponse,
+    status_code=200,
+    response_class=Response,
+    responses={204: {"description": "Invite verified"}},
+)
+def verify_invite_marker(request: Request) -> Response:
+    cookie_name = _invite_cookie_name()
+    marker = request.cookies.get(cookie_name)
+    payload = _decode_invite_marker(marker or "")
+    if not payload:
+        raise HTTPException(status_code=401, detail="invite_not_verified")
+    return Response(status_code=204)
 
 
 @router.post("/invites/generate", response_model=InviteGenerateResponse)
 def generate_invites(
     payload: InviteGenerateRequest,
     db: Session = Depends(get_db),
-    admin=Depends(require_role("admin")),
-):
+    _admin: None = Depends(require_role("admin")),
+) -> InviteGenerateResponse:
     svc = BetaService(db)
     created = svc.bulk_generate(
         count=payload.count,
@@ -106,7 +197,10 @@ def generate_invites(
 
 
 @router.get("/metrics/summary", response_model=BetaMetricsSummaryResponse)
-def get_beta_metrics_summary(db: Session = Depends(get_db), admin=Depends(require_role("admin"))):
+def get_beta_metrics_summary(
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_role("admin")),
+) -> BetaMetricsSummaryResponse:
     """Lightweight summary derived from in-process counters.
 
     Note: Without Prometheus remote-read, we return cumulative counts observed since process start.
@@ -163,7 +257,9 @@ def get_beta_metrics_summary(db: Session = Depends(get_db), admin=Depends(requir
 
 
 @router.post("/invites/consume", response_model=AccessGrantResponse)
-def consume_invite(payload: InviteConsumeRequest, db: Session = Depends(get_db)):
+def consume_invite(
+    payload: InviteConsumeRequest, db: Session = Depends(get_db)
+) -> AccessGrantResponse:
     svc = BetaService(db)
     grant, reason = svc.consume_and_grant(
         code=payload.code, user_id=payload.user_id, role=payload.role, phase=payload.phase
@@ -181,8 +277,10 @@ def consume_invite(payload: InviteConsumeRequest, db: Session = Depends(get_db))
 
 @router.post("/invites/send", response_model=InviteSendResponse)
 def send_invite(
-    payload: InviteSendRequest, db: Session = Depends(get_db), admin=Depends(require_role("admin"))
-):
+    payload: InviteSendRequest,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_role("admin")),
+) -> InviteSendResponse:
     svc = BetaService(db)
     invite, join_url, welcome_url = svc.send_invite_email(
         to_email=payload.to_email,
@@ -204,8 +302,8 @@ def send_invite(
 def send_invite_batch(
     payload: InviteBatchSendRequest,
     db: Session = Depends(get_db),
-    admin=Depends(require_role("admin")),
-):
+    _admin: None = Depends(require_role("admin")),
+) -> InviteBatchSendResponse:
     svc = BetaService(db)
     sent, failed = svc.send_invite_batch(
         emails=[str(e) for e in payload.emails],
@@ -226,8 +324,8 @@ def send_invite_batch(
 def send_invite_batch_async(
     payload: InviteBatchSendRequest,
     db: Session = Depends(get_db),
-    admin=Depends(require_role("admin")),
-):
+    _admin: None = Depends(require_role("admin")),
+) -> InviteBatchAsyncStartResponse:
     task = celery_app.send_task(
         "app.tasks.email.send_beta_invites_batch",
         args=[
@@ -242,7 +340,9 @@ def send_invite_batch_async(
 
 
 @router.get("/invites/send-batch-progress", response_model=InviteBatchProgressResponse)
-def get_invite_batch_progress(task_id: str, admin=Depends(require_role("admin"))):
+def get_invite_batch_progress(
+    task_id: str, _admin: None = Depends(require_role("admin"))
+) -> InviteBatchProgressResponse:
     result = celery_app.AsyncResult(task_id)
     meta = result.info or {}
     state = result.state or "PENDING"
@@ -274,7 +374,10 @@ class BetaSettingsPayload(BaseModel):
 
 
 @router.get("/settings", response_model=BetaSettingsPayload)
-def get_beta_settings(db: Session = Depends(get_db), admin=Depends(require_role("admin"))):
+def get_beta_settings(
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_role("admin")),
+) -> BetaSettingsPayload:
     repo = BetaSettingsRepository(db)
     s = repo.get_singleton()
     return BetaSettingsPayload(
@@ -288,8 +391,8 @@ def get_beta_settings(db: Session = Depends(get_db), admin=Depends(require_role(
 def update_beta_settings(
     payload: BetaSettingsPayload,
     db: Session = Depends(get_db),
-    admin=Depends(require_role("admin")),
-):
+    _admin: None = Depends(require_role("admin")),
+) -> BetaSettingsPayload:
     repo = BetaSettingsRepository(db)
     rec = repo.update_settings(
         beta_disabled=payload.beta_disabled,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Dict, Iterable, Optional
+from typing import Any, Iterable, Optional
 
 from .ratings_config import DEFAULT_RATINGS_CONFIG, RatingsConfig
 
@@ -25,13 +25,13 @@ def dirichlet_prior_mean(config: RatingsConfig = DEFAULT_RATINGS_CONFIG) -> floa
 
 
 def compute_dirichlet_rating(
-    reviews: Iterable,
+    reviews: Iterable[Any],
     *,
     created_at_attr: str = "created_at",
     rating_attr: str = "rating",
     student_attr: str = "student_id",
     config: RatingsConfig = DEFAULT_RATINGS_CONFIG,
-) -> Dict:
+) -> dict[str, float | int | None]:
     reviews = list(reviews)
     if not reviews:
         pm = dirichlet_prior_mean(config)

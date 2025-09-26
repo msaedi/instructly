@@ -64,6 +64,10 @@ class Settings(BaseSettings):
 
     # Frontend URL - will use production URL if not set
     frontend_url: str = "https://instructly-ten.vercel.app"
+    local_beta_frontend_origin: str = Field(
+        default="http://beta-local.instainstru.com:3000",
+        description="Local-only override for beta invite links",
+    )
     frontend_referral_landing_url: str = Field(
         default="https://instructly-ten.vercel.app/referrals",
         description="Landing page for public referral links",

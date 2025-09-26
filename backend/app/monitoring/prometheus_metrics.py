@@ -8,7 +8,7 @@ and best practices for metric types.
 
 from collections import defaultdict
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
@@ -194,7 +194,7 @@ class PrometheusMetrics:
         ):
             return PrometheusMetrics._cache_data
 
-        data = generate_latest(REGISTRY)
+        data = cast(bytes, generate_latest(REGISTRY))
         PrometheusMetrics._cache_data = data
         PrometheusMetrics._cache_ts = now
         PrometheusMetrics._dirty_since_last_scrape = False
@@ -203,7 +203,7 @@ class PrometheusMetrics:
     @staticmethod
     def get_content_type() -> str:
         """Get the content type for Prometheus metrics."""
-        return CONTENT_TYPE_LATEST
+        return cast(str, CONTENT_TYPE_LATEST)
 
     # Domain helpers
     @staticmethod
