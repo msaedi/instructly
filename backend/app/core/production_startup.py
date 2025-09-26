@@ -22,7 +22,7 @@ class ProductionStartup:
     """Manages optimized startup for production environment."""
 
     @staticmethod
-    async def initialize():
+    async def initialize() -> None:
         """Initialize production optimizations."""
         if settings.environment != "production":
             logger.info("Skipping production optimizations (not in production)")
@@ -46,7 +46,7 @@ class ProductionStartup:
         logger.info("✅ Production optimizations complete")
 
     @staticmethod
-    def _configure_logging():
+    def _configure_logging() -> None:
         """Configure production logging settings."""
         # Set appropriate log levels
         logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
@@ -61,7 +61,7 @@ class ProductionStartup:
             import json
 
             class StructuredFormatter(logging.Formatter):
-                def format(self, record):
+                def format(self, record: logging.LogRecord) -> str:
                     log_obj = {
                         "timestamp": self.formatTime(record),
                         "level": record.levelname,
@@ -78,7 +78,7 @@ class ProductionStartup:
             logging.root.handlers = [handler]
 
     @staticmethod
-    async def _verify_services():
+    async def _verify_services() -> None:
         """Verify critical services are accessible."""
         logger.info("Verifying critical services...")
 
@@ -107,7 +107,7 @@ class ProductionStartup:
             logger.warning(f"✗ Redis/Upstash connection failed: {e} (will use fallback)")
 
     @staticmethod
-    async def _warm_connections():
+    async def _warm_connections() -> None:
         """Warm up connection pools."""
         logger.info("Warming up connection pools...")
 
@@ -135,7 +135,7 @@ class ProductionStartup:
             logger.warning(f"Failed to warm database connections: {e}")
 
     @staticmethod
-    async def _setup_monitoring():
+    async def _setup_monitoring() -> None:
         """Set up production monitoring."""
         logger.info("Setting up monitoring...")
 
@@ -157,7 +157,7 @@ class ProductionStartup:
 _heavy_imports_loaded = False
 
 
-def lazy_import_heavy_dependencies():
+def lazy_import_heavy_dependencies() -> None:
     """Lazy load heavy dependencies to improve startup time."""
     global _heavy_imports_loaded
 
@@ -184,20 +184,20 @@ def lazy_import_heavy_dependencies():
 class ServiceCircuitBreaker:
     """Simple circuit breaker for external service calls."""
 
-    def __init__(self, service_name: str, failure_threshold: int = 3):
+    def __init__(self, service_name: str, failure_threshold: int = 3) -> None:
         self.service_name = service_name
         self.failure_threshold = failure_threshold
         self.failure_count = 0
         self.is_open = False
 
-    def record_success(self):
+    def record_success(self) -> None:
         """Record successful call."""
         self.failure_count = 0
         if self.is_open:
             logger.info(f"Circuit breaker for {self.service_name} closed")
             self.is_open = False
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         """Record failed call."""
         self.failure_count += 1
         if self.failure_count >= self.failure_threshold and not self.is_open:

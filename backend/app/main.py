@@ -6,9 +6,9 @@ import os
 
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy.orm import Session
+from starlette.middleware.gzip import GZipMiddleware
 
 from .core.config import settings
 from .core.constants import (

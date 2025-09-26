@@ -19,7 +19,7 @@ import gc
 import logging
 import os
 import time
-from typing import Any, Dict, Optional, Set
+from typing import Any, AsyncIterator, Deque, Dict, Optional, Set, cast
 import uuid
 
 from fastapi import Request
@@ -33,9 +33,10 @@ logger = logging.getLogger(__name__)
 
 # Import Celery tasks if available
 try:
-    from app.tasks.monitoring_tasks import process_monitoring_alert
+    from app.tasks.monitoring_tasks import process_monitoring_alert as _process_monitoring_alert
 
     CELERY_AVAILABLE = True
+    process_monitoring_alert = cast(Any, _process_monitoring_alert)
 except ImportError:
     CELERY_AVAILABLE = False
     logger.warning("Celery tasks not available - alerts will only be logged")
@@ -59,10 +60,10 @@ class PerformanceMonitor:
         self.slow_request_threshold_ms = slow_request_threshold_ms
 
         # Metrics storage (using deque for memory efficiency)
-        self.slow_queries = deque(maxlen=100)
-        self.slow_requests = deque(maxlen=100)
-        self.db_pool_history = deque(maxlen=60)  # Last 60 measurements
-        self.cache_metrics_history = deque(maxlen=60)
+        self.slow_queries: Deque[Dict[str, Any]] = deque(maxlen=100)
+        self.slow_requests: Deque[Dict[str, Any]] = deque(maxlen=100)
+        self.db_pool_history: Deque[Dict[str, Any]] = deque(maxlen=60)  # Last 60 measurements
+        self.cache_metrics_history: Deque[Dict[str, Any]] = deque(maxlen=60)
 
         # Alert tracking
         self._alerts_sent: Set[str] = set()
@@ -75,19 +76,34 @@ class PerformanceMonitor:
         # Setup database query monitoring
         self._setup_query_monitoring()
 
-    def _setup_query_monitoring(self):
+    def _setup_query_monitoring(self) -> None:
         """Setup SQLAlchemy event listeners for query monitoring."""
 
         @event.listens_for(Engine, "before_cursor_execute")
-        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def before_cursor_execute(
+            conn: Any,
+            cursor: Any,
+            statement: str,
+            parameters: Any,
+            context: Any,
+            executemany: bool,
+        ) -> None:
             """Track query start time."""
             context._query_start_time = time.time()
             context._query_statement = statement
 
         @event.listens_for(Engine, "after_cursor_execute")
-        def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def after_cursor_execute(
+            conn: Any,
+            cursor: Any,
+            statement: str,
+            parameters: Any,
+            context: Any,
+            executemany: bool,
+        ) -> None:
             """Log slow queries."""
-            duration_ms = (time.time() - context._query_start_time) * 1000
+            query_start = cast(float, getattr(context, "_query_start_time", time.time()))
+            duration_ms = (time.time() - query_start) * 1000
 
             if duration_ms > self.slow_query_threshold_ms:
                 # Ignore simple health check queries
@@ -141,7 +157,8 @@ class PerformanceMonitor:
             return None
 
         request_info = self._active_requests.pop(request_id)
-        duration_ms = (time.time() - request_info["start_time"]) * 1000
+        start_time = cast(float, request_info["start_time"])
+        duration_ms = (time.time() - start_time) * 1000
 
         # Log slow requests
         if duration_ms > self.slow_request_threshold_ms:
@@ -178,13 +195,14 @@ class PerformanceMonitor:
 
     def check_db_pool_health(self) -> Dict[str, Any]:
         """Check database connection pool health."""
-        pool_status = get_db_pool_status()
+        pool_status = cast(Dict[str, Any], get_db_pool_status())
 
         # Calculate usage percentage
-        total_possible = pool_status["size"] + pool_status["overflow"]
-        usage_percent = (
-            (pool_status["checked_out"] / total_possible * 100) if total_possible > 0 else 0
-        )
+        size = float(pool_status.get("size", 0))
+        overflow = float(pool_status.get("overflow", 0))
+        checked_out = float(pool_status.get("checked_out", 0))
+        total_possible = size + overflow
+        usage_percent = (checked_out / total_possible * 100) if total_possible > 0 else 0.0
 
         pool_health = {
             **pool_status,
@@ -235,7 +253,12 @@ class PerformanceMonitor:
 
     def check_cache_health(self, cache_stats: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze cache performance and health."""
-        hit_rate = float(cache_stats.get("hit_rate", "0").rstrip("%"))
+        hit_rate_str = str(cache_stats.get("hit_rate", "0")).rstrip("%")
+        try:
+            hit_rate = float(hit_rate_str)
+        except ValueError:
+            hit_rate = 0.0
+        errors_count = int(cache_stats.get("errors", 0) or 0)
 
         cache_health = {
             **cache_stats,
@@ -254,7 +277,7 @@ class PerformanceMonitor:
             )
             self._send_alert("low_cache_hit_rate", f"Cache hit rate at {hit_rate}% (target: >70%)")
 
-        if cache_stats.get("errors", 0) > 10:
+        if errors_count > 10:
             cache_health["recommendations"].append(
                 "High cache error count. Check Redis/Upstash connection."
             )
@@ -308,11 +331,10 @@ class PerformanceMonitor:
         memory = self.check_memory_usage()
 
         # Calculate averages from history
-        avg_pool_usage = 0
+        avg_pool_usage = 0.0
         if self.db_pool_history:
-            avg_pool_usage = sum(h["usage_percent"] for h in self.db_pool_history) / len(
-                self.db_pool_history
-            )
+            usage_values = [cast(float, entry["usage_percent"]) for entry in self.db_pool_history]
+            avg_pool_usage = sum(usage_values) / len(usage_values)
 
         summary = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -342,11 +364,12 @@ class PerformanceMonitor:
         stale_count = 0
 
         for request_id, info in list(self._active_requests.items()):
-            if now - info["start_time"] > timeout_seconds:
+            start_time = cast(float, info["start_time"])
+            if now - start_time > timeout_seconds:
                 logger.warning(
                     f"Cleaning up stale request {request_id}: "
                     f"{info['method']} {info['path']} "
-                    f"(active for {now - info['start_time']:.0f}s)"
+                    f"(active for {now - start_time:.0f}s)"
                 )
                 del self._active_requests[request_id]
                 stale_count += 1
@@ -363,7 +386,7 @@ monitor = PerformanceMonitor(
 
 # Middleware for request tracking
 @asynccontextmanager
-async def track_request_performance(request: Request):
+async def track_request_performance(request: Request) -> AsyncIterator[str]:
     """Context manager for tracking request performance."""
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
@@ -379,7 +402,7 @@ async def track_request_performance(request: Request):
 
 
 # Background task for periodic health checks
-async def periodic_health_check():
+async def periodic_health_check() -> None:
     """Run periodic health checks."""
     while True:
         try:

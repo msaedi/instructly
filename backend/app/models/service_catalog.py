@@ -9,7 +9,7 @@ This module defines the service catalog system with three models:
 """
 
 import logging
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, cast
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, func
@@ -20,7 +20,9 @@ from ..database import Base
 from .types import IntegerArrayType, StringArrayType
 
 if TYPE_CHECKING:
-    pass
+    from sqlalchemy.orm import DeclarativeMeta
+
+    Base = cast("DeclarativeMeta", Base)
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +67,7 @@ class ServiceCategory(Base):
         order_by="ServiceCatalog.name",
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """String representation."""
         return f"<ServiceCategory {self.name} ({self.slug})>"
 
@@ -77,16 +79,16 @@ class ServiceCategory(Base):
     @property
     def instructor_count(self) -> int:
         """Count of unique instructors offering services in this category."""
-        instructors = set()
+        instructors: Set[str] = set()
         for entry in self.catalog_entries:
             for service in entry.instructor_services:
                 if service.is_active:
                     instructors.add(service.instructor_profile_id)
         return len(instructors)
 
-    def to_dict(self, include_services: bool = False) -> dict:
+    def to_dict(self, include_services: bool = False) -> Dict[str, Any]:
         """Convert to dictionary for API responses."""
-        data = {
+        data: Dict[str, Any] = {
             "id": self.id,
             "name": self.name,
             "slug": self.slug,
@@ -161,7 +163,7 @@ class ServiceCatalog(Base):
         cascade="save-update, merge",
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """String representation."""
         status = " (inactive)" if not self.is_active else ""
         return f"<ServiceCatalog {self.name}{status}>"
@@ -179,8 +181,10 @@ class ServiceCatalog(Base):
     @property
     def price_range(self) -> tuple[Optional[float], Optional[float]]:
         """Get min and max prices from active instructors."""
-        active_prices = [
-            service.hourly_rate for service in self.instructor_services if service.is_active
+        active_prices: List[float] = [
+            cast(float, service.hourly_rate)
+            for service in self.instructor_services
+            if service.is_active
         ]
 
         if not active_prices:
@@ -208,11 +212,11 @@ class ServiceCatalog(Base):
 
         return False
 
-    def to_dict(self, include_instructors: bool = False) -> dict:
+    def to_dict(self, include_instructors: bool = False) -> Dict[str, Any]:
         """Convert to dictionary for API responses."""
         min_price, max_price = self.price_range
 
-        data = {
+        data: Dict[str, Any] = {
             "id": self.id,
             "category_id": self.category_id,
             "category_name": self.category.name,
@@ -242,7 +246,7 @@ class ServiceCatalog(Base):
                     "custom_description": service.description,
                 }
                 for service in self.instructor_services
-                if service.is_active
+                if service.is_active and service.instructor_profile
             ]
 
         return data
@@ -313,7 +317,7 @@ class InstructorService(Base):
     instructor_profile = relationship("InstructorProfile", back_populates="instructor_services")
     catalog_entry = relationship("ServiceCatalog", back_populates="instructor_services")
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize service with logging."""
         super().__init__(**kwargs)
         logger.debug(
@@ -321,7 +325,7 @@ class InstructorService(Base):
             f"and instructor {kwargs.get('instructor_profile_id')}"
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """String representation."""
         status = " (inactive)" if not self.is_active else ""
         catalog_name = self.catalog_entry.name if self.catalog_entry else "Unknown"
@@ -360,7 +364,8 @@ class InstructorService(Base):
         Returns:
             float: Price for the session
         """
-        return (self.hourly_rate * duration_minutes) / 60.0
+        hourly_rate = cast(float, self.hourly_rate)
+        return (hourly_rate * duration_minutes) / 60.0
 
     def deactivate(self) -> None:
         """
@@ -383,7 +388,7 @@ class InstructorService(Base):
         catalog_name = self.catalog_entry.name if self.catalog_entry else "Unknown"
         logger.info(f"Activated instructor service {self.id}: {catalog_name}")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API responses."""
         return {
             "id": self.id,
@@ -479,7 +484,7 @@ class ServiceAnalytics(Base):
     # Relationships
     catalog_entry = relationship("ServiceCatalog", backref="analytics", uselist=False)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """String representation."""
         return f"<ServiceAnalytics service_id={self.service_catalog_id} searches_7d={self.search_count_7d}>"
 
@@ -490,9 +495,13 @@ class ServiceAnalytics(Base):
             return 0.0
 
         # Weighted combination of metrics
-        search_weight = min(self.search_count_30d / 100, 1.0) * 40
-        booking_weight = min(self.booking_count_30d / 20, 1.0) * 40
-        conversion_weight = (self.view_to_booking_rate or 0) * 20
+        search_count_30d = cast(int, self.search_count_30d)
+        booking_count_30d = cast(int, self.booking_count_30d)
+        view_to_booking_rate = cast(Optional[float], self.view_to_booking_rate)
+
+        search_weight = min(search_count_30d / 100, 1.0) * 40
+        booking_weight = min(booking_count_30d / 20, 1.0) * 40
+        conversion_weight = (view_to_booking_rate or 0.0) * 20
 
         return search_weight + booking_weight + conversion_weight
 
@@ -503,12 +512,14 @@ class ServiceAnalytics(Base):
             return False
 
         # If 7-day average is 20% higher than 30-day average
-        avg_7d = self.search_count_7d / 7
-        avg_30d = self.search_count_30d / 30
+        search_count_7d = cast(int, self.search_count_7d)
+        search_count_30d = cast(int, self.search_count_30d)
+        avg_7d = search_count_7d / 7
+        avg_30d = search_count_30d / 30
 
         return avg_7d > avg_30d * 1.2
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API responses."""
         return {
             "service_catalog_id": self.service_catalog_id,
