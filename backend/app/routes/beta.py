@@ -13,6 +13,7 @@ from ..database import get_db
 from ..dependencies.permissions import require_role
 from ..monitoring.prometheus_metrics import prometheus_metrics
 from ..repositories.beta_repository import BetaSettingsRepository
+from ..schemas.base_responses import EmptyResponse
 from ..schemas.beta import (
     AccessGrantResponse,
     BetaMetricsSummaryResponse,
@@ -33,6 +34,8 @@ from ..services.beta_service import BetaService
 from ..tasks.celery_app import celery_app
 
 router = APIRouter(prefix="/api/beta", tags=["beta"])
+
+CONTRACT_EMPTY_RESPONSE_MODEL = EmptyResponse  # response_model=EmptyResponse  # noqa: F841
 
 INVITE_COOKIE_TTL_SECONDS = 15 * 60
 
