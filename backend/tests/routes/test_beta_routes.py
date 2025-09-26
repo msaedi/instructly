@@ -1,6 +1,3 @@
-from datetime import datetime, timedelta, timezone
-
-import pytest
 from fastapi.testclient import TestClient
 
 
@@ -153,3 +150,36 @@ class TestBetaRoutes:
         client.cookies.clear()
         res_missing = client.get("/api/beta/invites/verified")
         assert res_missing.status_code == 401
+
+    def test_invite_cookie_cleared_after_register(
+        self, client: TestClient, db, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("SITE_MODE", "local")
+        code = _create_invite(db)
+
+        res_validate = client.get("/api/beta/invites/validate", params={"code": code})
+        assert res_validate.status_code == 200
+        assert client.cookies.get("iv_local")
+
+        email = f"cookie-clear-{code.lower()}@example.com"
+        res_register = client.post(
+            "/auth/register",
+            json={
+                "email": email,
+                "password": "StrongPass123!",
+                "first_name": "Cookie",
+                "last_name": "Cleaner",
+                "zip_code": "10001",
+                "role": "student",
+                "metadata": {"invite_code": code},
+            },
+        )
+        assert res_register.status_code == 201
+        header_value = res_register.headers.get("set-cookie", "")
+        assert "iv_local=" in header_value
+        lowered_header = header_value.lower()
+        assert "max-age=0" in lowered_header or "expires=" in lowered_header
+        assert "iv_local" not in client.cookies
+
+        res_verified = client.get("/api/beta/invites/verified")
+        assert res_verified.status_code == 401

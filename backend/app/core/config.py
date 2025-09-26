@@ -80,6 +80,16 @@ class Settings(BaseSettings):
         else "development"
     )
 
+    @property
+    def site_mode(self) -> Literal["local", "preview", "prod"]:
+        """Return canonical site mode derived from SITE_MODE."""
+        raw_mode = os.getenv("SITE_MODE", "").strip().lower()
+        if raw_mode == "preview":
+            return "preview"
+        if raw_mode in {"prod", "production", "live"}:
+            return "prod"
+        return "local"
+
     # Cache settings
     redis_url: str = "redis://localhost:6379"
     cache_ttl: int = 3600  # 1 hour in seconds

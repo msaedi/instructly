@@ -34,6 +34,7 @@ from ..services.auth_service import AuthService
 from ..services.beta_service import BetaService
 from ..services.permission_service import PermissionService
 from ..services.search_history_service import SearchHistoryService
+from ..utils.invite_cookie import invite_cookie_name
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +48,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     error_message="Too many registration attempts. Please try again later.",
 )
 async def register(
-    request: Request,  # Add this for rate limiting
+    request: Request,
+    response: Response,
     user: UserCreate,
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
-):
+) -> UserResponse:
     """
     Register a new user.
 
@@ -114,8 +116,7 @@ async def register(
             # Log only; do not block registration if invite handling fails
             logger.error(f"Error consuming invite on register for {db_user.id}: {e}")
 
-        # Use Pydantic model for response
-        return UserResponse(
+        user_payload = UserResponse(
             id=db_user.id,
             email=db_user.email,
             first_name=db_user.first_name,
@@ -127,6 +128,15 @@ async def register(
             roles=[role.name for role in db_user.roles],
             permissions=[],  # TODO: Add permissions if needed
         )
+
+        # Clear invite verification cookie after successful registration
+        response.delete_cookie(
+            key=invite_cookie_name(),
+            path="/",
+            domain=None,
+        )
+
+        return user_payload
     except ValidationException as e:
         raise e.to_http_exception()
     except ConflictException as e:
