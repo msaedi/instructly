@@ -41,3 +41,8 @@ class MarkMessagesReadRequest(StrictRequestModel):
         if self.booking_id and self.message_ids:
             raise ValueError("Provide either booking_id or message_ids, not both")
         return self
+
+
+# Ensure models are fully built for FastAPI dependency resolution in tests.
+SendMessageRequest.model_rebuild()
+MarkMessagesReadRequest.model_rebuild()

@@ -22,11 +22,15 @@ Router Endpoints:
 """
 
 import asyncio
+from asyncio import Queue, Task
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 import json
 import logging
+from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
+from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from ..api.dependencies.auth import get_current_active_user
@@ -49,30 +53,35 @@ from ..schemas.message_responses import (
     TypingStatusResponse,
     UnreadCountResponse,
 )
+from ..services.message_notification_service import MessageNotificationService
 from ..services.message_service import MessageService
+
+# Ensure request schema is fully built before FastAPI inspects annotations.
+SendMessageRequest.model_rebuild()
+MarkMessagesReadRequest.model_rebuild()
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/messages", tags=["messages"])
 
 # Store the notification service instance (will be injected at startup)
-_notification_service = None
+_notification_service: MessageNotificationService | None = None
 
 
-def set_notification_service(service):
+def set_notification_service(service: MessageNotificationService) -> None:
     """Set the notification service instance (called at app startup)."""
     global _notification_service
     _notification_service = service
 
 
-def get_notification_service():
+def get_notification_service() -> MessageNotificationService:
     """Get the notification service instance."""
     if _notification_service is None:
         raise RuntimeError("Notification service not initialized")
     return _notification_service
 
 
-def get_message_service(db=Depends(get_db)) -> MessageService:
+def get_message_service(db: Session = Depends(get_db)) -> MessageService:
     """Get message service instance."""
     return MessageService(db)
 
@@ -90,7 +99,7 @@ async def send_message(
     request: SendMessageRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
-):
+) -> SendMessageResponse:
     """
     Send a message in a booking chat.
 
@@ -139,7 +148,7 @@ async def stream_messages(
     booking_id: str,
     current_user: User = Depends(get_current_user_sse),
     service: MessageService = Depends(get_message_service),
-):
+) -> EventSourceResponse:
     """
     SSE endpoint for real-time message streaming.
 
@@ -175,11 +184,11 @@ async def stream_messages(
             detail=f"Access check failed: {str(e)}",
         )
 
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator[dict[str, str], None]:
         """Generate SSE events for the client."""
-        queue = None
-        heartbeat_task = None
-        notification_service = None
+        queue: Queue[dict[str, Any]] | None = None
+        heartbeat_task: Task[None] | None = None
+        notification_service: MessageNotificationService | None = None
 
         try:
             # Send initial connection confirmation
@@ -322,7 +331,9 @@ async def stream_messages(
     )
 
 
-async def send_heartbeats(notification_service, booking_id: str):
+async def send_heartbeats(
+    notification_service: MessageNotificationService, booking_id: str
+) -> None:
     """Send periodic heartbeats to keep connection alive."""
     while True:
         await asyncio.sleep(30)  # Send heartbeat every 30 seconds
@@ -340,7 +351,7 @@ async def send_typing_indicator(
     booking_id: str,
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
-):
+) -> TypingStatusResponse:
     """
     Send a typing indicator for a booking chat (ephemeral, no DB writes).
     Broadcasts a NOTIFY with type=typing_status.
@@ -367,6 +378,7 @@ class ReactionRequest(BaseModel):
 @router.post(
     "/{message_id}/reactions",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     dependencies=[Depends(require_permission(PermissionName.SEND_MESSAGES))],
 )
 @rate_limit("10/minute", key_type=RateLimitKeyType.USER)
@@ -375,10 +387,10 @@ async def add_reaction(
     request: ReactionRequest,
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
-):
+) -> Response:
     try:
         service.add_reaction(message_id, current_user.id, request.emoji)
-        return None
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ForbiddenException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except NotFoundException as e:
@@ -393,6 +405,7 @@ async def add_reaction(
 @router.delete(
     "/{message_id}/reactions",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     dependencies=[Depends(require_permission(PermissionName.SEND_MESSAGES))],
 )
 @rate_limit("10/minute", key_type=RateLimitKeyType.USER)
@@ -401,10 +414,10 @@ async def remove_reaction(
     request: ReactionRequest,
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
-):
+) -> Response:
     try:
         service.remove_reaction(message_id, current_user.id, request.emoji)
-        return None
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ForbiddenException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
@@ -422,6 +435,7 @@ class EditMessageRequest(BaseModel):
 @router.patch(
     "/{message_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     dependencies=[Depends(require_permission(PermissionName.SEND_MESSAGES))],
 )
 @rate_limit("10/minute", key_type=RateLimitKeyType.USER)
@@ -430,10 +444,10 @@ async def edit_message(
     request: EditMessageRequest,
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
-):
+) -> Response:
     try:
         service.edit_message(message_id, current_user.id, request.content)
-        return None
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ValidationException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except ForbiddenException as e:
@@ -469,7 +483,7 @@ async def get_message_history(
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
-):
+) -> MessagesHistoryResponse:
     """
     Get message history for a booking.
 
@@ -513,7 +527,7 @@ async def get_message_history(
 async def get_unread_count(
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
-):
+) -> UnreadCountResponse:
     """
     Get total unread message count for current user.
 
@@ -544,7 +558,7 @@ async def mark_messages_as_read(
     request: MarkMessagesReadRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
-):
+) -> MarkMessagesReadResponse:
     """
     Mark messages as read.
 
@@ -599,7 +613,7 @@ async def delete_message(
     message_id: str,
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
-):
+) -> DeleteMessageResponse:
     """
     Soft delete a message.
 

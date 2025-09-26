@@ -40,7 +40,7 @@ def upload_finalize_profile_picture(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
     asset_service: PersonalAssetService = Depends(get_personal_asset_service),
-):
+) -> SuccessResponse:
     try:
         asset_service.finalize_profile_picture(current_user, payload.object_key)
         return SuccessResponse(success=True, message="Profile picture updated", data=None)
@@ -55,7 +55,7 @@ def get_profile_picture_url(
     variant: Optional[Literal["original", "display", "thumb"]] = Query("display"),
     current_user: User = Depends(get_current_active_user),
     asset_service: PersonalAssetService = Depends(get_personal_asset_service),
-):
+) -> SuccessResponse:
     try:
         view = asset_service.get_profile_picture_view(user_id, variant or "display")
         return SuccessResponse(
@@ -76,7 +76,7 @@ def get_profile_picture_url(
 def delete_profile_picture(
     current_user: User = Depends(get_current_active_user),
     asset_service: PersonalAssetService = Depends(get_personal_asset_service),
-):
+) -> DeleteResponse:
     try:
         ok = asset_service.delete_profile_picture(current_user)
         return DeleteResponse(

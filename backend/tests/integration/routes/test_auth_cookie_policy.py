@@ -93,6 +93,5 @@ def test_preview_token_rejected_in_prod(client, db, test_password, monkeypatch):
     me_response = client.get(
         "/auth/me",
         headers={"Authorization": f"Bearer {token}"},
-        cookies={},
     )
     assert me_response.status_code == 401
