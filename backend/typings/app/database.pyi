@@ -1,9 +1,12 @@
-from typing import Generator
+from __future__ import annotations
+from typing import Iterator
+from sqlalchemy.orm import Session
 
-from sqlalchemy.orm import DeclarativeMeta, Session
+class DeclarativeBase:
+    """Minimal placeholder for SQLAlchemy's DeclarativeBase."""
 
 
-class Base(metaclass=DeclarativeMeta): ...
+class Base(DeclarativeBase): ...
 
 
 class _SessionFactory:
@@ -13,7 +16,7 @@ class _SessionFactory:
 SessionLocal: _SessionFactory
 
 
-def get_db() -> Generator[Session, None, None]: ...
+def get_db() -> Iterator[Session]: ...
 
 
 def get_db_pool_status() -> dict[str, int]: ...
