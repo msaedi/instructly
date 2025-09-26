@@ -19,7 +19,7 @@ from ..database import Base
 logger = logging.getLogger(__name__)
 
 
-class UserAddress(Base):
+class UserAddress(Base):  # type: ignore[misc]
     """
     Optional user address record.
 
@@ -77,11 +77,11 @@ class UserAddress(Base):
 
     user = relationship("User", backref="addresses")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<UserAddress {self.id} user={self.user_id} default={self.is_default} active={self.is_active}>"
 
 
-class NYCNeighborhood(Base):
+class NYCNeighborhood(Base):  # type: ignore[misc]
     """NYC neighborhood polygon for enrichment and service areas."""
 
     __tablename__ = "nyc_neighborhoods"
@@ -95,11 +95,11 @@ class NYCNeighborhood(Base):
     # centroid geometry is present in DB but not mapped here
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<NYCNeighborhood {self.ntacode} {self.ntaname} ({self.borough})>"
 
 
-class InstructorServiceArea(Base):
+class InstructorServiceArea(Base):  # type: ignore[misc]
     """Link between instructor (user) and neighborhoods they serve."""
 
     __tablename__ = "instructor_service_areas"
@@ -118,5 +118,5 @@ class InstructorServiceArea(Base):
     # Import locally to avoid circular import at module import time
     neighborhood = relationship("RegionBoundary")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<InstructorServiceArea instructor={self.instructor_id} neighborhood={self.neighborhood_id} active={self.is_active}>"

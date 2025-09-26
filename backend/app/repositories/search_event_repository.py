@@ -86,11 +86,12 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         Returns:
             Number of deleted records
         """
-        return (
+        deleted = (
             self.db.query(SearchEvent)
             .filter(SearchEvent.user_id == user_id)
             .delete(synchronize_session=False)
         )
+        return int(deleted or 0)
 
     def delete_old_events(self, cutoff_date: datetime) -> int:
         """
@@ -104,11 +105,12 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         Returns:
             Number of deleted records
         """
-        return (
+        deleted = (
             self.db.query(SearchEvent)
             .filter(SearchEvent.searched_at < cutoff_date)
             .delete(synchronize_session=False)
         )
+        return int(deleted or 0)
 
     def count_old_events(self, cutoff_date: datetime) -> int:
         """
@@ -415,7 +417,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             )
         return distribution
 
-    def get_search_patterns(self, query: str, days: int = 30) -> Dict:
+    def get_search_patterns(self, query: str, days: int = 30) -> Dict[str, Any]:
         """
         Get search patterns for a specific query.
 
@@ -542,7 +544,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         """
         return self.get_by_id(event_id)
 
-    def get_hourly_search_counts(self, since: datetime, limit: int = 5) -> List[Dict]:
+    def get_hourly_search_counts(self, since: datetime, limit: int = 5) -> List[HourlySearchCount]:
         """
         Return top hours (most events) since `since`, as:
         [{"hour_start": <datetime>, "count": <int>}, ...]

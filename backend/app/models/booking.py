@@ -14,7 +14,7 @@ availability changes ("Rug and Person" principle).
 from datetime import date, datetime, timezone
 from enum import Enum
 import logging
-from typing import Optional
+from typing import Any, Optional, cast
 
 from sqlalchemy import (
     CheckConstraint,
@@ -55,7 +55,7 @@ class LocationType(str, Enum):
     NEUTRAL = "neutral"
 
 
-class Booking(Base):
+class Booking(Base):  # type: ignore[misc]
     """
     Self-contained booking record between student and instructor.
 
@@ -152,7 +152,7 @@ class Booking(Base):
         CheckConstraint("start_time < end_time", name="check_time_order"),
     )
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize with instant confirmation by default."""
         super().__init__(**kwargs)
         if not self.status:
@@ -161,7 +161,7 @@ class Booking(Base):
             f"Creating booking for student {self.student_id} with instructor {self.instructor_id}"
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """String representation for debugging."""
         return (
             f"<Booking {self.id}: student={self.student_id}, "
@@ -200,7 +200,8 @@ class Booking(Base):
         Args:
             user_today: Today's date in user's timezone (required)
         """
-        return self.booking_date > user_today and self.status == BookingStatus.CONFIRMED
+        booking_date = cast(date, self.booking_date)
+        return booking_date > user_today and self.status == BookingStatus.CONFIRMED
 
     def is_past(self, user_today: date) -> bool:
         """
@@ -209,16 +210,18 @@ class Booking(Base):
         Args:
             user_today: Today's date in user's timezone (required)
         """
-        return self.booking_date < user_today
+        booking_date = cast(date, self.booking_date)
+        return booking_date < user_today
 
     @property
     def location_type_display(self) -> str:
         """Get human-readable location type."""
+        location = cast("LocationType | None", self.location_type)
         return {
             LocationType.STUDENT_HOME: "Student's Home",
             LocationType.INSTRUCTOR_LOCATION: "Instructor's Location",
             LocationType.NEUTRAL: "Neutral Location",
-        }.get(self.location_type, "Neutral Location")
+        }.get(location or LocationType.NEUTRAL, "Neutral Location")
 
     @property
     def can_be_modified_by(self, user_id: str) -> bool:

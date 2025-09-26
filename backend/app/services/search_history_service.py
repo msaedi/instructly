@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
+import math
 from typing import Any, Optional, cast
 
 from sqlalchemy.orm import Session
@@ -126,13 +127,16 @@ class SearchHistoryService(BaseService):
             _now = datetime.now(timezone.utc)
 
             # Use repository for atomic UPSERT operation
-            result = self.repository.upsert_search(
-                user_id=context.user_id,
-                guest_session_id=context.guest_session_id,
-                search_query=query,
-                normalized_query=normalized_query,
-                search_type=search_data.get("search_type", "natural_language"),
-                results_count=search_data.get("results_count"),
+            result = cast(
+                SearchHistory,
+                self.repository.upsert_search(
+                    user_id=context.user_id,
+                    guest_session_id=context.guest_session_id,
+                    search_query=query,
+                    normalized_query=normalized_query,
+                    search_type=search_data.get("search_type", "natural_language"),
+                    results_count=search_data.get("results_count"),
+                ),
             )
 
             # Log what happened
@@ -497,6 +501,15 @@ class SearchHistoryService(BaseService):
 
             logger.info(f"Found search event {search_event_id}")
 
+            normalized_time = time_to_interaction
+            if normalized_time is not None:
+                latest_recorded = self.interaction_repository.get_latest_time_to_interaction(
+                    search_event_id
+                )
+                if latest_recorded is not None and normalized_time <= latest_recorded:
+                    # Guarantee strictly increasing values even if the client clock jitters.
+                    normalized_time = math.nextafter(latest_recorded, math.inf)
+
             # Create interaction record
             interaction_data = {
                 "search_event_id": search_event_id,
@@ -504,7 +517,7 @@ class SearchHistoryService(BaseService):
                 "interaction_type": interaction_type,
                 "instructor_id": instructor_id,
                 "result_position": result_position,
-                "time_to_interaction": time_to_interaction,
+                "time_to_interaction": normalized_time,
                 "interaction_duration": interaction_duration,
             }
 

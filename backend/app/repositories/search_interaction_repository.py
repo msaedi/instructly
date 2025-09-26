@@ -40,6 +40,22 @@ class SearchInteractionRepository(BaseRepository[SearchInteraction]):
         self.db.add(interaction)
         return interaction
 
+    def get_latest_time_to_interaction(self, search_event_id: str) -> Optional[float]:
+        """Return the most recent ``time_to_interaction`` for a search event."""
+
+        latest_time = (
+            self.db.query(func.max(SearchInteraction.time_to_interaction))
+            .filter(
+                and_(
+                    SearchInteraction.search_event_id == search_event_id,
+                    SearchInteraction.time_to_interaction.isnot(None),
+                )
+            )
+            .scalar()
+        )
+
+        return float(latest_time) if latest_time is not None else None
+
     def get_interactions_by_search_event(
         self, search_event_id: int, limit: int = 100
     ) -> List[SearchInteraction]:

@@ -7,7 +7,7 @@ booking confirmations, reminders, and notifications.
 """
 
 import logging
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, cast
 
 from sqlalchemy.orm import Session
 
@@ -48,12 +48,13 @@ def send_booking_confirmation(self: BaseTask, booking_id: int) -> Dict[str, Any]
 
         # Initialize email service
         email_service = EmailService(db)
+        legacy_email_service = cast(Any, email_service)
 
         # Send confirmation to student
-        student_result = email_service.send_booking_confirmation_to_student(booking)
+        student_result = legacy_email_service.send_booking_confirmation_to_student(booking)
 
         # Send notification to instructor
-        instructor_result = email_service.send_booking_notification_to_instructor(booking)
+        instructor_result = legacy_email_service.send_booking_notification_to_instructor(booking)
 
         return {
             "status": "success",
@@ -97,14 +98,15 @@ def send_booking_reminder(
             return {"status": "error", "message": f"Booking {booking_id} not found"}
 
         email_service = EmailService(db)
+        legacy_email_service = cast(Any, email_service)
 
         # Send reminder to student
-        student_result = email_service.send_booking_reminder_to_student(
+        student_result = legacy_email_service.send_booking_reminder_to_student(
             booking, hours_before=hours_before
         )
 
         # Send reminder to instructor
-        instructor_result = email_service.send_booking_reminder_to_instructor(
+        instructor_result = legacy_email_service.send_booking_reminder_to_instructor(
             booking, hours_before=hours_before
         )
 
@@ -155,9 +157,10 @@ def send_cancellation_notification(
             return {"status": "error", "message": f"User {cancelled_by_id} not found"}
 
         email_service = EmailService(db)
+        legacy_email_service = cast(Any, email_service)
 
         # Send cancellation notification
-        result = email_service.send_cancellation_notification(
+        result = legacy_email_service.send_cancellation_notification(
             booking=booking, cancelled_by=cancelled_by, reason=reason
         )
 
@@ -201,9 +204,10 @@ def send_password_reset_email(self: BaseTask, email: str, reset_token: str) -> D
             return {"status": "error", "message": f"User with email {email} not found"}
 
         email_service = EmailService(db)
+        legacy_email_service = cast(Any, email_service)
 
         # Send password reset email
-        result = email_service.send_password_reset_email(user=user, reset_token=reset_token)
+        result = legacy_email_service.send_password_reset_email(user=user, reset_token=reset_token)
 
         return {
             "status": "success",

@@ -323,7 +323,7 @@ class AvailabilityService(BaseService):
             return []
 
         # Group slots by date
-        availability_by_date = {}
+        availability_by_date: Dict[str, List[Dict[str, Any]]] = {}
         for slot in slots:
             date_str = slot.specific_date.isoformat()
             if date_str not in availability_by_date:
@@ -839,7 +839,7 @@ class AvailabilityService(BaseService):
             return week_data.week_start
         elif week_data.schedule:
             # Get Monday from the first date in schedule
-            first_date = min(slot.specific_date for slot in week_data.schedule)
+            first_date = min(date.fromisoformat(slot["date"]) for slot in week_data.schedule)
             return first_date - timedelta(days=first_date.weekday())
         else:
             # Fallback to current week in instructor's timezone

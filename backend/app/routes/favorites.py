@@ -6,7 +6,6 @@ and manage their list of favorite instructors.
 """
 
 import logging
-from typing import Any, Mapping, Sequence, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -15,7 +14,6 @@ from ..auth import get_current_user
 from ..core.enums import PermissionName
 from ..database import get_db
 from ..dependencies.permissions import require_permission
-from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..schemas.favorites import (
     FavoritedInstructor,
@@ -38,7 +36,7 @@ def get_favorites_service(db: Session = Depends(get_db)) -> FavoritesService:
     return FavoritesService(db, cache_service=cache_service)
 
 
-@router.post("/{instructor_id}", response_model=FavoriteResponse)  # type: ignore[misc]
+@router.post("/{instructor_id}", response_model=FavoriteResponse)
 async def add_favorite(
     instructor_id: str,
     current_user: str = Depends(get_current_user),
@@ -65,16 +63,13 @@ async def add_favorite(
     """
     try:
         user_repo = RepositoryFactory.create_user_repository(db)
-        user = cast(User | None, user_repo.get_by_email(current_user))
+        user = user_repo.get_by_email(current_user)
 
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         # Add favorite
-        result = cast(
-            Mapping[str, Any],
-            favorites_service.add_favorite(student_id=user.id, instructor_id=instructor_id),
-        )
+        result = favorites_service.add_favorite(student_id=user.id, instructor_id=instructor_id)
 
         return FavoriteResponse(**result)
 
@@ -87,7 +82,7 @@ async def add_favorite(
         )
 
 
-@router.delete("/{instructor_id}", response_model=FavoriteResponse)  # type: ignore[misc]
+@router.delete("/{instructor_id}", response_model=FavoriteResponse)
 async def remove_favorite(
     instructor_id: str,
     current_user: str = Depends(get_current_user),
@@ -114,16 +109,13 @@ async def remove_favorite(
     """
     try:
         user_repo = RepositoryFactory.create_user_repository(db)
-        user = cast(User | None, user_repo.get_by_email(current_user))
+        user = user_repo.get_by_email(current_user)
 
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         # Remove favorite
-        result = cast(
-            Mapping[str, Any],
-            favorites_service.remove_favorite(student_id=user.id, instructor_id=instructor_id),
-        )
+        result = favorites_service.remove_favorite(student_id=user.id, instructor_id=instructor_id)
 
         return FavoriteResponse(**result)
 
@@ -136,7 +128,7 @@ async def remove_favorite(
         )
 
 
-@router.get("", response_model=FavoritesList)  # type: ignore[misc]
+@router.get("", response_model=FavoritesList)
 async def get_favorites(
     current_user: str = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -158,13 +150,13 @@ async def get_favorites(
     """
     try:
         user_repo = RepositoryFactory.create_user_repository(db)
-        user = cast(User | None, user_repo.get_by_email(current_user))
+        user = user_repo.get_by_email(current_user)
 
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         # Get favorites
-        favorites = cast(Sequence[User], favorites_service.get_student_favorites(user.id))
+        favorites = favorites_service.get_student_favorites(user.id)
 
         # Transform to response format
         favorited_instructors: list[FavoritedInstructor] = []
@@ -193,7 +185,7 @@ async def get_favorites(
         )
 
 
-@router.get("/check/{instructor_id}", response_model=FavoriteStatusResponse)  # type: ignore[misc]
+@router.get("/check/{instructor_id}", response_model=FavoriteStatusResponse)
 async def check_favorite_status(
     instructor_id: str,
     current_user: str = Depends(get_current_user),
@@ -217,7 +209,7 @@ async def check_favorite_status(
     """
     try:
         user_repo = RepositoryFactory.create_user_repository(db)
-        user = cast(User | None, user_repo.get_by_email(current_user))
+        user = user_repo.get_by_email(current_user)
 
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

@@ -9,7 +9,7 @@ booking preferences.
 """
 
 import logging
-from typing import TYPE_CHECKING, List, Optional, Set
+from typing import TYPE_CHECKING, Any, List, Optional, Set, cast
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
@@ -114,12 +114,12 @@ class InstructorProfile(Base):
         cascade="all, delete-orphan",
     )
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize instructor profile."""
         super().__init__(**kwargs)
         logger.info(f"Creating instructor profile for user {kwargs.get('user_id')}")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """String representation for debugging."""
         return f"<InstructorProfile {self.user_id} - {self.years_experience} years>"
 
@@ -131,7 +131,8 @@ class InstructorProfile(Base):
         Returns:
             List of active InstructorService objects
         """
-        return [s for s in self.instructor_services if s.is_active]
+        services = cast("list[InstructorService]", self.instructor_services)
+        return [s for s in services if s.is_active]
 
     @property
     def has_active_services(self) -> bool:
@@ -141,7 +142,8 @@ class InstructorProfile(Base):
         Returns:
             bool: True if at least one service is active
         """
-        return any(s.is_active for s in self.instructor_services)
+        services = cast("list[InstructorService]", self.instructor_services)
+        return any(s.is_active for s in services)
 
     @property
     def total_services(self) -> int:
@@ -151,7 +153,8 @@ class InstructorProfile(Base):
         Returns:
             int: Total service count
         """
-        return len(self.instructor_services)
+        services = cast("list[InstructorService]", self.instructor_services)
+        return len(services)
 
     @property
     def offered_categories(self) -> Set[str]:
@@ -191,10 +194,8 @@ class InstructorProfile(Base):
         Returns:
             bool: True if instructor offers this service actively
         """
-        return any(
-            s.service_catalog_id == service_catalog_id and s.is_active
-            for s in self.instructor_services
-        )
+        services = cast("list[InstructorService]", self.instructor_services)
+        return any(s.service_catalog_id == service_catalog_id and s.is_active for s in services)
 
     def get_service_by_catalog_id(self, service_catalog_id: int) -> Optional["InstructorService"]:
         """
@@ -206,7 +207,8 @@ class InstructorProfile(Base):
         Returns:
             InstructorService or None if not found/inactive
         """
-        for service in self.instructor_services:
+        services = cast("list[InstructorService]", self.instructor_services)
+        for service in services:
             if service.service_catalog_id == service_catalog_id and service.is_active:
                 return service
         return None
@@ -235,7 +237,7 @@ class InstructorProfile(Base):
         """
         return hours_until_booking >= self.min_advance_booking_hours
 
-    def to_dict(self, include_services: bool = True) -> dict:
+    def to_dict(self, include_services: bool = True) -> dict[str, Any]:
         """
         Convert profile to dictionary for API responses.
 

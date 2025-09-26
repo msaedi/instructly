@@ -1,19 +1,22 @@
-from typing import Any, Generator, TypeVar
-
+from __future__ import annotations
+from typing import Iterator
 from sqlalchemy.orm import Session
 
+class DeclarativeBase:
+    """Minimal placeholder for SQLAlchemy's DeclarativeBase."""
 
-Base: Any
+
+class Base(DeclarativeBase): ...
 
 
-class _SessionLocal:
+class _SessionFactory:
     def __call__(self) -> Session: ...
 
 
-SessionLocal: _SessionLocal
+SessionLocal: _SessionFactory
 
 
-def get_db() -> Generator[Session, None, None]: ...
+def get_db() -> Iterator[Session]: ...
 
 
-def get_db_pool_status() -> dict[str, Any]: ...
+def get_db_pool_status() -> dict[str, int]: ...

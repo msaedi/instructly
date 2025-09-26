@@ -345,7 +345,12 @@ class TestConcurrencyAndPerformance:
             time.sleep(0.1)
 
         # Verify all interactions were recorded
-        interactions = db.query(SearchInteraction).filter(SearchInteraction.search_event_id == search_event_id).all()
+        interactions = (
+            db.query(SearchInteraction)
+            .filter(SearchInteraction.search_event_id == search_event_id)
+            .order_by(SearchInteraction.created_at.asc())
+            .all()
+        )
 
         assert len(interactions) == 10
 

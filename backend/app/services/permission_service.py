@@ -6,13 +6,17 @@ This service handles permission checking for users, including both
 role-based permissions and individual permission overrides.
 """
 
-from typing import List, Set, Union
+from typing import TYPE_CHECKING, Dict, List, Set, Union
 
 from sqlalchemy.orm import Session
 
 from ..core.enums import PermissionName
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
+
+if TYPE_CHECKING:
+    from ..repositories.rbac_repository import RBACRepository
+    from ..repositories.user_repository import UserRepository
 
 
 class PermissionService(BaseService):
@@ -27,9 +31,9 @@ class PermissionService(BaseService):
     def __init__(self, db: Session):
         """Initialize the service with database session and repositories."""
         super().__init__(db)
-        self._cache = {}  # Simple in-memory cache for permission checks
-        self.user_repository = RepositoryFactory.create_user_repository(db)
-        self.rbac_repository = RepositoryFactory.create_rbac_repository(db)
+        self._cache: Dict[str, bool] = {}  # Simple in-memory cache for permission checks
+        self.user_repository: "UserRepository" = RepositoryFactory.create_user_repository(db)
+        self.rbac_repository: "RBACRepository" = RepositoryFactory.create_rbac_repository(db)
 
     @BaseService.measure_operation("user_has_permission")
     def user_has_permission(
@@ -280,12 +284,12 @@ class PermissionService(BaseService):
 
         return True
 
-    def _clear_user_cache(self, user_id: str):
+    def _clear_user_cache(self, user_id: str) -> None:
         """Clear all cached entries for a specific user."""
         keys_to_remove = [k for k in self._cache.keys() if k.startswith(f"{user_id}:")]
         for key in keys_to_remove:
             del self._cache[key]
 
-    def clear_cache(self):  # no-metrics
+    def clear_cache(self) -> None:  # no-metrics
         """Clear the entire permission cache."""
         self._cache.clear()

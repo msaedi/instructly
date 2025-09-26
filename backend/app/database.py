@@ -1,9 +1,10 @@
 # backend/app/database.py
 from datetime import datetime
 import logging
+from typing import Any, Generator
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeMeta, Session, declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool
 
 from .core.config import settings
@@ -37,27 +38,27 @@ else:
 
 # Log pool events for monitoring
 @event.listens_for(engine, "connect")
-def receive_connect(dbapi_connection, connection_record):
+def receive_connect(dbapi_connection: Any, connection_record: Any) -> None:
     connection_record.info["connect_time"] = datetime.now()
     logger.debug("Database connection established")
 
 
 @event.listens_for(engine, "checkout")
-def receive_checkout(dbapi_connection, connection_record, connection_proxy):
+def receive_checkout(dbapi_connection: Any, connection_record: Any, connection_proxy: Any) -> None:
     logger.debug("Connection checked out from pool")
 
 
 @event.listens_for(engine, "checkin")
-def receive_checkin(dbapi_connection, connection_record):
+def receive_checkin(dbapi_connection: Any, connection_record: Any) -> None:
     logger.debug("Connection returned to pool")
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
-Base = declarative_base()
+Base: DeclarativeMeta = declarative_base()
 
 
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     """Get database session with proper cleanup."""
     db = SessionLocal()
     try:
@@ -70,7 +71,7 @@ def get_db():
         db.close()
 
 
-def get_db_pool_status():
+def get_db_pool_status() -> dict[str, int]:
     """Get current database pool statistics."""
     pool = engine.pool
     return {

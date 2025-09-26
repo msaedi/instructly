@@ -7,9 +7,9 @@ configures task serialization, timezone, and autodiscovery.
 """
 
 import os
-from typing import Any
+from typing import Any, Dict, Type, cast
 
-from celery import Celery
+from celery import Celery, Task
 from celery.signals import setup_logging
 
 from app.core.config import settings
@@ -155,7 +155,7 @@ def create_celery_app() -> Celery:
 
 
 # Disable Celery's default logging configuration
-@setup_logging.connect
+@setup_logging.connect  # type: ignore[misc]
 def config_loggers(*args: Any, **kwargs: Any) -> None:
     """Configure logging to integrate with the application's logging setup."""
     import logging
@@ -174,7 +174,7 @@ celery_app = create_celery_app()
 
 
 # Define base task class with error handling
-class BaseTask(celery_app.Task):
+class BaseTask(Task):  # type: ignore[misc]
     """Base task with automatic error handling and logging."""
 
     autoretry_for = (Exception,)
@@ -231,9 +231,13 @@ class BaseTask(celery_app.Task):
         super().on_success(retval, task_id, args, kwargs)
 
 
+# Register BaseTask as default task base for the app
+celery_app.Task = cast(Type[Task], BaseTask)
+
+
 # Health check task
-@celery_app.task(name="app.tasks.health_check")
-def health_check() -> dict:
+@celery_app.task(name="app.tasks.health_check")  # type: ignore[misc]
+def health_check() -> Dict[str, str]:
     """
     Simple health check task to verify Celery is working.
 

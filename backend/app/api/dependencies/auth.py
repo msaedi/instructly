@@ -6,7 +6,7 @@ Authentication and authorization dependencies.
 import hmac
 import logging
 import os
-from typing import Optional
+from typing import Awaitable, Callable, Optional, cast
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -146,11 +146,19 @@ async def get_current_user(
     # In that case, request is a string (email) and current_user_email is a Session/Mock
     if not isinstance(current_user_email, str) and isinstance(request, str):
         # Swap into expected variables; ignore request in this mode
-        current_user_email, db, request = request, current_user_email, None  # type: ignore[assignment]
+        swap_db = current_user_email if hasattr(current_user_email, "query") else db
+        if not hasattr(swap_db, "query"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid database session for current user lookup",
+            )
+        current_user_email = request
+        db = cast(Session, swap_db)
+        request = None
 
     # Some tests might pass a Depends(...) sentinel for db; guard for real Session
     try:
-        session = db if hasattr(db, "query") else None
+        session: Optional[Session] = db if hasattr(db, "query") else None
     except Exception:
         session = None
     created = False
@@ -167,7 +175,9 @@ async def get_current_user(
             )
 
     try:
-        user = session.query(User).filter(User.email == current_user_email).first()
+        user = cast(
+            Optional[User], session.query(User).filter(User.email == current_user_email).first()
+        )
     finally:
         if created and session is not None:
             try:
@@ -186,7 +196,11 @@ async def get_current_user(
         ):
             imp_id = request.headers.get("x-impersonate-user-id", "").strip()
             if imp_id:
-                imp = (session or db).query(User).filter(User.id == imp_id).first()
+                active_session: Session = session if session is not None else db
+                imp = cast(
+                    Optional[User],
+                    active_session.query(User).filter(User.id == imp_id).first(),
+                )
                 if imp:
                     logger.info(
                         "preview_impersonation",
@@ -290,14 +304,14 @@ async def get_current_active_user_optional(
     if not current_user_email:
         return None
 
-    user = db.query(User).filter(User.email == current_user_email).first()
+    user = cast(Optional[User], db.query(User).filter(User.email == current_user_email).first())
     if user and user.is_active:
         return user
 
     return None
 
 
-def require_beta_access(role: Optional[str] = None):
+def require_beta_access(role: Optional[str] = None) -> Callable[..., Awaitable[User]]:
     async def verify_beta(
         request: Request,
         current_user: User = Depends(get_current_user),
@@ -327,7 +341,9 @@ def require_beta_access(role: Optional[str] = None):
     return verify_beta
 
 
-def require_beta_phase_access(_expected_phase: Optional[str] = None):
+def require_beta_phase_access(
+    _expected_phase: Optional[str] = None,
+) -> Callable[..., Awaitable[None]]:
     """Phase gate with preview as unconditional no-op.
 
     Behavior:

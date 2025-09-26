@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 class AnalyticsCommand:
     """Analytics management command handler."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the command handler."""
         self.redis_client = Redis.from_url(settings.redis_url)
         self.last_run_key = "analytics:last_run"
@@ -249,7 +249,7 @@ class AnalyticsCommand:
         return response
 
 
-def main():
+def main() -> None:
     """Main entry point for the analytics command."""
     parser = argparse.ArgumentParser(
         description="InstaInstru Analytics Management",
