@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, SecretStr
 import requests  # type: ignore[import-untyped]  # third-party stubs unavailable
 from sqlalchemy.orm import Session
@@ -34,6 +34,8 @@ from ..services.beta_service import BetaService
 from ..tasks.celery_app import celery_app
 
 router = APIRouter(prefix="/api/beta", tags=["beta"])
+
+CONTRACT_EMPTY_RESPONSE_MODEL = EmptyResponse  # response_model=EmptyResponse  # noqa: F841
 
 INVITE_COOKIE_TTL_SECONDS = 15 * 60
 
@@ -129,50 +131,52 @@ def _fetch_prometheus_summary(
 
 @router.get("/invites/validate", response_model=InviteValidateResponse)
 def validate_invite(
-    response_obj: Response,
-    code: str | None = Query(default=None),
-    invite_code: str | None = Query(default=None),
-    email: str | None = Query(default=None),
+    request: Request,
+    response: Response,
+    code: str | None = None,
+    invite_code: str | None = None,
+    email: str | None = None,
     db: Session = Depends(get_db),
 ) -> InviteValidateResponse:
-    lookup_code = (invite_code or code or "").strip()
-    if not lookup_code:
+    token = (invite_code or code or "").strip()
+    if not token:
         raise HTTPException(status_code=400, detail="invite_code_required")
     svc = BetaService(db)
-    ok, reason, invite = svc.validate_invite(lookup_code)
+    ok, reason, invite = svc.validate_invite(token)
+    invite_email = getattr(invite, "email", None) if invite else None
     payload = InviteValidateResponse(
         valid=ok,
         reason=reason,
         code=invite.code if invite else None,
-        email=getattr(invite, "email", None) if invite else None,
+        email=invite_email or email,
         role=getattr(invite, "role", None) if invite else None,
         expires_at=getattr(invite, "expires_at", None) if invite else None,
         used_at=getattr(invite, "used_at", None) if invite else None,
     )
     cookie_name = _invite_cookie_name()
+    existing_marker = request.cookies.get(cookie_name)
     if ok and invite:
         marker = _encode_invite_marker(invite.code)
-        cookie_kwargs = _invite_cookie_kwargs()
-        response_obj.set_cookie(cookie_name, marker, **cookie_kwargs)
-    else:
-        response_obj.delete_cookie(cookie_name, path="/")
+        if existing_marker != marker:
+            cookie_kwargs = _invite_cookie_kwargs()
+            response.set_cookie(cookie_name, marker, **cookie_kwargs)
+    elif existing_marker is not None:
+        response.delete_cookie(cookie_name, path="/")
     return payload
 
 
 @router.get(
     "/invites/verified",
-    response_model=EmptyResponse,
-    status_code=200,
+    status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
-    responses={204: {"description": "Invite verified"}},
 )
-def verify_invite_marker(request: Request) -> Response:
+def invite_verified(request: Request) -> Response:
     cookie_name = _invite_cookie_name()
     marker = request.cookies.get(cookie_name)
     payload = _decode_invite_marker(marker or "")
     if not payload:
         raise HTTPException(status_code=401, detail="invite_not_verified")
-    return Response(status_code=204)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/invites/generate", response_model=InviteGenerateResponse)
