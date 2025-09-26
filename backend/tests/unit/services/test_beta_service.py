@@ -144,3 +144,21 @@ def test_consume_and_grant_failure(service):
     )
     assert grant is None
     assert reason in {"not_found", "expired", "used"}
+
+
+def test_build_join_url_local(monkeypatch):
+    from app.services import beta_service as module
+
+    monkeypatch.setenv("SITE_MODE", "local")
+    url = module.build_join_url("CODE1234", "user@example.com")
+    assert url.startswith(module.settings.local_beta_frontend_origin)
+    assert "invite_code=CODE1234" in url
+    assert "email=user%40example.com" in url
+
+
+def test_build_join_url_hosted(monkeypatch):
+    from app.services import beta_service as module
+
+    monkeypatch.setenv("SITE_MODE", "preview")
+    url = module.build_join_url("CODE1234", None, "https://preview.example.com")
+    assert url == "https://preview.example.com/instructor/join?invite_code=CODE1234"

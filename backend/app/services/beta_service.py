@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import os
 import random
 from typing import Optional
+from urllib.parse import urlencode
 
 from sqlalchemy.orm import Session
 
@@ -17,6 +19,32 @@ from ..services.template_service import TemplateService
 
 AMBIGUOUS = {"0", "O", "1", "I", "L"}
 ALPHABET = [c for c in "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" if c not in AMBIGUOUS]
+
+
+def _resolve_frontend_origin(base_override: str | None) -> str:
+    site_mode = os.getenv("SITE_MODE", "").strip().lower()
+    candidate = base_override or settings.frontend_url
+    if site_mode == "local" and settings.local_beta_frontend_origin:
+        return settings.local_beta_frontend_origin
+    return candidate
+
+
+def build_join_url(code: str, email: Optional[str], base_override: str | None = None) -> str:
+    params = {"invite_code": code}
+    if email:
+        params["email"] = email
+    query = urlencode(params)
+    base = _resolve_frontend_origin(base_override)
+    return f"{base}/instructor/join?{query}"
+
+
+def build_welcome_url(code: str, email: Optional[str], base_override: str | None = None) -> str:
+    params = {"invite_code": code}
+    if email:
+        params["email"] = email
+    query = urlencode(params)
+    base = _resolve_frontend_origin(base_override)
+    return f"{base}/instructor/welcome?{query}"
 
 
 def generate_code(length: int = 8) -> str:
@@ -89,9 +117,8 @@ class BetaService:
             count=1, role=role, expires_in_days=expires_in_days, source=source, emails=[to_email]
         )
         invite = created[0]
-        base = base_url or settings.frontend_url
-        join_url = f"{base}/instructor/join?invite_code={invite.code}&email={to_email}"
-        welcome_url = f"{base}/instructor/welcome?invite_code={invite.code}&email={to_email}"
+        join_url = build_join_url(invite.code, to_email, base_url)
+        welcome_url = build_welcome_url(invite.code, to_email, base_url)
 
         # Render email
         template_service = TemplateService(self.db, None)
@@ -101,7 +128,6 @@ class BetaService:
                 "brand_name": BRAND_NAME,
                 "recipient_name": None,
                 "invite_code": invite.code,
-                "welcome_url": welcome_url,
                 "join_url": join_url,
                 "expires_in_days": expires_in_days,
             },
@@ -112,7 +138,7 @@ class BetaService:
             to_email=to_email,
             subject=EmailSubject.beta_invite(),
             html_content=html,
-            text_content=f"Use your invite code {invite.code}. Join: {join_url} or go to: {welcome_url}",
+            text_content=f"Use your invite code {invite.code}. Join: {join_url}",
             from_email="invites@instainstru.com",
             from_name=BRAND_NAME,
         )

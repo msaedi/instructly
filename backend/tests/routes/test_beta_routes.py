@@ -4,6 +4,20 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+def _create_invite(db, email: str | None = None):
+    from app.services.beta_service import BetaService
+
+    svc = BetaService(db)
+    created = svc.bulk_generate(
+        count=1,
+        role="instructor_beta",
+        expires_in_days=7,
+        source="tests",
+        emails=[email] if email else None,
+    )
+    return created[0].code
+
+
 def _make_token_for_user(user_email: str):
     from app.auth import create_access_token
 
@@ -71,11 +85,7 @@ class TestBetaRoutes:
 
     def test_consume_invite_and_grant_access(self, client: TestClient, db):
         # Seed an invite directly through service to get a known code
-        from app.services.beta_service import BetaService
-
-        svc = BetaService(db)
-        created = svc.bulk_generate(count=1, role="instructor_beta", expires_in_days=7, source="test", emails=None)
-        code = created[0].code
+        code = _create_invite(db)
 
         # Create a user to consume
         from app.models.user import User
@@ -100,3 +110,46 @@ class TestBetaRoutes:
         body = res.json()
         assert body["user_id"] == user.id
         assert body["invited_by_code"] == code
+
+    def test_validate_invite_supports_invite_code_param(self, client: TestClient, db, monkeypatch):
+        monkeypatch.setenv("SITE_MODE", "local")
+        code = _create_invite(db)
+
+        res = client.get("/api/beta/invites/validate", params={"invite_code": code, "email": "example@test.com"})
+        assert res.status_code == 200
+        data = res.json()
+        assert data["valid"] is True
+        assert data["code"] == code
+
+    def test_validate_invite_sets_cookie(self, client: TestClient, db, monkeypatch):
+        monkeypatch.setenv("SITE_MODE", "local")
+        code = _create_invite(db)
+
+        res = client.get("/api/beta/invites/validate", params={"code": code})
+        assert res.status_code == 200
+        assert res.cookies.get("iv_local")
+        assert res.cookies.get("iv_local").startswith(code)
+
+    def test_validate_invite_failure_clears_cookie(self, client: TestClient, db, monkeypatch):
+        monkeypatch.setenv("SITE_MODE", "local")
+        code = _create_invite(db)
+        client.get("/api/beta/invites/validate", params={"code": code})
+        assert "iv_local" in client.cookies
+
+        res = client.get("/api/beta/invites/validate", params={"code": "BADCODE"})
+        header = res.headers.get("set-cookie", "")
+        assert "iv_local=" in header
+        assert "Max-Age=0" in header or "max-age=0" in header.lower()
+        assert "iv_local" not in client.cookies
+
+    def test_invite_verified_endpoint(self, client: TestClient, db, monkeypatch):
+        monkeypatch.setenv("SITE_MODE", "local")
+        code = _create_invite(db)
+        client.get("/api/beta/invites/validate", params={"code": code})
+
+        res_verified = client.get("/api/beta/invites/verified")
+        assert res_verified.status_code == 204
+
+        client.cookies.clear()
+        res_missing = client.get("/api/beta/invites/verified")
+        assert res_missing.status_code == 401

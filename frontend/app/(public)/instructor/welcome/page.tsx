@@ -2,39 +2,60 @@
 
 import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-
-const API_BASE_URL = process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000';
+import { useSearchParams } from 'next/navigation';
+import { httpGet } from '@/lib/http';
 
 function WelcomeInner() {
   const params = useSearchParams();
-  const router = useRouter();
   const [code, setCode] = useState('');
   const email = params.get('email') || '';
 
   useEffect(() => {
-    const qp = params.get('invite_code') || '';
+    const rawParam = params.get('invite_code') || '';
+    const qp = rawParam ? rawParam.toUpperCase() : '';
     if (qp) {
       setCode(qp);
       try { sessionStorage.setItem('invite_code', qp); } catch {}
     } else {
       const stored = typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') : '';
       if (stored) setCode(stored);
-      else {
-        router.replace('/instructor/join');
-        return;
-      }
     }
-    // Validate on load to prevent stale/used/expired codes
-    (async () => {
-      const current = qp || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
-      const res = await fetch(`${API_BASE_URL}/api/beta/invites/validate?code=${encodeURIComponent(current)}`);
-      const data = await res.json();
-      if (!data.valid) {
-        router.replace('/instructor/join');
+
+    let cancelled = false;
+
+    const redirectToJoin = () => {
+      const joinUrl = new URL('/instructor/join', window.location.origin);
+      const redirectCode = rawParam || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
+      if (redirectCode) joinUrl.searchParams.set('invite_code', redirectCode);
+      if (email) joinUrl.searchParams.set('email', email);
+      window.location.replace(joinUrl.toString());
+    };
+
+    const ensureVerified = async () => {
+      try {
+        await httpGet('/api/beta/invites/verified');
+
+        const current = qp || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
+        if (!current) {
+          redirectToJoin();
+          return;
+        }
+
+        if (!cancelled) {
+          setCode(current);
+          try { sessionStorage.setItem('invite_code', current); } catch {}
+        }
+      } catch {
+        redirectToJoin();
       }
-    })();
-  }, [params, router]);
+    };
+
+    void ensureVerified();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [email, params]);
 
   const signupHref = `/signup?role=instructor&founding=true${code ? `&invite_code=${encodeURIComponent(code)}` : ''}${email ? `&email=${encodeURIComponent(email)}` : ''}&redirect=${encodeURIComponent('/instructor/onboarding/welcome')}`;
 

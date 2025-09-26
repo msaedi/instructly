@@ -1,4 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+import base64
+import hashlib
+import hmac
+import os
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict
 import requests
 from sqlalchemy.orm import Session
@@ -8,6 +13,7 @@ from ..database import get_db
 from ..dependencies.permissions import require_role
 from ..monitoring.prometheus_metrics import prometheus_metrics
 from ..repositories.beta_repository import BetaSettingsRepository
+from ..schemas.base_responses import EmptyResponse
 from ..schemas.beta import (
     AccessGrantResponse,
     BetaMetricsSummaryResponse,
@@ -28,6 +34,58 @@ from ..services.beta_service import BetaService
 from ..tasks.celery_app import celery_app
 
 router = APIRouter(prefix="/api/beta", tags=["beta"])
+
+INVITE_COOKIE_TTL_SECONDS = 15 * 60
+
+
+def _invite_cookie_name() -> str:
+    site_mode = os.getenv("SITE_MODE", "").strip().lower()
+    if site_mode == "preview":
+        return "iv_preview"
+    if site_mode in {"prod", "production", "live"}:
+        return "iv_prod"
+    return "iv_local"
+
+
+def _invite_cookie_kwargs() -> dict:
+    site_mode = os.getenv("SITE_MODE", "").strip().lower()
+    kwargs: dict = {
+        "max_age": INVITE_COOKIE_TTL_SECONDS,
+        "httponly": True,
+        "samesite": "lax",
+        "path": "/",
+    }
+    if site_mode and site_mode != "local":
+        kwargs["secure"] = True
+    return kwargs
+
+
+def _secret_bytes() -> bytes:
+    secret = settings.secret_key
+    if hasattr(secret, "get_secret_value"):
+        secret = secret.get_secret_value()
+    return str(secret).encode("utf-8")
+
+
+def _signature_for_payload(payload: str) -> str:
+    digest = hmac.new(_secret_bytes(), payload.encode("utf-8"), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest[:18]).decode("utf-8").rstrip("=")
+
+
+def _encode_invite_marker(code: str) -> str:
+    payload = code.upper()
+    signature = _signature_for_payload(payload)
+    return f"{payload}.{signature}"
+
+
+def _decode_invite_marker(marker: str) -> str | None:
+    if not marker or "." not in marker:
+        return None
+    payload, signature = marker.rsplit(".", 1)
+    expected = _signature_for_payload(payload)
+    if hmac.compare_digest(signature, expected):
+        return payload
+    return None
 
 
 def _fetch_prometheus_summary(
@@ -70,10 +128,19 @@ def _fetch_prometheus_summary(
 
 
 @router.get("/invites/validate", response_model=InviteValidateResponse)
-def validate_invite(code: str = Query(...), db: Session = Depends(get_db)):
+def validate_invite(
+    response_obj: Response,
+    code: str | None = Query(default=None),
+    invite_code: str | None = Query(default=None),
+    email: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    lookup_code = (invite_code or code or "").strip()
+    if not lookup_code:
+        raise HTTPException(status_code=400, detail="invite_code_required")
     svc = BetaService(db)
-    ok, reason, invite = svc.validate_invite(code)
-    return InviteValidateResponse(
+    ok, reason, invite = svc.validate_invite(lookup_code)
+    payload = InviteValidateResponse(
         valid=ok,
         reason=reason,
         code=invite.code if invite else None,
@@ -82,6 +149,30 @@ def validate_invite(code: str = Query(...), db: Session = Depends(get_db)):
         expires_at=getattr(invite, "expires_at", None) if invite else None,
         used_at=getattr(invite, "used_at", None) if invite else None,
     )
+    cookie_name = _invite_cookie_name()
+    if ok and invite:
+        marker = _encode_invite_marker(invite.code)
+        cookie_kwargs = _invite_cookie_kwargs()
+        response_obj.set_cookie(cookie_name, marker, **cookie_kwargs)
+    else:
+        response_obj.delete_cookie(cookie_name, path="/")
+    return payload
+
+
+@router.get(
+    "/invites/verified",
+    response_model=EmptyResponse,
+    status_code=200,
+    response_class=Response,
+    responses={204: {"description": "Invite verified"}},
+)
+def verify_invite_marker(request: Request) -> Response:
+    cookie_name = _invite_cookie_name()
+    marker = request.cookies.get(cookie_name)
+    payload = _decode_invite_marker(marker or "")
+    if not payload:
+        raise HTTPException(status_code=401, detail="invite_not_verified")
+    return Response(status_code=204)
 
 
 @router.post("/invites/generate", response_model=InviteGenerateResponse)
