@@ -3,7 +3,7 @@
 prep_db.py — environment-aware database prep for Instainstru.
 
 Supports SITE_MODE resolution via positional arg, env var, or legacy flags.
-Modes: prod | preview | local | int
+Modes: prod | preview | stg | int
 """
 
 import argparse
@@ -16,6 +16,7 @@ import textwrap
 from typing import Optional, Tuple
 
 BACKEND_DIR = Path(__file__).parent.parent
+sys.path.insert(0, str(BACKEND_DIR))
 
 # Load backend/.env so lowercase keys are available when running directly
 try:
@@ -24,6 +25,9 @@ try:
     load_dotenv(BACKEND_DIR / ".env")
 except Exception:
     pass
+
+# Import settings after dotenv so local overrides take effect
+from app.core.config import settings
 
 # ---------- tiny log helpers ----------
 
@@ -46,7 +50,7 @@ def fail(msg: str, code: int = 1):
 ALIASES = {
     "prod": {"prod", "production", "live"},
     "preview": {"preview", "pre"},
-    "local": {"local", "stg", "stage", "staging"},
+    "stg": {"stg", "stage", "staging", "local"},
     "int": {"int", "test", "ci"},
 }
 
@@ -61,8 +65,14 @@ def _norm_mode(s: Optional[str]) -> Optional[str]:
     return None
 
 
-def detect_site_mode(positional: Optional[str]) -> Tuple[str, bool]:
-    """Return (mode, legacy_used). Priority: positional > SITE_MODE > legacy > default(int)."""
+def detect_site_mode(positional: Optional[str], explicit: Optional[str]) -> Tuple[str, bool]:
+    """Return (mode, legacy_used). Priority: --env > positional > SITE_MODE > legacy > default(int)."""
+    flag_mode = _norm_mode(explicit)
+    if explicit:
+        if not flag_mode:
+            fail(f"Unknown env alias from --env: {explicit}")
+        return flag_mode, False
+
     # positional
     m = _norm_mode(positional)
     if m:
@@ -78,39 +88,32 @@ def detect_site_mode(positional: Optional[str]) -> Tuple[str, bool]:
     return "int", False
 
 
-def resolve_db_url(mode: str) -> str:
-    """Resolve DB URL, preferring lowercase .env keys used in this project.
+ENV_URL_VARS = {
+    "int": ("DATABASE_URL_INT", "TEST_DATABASE_URL", "test_database_url"),
+    "stg": ("DATABASE_URL_STG", "STG_DATABASE_URL", "LOCAL_DATABASE_URL", "local_database_url", "stg_database_url"),
+    "preview": ("DATABASE_URL_PREVIEW", "PREVIEW_DATABASE_URL", "preview_database_url"),
+    "prod": ("DATABASE_URL_PROD", "PROD_DATABASE_URL", "PRODUCTION_DATABASE_URL", "prod_database_url"),
+}
 
-    Also supports uppercase variants for portability, and for prod optionally
-    falls back to DATABASE_URL with a warning if explicit keys are missing.
-    """
+
+def resolve_db_url(mode: str) -> str:
+    """Resolve DB URL using env overrides first, then settings fields."""
+    for key in ENV_URL_VARS.get(mode, ()):  # try lowercase/uppercase variants
+        value = os.getenv(key)
+        if value:
+            return value
+        value = os.getenv(key.upper())
+        if value:
+            return value
+
     if mode == "prod":
-        url = os.getenv("prod_database_url") or os.getenv("PROD_DATABASE_URL") or os.getenv("DATABASE_URL")
-        if not url:
-            fail("Missing prod_database_url (or PROD_DATABASE_URL/DATABASE_URL) for prod.")
-        if os.getenv("DATABASE_URL") and not (os.getenv("prod_database_url") or os.getenv("PROD_DATABASE_URL")):
-            warn("Using DATABASE_URL for prod. Prefer prod_database_url or PROD_DATABASE_URL.")
-        return url
+        return settings.prod_database_url_raw or ""
     if mode == "preview":
-        url = os.getenv("preview_database_url") or os.getenv("PREVIEW_DATABASE_URL")
-        if not url:
-            fail("Missing preview_database_url (or PREVIEW_DATABASE_URL) for preview.")
-        return url
-    if mode == "local":
-        url = (
-            os.getenv("stg_database_url")
-            or os.getenv("local_database_url")
-            or os.getenv("STG_DATABASE_URL")
-            or os.getenv("LOCAL_DATABASE_URL")
-        )
-        if not url:
-            fail("Missing stg_database_url/local_database_url (or STG/LOCAL_DATABASE_URL) for local.")
-        return url
-    # int
-    url = os.getenv("test_database_url") or os.getenv("TEST_DATABASE_URL")
-    if not url:
-        fail("Missing test_database_url (or TEST_DATABASE_URL) for int/test.")
-    return url
+        return settings.preview_database_url_raw or ""
+    if mode == "stg":
+        return settings.stg_database_url or settings.prod_database_url_raw or ""
+    # int/default
+    return settings.test_database_url
 
 
 # ---------- ops ----------
@@ -140,7 +143,8 @@ def run_migrations(db_url: str, dry_run: bool, tool_cmd: Optional[str]):
 
 def _mode_env(mode: str) -> dict:
     # Only SITE_MODE is authoritative now
-    return {"SITE_MODE": mode}
+    site_mode = "local" if mode == "stg" else mode
+    return {"SITE_MODE": site_mode}
 
 
 def seed_system_data(db_url: str, dry_run: bool, mode: str):
@@ -279,7 +283,7 @@ def clear_cache(mode: str, dry_run: bool) -> None:
     if mode == "int":
         info("cache", "Skipping cache clear for INT")
         return
-    if mode in ("local", "preview"):
+    if mode in ("stg", "preview"):
         info("cache", "Clearing cache locally via script…")
         try:
             subprocess.check_call([sys.executable, "scripts/clear_cache.py", "--scope", "all"], cwd=str(BACKEND_DIR))
@@ -305,7 +309,7 @@ def main():
             """
 Examples:
   python scripts/prep_db.py                # default → int
-  python scripts/prep_db.py stg            # maps to local
+  python scripts/prep_db.py stg
   python scripts/prep_db.py preview
   python scripts/prep_db.py prod
 
@@ -315,6 +319,7 @@ Examples:
         ),
     )
     parser.add_argument("env", nargs="?", help="env alias: int|stg|preview|prod")
+    parser.add_argument("--env", dest="env_flag", help="explicit env alias (same choices as positional)")
     parser.add_argument("--migrate", action="store_true")
     parser.add_argument("--seed-all", action="store_true")
     parser.add_argument("--seed-system-only", action="store_true")
@@ -326,22 +331,40 @@ Examples:
     parser.add_argument("--verify-env", action="store_true", help="sanity-check DB env marker")
     args = parser.parse_args()
 
-    mode, legacy = detect_site_mode(args.env)
+    mode, legacy = detect_site_mode(args.env, args.env_flag)
     if legacy:
         warn(
             "Legacy flags (USE_*_DATABASE) are deprecated. Use SITE_MODE or positional env. This mapping will be removed."
         )
 
     db_url = resolve_db_url(mode)
+    if not db_url:
+        missing = {
+            "stg": "stg_database_url",
+            "preview": "preview_database_url",
+            "prod": "prod_database_url",
+        }.get(mode, "test_database_url")
+        fail(f"Missing database URL for mode '{mode}'. Set {missing} or export an override.")
+
+    os.environ["DATABASE_URL"] = db_url
+    site_mode_env = "local" if mode == "stg" else mode
+    os.environ["SITE_MODE"] = site_mode_env
+    if mode == "int":
+        os.environ["TEST_DATABASE_URL"] = db_url
+    elif mode == "stg":
+        os.environ["STG_DATABASE_URL"] = db_url
+        os.environ["LOCAL_DATABASE_URL"] = db_url
+    elif mode == "preview":
+        os.environ["PREVIEW_DATABASE_URL"] = db_url
+    else:
+        os.environ["PROD_DATABASE_URL"] = db_url
+
+    info("db", f"Using URL for migrations & seed: {redact(db_url)}")
 
     seed_mode = (
         "system+mock"
         if args.seed_all
-        else "system_only"
-        if args.seed_system_only
-        else "mock_only"
-        if args.seed_mock_users
-        else "none"
+        else "system_only" if args.seed_system_only else "mock_only" if args.seed_mock_users else "none"
     )
 
     info(
