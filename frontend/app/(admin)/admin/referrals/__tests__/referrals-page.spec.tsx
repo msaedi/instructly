@@ -1,6 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
-import AdminReferralsPage from '../page';
+import ReferralsAdminClient from '../ReferralsAdminClient';
+import { usePathname } from 'next/navigation';
 
 const originalFetch = global.fetch;
 
@@ -8,8 +10,16 @@ jest.mock('@/hooks/useAdminAuth', () => ({
   useAdminAuth: () => ({ isAdmin: true, isLoading: false }),
 }));
 
+const mockLogout = jest.fn();
+
+jest.mock('@/features/shared/hooks/useAuth', () => ({
+  useAuth: () => ({ logout: mockLogout }),
+}));
+
 describe('AdminReferralsPage', () => {
   beforeEach(() => {
+    (usePathname as unknown as jest.Mock).mockReturnValue('/admin/referrals');
+    mockLogout.mockReset();
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('/api/admin/referrals/health')) {
@@ -64,10 +74,19 @@ describe('AdminReferralsPage', () => {
   });
 
   it('renders unlocker health and summary metrics', async () => {
-    render(<AdminReferralsPage />);
+    render(<ReferralsAdminClient />);
 
     const fetchMock = global.fetch as jest.Mock;
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByRole('link', { name: /instainstru/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Referrals Admin' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Unlocker health, backlog, and top referrers.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument();
+    const refreshButton = screen.getByRole('button', { name: /refresh data/i });
+    expect(refreshButton).toBeInTheDocument();
 
     await screen.findByText(/celery@worker-1/);
 
@@ -80,5 +99,9 @@ describe('AdminReferralsPage', () => {
     expect(screen.getByText('Void')).toBeInTheDocument();
     expect(screen.getByText('referrer-1')).toBeInTheDocument();
     expect(screen.getByText('ALPHA1')).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(refreshButton);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
   });
 });
