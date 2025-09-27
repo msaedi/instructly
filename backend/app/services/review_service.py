@@ -81,9 +81,7 @@ class ReviewService(BaseService):
         self.repository: ReviewRepository = ReviewRepository(db)
         self.response_repository: ReviewResponseRepository = ReviewResponseRepository(db)
         self.tip_repository: ReviewTipRepository = ReviewTipRepository(db)
-        self.booking_repository: BookingRepository = cast(
-            BookingRepository, RepositoryFactory.create_booking_repository(db)
-        )
+        self.booking_repository: BookingRepository = RepositoryFactory.create_booking_repository(db)
         self.config = config
 
     @BaseService.measure_operation("submit_review")
@@ -273,12 +271,13 @@ class ReviewService(BaseService):
         min_rating: Optional[int] = None,
         with_text: Optional[bool] = None,
     ) -> int:
-        return self.repository.count_recent_reviews(
+        count = self.repository.count_recent_reviews(
             instructor_id,
             instructor_service_id,
             min_rating=min_rating,
             with_text=with_text,
         )
+        return int(count)
 
     @BaseService.measure_operation("get_review_for_booking")
     def get_review_for_booking(self, booking_id: str) -> Optional[Review]:
@@ -332,7 +331,7 @@ class ReviewService(BaseService):
             return result
 
         overall = self._compute_dirichlet_rating(instructor_id)
-        result: SearchRatingSummary = {
+        overall_result: SearchRatingSummary = {
             "primary_rating": overall["rating"]
             if overall["total_reviews"] >= self.config.min_reviews_to_display
             else None,
@@ -340,8 +339,8 @@ class ReviewService(BaseService):
             "is_service_specific": False,
         }
         if self.cache:
-            self.cache.set(cache_key, result, ttl=300)
-        return result
+            self.cache.set(cache_key, overall_result, ttl=300)
+        return overall_result
 
     @BaseService.measure_operation("add_instructor_response")
     def add_instructor_response(
@@ -385,7 +384,7 @@ class ReviewService(BaseService):
 
     def _bayesian(self, rating_sum: int, count: int) -> float:
         # Backward-compatible wrapper for simple shrinkage used in per-service breakdown.
-        return compute_simple_shrinkage(rating_sum, count)
+        return float(compute_simple_shrinkage(rating_sum, count))
 
     def _compute_dirichlet_rating(self, instructor_id: str) -> RatingComputation:
         """Compute overall rating using a Dirichlet prior with recency weighting.
@@ -403,7 +402,7 @@ class ReviewService(BaseService):
         }
 
     def _dirichlet_prior_mean(self) -> float:
-        return dirichlet_prior_mean(self.config)
+        return float(dirichlet_prior_mean(self.config))
 
     def _compute_dirichlet_rating_for_service(
         self, instructor_id: str, instructor_service_id: str

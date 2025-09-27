@@ -235,7 +235,8 @@ class InstructorProfile(Base):
         Returns:
             bool: True if booking meets advance notice requirement
         """
-        return hours_until_booking >= self.min_advance_booking_hours
+        required_hours = cast(int, self.min_advance_booking_hours)
+        return hours_until_booking >= required_hours
 
     def to_dict(self, include_services: bool = True) -> dict[str, Any]:
         """

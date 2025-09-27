@@ -49,7 +49,7 @@ async def get_current_user(
     Raises:
         HTTPException: If user not found
     """
-    user = db.query(User).filter(User.email == current_user_email).first()
+    user: User | None = db.query(User).filter(User.email == current_user_email).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user

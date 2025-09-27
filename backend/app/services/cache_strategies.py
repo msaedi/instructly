@@ -9,7 +9,12 @@ data consistency without arbitrary delays.
 import asyncio
 from datetime import date, timedelta
 import logging
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast
+
+from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +27,12 @@ class CacheWarmingStrategy:
     without relying on arbitrary sleep delays.
     """
 
-    def __init__(self, cache_service, db, max_retries: int = 3):
+    def __init__(
+        self,
+        cache_service: Optional["CacheService"],
+        db: Session,
+        max_retries: int = 3,
+    ) -> None:
         self.cache_service = cache_service
         self.db = db
         self.max_retries = max_retries
@@ -44,7 +54,7 @@ class CacheWarmingStrategy:
         from .availability_service import AvailabilityService
 
         retry_count = 0
-        last_result = None
+        last_result: Dict[str, Any] | None = None
 
         while retry_count < self.max_retries:
             # Small exponential backoff: 50ms, 100ms, 200ms
@@ -55,7 +65,10 @@ class CacheWarmingStrategy:
 
             # Get fresh data directly from DB (bypass cache)
             service = AvailabilityService(self.db, None)  # No cache
-            fresh_data = service.get_week_availability(instructor_id, week_start)
+            fresh_data = cast(
+                Dict[str, Any],
+                service.get_week_availability(instructor_id, week_start),
+            )
 
             # If we have expected slot count, verify it
             if expected_slot_count is not None:
@@ -81,7 +94,7 @@ class CacheWarmingStrategy:
         self.logger.warning(f"Cache warming verification failed after {self.max_retries} retries")
 
         # Cache what we have anyway
-        if last_result:
+        if last_result and self.cache_service:
             self.cache_service.cache_week_availability(instructor_id, week_start, last_result)
 
         return last_result or {}
@@ -125,7 +138,7 @@ class ReadThroughCache:
     and that stale data is never served.
     """
 
-    def __init__(self, cache_service, db):
+    def __init__(self, cache_service: Optional["CacheService"], db: Session) -> None:
         self.cache_service = cache_service
         self.db = db
         self.logger = logging.getLogger(__name__)
@@ -142,8 +155,9 @@ class ReadThroughCache:
 
         # Check cache first (unless forced refresh)
         if not force_refresh and self.cache_service:
-            cached_data = self.cache_service.get(cache_key)
-            if cached_data is not None:
+            cached_data_raw = self.cache_service.get(cache_key)
+            if isinstance(cached_data_raw, dict):
+                cached_data = cast(Dict[str, Any], cached_data_raw)
                 self.logger.debug(f"Cache hit for {cache_key}")
                 return cached_data
 
@@ -151,7 +165,10 @@ class ReadThroughCache:
         from .availability_service import AvailabilityService
 
         service = AvailabilityService(self.db, None)  # Direct DB access
-        fresh_data = service.get_week_availability(instructor_id, week_start)
+        fresh_data = cast(
+            Dict[str, Any],
+            service.get_week_availability(instructor_id, week_start),
+        )
 
         # Update cache with fresh data
         if self.cache_service:

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 import os
 import time
 
 from fastapi import Request, Response
+from redis import Redis
 
 from .config import BUCKETS, is_shadow_mode, settings
 from .gcra import Decision
@@ -34,9 +36,9 @@ def _is_testing_env() -> bool:
     return flag in {"1", "true", "yes"}
 
 
-def rate_limit(bucket: str):
+def rate_limit(bucket: str) -> Callable[[Request, Response], Awaitable[None]]:
     # FastAPI dependency to attach on routes
-    async def dep(request: Request, response: Response):
+    async def dep(request: Request, response: Response) -> None:
         # Disable enforcement in tests but still emit standard headers for assertions
         if _is_testing_env():
             now_s = time.time()
@@ -73,7 +75,7 @@ def rate_limit(bucket: str):
         burst = int(policy.get("burst", 0))
 
         # Call Redis Lua atomically
-        r = get_redis()
+        r: Redis = get_redis()
         key = _namespaced_key(bucket, identity)
         now_ms = int(time.time() * 1000)
         interval_ms = _compute_interval_ms(rate_per_min)

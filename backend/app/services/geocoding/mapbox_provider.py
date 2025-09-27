@@ -10,7 +10,7 @@ from .base import AutocompleteResult, GeocodedAddress, GeocodingProvider
 
 
 class MapboxProvider(GeocodingProvider):
-    def __init__(self):
+    def __init__(self) -> None:
         self.access_token = settings.mapbox_access_token
         self.base_url = "https://api.mapbox.com"
 

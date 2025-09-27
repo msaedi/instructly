@@ -4,6 +4,7 @@ import logging
 from typing import Any, Generator
 
 from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeMeta, Session, declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool
 
@@ -20,7 +21,9 @@ logger = logging.getLogger(__name__)
 # Create engine with connection pooling
 if DATABASE_POOL_CONFIG:
     # Use production-optimized settings
-    engine = create_engine(settings.get_database_url(), poolclass=QueuePool, **DATABASE_POOL_CONFIG)
+    engine: Engine = create_engine(
+        settings.get_database_url(), poolclass=QueuePool, **DATABASE_POOL_CONFIG
+    )
 else:
     # Use default development settings
     engine = create_engine(

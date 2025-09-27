@@ -7,6 +7,7 @@ Provides periodic tasks to clean up old search history data.
 
 from datetime import datetime, timezone
 import logging
+from typing import Any, Callable, Dict, TypeVar, cast
 
 from celery import shared_task
 from sqlalchemy.orm import Session
@@ -17,13 +18,22 @@ from ..services.search_history_cleanup_service import SearchHistoryCleanupServic
 logger = logging.getLogger(__name__)
 
 
-@shared_task(
+TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
+
+
+def typed_shared_task(
+    *task_args: Any, **task_kwargs: Any
+) -> Callable[[TaskCallable], TaskCallable]:
+    return cast(Callable[[TaskCallable], TaskCallable], shared_task(*task_args, **task_kwargs))
+
+
+@typed_shared_task(
     name="cleanup_search_history",
     bind=True,
     autoretry_for=(Exception,),
     retry_kwargs={"max_retries": 3, "countdown": 60},
 )
-def cleanup_search_history(self):
+def cleanup_search_history(self: Any) -> Dict[str, Any]:
     """
     Periodic task to clean up old search history records.
 
@@ -80,11 +90,11 @@ def cleanup_search_history(self):
         db.close()
 
 
-@shared_task(
+@typed_shared_task(
     name="search_history_cleanup_dry_run",
     bind=True,
 )
-def search_history_cleanup_dry_run(self):
+def search_history_cleanup_dry_run(self: Any) -> Dict[str, Any]:
     """
     Dry run to check what would be cleaned up without actually deleting.
 

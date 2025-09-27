@@ -16,6 +16,7 @@ import logging
 import os
 from pathlib import Path
 import sys
+from typing import Any, cast
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
@@ -32,7 +33,7 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
-def start_beat():
+def start_beat() -> None:
     """Start the Celery beat scheduler with configured settings."""
     logger.info("Starting Celery beat scheduler for InstaInstru")
 
@@ -45,7 +46,8 @@ def start_beat():
         logger.info(f"  - {task_name}: {task_config['schedule']}")
 
     # Configure beat options
-    beat_instance = beat.beat(app=celery_app)
+    beat_cls = cast(Any, beat.beat)
+    beat_instance = beat_cls(app=celery_app)
 
     options = {
         "loglevel": os.getenv("CELERY_LOG_LEVEL", "INFO"),

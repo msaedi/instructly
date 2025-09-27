@@ -9,11 +9,13 @@ from .mock_provider import MockGeocodingProvider
 
 def create_geocoding_provider() -> GeocodingProvider:
     name = (settings.geocoding_provider or "google").lower()
+    provider: GeocodingProvider
     if name == "google":
-        return GoogleMapsProvider()
-    if name == "mapbox":
-        return MapboxProvider()
-    if name == "mock":
-        return MockGeocodingProvider()
-    # default fallback
-    return GoogleMapsProvider()
+        provider = GoogleMapsProvider()
+    elif name == "mapbox":
+        provider = MapboxProvider()
+    elif name == "mock":
+        provider = MockGeocodingProvider()
+    else:
+        provider = GoogleMapsProvider()
+    return provider

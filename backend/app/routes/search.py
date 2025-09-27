@@ -6,7 +6,7 @@ Provides natural language search functionality for finding instructors
 and services using the SearchService.
 """
 
-from typing import Any, Dict, Optional, cast
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -56,7 +56,8 @@ async def search_instructors(
         search_service = SearchService(db)
 
         # Perform search
-        results = cast(Dict[str, Any], search_service.search(q, limit=limit))
+        limit_value = int(limit if isinstance(limit, int) else 20)
+        results = search_service.search(q, limit=limit_value)
 
         # Search recording is handled by frontend which has full context
         # (session ID, referrer, interaction type, etc.)

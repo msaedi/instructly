@@ -1076,8 +1076,10 @@ class SearchService(BaseService):
             suggestions.append(service.name.lower())
 
             # Suggestion with price
-            if service.min_recommended_price:
-                suggestions.append(f"{service.name.lower()} under ${service.max_recommended_price}")
+            min_price = getattr(service, "min_recommended_price", None)
+            max_price = getattr(service, "max_recommended_price", None)
+            if min_price is not None and max_price is not None:
+                suggestions.append(f"{service.name.lower()} under ${max_price}")
 
             # Suggestion with online
             if service.online_capable:

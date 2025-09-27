@@ -10,7 +10,7 @@ Integrates with the production monitor to track:
 """
 
 import time
-from typing import Callable
+from typing import Awaitable, Callable
 import uuid
 
 from fastapi import Request, Response
@@ -36,7 +36,9 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
         """Initialize performance middleware."""
         super().__init__(app)
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request with performance monitoring."""
         # Skip monitoring for SSE endpoints to avoid interfering with streaming
         # EventSourceResponse needs direct passthrough to work properly

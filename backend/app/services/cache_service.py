@@ -22,8 +22,7 @@ import threading
 from typing import Any, Callable, Dict, List, Optional, ParamSpec, TypeVar, Union, cast
 
 from fastapi import Depends
-import redis
-from redis import Redis
+from redis import ConnectionError, Redis, from_url
 from redis.exceptions import RedisError
 from sqlalchemy.orm import Session
 
@@ -246,7 +245,7 @@ class CacheService(BaseService):
         """Setup Redis connection with fallback to in-memory cache."""
         if self.redis is None:
             try:
-                self.redis = redis.from_url(
+                self.redis = from_url(
                     settings.redis_url or "redis://localhost:6379",
                     decode_responses=True,
                     socket_keepalive=True,
@@ -332,17 +331,19 @@ class CacheService(BaseService):
 
         redis_client = self.redis
 
-        def _set_in_redis() -> bool:
-            assert redis_client is not None
-            redis_client.setex(key, ttl, serialized)
-            return True
-
         try:
             # Use tier TTL if not specified
             if ttl is None:
                 ttl = self.TTL_TIERS.get(tier, self.TTL_TIERS["warm"])
 
+            assert ttl is not None
+            expiration = ttl
             serialized = json.dumps(value, default=str)
+
+            def _set_in_redis() -> bool:
+                assert redis_client is not None
+                redis_client.setex(key, expiration, serialized)
+                return True
 
             if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
                 result = self.circuit_breaker.call(_set_in_redis)
@@ -352,7 +353,7 @@ class CacheService(BaseService):
             elif redis_client is None:
                 # In-memory fallback
                 self._memory_cache[key] = value
-                self._memory_expiry[key] = datetime.now() + timedelta(seconds=ttl)
+                self._memory_expiry[key] = datetime.now() + timedelta(seconds=expiration)
                 self._stats["sets"] += 1
                 return True
 
@@ -474,6 +475,7 @@ class CacheService(BaseService):
         try:
             if ttl is None:
                 ttl = self.TTL_TIERS.get(tier, self.TTL_TIERS["warm"])
+            assert ttl is not None
 
             redis_client = self.redis
             if redis_client:
@@ -834,7 +836,7 @@ def get_cache_service(db: Session = Depends(get_db)) -> CacheService:
         CacheService: Fresh cache service instance
     """
     try:
-        redis_client = redis.from_url(
+        redis_client = from_url(
             settings.redis_url or "redis://localhost:6379", decode_responses=True
         )
         redis_client.ping()

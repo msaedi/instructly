@@ -6,10 +6,10 @@ Provides insights into Redis operations, memory usage, and Celery queue status.
 """
 
 import logging
-from typing import Any, Dict, cast
+from typing import Dict, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
-import redis
+from redis import ConnectionError, Redis, TimeoutError, from_url
 
 from app.core.config import settings
 from app.core.enums import PermissionName
@@ -33,10 +33,10 @@ router = APIRouter(
 )
 
 
-def get_redis_client() -> redis.Redis:
+def get_redis_client() -> Redis:
     """Get Redis client instance."""
     redis_url = settings.redis_url or "redis://localhost:6379/0"
-    return redis.from_url(redis_url, decode_responses=True)
+    return from_url(redis_url, decode_responses=True)
 
 
 @router.get("/health", response_model=RedisHealthResponse)
@@ -51,7 +51,7 @@ async def redis_health() -> RedisHealthResponse:
         client = get_redis_client()
         client.ping()
         return RedisHealthResponse(status="healthy", connected=True)
-    except (redis.ConnectionError, redis.TimeoutError) as e:
+    except (ConnectionError, TimeoutError) as e:
         logger.error(f"Redis health check failed: {e}")
         return RedisHealthResponse(status="unhealthy", connected=False, error=str(e))
 
@@ -73,7 +73,7 @@ async def redis_test() -> RedisTestResponse:
         ping_result = client.ping()
 
         # Get server info
-        info = cast(Dict[str, Any], client.info("server"))
+        info = client.info("server")
 
         return RedisTestResponse(
             status="connected",
@@ -114,7 +114,7 @@ async def redis_stats(
         client = get_redis_client()
 
         # Get Redis INFO
-        info = cast(Dict[str, Any], client.info())
+        info = client.info()
 
         # Extract key metrics
         memory_info = {
@@ -204,7 +204,7 @@ async def celery_queue_status(
         )
 
 
-def _get_celery_queue_lengths(client: redis.Redis) -> Dict[str, int]:
+def _get_celery_queue_lengths(client: Redis) -> Dict[str, int]:
     """Get lengths of all Celery queues."""
     queue_names = [
         "celery",
@@ -256,7 +256,7 @@ async def redis_connection_audit(
 
         # Get active connections from current Redis
         client = get_redis_client()
-        info = cast(Dict[str, Any], client.info("clients"))
+        info = client.info("clients")
         connected_clients = cast(int, info.get("connected_clients", 0))
 
         # Parse URLs to identify service

@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # UserRole enum removed - now using RBAC system with roles table
 
 
-class User(Base):  # type: ignore[misc]
+class User(Base):
     """
     Main user model for authentication and profile management.
 

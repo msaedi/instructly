@@ -70,5 +70,5 @@ class SearchInteraction(Base):
     search_event = relationship("SearchEvent", backref="interactions")
     instructor = relationship("User", foreign_keys=[instructor_id])
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<SearchInteraction(id={self.id}, type={self.interaction_type}, search_event_id={self.search_event_id})>"

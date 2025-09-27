@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import logging
 import os
-from typing import Optional
+from typing import Any, Dict, Optional, cast
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -32,7 +32,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         bool: True if password matches, False otherwise
     """
     try:
-        return pwd_context.verify(plain_password, hashed_password)
+        return bool(pwd_context.verify(plain_password, hashed_password))
     except Exception as e:
         logger.error(f"Error verifying password: {str(e)}")
         return False
@@ -48,10 +48,11 @@ def get_password_hash(password: str) -> str:
     Returns:
         str: The hashed password
     """
-    return pwd_context.hash(password)
+    hashed = pwd_context.hash(password)
+    return str(hashed)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     """
     Create a JWT access token.
 
@@ -106,10 +107,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         to_encode.update({"iss": f"https://{settings.prod_api_domain}", "aud": "prod"})
 
     # Fix: Use get_secret_value() to get the actual string from SecretStr
-    encoded_jwt = jwt.encode(
-        to_encode,
-        settings.secret_key.get_secret_value(),  # Changed this line
-        algorithm=settings.algorithm,
+    encoded_jwt = cast(
+        str,
+        jwt.encode(
+            to_encode,
+            settings.secret_key.get_secret_value(),  # Changed this line
+            algorithm=settings.algorithm,
+        ),
     )
 
     logger.info(f"Created access token for user: {data.get('sub')}")
@@ -174,12 +178,13 @@ async def get_current_user(
         )
         if enforce_aud:
             expected_aud = "preview" if site_mode == "preview" else "prod"
-            payload = jwt.decode(
+            payload_raw = jwt.decode(
                 token,
                 settings.secret_key.get_secret_value(),
                 algorithms=[settings.algorithm],
                 audience=expected_aud,
             )
+            payload = cast(Dict[str, Any], payload_raw)
             iss = payload.get("iss", "")
             if site_mode == "preview":
                 if iss != f"https://{settings.preview_api_domain}":
@@ -189,13 +194,18 @@ async def get_current_user(
                     raise invalid_credentials
         else:
             # Disable audience verification in tests and non-preview/prod modes
-            payload = jwt.decode(
+            payload_raw = jwt.decode(
                 token,
                 settings.secret_key.get_secret_value(),
                 algorithms=[settings.algorithm],
                 options={"verify_aud": False},
             )
-        email: str = payload.get("sub")
+            payload = cast(Dict[str, Any], payload_raw)
+        email_obj = payload.get("sub")
+        if not isinstance(email_obj, str):
+            email: str | None = None
+        else:
+            email = email_obj
         if email is None:
             logger.warning("Token payload missing 'sub' field")
             credentials_exception = HTTPException(

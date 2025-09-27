@@ -9,7 +9,7 @@ from .base import AutocompleteResult, GeocodedAddress, GeocodingProvider
 
 
 class GoogleMapsProvider(GeocodingProvider):
-    def __init__(self):
+    def __init__(self) -> None:
         self.api_key = settings.google_maps_api_key
         self.base_url = "https://maps.googleapis.com/maps/api"
 

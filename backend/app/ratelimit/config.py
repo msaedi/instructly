@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
+
+from .metrics import rl_active_overrides, rl_config_reload_total
 
 
 @dataclass(frozen=True)
@@ -21,10 +23,10 @@ class RateLimitSettings:
     default_policy: str = os.getenv("RATE_LIMIT_DEFAULT_POLICY", "read")
 
 
-settings = RateLimitSettings()
+settings: RateLimitSettings = RateLimitSettings()
 
 # bucket policies (will be extended in PR-2)
-BUCKETS = {
+BUCKETS: Dict[str, Dict[str, Any]] = {
     "auth_bootstrap": dict(rate_per_min=100, burst=20, window_s=60),
     "read": dict(rate_per_min=60, burst=10, window_s=60),
     "write": dict(rate_per_min=20, burst=3, window_s=60),
@@ -60,7 +62,9 @@ def _load_overrides_from_env() -> Dict[str, Dict[str, Any]]:
     try:
         obj = json.loads(raw)
         if isinstance(obj, dict):
-            return {str(k): dict(v) for k, v in obj.items() if isinstance(v, dict)}
+            return {
+                str(k): cast(Dict[str, Any], dict(v)) for k, v in obj.items() if isinstance(v, dict)
+            }
     except Exception:
         return {}
     return {}
@@ -68,9 +72,9 @@ def _load_overrides_from_env() -> Dict[str, Dict[str, Any]]:
 
 def _load_overrides_from_redis() -> Dict[str, Dict[str, Any]]:
     try:
-        # Lazy import to avoid circular dependency
-        from .redis_backend import get_redis  # type: ignore
+        from .redis_backend import get_redis
 
+        # Lazy import to avoid circular dependency
         r = get_redis()
         key = f"{settings.namespace}:rl:overrides"
         val = r.get(key)
@@ -78,7 +82,9 @@ def _load_overrides_from_redis() -> Dict[str, Dict[str, Any]]:
             return {}
         obj = json.loads(val)
         if isinstance(obj, dict):
-            return {str(k): dict(v) for k, v in obj.items() if isinstance(v, dict)}
+            return {
+                str(k): cast(Dict[str, Any], dict(v)) for k, v in obj.items() if isinstance(v, dict)
+            }
     except Exception:
         return {}
     return {}
@@ -107,7 +113,7 @@ def reload_config(cache_ttl_s: int = 30) -> Dict[str, Any]:
     merged = {**env_overrides, **redis_overrides}
     _POLICY_OVERRIDES = merged
 
-    info = {
+    info: Dict[str, Any] = {
         "enabled": settings.enabled,
         "shadow": settings.shadow,
         "bucket_shadows": BUCKET_SHADOW_OVERRIDES,
@@ -116,8 +122,6 @@ def reload_config(cache_ttl_s: int = 30) -> Dict[str, Any]:
 
     # Emit PR-8 metrics: count reloads and gauge active overrides
     try:
-        from .metrics import rl_active_overrides, rl_config_reload_total  # type: ignore
-
         rl_config_reload_total.inc()
         rl_active_overrides.set(len(_POLICY_OVERRIDES))
     except Exception:
@@ -133,7 +137,7 @@ def get_effective_policy(
 
     Simple prefix pattern match for overrides.
     """
-    base = dict(BUCKETS.get(bucket, {}))
+    base: Dict[str, Any] = dict(BUCKETS.get(bucket, {}))
     base["bucket"] = bucket
     base["shadow"] = is_shadow_mode(bucket)
     if not route:

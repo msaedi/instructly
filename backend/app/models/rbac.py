@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from .user import User
 
 
-class Role(Base):  # type: ignore[misc]
+class Role(Base):
     """
     User roles for access control.
 
@@ -67,7 +67,7 @@ class Role(Base):  # type: ignore[misc]
         return f"<Role {self.name}>"
 
 
-class Permission(Base):  # type: ignore[misc]
+class Permission(Base):
     """
     System permissions for granular access control.
 
@@ -104,7 +104,7 @@ class Permission(Base):  # type: ignore[misc]
         return f"<Permission {self.name}>"
 
 
-class UserRole(Base):  # type: ignore[misc]
+class UserRole(Base):
     """
     Junction table for user-to-role mapping.
 
@@ -129,7 +129,7 @@ class UserRole(Base):  # type: ignore[misc]
     )
 
 
-class RolePermission(Base):  # type: ignore[misc]
+class RolePermission(Base):
     """
     Junction table for role-to-permission mapping.
 
@@ -150,7 +150,7 @@ class RolePermission(Base):  # type: ignore[misc]
     )
 
 
-class UserPermission(Base):  # type: ignore[misc]
+class UserPermission(Base):
     """
     Individual permission overrides for users.
 

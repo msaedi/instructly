@@ -129,7 +129,7 @@ class MessageService(BaseService):
             # Assemble read_by from repository
             ids = [m.id for m in messages]
             read_rows = self.repository.get_read_receipts_for_message_ids(ids)
-            message_id_to_reads = {}
+            message_id_to_reads: dict[str, list[dict[str, str | None]]] = {}
             for mid, uid, read_at in read_rows:
                 message_id_to_reads.setdefault(mid, []).append(
                     {
@@ -144,11 +144,11 @@ class MessageService(BaseService):
             # Reactions summary and my reactions via repository
             reaction_rows = self.repository.get_reaction_counts_for_message_ids(ids)
             my_reaction_rows = self.repository.get_user_reactions_for_message_ids(ids, user_id)
-            message_id_to_reactions = {}
+            message_id_to_reactions: dict[str, dict[str, int]] = {}
             for mid, emoji, cnt in reaction_rows:
                 d = message_id_to_reactions.setdefault(mid, {})
                 d[emoji] = int(cnt)
-            message_id_to_my = {}
+            message_id_to_my: dict[str, list[str]] = {}
             for mid, emoji in my_reaction_rows:
                 lst = message_id_to_my.setdefault(mid, [])
                 lst.append(emoji)
@@ -171,7 +171,8 @@ class MessageService(BaseService):
         Returns:
             Total number of unread messages
         """
-        return self.repository.get_unread_count_for_user(user_id)
+        count = self.repository.get_unread_count_for_user(user_id)
+        return int(count or 0)
 
     @BaseService.measure_operation("send_typing_indicator")
     def send_typing_indicator(self, booking_id: str, user_id: str, user_name: str) -> None:
@@ -208,7 +209,7 @@ class MessageService(BaseService):
         with self.transaction():
             count = self.repository.mark_messages_as_read(message_ids, user_id)
             self.logger.info(f"Marked {count} messages as read for user {user_id}")
-            return count
+            return int(count or 0)
 
     @BaseService.measure_operation("mark_booking_messages_as_read")
     def mark_booking_messages_as_read(self, booking_id: str, user_id: str) -> int:
@@ -260,7 +261,7 @@ class MessageService(BaseService):
             raise ForbiddenException("You can only delete your own messages")
 
         with self.transaction():
-            return self.repository.delete_message(message_id)
+            return bool(self.repository.delete_message(message_id))
 
     # Phase 2: reactions
     @BaseService.measure_operation("add_reaction")
@@ -273,14 +274,14 @@ class MessageService(BaseService):
             raise ForbiddenException("You don't have access to this booking")
         with self.transaction():
             # Toggle behavior: if exists, remove; else add (through repository)
-            exists = self.repository.has_user_reaction(message_id, user_id, emoji)
+            exists = bool(self.repository.has_user_reaction(message_id, user_id, emoji))
             action = "added"
             if exists:
                 self.repository.remove_reaction(message_id, user_id, emoji)
                 action = "removed"
                 ok = True
             else:
-                ok = self.repository.add_reaction(message_id, user_id, emoji)
+                ok = bool(self.repository.add_reaction(message_id, user_id, emoji))
 
             # Notify via NOTIFY for SSE consumers through repository
             payload = {
@@ -301,7 +302,7 @@ class MessageService(BaseService):
         if not self._user_has_booking_access(message.booking_id, user_id):
             raise ForbiddenException("You don't have access to this booking")
         with self.transaction():
-            ok = self.repository.remove_reaction(message_id, user_id, emoji)
+            ok = bool(self.repository.remove_reaction(message_id, user_id, emoji))
             payload = {
                 "type": "reaction_update",
                 "message_id": message_id,
@@ -337,7 +338,7 @@ class MessageService(BaseService):
             pass
         with self.transaction():
             # Save history and apply edit through repository
-            ok = self.repository.apply_message_edit(message_id, new_content.strip())
+            ok = bool(self.repository.apply_message_edit(message_id, new_content.strip()))
             # Notify
             payload = {
                 "type": "message_edited",
@@ -384,7 +385,7 @@ class MessageService(BaseService):
             raise NotFoundException(f"Booking {booking_id} not found")
         return booking
 
-    def _send_offline_notification(self, booking: Booking, sender_id: str, content: str):
+    def _send_offline_notification(self, booking: Booking, sender_id: str, content: str) -> None:
         """
         Send email notification for offline recipient.
 

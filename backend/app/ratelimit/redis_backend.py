@@ -1,10 +1,15 @@
-import redis
+from typing import Any
+
+from redis import Redis
 
 from .config import settings
 
 
-def get_redis():
-    return redis.Redis.from_url(settings.redis_url, decode_responses=True)
+def get_redis(**kwargs: Any) -> Redis:
+    """Return a Redis client configured for rate limiting."""
+
+    options: dict[str, Any] = {"decode_responses": True, **kwargs}
+    return Redis.from_url(settings.redis_url, **options)
 
 
 # Lua script implementing GCRA logic using TAT (Theoretical Arrival Time)

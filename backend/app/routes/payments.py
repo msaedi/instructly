@@ -16,7 +16,7 @@ Key Features:
 
 from datetime import datetime, timezone
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
@@ -288,7 +288,7 @@ async def create_identity_session(
     request: Request,
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
-):
+) -> IdentitySessionResponse:
     """Create a Stripe Identity verification session for the current user."""
     try:
         validate_instructor_role(current_user)
@@ -298,10 +298,13 @@ async def create_identity_session(
 
         # Redirect back to onboarding status page in the new Phoenix structure
         return_url = f"{settings.frontend_url}/instructor/onboarding/status?identity_return=true"
-        result = await run_in_threadpool(
-            stripe_service.create_identity_verification_session,
-            user_id=current_user.id,
-            return_url=return_url,
+        result = cast(
+            Dict[str, Any],
+            await run_in_threadpool(
+                stripe_service.create_identity_verification_session,
+                user_id=current_user.id,
+                return_url=return_url,
+            ),
         )
         return IdentitySessionResponse(
             verification_session_id=result["verification_session_id"],
@@ -335,7 +338,7 @@ class IdentityRefreshResponse(BaseModel):
 async def refresh_identity_status(
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
-):
+) -> IdentityRefreshResponse:
     """Fetch latest Stripe Identity status and persist verification on success.
 
     This avoids blocking general status calls and lets the UI trigger a one-off refresh
@@ -344,8 +347,9 @@ async def refresh_identity_status(
     try:
         validate_instructor_role(current_user)
 
-        status_data = await run_in_threadpool(
-            stripe_service.get_latest_identity_status, current_user.id
+        status_data = cast(
+            Dict[str, Any],
+            await run_in_threadpool(stripe_service.get_latest_identity_status, current_user.id),
         )
         status_value = status_data.get("status") or "unknown"
 
@@ -396,7 +400,7 @@ async def set_payout_schedule(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
-):
+) -> PayoutScheduleResponse:
     """
     Set payout schedule for the current instructor's connected account.
 
@@ -412,11 +416,14 @@ async def set_payout_schedule(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
             )
 
-        result = await run_in_threadpool(
-            stripe_service.set_payout_schedule_for_account,
-            instructor_profile.id,
-            interval,
-            weekly_anchor,
+        result = cast(
+            Dict[str, Any],
+            await run_in_threadpool(
+                stripe_service.set_payout_schedule_for_account,
+                instructor_profile.id,
+                interval,
+                weekly_anchor,
+            ),
         )
         return PayoutScheduleResponse(
             ok=True, account_id=result.get("account_id"), settings=result.get("settings")
@@ -517,7 +524,7 @@ async def request_instant_payout(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
-):
+) -> InstantPayoutResponse:
     """
     Trigger an instant payout for an instructor's connected account.
 
@@ -544,12 +551,15 @@ async def request_instant_payout(
 
         # Create a payout with method='instant' on the connected account
         # Note: Requires Stripe account eligibility and sufficient balance
-        payout = await run_in_threadpool(
-            stripe.Payout.create,
-            amount=0,  # 0 means Stripe will pay out the maximum available (supported in test mode)
-            currency=settings.stripe_currency or "usd",
-            method="instant",
-            stripe_account=connected.stripe_account_id,
+        payout = cast(
+            stripe.Payout,
+            await run_in_threadpool(
+                stripe.Payout.create,
+                amount=0,  # 0 means Stripe will pay out the maximum available (supported in test mode)
+                currency=settings.stripe_currency or "usd",
+                method="instant",
+                stripe_account=connected.stripe_account_id,
+            ),
         )
 
         prometheus_metrics.inc_instant_payout_request("success")

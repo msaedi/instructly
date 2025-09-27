@@ -81,6 +81,12 @@ def _normalize_service_metrics(raw_metrics: Optional[Mapping[str, Any]]) -> Json
     }
 
 
+def _coerce_json_dict(value: Any, error_message: str) -> JsonDict:
+    if isinstance(value, dict):
+        return dict(value)
+    return {"error": error_message}
+
+
 @router.get("/health", response_model=HealthCheckResponse)
 async def health_check() -> HealthCheckResponse:
     """Basic health check endpoint."""
@@ -113,11 +119,11 @@ async def get_performance_metrics(
         raise HTTPException(status_code=403, detail="Unauthorized")
 
     # Cache metrics
-    cache_stats: JsonDict = (
-        cast(JsonDict, cache_service.get_stats())
-        if cache_service
-        else {"error": "Cache service not available"}
-    )
+    if cache_service:
+        raw_cache_stats = cache_service.get_stats()
+        cache_stats = _coerce_json_dict(raw_cache_stats, "Unexpected cache stats format")
+    else:
+        cache_stats = {"error": "Cache service not available"}
 
     # System metrics
     system_metrics: JsonDict = {
@@ -163,7 +169,7 @@ async def get_cache_metrics(
         raise HTTPException(status_code=503, detail="Cache service not available")
 
     # Get basic cache stats
-    stats: JsonDict = cast(JsonDict, cache_service.get_stats())
+    stats = _coerce_json_dict(cache_service.get_stats(), "Unexpected cache stats format")
 
     # Add availability-specific metrics
     availability_stats: JsonDict = {
@@ -402,7 +408,9 @@ def get_rate_limit_stats(
 
     Requires authentication.
     """
-    stats = cast(JsonDict, RateLimitAdmin.get_rate_limit_stats())
+    stats = _coerce_json_dict(
+        RateLimitAdmin.get_rate_limit_stats(), "Unexpected rate limit stats format"
+    )
     return RateLimitStats(**stats)
 
 

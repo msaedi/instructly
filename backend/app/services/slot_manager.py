@@ -179,6 +179,8 @@ class SlotManager(BaseService):
         with self.transaction():
             # Update the slot
             updated_slot = self.repository.update(slot_id, start_time=new_start, end_time=new_end)
+            if updated_slot is None:
+                raise NotFoundException("Slot not found")
 
             self.logger.info(f"Updated slot {slot_id}: {new_start}-{new_end}")
 

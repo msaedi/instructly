@@ -56,7 +56,7 @@ class ConflictChecker(BaseService):
         check_date: date,
         start_time: time,
         end_time: time,
-        exclude_booking_id: Optional[int] = None,
+        exclude_booking_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Check if a time range conflicts with existing bookings.
@@ -73,8 +73,9 @@ class ConflictChecker(BaseService):
         Returns:
             List of conflicts with booking details
         """
+        exclude_id = str(exclude_booking_id) if exclude_booking_id is not None else None
         bookings = self.repository.get_bookings_for_conflict_check(
-            instructor_id, check_date, exclude_booking_id
+            instructor_id, check_date, exclude_id
         )
 
         conflicts = []
@@ -108,7 +109,7 @@ class ConflictChecker(BaseService):
         booking_date: date,
         start_time: time,
         end_time: time,
-        exclude_booking_id: Optional[int] = None,
+        exclude_booking_id: Optional[str] = None,
     ) -> bool:
         """
         Check if a time range has any conflicts.
@@ -277,21 +278,22 @@ class ConflictChecker(BaseService):
         if not instructor:
             return {"valid": False, "reason": "Instructor not found"}
 
-        # Calculate booking datetime in instructor's timezone
-        booking_datetime = datetime.combine(booking_date, booking_time)
-
         # Get instructor's current time
         from ..core.timezone_utils import get_user_now
 
         instructor_now = get_user_now(instructor)
+
+        # Calculate booking datetime in instructor's timezone
+        booking_datetime = datetime.combine(
+            booking_date, booking_time, tzinfo=instructor_now.tzinfo
+        )
 
         # Calculate minimum booking time
         min_booking_time = instructor_now + timedelta(hours=profile.min_advance_booking_hours)
 
         # For comparison, we need to ensure both times are timezone-aware
         # Convert booking_datetime to instructor's timezone for fair comparison
-        instructor_tz = instructor_now.tzinfo
-        booking_datetime_tz = instructor_tz.localize(booking_datetime)
+        booking_datetime_tz = booking_datetime
 
         if booking_datetime_tz < min_booking_time:
             hours_until_booking = (booking_datetime_tz - instructor_now).total_seconds() / 3600
@@ -326,7 +328,7 @@ class ConflictChecker(BaseService):
         booking_date: date,
         start_time: time,
         end_time: time,
-        service_id: Optional[int] = None,
+        service_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Comprehensive validation of booking constraints.

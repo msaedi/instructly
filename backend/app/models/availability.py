@@ -79,7 +79,7 @@ class AvailabilitySlot(Base):
         ),
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<AvailabilitySlot {self.specific_date} {self.start_time}-{self.end_time}>"
 
 
@@ -103,5 +103,5 @@ class BlackoutDate(Base):
         Index("idx_blackout_dates_instructor_date", "instructor_id", "date"),
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<BlackoutDate {self.date} - {self.reason or 'No reason'}>"

@@ -7,8 +7,22 @@ Implements proper retry timing windows based on lesson time.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Callable, Dict, List, Optional, Sequence, TypedDict, TypeVar, Union, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    ParamSpec,
+    Protocol,
+    Sequence,
+    TypedDict,
+    TypeVar,
+    Union,
+    cast,
+)
 
+from celery.result import AsyncResult
 from sqlalchemy.orm import Session
 import stripe
 
@@ -21,13 +35,27 @@ from app.services.notification_service import NotificationService
 from app.services.stripe_service import StripeService
 from app.tasks.celery_app import celery_app
 
-TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
+P = ParamSpec("P")
+R = TypeVar("R", covariant=True)
 
 
-def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], TaskCallable]:
+class TaskWrapper(Protocol[P, R]):
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        ...
+
+    delay: Callable[..., AsyncResult]
+    apply_async: Callable[..., AsyncResult]
+
+
+def typed_task(
+    *task_args: Any, **task_kwargs: Any
+) -> Callable[[Callable[P, R]], TaskWrapper[P, R]]:
     """Return a typed Celery task decorator for mypy."""
 
-    return cast(Callable[[TaskCallable], TaskCallable], celery_app.task(*task_args, **task_kwargs))
+    return cast(
+        Callable[[Callable[P, R]], TaskWrapper[P, R]],
+        celery_app.task(*task_args, **task_kwargs),
+    )
 
 
 class AuthorizationJobResults(TypedDict):
@@ -129,8 +157,10 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
 
                 instructor_repo = InstructorProfileRepository(db)
                 instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
+                if instructor_profile is None:
+                    raise Exception(f"No instructor profile for {booking.instructor_id}")
                 instructor_account = _payment_repo.get_connected_account_by_instructor_id(
-                    instructor_profile.id if instructor_profile else None
+                    instructor_profile.id
                 )
 
                 if not instructor_account or not instructor_account.stripe_account_id:

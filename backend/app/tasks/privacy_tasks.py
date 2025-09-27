@@ -250,7 +250,7 @@ def process_data_export_request(
 
     try:
         privacy_service = PrivacyService(self.db)
-        export_data = cast(Dict[str, Any], privacy_service.export_user_data(user_id))
+        export_data: Dict[str, Any] = privacy_service.export_user_data(str(user_id))
 
         # Add metadata
         export_data["request_id"] = request_id
@@ -295,13 +295,12 @@ def process_data_deletion_request(
         privacy_service = PrivacyService(self.db)
 
         if delete_account:
-            deletion_stats = cast(
-                Dict[str, Any],
-                privacy_service.delete_user_data(user_id, delete_account=True),
+            deletion_stats: Dict[str, Any] = privacy_service.delete_user_data(
+                str(user_id), delete_account=True
             )
         else:
             # Just anonymize
-            success = privacy_service.anonymize_user(user_id)
+            success = privacy_service.anonymize_user(str(user_id))
             deletion_stats = {"anonymized": 1 if success else 0}
 
         result = {

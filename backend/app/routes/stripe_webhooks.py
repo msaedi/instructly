@@ -19,8 +19,8 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from ..database import get_db
 from ..schemas.payment_schemas import WebhookResponse
-from ..services.dependencies import get_db
 from ..services.stripe_service import StripeService
 
 logger = logging.getLogger(__name__)

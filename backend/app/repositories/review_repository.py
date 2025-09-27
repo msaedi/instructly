@@ -178,7 +178,7 @@ class ReviewRepository(BaseRepository[Review]):
         instructor_service_id: Optional[str] = None,
         min_rating: Optional[int] = None,
         with_text: Optional[bool] = None,
-    ):
+    ) -> Query[Any]:
         q = q.filter(
             and_(
                 Review.instructor_id == instructor_id,
@@ -326,7 +326,7 @@ class ReviewTipRepository(BaseRepository[ReviewTip]):
         self, tip_id: str, status: str, processed_at: Optional[datetime] = None
     ) -> Optional[ReviewTip]:
         try:
-            tip = self.db.query(ReviewTip).filter(ReviewTip.id == tip_id).first()
+            tip: ReviewTip | None = self.db.query(ReviewTip).filter(ReviewTip.id == tip_id).first()
             if not tip:
                 return None
             tip.status = status

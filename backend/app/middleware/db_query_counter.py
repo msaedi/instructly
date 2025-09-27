@@ -27,7 +27,6 @@ class QueryCounter:
             engine: SQLAlchemy engine to monitor
         """
 
-        @event.listens_for(engine, "before_cursor_execute")
         def increment_query_count(
             conn: Any,
             cursor: Any,
@@ -48,6 +47,8 @@ class QueryCounter:
                         f"Query #{request.state.query_count} for request {getattr(request.state, 'request_id', 'unknown')}: "
                         f"{statement[:100]}..."
                     )
+
+        event.listens_for(engine, "before_cursor_execute")(increment_query_count)
 
     @staticmethod
     def get_current_request() -> Optional[Request]:

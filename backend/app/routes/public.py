@@ -361,10 +361,9 @@ async def get_instructor_public_availability(
         blackout_date_set = {b.date for b in blackout_dates}
 
         # Compute merged and booked-subtracted intervals via service
-        computed = cast(
-            Dict[str, List[Tuple[time, time]]],
-            availability_service.compute_public_availability(instructor_id, start_date, end_date),
-        )
+        computed: Dict[
+            str, List[Tuple[time, time]]
+        ] = availability_service.compute_public_availability(instructor_id, start_date, end_date)
 
         # Process each date in the range
         current_date = start_date

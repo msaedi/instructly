@@ -5,6 +5,7 @@ class Response:
     content: bytes
 
     def json(self) -> Any: ...
+    def raise_for_status(self) -> None: ...
 
 
 def get(

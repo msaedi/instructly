@@ -21,7 +21,7 @@ Architecture:
 
 from datetime import datetime, timezone
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy.orm import Session
 import stripe
@@ -650,15 +650,28 @@ class StripeService(BaseService):
 
             # Persist/Upsert payment record if present in DB
             try:
-                self.payment_repository.upsert_payment_record(
-                    booking_id=booking_id,
-                    payment_intent_id=pi.id,
-                    amount=amount_cents,
-                    application_fee=application_fee_cents,
-                    status=pi.status,
-                )
+                upsert = getattr(self.payment_repository, "upsert_payment_record", None)
+                if callable(upsert):
+                    upsert(
+                        booking_id=booking_id,
+                        payment_intent_id=pi.id,
+                        amount=amount_cents,
+                        application_fee=application_fee_cents,
+                        status=pi.status,
+                    )
+                else:
+                    # Fallback to create; ignore duplicates gracefully
+                    existing = self.payment_repository.get_payment_by_intent_id(pi.id)
+                    if existing is None:
+                        self.payment_repository.create_payment_record(
+                            booking_id=booking_id,
+                            payment_intent_id=pi.id,
+                            amount=amount_cents,
+                            application_fee=application_fee_cents,
+                            status=pi.status,
+                        )
             except Exception:
-                # Repository might not have upsert; ignore non-critical
+                # Repository might not have helper; ignore non-critical persistence issues
                 pass
 
             return result
@@ -1052,15 +1065,15 @@ class StripeService(BaseService):
 
                 # Extract card details
                 card = stripe_pm.card
-                last4 = card.last4 if card else None
-                brand = card.brand if card else None
+                last4 = cast(Optional[str], getattr(card, "last4", None) if card else None)
+                brand = cast(Optional[str], getattr(card, "brand", None) if card else None)
 
                 # Save to database
                 payment_method = self.payment_repository.save_payment_method(
                     user_id=user_id,
                     stripe_payment_method_id=payment_method_id,
-                    last4=last4,
-                    brand=brand,
+                    last4=last4 or "",
+                    brand=brand or "",
                     is_default=set_as_default,
                 )
 
