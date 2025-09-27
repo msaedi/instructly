@@ -61,7 +61,7 @@ class SearchUserContext:
     @property
     def search_limit(self) -> int:
         """Get the search history limit (same for both user types)."""
-        return settings.search_history_max_per_user
+        return self._normalize_int(getattr(settings, "search_history_max_per_user", 0))
 
     def to_repository_kwargs(self) -> Dict[str, Optional[Any]]:
         """
@@ -71,3 +71,27 @@ class SearchUserContext:
         that accept both user_id and guest_session_id parameters.
         """
         return {"user_id": self.user_id, "guest_session_id": self.guest_session_id}
+
+    def _normalize_int(self, raw: Any, default: int = 0) -> int:
+        """Normalize arbitrary input to ``int`` while preserving the existing default behaviour."""
+        if raw is None:
+            return default
+        if isinstance(raw, int):
+            return raw
+        if isinstance(raw, float):
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return default
+        if isinstance(raw, str):
+            candidate = raw.strip()
+            if not candidate:
+                return default
+            try:
+                return int(candidate)
+            except (TypeError, ValueError):
+                return default
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return default
