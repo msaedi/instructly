@@ -4,11 +4,28 @@ name: Backend CI/CD
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - 'tools/mypy_strict_gate.sh'
+      - 'backend/pyproject.toml'
+      - 'backend/requirements*.txt'
+      - 'backend/alembic/**'
+      - 'backend/typings/**'
+      - '.github/workflows/backend-ci.yml'
+      - '.pre-commit-config.yaml'
+      - '.github/workflows/**'
   pull_request:
     branches: [ main, develop ]
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
+      - 'tools/mypy_strict_gate.sh'
+      - 'backend/pyproject.toml'
+      - 'backend/requirements*.txt'
+      - 'backend/alembic/**'
+      - 'backend/typings/**'
+      - '.pre-commit-config.yaml'
+      - '.github/workflows/**'
 
 jobs:
   test:

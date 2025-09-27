@@ -32,6 +32,28 @@ on:
         default: "0"
   schedule:
     - cron: "0 9 * * *"
+  push:
+    paths:
+      - 'backend/**'
+      - 'tools/mypy_strict_gate.sh'
+      - 'backend/pyproject.toml'
+      - 'backend/requirements*.txt'
+      - 'backend/alembic/**'
+      - 'backend/typings/**'
+      - '.github/workflows/**'
+      - '.pre-commit-config.yaml'
+      - 'frontend/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'tools/mypy_strict_gate.sh'
+      - 'backend/pyproject.toml'
+      - 'backend/requirements*.txt'
+      - 'backend/alembic/**'
+      - 'backend/typings/**'
+      - '.github/workflows/**'
+      - '.pre-commit-config.yaml'
+      - 'frontend/**'
 jobs:
   smoke:
     runs-on: ubuntu-latest
