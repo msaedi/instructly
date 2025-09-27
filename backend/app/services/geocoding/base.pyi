@@ -3,7 +3,6 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
-
 class GeocodedAddress(BaseModel):
     latitude: float
     longitude: float

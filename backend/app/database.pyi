@@ -4,7 +4,6 @@ from typing import Any, TypedDict
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-
 class DeclarativeBase:
     """Lightweight stand-in for SQLAlchemy's DeclarativeBase."""
 
