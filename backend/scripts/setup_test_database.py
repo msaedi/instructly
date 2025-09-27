@@ -124,7 +124,7 @@ def print_success_message(test_url):
     """Print success message with next steps."""
     # Mask password in URL for display
     parsed = urlparse(test_url)
-    display_url = urlunparse(parsed._replace(netloc=f"{parsed.username}:****@{parsed.hostname}:{parsed.port}"))
+    _display_url = urlunparse(parsed._replace(netloc=f"{parsed.username}:****@{parsed.hostname}:{parsed.port}"))
 
     print("\n" + "=" * 60)
     print("✅ Test Database Setup Complete!")

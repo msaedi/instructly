@@ -331,7 +331,7 @@ class TestSlotManagerDatabaseOperations:
         merge_date = date.today() + timedelta(days=10)
 
         # Create adjacent slots
-        slot1 = service.create_slot(
+        _slot1 = service.create_slot(
             instructor_id=test_instructor.id,
             target_date=merge_date,
             start_time=time(9, 0),
@@ -339,7 +339,7 @@ class TestSlotManagerDatabaseOperations:
             auto_merge=False,
         )
 
-        slot2 = service.create_slot(
+        _slot2 = service.create_slot(
             instructor_id=test_instructor.id,
             target_date=merge_date,
             start_time=time(10, 0),
@@ -347,7 +347,7 @@ class TestSlotManagerDatabaseOperations:
             auto_merge=False,
         )
 
-        slot3 = service.create_slot(
+        _slot3 = service.create_slot(
             instructor_id=test_instructor.id,
             target_date=merge_date,
             start_time=time(11, 0),
@@ -387,7 +387,7 @@ class TestSlotManagerDatabaseOperations:
         merge_date = date.today()
 
         # Count initial slots
-        initial_slots = (
+        _initial_slots = (
             db.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == test_instructor_with_availability.id,

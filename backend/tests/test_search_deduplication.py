@@ -116,7 +116,7 @@ async def test_search_deduplication(search_service, search_repository, event_rep
     assert len(event_entries) == 2
 
     # Record third search
-    result3 = await search_service.record_search(context=context, search_data=search_data)
+    _result3 = await search_service.record_search(context=context, search_data=search_data)
 
     # Verify count is now 3
     history_entries = (

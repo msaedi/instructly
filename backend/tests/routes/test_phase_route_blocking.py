@@ -19,7 +19,7 @@ class TestPhaseRouteBlocking:
         db.commit()
 
         # Hitting the search endpoint (phase-gated) should 403 when authenticated under instructor_only
-        res = client.get("/api/search/instructors", params={"q": "piano"})
+        _res = client.get("/api/search/instructors", params={"q": "piano"})
         # Since dependency requires auth, we expect 401 or 403 depending on setup; but phase dependency should 403
         # Ensure we get 403 if authenticated but phase is not open
         from app.models.user import User

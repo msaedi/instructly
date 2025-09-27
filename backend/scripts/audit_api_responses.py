@@ -11,8 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json  # noqa: E402
 
 from app.database import SessionLocal  # noqa: E402
-from app.models import *  # noqa: E402
-from app.schemas import *  # noqa: E402
+from app.models.booking import Booking  # noqa: E402
 
 
 def check_booking_responses():

@@ -183,7 +183,7 @@ class TestBookingRepositoryNoSlotReferences:
         service = test_instructor.instructor_profile.instructor_services[0]
 
         # Create an existing booking
-        existing = repo.create(
+        _existing = repo.create(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,

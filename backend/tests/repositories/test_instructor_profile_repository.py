@@ -67,7 +67,7 @@ class TestInstructorProfileRepositoryEagerLoading:
             mock_query.all.return_value = [profile]
 
             # Call the method
-            results = repo.get_all_with_details(skip=0, limit=10)
+            _results = repo.get_all_with_details(skip=0, limit=10)
 
             # Verify joinedload was called for both relationships
             mock_query.options.assert_called()
@@ -408,7 +408,7 @@ class TestPerformanceImprovement:
             old_query_count += 1
 
             # Get services
-            services = db.query(Service).filter(Service.instructor_profile_id == profile.id).all()
+            _services = db.query(Service).filter(Service.instructor_profile_id == profile.id).all()
             old_query_count += 1
 
         # Test new approach

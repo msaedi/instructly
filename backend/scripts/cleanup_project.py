@@ -67,7 +67,7 @@ def setup_log_levels():
     """Create environment-based logging configuration."""
     print("\nSetting up environment-based logging...")
 
-    logger_config = """// frontend/lib/logger.ts
+    _logger_config = """// frontend/lib/logger.ts
 // Add this at the top of your logger configuration
 
 const LOG_LEVELS = {

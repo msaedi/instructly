@@ -83,7 +83,7 @@ class TestWeekOperationQueryPatterns:
 
         Uses bulk_insert_mappings for performance.
         """
-        slots_data = [
+        _slots_data = [
             {
                 "instructor_id": 1,
                 "specific_date": date(2025, 6, 23),  # FIXED: date → specific_date

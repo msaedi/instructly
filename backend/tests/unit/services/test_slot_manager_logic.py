@@ -214,7 +214,7 @@ class TestSlotManagerCRUDLogic:
         # Work Stream #9: Can update slots regardless of bookings
         service.db.commit = Mock()
 
-        result = service.update_slot(slot_id=slot_id, start_time=time(10, 0), end_time=time(11, 0))
+        _result = service.update_slot(slot_id=slot_id, start_time=time(10, 0), end_time=time(11, 0))
 
         # Verify repository update was called
         service.repository.update.assert_called_with(slot_id, start_time=time(10, 0), end_time=time(11, 0))

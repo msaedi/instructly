@@ -160,7 +160,7 @@ class TestDSTTransitions:
 
         # Spring forward happens on March 10, 2024 at 2 AM
         # 2:00 AM becomes 3:00 AM
-        booking_date = date(2024, 3, 10)
+        _booking_date = date(2024, 3, 10)
 
         # Create booking service
         booking_service = BookingService(db)
@@ -185,7 +185,7 @@ class TestDSTTransitions:
 
         # Fall back happens on November 3, 2024 at 2 AM
         # 2:00 AM happens twice
-        booking_date = date(2024, 11, 3)
+        _booking_date = date(2024, 11, 3)
 
         # Create booking service
         booking_service = BookingService(db)
@@ -347,7 +347,7 @@ class TestCIEnvironment:
 
                     # Verify date is calculated based on user timezone, not system
                     user_tz = pytz.timezone(user.timezone)
-                    expected_date = datetime.now(user_tz).date()
+                    _expected_date = datetime.now(user_tz).date()
 
                     # Can't directly compare due to mock, but verify it's a date
                     assert isinstance(user_today, date)

@@ -192,7 +192,7 @@ class TestSearchTypeE2E:
         user_id = test_user_with_token[0].id if auth_type == "authenticated" else None
         guest_id = guest_headers.get("X-Guest-Session-ID") if auth_type == "guest" else None
 
-        event = self._verify_search_event(
+        _event = self._verify_search_event(
             db,
             user_id,
             guest_id,
@@ -202,7 +202,7 @@ class TestSearchTypeE2E:
             referrer="/home",
         )
 
-        history = self._verify_search_history(
+        _history = self._verify_search_history(
             db, user_id, guest_id, f"piano teacher near me - {auth_type}", "natural_language"
         )
 
@@ -251,7 +251,7 @@ class TestSearchTypeE2E:
         user_id = test_user_with_token[0].id if auth_type == "authenticated" else None
         guest_id = guest_headers.get("X-Guest-Session-ID") if auth_type == "guest" else None
 
-        event = self._verify_search_event(
+        _event = self._verify_search_event(
             db, user_id, guest_id, "Music lessons", "category", results_count=0, referrer="/"  # None becomes 0
         )
 
@@ -281,7 +281,7 @@ class TestSearchTypeE2E:
         user_id = test_user_with_token[0].id if auth_type == "authenticated" else None
         guest_id = guest_headers.get("X-Guest-Session-ID") if auth_type == "guest" else None
 
-        event = self._verify_search_event(
+        _event = self._verify_search_event(
             db, user_id, guest_id, "Piano", "service_pill", results_count=12, referrer="/"
         )
 
@@ -306,7 +306,7 @@ class TestSearchTypeE2E:
         user_id = test_user_with_token[0].id if auth_type == "authenticated" else None
         guest_id = guest_headers.get("X-Guest-Session-ID") if auth_type == "guest" else None
 
-        event = self._verify_search_event(
+        _event = self._verify_search_event(
             db, user_id, guest_id, "Violin", "service_pill", results_count=8, referrer="/services"
         )
 

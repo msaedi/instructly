@@ -50,7 +50,7 @@ class TestPaymentTasks:
         mock_db.query.return_value = mock_query
 
         # Mock Stripe service (not used in the actual code)
-        mock_stripe_service_instance = mock_stripe_service.return_value
+        _mock_stripe_service_instance = mock_stripe_service.return_value
 
         # Mock stripe module PaymentIntent.create
         mock_payment_intent = MagicMock()
@@ -131,7 +131,7 @@ class TestPaymentTasks:
         mock_db.query.return_value = mock_query
 
         # Mock Stripe service (not used in the actual code)
-        mock_stripe_service_instance = mock_stripe_service.return_value
+        _mock_stripe_service_instance = mock_stripe_service.return_value
 
         # Mock stripe module PaymentIntent.create to raise card error
         # We need to use the real stripe.error.CardError class for proper exception handling
@@ -353,7 +353,7 @@ class TestPaymentTasks:
         mock_db.query.return_value = mock_query
 
         # Mock Stripe service (not used in the actual code)
-        mock_stripe_service_instance = mock_stripe_service.return_value
+        _mock_stripe_service_instance = mock_stripe_service.return_value
 
         # Mock stripe module PaymentIntent.capture
         mock_captured_intent = MagicMock()

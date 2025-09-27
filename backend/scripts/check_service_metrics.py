@@ -143,7 +143,7 @@ def main(argv: List[str]) -> int:
     for f in files:
         # Only check files within services directory
         try:
-            rel = f.relative_to(SERVICES_DIR)
+            _rel = f.relative_to(SERVICES_DIR)
         except Exception:
             # Skip files outside services dir
             continue

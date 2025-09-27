@@ -589,7 +589,7 @@ class TestStudentDoubleBookingPrevention:
 
         # First booking: Math lesson 10:00-11:00 AM
         # Get available slot for first instructor
-        math_slot = (
+        _math_slot = (
             db.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == test_instructor_with_availability.id,

@@ -4,6 +4,7 @@ Debug why production alerts aren't being created.
 """
 
 from datetime import datetime, timedelta, timezone
+import os
 from pathlib import Path
 import sys
 

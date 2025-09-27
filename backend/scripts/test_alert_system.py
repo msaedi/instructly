@@ -42,7 +42,7 @@ def test_slow_query_alert():
         from sqlalchemy import text
 
         # Run a deliberately slow query
-        result = db.execute(
+        _result = db.execute(
             text(
                 """
             SELECT

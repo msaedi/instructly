@@ -173,7 +173,7 @@ class TestPublicAPIConfiguration:
         # Mock the cache service's set method
         from app.services.cache_service import CacheService
 
-        original_set = CacheService.set
+        _original_set = CacheService.set
         monkeypatch.setattr(CacheService, "set", mock_set)
 
         # Make request - this should trigger caching with TTL

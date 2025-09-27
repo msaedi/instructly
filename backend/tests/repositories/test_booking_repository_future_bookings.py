@@ -187,7 +187,7 @@ class TestBookingRepositoryFutureBookings:
             db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CONFIRMED
         )
 
-        cancelled_booking = self.create_booking(
+        _cancelled_booking = self.create_booking(
             db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CANCELLED
         )
 
@@ -212,11 +212,11 @@ class TestBookingRepositoryFutureBookings:
         tomorrow = today + timedelta(days=1)
 
         # Create confirmed and cancelled bookings
-        confirmed_booking = self.create_booking(
+        _confirmed_booking = self.create_booking(
             db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CONFIRMED
         )
 
-        cancelled_booking = self.create_booking(
+        _cancelled_booking = self.create_booking(
             db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CANCELLED
         )
 

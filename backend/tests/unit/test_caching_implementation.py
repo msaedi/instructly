@@ -64,7 +64,7 @@ class TestRepositoryCaching:
 
             # Call a cached method
             student_id = generate_ulid()
-            result = repo.get_student_bookings(student_id=student_id)
+            _result = repo.get_student_bookings(student_id=student_id)
 
             # Verify cache was checked
             mock_cache.get.assert_called_once()
@@ -228,7 +228,7 @@ class TestServiceCaching:
 
                 # Call a cached method
                 student_id = generate_ulid()
-                result = repo.get_student_bookings(student_id=student_id)
+                _result = repo.get_student_bookings(student_id=student_id)
 
                 # Verify cache was NOT used
                 mock_cache.get.assert_not_called()
@@ -302,10 +302,10 @@ class TestCachePerformance:
             service = BookingService(db=db, cache_service=mock_cache, notification_service=Mock(), repository=mock_repo)
 
             # First call - expensive computation
-            stats1 = service.get_booking_stats_for_instructor(instructor_id=123)
+            _stats1 = service.get_booking_stats_for_instructor(instructor_id=123)
             assert mock_repo.get_instructor_bookings_for_stats.call_count == 1
 
             # Second call - should use cache
-            stats2 = service.get_booking_stats_for_instructor(instructor_id=123)
+            _stats2 = service.get_booking_stats_for_instructor(instructor_id=123)
             # Repository should not be called again
             assert mock_repo.get_instructor_bookings_for_stats.call_count == 1

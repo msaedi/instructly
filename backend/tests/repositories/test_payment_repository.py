@@ -691,9 +691,9 @@ class TestPaymentRepository:
         db.flush()
 
         # Create events with small delays to ensure order
-        event1 = payment_repo.create_payment_event(booking.id, "setup_intent_created", {"step": 1})
+        _event1 = payment_repo.create_payment_event(booking.id, "setup_intent_created", {"step": 1})
         db.commit()
-        event2 = payment_repo.create_payment_event(booking.id, "auth_scheduled", {"step": 2})
+        _event2 = payment_repo.create_payment_event(booking.id, "auth_scheduled", {"step": 2})
         db.commit()
         latest_event = payment_repo.create_payment_event(booking.id, "auth_succeeded", {"step": 3})
         db.commit()
@@ -800,7 +800,7 @@ class TestPaymentRepository:
         )
 
         # Expired credit (should not be returned)
-        credit3 = payment_repo.create_platform_credit(
+        _credit3 = payment_repo.create_platform_credit(
             user_id=test_user.id, amount_cents=1000, reason="Expired", expires_at=past_date
         )
 

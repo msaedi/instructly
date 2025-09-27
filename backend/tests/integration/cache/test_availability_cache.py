@@ -92,7 +92,7 @@ def test_cache_invalidation(db: Session, test_instructor_with_availability: User
 
     # Use a specific future date
     test_date = date.today() + timedelta(days=60)
-    week_start = test_date - timedelta(days=test_date.weekday())
+    _week_start = test_date - timedelta(days=test_date.weekday())
 
     # Initial save using helper
     print("\n1. Initial save...")

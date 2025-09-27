@@ -228,7 +228,7 @@ class TestAvailabilityServiceTransactions:
         db.commit()
 
         # Count existing slots for this instructor
-        count_before = db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).count()
+        _count_before = db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).count()
 
         # Create new week data with clear_existing=True
         week_data = WeekSpecificScheduleCreate(
@@ -267,7 +267,7 @@ class TestAvailabilityServiceTransactions:
         )
 
         # Add first slot
-        result1 = service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot1)
+        _result1 = service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot1)
 
         # Adding overlapping slot should work (service allows overlaps)
         result2 = service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot2)

@@ -276,7 +276,7 @@ class TestCacheWarmingStrategies:
             mock_service_class.return_value = mock_service
 
             # Warm cache
-            result = await strategy.warm_with_verification(
+            _result = await strategy.warm_with_verification(
                 instructor_id=123, week_start=date(2025, 7, 14), expected_slot_count=1
             )
 

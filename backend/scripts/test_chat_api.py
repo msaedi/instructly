@@ -359,11 +359,11 @@ def interactive_chat_test():
     if choice == "1":
         email = STUDENT_EMAIL
         password = DEFAULT_PASSWORD
-        role = "Student"
+        _role = "Student"
     elif choice == "2":
         email = INSTRUCTOR_EMAIL
         password = DEFAULT_PASSWORD
-        role = "Instructor"
+        _role = "Instructor"
     elif choice == "4":
         # Show available users and restart
         list_available_users()
@@ -377,11 +377,11 @@ def interactive_chat_test():
 
         # Determine role from email
         if "instructor" in email.lower():
-            role = "Instructor"
+            _role = "Instructor"
         elif "student" in email.lower() or "@example.com" in email.lower():
-            role = "Student"
+            _role = "Student"
         else:
-            role = "User"
+            _role = "User"
 
     # Login
     print(f"\n🔐 Attempting to login as: {email}")

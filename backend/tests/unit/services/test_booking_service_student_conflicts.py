@@ -83,7 +83,7 @@ class TestStudentConflictValidation:
         student.id = generate_ulid()
         student.email = "student@test.com"
         student.first_name = ("Test",)
-        last_name = "Student"
+        _last_name = "Student"
         return student
 
     @pytest.fixture
@@ -99,7 +99,7 @@ class TestStudentConflictValidation:
         instructor.id = generate_ulid()
         instructor.email = "instructor@test.com"
         instructor.first_name = ("Test",)
-        last_name = "Instructor"
+        _last_name = "Instructor"
         instructor.account_status = "active"
         return instructor
 

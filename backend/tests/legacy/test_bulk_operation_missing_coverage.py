@@ -437,7 +437,7 @@ class TestBulkOperationMissingCoverage:
         # Current week is empty (slot removed)
         current_week = {test_date.isoformat(): []}
 
-        validation_request = ValidateWeekRequest(
+        _validation_request = ValidateWeekRequest(
             current_week=current_week, saved_week=saved_week, week_start=week_start
         )
 
@@ -474,7 +474,7 @@ class TestBulkOperationMissingCoverage:
 
         # Test string conversion
         start_str = slot.start_time.strftime("%H:%M:%S")
-        end_str = slot.end_time.strftime("%H:%M:%S")
+        _end_str = slot.end_time.strftime("%H:%M:%S")
 
         print("\n[DEBUG] TimeSlot object:")
         print(f"  start_time type: {type(slot.start_time)}")

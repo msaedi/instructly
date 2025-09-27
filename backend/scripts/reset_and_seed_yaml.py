@@ -185,7 +185,7 @@ class DatabaseSeeder:
         # Seed service catalog first
         print("\n📚 Seeding service catalog...")
         db_url = self.engine.url.render_as_string(hide_password=False)
-        catalog_stats = seed_catalog(db_url=db_url, verbose=True)
+        _catalog_stats = seed_catalog(db_url=db_url, verbose=True)
 
         self.create_students()
         self.create_instructors()

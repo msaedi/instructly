@@ -371,7 +371,7 @@ def main():
     is_precommit = os.environ.get("PRE_COMMIT", "0") == "1" or "pre-commit" in sys.argv[0]
 
     # Check for violations
-    success = checker.check_all(save_tracking=not is_precommit)
+    _success = checker.check_all(save_tracking=not is_precommit)
 
     # Print report
     checker.print_report()

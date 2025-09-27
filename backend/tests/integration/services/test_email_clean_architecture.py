@@ -140,7 +140,7 @@ class TestEmailCleanArchitecture:
         cancelled_by = Mock(spec=User)
         cancelled_by.id = mock_booking.student_id
 
-        result = await notification_service.send_cancellation_notification(
+        _result = await notification_service.send_cancellation_notification(
             mock_booking, cancelled_by, reason="Schedule conflict"
         )
 

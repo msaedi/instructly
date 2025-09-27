@@ -41,7 +41,7 @@ async def generate_report():
 
             # First request (cold cache)
             start_time = time.time()
-            response1 = await client.get(url, params=params)
+            _response1 = await client.get(url, params=params)
             cold_time = (time.time() - start_time) * 1000
             cold_times.append(cold_time)
 
@@ -49,7 +49,7 @@ async def generate_report():
 
             # Second request (warm cache)
             start_time = time.time()
-            response2 = await client.get(url, params=params)
+            _response2 = await client.get(url, params=params)
             warm_time = (time.time() - start_time) * 1000
             warm_times.append(warm_time)
 
