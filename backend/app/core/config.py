@@ -224,7 +224,7 @@ class Settings(BaseSettings):
         default="", description="Mapbox access token for geocoding/search"
     )
 
-    # Referral program configuration (Theta Park Slope beta)
+    # Referral program configuration (Instainstru Park Slope beta)
     referrals_enabled: bool = Field(default=True, description="Enable referral flows")
     referrals_student_amount_cents: int = Field(
         default=2000, description="Reward amount for student-side credits"

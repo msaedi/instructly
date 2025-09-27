@@ -58,10 +58,10 @@ def test_referral_code_unique_code_enforced(db):
 def test_referral_code_unique_vanity_enforced(db):
     referrer = _make_user(db, "referrer")
 
-    db.add(ReferralCode(referrer_user_id=referrer.id, code="IJKLMNPQ", vanity_slug="theta-beta"))
+    db.add(ReferralCode(referrer_user_id=referrer.id, code="IJKLMNPQ", vanity_slug="instainstru-beta"))
     db.flush()
 
-    db.add(ReferralCode(referrer_user_id=referrer.id, code="QRSTUVWX", vanity_slug="theta-beta"))
+    db.add(ReferralCode(referrer_user_id=referrer.id, code="QRSTUVWX", vanity_slug="instainstru-beta"))
     with pytest.raises(IntegrityError):
         db.flush()
     db.rollback()

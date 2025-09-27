@@ -1,4 +1,4 @@
-"""Referral program models for Theta Park Slope beta.
+"""Referral program models for Instainstru Park Slope beta.
 
 This module defines the SQLAlchemy ORM models for the referral program,
 including codes, click tracking, attribution records, rewards, wallet

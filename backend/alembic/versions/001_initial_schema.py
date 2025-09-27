@@ -643,7 +643,7 @@ def upgrade() -> None:
     op.create_index("idx_search_events_user_date", "search_events", ["user_id", "created_at"])
 
     # ------------------------------------------------------------------
-    # Referral program schema (Theta Park Slope Beta)
+    # Referral program schema (iNSTAiNSTRU Park Slope Beta)
     # ------------------------------------------------------------------
     print("Creating referral program enums and tables...")
     op.create_table(

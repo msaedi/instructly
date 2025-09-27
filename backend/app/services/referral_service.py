@@ -1,4 +1,4 @@
-"""Referral domain services for Theta Park Slope beta."""
+"""Referral domain services for Instainstru Park Slope beta."""
 
 from __future__ import annotations
 

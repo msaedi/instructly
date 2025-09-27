@@ -23,7 +23,7 @@ function setNavigatorProperty<K extends keyof Navigator>(key: K, value: Navigato
 }
 
 describe('ReferralShareModal', () => {
-  const shareUrl = 'https://app.theta.com/r/abc123';
+  const shareUrl = 'https://app.instainstru.com/r/abc123';
   const code = 'ABC123';
   const originalShare = navigator.share;
   const originalClipboard = navigator.clipboard;
@@ -52,7 +52,7 @@ describe('ReferralShareModal', () => {
 
     await waitFor(() => {
       expect(shareMock).toHaveBeenCalledWith({
-        title: 'Give $20, Get $20 on Theta',
+        title: 'Give $20, Get $20 on Instainstru',
         text: `Your first $75+ lesson is $20 off. Use my code ${code}`,
         url: shareUrl,
       });
@@ -96,7 +96,7 @@ describe('ReferralShareModal', () => {
     );
 
     expect(
-      screen.getByText(/If your friend books, you both receive Theta credits/i)
+      screen.getByText(/If your friend books, you both receive Instainstru credits/i)
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Terms apply/i })).toHaveAttribute('href', '/legal/referrals-terms');
   });

@@ -55,7 +55,7 @@ def test_referral_redirect_records_click(db, client, referral_service):
 
     assert response.status_code == status.HTTP_302_FOUND
     assert response.headers["location"] == settings.frontend_referral_landing_url
-    assert response.cookies.get("theta_ref") == code.code
+    assert response.cookies.get("instainstru_ref") == code.code
 
     click_repo = ReferralClickRepository(db)
     assert click_repo.count_since(datetime.now(timezone.utc) - timedelta(minutes=5)) == 1
@@ -72,7 +72,7 @@ def test_referral_redirect_json_mode(db, client, referral_service):
     assert payload["ok"] is True
     assert payload["code"] == code.code
     assert payload["redirect"] == settings.frontend_referral_landing_url
-    assert response.cookies.get("theta_ref") == code.code
+    assert response.cookies.get("instainstru_ref") == code.code
 
 
 def test_claim_anonymous_sets_cookie(db, client, referral_service):
@@ -83,7 +83,7 @@ def test_claim_anonymous_sets_cookie(db, client, referral_service):
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {"attributed": False, "reason": "anonymous"}
-    assert response.cookies.get("theta_ref") == code.code
+    assert response.cookies.get("instainstru_ref") == code.code
 
 
 def test_claim_authenticated_user(db, client, referral_service):
