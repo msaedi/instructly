@@ -3,6 +3,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import * as Dialog from '@radix-ui/react-dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 /**
  * Modal Component with Enhanced Professional Design
@@ -19,6 +20,8 @@ interface ModalProps {
   onClose: () => void;
   /** Optional title displayed in the modal header */
   title?: string;
+  /** Optional description announced to assistive tech */
+  description?: string;
   /** The content to display inside the modal */
   children: React.ReactNode;
   /** Size preset for the modal */
@@ -41,6 +44,7 @@ const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
   title,
+  description,
   children,
   size = 'md',
   showCloseButton = true,
@@ -60,6 +64,9 @@ const Modal: React.FC<ModalProps> = ({
     xl: 'max-w-4xl',
     full: 'max-w-7xl',
   };
+
+  const accessibleTitle = title ?? 'Modal';
+  const accessibleDescription = description ?? 'Dialog content';
 
   return (
     <Dialog.Root
@@ -86,6 +93,10 @@ const Modal: React.FC<ModalProps> = ({
             }
           }}
         >
+          <VisuallyHidden>
+            <Dialog.Title>{accessibleTitle}</Dialog.Title>
+            <Dialog.Description>{accessibleDescription}</Dialog.Description>
+          </VisuallyHidden>
           <div
             className={`
               pointer-events-auto w-full ${sizeClasses[size]}
@@ -96,12 +107,9 @@ const Modal: React.FC<ModalProps> = ({
           >
             {title && (
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <Dialog.Title
-                  id="modal-title"
-                  className="text-xl font-semibold text-gray-900 dark:text-gray-100"
-                >
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                   {title}
-                </Dialog.Title>
+                </h2>
                 {showCloseButton && (
                   <Dialog.Close asChild>
                     <button

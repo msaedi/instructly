@@ -5,9 +5,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import ImageCropModal from '@/components/modals/ImageCropModal';
 import { toast } from 'sonner';
-import { createSignedUpload, finalizeProfilePicture, getProfilePictureUrl } from '@/lib/api';
+import { createSignedUpload, finalizeProfilePicture, getProfilePictureUrl, proxyUploadToR2 } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { APP_ENV } from '@/lib/publicEnv';
 
 interface Props {
   onCompleted?: () => void;
@@ -33,6 +34,12 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
   const [error, setError] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showCrop, setShowCrop] = useState(false);
+  const useProxyUpload = React.useMemo(() => {
+    if (APP_ENV === 'local') return true;
+    if (typeof window === 'undefined') return false;
+    const host = window.location.hostname;
+    return host === 'beta-local.instainstru.com';
+  }, []);
   // Load existing profile picture URL on mount/when user changes
   React.useEffect(() => {
     let cancelled = false;
@@ -114,12 +121,16 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
         purpose: 'profile_picture',
       });
 
-      const putRes = await fetch(signed.upload_url, {
-        method: 'PUT',
-        headers: signed.headers || { 'Content-Type': file.type },
-        body: file,
-      });
-      if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`);
+      if (useProxyUpload) {
+        await proxyUploadToR2({ key: signed.object_key, file, contentType: file.type });
+      } else {
+        const putRes = await fetch(signed.upload_url, {
+          method: 'PUT',
+          headers: signed.headers || { 'Content-Type': file.type },
+          body: file,
+        });
+        if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`);
+      }
 
       const fin = await finalizeProfilePicture(signed.object_key);
       if (!fin.success) throw new Error(fin.message || 'Finalize failed');
