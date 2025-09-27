@@ -9,7 +9,7 @@ Provides endpoints for:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 
@@ -34,7 +34,8 @@ async def get_service_categories(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[CategoryResponse]:
     """Get all service categories."""
-    return instructor_service.get_service_categories()
+    categories = instructor_service.get_service_categories()
+    return cast(List[CategoryResponse], categories)
 
 
 @router.get("/catalog", response_model=List[CatalogServiceResponse])
@@ -48,7 +49,8 @@ async def get_catalog_services(
     Optionally filter by category slug (e.g., 'music-arts', 'academic').
     """
     try:
-        return instructor_service.get_available_catalog_services(category_slug=category)
+        services = instructor_service.get_available_catalog_services(category_slug=category)
+        return cast(List[CatalogServiceResponse], services)
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(
@@ -76,13 +78,14 @@ async def add_service_to_profile(
         )
 
     try:
-        return instructor_service.create_instructor_service_from_catalog(
+        created = instructor_service.create_instructor_service_from_catalog(
             instructor_id=current_user.id,
             catalog_service_id=service_data.catalog_service_id,
             hourly_rate=service_data.hourly_rate,
             custom_description=service_data.custom_description,
             duration_options=service_data.duration_options,
         )
+        return InstructorServiceResponse(**created)
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -91,7 +94,7 @@ async def add_service_to_profile(
         raise
 
 
-@router.get("/search", response_model=Dict)
+@router.get("/search", response_model=Dict[str, Any])
 async def search_services(
     q: str = Query(..., min_length=2, description="Search query"),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -103,7 +106,7 @@ async def search_services(
     Searches across service names, categories, and search terms.
     """
     # Use the existing instructor search but with service-focused messaging
-    result = instructor_service.get_instructors_filtered(search=q, skip=0, limit=50)
+    result: Dict[str, Any] = instructor_service.get_instructors_filtered(search=q, skip=0, limit=50)
 
     # Add service-specific metadata
     result["search_type"] = "service"
@@ -112,7 +115,7 @@ async def search_services(
     return result
 
 
-@router.get("/catalog/top-per-category", response_model=Dict)
+@router.get("/catalog/top-per-category", response_model=Dict[str, Any])
 async def get_top_services_per_category(
     limit: int = Query(7, ge=1, le=20, description="Number of top services per category"),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -130,10 +133,11 @@ async def get_top_services_per_category(
     Returns:
         Dictionary with categories and their top services
     """
-    return instructor_service.get_top_services_per_category(limit=limit)
+    data: Dict[str, Any] = instructor_service.get_top_services_per_category(limit=limit)
+    return data
 
 
-@router.get("/catalog/all-with-instructors", response_model=Dict)
+@router.get("/catalog/all-with-instructors", response_model=Dict[str, Any])
 async def get_all_services_with_instructors(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> Dict[str, Any]:
@@ -147,7 +151,8 @@ async def get_all_services_with_instructors(
     Returns:
         Dictionary with categories and their services, including active instructor counts
     """
-    return instructor_service.get_all_services_with_instructors()
+    payload: Any = instructor_service.get_all_services_with_instructors()
+    return cast(Dict[str, Any], payload)
 
 
 @router.get("/catalog/kids-available", response_model=List[CatalogServiceMinimalResponse])
@@ -159,4 +164,5 @@ async def get_kids_available_services(
 
     Minimal payload: id, name, slug. Cached for 5 minutes.
     """
-    return instructor_service.get_kids_available_services()
+    services = instructor_service.get_kids_available_services()
+    return cast(List[CatalogServiceMinimalResponse], services)

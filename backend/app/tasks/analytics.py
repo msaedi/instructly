@@ -9,8 +9,9 @@ and updating metrics asynchronously.
 from datetime import datetime, timezone
 import logging
 import time
-from typing import Any, Callable, Dict, Optional, TypeVar, cast
+from typing import Any, Callable, Dict, Optional, ParamSpec, Protocol, TypeVar, cast
 
+from celery.result import AsyncResult
 from scripts.calculate_service_analytics import AnalyticsCalculator
 from sqlalchemy.orm import Session
 
@@ -20,14 +21,25 @@ from app.tasks.celery_app import BaseTask, celery_app
 logger = logging.getLogger(__name__)
 
 
-TaskFunc = TypeVar("TaskFunc", bound=Callable[..., Any])
+P = ParamSpec("P")
+R = TypeVar("R", covariant=True)
 
 
-def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskFunc], TaskFunc]:
+class TaskWrapper(Protocol[P, R]):
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        ...
+
+    delay: Callable[..., AsyncResult]
+    apply_async: Callable[..., AsyncResult]
+
+
+def typed_task(
+    *task_args: Any, **task_kwargs: Any
+) -> Callable[[Callable[P, R]], TaskWrapper[P, R]]:
     """Helper to hint Celery task decorator returns the original callable."""
 
     decorator = celery_app.task(*task_args, **task_kwargs)
-    return cast(Callable[[TaskFunc], TaskFunc], decorator)
+    return cast(Callable[[Callable[P, R]], TaskWrapper[P, R]], decorator)
 
 
 @typed_task(
@@ -192,7 +204,7 @@ def generate_daily_report(self: BaseTask) -> Dict[str, Any]:
     name="app.tasks.analytics.update_service_metrics",
     bind=True,
 )
-def update_service_metrics(self: BaseTask, service_id: int) -> Dict[str, Any]:
+def update_service_metrics(self: BaseTask, service_id: str) -> Dict[str, Any]:
     """
     Update analytics for a specific service.
 

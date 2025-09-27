@@ -22,40 +22,16 @@ pushd "$BACKEND_DIR" >/dev/null
 mypy app > "$LATEST_FILE" 2>&1 || true
 popd >/dev/null
 
-COUNT=$(grep -Eo 'Found [0-9]+ errors' "$LATEST_FILE" | tail -n1 | awk '{print $2}')
+COUNT_LINE=$(grep -Eo 'Found [0-9]+ errors' "$LATEST_FILE" || true)
+COUNT=$(echo "$COUNT_LINE" | tail -n1 | awk '{print $2}')
 COUNT=${COUNT:-0}
+CUR=$COUNT
 
-if [[ ! -f "$BASELINE_FILE" ]]; then
-  if [[ "$WRITE_BASELINE" -eq 1 ]]; then
-    echo "$COUNT" > "$BASELINE_FILE"
-    echo "mypy baseline initialized at ${COUNT} errors"
-    exit 0
-  fi
-
-  echo "mypy strict gate: baseline file missing; rerun with --write-baseline to initialize" >&2
+if [ "$CUR" -gt 0 ]; then
+  echo "mypy strict gate: found $CUR errors (hard fail)"
   exit 1
-fi
-
-BASELINE=$(cat "$BASELINE_FILE" | tr -d '\r')
-BASELINE=${BASELINE:-0}
-
-if (( COUNT > BASELINE )); then
-  echo "mypy strict gate failed: error count ${COUNT} exceeded baseline ${BASELINE}" >&2
-  exit 1
-fi
-
-if (( COUNT < BASELINE )); then
-  if [[ "$WRITE_BASELINE" -eq 1 ]]; then
-    echo "$COUNT" > "$BASELINE_FILE"
-    echo "mypy strict gate: error count decreased from ${BASELINE} to ${COUNT}" >&2
-  else
-    echo "mypy strict gate: error count decreased from ${BASELINE} to ${COUNT} (baseline unchanged)" >&2
-  fi
 else
-  if [[ "$WRITE_BASELINE" -eq 1 ]]; then
-    echo "$COUNT" > "$BASELINE_FILE"
-  fi
-  echo "mypy strict gate: error count stable at ${COUNT}" >&2
+  echo "mypy strict gate: clean (0 errors)"
 fi
 
 exit 0

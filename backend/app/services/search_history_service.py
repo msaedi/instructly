@@ -268,7 +268,7 @@ class SearchHistoryService(BaseService):
             self.db.refresh(result)
 
             # Store the event ID on the result for frontend use
-            result.search_event_id = event.id
+            setattr(result, "search_event_id", event.id)
 
             return result
 
@@ -468,7 +468,7 @@ class SearchHistoryService(BaseService):
     @BaseService.measure_operation("track_interaction")
     def track_interaction(
         self,
-        search_event_id: int,
+        search_event_id: str,
         interaction_type: str,
         instructor_id: Optional[str] = None,
         result_position: Optional[int] = None,

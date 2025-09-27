@@ -6,13 +6,14 @@ Provides insights into connection pool usage, query performance, and database he
 """
 
 import logging
-from typing import Any, Dict, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, TypeVar, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.pool import Pool
 
 from app.core.enums import PermissionName
-from app.database import engine, get_db_pool_status
+import app.database as database_module
+from app.database import get_db_pool_status
 from app.dependencies.permissions import require_permission
 from app.models.user import User
 from app.schemas.database_monitor_responses import (
@@ -23,14 +24,28 @@ from app.schemas.database_monitor_responses import (
 
 logger = logging.getLogger(__name__)
 
+engine = cast(Any, database_module).engine
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Engine
+
+    engine = cast("Engine", engine)
+
+
 router = APIRouter(
     prefix="/api/database",
     tags=["monitoring"],
     responses={404: {"description": "Not found"}},
 )
 
+T = TypeVar("T", bound=Callable[..., Any])
 
-@router.get("/health", response_model=DatabaseHealthResponse)  # type: ignore[misc]
+health_route: Callable[[T], T] = cast(
+    Callable[[T], T], router.get("/health", response_model=DatabaseHealthResponse)
+)
+
+
+@health_route
 async def database_health() -> DatabaseHealthResponse:
     """
     Simple database health check endpoint.
@@ -58,7 +73,13 @@ async def database_health() -> DatabaseHealthResponse:
         )
 
 
-@router.get("/pool-status", response_model=DatabasePoolStatusResponse)  # type: ignore[misc]
+pool_status_route: Callable[[T], T] = cast(
+    Callable[[T], T],
+    router.get("/pool-status", response_model=DatabasePoolStatusResponse),
+)
+
+
+@pool_status_route
 async def database_pool_status(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> DatabasePoolStatusResponse:
@@ -131,7 +152,12 @@ async def database_pool_status(
         )
 
 
-@router.get("/stats", response_model=DatabaseStatsResponse)  # type: ignore[misc]
+stats_route: Callable[[T], T] = cast(
+    Callable[[T], T], router.get("/stats", response_model=DatabaseStatsResponse)
+)
+
+
+@stats_route
 async def database_stats(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
 ) -> DatabaseStatsResponse:

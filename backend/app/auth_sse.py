@@ -23,9 +23,10 @@ than regular REST endpoints due to browser API constraints.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, cast
 
-from fastapi import Cookie, Depends, HTTPException, Query, status
+from fastapi import Depends, HTTPException, Query, status
+from fastapi.params import Cookie
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
@@ -86,9 +87,9 @@ async def get_current_user_sse(
             settings.secret_key.get_secret_value(),
             algorithms=[settings.algorithm],
         )
-        user_email: str = payload.get("sub")
+        user_email = payload.get("sub")
 
-        if user_email is None:
+        if not isinstance(user_email, str):
             raise credentials_exception
 
     except JWTError as e:
@@ -96,7 +97,7 @@ async def get_current_user_sse(
         raise credentials_exception
 
     # Get user from database
-    user = db.query(User).filter(User.email == user_email).first()
+    user = cast(Optional[User], db.query(User).filter(User.email == user_email).first())
 
     if user is None:
         raise credentials_exception

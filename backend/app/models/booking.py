@@ -14,7 +14,7 @@ availability changes ("Rug and Person" principle).
 from datetime import date, datetime, timezone
 from enum import Enum
 import logging
-from typing import Any, Optional, cast
+from typing import Any, Callable, Optional, cast
 
 from sqlalchemy import (
     CheckConstraint,
@@ -55,7 +55,7 @@ class LocationType(str, Enum):
     NEUTRAL = "neutral"
 
 
-class Booking(Base):  # type: ignore[misc]
+class Booking(Base):
     """
     Self-contained booking record between student and instructor.
 
@@ -224,11 +224,15 @@ class Booking(Base):  # type: ignore[misc]
         }.get(location or LocationType.NEUTRAL, "Neutral Location")
 
     @property
-    def can_be_modified_by(self, user_id: str) -> bool:
-        """Check if user can modify this booking."""
-        return user_id in [self.student_id, self.instructor_id]
+    def can_be_modified_by(self) -> Callable[[str], bool]:
+        """Return a helper that checks whether the given user can modify this booking."""
 
-    def to_dict(self) -> dict:
+        def _checker(user_id: str) -> bool:
+            return user_id in (self.student_id, self.instructor_id)
+
+        return _checker
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API responses."""
         return {
             "id": self.id,

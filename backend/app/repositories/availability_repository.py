@@ -235,7 +235,10 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             The slot or None if not found
         """
         try:
-            return self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
+            slot: AvailabilitySlot | None = (
+                self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
+            )
+            return slot
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting availability slot details: {str(e)}")
             raise RepositoryException(f"Failed to get availability slot: {str(e)}")

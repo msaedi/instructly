@@ -20,7 +20,7 @@ FIXED IN THIS VERSION:
 
 from datetime import date, timedelta
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -32,7 +32,7 @@ from .base import BaseService
 if TYPE_CHECKING:
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.week_operation_repository import WeekOperationRepository
-    from .availability_service import AvailabilityService
+    from .availability_service import AvailabilityService, TimeSlotResponse
     from .cache_service import CacheService
     from .conflict_checker import ConflictChecker
 
@@ -216,9 +216,9 @@ class WeekOperationService(BaseService):
         Returns:
             Pattern indexed by day name (Monday, Tuesday, etc.)
         """
-        week_availability = self.availability_service.get_week_availability(
-            instructor_id, week_start
-        )
+        week_availability: Dict[
+            str, List["TimeSlotResponse"]
+        ] = self.availability_service.get_week_availability(instructor_id, week_start)
         return self._extract_week_pattern(week_availability, week_start)
 
     # Private helper methods - EXTRACTED FOR REFACTORING
@@ -304,9 +304,9 @@ class WeekOperationService(BaseService):
         self, instructor_id: str, from_week_start: date
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Get source week availability and extract pattern."""
-        source_week = self.availability_service.get_week_availability(
-            instructor_id, from_week_start
-        )
+        source_week: Dict[
+            str, List["TimeSlotResponse"]
+        ] = self.availability_service.get_week_availability(instructor_id, from_week_start)
         return self._extract_week_pattern(source_week, from_week_start)
 
     def _get_date_range(self, start_date: date, end_date: date) -> List[date]:
@@ -418,7 +418,9 @@ class WeekOperationService(BaseService):
         }
 
     def _extract_week_pattern(
-        self, week_availability: Dict[str, List[Dict[str, Any]]], week_start: date
+        self,
+        week_availability: Mapping[str, List["TimeSlotResponse"]],
+        week_start: date,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Extract a reusable pattern from week availability."""
         pattern: Dict[str, List[Dict[str, Any]]] = {}
@@ -428,8 +430,9 @@ class WeekOperationService(BaseService):
             source_date_str = source_date.isoformat()
             day_name = DAYS_OF_WEEK[i]
 
-            if source_date_str in week_availability and week_availability[source_date_str]:
-                pattern[day_name] = week_availability[source_date_str]
+            slots = week_availability.get(source_date_str)
+            if slots:
+                pattern[day_name] = [dict(slot) for slot in slots]
 
         self.logger.debug(f"Extracted pattern with availability for days: {list(pattern.keys())}")
         return pattern

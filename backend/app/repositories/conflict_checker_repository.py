@@ -164,7 +164,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             BlackoutDate object if exists, None otherwise
         """
         try:
-            return (
+            result = (
                 self.db.query(BlackoutDate)
                 .filter(
                     BlackoutDate.instructor_id == instructor_id,
@@ -172,6 +172,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                 )
                 .first()
             )
+            return cast(Optional[BlackoutDate], result)
         except Exception as e:
             self.logger.error(f"Error checking blackout date: {str(e)}")
             raise RepositoryException(f"Failed to check blackout: {str(e)}")
@@ -189,11 +190,12 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             InstructorProfile if exists, None otherwise
         """
         try:
-            return (
+            result = (
                 self.db.query(InstructorProfile)
                 .filter(InstructorProfile.user_id == instructor_id)
                 .first()
             )
+            return cast(Optional[InstructorProfile], result)
         except Exception as e:
             self.logger.error(f"Error getting instructor profile: {str(e)}")
             raise RepositoryException(f"Failed to get profile: {str(e)}")
@@ -209,12 +211,13 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             InstructorService if active and exists, None otherwise
         """
         try:
-            return (
+            result = (
                 self.db.query(InstructorService)
                 .options(joinedload(InstructorService.catalog_entry))
                 .filter(InstructorService.id == service_id, InstructorService.is_active == True)
                 .first()
             )
+            return cast(Optional[InstructorService], result)
         except Exception as e:
             self.logger.error(f"Error getting active service: {str(e)}")
             raise RepositoryException(f"Failed to get service: {str(e)}")

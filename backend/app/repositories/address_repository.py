@@ -21,11 +21,12 @@ class UserAddressRepository(BaseRepository[UserAddress]):
         )
 
     def unset_default(self, user_id: str) -> int:
-        return (
+        updated = (
             self.db.query(UserAddress)
             .filter(UserAddress.user_id == user_id, UserAddress.is_default.is_(True))
             .update({"is_default": False})
         )
+        return int(updated or 0)
 
 
 class NYCNeighborhoodRepository(BaseRepository[NYCNeighborhood]):
@@ -79,7 +80,7 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
         max_distance_miles: float | None = None,
         is_active: bool = True,
     ) -> InstructorServiceArea:
-        existing = (
+        existing: InstructorServiceArea | None = (
             self.db.query(InstructorServiceArea)
             .filter(
                 InstructorServiceArea.instructor_id == instructor_id,
@@ -88,12 +89,12 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
             .first()
         )
         if existing:
-            updates = {"is_active": is_active}
+            existing.is_active = is_active
             if coverage_type is not None:
-                updates["coverage_type"] = coverage_type
+                existing.coverage_type = coverage_type
             if max_distance_miles is not None:
-                updates["max_distance_miles"] = max_distance_miles
-            self.update((instructor_id, neighborhood_id), **updates)  # type: ignore[arg-type]
+                existing.max_distance_miles = max_distance_miles
+            self.db.add(existing)
             return existing
         return self.create(
             instructor_id=instructor_id,

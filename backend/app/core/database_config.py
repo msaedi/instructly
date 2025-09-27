@@ -55,7 +55,7 @@ class DatabaseConfig:
     while solving immediate safety concerns.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize database configuration."""
         # Access raw fields directly to avoid circular dependency
         self.int_url = _getenv(

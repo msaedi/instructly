@@ -7,7 +7,7 @@ configures task serialization, timezone, and autodiscovery.
 """
 
 import os
-from typing import Any, Dict, Type, cast
+from typing import Any, Dict, Optional, Type, cast
 
 from celery import Celery, Task
 from celery.signals import setup_logging
@@ -17,7 +17,11 @@ from app.core.config import settings
 # Import production config if available
 if settings.environment == "production":
     try:
-        from app.core.config_production import CELERY_WORKER_CONFIG
+        from app.core.config_production import CELERY_WORKER_CONFIG as PROD_WORKER_CONFIG
+
+        CELERY_WORKER_CONFIG: Optional[Dict[str, object]] = cast(
+            Optional[Dict[str, object]], PROD_WORKER_CONFIG
+        )
     except ImportError:
         CELERY_WORKER_CONFIG = None
 else:

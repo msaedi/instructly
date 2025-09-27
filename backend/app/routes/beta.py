@@ -4,7 +4,7 @@ import hmac
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, SecretStr
-import requests  # type: ignore[import-untyped]  # third-party stubs unavailable
+import requests
 from sqlalchemy.orm import Session
 
 from ..core.config import settings

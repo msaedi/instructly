@@ -19,7 +19,7 @@ from ..database import Base
 logger = logging.getLogger(__name__)
 
 
-class UserAddress(Base):  # type: ignore[misc]
+class UserAddress(Base):
     """
     Optional user address record.
 
@@ -81,7 +81,7 @@ class UserAddress(Base):  # type: ignore[misc]
         return f"<UserAddress {self.id} user={self.user_id} default={self.is_default} active={self.is_active}>"
 
 
-class NYCNeighborhood(Base):  # type: ignore[misc]
+class NYCNeighborhood(Base):
     """NYC neighborhood polygon for enrichment and service areas."""
 
     __tablename__ = "nyc_neighborhoods"
@@ -99,7 +99,7 @@ class NYCNeighborhood(Base):  # type: ignore[misc]
         return f"<NYCNeighborhood {self.ntacode} {self.ntaname} ({self.borough})>"
 
 
-class InstructorServiceArea(Base):  # type: ignore[misc]
+class InstructorServiceArea(Base):
     """Link between instructor (user) and neighborhoods they serve."""
 
     __tablename__ = "instructor_service_areas"

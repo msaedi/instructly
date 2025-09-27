@@ -79,7 +79,7 @@ async def get_all_instructors(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     instructor_service: InstructorService = Depends(get_instructor_service),
-):
+) -> PaginatedResponse[InstructorProfileResponse]:
     """
     Get instructors offering a specific service.
 
@@ -186,7 +186,7 @@ async def get_my_profile(
         # Apply privacy protection (though instructors viewing own profile would see full name anyway)
         if hasattr(profile_data, "id"):  # It's an ORM object
             return InstructorProfileResponse.from_orm(profile_data)
-        return profile_data
+        return InstructorProfileResponse(**profile_data)
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")

@@ -458,7 +458,7 @@ class ReferralService(BaseService):
 
     def _beyond_student_cap(self, referrer_user_id: str) -> bool:
         total: int = self.referral_reward_repo.count_student_rewards_for_cap(referrer_user_id)
-        cap: int = cast(int, settings.referrals_student_global_cap)
+        cap = settings.referrals_student_global_cap
         return total >= cap
 
     def _is_velocity_abuse(self, referrer_user_id: str) -> bool:

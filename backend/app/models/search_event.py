@@ -98,7 +98,7 @@ class SearchEvent(Base):
         passive_deletes=True,
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<SearchEvent(id={self.id}, query='{self.search_query[:30]}...', user_id={self.user_id})>"
 
 

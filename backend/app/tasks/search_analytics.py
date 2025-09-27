@@ -54,8 +54,8 @@ def process_search_event(self: Task, event_id: int) -> Dict[str, Any]:
         # Calculate search quality score using repository method
         quality_score = search_repo.calculate_search_quality_score(event_id)
 
-        # Update event with calculated data
-        event.quality_score = quality_score
+        # Update event with calculated data (attribute may be added dynamically)
+        setattr(event, "quality_score", quality_score)
         db.commit()
 
         logger.info(f"Processed search event {event_id} with quality score {quality_score}")

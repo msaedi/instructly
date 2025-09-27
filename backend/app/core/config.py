@@ -380,7 +380,7 @@ class Settings(BaseSettings):
 
         # Use the new database configuration system
         try:
-            db_config = DatabaseConfig()  # type: ignore[no-untyped-call]  # constructor not typed
+            db_config = DatabaseConfig()
             return db_config.get_database_url()
         except Exception:
             # Surface error immediately; do not fall back to legacy behavior
@@ -399,7 +399,7 @@ class Settings(BaseSettings):
         # Import here to avoid circular dependency
         from .database_config import DatabaseConfig
 
-        db_config = DatabaseConfig()  # type: ignore[no-untyped-call]  # constructor not typed
+        db_config = DatabaseConfig()
         return db_config.get_database_url()
 
     @property

@@ -687,7 +687,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             The booking with all relationships, or None if not found
         """
         try:
-            return (
+            booking: Booking | None = (
                 self.db.query(Booking)
                 .options(
                     joinedload(Booking.student),
@@ -699,6 +699,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .filter(Booking.id == booking_id)
                 .first()
             )
+            return booking
         except Exception as e:
             self.logger.error(f"Error getting booking details: {str(e)}")
             raise RepositoryException(f"Failed to get booking details: {str(e)}")

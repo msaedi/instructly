@@ -8,9 +8,10 @@ All heavy lifting is done by app.core.privacy_auditor.
 import asyncio
 from datetime import datetime, timezone
 import logging
-from typing import Any, Dict
+from typing import Any, Callable, Dict, ParamSpec, Protocol, TypeVar, cast
 
 from celery import shared_task
+from celery.result import AsyncResult
 
 from ..core.config import settings
 from ..core.privacy_auditor import ViolationSeverity, run_privacy_audit
@@ -18,7 +19,28 @@ from ..core.privacy_auditor import ViolationSeverity, run_privacy_audit
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="privacy_audit_production")
+P = ParamSpec("P")
+R = TypeVar("R", covariant=True)
+
+
+class TaskWrapper(Protocol[P, R]):
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        ...
+
+    delay: Callable[..., AsyncResult]
+    apply_async: Callable[..., AsyncResult]
+
+
+def typed_shared_task(
+    *task_args: Any, **task_kwargs: Any
+) -> Callable[[Callable[P, R]], TaskWrapper[P, R]]:
+    return cast(
+        Callable[[Callable[P, R]], TaskWrapper[P, R]],
+        shared_task(*task_args, **task_kwargs),
+    )
+
+
+@typed_shared_task(name="privacy_audit_production")
 def audit_privacy_production() -> Dict[str, Any]:
     """
     Run privacy audit in production environment.

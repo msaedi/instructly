@@ -23,6 +23,7 @@ from ..services.email import EmailService
 from .base import BaseService
 
 if TYPE_CHECKING:
+    from ..repositories.base_repository import BaseRepository
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
@@ -36,8 +37,8 @@ class PasswordResetService(BaseService):
         db: Session,
         cache_service: Optional["CacheService"] = None,
         email_service: Optional[EmailService] = None,
-        user_repository=None,
-        token_repository=None,
+        user_repository: Optional["BaseRepository[User]"] = None,
+        token_repository: Optional["BaseRepository[PasswordResetToken]"] = None,
     ):
         """Initialize password reset service."""
         super().__init__(db, cache=cache_service)

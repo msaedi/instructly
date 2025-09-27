@@ -23,5 +23,5 @@ class PasswordResetToken(Base):
     # Relationship
     user = relationship("User", back_populates="password_reset_tokens")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<PasswordResetToken {self.token[:8]}... for user {self.user_id}>"

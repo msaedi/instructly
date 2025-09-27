@@ -4,8 +4,8 @@ Timezone utilities for InstaInstru platform.
 Provides user-based timezone support.
 """
 
-from datetime import date, datetime
-from typing import TYPE_CHECKING
+from datetime import date, datetime, tzinfo
+from typing import TYPE_CHECKING, Dict
 
 import pytz
 from sqlalchemy.orm import Session
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-def get_user_timezone(user: "User") -> pytz.timezone:
+def get_user_timezone(user: "User") -> tzinfo:
     """
     Get user's timezone preference.
 
@@ -74,7 +74,7 @@ def convert_to_user_timezone(dt: datetime, user: "User") -> datetime:
     return dt.astimezone(user_tz)
 
 
-def format_datetime_for_user(dt: datetime, user: "User") -> dict:
+def format_datetime_for_user(dt: datetime, user: "User") -> Dict[str, str]:
     """
     Format datetime with timezone info for frontend.
 

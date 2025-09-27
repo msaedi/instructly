@@ -94,14 +94,20 @@ class ReferralCheckoutService(BaseService):
         order_id_str = str(order_id)
 
         payment = self.payment_repository.get_payment_by_intent_id(order_id_str)
-        if payment and payment.booking:
-            return payment.booking
+        if payment:
+            booking_obj = getattr(payment, "booking", None)
+            if isinstance(booking_obj, Booking):
+                return booking_obj
 
         payment = self.payment_repository.get_payment_by_booking_id(order_id_str)
-        if payment and payment.booking:
-            return payment.booking
+        if payment:
+            booking_obj = getattr(payment, "booking", None)
+            if isinstance(booking_obj, Booking):
+                return booking_obj
 
-        return self.booking_repository.get_by_id(order_id_str)
+        booking = self.booking_repository.get_by_id(order_id_str)
+        booking_result: Optional[Booking] = booking
+        return booking_result
 
     @staticmethod
     def _booking_has_promo(booking: Booking) -> bool:

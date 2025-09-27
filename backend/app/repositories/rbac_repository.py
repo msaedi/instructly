@@ -49,7 +49,8 @@ class RBACRepository:
         Fixes: 4 violations in PermissionService
         """
         try:
-            return self.db.query(Permission).filter_by(name=name).first()
+            result = self.db.query(Permission).filter_by(name=name).first()
+            return cast(Optional[Permission], result)
         except Exception as e:
             self.logger.error(f"Error getting permission by name {name}: {str(e)}")
             return None
@@ -78,11 +79,12 @@ class RBACRepository:
         Fixes: 2 violations in PermissionService
         """
         try:
-            return (
+            result = (
                 self.db.query(UserPermission)
                 .filter_by(user_id=user_id, permission_id=permission_id)
                 .first()
             )
+            return cast(Optional[UserPermission], result)
         except Exception as e:
             self.logger.error(
                 f"Error getting user permission for user {user_id}, permission {permission_id}: {str(e)}"
@@ -99,12 +101,13 @@ class RBACRepository:
         Returns None if no override exists (meaning use role-based permissions)
         """
         try:
-            return (
+            result = (
                 self.db.query(UserPermission)
                 .join(Permission)
                 .filter(UserPermission.user_id == user_id, Permission.name == permission_name)
                 .first()
             )
+            return cast(Optional[UserPermission], result)
         except Exception as e:
             self.logger.error(
                 f"Error checking user permission for user {user_id}, permission {permission_name}: {str(e)}"
@@ -165,7 +168,8 @@ class RBACRepository:
         Fixes: 4 violations in PermissionService
         """
         try:
-            return self.db.query(Role).filter_by(name=name).first()
+            result = self.db.query(Role).filter_by(name=name).first()
+            return cast(Optional[Role], result)
         except Exception as e:
             self.logger.error(f"Error getting role by name {name}: {str(e)}")
             return None
@@ -212,7 +216,8 @@ class RBACRepository:
         PermissionService simple with one repository dependency
         """
         try:
-            return self.db.query(User).filter_by(id=user_id).first()
+            result = self.db.query(User).filter_by(id=user_id).first()
+            return cast(Optional[User], result)
         except Exception as e:
             self.logger.error(f"Error getting user by ID {user_id}: {str(e)}")
             return None

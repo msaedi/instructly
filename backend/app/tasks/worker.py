@@ -16,6 +16,7 @@ import logging
 import os
 from pathlib import Path
 import sys
+from typing import Any, cast
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
@@ -31,7 +32,7 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
-def start_worker():
+def start_worker() -> None:
     """Start the Celery worker with configured settings."""
     logger.info("Starting Celery worker for InstaInstru")
 
@@ -41,7 +42,8 @@ def start_worker():
     logger.info(f"Timezone: {celery_app.conf.timezone}")
 
     # Configure worker options
-    worker_instance = worker.worker(app=celery_app)
+    worker_cls = cast(Any, worker.worker)
+    worker_instance = worker_cls(app=celery_app)
 
     options = {
         "loglevel": os.getenv("CELERY_LOG_LEVEL", "INFO"),

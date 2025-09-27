@@ -6,7 +6,7 @@ This service handles permission checking for users, including both
 role-based permissions and individual permission overrides.
 """
 
-from typing import TYPE_CHECKING, Dict, List, Set, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union
 
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 
 if TYPE_CHECKING:
+    from ..models.rbac import UserPermission
     from ..repositories.rbac_repository import RBACRepository
     from ..repositories.user_repository import UserRepository
 
@@ -78,11 +79,14 @@ class PermissionService(BaseService):
                 return True
 
         # Check individual permission overrides
-        user_perm = self.rbac_repository.check_user_permission(user_id, permission_str)
+        user_perm: Optional["UserPermission"] = self.rbac_repository.check_user_permission(
+            user_id, permission_str
+        )
 
         if user_perm:
-            self._cache[cache_key] = user_perm.granted
-            return user_perm.granted
+            granted = bool(getattr(user_perm, "granted", False))
+            self._cache[cache_key] = granted
+            return granted
 
         self._cache[cache_key] = False
         return False

@@ -10,9 +10,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import subprocess
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, TypeVar, cast
 
 from app.tasks.celery_app import BaseTask, celery_app
+
+TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
 
 
 def _get_repo_root() -> Path:
@@ -41,17 +43,21 @@ def _run_metrics_script(repo_root: Path) -> Dict[str, Any]:
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "metrics script failed")
-    return json.loads(result.stdout)
+    return cast(Dict[str, Any], json.loads(result.stdout))
 
 
-@celery_app.task(
+def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], TaskCallable]:
+    return cast(Callable[[TaskCallable], TaskCallable], celery_app.task(*task_args, **task_kwargs))
+
+
+@typed_task(
     base=BaseTask,
     name="app.tasks.codebase_metrics.append_history",
     bind=True,
     max_retries=2,
     retry_backoff=True,
 )
-def append_history(self) -> Dict[str, Any]:
+def append_history(self: BaseTask) -> Dict[str, Any]:
     """Append current snapshot to metrics_history.json.
 
     Returns: summary with count after append.
@@ -79,7 +85,7 @@ def append_history(self) -> Dict[str, Any]:
     history: List[Dict[str, Any]] = []
     if history_file.exists():
         try:
-            history = json.loads(history_file.read_text())
+            history = cast(List[Dict[str, Any]], json.loads(history_file.read_text()))
         except Exception:
             history = []
 

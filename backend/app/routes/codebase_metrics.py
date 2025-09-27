@@ -108,7 +108,7 @@ async def get_codebase_metrics(
     """Return the current codebase metrics as JSON."""
     repo_root = _get_project_root()
     data = _run_codebase_metrics_script(repo_root)
-    return data  # Pydantic will validate/serialize
+    return CodebaseMetricsResponse(**data)
 
 
 @router.get("/history", response_model=CodebaseHistoryResponse)

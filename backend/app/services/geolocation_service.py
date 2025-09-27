@@ -268,16 +268,17 @@ class GeolocationService(BaseService):
         # Check proxy headers
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
+            first_ip = cast(str, forwarded_for).split(",")[0].strip()
             # X-Forwarded-For can contain multiple IPs, first is the original client
-            return forwarded_for.split(",")[0].strip()
+            return first_ip
 
         real_ip = request.headers.get("X-Real-IP")
         if real_ip:
-            return real_ip.strip()
+            return cast(str, real_ip).strip()
 
         cf_ip = request.headers.get("CF-Connecting-IP")
         if cf_ip:
-            return cf_ip.strip()
+            return cast(str, cf_ip).strip()
 
         # Fallback to direct connection
         client = request.client

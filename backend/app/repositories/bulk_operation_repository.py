@@ -73,7 +73,7 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
             AvailabilitySlot if owned by instructor, None otherwise
         """
         try:
-            return (
+            slot: AvailabilitySlot | None = (
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.id == slot_id,
@@ -81,6 +81,7 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
                 )
                 .first()
             )
+            return slot
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting slot for instructor: {str(e)}")

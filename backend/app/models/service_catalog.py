@@ -9,7 +9,7 @@ This module defines the service catalog system with three models:
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, cast
+from typing import Any, Dict, List, Optional, Set, cast
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, func
@@ -18,11 +18,6 @@ import ulid
 
 from ..database import Base
 from .types import IntegerArrayType, StringArrayType
-
-if TYPE_CHECKING:
-    from sqlalchemy.orm import DeclarativeMeta
-
-    Base = cast("DeclarativeMeta", Base)
 
 logger = logging.getLogger(__name__)
 

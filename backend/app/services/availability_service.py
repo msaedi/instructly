@@ -638,7 +638,7 @@ class AvailabilityService(BaseService):
     @BaseService.measure_operation("add_specific_date")
     def add_specific_date_availability(
         self, instructor_id: str, availability_data: SpecificDateAvailabilityCreate
-    ) -> Dict[str, Any]:
+    ) -> AvailabilitySlot:
         """
         Add availability for a specific date.
 

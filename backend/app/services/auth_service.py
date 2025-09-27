@@ -9,7 +9,7 @@ FIXED: Added @measure_operation decorators to all public methods
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -36,9 +36,9 @@ class AuthService(BaseService):
         self,
         db: Session,
         cache_service: Optional["CacheService"] = None,
-        user_repository=None,
-        instructor_repository=None,
-    ):
+        user_repository: Any | None = None,
+        instructor_repository: Any | None = None,
+    ) -> None:
         """Initialize authentication service."""
         super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ class AuthService(BaseService):
         try:
             with self.transaction():
                 # Create user without role (will be assigned via RBAC)
-                user = self.user_repository.create(
+                user: User = self.user_repository.create(
                     email=email,
                     hashed_password=hashed_password,
                     first_name=first_name,
@@ -225,7 +225,8 @@ class AuthService(BaseService):
             User object or None if not found
         """
         try:
-            return self.user_repository.find_one_by(email=email)
+            result = self.user_repository.find_one_by(email=email)
+            return cast(Optional[User], result)
         except Exception as e:
             self.logger.error(f"Error getting user by email {email}: {str(e)}")
             return None

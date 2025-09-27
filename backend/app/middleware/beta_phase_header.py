@@ -1,5 +1,7 @@
 import logging
 
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
 from ..core.constants import SSE_PATH_PREFIX
 from ..database import SessionLocal
 from ..monitoring.prometheus_metrics import PrometheusMetrics
@@ -18,10 +20,10 @@ class BetaPhaseHeaderMiddleware:
     - Sets header: x-beta-allow-signup: 1 | 0 (true when signup allowed without invite)
     """
 
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -52,9 +54,9 @@ class BetaPhaseHeaderMiddleware:
             # Never break the response due to header resolution failures
             logger.debug(f"BetaPhaseHeaderMiddleware error: {e}")
 
-        async def send_wrapper(message):
+        async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
-                headers = message.get("headers", [])
+                headers = list(message.get("headers", []))
                 headers.append((b"x-beta-phase", phase_value))
                 headers.append((b"x-beta-allow-signup", allow_signup_value))
                 message = {**message, "headers": headers}

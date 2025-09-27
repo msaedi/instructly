@@ -36,7 +36,7 @@ Router Endpoints:
 
 from datetime import datetime, timedelta
 import logging
-from typing import NoReturn, Optional
+from typing import Any, NoReturn, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 
@@ -386,7 +386,7 @@ async def get_bookings(
         paginated_bookings = bookings[start:end]
 
         # Convert to BookingResponse objects with privacy protection
-        booking_responses = []
+        booking_responses: list[BookingResponse | dict[str, Any]] = []
         for booking in paginated_bookings:
             try:
                 if isinstance(booking, dict) and booking.get("_from_cache", False):

@@ -26,6 +26,7 @@ from ..schemas.analytics_responses import (
     CandidateCategoryTrendsResponse,
     CandidateScoreDistributionResponse,
     CandidateServiceQueriesResponse,
+    CandidateServiceQuery,
     CandidateSummaryResponse,
     CandidateTopService,
     CandidateTopServicesResponse,
@@ -888,16 +889,15 @@ async def candidate_service_queries(
         .all()
     )
 
-    return CandidateServiceQueriesResponse(
-        [
-            {
-                "searched_at": r.searched_at.isoformat() if r.searched_at else "",
-                "search_query": r.search_query or "",
-                "results_count": r.results_count,
-                "position": r.position,
-                "score": float(r.score) if r.score is not None else None,
-                "source": r.source,
-            }
-            for r in rows
-        ]
-    )
+    items = [
+        CandidateServiceQuery(
+            searched_at=r.searched_at.isoformat() if r.searched_at else "",
+            search_query=r.search_query or "",
+            results_count=r.results_count,
+            position=r.position,
+            score=float(r.score) if r.score is not None else None,
+            source=r.source,
+        )
+        for r in rows
+    ]
+    return CandidateServiceQueriesResponse(items)

@@ -126,12 +126,12 @@ class EmailService(BaseService):
             }
 
             # Send email
-            response = resend.Emails.send(email_data)
+            response_data: Dict[str, Any] = resend.Emails.send(email_data)
 
             self.logger.info(f"Email sent successfully to {to_email} - Subject: {subject}")
             self.log_operation("email_sent", to_email=to_email, subject=subject)
 
-            return response
+            return response_data
 
         except Exception as e:
             error_msg = str(e) if e else "Unknown error"

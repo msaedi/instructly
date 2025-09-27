@@ -1,7 +1,7 @@
 """Repositories for BetaInvite and BetaAccess (repository pattern)."""
 
 from datetime import datetime
-from typing import Any, List, Optional, Sequence
+from typing import Any, List, Optional, Sequence, cast
 
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,8 @@ class BetaInviteRepository(BaseRepository[BetaInvite]):
         super().__init__(db, BetaInvite)
 
     def get_by_code(self, code: str) -> Optional[BetaInvite]:
-        return self.db.query(BetaInvite).filter(BetaInvite.code == code).first()
+        result = self.db.query(BetaInvite).filter(BetaInvite.code == code).first()
+        return cast(Optional[BetaInvite], result)
 
     def mark_used(self, code: str, user_id: str, used_at: Optional[datetime] = None) -> bool:
         invite = self.get_by_code(code)
@@ -39,12 +40,13 @@ class BetaAccessRepository(BaseRepository[BetaAccess]):
         return self.create(user_id=user_id, role=role, phase=phase, invited_by_code=invited_by_code)
 
     def get_latest_for_user(self, user_id: str) -> Optional[BetaAccess]:
-        return (
+        result = (
             self.db.query(BetaAccess)
             .filter(BetaAccess.user_id == user_id)
             .order_by(BetaAccess.granted_at.desc())
             .first()
         )
+        return cast(Optional[BetaAccess], result)
 
 
 class BetaSettingsRepository(BaseRepository[BetaSettings]):
@@ -54,7 +56,7 @@ class BetaSettingsRepository(BaseRepository[BetaSettings]):
     def get_singleton(self) -> BetaSettings:
         rec = self.db.query(BetaSettings).order_by(BetaSettings.updated_at.desc()).first()
         if rec:
-            return rec
+            return cast(BetaSettings, rec)
         # Create default if none exists
         return self.create(
             beta_disabled=False, beta_phase="instructor_only", allow_signup_without_invite=False

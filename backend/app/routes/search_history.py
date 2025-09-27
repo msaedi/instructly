@@ -41,7 +41,7 @@ async def get_current_user_optional(
     if not current_user_email:
         return None
 
-    user = db.query(User).filter(User.email == current_user_email).first()
+    user: User | None = db.query(User).filter(User.email == current_user_email).first()
     return user
 
 
@@ -344,7 +344,7 @@ async def track_interaction(
 
     try:
         # Extract interaction data
-        search_event_id = cast(int | None, interaction_data.get("search_event_id"))
+        search_event_id = cast(str | None, interaction_data.get("search_event_id"))
         interaction_type = cast(str | None, interaction_data.get("interaction_type"))
         instructor_id = cast(str | None, interaction_data.get("instructor_id"))
         result_position = cast(int | None, interaction_data.get("result_position"))

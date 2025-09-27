@@ -269,7 +269,11 @@ class BookingService(BaseService):
 
             # Store setup intent details
             booking.payment_intent_id = setup_intent.id
-            booking.setup_intent_client_secret = getattr(setup_intent, "client_secret", None)
+            setattr(
+                booking,
+                "setup_intent_client_secret",
+                getattr(setup_intent, "client_secret", None),
+            )
 
             # Create payment event using repository
             from ..repositories.payment_repository import PaymentRepository
@@ -1170,7 +1174,10 @@ class BookingService(BaseService):
         )
 
         # Load relationships for response
-        booking = self.repository.get_booking_with_details(booking.id)
+        detailed_booking = self.repository.get_booking_with_details(booking.id)
+
+        if detailed_booking is not None:
+            return detailed_booking
 
         return booking
 

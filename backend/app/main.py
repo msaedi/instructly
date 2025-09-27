@@ -136,7 +136,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Log database selection (this will show which database is being used)
     from .core.database_config import DatabaseConfig
 
-    db_config = DatabaseConfig()  # type: ignore[no-untyped-call]  # mypy skips runtime module; instantiation safe for startup logging
+    db_config = DatabaseConfig()
     logger.info(f"Database safety score: {db_config.get_safety_score()['score']}%")
 
     logger.info(f"Allowed origins: {_DYN_ALLOWED_ORIGINS}")

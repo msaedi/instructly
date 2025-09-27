@@ -7,6 +7,7 @@ Tasks are scheduled using crontab expressions for precise timing control.
 """
 
 from datetime import timedelta
+from typing import Any
 
 from celery.schedules import crontab
 
@@ -305,7 +306,7 @@ SCHEDULE_CONFIG = {
 }
 
 
-def get_beat_schedule(environment: str = "production"):
+def get_beat_schedule(environment: str = "production") -> dict[str, dict[str, Any]]:
     """
     Get the beat schedule for the specified environment.
 
@@ -313,10 +314,10 @@ def get_beat_schedule(environment: str = "production"):
         environment: The environment name (production, development, testing)
 
     Returns:
-        dict: The beat schedule configuration
+        Mapping of task name to Celery beat configuration dict
     """
     # Start from the base schedule, then apply environment-specific overrides
-    base = dict(CELERYBEAT_SCHEDULE)
+    base: dict[str, dict[str, Any]] = dict(CELERYBEAT_SCHEDULE)
     overrides = SCHEDULE_CONFIG.get(environment)
     if overrides:
         base.update(overrides)

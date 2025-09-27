@@ -79,7 +79,6 @@ class PerformanceMonitor:
     def _setup_query_monitoring(self) -> None:
         """Setup SQLAlchemy event listeners for query monitoring."""
 
-        @event.listens_for(Engine, "before_cursor_execute")
         def before_cursor_execute(
             conn: Any,
             cursor: Any,
@@ -92,7 +91,6 @@ class PerformanceMonitor:
             context._query_start_time = time.time()
             context._query_statement = statement
 
-        @event.listens_for(Engine, "after_cursor_execute")
         def after_cursor_execute(
             conn: Any,
             cursor: Any,
@@ -141,6 +139,9 @@ class PerformanceMonitor:
                             "full_query": statement if duration_ms > 2000 else None,
                         },
                     )
+
+        event.listen(Engine, "before_cursor_execute", before_cursor_execute)
+        event.listen(Engine, "after_cursor_execute", after_cursor_execute)
 
     def track_request_start(self, request_id: str, request: Request) -> None:
         """Track the start of a request."""

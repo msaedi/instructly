@@ -17,6 +17,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from ..core.config import settings
 
@@ -24,22 +25,22 @@ logger = logging.getLogger(__name__)
 
 
 class CsrfOriginMiddlewareASGI:
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
     def _allowed_frontend_host(self) -> Optional[str]:
         site_mode = os.getenv("SITE_MODE", "").lower().strip()
         if site_mode == "preview":
-            return settings.preview_frontend_domain
+            return str(settings.preview_frontend_domain)
         if site_mode in {"prod", "production", "live"}:
             # Use first configured prod origin's host if available
-            csv = (settings.prod_frontend_origins_csv or "").strip()
+            csv = str(settings.prod_frontend_origins_csv or "").strip()
             first = [o.strip() for o in csv.split(",") if o.strip()]
             if first:
                 try:
-                    return urlparse(first[0]).hostname or first[0].replace("https://", "").replace(
-                        "http://", ""
-                    )
+                    parsed = urlparse(first[0])
+                    host = parsed.hostname or ""
+                    return host or first[0].replace("https://", "").replace("http://", "")
                 except Exception:
                     return first[0]
             return "app.instainstru.com"
@@ -69,7 +70,7 @@ class CsrfOriginMiddlewareASGI:
             or p.startswith("/auth/register")
         )
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return

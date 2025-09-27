@@ -7,7 +7,7 @@ between authenticated users and guests, allowing unified business logic.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional
 
 from ..core.config import settings
 
@@ -61,7 +61,7 @@ class SearchUserContext:
     @property
     def search_limit(self) -> int:
         """Get the search history limit (same for both user types)."""
-        return cast(int, settings.search_history_max_per_user)
+        return settings.search_history_max_per_user
 
     def to_repository_kwargs(self) -> Dict[str, Optional[Any]]:
         """

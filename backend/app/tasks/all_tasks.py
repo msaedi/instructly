@@ -7,6 +7,8 @@ with the Celery app when the worker starts.
 """
 
 # Import all task modules to ensure registration
+from typing import List
+
 # These imports trigger the @celery_app.task decorators to register tasks
 from app.tasks import (
     analytics,  # noqa: F401
@@ -43,7 +45,7 @@ ALL_TASKS = [
 
 
 # Verify tasks are registered
-def verify_task_registration():
+def verify_task_registration() -> List[str]:
     """Verify all expected tasks are registered with Celery."""
     registered_tasks = list(celery_app.tasks.keys())
 

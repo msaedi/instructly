@@ -530,7 +530,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             query.order_by(SearchEvent.searched_at.desc()).first(),
         )
 
-    def get_search_event_by_id(self, event_id: int) -> Optional[SearchEvent]:
+    def get_search_event_by_id(self, event_id: str) -> Optional[SearchEvent]:
         """
         Get search event by ID for validation.
 

@@ -166,10 +166,12 @@ class FavoritesService(BaseService):
         if self.cache:
             cached_value = self.cache.get(cache_key)
             if cached_value is not None:
-                return cached_value == "1"
+                if isinstance(cached_value, str):
+                    return cached_value == "1"
+                return bool(cached_value)
 
         # Check database
-        is_fav = self.favorites_repository.is_favorited(student_id, instructor_id)
+        is_fav: bool = bool(self.favorites_repository.is_favorited(student_id, instructor_id))
 
         # Cache the result
         if self.cache:
@@ -238,7 +240,8 @@ class FavoritesService(BaseService):
             # Return all False if no student (guest user)
             return {instructor_id: False for instructor_id in instructor_ids}
 
-        return self.favorites_repository.bulk_check_favorites(student_id, instructor_ids)
+        results = self.favorites_repository.bulk_check_favorites(student_id, instructor_ids)
+        return results
 
     def _validate_student(self, student_id: str) -> User:
         """
@@ -296,7 +299,7 @@ class FavoritesService(BaseService):
         """Generate cache key for favorite status."""
         return f"favorites:{student_id}:{instructor_id}"
 
-    def _invalidate_favorite_cache(self, student_id: str, instructor_id: str):
+    def _invalidate_favorite_cache(self, student_id: str, instructor_id: str) -> None:
         """Invalidate cache entries related to a favorite."""
         if self.cache:
             cache_key = self._get_cache_key(student_id, instructor_id)

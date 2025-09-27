@@ -465,7 +465,7 @@ async def edit_message(
     "/config",
     response_model=MessageConfigResponse,
 )
-async def get_message_config():
+async def get_message_config() -> MessageConfigResponse:
     """Public config values for the messaging UI."""
     return MessageConfigResponse(
         edit_window_minutes=getattr(settings, "message_edit_window_minutes", 5)

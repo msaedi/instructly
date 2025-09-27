@@ -142,14 +142,11 @@ class PersonalAssetService(BaseService):
 
         # Update user via repository
         repo = self.users
-        updated = cast(
-            Optional[User],
-            repo.update_profile(
-                user_id=user.id,
-                profile_picture_key=keys["original"],
-                profile_picture_uploaded_at=datetime.now(timezone.utc),
-                profile_picture_version=next_version,
-            ),
+        updated = repo.update_profile(
+            user_id=user.id,
+            profile_picture_key=keys["original"],
+            profile_picture_uploaded_at=datetime.now(timezone.utc),
+            profile_picture_version=next_version,
         )
         if not updated:
             raise RuntimeError("Failed to update user record with profile picture metadata")
@@ -183,14 +180,11 @@ class PersonalAssetService(BaseService):
                 logger.warning("Failed to delete object: %s", k)
 
         # Clear fields
-        updated = cast(
-            Optional[User],
-            self.users.update_profile(
-                user_id=user.id,
-                profile_picture_key=None,
-                profile_picture_uploaded_at=None,
-                profile_picture_version=0,
-            ),
+        updated = self.users.update_profile(
+            user_id=user.id,
+            profile_picture_key=None,
+            profile_picture_uploaded_at=None,
+            profile_picture_version=0,
         )
         # Invalidate cached URLs
         try:

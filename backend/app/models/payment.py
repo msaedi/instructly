@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class StripeCustomer(Base):  # type: ignore[misc]
+class StripeCustomer(Base):
     """Maps users to their Stripe customer IDs."""
 
     __tablename__ = "stripe_customers"
@@ -48,7 +48,7 @@ class StripeCustomer(Base):  # type: ignore[misc]
         return f"<StripeCustomer(user_id={self.user_id}, stripe_id={self.stripe_customer_id})>"
 
 
-class StripeConnectedAccount(Base):  # type: ignore[misc]
+class StripeConnectedAccount(Base):
     """Instructor Stripe Connect accounts for receiving payments."""
 
     __tablename__ = "stripe_connected_accounts"
@@ -77,7 +77,7 @@ class StripeConnectedAccount(Base):  # type: ignore[misc]
         return f"<StripeConnectedAccount(instructor_id={self.instructor_profile_id}, completed={self.onboarding_completed})>"
 
 
-class PaymentIntent(Base):  # type: ignore[misc]
+class PaymentIntent(Base):
     """Stripe payment intents for booking payments."""
 
     __tablename__ = "payment_intents"
@@ -108,7 +108,7 @@ class PaymentIntent(Base):  # type: ignore[misc]
         return f"<PaymentIntent(booking_id={self.booking_id}, amount={self.amount}, status={self.status})>"
 
 
-class PaymentMethod(Base):  # type: ignore[misc]
+class PaymentMethod(Base):
     """User payment methods (cards)."""
 
     __tablename__ = "payment_methods"
@@ -137,7 +137,7 @@ class PaymentMethod(Base):  # type: ignore[misc]
         return f"<PaymentMethod(user_id={self.user_id}, last4={self.last4}, default={self.is_default})>"
 
 
-class PaymentEvent(Base):  # type: ignore[misc]
+class PaymentEvent(Base):
     """Track all payment state changes for bookings."""
 
     __tablename__ = "payment_events"
@@ -168,7 +168,7 @@ class PaymentEvent(Base):  # type: ignore[misc]
         return f"<PaymentEvent(booking_id={self.booking_id}, type={self.event_type})>"
 
 
-class PlatformCredit(Base):  # type: ignore[misc]
+class PlatformCredit(Base):
     """Platform credits for 12-24 hour cancellations."""
 
     __tablename__ = "platform_credits"
@@ -232,7 +232,7 @@ class PlatformCredit(Base):  # type: ignore[misc]
         return f"<PlatformCredit(user_id={self.user_id}, amount={self.amount_cents}, available={self.is_available})>"
 
 
-class InstructorPayoutEvent(Base):  # type: ignore[misc]
+class InstructorPayoutEvent(Base):
     """Persist payout-related events per instructor for analytics/auditing."""
 
     __tablename__ = "instructor_payout_events"
