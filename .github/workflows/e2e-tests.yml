@@ -3,8 +3,28 @@ name: Frontend Tests
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - 'tools/mypy_strict_gate.sh'
+      - 'backend/pyproject.toml'
+      - 'backend/requirements*.txt'
+      - 'backend/alembic/**'
+      - 'backend/typings/**'
+      - '.github/workflows/**'
+      - '.pre-commit-config.yaml'
+      - 'frontend/**'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'tools/mypy_strict_gate.sh'
+      - 'backend/pyproject.toml'
+      - 'backend/requirements*.txt'
+      - 'backend/alembic/**'
+      - 'backend/typings/**'
+      - '.github/workflows/**'
+      - '.pre-commit-config.yaml'
+      - 'frontend/**'
   workflow_dispatch:
     inputs:
       invite_e2e:
