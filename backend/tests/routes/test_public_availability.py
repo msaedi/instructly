@@ -12,8 +12,8 @@ These tests ensure that:
 
 from datetime import date, time, timedelta
 
-import pytest
 from fastapi import status
+import pytest
 from sqlalchemy.orm import Session
 
 from app.core.config import settings

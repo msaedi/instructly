@@ -4,10 +4,14 @@ Test that @measure_operation decorator creates metrics correctly
 import time
 from unittest.mock import Mock, patch
 
-import pytest
 from prometheus_client import REGISTRY
+import pytest
 
-from app.monitoring.prometheus_metrics import errors_total, service_operation_duration_seconds, service_operations_total
+from app.monitoring.prometheus_metrics import (
+    errors_total,
+    service_operation_duration_seconds,
+    service_operations_total,
+)
 from app.services.base import BaseService
 
 

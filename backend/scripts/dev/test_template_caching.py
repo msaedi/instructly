@@ -9,9 +9,9 @@ Tests:
 4. Cache invalidation
 """
 
+from pathlib import Path
 import sys
 import time
-from pathlib import Path
 from unittest.mock import Mock
 
 # Add backend to path
@@ -221,7 +221,7 @@ def main():
         if no_cache_time > 0 and cache_time > 0:
             improvement = (no_cache_time - cache_time) / no_cache_time * 100
             speedup = no_cache_time / cache_time
-            print(f"\n📊 Performance Summary:")
+            print("\n📊 Performance Summary:")
             print(f"   Without cache: {no_cache_time:.4f}s")
             print(f"   With cache: {cache_time:.4f}s")
             print(f"   Improvement: {improvement:.1f}%")

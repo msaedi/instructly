@@ -3,9 +3,9 @@ Generate a cache performance test report.
 """
 
 import asyncio
+from datetime import date, timedelta
 import statistics
 import time
-from datetime import date, timedelta
 
 import httpx
 
@@ -41,7 +41,7 @@ async def generate_report():
 
             # First request (cold cache)
             start_time = time.time()
-            response1 = await client.get(url, params=params)
+            _response1 = await client.get(url, params=params)
             cold_time = (time.time() - start_time) * 1000
             cold_times.append(cold_time)
 
@@ -49,7 +49,7 @@ async def generate_report():
 
             # Second request (warm cache)
             start_time = time.time()
-            response2 = await client.get(url, params=params)
+            _response2 = await client.get(url, params=params)
             warm_time = (time.time() - start_time) * 1000
             warm_times.append(warm_time)
 
@@ -69,10 +69,10 @@ async def generate_report():
 
         # Test 2: Cache Metrics (simulated since we may not have auth)
         print(f"\n{BOLD}2. Cache Metrics:{RESET}")
-        print(f"   Total requests: 20")
-        print(f"   Cache hits: 10")
-        print(f"   Cache misses: 10")
-        print(f"   Hit rate: 50%")
+        print("   Total requests: 20")
+        print("   Cache hits: 10")
+        print("   Cache misses: 10")
+        print("   Hit rate: 50%")
 
         # Test 3: Invalidation Test
         print(f"\n{BOLD}3. Invalidation Test:{RESET}")
@@ -121,7 +121,7 @@ async def generate_report():
         print(f"\n{BOLD}5. ETag Test:{RESET}")
 
         # Make a request and check for ETag
-        url = f"http://localhost:8000/api/public/instructors/01J5TESTINSTR0000000000001/availability"
+        url = "http://localhost:8000/api/public/instructors/01J5TESTINSTR0000000000001/availability"
         params = {"start_date": start_date.isoformat(), "end_date": end_date.isoformat()}
         response = await client.get(url, params=params)
 
@@ -153,16 +153,16 @@ async def generate_report():
 
         # Additional information
         print(f"\n{BOLD}Cache Performance Analysis:{RESET}")
-        print(f"- Server-side caching is functioning correctly")
+        print("- Server-side caching is functioning correctly")
         print(f"- Performance improvement of ~{improvement:.0f}% observed")
         print(f"- Response times reduced from ~{avg_cold:.0f}ms to ~{avg_cached_perf:.0f}ms")
         print(f"- Cache can handle {req_per_sec_cache:.0f} requests/second")
 
         print(f"\n{BOLD}Recommendations:{RESET}")
-        print(f"- Current 5-minute TTL is appropriate for availability data")
-        print(f"- Consider implementing cache warming for popular instructors")
-        print(f"- Monitor Redis memory usage as traffic increases")
-        print(f"- Add cache hit/miss metrics to application monitoring")
+        print("- Current 5-minute TTL is appropriate for availability data")
+        print("- Consider implementing cache warming for popular instructors")
+        print("- Monitor Redis memory usage as traffic increases")
+        print("- Add cache hit/miss metrics to application monitoring")
 
 
 if __name__ == "__main__":

@@ -13,9 +13,8 @@ UPDATED: Using VARCHAR for role instead of ENUM to avoid SQLAlchemy issues
 """
 from typing import Sequence, Union
 
-import sqlalchemy as sa
-
 from alembic import op
+import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "001_initial_schema"

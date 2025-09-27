@@ -5,9 +5,9 @@ Visualize Sarah Chen's availability and bookings to demonstrate layer independen
 Shows the "rug" (availability) and "people" (bookings) concept.
 """
 
-import sys
 from datetime import date, timedelta
 from pathlib import Path
+import sys
 
 # Add the parent directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))

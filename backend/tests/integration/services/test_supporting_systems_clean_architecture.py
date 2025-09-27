@@ -78,7 +78,7 @@ class TestSupportingSystemsIntegration:
         notification_service = NotificationService(db)
         notification_service.email_service.send_email = Mock(return_value={"id": "test"})
 
-        cache_service = CacheService(db)
+        _cache_service = CacheService(db)
 
         # Send booking confirmation
         result = await notification_service.send_booking_confirmation(full_booking)

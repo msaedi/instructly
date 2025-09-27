@@ -24,8 +24,7 @@ from app.core.enums import RoleName
 from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.schemas.instructor import InstructorProfileUpdate, ServiceCreate

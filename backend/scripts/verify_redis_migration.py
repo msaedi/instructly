@@ -60,7 +60,7 @@ class RedisVerification:
 
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ Redis Stats Retrieved:")
+                print("✅ Redis Stats Retrieved:")
                 print(f"   - Version: {data['server']['redis_version']}")
                 print(f"   - Memory Used: {data['memory']['used_memory_human']}")
                 print(f"   - Connected Clients: {data['clients']['connected_clients']}")
@@ -97,7 +97,7 @@ class RedisVerification:
                 queues = data.get("queues", {})
                 total = data.get("total_pending", 0)
 
-                print(f"✅ Celery Queues Status:")
+                print("✅ Celery Queues Status:")
                 if not queues or all(v == 0 for v in queues.values() if v >= 0):
                     print("   - All queues are empty (expected for fresh deployment)")
                 else:
@@ -143,7 +143,7 @@ class RedisVerification:
 
     def run_verification(self) -> bool:
         """Run all verification checks."""
-        print(f"\n🚀 Redis Migration Verification")
+        print("\n🚀 Redis Migration Verification")
         print(f"   API URL: {self.api_url}")
         print("=" * 50)
 

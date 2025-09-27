@@ -135,7 +135,7 @@ class TestPrivacyService:
         """Test user data deletion with account deletion."""
         user_id = sample_user_for_privacy.id
 
-        result = privacy_service.delete_user_data(user_id, delete_account=True)
+        _result = privacy_service.delete_user_data(user_id, delete_account=True)
 
         # Verify user account was soft-deleted
         user = db.query(User).filter_by(id=user_id).first()

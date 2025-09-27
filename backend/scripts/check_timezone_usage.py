@@ -6,9 +6,9 @@ This script checks for instances of date.today() in user-facing code paths
 and suggests using get_user_today_by_id() instead.
 """
 
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
 
 # Files/directories that are allowed to use date.today()
 ALLOWED_PATTERNS = [

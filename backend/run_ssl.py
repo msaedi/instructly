@@ -5,8 +5,8 @@ SSL Development Server for InstaInstru Backend
 Runs the FastAPI application with HTTPS for local development
 """
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Suppress the urllib3 LibreSSL warning on macOS
 import urllib3

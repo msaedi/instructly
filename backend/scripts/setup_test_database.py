@@ -8,8 +8,8 @@ for running tests. It ensures the test database is clearly named and separate
 from any production data.
 """
 
-import sys
 from pathlib import Path
+import sys
 from urllib.parse import urlparse, urlunparse
 
 # Add the parent directory to the path
@@ -124,7 +124,7 @@ def print_success_message(test_url):
     """Print success message with next steps."""
     # Mask password in URL for display
     parsed = urlparse(test_url)
-    display_url = urlunparse(parsed._replace(netloc=f"{parsed.username}:****@{parsed.hostname}:{parsed.port}"))
+    _display_url = urlunparse(parsed._replace(netloc=f"{parsed.username}:****@{parsed.hostname}:{parsed.port}"))
 
     print("\n" + "=" * 60)
     print("✅ Test Database Setup Complete!")

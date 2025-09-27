@@ -1,13 +1,14 @@
 from datetime import datetime, timedelta
-import ulid
+
 import pytest
+import ulid
 
 # Assuming test utilities/fixtures provide these imports; adjust paths if needed
 from app.models.booking import Booking, BookingStatus
-from app.services.booking_service import BookingService
-from app.models.user import User
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
+from app.models.user import User
+from app.services.booking_service import BookingService
 
 
 @pytest.mark.asyncio
@@ -140,24 +141,18 @@ Tests the two-step booking flow:
 2. Confirm payment method and schedule authorization
 """
 
-from datetime import date, datetime, time, timedelta
-from unittest.mock import MagicMock, Mock, patch
+from datetime import date, time
+from unittest.mock import MagicMock, patch
 
 import pytest
-import ulid
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
 from app.core.exceptions import NotFoundException, ValidationException
-from app.models.booking import Booking, BookingStatus
-from app.models.instructor import InstructorProfile
 from app.models.payment import PaymentEvent
 from app.models.rbac import Role
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
-from app.models.user import User
-from app.repositories.factory import RepositoryFactory
 from app.schemas.booking import BookingCreate
-from app.services.booking_service import BookingService
 
 
 class TestBookingPaymentService:

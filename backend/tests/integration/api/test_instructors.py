@@ -11,15 +11,14 @@ Tests all endpoints in the instructors router including:
 - Error handling and edge cases
 """
 
-import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
 from app.models.instructor import InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 
 

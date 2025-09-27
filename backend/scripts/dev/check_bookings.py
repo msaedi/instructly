@@ -5,9 +5,9 @@ Script to check bookings in the database, specifically for Sarah Chen.
 This helps verify Work Stream #9 implementation.
 """
 
-import sys
 from datetime import date
 from pathlib import Path
+import sys
 
 # Add the parent directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))

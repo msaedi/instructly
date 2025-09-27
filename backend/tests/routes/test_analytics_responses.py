@@ -5,11 +5,11 @@ This verifies that all analytics endpoints return properly structured
 responses using the standardized response schemas.
 """
 
-import uuid
 from datetime import datetime, timedelta, timezone
+import uuid
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash

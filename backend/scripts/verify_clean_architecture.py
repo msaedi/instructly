@@ -39,7 +39,7 @@ def test_booking_clean_architecture():
 
     # Test 2: Reject slot_id (clean architecture)
     try:
-        bad_booking = BookingCreate(
+        _bad_booking = BookingCreate(
             availability_slot_id=123,  # Should be rejected!
             instructor_id=1,
             service_id=2,
@@ -141,7 +141,7 @@ def test_new_patterns():
 
     # Test 1: AvailabilityCheckRequest uses time-based checking
     try:
-        check = AvailabilityCheckRequest(
+        _check = AvailabilityCheckRequest(
             instructor_id=1,
             service_id=2,
             booking_date=date.today() + timedelta(days=1),
@@ -155,7 +155,7 @@ def test_new_patterns():
 
     # Test 2: New booking opportunities pattern
     try:
-        opportunities = FindBookingOpportunitiesRequest(
+        _opportunities = FindBookingOpportunitiesRequest(
             instructor_id=1,
             service_id=2,
             date_range_start=date.today(),

@@ -1,6 +1,6 @@
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Check environment before and after loading
 print("1. Initial environment:")

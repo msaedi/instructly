@@ -6,8 +6,8 @@ Tests the /api/search-history/interaction endpoint to ensure
 it properly saves search interactions to the database.
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from app.models.search_event import SearchEvent

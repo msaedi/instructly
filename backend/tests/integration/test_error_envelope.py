@@ -1,5 +1,5 @@
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -10,6 +10,7 @@ def _enable_strict_schemas(monkeypatch):
 @pytest.fixture()
 def client(_enable_strict_schemas):
     from importlib import reload
+
     import app.main as main
 
     reload(main)
@@ -29,6 +30,7 @@ def test_404_problem_json(client: TestClient):
 def test_forced_500_problem_json(client: TestClient):
     # Add a transient route for testing that raises an exception
     from fastapi import APIRouter
+
     import app.main as main
 
     router = APIRouter()
@@ -56,6 +58,7 @@ def test_422_problem_json_wrong_type(client: TestClient):
     # Mount a transient route that requires a typed body and triggers 422 on wrong types
     from fastapi import APIRouter
     from pydantic import BaseModel
+
     import app.main as main
 
     class Payload(BaseModel):
@@ -84,6 +87,7 @@ def test_422_problem_json_wrong_type(client: TestClient):
 def test_422_problem_json_missing_required(client: TestClient):
     from fastapi import APIRouter
     from pydantic import BaseModel
+
     import app.main as main
 
     class Payload(BaseModel):
@@ -112,6 +116,7 @@ def test_422_problem_json_missing_required(client: TestClient):
 def test_422_problem_json_extra_field(client: TestClient):
     from fastapi import APIRouter
     from pydantic import BaseModel, ConfigDict
+
     import app.main as main
 
     class StrictPayload(BaseModel):

@@ -15,7 +15,12 @@ from sqlalchemy.orm import Session
 from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking
-from app.schemas.availability_window import BulkUpdateRequest, SlotOperation, TimeSlot, ValidateWeekRequest
+from app.schemas.availability_window import (
+    BulkUpdateRequest,
+    SlotOperation,
+    TimeSlot,
+    ValidateWeekRequest,
+)
 from app.services.bulk_operation_service import BulkOperationService
 
 

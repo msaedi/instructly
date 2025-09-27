@@ -16,8 +16,7 @@ import pytest
 
 from app.core.ulid_helper import generate_ulid
 from app.models.instructor import InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories import RepositoryFactory
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
@@ -68,7 +67,7 @@ class TestInstructorProfileRepositoryEagerLoading:
             mock_query.all.return_value = [profile]
 
             # Call the method
-            results = repo.get_all_with_details(skip=0, limit=10)
+            _results = repo.get_all_with_details(skip=0, limit=10)
 
             # Verify joinedload was called for both relationships
             mock_query.options.assert_called()
@@ -409,7 +408,7 @@ class TestPerformanceImprovement:
             old_query_count += 1
 
             # Get services
-            services = db.query(Service).filter(Service.instructor_profile_id == profile.id).all()
+            _services = db.query(Service).filter(Service.instructor_profile_id == profile.id).all()
             old_query_count += 1
 
         # Test new approach
@@ -480,8 +479,11 @@ class TestDiagnosticAndDebugging:
     def test_debug_service_filtering(self, db):
         """Debug test to understand service filtering issue."""
         from app.models.instructor import InstructorProfile
-        from app.models.service_catalog import InstructorService as Service
-        from app.models.service_catalog import ServiceCatalog, ServiceCategory
+        from app.models.service_catalog import (
+            InstructorService as Service,
+            ServiceCatalog,
+            ServiceCategory,
+        )
         from app.models.user import User
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
@@ -607,8 +609,11 @@ class TestDiagnosticAndDebugging:
     def test_diagnose_service_loading_issue(self, db):
         """Diagnose why services aren't loading correctly."""
         from app.models.instructor import InstructorProfile
-        from app.models.service_catalog import InstructorService as Service
-        from app.models.service_catalog import ServiceCatalog, ServiceCategory
+        from app.models.service_catalog import (
+            InstructorService as Service,
+            ServiceCatalog,
+            ServiceCategory,
+        )
         from app.models.user import User
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
 

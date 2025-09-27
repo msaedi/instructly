@@ -19,8 +19,8 @@ TEST FAILURE ANALYSIS - test_bookings.py
 from datetime import date, datetime, time, timedelta
 from unittest.mock import AsyncMock, MagicMock, Mock
 
-import pytest
 from fastapi import status
+import pytest
 
 from app.api.dependencies.services import get_booking_service
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException

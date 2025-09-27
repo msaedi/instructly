@@ -12,23 +12,17 @@ Tests cover:
 - Error handling
 """
 
-import asyncio
-import json
 from datetime import datetime, timedelta, timezone
-from typing import Generator
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from tests.fixtures.unique_test_data import unique_data
 
-from app.core.enums import PermissionName
 from app.models.booking import Booking, BookingStatus
-from app.models.message import Message
 from app.models.service_catalog import InstructorService
 from app.models.user import User
 from app.repositories.message_repository import MessageRepository
 from app.services.message_service import MessageService
-from tests.fixtures.unique_test_data import unique_data
 
 
 @pytest.fixture

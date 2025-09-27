@@ -10,11 +10,11 @@ Supports inline markers for legitimate DB access:
   # repo-pattern-migrate: TODO: Will be fixed in migration
 """
 
+from datetime import datetime
 import json
+from pathlib import Path
 import re
 import sys
-from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Tuple
 
 # Patterns that indicate direct database access
@@ -242,7 +242,7 @@ class RepositoryPatternChecker:
         print("REPOSITORY PATTERN VIOLATION CHECK")
         print("=" * 80)
 
-        print(f"\n📊 Summary:")
+        print("\n📊 Summary:")
         print(f"  Files checked: {self.checked_files}")
         print(f"  ❌ Unmarked violations: {len(self.violations)}")
         print(f"  ⚠️  Migration-marked violations: {len(self.migration_violations)}")
@@ -271,7 +271,7 @@ class RepositoryPatternChecker:
                 for line_num, line, context in file_violations[:3]:  # Show max 3 per file
                     print(f"\n   Line {line_num}:")
                     print(f"   >>> {line}")
-                    print(f"   Fix: Add '# repo-pattern-migrate: TODO: migrate to repository' above this line")
+                    print("   Fix: Add '# repo-pattern-migrate: TODO: migrate to repository' above this line")
 
                 if len(file_violations) > 3:
                     print(f"   ... and {len(file_violations) - 3} more violations")
@@ -347,7 +347,7 @@ class RepositoryPatternChecker:
 
             print(f"\n📝 Generated violation list: {output_file}")
             print(f"   Total violations to mark: {len(all_violations)}")
-            print(f"   Add migration markers to proceed with commits")
+            print("   Add migration markers to proceed with commits")
 
 
 def main():
@@ -371,7 +371,7 @@ def main():
     is_precommit = os.environ.get("PRE_COMMIT", "0") == "1" or "pre-commit" in sys.argv[0]
 
     # Check for violations
-    success = checker.check_all(save_tracking=not is_precommit)
+    _success = checker.check_all(save_tracking=not is_precommit)
 
     # Print report
     checker.print_report()
@@ -390,7 +390,7 @@ def main():
     total_violations = len(checker.violations) + len(checker.migration_violations) + len(checker.ignored_violations)
 
     if total_violations > 0:
-        print(f"\n📈 Progress Tracking:")
+        print("\n📈 Progress Tracking:")
         print(f"  Total DB accesses found: {total_violations}")
         print(f"  Unmarked (blocking): {len(checker.violations)}")
         print(f"  Marked for migration: {len(checker.migration_violations)}")

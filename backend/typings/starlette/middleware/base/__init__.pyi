@@ -2,7 +2,6 @@ from typing import Any, Awaitable, Callable
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-
 class BaseHTTPMiddleware:
     app: ASGIApp
 

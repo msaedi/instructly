@@ -3,9 +3,7 @@ Unit tests for TimezoneService using prefix mapping.
 Tests the ZIP code prefix-based timezone detection.
 """
 
-from unittest.mock import patch
 
-import pytest
 
 from app.core.timezone_service import (
     cache_info,

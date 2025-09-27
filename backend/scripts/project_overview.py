@@ -9,12 +9,12 @@ Updated for Work Stream #10 - Single-table availability design
 Usage: python scripts/project_overview.py [--json] [--check-types] [--check-logging]
 """
 
+from datetime import datetime
 import json
+from pathlib import Path
 import re
 import subprocess
 import sys
-from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Tuple
 
 
@@ -668,9 +668,9 @@ def print_infrastructure_status() -> None:
     print(f"\n  • DragonflyDB (Cache): {dragonfly_status}")
 
     # Database info
-    print(f"  • PostgreSQL: Version 17.4 (via Supabase)")
-    print(f"  • Backend Framework: FastAPI")
-    print(f"  • Frontend Framework: Next.js 14")
+    print("  • PostgreSQL: Version 17.4 (via Supabase)")
+    print("  • Backend Framework: FastAPI")
+    print("  • Frontend Framework: Next.js 14")
 
     # Git info
     git_info = get_git_info()
@@ -682,9 +682,9 @@ def main():
     """Main function to generate project overview"""
     # Print header with timestamp
     print(f"{Colors.BOLD}🎯 " * 20)
-    print(f"    INSTAINSTRU PROJECT OVERVIEW - X-TEAM ENHANCED")
+    print("    INSTAINSTRU PROJECT OVERVIEW - X-TEAM ENHANCED")
     print(f"    Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"🎯 " * 20 + f"{Colors.ENDC}")
+    print("🎯 " * 20 + f"{Colors.ENDC}")
 
     # Git repository status
     print_header("GIT REPOSITORY STATUS", Colors.HEADER)

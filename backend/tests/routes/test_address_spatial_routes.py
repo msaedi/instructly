@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_neighborhoods_list_route(db, client):

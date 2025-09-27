@@ -14,8 +14,8 @@ Tests all functionality including:
 from datetime import date, time, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
-import pytest
 from jinja2.exceptions import TemplateNotFound
+import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException

@@ -58,11 +58,18 @@ jobs:
           ${{ runner.os }}-pip-
 
     - name: Install dependencies
+      working-directory: backend
       run: |
-        cd backend
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest-cov coverage[toml]
+        pip install -r requirements-dev.txt || true
+        pip install ruff mypy pytest-cov
+
+    - name: Ruff
+      run: ruff check backend
+
+    - name: Mypy strict (hard fail)
+      run: bash tools/mypy_strict_gate.sh
 
     - name: Verify Redis connection
       run: |
@@ -119,50 +126,22 @@ jobs:
         echo "Generating embeddings for service catalog..."
         python scripts/generate_service_embeddings.py
 
-    - name: Run ALL tests with coverage
-      id: pytest-coverage
-      continue-on-error: true
+    - name: Backend Tests
       env:
         SECRET_KEY: test-secret-key-for-ci
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-        TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test  # ADDED THIS!
-        IS_TESTING: true  # ADDED THIS!
+        TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        IS_TESTING: true
         GEOCODING_PROVIDER: mock
         RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 'test-resend-key' }}
         FRONTEND_URL: http://localhost:3000
         ENVIRONMENT: test
         REDIS_URL: redis://localhost:6379
-        COVERAGE_FILE: .coverage
       run: |
         cd backend
-
-        # Run all tests with coverage using coverage.py directly
-        echo "=== Running all tests with coverage ==="
-        coverage run --source=app --branch -m pytest -v || PYTEST_EXIT_CODE=$?
-
-        # Save exit code
-        PYTEST_EXIT_CODE=${PYTEST_EXIT_CODE:-0}
-        echo "PYTEST_EXIT_CODE=${PYTEST_EXIT_CODE}" >> $GITHUB_ENV
-
-        # Generate reports immediately
-        echo ""
-        echo "=== Generating coverage reports ==="
-        coverage xml
-        coverage json
-        coverage html
-
-        # Show basic summary
-        echo ""
-        echo "=== Coverage Summary ==="
-        coverage report | tail -n 10
-
-        # Debug: Show coverage files created
-        echo ""
-        echo "=== Coverage files created ==="
-        ls -la .coverage* coverage.* 2>/dev/null || echo "No coverage files found"
+        pytest -q --cov=app --cov-report=xml
 
     - name: Upload coverage reports to Codecov
-      if: always()
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
@@ -171,118 +150,6 @@ jobs:
         fail_ci_if_error: false
         verbose: true
 
-    - name: Coverage Analysis
-      if: always()
-      env:
-        COVERAGE_FILE: .coverage
-      run: |
-        cd backend
-
-        echo "=== Detailed Coverage Analysis ==="
-
-        # Check if .coverage file exists
-        if [ -f .coverage ]; then
-          echo "Found .coverage file, analyzing..."
-
-          # Overall detailed report
-          echo ""
-          echo "=== Detailed Coverage Report ==="
-          coverage report --show-missing
-
-          # Service-level coverage
-          echo ""
-          echo "=== Service Coverage Analysis ==="
-          coverage report --include="app/services/*.py" --sort=cover || echo "No service coverage data"
-
-          # Show top services
-          echo ""
-          echo "=== Top Services by Coverage ==="
-          coverage report --include="app/services/*.py" --sort=cover | head -n 10
-
-          # Route coverage
-          echo ""
-          echo "=== Route Coverage ==="
-          coverage report --include="app/routes/*.py" --sort=cover || echo "No route coverage data"
-
-          # Low coverage files
-          echo ""
-          echo "=== Files with Low Coverage (<70%) ==="
-          coverage report --include="app/**/*.py" --skip-covered --skip-empty | grep -E "^(app/|TOTAL)" | awk '$5 < 70 {print $0}' || echo "All files have good coverage!"
-
-          # High-coverage service checks
-          echo ""
-          echo "=== High-Coverage Service Details ==="
-
-          for service in base slot_manager booking_service conflict_checker week_operation_service availability_service; do
-            echo ""
-            echo "📊 ${service}.py:"
-            coverage report --include="app/services/${service}.py" | grep -E "(${service}|TOTAL)" || echo "${service} not found"
-          done
-
-          # Parse JSON for overall statistics
-          echo ""
-          echo "=== Overall Statistics ==="
-          if [ -f coverage.json ]; then
-            python -c "import json; data = json.load(open('coverage.json')); total = data['totals']; print(f'Total Coverage: {total[\"percent_covered\"]:.2f}%'); print(f'Lines Covered: {total[\"covered_lines\"]}/{total[\"num_statements\"]}'); print(f'Branches Covered: {total.get(\"covered_branches\", 0)}/{total.get(\"num_branches\", 0)}')"
-          fi
-
-        else
-          echo "❌ ERROR: No .coverage file found for analysis!"
-          echo "This usually means the coverage data wasn't preserved between steps."
-          echo ""
-          echo "Files in current directory:"
-          ls -la
-          echo ""
-          echo "Looking for any coverage files:"
-          find . -name ".coverage*" -o -name "coverage.*" | head -20
-        fi
-
-    - name: Upload coverage artifacts
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-reports
-        path: |
-          backend/.coverage
-          backend/coverage.xml
-          backend/coverage.json
-          backend/htmlcov/
-
-    # Fail the job if tests failed
-    - name: Check test results
-      if: always()
-      run: |
-        # Use a default value if PYTEST_EXIT_CODE is not set
-        EXIT_CODE="${PYTEST_EXIT_CODE:-1}"
-        if [ "$EXIT_CODE" != "0" ]; then
-          echo "Tests failed with exit code $EXIT_CODE"
-          exit 1
-        else
-          echo "All tests passed!"
-        fi
-
-  code-quality:
-    name: Code Quality Checks
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-        cache: 'pip'
-
-    - name: Install pre-commit
-      run: |
-        python -m pip install --upgrade pip
-        pip install pre-commit
-
-    - name: Run pre-commit checks
-      run: |
-        pre-commit run --all-files
-
   security:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -290,14 +157,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Run Bandit security scan
+    - name: Install security tooling
       run: |
-        pip install bandit
-        cd backend
-        bandit -r app/ -ll -x app/tests/ --skip B324
+        python -m pip install --upgrade pip
+        pip install bandit pip-audit
 
-    - name: Check for dependency vulnerabilities
-      run: |
-        pip install pip-audit
-        cd backend
-        pip-audit --desc || echo "Vulnerability check completed"
+    - name: Bandit
+      working-directory: backend
+      run: bandit -r app/ -ll -x tests --skip B324
+
+    - name: pip-audit
+      working-directory: backend
+      run: pip-audit --desc || echo "Vulnerability check completed"

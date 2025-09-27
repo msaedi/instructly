@@ -7,7 +7,6 @@ transaction handling.
 """
 
 import uuid
-from typing import Any, Dict
 
 
 class UniqueTestData:

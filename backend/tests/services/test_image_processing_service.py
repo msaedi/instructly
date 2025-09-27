@@ -1,7 +1,7 @@
 import io
 
-import pytest
 from PIL import Image
+import pytest
 
 from app.services.image_processing_service import ImageProcessingService
 

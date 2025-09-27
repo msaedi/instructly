@@ -4,8 +4,8 @@ Test the monitoring alert system locally.
 """
 
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -42,7 +42,7 @@ def test_slow_query_alert():
         from sqlalchemy import text
 
         # Run a deliberately slow query
-        result = db.execute(
+        _result = db.execute(
             text(
                 """
             SELECT

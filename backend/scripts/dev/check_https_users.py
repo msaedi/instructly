@@ -3,8 +3,8 @@
 Check if users exist when running from HTTPS context
 """
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Set up environment exactly like run_ssl_simple.py
 backend_dir = Path(__file__).parent.parent

@@ -10,14 +10,14 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 - Simplified expectations
 """
 
-import time
 from datetime import date, timedelta
+import time
 
 import pytest
 from sqlalchemy.orm import Session
+from tests.helpers.availability_test_helper import get_availability_helper
 
 from app.models.user import User
-from tests.helpers.availability_test_helper import get_availability_helper
 
 
 def test_copy_week_with_validation(db: Session, test_instructor_with_availability: User):
@@ -35,7 +35,7 @@ def test_copy_week_with_validation(db: Session, test_instructor_with_availabilit
     next_monday = today + timedelta(days=days_until_monday)
     week_after = next_monday + timedelta(days=7)
 
-    print(f"\n=== Testing Copy Week Operation ===")
+    print("\n=== Testing Copy Week Operation ===")
     print(f"From: {next_monday} → To: {week_after}")
 
     # First, set up source week using helper
@@ -71,7 +71,7 @@ def test_copy_week_with_validation(db: Session, test_instructor_with_availabilit
     print(f"   Copy took: {copy_duration:.3f}s")
 
     if result.get("success"):
-        print(f"\n   Results:")
+        print("\n   Results:")
         print(f"   - Slots created: {result.get('slots_created', 0)}")
 
         # Verify the copy using helper
@@ -118,7 +118,7 @@ def test_apply_pattern_validation(db: Session, test_instructor_with_availability
     start_date = next_monday + timedelta(days=21)
     end_date = start_date + timedelta(days=13)
 
-    print(f"\n=== Testing Apply Pattern Operation ===")
+    print("\n=== Testing Apply Pattern Operation ===")
     print(f"Pattern from: {next_monday}")
     print(f"Apply to: {start_date} → {end_date}")
 
@@ -157,7 +157,7 @@ def test_apply_pattern_validation(db: Session, test_instructor_with_availability
     print(f"   Apply took: {apply_duration:.3f}s")
 
     if result.get("success"):
-        print(f"\n   ✅ SUCCESS: Applied pattern")
+        print("\n   ✅ SUCCESS: Applied pattern")
         print(f"   - Total slots created: {result.get('total_slots_created', 0)}")
 
         # Verify cache is fresh using helper
@@ -168,7 +168,7 @@ def test_apply_pattern_validation(db: Session, test_instructor_with_availability
 
         total_slots = sum(len(day["slots"]) for day in verify_data.get("days", []))
         print(f"   First affected week has {total_slots} total slots")
-        print(f"   ✅ Cache is returning fresh data!")
+        print("   ✅ Cache is returning fresh data!")
     else:
         print(f"   Apply failed: {result.get('message', 'Unknown error')}")
 
@@ -184,7 +184,7 @@ def test_cache_consistency(db: Session, test_instructor_with_availability: User)
     instructor = test_instructor_with_availability
     helper = get_availability_helper(db)
 
-    print(f"\n=== Testing Cache Consistency ===")
+    print("\n=== Testing Cache Consistency ===")
 
     # Get a future Monday
     today = date.today()

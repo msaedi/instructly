@@ -1,9 +1,7 @@
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, FastAPI, Header
 from fastapi.testclient import TestClient
 
-from fastapi import FastAPI
 from app.middleware.rate_limiter import rate_limit
-
 
 router = APIRouter()
 

@@ -3,8 +3,8 @@
 Debug what's happening in AuthService during HTTPS
 """
 import os
-import sys
 from pathlib import Path
+import sys
 
 import requests
 import urllib3
@@ -35,7 +35,7 @@ original_authenticate = auth_module.AuthService.authenticate_user
 
 def debug_authenticate_user(self, email: str, password: str):
     """Wrapped authenticate_user with debugging"""
-    print(f"\n🐛 DEBUG authenticate_user called:")
+    print("\n🐛 DEBUG authenticate_user called:")
     print(f"   Email: {email}")
     print(f"   Password: {password}")
     print(f"   Password length: {len(password)}")
@@ -53,7 +53,7 @@ def debug_authenticate_user(self, email: str, password: str):
         is_valid = pwd_context.verify(password, user.hashed_password)
         print(f"   Password valid: {is_valid}")
     else:
-        print(f"   ❌ User not found")
+        print("   ❌ User not found")
 
     # Call original method
     result = original_authenticate(self, email, password)
@@ -80,6 +80,6 @@ for port, protocol in [(8000, "http"), (8001, "https")]:
     response = requests.post(url, data=data, verify=False)
     print(f"\nResponse Status: {response.status_code}")
     if response.status_code == 200:
-        print(f"✅ Success: Got token")
+        print("✅ Success: Got token")
     else:
         print(f"❌ Failed: {response.text}")

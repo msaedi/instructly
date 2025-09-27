@@ -11,9 +11,8 @@ instructor_availability table).
 """
 from typing import Sequence, Union
 
-import sqlalchemy as sa
-
 from alembic import op
+import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "003_availability_system"

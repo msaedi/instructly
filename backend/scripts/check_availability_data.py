@@ -2,8 +2,8 @@
 Check if availability data exists in the database.
 """
 
-import sys
 from datetime import date, timedelta
+import sys
 
 sys.path.append(".")
 

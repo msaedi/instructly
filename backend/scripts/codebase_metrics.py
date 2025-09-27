@@ -5,12 +5,11 @@ Provides detailed statistics about the codebase size and composition.
 Excludes all auto-generated and dependency files.
 """
 
-import json
-import os
-import subprocess
 from datetime import datetime
+import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+import subprocess
+from typing import Dict, List
 
 
 class CodebaseAnalyzer:
@@ -85,11 +84,11 @@ class CodebaseAnalyzer:
 
         # Verify paths exist
         if not self.backend_path.exists() or not self.frontend_path.exists():
-            print(f"⚠️  Warning: Could not find backend or frontend directories")
+            print("⚠️  Warning: Could not find backend or frontend directories")
             print(f"   Searching from: {self.root_path}")
             print(f"   Backend path: {self.backend_path} (exists: {self.backend_path.exists()})")
             print(f"   Frontend path: {self.frontend_path} (exists: {self.frontend_path.exists()})")
-            print(f"   Try running from project root or use --path option")
+            print("   Try running from project root or use --path option")
 
     def should_exclude(self, path: Path) -> bool:
         """Check if a path should be excluded."""

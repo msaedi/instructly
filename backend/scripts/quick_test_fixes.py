@@ -20,7 +20,7 @@ def test_booking_create_fix():
 
     # Should work
     try:
-        booking = BookingCreate(
+        _booking = BookingCreate(
             instructor_id=1,
             service_id=2,
             booking_date=date.today() + timedelta(days=1),

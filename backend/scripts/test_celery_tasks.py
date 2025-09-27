@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Test Celery tasks after fixes."""
 
+from pathlib import Path
 import sys
 import time
-from pathlib import Path
 
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))

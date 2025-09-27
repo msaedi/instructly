@@ -6,15 +6,13 @@ instructor full last names, only showing last initials (e.g., "Michael R.").
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy.orm import Session
 
 from app.core.ulid_helper import generate_ulid
 from app.schemas.booking import BookingResponse, InstructorInfo
 from app.schemas.instructor import InstructorProfileResponse, UserBasicPrivacy
-from tests.fixtures.unique_test_data import unique_data
 
 
 class TestSchemaPrivacyProtection:

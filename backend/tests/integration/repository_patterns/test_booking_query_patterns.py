@@ -20,8 +20,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 
 
@@ -132,15 +131,15 @@ class TestBookingQueryPatterns:
         student_bookings = query.filter(Booking.student_id == test_student.id).all()
 
         # Filter by instructor
-        instructor_bookings = query.filter(Booking.instructor_id == test_instructor.id).all()
+        _instructor_bookings = query.filter(Booking.instructor_id == test_instructor.id).all()
 
         # Filter by status
-        confirmed_bookings = query.filter(Booking.status == BookingStatus.CONFIRMED).all()
+        _confirmed_bookings = query.filter(Booking.status == BookingStatus.CONFIRMED).all()
 
         # Filter by date range
         today = date.today()
         week_later = today + timedelta(days=7)
-        date_range_bookings = query.filter(Booking.booking_date >= today, Booking.booking_date <= week_later).all()
+        _date_range_bookings = query.filter(Booking.booking_date >= today, Booking.booking_date <= week_later).all()
 
         # Repository method signatures:
         # def get_bookings(self, user_id: int = None, user_role: str = None,

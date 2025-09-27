@@ -1,12 +1,12 @@
-import pytest
 from fastapi.testclient import TestClient
 
 
 def _make_client(monkeypatch, overrides):
     monkeypatch.delenv('STRICT_SCHEMAS', raising=False)
     from importlib import reload
-    import app.main as main
+
     import app.api.dependencies as api_dependencies  # noqa: F401
+    import app.main as main
 
     reload(main)
     client = TestClient(main.fastapi_app, raise_server_exceptions=False)
@@ -26,7 +26,6 @@ def _problem_keys(body):
 
 
 def test_auth_login_problem_contract(monkeypatch):
-    from types import SimpleNamespace
     import app.api.dependencies.services as service_deps
 
     class DummyAuthService:
@@ -52,6 +51,7 @@ def test_auth_login_problem_contract(monkeypatch):
 
 def test_bookings_problem_contract(monkeypatch):
     from types import SimpleNamespace
+
     import app.api.dependencies as api_dependencies
 
     dummy_user = SimpleNamespace(id='user_123', roles=[], is_instructor=False)
@@ -82,6 +82,7 @@ def test_bookings_problem_contract(monkeypatch):
 
 def test_payments_instructor_guard_problem_contract(monkeypatch):
     from types import SimpleNamespace
+
     import app.api.dependencies.auth as auth_deps
     import app.routes.payments as payments_routes  # noqa: F401
 

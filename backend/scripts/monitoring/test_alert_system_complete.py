@@ -4,9 +4,9 @@ Test the complete alert system including email sending.
 """
 
 import asyncio
+from datetime import datetime, timezone
 import os
 import sys
-from datetime import datetime, timezone
 
 # Add the backend directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

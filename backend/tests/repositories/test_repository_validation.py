@@ -28,8 +28,7 @@ import pytest
 from app.core.exceptions import RepositoryException
 from app.core.ulid_helper import generate_ulid
 from app.models import AvailabilitySlot, Booking, BookingStatus, InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories import (
     AvailabilityRepository,
@@ -184,7 +183,7 @@ class TestBookingRepositoryNoSlotReferences:
         service = test_instructor.instructor_profile.instructor_services[0]
 
         # Create an existing booking
-        existing = repo.create(
+        _existing = repo.create(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,

@@ -10,7 +10,7 @@ FIXED: Mock returns proper integer ID instead of Mock object for Pydantic valida
 FIXED: Updated assertions to match improved error messages
 """
 
-from datetime import date, time, timedelta
+from datetime import date, time
 from unittest.mock import Mock, patch
 
 import pytest

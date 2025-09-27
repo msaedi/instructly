@@ -4,8 +4,8 @@ Find all occurrences of 'Instructly' in the codebase to ensure complete rebrandi
 """
 
 import os
-import re
 from pathlib import Path
+import re
 
 
 def find_brand_occurrences(root_path="."):

@@ -89,7 +89,7 @@ class TestAccountLifecycleServiceUnit:
         instructor.id = 1
         instructor.email = "instructor@example.com"
         instructor.first_name = ("Test",)
-        last_name = "Instructor"
+        _last_name = "Instructor"
         instructor.account_status = "active"
         instructor.is_instructor = True
         instructor.is_student = False
@@ -114,7 +114,7 @@ class TestAccountLifecycleServiceUnit:
         student.id = 2
         student.email = "student@example.com"
         student.first_name = ("Test",)
-        last_name = "Student"
+        _last_name = "Student"
         student.account_status = "active"
         student.is_instructor = False
         student.is_student = True

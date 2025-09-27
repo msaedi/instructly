@@ -84,7 +84,7 @@ def test_device_tracking_service():
             all_contexts.append(parsed)
 
         # Test analytics formatting
-        print(f"\n📊 Testing analytics formatting:")
+        print("\n📊 Testing analytics formatting:")
 
         sample_context = all_contexts[0]  # Use Chrome desktop
         formatted = device_service.format_for_analytics(sample_context)
@@ -95,21 +95,21 @@ def test_device_tracking_service():
         print(f"  Is Mobile: {formatted['browser_info']['device']['is_mobile']}")
 
         # Test analytics summary
-        print(f"\n📈 Testing analytics summary:")
+        print("\n📈 Testing analytics summary:")
 
         summary = device_service.get_analytics_summary(all_contexts)
 
         print(f"  Total Sessions: {summary['total_sessions']}")
-        print(f"  Device Types:")
+        print("  Device Types:")
         for device_type, stats in summary["device_types"].items():
             print(f"    {device_type}: {stats['count']} ({stats['percentage']}%)")
 
-        print(f"  Top Browsers:")
+        print("  Top Browsers:")
         for browser, stats in list(summary["top_browsers"].items())[:3]:
             print(f"    {browser}: {stats['count']} ({stats['percentage']}%)")
 
         # Test Client Hints extraction
-        print(f"\n💡 Testing Client Hints extraction:")
+        print("\n💡 Testing Client Hints extraction:")
 
         class MockRequest:
             def __init__(self, headers):
@@ -139,7 +139,7 @@ def test_device_tracking_service():
             print(f"  Viewport: {hints.get('viewport_width', 'unknown')}px")
 
         # Test connection type detection
-        print(f"\n🌐 Testing connection type detection:")
+        print("\n🌐 Testing connection type detection:")
 
         connection_tests = [
             ({"ECT": "4g"}, "4g"),

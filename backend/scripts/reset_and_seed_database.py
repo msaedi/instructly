@@ -12,11 +12,11 @@ Usage:
     python scripts/reset_and_seed_database.py
 """
 
-import random
-import sys
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
+import random
+import sys
 
 # Add the parent directory to the path so we can import app modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -29,11 +29,14 @@ from sqlalchemy.orm import Session  # noqa: E402
 from app.auth import get_password_hash  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.enums import RoleName
-from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability  # noqa: E402
+from app.models.availability import (  # noqa: E402
+    AvailabilitySlot,
+    BlackoutDate,
+    InstructorAvailability,
+)
 from app.models.booking import Booking, BookingStatus  # noqa: E402
 from app.models.instructor import InstructorProfile  # noqa: E402
 from app.models.password_reset import PasswordResetToken  # noqa: E402
-from app.models.rbac import UserRole  # noqa: E402
 from app.models.service import Service  # noqa: E402
 from app.models.user import User
 

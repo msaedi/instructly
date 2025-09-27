@@ -2,11 +2,11 @@
 Tests for PATCH /bookings/{id}/payment-method endpoint.
 """
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 from unittest.mock import patch
 
-import pytest
 from fastapi import status
+import pytest
 
 from app.auth import create_access_token
 from app.models.booking import BookingStatus

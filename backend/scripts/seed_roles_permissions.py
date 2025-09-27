@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Seed roles and permissions with ULIDs."""
 
-import sys
 from pathlib import Path
+import sys
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.config import settings

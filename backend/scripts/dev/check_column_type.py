@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Check the actual column type for areas_of_service"""
 
-import sys
 from pathlib import Path
+import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

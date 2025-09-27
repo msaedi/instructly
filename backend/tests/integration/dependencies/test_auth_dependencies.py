@@ -7,8 +7,8 @@ Target: Increase coverage from 50% to 90%+
 
 from unittest.mock import Mock
 
-import pytest
 from fastapi import HTTPException, status
+import pytest
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import (
@@ -36,7 +36,7 @@ class TestAuthDependencies:
         user.id = 1
         user.email = "student@example.com"
         user.first_name = ("Test",)
-        last_name = "Student"
+        _last_name = "Student"
         user.is_active = True
         # RBAC: Mock roles
         student_role = Mock()
@@ -54,7 +54,7 @@ class TestAuthDependencies:
         user.id = 2
         user.email = "instructor@example.com"
         user.first_name = ("Test",)
-        last_name = "Instructor"
+        _last_name = "Instructor"
         user.is_active = True
         # RBAC: Mock roles
         instructor_role = Mock()
@@ -72,7 +72,7 @@ class TestAuthDependencies:
         user.id = 3
         user.email = "inactive@example.com"
         user.first_name = ("Inactive",)
-        last_name = "User"
+        _last_name = "User"
         user.is_active = False
         # RBAC: Mock roles
         student_role = Mock()

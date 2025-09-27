@@ -6,8 +6,8 @@ This script makes requests to the production API that should trigger
 the monitoring system to create alerts.
 """
 
-import time
 from datetime import datetime, timezone
+import time
 
 import httpx
 

@@ -6,10 +6,10 @@ This script runs the comprehensive e2e test suite for search tracking,
 providing detailed output and test coverage information.
 """
 
+from datetime import datetime
 import os
 import subprocess
 import sys
-from datetime import datetime
 from typing import List, Tuple
 
 

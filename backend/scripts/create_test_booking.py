@@ -4,9 +4,9 @@
 Create a test booking in the database for email testing.
 """
 
-import sys
 from datetime import date, time, timedelta
 from pathlib import Path
+import sys
 
 # Add backend to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -145,6 +145,6 @@ if __name__ == "__main__":
     booking = create_test_booking()
     if booking:
         print("\n🎉 Test booking ready for email testing!")
-        print(f"   Run: python scripts/test_notification_migration.py")
+        print("   Run: python scripts/test_notification_migration.py")
     else:
         print("\n❌ Failed to create test booking")

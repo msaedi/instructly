@@ -13,8 +13,8 @@ Tests the unified search tracking system that was consolidateed to ensure:
 
 from unittest.mock import AsyncMock, Mock
 
-import pytest
 from fastapi import Request
+import pytest
 from sqlalchemy.orm import Session
 
 from app.models.search_event import SearchEvent
@@ -166,7 +166,7 @@ class TestHybridModel:
         }
 
         # Record search
-        result = await search_service.record_search(
+        _result = await search_service.record_search(
             context=context, search_data=search_data, device_context=device_context
         )
 
@@ -238,7 +238,7 @@ class TestFiveSearchTypes:
             "referrer": context.search_origin,
         }
 
-        result = await search_service.record_search(context=context, search_data=search_data)
+        _result = await search_service.record_search(context=context, search_data=search_data)
 
         # Verify correct tracking
         event = (
@@ -265,7 +265,7 @@ class TestFiveSearchTypes:
             "referrer": context.search_origin,
         }
 
-        result = await search_service.record_search(context=context, search_data=search_data)
+        _result = await search_service.record_search(context=context, search_data=search_data)
 
         event = (
             db.query(SearchEvent)
@@ -291,7 +291,7 @@ class TestFiveSearchTypes:
             "referrer": context.search_origin,
         }
 
-        result = await search_service.record_search(context=context, search_data=search_data)
+        _result = await search_service.record_search(context=context, search_data=search_data)
 
         event = (
             db.query(SearchEvent)
@@ -317,7 +317,7 @@ class TestFiveSearchTypes:
             "referrer": context.search_origin,
         }
 
-        result = await search_service.record_search(context=context, search_data=search_data)
+        _result = await search_service.record_search(context=context, search_data=search_data)
 
         event = (
             db.query(SearchEvent)
@@ -342,7 +342,7 @@ class TestFiveSearchTypes:
             "referrer": context.search_origin,
         }
 
-        result = await search_service.record_search(context=context, search_data=search_data)
+        _result = await search_service.record_search(context=context, search_data=search_data)
 
         event = (
             db.query(SearchEvent)
@@ -376,7 +376,7 @@ class TestAnalyticsEnhancement:
 
         search_data = {"search_query": "mobile search test", "search_type": "natural_language", "results_count": 3}
 
-        result = await search_service.record_search(
+        _result = await search_service.record_search(
             context=context,
             search_data=search_data,
             device_context=device_context,
@@ -403,7 +403,7 @@ class TestAnalyticsEnhancement:
 
         search_data = {"search_query": "local instructor", "search_type": "natural_language", "results_count": 7}
 
-        result = await search_service.record_search(
+        _result = await search_service.record_search(
             context=context, search_data=search_data, request_ip="192.168.1.100"
         )
 
@@ -426,7 +426,7 @@ class TestAnalyticsEnhancement:
 
         user_agent = "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15"
 
-        result = await search_service.record_search(context=context, search_data=search_data, user_agent=user_agent)
+        _result = await search_service.record_search(context=context, search_data=search_data, user_agent=user_agent)
 
         event = (
             db.query(SearchEvent)
@@ -455,7 +455,7 @@ class TestReferrerTracking:
             "referrer": context.search_origin,
         }
 
-        result = await search_service.record_search(context=context, search_data=search_data)
+        _result = await search_service.record_search(context=context, search_data=search_data)
 
         event = (
             db.query(SearchEvent)
@@ -479,7 +479,7 @@ class TestReferrerTracking:
             "referrer": context.search_origin,
         }
 
-        result = await search_service.record_search(context=context, search_data=search_data)
+        _result = await search_service.record_search(context=context, search_data=search_data)
 
         event = (
             db.query(SearchEvent)
@@ -503,7 +503,7 @@ class TestReferrerTracking:
             "referrer": context.search_origin,
         }
 
-        result = await search_service.record_search(context=context, search_data=search_data)
+        _result = await search_service.record_search(context=context, search_data=search_data)
 
         event = (
             db.query(SearchEvent)
@@ -561,7 +561,7 @@ class TestSessionTracking:
 
         search_data = {"search_query": "guest search", "search_type": "natural_language", "results_count": 6}
 
-        result = await search_service.record_search(context=context, search_data=search_data)
+        _result = await search_service.record_search(context=context, search_data=search_data)
 
         # Both history and event should have guest session ID
         history = db.query(SearchHistory).filter(SearchHistory.guest_session_id == guest_session_id).first()
@@ -660,7 +660,7 @@ class TestInteractionTracking:
 
         search_data = {"search_query": "interaction test", "search_type": "natural_language", "results_count": 5}
 
-        result = await search_service.record_search(context=context, search_data=search_data)
+        _result = await search_service.record_search(context=context, search_data=search_data)
 
         # Get the created event ID
         event = (
@@ -672,7 +672,7 @@ class TestInteractionTracking:
         assert event is not None
 
         # Mock the track_interaction method
-        interaction_data = {
+        _interaction_data = {
             "search_event_id": event.id,
             "interaction_type": "click",
             "instructor_id": 123,

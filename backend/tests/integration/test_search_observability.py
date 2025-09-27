@@ -8,10 +8,10 @@ Covers:
   and that payload can be forwarded to persistence API
 """
 
-from typing import Any, Dict, List
+from typing import Dict, List
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from app.models.search_event import SearchEventCandidate

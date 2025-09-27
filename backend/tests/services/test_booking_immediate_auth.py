@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
-import ulid
 from sqlalchemy.orm import Session
+import ulid
 
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile

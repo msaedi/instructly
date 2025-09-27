@@ -6,13 +6,13 @@ extended via cities.yaml with --city flag.
 
 import argparse
 import json
-import sys
 from pathlib import Path
+import sys
 from typing import Any, Dict, Optional
 
 import geopandas as gpd  # type: ignore
-import yaml  # type: ignore
 from sqlalchemy import create_engine, text
+import yaml  # type: ignore
 
 # Make sure 'backend' is on sys.path so `app` can be imported when run directly
 sys.path.insert(0, str(Path(__file__).parent.parent))

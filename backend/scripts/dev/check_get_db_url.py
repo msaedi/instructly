@@ -1,6 +1,6 @@
 import os
-import sys
 from pathlib import Path
+import sys
 
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
@@ -23,7 +23,7 @@ print(f"4. Is testing environment? {settings.environment == 'testing'}")
 # Let's see what triggers test database
 import inspect
 
-print(f"\n5. Source of get_database_url:")
+print("\n5. Source of get_database_url:")
 if hasattr(settings, "get_database_url"):
     source = inspect.getsource(settings.get_database_url)
     print(source)

@@ -181,7 +181,7 @@ class TestBaseServiceErrorPatterns:
         # 3. Rollback transaction
         # 4. Wrap in ServiceException
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception) as _exc_info:
             with service.transaction():
                 pass
 

@@ -4,8 +4,8 @@ Project cleanup script to remove debug artifacts and optimize codebase.
 """
 
 import os
-import re
 from pathlib import Path
+import re
 
 
 def remove_debug_logging():
@@ -67,7 +67,7 @@ def setup_log_levels():
     """Create environment-based logging configuration."""
     print("\nSetting up environment-based logging...")
 
-    logger_config = """// frontend/lib/logger.ts
+    _logger_config = """// frontend/lib/logger.ts
 // Add this at the top of your logger configuration
 
 const LOG_LEVELS = {

@@ -2,7 +2,7 @@
 Additional webhook tests: charge.refunded, transfer.reversed, payout.* dispatch.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from app.services.stripe_service import StripeService
 

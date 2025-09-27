@@ -92,7 +92,7 @@ def test_search_api():
     console.print(table)
 
     # Summary
-    console.print(f"\n[bold]Test Summary:[/bold]")
+    console.print("\n[bold]Test Summary:[/bold]")
     console.print(f"Tests passed: [green]{passed_tests}/{total_tests}[/green]")
 
     if passed_tests == total_tests:
@@ -101,7 +101,7 @@ def test_search_api():
         console.print(f"\n⚠️ [bold yellow]{total_tests - passed_tests} tests failed.[/bold yellow]")
 
     # Test complex queries
-    console.print(f"\n[bold]Testing Complex Natural Language Queries:[/bold]")
+    console.print("\n[bold]Testing Complex Natural Language Queries:[/bold]")
 
     complex_queries = [
         "piano lessons under $100",

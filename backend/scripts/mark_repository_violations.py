@@ -5,8 +5,8 @@ This is a one-time script to mark all current violations for migration.
 """
 
 import json
-import sys
 from pathlib import Path
+import sys
 
 
 def add_migration_markers():

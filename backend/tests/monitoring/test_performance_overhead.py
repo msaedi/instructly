@@ -6,8 +6,8 @@ import statistics
 import time
 from unittest.mock import Mock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.main import fastapi_app as app
 from app.services.base import BaseService
@@ -91,7 +91,7 @@ class TestPerformanceOverhead:
             assert overhead_percent < 15, f"Monitoring overhead is {overhead_percent:.1f}%"
 
         # Print results for information
-        print(f"\nPerformance test results:")
+        print("\nPerformance test results:")
         print(f"  Without monitoring: {avg_without*1000:.2f}ms")
         print(f"  With monitoring:    {avg_with*1000:.2f}ms")
         print(f"  Overhead:          {overhead_percent:.1f}%")
@@ -229,7 +229,7 @@ class TestPerformanceOverhead:
             assert avg_time < 0.050, f"Metrics endpoint avg time is {avg_time*1000:.1f}ms"
             assert max_time < 0.150, f"Metrics endpoint max time is {max_time*1000:.1f}ms"
 
-        print(f"\nMetrics endpoint performance:")
+        print("\nMetrics endpoint performance:")
         print(f"  Average: {avg_time*1000:.1f}ms")
         print(f"  Maximum: {max_time*1000:.1f}ms")
 

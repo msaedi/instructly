@@ -10,10 +10,10 @@ Tests edge cases and ensures timezone handling is correct across:
 - Regression prevention
 """
 
-import re
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+import re
+from unittest.mock import Mock, patch
 
 import pytest
 import pytz
@@ -21,7 +21,7 @@ import pytz
 # from freezegun import freeze_time  # Optional dependency
 from sqlalchemy.orm import Session
 
-from app.core.timezone_utils import get_user_timezone, get_user_today_by_id
+from app.core.timezone_utils import get_user_today_by_id
 from app.core.ulid_helper import generate_ulid
 from app.models.user import User
 from app.services.availability_service import AvailabilityService
@@ -160,7 +160,7 @@ class TestDSTTransitions:
 
         # Spring forward happens on March 10, 2024 at 2 AM
         # 2:00 AM becomes 3:00 AM
-        booking_date = date(2024, 3, 10)
+        _booking_date = date(2024, 3, 10)
 
         # Create booking service
         booking_service = BookingService(db)
@@ -185,7 +185,7 @@ class TestDSTTransitions:
 
         # Fall back happens on November 3, 2024 at 2 AM
         # 2:00 AM happens twice
-        booking_date = date(2024, 11, 3)
+        _booking_date = date(2024, 11, 3)
 
         # Create booking service
         booking_service = BookingService(db)
@@ -347,7 +347,7 @@ class TestCIEnvironment:
 
                     # Verify date is calculated based on user timezone, not system
                     user_tz = pytz.timezone(user.timezone)
-                    expected_date = datetime.now(user_tz).date()
+                    _expected_date = datetime.now(user_tz).date()
 
                     # Can't directly compare due to mock, but verify it's a date
                     assert isinstance(user_today, date)
@@ -459,7 +459,7 @@ class TestRegressionPrevention:
 
         if violations:
             pytest.fail(
-                f"Found date validation in schemas:\n"
+                "Found date validation in schemas:\n"
                 + "\n".join(f"  - {v}" for v in violations)
                 + "\nDate validation should be in service layer with timezone context!"
             )

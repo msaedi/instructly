@@ -3,8 +3,8 @@
 
 from datetime import date, time, timedelta
 
-import pytest
 from pydantic import ValidationError
+import pytest
 
 from app.core.ulid_helper import generate_ulid
 from app.schemas.booking import BookingCreate

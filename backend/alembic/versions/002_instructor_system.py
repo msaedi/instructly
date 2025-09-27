@@ -17,10 +17,9 @@ better organization and search capabilities.
 """
 from typing import Sequence, Union
 
-import sqlalchemy as sa
-from pgvector.sqlalchemy import Vector
-
 from alembic import op
+from pgvector.sqlalchemy import Vector
+import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "002_instructor_system"

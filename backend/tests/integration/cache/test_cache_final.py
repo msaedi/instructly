@@ -8,9 +8,9 @@ Updated to use the availability test helper.
 from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
+from tests.helpers.availability_test_helper import get_availability_helper
 
 from app.models.user import User
-from tests.helpers.availability_test_helper import get_availability_helper
 
 
 def test_all_operations(db: Session, test_instructor_with_availability: User):

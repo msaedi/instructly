@@ -5,9 +5,9 @@ Test the availability-booking layer independence (Work Stream #9).
 This demonstrates that we can modify availability without affecting bookings.
 """
 
-import sys
 from datetime import date
 from pathlib import Path
+import sys
 
 # Add the parent directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -47,7 +47,7 @@ def test_layer_independence():
             print("No future bookings found to test with!")
             return
 
-        print(f"Found future booking:")
+        print("Found future booking:")
         print(f"  Date: {future_booking.booking_date}")
         print(f"  Time: {future_booking.start_time} - {future_booking.end_time}")
         print(f"  Service: {future_booking.service_name}")
@@ -112,7 +112,7 @@ def test_layer_independence():
 
         total_bookings = session.query(Booking).filter(Booking.instructor_id == sarah.id).count()
 
-        print(f"Sarah Chen has:")
+        print("Sarah Chen has:")
         print(f"  - {total_availability_dates} dates with availability")
         print(f"  - {total_slots} total availability slots")
         print(f"  - {total_bookings} bookings")

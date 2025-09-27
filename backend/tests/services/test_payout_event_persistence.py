@@ -2,7 +2,7 @@
 Tests that payout webhooks persist analytics rows per instructor.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import ulid
 

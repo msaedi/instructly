@@ -7,20 +7,16 @@ layers of the application, using real database interactions through repositories
 
 from datetime import date, time, timedelta
 
-import pytest
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus
-from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.schemas.booking import BookingResponse, InstructorInfo
 from app.schemas.instructor import InstructorProfileResponse, UserBasicPrivacy
 from app.services.booking_service import BookingService
-from app.services.email import EmailService
 from app.services.instructor_service import InstructorService
-from app.services.notification_service import NotificationService
 from app.services.template_service import TemplateService
 
 
@@ -51,7 +47,7 @@ class TestInstructorPrivacySchemas:
     def test_booking_response_from_orm(self, db: Session, test_instructor: User, test_student: User):
         """Test BookingResponse.from_booking() protects instructor privacy using real booking."""
         # Create a real booking using repository
-        booking_repo = BookingRepository(db)
+        _booking_repo = BookingRepository(db)
 
         # Get instructor profile repository
         profile_repo = InstructorProfileRepository(db)
@@ -185,7 +181,7 @@ class TestBookingServicePrivacy:
     def test_get_bookings_privacy(self, db: Session, test_instructor: User, test_student: User):
         """Test that BookingService.get_bookings returns privacy-protected data."""
         # Create booking repository and add a booking
-        booking_repo = BookingRepository(db)
+        _booking_repo = BookingRepository(db)
 
         # Get instructor's first service using repository
         profile_repo = InstructorProfileRepository(db)

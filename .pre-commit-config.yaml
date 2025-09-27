@@ -31,7 +31,10 @@ repos:
         args: ["--fix", "--select", "F", "--select", "I"]
         additional_dependencies: ["ruff==0.5.7"]
         files: ^backend/app/.*\.py$
-
+      - id: ruff
+        name: ruff (backend)
+        args: ["backend"]
+        pass_filenames: false
   - repo: local
     hooks:
       - id: frontend-eslint
@@ -83,6 +86,13 @@ repos:
         pass_filenames: true
         description: Ensure public methods in BaseService subclasses are decorated with metrics
 
+      - id: mypy-strict-gate
+        name: mypy strict gate (hard fail)
+        entry: bash tools/mypy_strict_gate.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
       - id: frontend-no-console
         name: Frontend no-console check (staged files)
         entry: frontend/scripts/precommit_no_console.sh
@@ -97,8 +107,6 @@ repos:
         language: script
         pass_filenames: false
         description: Fail if focused tests are committed in backend
-
-
 
   - repo: local
     hooks:

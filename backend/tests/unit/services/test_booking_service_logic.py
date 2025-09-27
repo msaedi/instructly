@@ -17,7 +17,12 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
-from app.core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
+from app.core.exceptions import (
+    BusinessRuleException,
+    ConflictException,
+    NotFoundException,
+    ValidationException,
+)
 from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
@@ -111,7 +116,7 @@ class TestBookingServiceUnit:
         student.id = generate_ulid()
         student.email = "student@example.com"
         student.first_name = ("Test",)
-        last_name = "Student"
+        _last_name = "Student"
         student.timezone = "America/New_York"
         return student
 
@@ -128,7 +133,7 @@ class TestBookingServiceUnit:
         instructor.id = generate_ulid()
         instructor.email = "instructor@example.com"
         instructor.first_name = ("Test",)
-        last_name = "Instructor"
+        _last_name = "Instructor"
         instructor.account_status = "active"
         instructor.timezone = "America/New_York"
         return instructor
@@ -377,7 +382,7 @@ class TestBookingServiceUnit:
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
         with patch.object(booking_service, "_invalidate_booking_caches"):
-            result = await booking_service.cancel_booking(
+            _result = await booking_service.cancel_booking(
                 booking_id=generate_ulid(), user=mock_student, reason="Schedule conflict"
             )
 

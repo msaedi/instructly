@@ -87,7 +87,7 @@ def test_direct_import_check():
     try:
         from app.routes.public import router
 
-        print(f"\n✅ Public router imported successfully")
+        print("\n✅ Public router imported successfully")
         print(f"Prefix: {router.prefix}")
         print(f"Tags: {router.tags}")
 

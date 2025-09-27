@@ -10,8 +10,8 @@ Tests the API endpoints for:
 
 from datetime import datetime, timezone
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from app.models.search_history import SearchHistory

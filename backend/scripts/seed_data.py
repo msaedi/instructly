@@ -17,8 +17,8 @@ Notes:
 """
 
 import argparse
-import sys
 from pathlib import Path
+import sys
 
 # Ensure backend/ is importable when called directly
 sys.path.insert(0, str(Path(__file__).parent.parent))

@@ -6,14 +6,13 @@ These tests verify the GET /instructors/ endpoint with query parameters,
 including validation, backward compatibility, and response format.
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from app.main import fastapi_app as app
 from app.models.instructor import InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog
 from app.models.user import User
 
 
@@ -42,7 +41,7 @@ class TestInstructorsFilteringAPI:
         db.commit()
 
         # Login to get token
-        response = client.post("/auth/login", data={"username": "test@example.com", "password": "testpassword"})
+        _response = client.post("/auth/login", data={"username": "test@example.com", "password": "testpassword"})
         # For testing purposes, we'll mock this
         # In real tests, you'd need proper auth setup
         return {"Authorization": "Bearer mock-token"}

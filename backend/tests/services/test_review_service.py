@@ -4,7 +4,6 @@ import pytest
 
 from app.models.booking import BookingStatus
 from app.models.review import ReviewStatus
-from app.repositories.review_repository import ReviewRepository
 from app.services.review_service import ReviewService
 
 
@@ -71,7 +70,6 @@ def test_get_instructor_ratings_bayesian(db, test_booking):
     for rating in [5, 4, 5]:
         # Make a new booking per review
         from app.models.booking import Booking
-        from app.models.service_catalog import InstructorService
 
         b = Booking(
             student_id=test_booking.student_id,

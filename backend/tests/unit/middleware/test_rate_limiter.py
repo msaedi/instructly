@@ -15,9 +15,9 @@ Tests cover:
 import time
 from unittest.mock import MagicMock, Mock, patch
 
-import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
+import pytest
 from redis.exceptions import RedisError
 
 from app.core.config import settings

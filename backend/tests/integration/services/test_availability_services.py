@@ -235,12 +235,12 @@ class TestSlotManager:
         test_date = date.today() + timedelta(days=7)
 
         # Create first slot
-        slot1 = slot_manager.create_slot(
+        _slot1 = slot_manager.create_slot(
             instructor_id=test_instructor.id, target_date=test_date, start_time=time(9, 0), end_time=time(10, 0)
         )
 
         # Create adjacent slot with auto_merge=True
-        slot2 = slot_manager.create_slot(
+        _slot2 = slot_manager.create_slot(
             instructor_id=test_instructor.id,
             target_date=test_date,
             start_time=time(10, 0),

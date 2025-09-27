@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Test email authentication fix for monitoring alerts"""
 
-import asyncio
-import sys
 from pathlib import Path
+import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

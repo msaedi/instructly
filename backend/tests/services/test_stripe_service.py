@@ -6,20 +6,17 @@ including customer management, connected accounts, payment processing,
 and webhook handling.
 """
 
-import json
-from datetime import datetime, time, timedelta
-from decimal import Decimal
+from datetime import datetime, time
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy.orm import Session
 import stripe
 import ulid
-from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.services.stripe_service import StripeService
@@ -265,7 +262,7 @@ class TestStripeService:
         _, profile, _ = test_instructor
 
         # Create connected account
-        account = stripe_service.payment_repository.create_connected_account_record(profile.id, "acct_test123")
+        _account = stripe_service.payment_repository.create_connected_account_record(profile.id, "acct_test123")
 
         # Mock Stripe response
         mock_link = MagicMock()
@@ -372,7 +369,7 @@ class TestStripeService:
     def test_confirm_payment_intent_success(self, mock_confirm, stripe_service: StripeService, test_booking: Booking):
         """Test successful payment intent confirmation."""
         # Create payment record
-        payment = stripe_service.payment_repository.create_payment_record(
+        _payment = stripe_service.payment_repository.create_payment_record(
             test_booking.id, "pi_test123", 5000, 750, "requires_payment_method"
         )
 
@@ -405,8 +402,8 @@ class TestStripeService:
         instructor_user, profile, _ = test_instructor
 
         # Create customer and connected account
-        customer = stripe_service.payment_repository.create_customer_record(test_booking.student_id, "cus_student123")
-        connected_account = stripe_service.payment_repository.create_connected_account_record(
+        _customer = stripe_service.payment_repository.create_customer_record(test_booking.student_id, "cus_student123")
+        _connected_account = stripe_service.payment_repository.create_connected_account_record(
             profile.id, "acct_instructor123", onboarding_completed=True
         )
 
@@ -551,7 +548,7 @@ class TestStripeService:
     def test_handle_payment_intent_webhook_success(self, stripe_service: StripeService, test_booking: Booking):
         """Test handling payment intent webhook."""
         # Create payment record
-        payment = stripe_service.payment_repository.create_payment_record(
+        _payment = stripe_service.payment_repository.create_payment_record(
             test_booking.id, "pi_test123", 5000, 750, "requires_payment_method"
         )
 

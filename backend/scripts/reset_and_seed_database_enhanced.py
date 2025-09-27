@@ -34,13 +34,13 @@ Features:
 - Creates realistic workload patterns
 """
 
-import logging
-import os
-import random
-import sys
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+import logging
+import os
 from pathlib import Path
+import random
+import sys
 from typing import List
 
 # Add the parent directory to the path
@@ -56,7 +56,6 @@ from app.models.availability import AvailabilitySlot, BlackoutDate  # noqa: E402
 from app.models.booking import Booking, BookingStatus  # noqa: E402
 from app.models.instructor import InstructorProfile  # noqa: E402
 from app.models.password_reset import PasswordResetToken  # noqa: E402
-from app.models.rbac import UserRole  # noqa: E402
 from app.models.service import Service  # noqa: E402
 from app.models.user import User
 
@@ -98,9 +97,9 @@ def validate_safe_database_url(database_url: str) -> None:
     for indicator in production_indicators:
         if indicator in url_lower:
             raise RuntimeError(
-                f"\n\n" + "=" * 60 + "\n"
-                f"SAFETY ERROR: REFUSING TO RUN ON PRODUCTION DATABASE!\n"
-                f"=" * 60 + "\n"
+                "\n\n" + "=" * 60 + "\n"
+                "SAFETY ERROR: REFUSING TO RUN ON PRODUCTION DATABASE!\n"
+                "=" * 60 + "\n"
                 f"Database URL contains production indicator: '{indicator}'\n\n"
                 f"This script DELETES DATA and should only run on local/test databases.\n\n"
                 f"To use this script:\n"
@@ -1023,7 +1022,7 @@ def test_layer_independence(session: Session):
 
         if slots:
             logger.info(f"Found {len(slots)} slots on {past_booking.booking_date}")
-            logger.info(f"Deleting slots to test independence...")
+            logger.info("Deleting slots to test independence...")
 
             for slot in slots:
                 session.delete(slot)

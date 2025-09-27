@@ -6,10 +6,10 @@ Tests the optimized apply_pattern_to_date_range function.
 """
 
 import asyncio
+from datetime import date, timedelta
 import os
 import sys
 import time
-from datetime import date, timedelta
 
 # Add parent directory to path so we can import app modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

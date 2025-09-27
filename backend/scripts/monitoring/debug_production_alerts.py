@@ -3,9 +3,10 @@
 Debug why production alerts aren't being created.
 """
 
-import sys
 from datetime import datetime, timedelta, timezone
+import os
 from pathlib import Path
+import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

@@ -9,10 +9,10 @@ and validates that all email generation works correctly.
 Part of Work Stream #11 Phase 3 - Supporting Systems Verification
 """
 
-import re
-import sys
 from datetime import date, time
 from pathlib import Path
+import re
+import sys
 from typing import List, Tuple
 
 # Add backend directory to path
@@ -165,7 +165,7 @@ def test_email_generation():
                         # Verify no slot_id in email content
                         html_content = str(call_args)
                         if "slot_id" in html_content or "availability_slot_id" in html_content:
-                            print(f"   ⚠️  Warning: Found slot reference in email content!")
+                            print("   ⚠️  Warning: Found slot reference in email content!")
                             all_passed = False
 
             except Exception as e:

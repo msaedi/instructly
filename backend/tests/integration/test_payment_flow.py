@@ -11,15 +11,13 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy.orm import Session
 import stripe
 import ulid
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.payment import PaymentIntent, StripeConnectedAccount, StripeCustomer
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
@@ -275,7 +273,7 @@ class TestPaymentIntegration:
         stripe_service = StripeService(db)
 
         # Step 1: Create customer and payment (simulate completed payment)
-        customer = stripe_service.create_customer(
+        _customer = stripe_service.create_customer(
             user_id=student_user.id,
             email=student_user.email,
             name=f"{student_user.first_name} {student_user.last_name}",
@@ -311,7 +309,7 @@ class TestPaymentIntegration:
         stripe_service = StripeService(db)
 
         # Create initial payment record in pending state
-        payment_record = stripe_service.payment_repository.create_payment_record(
+        _payment_record = stripe_service.payment_repository.create_payment_record(
             booking_id=test_booking.id,
             payment_intent_id="pi_test123",
             amount=8000,
@@ -352,7 +350,7 @@ class TestPaymentIntegration:
         stripe_service = StripeService(db)
 
         # Step 1: Create customer
-        customer = stripe_service.create_customer(
+        _customer = stripe_service.create_customer(
             user_id=student_user.id,
             email=student_user.email,
             name=f"{student_user.first_name} {student_user.last_name}",
@@ -376,7 +374,7 @@ class TestPaymentIntegration:
             mock_pm1_attached.customer = "cus_test123"
             mock_attach.return_value = mock_pm1_attached
 
-            pm1 = stripe_service.save_payment_method(
+            _pm1 = stripe_service.save_payment_method(
                 user_id=student_user.id, payment_method_id="pm_test1", set_as_default=True
             )
 

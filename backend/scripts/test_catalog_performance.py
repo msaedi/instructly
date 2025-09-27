@@ -10,11 +10,11 @@ This script helps verify:
 """
 
 import logging
+from pathlib import Path
 
 # Add parent directory to path
 import sys
 import time
-from pathlib import Path
 
 import requests
 from sqlalchemy import create_engine, event
@@ -129,7 +129,7 @@ class CatalogPerformanceTester:
         time_1 = (time.time() - start_time) * 1000
         queries_1 = query_count
 
-        print(f"\nFirst call (cache miss):")
+        print("\nFirst call (cache miss):")
         print(f"  - Time: {time_1:.2f}ms")
         print(f"  - Queries: {queries_1}")
         print(f"  - Services: {len(services_1)}")
@@ -141,7 +141,7 @@ class CatalogPerformanceTester:
         time_2 = (time.time() - start_time) * 1000
         queries_2 = query_count
 
-        print(f"\nSecond call (cache hit):")
+        print("\nSecond call (cache hit):")
         print(f"  - Time: {time_2:.2f}ms")
         print(f"  - Queries: {queries_2}")
         print(f"  - Services: {len(services_2)}")
@@ -154,7 +154,7 @@ class CatalogPerformanceTester:
             print("\n❌ FAIL: Cache not working as expected")
 
         # Test cache expiration (5 minutes)
-        print(f"\n✓ Cache TTL: 300 seconds (5.0 minutes) - configured in service")
+        print("\n✓ Cache TTL: 300 seconds (5.0 minutes) - configured in service")
 
         # Test category filtering with cache
         query_count = 0

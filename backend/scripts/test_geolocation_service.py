@@ -49,7 +49,7 @@ async def test_geolocation_service():
                 result = await geo_service.get_location_from_ip(ip)
 
                 if result:
-                    print(f"  ✅ Location found:")
+                    print("  ✅ Location found:")
                     print(f"     Country: {result.get('country_name', 'Unknown')}")
                     print(f"     State: {result.get('state', 'Unknown')}")
                     print(f"     City: {result.get('city', 'Unknown')}")
@@ -57,7 +57,7 @@ async def test_geolocation_service():
                         print(f"     Borough: {result.get('borough', 'Unknown')}")
                     print(f"     Is NYC: {result.get('is_nyc', False)}")
                 else:
-                    print(f"  ❌ No location data returned")
+                    print("  ❌ No location data returned")
 
             except Exception as e:
                 print(f"  ⚠️  Error: {str(e)}")

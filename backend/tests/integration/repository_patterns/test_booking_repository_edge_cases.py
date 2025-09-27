@@ -13,15 +13,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
-from sqlalchemy import DateTime, and_, func
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 

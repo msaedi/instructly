@@ -7,8 +7,8 @@ useful for creating or refreshing the cache from a known-good database.
 
 import json
 import os
-import sys
 from pathlib import Path
+import sys
 
 from sqlalchemy import create_engine, text
 

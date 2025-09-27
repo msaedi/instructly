@@ -4,8 +4,8 @@ Simple script to check if our indexes exist and are being used.
 """
 
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 os.environ["SUPPRESS_DB_MESSAGES"] = "true"
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import Session
 
 from app.core.config import settings
 

@@ -9,22 +9,20 @@ Comprehensive test suite verifying:
 - Webhook endpoint functionality
 """
 
-import json
 from datetime import datetime, time
 from typing import Dict
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
-import stripe
-import ulid
 from fastapi import status
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
+import stripe
+import ulid
 
 from app.core.enums import RoleName
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.payment import PaymentIntent, StripeConnectedAccount, StripeCustomer
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 
@@ -290,7 +288,6 @@ class TestPaymentRoutes:
     @patch("app.routes.payments.settings")
     def test_webhook_invalid_signature(self, mock_settings, mock_construct_event, client: TestClient, db: Session):
         """Test webhook endpoint with invalid signature."""
-        import stripe
 
         # Mock webhook secrets configuration
         mock_settings.webhook_secrets = ["whsec_test_secret"]
@@ -449,12 +446,10 @@ class TestPaymentRoutes:
         # Use the instructor from the fixture
         instructor, instructor_profile = instructor_user
 
-        from datetime import timedelta
 
         now = datetime.now()
 
         # Create a minimal instructor service for the booking
-        from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 
         # Create category and service if needed
         unique_id = str(ulid.ULID())[:8]  # Use part of ULID for uniqueness

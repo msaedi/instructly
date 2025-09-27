@@ -6,8 +6,8 @@ This helps debug coverage issues without pushing to GitHub.
 
 import json
 import os
-import subprocess
 from pathlib import Path
+import subprocess
 
 
 def run_command(cmd, cwd=None):

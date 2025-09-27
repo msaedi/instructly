@@ -3,8 +3,8 @@
 Test the auth endpoint directly to debug
 """
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Setup environment
 backend_dir = Path(__file__).parent.parent
@@ -28,7 +28,7 @@ from app.database import SessionLocal
 from app.services.auth_service import AuthService
 
 # Check settings
-print(f"\n📋 Settings check:")
+print("\n📋 Settings check:")
 print(f"   secret_key: {settings.secret_key.get_secret_value()[:10]}...")
 print(f"   algorithm: {settings.algorithm}")
 
@@ -40,7 +40,7 @@ auth_service = AuthService(db)
 username = "test@example.com"  # OAuth2 form uses 'username' field
 password = "password123"
 
-print(f"\n🔐 Testing login flow:")
+print("\n🔐 Testing login flow:")
 print(f"   Username: {username}")
 print(f"   Password: {password}")
 
@@ -74,7 +74,7 @@ if user:
     except Exception as e:
         print(f"   ❌ Token decode failed: {e}")
 else:
-    print(f"   ❌ Authentication failed!")
+    print("   ❌ Authentication failed!")
 
 db.close()
 

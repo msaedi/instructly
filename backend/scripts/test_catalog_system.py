@@ -9,10 +9,10 @@ Usage:
     USE_TEST_DATABASE=true python scripts/test_catalog_system.py
 """
 
-import os
-import sys
 from datetime import date, time, timedelta
+import os
 from pathlib import Path
+import sys
 
 import requests
 from sqlalchemy import create_engine, text
@@ -21,6 +21,8 @@ from sqlalchemy.orm import Session
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from scripts.seed_catalog_only import seed_catalog
+
 from app.auth import get_password_hash
 from app.core.config import settings
 from app.core.enums import RoleName
@@ -28,7 +30,6 @@ from app.models.availability import AvailabilitySlot
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User
-from scripts.seed_catalog_only import seed_catalog
 
 # Test configuration
 BASE_URL = "http://localhost:8000"

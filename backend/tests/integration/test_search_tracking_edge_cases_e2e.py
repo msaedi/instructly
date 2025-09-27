@@ -9,8 +9,8 @@ invalid inputs, and system behavior under stress.
 import time
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from app.core.ulid_helper import generate_ulid
