@@ -5,15 +5,12 @@ Tests every student-accessible endpoint to ensure instructor last names are not 
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
-import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
+import pytest
 
-from app.core.ulid_helper import generate_ulid
 from app.main import fastapi_app as app
-from tests.fixtures.unique_test_data import unique_data
 
 
 class TestCompleteEndpointPrivacy:
@@ -343,7 +340,7 @@ class TestEmailTemplatePrivacy:
                             )
 
         if violations:
-            pytest.fail(f"Email template privacy violations:\n" + "\n".join(violations))
+            pytest.fail("Email template privacy violations:\n" + "\n".join(violations))
 
 
 def test_privacy_compliance_comprehensive():

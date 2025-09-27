@@ -12,19 +12,14 @@ Verifies all payment-related database operations including:
 from datetime import datetime, time, timedelta
 
 import pytest
-import ulid
 from sqlalchemy.orm import Session
+import ulid
 
 from app.core.exceptions import RepositoryException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.payment import (
-    PaymentEvent,
-    PaymentIntent,
-    PaymentMethod,
     PlatformCredit,
-    StripeConnectedAccount,
-    StripeCustomer,
 )
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User

@@ -22,7 +22,7 @@ for port, protocol in [(8000, "http"), (8001, "https")]:
         print(f"  User found: {result.get('user_found')}")
         print(f"  Settings loaded: {json.dumps(result.get('settings_loaded', {}), indent=4)}")
         if result.get("token_created"):
-            print(f"  Token created successfully")
+            print("  Token created successfully")
         else:
             print(f"  Token error: {result.get('token_error', 'Unknown')}")
     else:

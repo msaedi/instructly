@@ -3,8 +3,8 @@
 Monitor Celery services to verify keep-alive is preventing spindown.
 """
 
-import time
 from datetime import datetime
+import time
 
 import httpx
 

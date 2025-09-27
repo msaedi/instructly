@@ -6,9 +6,9 @@ This script uses the production monitor to create alerts that will be
 processed by Celery and saved to the production database.
 """
 
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))

@@ -1,8 +1,8 @@
 import json
 import time
 
-import redis
 from fastapi import FastAPI
+import redis
 
 app = FastAPI()
 r = redis.from_url("redis://localhost:6379", decode_responses=True)

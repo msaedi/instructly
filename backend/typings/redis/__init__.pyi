@@ -1,7 +1,6 @@
 from collections.abc import Iterable, Iterator
 from typing import Any, Optional
 
-
 class Pipeline:
     def setex(self, name: str, time: int, value: str) -> "Pipeline": ...
     def execute(self) -> list[Any]: ...

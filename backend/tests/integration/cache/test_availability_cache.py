@@ -4,13 +4,13 @@ Test script to verify the availability cache timing issue.
 Fixed to use the availability test helper.
 """
 
-import time
 from datetime import date, timedelta
+import time
 
 from sqlalchemy.orm import Session
+from tests.helpers.availability_test_helper import get_availability_helper
 
 from app.models.user import User
-from tests.helpers.availability_test_helper import get_availability_helper
 
 
 def test_availability_timing(db: Session, test_instructor_with_availability: User):

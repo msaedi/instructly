@@ -14,17 +14,17 @@ Usage:
 """
 
 import argparse
-import os
-import sys
 from datetime import datetime, timezone
+import os
 from pathlib import Path
+import sys
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-import stripe
-import ulid
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
+import stripe
+import ulid
 
 from app.core.config import settings
 from app.models.payment import StripeConnectedAccount
@@ -45,8 +45,8 @@ def create_prefilled_account(email, first_name, last_name, profile_id, session):
         # Create onboarding link
         account_link = stripe.AccountLink.create(
             account=account.id,
-            refresh_url=f"http://localhost:3000/dashboard/instructor?stripe_onboarding_return=true",
-            return_url=f"http://localhost:3000/dashboard/instructor?stripe_onboarding_return=true",
+            refresh_url="http://localhost:3000/dashboard/instructor?stripe_onboarding_return=true",
+            return_url="http://localhost:3000/dashboard/instructor?stripe_onboarding_return=true",
             type="account_onboarding",
         )
 
@@ -123,7 +123,7 @@ def main():
 
                 print(f"✅ Created Stripe account for {first_name} {last_name}")
                 print(f"   Account ID: {account_id}")
-                print(f"\n📋 Onboarding URL (send this to the instructor):")
+                print("\n📋 Onboarding URL (send this to the instructor):")
                 print(f"   {onboarding_url}\n")
 
             except Exception as e:

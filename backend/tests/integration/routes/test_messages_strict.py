@@ -1,7 +1,9 @@
-import pytest
-from fastapi.testclient import TestClient
 from importlib import reload
+
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
+import pytest
+
 from app.routes.messages import ReactionRequest
 
 
@@ -12,10 +14,10 @@ def _enable_strict(monkeypatch):
 
 @pytest.fixture()
 def client(_enable_strict):
+    import app.main as main
+    import app.routes.messages as routes
     import app.schemas.base as base
     import app.schemas.message_requests as req
-    import app.routes.messages as routes
-    import app.main as main
 
     reload(base)
     reload(req)

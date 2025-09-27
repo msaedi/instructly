@@ -3,8 +3,8 @@
 Debug how settings are loaded in different contexts
 """
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Setup exactly like run_ssl_simple.py
 backend_dir = Path(__file__).parent.parent

@@ -7,8 +7,8 @@ Target: Increase coverage from 50% to 90%+
 
 from unittest.mock import Mock
 
-import pytest
 from fastapi import HTTPException, status
+import pytest
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import (

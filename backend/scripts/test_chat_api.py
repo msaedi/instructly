@@ -12,12 +12,12 @@ Usage:
     python scripts/test_chat_api.py
 """
 
+from datetime import datetime
 import json
 import os
 import sys
 import threading
 import time
-from datetime import datetime
 from typing import Optional
 
 
@@ -197,13 +197,13 @@ def listen_to_sse(token: str, booking_id: int, duration: int = 30):
 
             if event.event == "message":
                 data = json.loads(event.data)
-                print(f"\n📨 New message received:")
+                print("\n📨 New message received:")
                 print(f"   From: User {data.get('sender_id')}")
                 print(f"   Content: {data.get('content')}")
                 print(f"   Time: {data.get('created_at')}")
             elif event.event == "read_receipt":
                 data = json.loads(event.data)
-                print(f"\n✅ Read receipt:")
+                print("\n✅ Read receipt:")
                 print(
                     f"   Message ID: {data.get('message_id')} read by user {data.get('user_id')} at {data.get('read_at')}"
                 )
@@ -500,7 +500,7 @@ def interactive_chat_test():
         elif choice == "7":
             # Switch to different booking
             bookings = get_user_bookings(token)
-            print(f"\n📅 Available bookings:")
+            print("\n📅 Available bookings:")
             for i, booking in enumerate(bookings, 1):
                 print(f"{i}. Booking #{booking['id']}")
 

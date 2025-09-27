@@ -8,7 +8,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.models.search_event import SearchEvent
-from app.tasks.search_analytics import calculate_search_metrics, generate_search_insights, process_search_event
+from app.tasks.search_analytics import (
+    calculate_search_metrics,
+    generate_search_insights,
+    process_search_event,
+)
 
 
 class TestProcessSearchEvent:

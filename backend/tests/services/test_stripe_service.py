@@ -6,20 +6,17 @@ including customer management, connected accounts, payment processing,
 and webhook handling.
 """
 
-import json
-from datetime import datetime, time, timedelta
-from decimal import Decimal
+from datetime import datetime, time
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy.orm import Session
 import stripe
 import ulid
-from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.services.stripe_service import StripeService

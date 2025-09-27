@@ -8,23 +8,23 @@ Usage:
   Production: SITE_MODE=prod python backend/scripts/reset_and_seed_yaml.py (requires confirmation)
 """
 
-import sys
 from pathlib import Path
+import sys
 
 sys.path.append(str(Path(__file__).parent.parent))
 
+from datetime import date, datetime, time, timedelta, timezone
 import json
 import random
-from datetime import date, datetime, time, timedelta, timezone
 
 # Add the scripts directory to Python path so imports work from anywhere
 sys.path.insert(0, str(Path(__file__).parent))
 
-import ulid
 from seed_catalog_only import seed_catalog
 from seed_yaml_loader import SeedDataLoader
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
+import ulid
 
 from app.auth import get_password_hash
 from app.core.config import settings
@@ -33,8 +33,7 @@ from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.payment import PlatformCredit, StripeConnectedAccount
-from app.models.rbac import Role
-from app.models.rbac import UserRole as UserRoleJunction
+from app.models.rbac import Role, UserRole as UserRoleJunction
 from app.models.review import Review, ReviewStatus
 from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.models.user import User
@@ -513,7 +512,7 @@ class DatabaseSeeder:
                     f"  ✅ Created availability for {instructor_data['first_name']} {instructor_data['last_name']} using pattern '{pattern_name}'"
                 )
 
-        print(f"✅ Created availability patterns for all instructors")
+        print("✅ Created availability patterns for all instructors")
 
     def _get_date_for_day(self, day_name, weeks_ahead):
         """Calculate the date for a given day name and weeks ahead"""
@@ -1030,7 +1029,6 @@ class DatabaseSeeder:
         """Create sample platform credits for specific test users."""
         from datetime import timedelta
 
-        from sqlalchemy.orm import Session as ORMSession
 
         with Session(self.engine) as session:
             # Find Emma Johnson

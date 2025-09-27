@@ -4,9 +4,9 @@ Standalone API contract checker that doesn't rely on pytest.
 """
 
 import os
+from pathlib import Path
 import sys
 import warnings
-from pathlib import Path
 
 # Add backend to path
 backend_dir = Path(__file__).parent.parent
@@ -22,8 +22,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="urllib3")
 
 try:
-    from app.main import fastapi_app as app
     from tests.test_api_contracts import APIContractAnalyzer
+
+    from app.main import fastapi_app as app
 except ImportError as e:
     print(f"Import error: {e}")
     print("Dependencies not available - contract check skipped")

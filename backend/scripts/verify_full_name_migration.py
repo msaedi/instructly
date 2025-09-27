@@ -7,9 +7,9 @@ and that the migration has been completed successfully.
 """
 
 import os
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
 
 # Color codes for output
 GREEN = "\033[92m"
@@ -144,7 +144,7 @@ def main():
     app_dir = backend_dir / "app"
     alembic_dir = backend_dir / "alembic"
 
-    print(f"\nChecking directories:")
+    print("\nChecking directories:")
     print(f"  - {app_dir}")
     print(f"  - {alembic_dir}")
 

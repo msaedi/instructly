@@ -6,10 +6,8 @@ Tests the repository-level and service-level caching functionality
 to ensure proper cache hits, misses, and invalidation.
 """
 
-from datetime import date, datetime, time
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
+from datetime import date
+from unittest.mock import Mock, patch
 
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus

@@ -16,8 +16,8 @@ Usage:
 from __future__ import annotations
 
 import ast
-import sys
 from pathlib import Path
+import sys
 from typing import Iterable, List
 
 SERVICES_DIR = Path("backend/app/services")

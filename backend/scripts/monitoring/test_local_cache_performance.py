@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Test cache performance locally."""
 
+from pathlib import Path
 import sys
 import time
-from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -52,7 +52,7 @@ def test_catalog_performance():
 
     # Check cache stats
     stats = cache_service.get_stats()
-    print(f"\n📈 Cache Stats:")
+    print("\n📈 Cache Stats:")
     print(f"   Type: {type(cache_service.cache).__name__}")
     print(f"   Hit Rate: {stats.get('hit_rate', 'N/A')}")
 

@@ -401,8 +401,6 @@ class TestConflictCheckerValidationRules:
 
         # Use a fixed datetime for consistent testing across timezones
         # This ensures CI and local tests behave the same
-        from datetime import datetime
-        from datetime import timezone as tz
 
         import pytz
 

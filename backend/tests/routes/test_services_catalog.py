@@ -2,8 +2,8 @@
 
 from unittest.mock import Mock
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.api.dependencies.services import get_instructor_service
 from app.main import fastapi_app as app

@@ -11,8 +11,8 @@ import time
 from typing import Optional
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from app.main import fastapi_app as app

@@ -1,4 +1,4 @@
-from app.idempotency.cache import get_cached, idem_key, set_cached
+from app.idempotency.cache import get_cached, set_cached
 
 
 def test_idempotency_cache_set_and_get(monkeypatch):

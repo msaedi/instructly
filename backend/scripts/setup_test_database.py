@@ -8,8 +8,8 @@ for running tests. It ensures the test database is clearly named and separate
 from any production data.
 """
 
-import sys
 from pathlib import Path
+import sys
 from urllib.parse import urlparse, urlunparse
 
 # Add the parent directory to the path

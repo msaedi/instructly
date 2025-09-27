@@ -2,8 +2,8 @@
 """Verify database safety is working correctly."""
 
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Add backend to path
 backend_dir = Path(__file__).parent.parent

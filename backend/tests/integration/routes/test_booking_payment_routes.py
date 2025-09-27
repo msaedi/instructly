@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-import ulid
 from sqlalchemy.orm import Session
+import ulid
 
 from app.models.booking import Booking, BookingStatus
-from app.models.user import User
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
+from app.models.user import User
 
 
 @pytest.fixture
@@ -110,17 +110,14 @@ Tests the API endpoints for:
 - Confirming payment methods
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, time
 from unittest.mock import MagicMock, patch
 
-import pytest
-import ulid
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
-from app.models.booking import Booking, BookingStatus
-from app.models.instructor import InstructorProfile
 from app.models.rbac import Role
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User

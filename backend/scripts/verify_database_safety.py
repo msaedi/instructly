@@ -2,8 +2,8 @@
 """Quick database safety verification commands."""
 
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Add backend to path
 backend_dir = Path(__file__).parent.parent
@@ -78,11 +78,11 @@ try:
     score = config.get_safety_score()
 
     print(f"   📊 Safety Score: {score['score']}%")
-    print(f"   ✅ Default to INT: Yes")
-    print(f"   ✅ Production confirmation: Yes")
-    print(f"   ✅ CI/CD support: Yes")
-    print(f"   ✅ Production server mode: Yes")
-    print(f"   📁 Audit log: logs/database_audit.jsonl")
+    print("   ✅ Default to INT: Yes")
+    print("   ✅ Production confirmation: Yes")
+    print("   ✅ CI/CD support: Yes")
+    print("   ✅ Production server mode: Yes")
+    print("   📁 Audit log: logs/database_audit.jsonl")
 except Exception as e:
     print(f"   ❌ Error checking safety: {e}")
 

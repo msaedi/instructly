@@ -9,9 +9,9 @@ architectural concepts and uses clean date-based queries.
 Part of Work Stream #11 Phase 3 - Supporting Systems Verification
 """
 
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
 
 # Add backend directory to path
 backend_dir = Path(__file__).parent.parent
@@ -161,8 +161,7 @@ def verify_clean_architecture():
     print("-" * 40)
 
     try:
-        from datetime import datetime, timedelta
-        from datetime import timezone as tz
+        from datetime import datetime, timedelta, timezone as tz
 
         # Simulate the query logic
         tomorrow = datetime.now(tz.utc).date() + timedelta(days=1)

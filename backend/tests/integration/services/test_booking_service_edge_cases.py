@@ -12,8 +12,8 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 UPDATED FOR WORK STREAM #9: Layer independence - time-based booking.
 """
 
-import logging
 from datetime import date, datetime, time, timedelta, timezone
+import logging
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -24,8 +24,7 @@ from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService

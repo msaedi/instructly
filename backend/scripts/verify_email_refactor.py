@@ -9,8 +9,8 @@ This script verifies that:
 4. Metrics are properly collected
 """
 
-import sys
 from pathlib import Path
+import sys
 
 # Add backend to path
 backend_path = Path(__file__).parent.parent

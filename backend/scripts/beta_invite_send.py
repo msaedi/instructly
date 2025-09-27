@@ -13,7 +13,6 @@ Notes:
 from __future__ import annotations
 
 import argparse
-import sys
 
 from sqlalchemy.orm import Session
 

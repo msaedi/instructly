@@ -3,11 +3,11 @@ Tests for BookingService cancellation policy branches (>24h, 12–24h, <12h).
 """
 
 from datetime import date, datetime, time, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-import ulid
 from sqlalchemy.orm import Session
+import ulid
 
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile

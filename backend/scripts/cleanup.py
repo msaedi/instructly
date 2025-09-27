@@ -9,9 +9,9 @@ Cleanup script for InstaInstru
 
 import ast
 import os
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

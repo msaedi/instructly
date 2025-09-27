@@ -12,8 +12,8 @@ Usage:
 """
 
 import json
-import sys
 from pathlib import Path
+import sys
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -115,11 +115,11 @@ def update_stripe_mapping():
             if updated_count > 0:
                 print(f"\n✅ Updated mapping file with {updated_count} new/changed entries")
             else:
-                print(f"\n✅ No changes needed - mapping file is up to date")
+                print("\n✅ No changes needed - mapping file is up to date")
 
             # Show summary
             connected_count = sum(1 for v in sorted_mapping.values() if v is not None)
-            print(f"\n📈 Summary:")
+            print("\n📈 Summary:")
             print(f"  - Total instructors: {len(sorted_mapping)}")
             print(f"  - Connected to Stripe: {connected_count}")
             print(f"  - Not connected: {len(sorted_mapping) - connected_count}")

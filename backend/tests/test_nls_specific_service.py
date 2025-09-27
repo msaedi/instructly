@@ -6,8 +6,8 @@ These tests verify that specific service queries return ONLY instructors
 who teach that specific service, not all instructors in the category.
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sentence_transformers import SentenceTransformer
 from sqlalchemy.orm import Session
 
@@ -49,7 +49,7 @@ class TestNLSSpecificServiceMatching:
 
         # Helper function to generate embedding text
         def generate_service_text(service_name, description, search_terms):
-            parts = [service_name, f"Category: Music", description]
+            parts = [service_name, "Category: Music", description]
             if search_terms:
                 parts.append(f"Keywords: {', '.join(search_terms)}")
             return " ".join(parts)

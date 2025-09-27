@@ -8,11 +8,11 @@ Modes: prod | preview | local | int
 
 import argparse
 import os
+from pathlib import Path
 import shlex
 import subprocess
 import sys
 import textwrap
-from pathlib import Path
 from typing import Optional, Tuple
 
 BACKEND_DIR = Path(__file__).parent.parent

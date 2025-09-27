@@ -1,12 +1,13 @@
-import pytest
+import datetime as dt
+
 from pydantic import ValidationError
+import pytest
 
 from app.schemas.availability_window import (
-    WeekSpecificScheduleCreate,
-    CopyWeekRequest,
     ApplyToDateRangeRequest,
+    CopyWeekRequest,
+    WeekSpecificScheduleCreate,
 )
-import datetime as dt
 
 
 def test_week_specific_schedule_rejects_extra():

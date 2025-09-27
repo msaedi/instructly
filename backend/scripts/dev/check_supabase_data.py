@@ -4,8 +4,8 @@
 Check what data exists in the Supabase database.
 """
 
-import sys
 from pathlib import Path
+import sys
 
 # Add backend to Python path
 sys.path.append(str(Path(__file__).parent.parent))

@@ -11,9 +11,8 @@ Note: No booking_id in availability_slots (correct one-way relationship).
 """
 from typing import Sequence, Union
 
-import sqlalchemy as sa
-
 from alembic import op
+import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "003_availability_system"

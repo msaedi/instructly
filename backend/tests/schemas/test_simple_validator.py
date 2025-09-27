@@ -3,8 +3,8 @@
 
 from datetime import time
 
-import pytest
 from pydantic import BaseModel, ValidationError, field_validator
+import pytest
 
 
 class TimeRangeModel(BaseModel):

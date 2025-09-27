@@ -4,8 +4,8 @@ Project cleanup script to remove debug artifacts and optimize codebase.
 """
 
 import os
-import re
 from pathlib import Path
+import re
 
 
 def remove_debug_logging():

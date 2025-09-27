@@ -1,5 +1,5 @@
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -10,10 +10,11 @@ def _enable_strict(monkeypatch):
 @pytest.fixture()
 def client(_enable_strict):
     from importlib import reload
+
+    import app.main as main
+    import app.routes.search_history as rh
     import app.schemas.base as base
     import app.schemas.search_history as sh
-    import app.routes.search_history as rh
-    import app.main as main
 
     reload(base)
     reload(sh)

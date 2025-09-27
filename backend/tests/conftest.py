@@ -26,7 +26,6 @@ mocked_send = global_resend_mock.start()
 mocked_send.return_value = {"id": "test-email-id", "status": "sent"}
 
 # Additional safety: Mock the entire resend module if needed
-import sys
 
 if "resend" not in sys.modules:
     resend_module_mock = unittest.mock.MagicMock()
@@ -46,8 +45,8 @@ settings.rate_limit_enabled = False
 from datetime import date, time, timedelta
 from unittest.mock import AsyncMock, Mock
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -66,9 +65,6 @@ from app.models.availability import AvailabilitySlot
 from app.models.beta import BetaAccess, BetaInvite  # noqa: F401 ensure beta tables are registered
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.region_boundary import RegionBoundary  # noqa: F401
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.referrals import (  # noqa: F401 ensures tables are registered
     ReferralAttribution,
     ReferralClick,
@@ -77,6 +73,8 @@ from app.models.referrals import (  # noqa: F401 ensures tables are registered
     ReferralReward,
     WalletTransaction,
 )
+from app.models.region_boundary import RegionBoundary  # noqa: F401
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.services.permission_service import PermissionService
 from app.services.template_service import TemplateService
@@ -116,9 +114,9 @@ def _validate_test_database_url(database_url: str) -> None:
     for indicator in production_indicators:
         if indicator in url_lower:
             raise RuntimeError(
-                f"\n\n" + "=" * 60 + "\n"
-                f"CRITICAL ERROR: ATTEMPTING TO RUN TESTS ON PRODUCTION DATABASE!\n"
-                f"=" * 60 + "\n"
+                "\n\n" + "=" * 60 + "\n"
+                "CRITICAL ERROR: ATTEMPTING TO RUN TESTS ON PRODUCTION DATABASE!\n"
+                "=" * 60 + "\n"
                 f"Database URL contains production indicator: '{indicator}'\n"
                 f"URL: {database_url[:30]}...\n\n"
                 f"Tests are configured to WIPE THE DATABASE after each test.\n"

@@ -8,14 +8,19 @@ Tests cover:
 - Repository methods
 """
 
-import uuid
 from datetime import datetime, timezone
+import uuid
 
 import pytest
 from sqlalchemy.orm import Session
 
 from app.core.ulid_helper import generate_ulid
-from app.models.service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
+from app.models.service_catalog import (
+    InstructorService,
+    ServiceAnalytics,
+    ServiceCatalog,
+    ServiceCategory,
+)
 from app.repositories.factory import RepositoryFactory
 from app.services.instructor_service import InstructorService as InstructorServiceClass
 

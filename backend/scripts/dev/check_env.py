@@ -2,8 +2,8 @@
 """
 Check environment configuration
 """
-import sys
 from pathlib import Path
+import sys
 
 # Add backend to path
 backend_dir = Path(__file__).parent.parent
@@ -33,7 +33,7 @@ def check_environment():
 
     # Check .env file
     env_file = backend_dir / ".env"
-    print(f"\n📄 .env file:")
+    print("\n📄 .env file:")
     print(f"   Exists: {env_file.exists()}")
     if env_file.exists():
         print(f"   Path: {env_file}")

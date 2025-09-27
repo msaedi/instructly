@@ -13,8 +13,8 @@ Tests the unified search tracking system that was consolidateed to ensure:
 
 from unittest.mock import AsyncMock, Mock
 
-import pytest
 from fastapi import Request
+import pytest
 from sqlalchemy.orm import Session
 
 from app.models.search_event import SearchEvent

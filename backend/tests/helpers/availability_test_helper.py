@@ -15,7 +15,10 @@ from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 
 from app.models.availability import AvailabilitySlot
-from app.schemas.availability_window import SpecificDateAvailabilityCreate, WeekSpecificScheduleCreate
+from app.schemas.availability_window import (
+    SpecificDateAvailabilityCreate,
+    WeekSpecificScheduleCreate,
+)
 from app.services.availability_service import AvailabilityService
 from app.services.bulk_operation_service import BulkOperationService
 from app.services.week_operation_service import WeekOperationService

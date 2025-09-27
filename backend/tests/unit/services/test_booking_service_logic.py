@@ -17,7 +17,12 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
-from app.core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
+from app.core.exceptions import (
+    BusinessRuleException,
+    ConflictException,
+    NotFoundException,
+    ValidationException,
+)
 from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus

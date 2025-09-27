@@ -1,6 +1,5 @@
 from typing import Any, TypedDict
 
-
 class SettingsConfigDict(TypedDict, total=False):
     env_file: str | None
     case_sensitive: bool

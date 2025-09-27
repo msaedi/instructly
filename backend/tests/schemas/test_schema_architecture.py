@@ -9,16 +9,24 @@ Ensures:
 4. Dead code cannot be imported
 """
 
-import importlib
 from datetime import date, time, timedelta
+import importlib
 
-import pytest
 from pydantic import ValidationError
+import pytest
 
 from app.core.ulid_helper import generate_ulid
-from app.schemas.availability import AvailabilitySlot, AvailabilitySlotCreate, AvailabilitySlotResponse
+from app.schemas.availability import (
+    AvailabilitySlot,
+    AvailabilitySlotCreate,
+    AvailabilitySlotResponse,
+)
 from app.schemas.availability_window import AvailabilityWindowResponse, TimeSlot
-from app.schemas.booking import AvailabilityCheckRequest, BookingCreate, FindBookingOpportunitiesRequest
+from app.schemas.booking import (
+    AvailabilityCheckRequest,
+    BookingCreate,
+    FindBookingOpportunitiesRequest,
+)
 
 
 class TestBookingCleanArchitecture:

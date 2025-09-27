@@ -10,10 +10,10 @@ Tests edge cases and ensures timezone handling is correct across:
 - Regression prevention
 """
 
-import re
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+import re
+from unittest.mock import Mock, patch
 
 import pytest
 import pytz
@@ -21,7 +21,7 @@ import pytz
 # from freezegun import freeze_time  # Optional dependency
 from sqlalchemy.orm import Session
 
-from app.core.timezone_utils import get_user_timezone, get_user_today_by_id
+from app.core.timezone_utils import get_user_today_by_id
 from app.core.ulid_helper import generate_ulid
 from app.models.user import User
 from app.services.availability_service import AvailabilityService
@@ -459,7 +459,7 @@ class TestRegressionPrevention:
 
         if violations:
             pytest.fail(
-                f"Found date validation in schemas:\n"
+                "Found date validation in schemas:\n"
                 + "\n".join(f"  - {v}" for v in violations)
                 + "\nDate validation should be in service layer with timezone context!"
             )

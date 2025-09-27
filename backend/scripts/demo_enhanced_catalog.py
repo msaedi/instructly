@@ -9,8 +9,8 @@ Shows the three-layer architecture in action:
 """
 
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -200,7 +200,7 @@ def main():
             )
         ).fetchone()
 
-        print(f"\n📈 Platform Metrics:")
+        print("\n📈 Platform Metrics:")
         print(f"  - Total services in catalog: {stats.total_services}")
         print(f"  - Services being offered: {stats.services_offered}")
         print(f"  - Active instructors: {stats.active_instructors}")

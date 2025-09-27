@@ -14,8 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException
 from app.models.instructor import InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog
 from app.models.user import User
 from app.services.base import BaseService
 from app.services.cache_service import CacheService

@@ -33,7 +33,7 @@ async def debug_test():
             print(f"ETag: {response.headers.get('etag')}")
 
             # Try with different instructor
-            response2 = await client.get(f"http://localhost:8000/api/public/instructors/2/availability", params=params)
+            response2 = await client.get("http://localhost:8000/api/public/instructors/2/availability", params=params)
             print(f"\nInstructor 2 status: {response2.status_code}")
 
 

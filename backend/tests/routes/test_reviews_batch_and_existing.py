@@ -1,11 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.auth import create_access_token, get_password_hash
 from app.models.booking import Booking, BookingStatus
-from app.models.review import Review
 from app.services.review_service import ReviewService
 
 
@@ -85,8 +84,11 @@ def test_booking_existing_restricts_to_current_user(student_client_and_db):
 
     # Use s1 as instructor profile owner and create/reuse an InstructorService
     from app.models.instructor import InstructorProfile
-    from app.models.service_catalog import InstructorService as InstructorServiceModel
-    from app.models.service_catalog import ServiceCatalog, ServiceCategory
+    from app.models.service_catalog import (
+        InstructorService as InstructorServiceModel,
+        ServiceCatalog,
+        ServiceCategory,
+    )
 
     instr = InstructorProfile(user_id=s1.id, bio="bio")
     db.add(instr)

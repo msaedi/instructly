@@ -11,13 +11,13 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock
 
 import pytest
+from tests.fixtures.unique_test_data import unique_data
 
 from app.core.exceptions import ValidationException
 from app.models.password_reset import PasswordResetToken
 from app.models.user import User
 from app.services.email import EmailService
 from app.services.password_reset_service import PasswordResetService
-from tests.fixtures.unique_test_data import unique_data
 
 
 @pytest.fixture

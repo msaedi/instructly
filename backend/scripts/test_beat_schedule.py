@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Test Celery Beat with frequent schedule for development."""
 
-import sys
 from datetime import timedelta
 from pathlib import Path
+import sys
 
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))

@@ -10,8 +10,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.instructor import InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 

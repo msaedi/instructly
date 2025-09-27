@@ -14,10 +14,10 @@ Usage:
 """
 
 import argparse
-import os
-import sys
 from datetime import datetime, timezone
+import os
 from pathlib import Path
+import sys
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -25,10 +25,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import stripe
-import ulid
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
+import stripe
+import ulid
 
 from app.core.config import settings
 from app.models.payment import StripeConnectedAccount
@@ -167,7 +167,7 @@ def create_test_stripe_accounts(dry_run=False):
                 session.rollback()
                 continue
 
-        print(f"\n📊 Summary:")
+        print("\n📊 Summary:")
         print(f"  ✅ Successfully created: {created_count} accounts")
         if failed_count > 0:
             print(f"  ❌ Failed: {failed_count} accounts")

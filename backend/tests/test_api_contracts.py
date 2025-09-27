@@ -13,13 +13,13 @@ to catch contract violations early and prevent regression.
 
 import ast
 import inspect
-import re
 from pathlib import Path
+import re
 from typing import Any, List, Optional, Set
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import pytest
 
 from app.main import fastapi_app as app
 

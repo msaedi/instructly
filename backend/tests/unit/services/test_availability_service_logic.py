@@ -22,7 +22,10 @@ from app.core.exceptions import ConflictException, NotFoundException
 from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.repositories.availability_repository import AvailabilityRepository
-from app.schemas.availability_window import SpecificDateAvailabilityCreate, WeekSpecificScheduleCreate
+from app.schemas.availability_window import (
+    SpecificDateAvailabilityCreate,
+    WeekSpecificScheduleCreate,
+)
 from app.services.availability_service import AvailabilityService
 
 

@@ -3,14 +3,12 @@ Tests for payment processing Celery tasks.
 """
 
 from datetime import date, datetime, time, timedelta, timezone
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 import stripe
 import ulid
 
 from app.models.booking import Booking, BookingStatus
-from app.models.payment import PaymentEvent
 from app.tasks.payment_tasks import (
     capture_completed_lessons,
     check_authorization_health,

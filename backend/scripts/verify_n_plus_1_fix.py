@@ -10,8 +10,8 @@ the query count reduction from 1+2N to just 1 query.
 """
 
 import logging
-import sys
 from pathlib import Path
+import sys
 
 # Add the backend directory to Python path
 backend_dir = Path(__file__).parent.parent  # This gets us to the backend directory
@@ -75,14 +75,14 @@ def test_get_all_instructors():
         # Call the method
         instructors = service.get_all_instructors(skip=0, limit=10)
 
-        print(f"\nResults:")
+        print("\nResults:")
         print(f"- Found {len(instructors)} instructors")
         print(f"- Total queries executed: {query_counter.count}")
 
         # Calculate what it would have been with N+1
         if instructors:
             old_query_count = 1 + (2 * len(instructors))
-            print(f"\nPerformance Improvement:")
+            print("\nPerformance Improvement:")
             print(f"- OLD approach (N+1): {old_query_count} queries")
             print(f"- NEW approach (eager loading): {query_counter.count} queries")
             print(
@@ -91,7 +91,7 @@ def test_get_all_instructors():
 
         # Show sample data to verify correctness
         if instructors:
-            print(f"\nSample instructor data (first instructor):")
+            print("\nSample instructor data (first instructor):")
             first = instructors[0]
             print(f"- User: {first.get('user', {}).get('full_name', 'N/A')}")
             print(f"- Email: {first.get('user', {}).get('email', 'N/A')}")
@@ -147,14 +147,14 @@ def test_single_profile():
 
             profile = service.get_instructor_profile(instructor_user.id)
 
-            print(f"\nResults:")
+            print("\nResults:")
             print(f"- Profile found: {profile['user']['full_name']}")
             print(f"- Total queries executed: {query_counter.count}")
             print(f"- Services loaded: {len(profile['services'])}")
 
             # Old approach would be 3 queries
-            print(f"\nPerformance Improvement:")
-            print(f"- OLD approach: 3 queries (profile + user + services)")
+            print("\nPerformance Improvement:")
+            print("- OLD approach: 3 queries (profile + user + services)")
             print(f"- NEW approach: {query_counter.count} query")
 
         else:

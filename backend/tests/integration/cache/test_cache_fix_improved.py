@@ -5,14 +5,14 @@ Improved test script with better error handling and diagnostics.
 Updated to use the availability test helper.
 """
 
+from datetime import date, timedelta
 import json
 import time
-from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
+from tests.helpers.availability_test_helper import get_availability_helper
 
 from app.models.user import User
-from tests.helpers.availability_test_helper import get_availability_helper
 
 
 def test_basic_save_operation(db: Session, test_instructor_with_availability: User):
@@ -69,7 +69,7 @@ def test_basic_save_operation(db: Session, test_instructor_with_availability: Us
         else:
             print("   ❌ FAIL: No slots in response")
     else:
-        print(f"   ❌ ERROR: Save operation failed")
+        print("   ❌ ERROR: Save operation failed")
         print(f"   Error: {result.get('error', 'Unknown error')}")
 
     # Verify independently
@@ -103,7 +103,7 @@ def test_rapid_updates(db: Session, test_instructor_with_availability: User):
         days_until_monday = 7
     next_monday = today + timedelta(days=days_until_monday)
 
-    print(f"\n=== Testing Rapid Sequential Updates ===")
+    print("\n=== Testing Rapid Sequential Updates ===")
 
     times = ["09:00:00", "10:00:00", "11:00:00", "12:00:00", "13:00:00"]
 
@@ -122,9 +122,9 @@ def test_rapid_updates(db: Session, test_instructor_with_availability: User):
             if slots and slots[0]["start_time"] == start_time:
                 print(f"   ✅ Immediately got fresh data: {start_time}")
             else:
-                print(f"   ❌ Got stale data!")
+                print("   ❌ Got stale data!")
         else:
-            print(f"   ❌ Failed to save")
+            print("   ❌ Failed to save")
 
         # No delay between updates
 

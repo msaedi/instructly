@@ -3,8 +3,8 @@
 Test authentication in the exact same context as HTTPS server
 """
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Mimic EXACTLY what run_ssl_simple.py does
 backend_dir = Path(__file__).parent.parent
@@ -30,7 +30,7 @@ from app.database import SessionLocal
 from app.main import app
 from app.services.auth_service import AuthService
 
-print(f"\n📋 Settings check:")
+print("\n📋 Settings check:")
 print(f"   secret_key: {settings.secret_key.get_secret_value()[:10]}...")
 print(f"   environment: {settings.environment}")
 print(f"   rate_limit_enabled: {settings.rate_limit_enabled}")
@@ -42,12 +42,12 @@ auth_service = AuthService(db)
 email = "test@example.com"
 password = "password123"
 
-print(f"\n🔐 Testing authentication:")
+print("\n🔐 Testing authentication:")
 user = auth_service.authenticate_user(email, password)
 if user:
-    print(f"   ✅ Authentication successful!")
+    print("   ✅ Authentication successful!")
 else:
-    print(f"   ❌ Authentication failed!")
+    print("   ❌ Authentication failed!")
 
     # Let's debug why
     user_obj = db.query(auth_service.get_user_model()).filter_by(email=email).first()
@@ -59,7 +59,7 @@ else:
         is_valid = pwd_context.verify(password, user_obj.hashed_password)
         print(f"   Password verification: {is_valid}")
     else:
-        print(f"   User not found in database")
+        print("   User not found in database")
 
 db.close()
 
@@ -73,6 +73,6 @@ client = TestClient(app)
 response = client.post("/auth/login", data={"username": email, "password": password})
 print(f"   Status: {response.status_code}")
 if response.status_code == 200:
-    print(f"   ✅ Success!")
+    print("   ✅ Success!")
 else:
     print(f"   ❌ Failed: {response.json()}")

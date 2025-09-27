@@ -368,7 +368,7 @@ def test_debug_database_connections(client, db, auth_headers_student):
     from app.core.config import settings
     from app.database import SessionLocal, engine
 
-    print(f"\n=== DATABASE DEBUG ===")
+    print("\n=== DATABASE DEBUG ===")
     print(f"settings.is_testing: {settings.is_testing}")
     print(f"settings.database_url: {settings.database_url}")
     print(f"settings.get_database_url(): {settings.get_database_url()}")

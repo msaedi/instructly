@@ -9,8 +9,8 @@ This script demonstrates the enhanced search capabilities including:
 """
 
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -84,7 +84,7 @@ def main():
 
                 # Show parsed query
                 if "parsed_query" in results:
-                    print(f"\n🧠 Understood as:")
+                    print("\n🧠 Understood as:")
                     parsed = results["parsed_query"]
                     if parsed.get("price_range"):
                         print(

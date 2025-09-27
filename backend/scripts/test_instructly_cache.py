@@ -58,7 +58,7 @@ def test_catalog_endpoint():
         print("   This indicates caching is working correctly!")
 
     # Compare to the 1.5s baseline
-    print(f"\n📈 Compared to 1.5s baseline:")
+    print("\n📈 Compared to 1.5s baseline:")
     improvement = 1500 / avg_time
     print(f"   Current performance is {improvement:.1f}x faster!")
 

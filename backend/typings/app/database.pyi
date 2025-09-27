@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Iterator
+
 from sqlalchemy.orm import Session
 
 class DeclarativeBase:

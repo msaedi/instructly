@@ -1,10 +1,11 @@
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 
 @pytest.fixture()
 def client():
     from importlib import reload
+
     import app.main as main
 
     reload(main)

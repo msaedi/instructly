@@ -7,8 +7,8 @@ FIXED: Using proper dependency injection pattern with EmailService
 
 from unittest.mock import Mock
 
-import pytest
 from fastapi import status
+import pytest
 
 from app.api.dependencies.services import get_password_reset_service
 from app.core.exceptions import ValidationException

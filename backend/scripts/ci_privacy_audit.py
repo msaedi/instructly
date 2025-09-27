@@ -11,8 +11,8 @@ import asyncio
 import json
 import logging
 import os
-import sys
 from pathlib import Path
+import sys
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -101,7 +101,7 @@ async def main():
         if is_github_actions:
             with open(os.environ.get("GITHUB_OUTPUT", "github_output.txt"), "a") as f:
                 f.write(f"violations_count={len(result.violations)}\n")
-                f.write(f"report_path=logs/privacy_audit_report.md\n")
+                f.write("report_path=logs/privacy_audit_report.md\n")
 
             # Create annotations for violations
             for v in result.violations:

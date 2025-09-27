@@ -7,9 +7,9 @@ It can be run locally before committing changes.
 """
 
 import os
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
 
 # Colors for terminal output (disabled in CI)
 if os.getenv("CI") or not sys.stdout.isatty():

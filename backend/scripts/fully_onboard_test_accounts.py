@@ -11,10 +11,10 @@ Usage:
 """
 
 import argparse
-import os
-import sys
 from datetime import datetime, timezone
+import os
 from pathlib import Path
+import sys
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -22,9 +22,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import stripe
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
+import stripe
 
 from app.core.config import settings
 
@@ -195,7 +195,7 @@ def main():
                 else:
                     print("❌")
 
-            print(f"\n📊 Summary:")
+            print("\n📊 Summary:")
             print(f"  ✅ Successfully onboarded: {success_count}/{len(results)}")
 
     return 0

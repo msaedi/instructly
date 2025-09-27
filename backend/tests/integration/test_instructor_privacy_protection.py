@@ -7,20 +7,16 @@ layers of the application, using real database interactions through repositories
 
 from datetime import date, time, timedelta
 
-import pytest
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus
-from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.schemas.booking import BookingResponse, InstructorInfo
 from app.schemas.instructor import InstructorProfileResponse, UserBasicPrivacy
 from app.services.booking_service import BookingService
-from app.services.email import EmailService
 from app.services.instructor_service import InstructorService
-from app.services.notification_service import NotificationService
 from app.services.template_service import TemplateService
 
 

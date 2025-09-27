@@ -9,11 +9,11 @@ This script will:
 3. Run tests to ensure nothing breaks
 4. Provide a rollback option if needed
 """
+from datetime import datetime
 import os
+from pathlib import Path
 import shutil
 import subprocess
-from datetime import datetime
-from pathlib import Path
 
 # Files confirmed as dead code after thorough analysis
 DEAD_FILES = [
@@ -92,7 +92,7 @@ def verify_no_imports(filepath):
                 found_imports = True
 
     if not found_imports:
-        print(f"   ✅ No imports found - safe to delete")
+        print("   ✅ No imports found - safe to delete")
 
     return not found_imports
 

@@ -1,5 +1,5 @@
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 
 @pytest.fixture()
@@ -9,11 +9,11 @@ def client(monkeypatch):
     from importlib import reload
     from types import SimpleNamespace
 
+    import app.api.dependencies as api_dependencies
+    import app.main as main
+    import app.routes.bookings as bookings_routes
     import app.schemas.base as base
     import app.schemas.booking as booking_schemas
-    import app.api.dependencies as api_dependencies
-    import app.routes.bookings as bookings_routes
-    import app.main as main
 
     reload(base)
     reload(booking_schemas)

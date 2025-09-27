@@ -1,10 +1,8 @@
 """Test privacy protection for instructor last names in booking endpoints."""
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 
 import pytest
-
-from app.schemas.booking import BookingCreate
 
 
 @pytest.mark.asyncio

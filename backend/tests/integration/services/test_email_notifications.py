@@ -9,9 +9,9 @@ Usage:
 """
 
 import asyncio
-import sys
 from datetime import date, time, timedelta
 from pathlib import Path
+import sys
 
 # Add the parent directory to the path
 sys.path.append(str(Path(__file__).parent.parent))

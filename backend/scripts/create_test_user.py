@@ -2,8 +2,8 @@
 """
 Create a fresh test user to verify authentication
 """
-import sys
 from pathlib import Path
+import sys
 
 # Add backend to path
 backend_dir = Path(__file__).parent.parent
@@ -32,7 +32,7 @@ def create_test_user():
             # Update password
             existing.hashed_password = pwd_context.hash(password)
             db.commit()
-            print(f"✅ Updated password for existing user")
+            print("✅ Updated password for existing user")
         else:
             # Create new user
             hashed_password = pwd_context.hash(password)
@@ -43,7 +43,7 @@ def create_test_user():
             db.commit()
             print(f"✅ Created user: {email}")
 
-        print(f"\n📧 Login credentials:")
+        print("\n📧 Login credentials:")
         print(f"   Email: {email}")
         print(f"   Password: {password}")
 

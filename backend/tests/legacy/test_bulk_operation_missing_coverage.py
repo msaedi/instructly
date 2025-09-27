@@ -476,7 +476,7 @@ class TestBulkOperationMissingCoverage:
         start_str = slot.start_time.strftime("%H:%M:%S")
         end_str = slot.end_time.strftime("%H:%M:%S")
 
-        print(f"\n[DEBUG] TimeSlot object:")
+        print("\n[DEBUG] TimeSlot object:")
         print(f"  start_time type: {type(slot.start_time)}")
         print(f"  start_time value: {slot.start_time}")
         print(f"  start_time as string: {start_str}")
@@ -488,7 +488,7 @@ class TestBulkOperationMissingCoverage:
         match1 = db_slot["start_time"] == slot.start_time.strftime("%H:%M:%S")
         match2 = db_slot["end_time"] == slot.end_time.strftime("%H:%M:%S")
 
-        print(f"\n[DEBUG] Comparison results:")
+        print("\n[DEBUG] Comparison results:")
         print(f"  db_slot['start_time'] == slot.start_time.strftime('%H:%M:%S'): {match1}")
         print(f"  db_slot['end_time'] == slot.end_time.strftime('%H:%M:%S'): {match2}")
 
@@ -501,12 +501,12 @@ class TestBulkOperationMissingCoverage:
         # Create a TimeSlot
         slot = TimeSlot(start_time=time(14, 0), end_time=time(15, 0))
 
-        print(f"\n[DEBUG] TimeSlot inspection:")
+        print("\n[DEBUG] TimeSlot inspection:")
         print(f"  Type: {type(slot)}")
         print(f"  Dir: {[attr for attr in dir(slot) if not attr.startswith('_')]}")
 
         # Try different ways to access the time
-        print(f"\n[DEBUG] Accessing start_time:")
+        print("\n[DEBUG] Accessing start_time:")
         print(f"  slot.start_time: {slot.start_time}")
         print(f"  hasattr start_time: {hasattr(slot, 'start_time')}")
         print(f"  hasattr strftime: {hasattr(slot.start_time, 'strftime')}")
@@ -542,20 +542,20 @@ class TestBulkOperationMissingCoverage:
 
         def debug_generate(existing_slots, current_week, saved_week, week_start):
             # Add debug output inside the method
-            print(f"\n[DEBUG] Inside _generate_operations_from_states")
+            print("\n[DEBUG] Inside _generate_operations_from_states")
 
             # Check day 2 specifically
             day2_str = day2.isoformat()
             saved_slots = saved_week.get(day2_str, [])
             existing_slots.get(day2_str, [])
 
-            print(f"\n[DEBUG] Day 2 analysis:")
+            print("\n[DEBUG] Day 2 analysis:")
             print(f"  saved_slots: {saved_slots}")
             print(f"  saved_slots count: {len(saved_slots)}")
 
             if saved_slots:
                 slot = saved_slots[0]
-                print(f"\n[DEBUG] First saved slot:")
+                print("\n[DEBUG] First saved slot:")
                 print(f"  Type: {type(slot)}")
                 print(f"  start_time type: {type(slot.start_time)}")
                 print(f"  start_time value: {slot.start_time}")
@@ -629,7 +629,7 @@ class TestBulkOperationMissingCoverage:
         # Check what args were passed
         if call_args:
             args, kwargs = call_args[0]
-            print(f"\n[DEBUG] Args passed to _generate_operations_from_states:")
+            print("\n[DEBUG] Args passed to _generate_operations_from_states:")
             print(f"  existing_slots keys: {list(args[0].keys()) if args else 'None'}")
             print(f"  current_week keys: {list(args[1].keys()) if len(args) > 1 else 'None'}")
             print(f"  saved_week keys: {list(args[2].keys()) if len(args) > 2 else 'None'}")

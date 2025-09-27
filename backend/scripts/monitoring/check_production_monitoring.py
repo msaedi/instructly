@@ -6,9 +6,9 @@ This script checks if the monitoring system is working and if alerts
 are being created in the production database.
 """
 
+from datetime import datetime, timedelta, timezone
 import os
 import sys
-from datetime import datetime, timedelta, timezone
 
 # Add the backend directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -70,7 +70,7 @@ def check_production_alerts():
             recent_alerts = result.fetchall()
 
             if recent_alerts:
-                print(f"\nRecent alerts (last 24 hours):")
+                print("\nRecent alerts (last 24 hours):")
                 for alert in recent_alerts:
                     print(f"\n{alert.created_at} - {alert.title}")
                     print(f"  Type: {alert.alert_type}, Severity: {alert.severity}")

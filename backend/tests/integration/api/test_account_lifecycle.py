@@ -7,9 +7,9 @@ Tests all instructor account status change endpoints with real database.
 
 from datetime import date, time, timedelta
 
-import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName

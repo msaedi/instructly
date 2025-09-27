@@ -13,8 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.ulid_helper import generate_ulid
 from app.database import Base
 from app.models.instructor import InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 

@@ -10,10 +10,10 @@ Usage:
   SITE_MODE=local python backend/scripts/create_simple_stripe_accounts.py
 """
 
-import os
-import sys
 from datetime import datetime, timezone
+import os
 from pathlib import Path
+import sys
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -21,10 +21,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import stripe
-import ulid
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
+import stripe
+import ulid
 
 from app.core.config import settings
 from app.models.payment import StripeConnectedAccount
@@ -108,7 +108,7 @@ def main():
                 failed_count += 1
                 session.rollback()
 
-        print(f"\n📊 Summary:")
+        print("\n📊 Summary:")
         print(f"  ✅ Created: {created_count} accounts")
         if failed_count > 0:
             print(f"  ❌ Failed: {failed_count} accounts")

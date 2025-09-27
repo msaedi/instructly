@@ -7,11 +7,10 @@ resilience against API changes or downtime.
 """
 
 import json
-import sys
 from pathlib import Path
+import sys
 
 import requests
-from shapely.geometry import shape
 
 # Output path for cached boundaries
 CACHE_DIR = Path(__file__).parent / "data"

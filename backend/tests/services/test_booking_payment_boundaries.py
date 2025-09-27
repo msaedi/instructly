@@ -1,21 +1,21 @@
 from __future__ import annotations
 
-import ulid
 import pytest
 from sqlalchemy.orm import Session
+from tests.utils.time import (
+    booking_fields_from_start,
+    start_just_over_24h,
+    start_just_under_24h,
+)
+import ulid
 
 from app.core.enums import RoleName
-from app.models.rbac import Role
-from app.models.user import User
-from app.models.instructor import InstructorProfile
-from app.models.service_catalog import ServiceCatalog, ServiceCategory, InstructorService
 from app.models.booking import Booking, BookingStatus
+from app.models.instructor import InstructorProfile
+from app.models.rbac import Role
+from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.user import User
 from app.services.booking_service import BookingService
-from tests.utils.time import (
-    start_just_under_24h,
-    start_just_over_24h,
-    booking_fields_from_start,
-)
 
 
 @pytest.mark.asyncio

@@ -11,8 +11,8 @@ the FastAPI app instance.
 """
 
 import ast
-import re
 from pathlib import Path
+import re
 from typing import List
 
 import pytest
@@ -212,7 +212,7 @@ def test_consistent_field_naming():
                                 violations.append(f"{py_file.name}: {node.name}.{field_name} is not snake_case")
 
     if violations:
-        pytest.fail(f"Found field naming violations:\n" + "\n".join(violations))
+        pytest.fail("Found field naming violations:\n" + "\n".join(violations))
 
 
 def test_no_raw_list_responses():

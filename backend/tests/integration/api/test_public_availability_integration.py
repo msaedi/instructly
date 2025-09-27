@@ -100,7 +100,7 @@ class TestPublicAvailabilityIntegration:
         # The 9-17 slot should be adjusted because 9-10 is booked
         available_slots = result["availability_by_date"][tomorrow_str]["available_slots"]
         print(f"DEBUG: Available slots after booking: {available_slots}")
-        print(f"DEBUG: Booking was from 09:00-10:00")
+        print("DEBUG: Booking was from 09:00-10:00")
 
         # The availability system should either:
         # 1. Remove the entire slot (len == 0)

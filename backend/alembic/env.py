@@ -1,16 +1,15 @@
 # backend/alembic/env.py
-import sys
 from pathlib import Path
+import sys
 
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-import os  # noqa: E402
 from logging.config import fileConfig  # noqa: E402
 
+from alembic import context  # noqa: E402
 from sqlalchemy import engine_from_config, pool  # noqa: E402
 
-from alembic import context  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.database import Base  # noqa: E402
 

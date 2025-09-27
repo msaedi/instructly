@@ -10,8 +10,8 @@ This script respects REDIS_URL and other backend settings via app.core.config.
 """
 
 import argparse
-import sys
 from pathlib import Path
+import sys
 
 # Ensure backend is on sys.path
 backend_dir = Path(__file__).parent.parent

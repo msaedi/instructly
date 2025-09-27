@@ -4,8 +4,8 @@ Run with: python -m scripts.test_cache_simple
 """
 
 import asyncio
-import time
 from datetime import date, timedelta
+import time
 
 import httpx
 
@@ -71,7 +71,7 @@ async def test_basic_cache():
 
             # Check for cache headers
             if i == 0 and response.status_code == 200:
-                print(f"\nResponse headers:")
+                print("\nResponse headers:")
                 print(f"  Cache-Control: {response.headers.get('cache-control', 'Not present')}")
                 print(
                     f"  ETag: {response.headers.get('etag', 'Not present')[:20]}..."

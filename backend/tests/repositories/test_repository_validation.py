@@ -28,8 +28,7 @@ import pytest
 from app.core.exceptions import RepositoryException
 from app.core.ulid_helper import generate_ulid
 from app.models import AvailabilitySlot, Booking, BookingStatus, InstructorProfile
-from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories import (
     AvailabilityRepository,

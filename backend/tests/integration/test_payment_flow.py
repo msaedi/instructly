@@ -11,15 +11,13 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy.orm import Session
 import stripe
 import ulid
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.payment import PaymentIntent, StripeConnectedAccount, StripeCustomer
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory

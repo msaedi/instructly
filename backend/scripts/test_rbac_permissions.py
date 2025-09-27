@@ -6,15 +6,15 @@ Tests all permission scenarios for student, instructor, and admin roles
 
 import asyncio
 import os
-import sys
 from pathlib import Path
+import sys
 from typing import Dict, Optional
 
 # Disable rate limiting for testing
 os.environ["rate_limit_enabled"] = "false"
 
-import httpx
 from colorama import Fore, init
+import httpx
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -271,7 +271,7 @@ class RBACTester:
                     "admin": [],  # Admin should have everything
                 }
 
-                print(f"\n  Checking forbidden permissions:")
+                print("\n  Checking forbidden permissions:")
                 for perm in forbidden_permissions.get(role, []):
                     if perm not in permissions:
                         print(f"  {Fore.GREEN}✓ Correctly lacks {perm}")
@@ -295,7 +295,7 @@ async def main():
             return
     except:
         print(f"{Fore.RED}Cannot connect to backend at http://localhost:8000")
-        print(f"Please ensure the backend is running: uvicorn app.main:app --reload")
+        print("Please ensure the backend is running: uvicorn app.main:app --reload")
         return
 
     tester = RBACTester()
@@ -307,9 +307,9 @@ async def main():
 
     print(f"\n{Fore.CYAN}Test complete! Check the results above.")
     print(f"\n{Fore.YELLOW}Next steps:")
-    print(f"1. Fix any failing tests")
-    print(f"2. Test frontend permission visibility")
-    print(f"3. Create automated test suite")
+    print("1. Fix any failing tests")
+    print("2. Test frontend permission visibility")
+    print("3. Create automated test suite")
 
 
 if __name__ == "__main__":

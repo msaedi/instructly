@@ -9,18 +9,17 @@ Tests the complete favorites feature including:
 - is_favorited flag in instructor responses
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
+from tests.fixtures.unique_test_data import unique_data
 
 from app.core.enums import RoleName
 from app.models.favorite import UserFavorite
-from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.repositories.favorites_repository import FavoritesRepository
 from app.services.favorites_service import FavoritesService
 from app.services.permission_service import PermissionService
-from tests.fixtures.unique_test_data import unique_data
 
 
 # Test Fixtures

@@ -4,8 +4,8 @@ Run with: python -m scripts.test_cache_performance
 """
 
 import asyncio
-import time
 from datetime import date, timedelta
+import time
 
 import httpx
 
@@ -305,7 +305,7 @@ class CachePerformanceTester:
                 no_cache_times.append((end_time - start_time) * 1000)
 
         # Now test with cache (make same requests twice)
-        print(f"\nWarming cache...")
+        print("\nWarming cache...")
         # First round to populate cache
         for i in range(num_requests):
             instructor_id = instructor_ids[i % len(instructor_ids)]
@@ -419,11 +419,11 @@ class CachePerformanceTester:
         if availability_response.status_code == 200:
             avail_data = availability_response.json()
 
-            print(f"\nCached keys sample:")
+            print("\nCached keys sample:")
             for key in avail_data.get("top_cached_keys_sample", [])[:5]:
                 print(f"  - {key}")
 
-            print(f"\nRecommendations:")
+            print("\nRecommendations:")
             for rec in avail_data.get("recommendations", []):
                 print(f"  - {rec}")
 
