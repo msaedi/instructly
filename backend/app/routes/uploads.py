@@ -5,7 +5,6 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.params import File, Form
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
@@ -133,7 +132,7 @@ async def proxy_upload_to_r2(
     _db: Session = Depends(get_db),
     asset_service: PersonalAssetService = Depends(get_personal_asset_service),
     app_settings: Settings = Depends(get_settings),
-) -> JSONResponse:
+) -> ProxyUploadResponse:
     """Upload the file server-side for local development to avoid browser CORS issues."""
 
     if app_settings.site_mode != "local":
@@ -148,7 +147,9 @@ async def proxy_upload_to_r2(
     if f"/{current_user.id}/" not in normalized_key:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden object key")
 
-    declared_content_type = (content_type or "").strip().lower() or (file.content_type or "").lower()
+    declared_content_type = (content_type or "").strip().lower() or (
+        file.content_type or ""
+    ).lower()
     if declared_content_type not in _PROXY_ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -177,7 +178,9 @@ async def proxy_upload_to_r2(
         ) from exc
 
     if not ok:
-        logger.error("Proxy upload returned non-success status for %s: %s", normalized_key, status_code)
+        logger.error(
+            "Proxy upload returned non-success status for %s: %s", normalized_key, status_code
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to upload to storage"
         )
@@ -189,7 +192,7 @@ async def proxy_upload_to_r2(
     except Exception:  # pragma: no cover - formatting/logging path
         public_url = None
 
-    return JSONResponse({"ok": True, "url": public_url})
+    return ProxyUploadResponse(ok=True, url=public_url)
 
 
 class FinalizeProfilePictureRequest(BaseModel):
