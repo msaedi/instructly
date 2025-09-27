@@ -26,9 +26,16 @@ on:
       - 'backend/typings/**'
       - '.pre-commit-config.yaml'
       - '.github/workflows/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 
 jobs:
   test:
+    concurrency:
+      group: backend-ci-test-${{ github.ref }}
+      cancel-in-progress: true
     name: Test Backend
     runs-on: ubuntu-latest
 

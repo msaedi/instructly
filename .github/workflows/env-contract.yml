@@ -54,6 +54,9 @@ on:
       - '.github/workflows/**'
       - '.pre-commit-config.yaml'
       - 'frontend/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   smoke:
     runs-on: ubuntu-latest
@@ -96,7 +99,6 @@ jobs:
           set -uo pipefail
           mkdir -p .artifacts
           : > .artifacts/env-contract-evidence.txt
-
           # Parse lines we print from the Playwright test logs
           SITE_MODE=$(grep -Eo '^\[headers\] X-Site-Mode=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
           PHASE=$(grep -E '^\[headers\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*X-Phase=([^ ]+).*/\1/' || true)
