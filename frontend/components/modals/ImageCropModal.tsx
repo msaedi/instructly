@@ -141,6 +141,7 @@ export default function ImageCropModal({
       isOpen={isOpen}
       onClose={onClose}
       title={"Adjust your profile picture"}
+      description="Preview and crop your profile picture before saving"
       size="lg"
       footer={
         <div className="flex justify-end gap-3">

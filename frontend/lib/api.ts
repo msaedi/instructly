@@ -191,6 +191,7 @@ export const API_ENDPOINTS = {
   STRIPE_IDENTITY_SESSION: '/api/payments/identity/session',
   STRIPE_IDENTITY_REFRESH: '/api/payments/identity/refresh',
   R2_SIGNED_UPLOAD: '/api/uploads/r2/signed-url',
+  R2_PROXY_UPLOAD: '/api/uploads/r2/proxy',
   PROFILE_PICTURE_FINALIZE: '/api/users/me/profile-picture',
   PROFILE_PICTURE_URL: (userId: string) => `/api/users/${userId}/profile-picture-url`,
   CONNECT_STATUS: '/api/payments/connect/status',
@@ -395,6 +396,24 @@ export async function createSignedUpload(params: {
   });
   if (!res.ok) throw new Error(await getErrorMessage(res));
   return res.json();
+}
+
+export async function proxyUploadToR2(params: {
+  key: string;
+  file: Blob;
+  contentType: string;
+}): Promise<{ ok: boolean; url?: string | null }>{
+  const formData = new FormData();
+  formData.append('key', params.key);
+  formData.append('content_type', params.contentType);
+  formData.append('file', params.file);
+
+  const res = await fetchWithAuth(API_ENDPOINTS.R2_PROXY_UPLOAD, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res));
+  return res.json() as Promise<{ ok: boolean; url?: string | null }>;
 }
 
 export async function finalizeProfilePicture(object_key: string): Promise<{ success: boolean; message: string }>{

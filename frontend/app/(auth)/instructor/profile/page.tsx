@@ -5,10 +5,11 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, ExternalLink } from 'lucide-react';
-import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
+import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
+import { formatProblemMessages } from '@/lib/httpErrors';
 
 type Profile = {
   first_name: string;
@@ -24,6 +25,14 @@ type Profile = {
 type ServiceAreaItem = { id: string; neighborhood_id?: string; ntacode?: string | null; name?: string | null; borough?: string | null };
 type ServiceAreasResponse = { items: ServiceAreaItem[]; total: number };
 type NYCZipCheck = { is_nyc: boolean; borough?: string | null };
+
+function buildInstructorProfilePayload(profile: Profile) {
+  return {
+    bio: profile.bio.trim(),
+    areas_of_service: profile.areas_of_service,
+    years_experience: Number(profile.years_experience) || 0,
+  };
+}
 
 function toTitle(s: string): string {
   return s
@@ -255,7 +264,8 @@ export default function InstructorProfileSettingsPage() {
     });
   };
 
-  const save = async () => {
+  const save = async (options?: { redirectTo?: string }) => {
+    const redirectTo = options?.redirectTo;
     try {
       setSaving(true);
       setError(null);
@@ -271,20 +281,25 @@ export default function InstructorProfileSettingsPage() {
         });
       }
 
-      const payload = {
-        bio: profile.bio.trim(),
-        areas_of_service: profile.areas_of_service,
-        years_experience: Number(profile.years_experience) || 0,
-        min_advance_booking_hours: profile.min_advance_booking_hours ?? 2,
-        buffer_time_minutes: profile.buffer_time_minutes ?? 0,
-      };
+      const payload = buildInstructorProfilePayload(profile);
       const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        setError(await getErrorMessage(res));
+        let message = `Request failed (${res.status})`;
+        try {
+          const body = await res.json();
+          const messages = formatProblemMessages(body);
+          if (messages.length > 0) {
+            message = messages.join('; ');
+          }
+        } catch (parseError) {
+          logger.warn('Failed to parse instructor profile error response', parseError);
+        }
+        setError(message);
+        toast.error(message);
         return;
       }
 
@@ -337,6 +352,10 @@ export default function InstructorProfileSettingsPage() {
           whiteSpace: 'nowrap'
         }
       });
+
+      if (redirectTo) {
+        router.push(redirectTo);
+      }
     } catch {
       setError('Failed to save profile');
     } finally {
@@ -947,7 +966,7 @@ export default function InstructorProfileSettingsPage() {
             Skip for now
           </button>
           <button
-            onClick={save}
+            onClick={() => { void save({ redirectTo: '/instructor/onboarding/skill-selection' }); }}
             disabled={saving}
             className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm justify-center"
           >

@@ -33,6 +33,11 @@ Restart any running Next.js dev servers after updating hosts.
 - Always export `SITE_MODE=local` for local servers (backend + scripts). Preview/prod site
   modes enforce stricter CSRF/cookie behaviour and require SSL + subdomains.
 
+### R2 uploads (local beta)
+
+- Local beta posts profile-picture files to `/api/uploads/r2/proxy` so the backend pushes to R2; hosted envs keep the direct signed PUT.
+- Optional R2 CORS snippet: allow origin `http://beta-local.instainstru.com:3000`, methods `PUT,GET,HEAD`, and headers `content-type,x-amz-*`.
+
 ## Running the stack
 
 1. Start the backend: `cd backend && uvicorn app.main:app --reload`
