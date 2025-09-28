@@ -957,6 +957,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/beta/invites/verified": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Invite Verified */
+        get: operations["invite_verified_api_beta_invites_verified_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/beta/metrics/summary": {
         parameters: {
             query?: never;
@@ -2735,6 +2752,26 @@ export type paths = {
          * @description Finalize a previously uploaded profile picture: validate, process, version, store.
          */
         post: operations["finalize_profile_picture_api_uploads_r2_finalize_profile_picture_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/uploads/r2/proxy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Proxy Upload To R2
+         * @description Upload the file server-side for local development to avoid browser CORS issues.
+         */
+        post: operations["proxy_upload_to_r2_api_uploads_r2_proxy_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4917,6 +4954,24 @@ export type components = {
             scope: string;
             /** Username */
             username: string;
+        };
+        /** Body_proxy_upload_to_r2_api_uploads_r2_proxy_post */
+        Body_proxy_upload_to_r2_api_uploads_r2_proxy_post: {
+            /**
+             * Content Type
+             * @description Content type reported by the browser
+             */
+            content_type: string;
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+            /**
+             * Key
+             * @description Temporary object key from the signed upload response
+             */
+            key: string;
         };
         /**
          * BookedSlotsResponse
@@ -8020,6 +8075,13 @@ export type components = {
              * @description Search query text
              */
             query: string;
+        };
+        /** ProxyUploadResponse */
+        ProxyUploadResponse: {
+            /** Ok */
+            ok: boolean;
+            /** Url */
+            url?: string | null;
         };
         /**
          * PublicDayAvailability
@@ -11894,8 +11956,10 @@ export interface operations {
     };
     validate_invite_api_beta_invites_validate_get: {
         parameters: {
-            query: {
-                code: string;
+            query?: {
+                code?: string | null;
+                invite_code?: string | null;
+                email?: string | null;
             };
             header?: never;
             path?: never;
@@ -11920,6 +11984,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    invite_verified_api_beta_invites_verified_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -14323,6 +14405,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    proxy_upload_to_r2_api_uploads_r2_proxy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_proxy_upload_to_r2_api_uploads_r2_proxy_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProxyUploadResponse"];
                 };
             };
             /** @description Validation Error */

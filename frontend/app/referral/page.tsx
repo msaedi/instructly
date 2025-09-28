@@ -12,7 +12,7 @@ export default function ReferralLandingPage() {
             Book your first $75+ lesson and get $20 off.
           </h1>
           <p className="mt-6 text-base leading-7 text-gray-600">
-            Join Theta with a friend&rsquo;s link and save {"$"}20 on your first lesson. Book within 30 days and you&rsquo;ll both earn credits for the next session.
+            Join Instainstru with a friend&rsquo;s link and save {"$"}20 on your first lesson. Book within 30 days and you&rsquo;ll both earn credits for the next session.
           </p>
 
           <div className="mt-10 flex flex-col items-start gap-3 sm:flex-row">
@@ -31,7 +31,7 @@ export default function ReferralLandingPage() {
           </div>
 
           <p className="mt-8 text-xs text-gray-500">
-            Referral credits are issued after your first $75+ lesson is completed. FTC disclosure: your friend may receive Theta credits when you book.{' '}
+            Referral credits are issued after your first $75+ lesson is completed. FTC disclosure: your friend may receive Instainstru credits when you book.{' '}
             <Link href="/legal/referrals-terms" className="text-[#7E22CE] underline">
               Terms apply
             </Link>
@@ -50,12 +50,12 @@ export default function ReferralLandingPage() {
                 <span className="font-semibold text-gray-900">2.</span> Book any $75+ lesson within 30 days to unlock {"$"}20 in credits.
               </li>
               <li>
-                <span className="font-semibold text-gray-900">3.</span> Both of you get {"$"}20 in Theta credits for future lessons.
+                <span className="font-semibold text-gray-900">3.</span> Both of you get {"$"}20 in Instainstru credits for future lessons.
               </li>
             </ul>
 
             <div className="mt-8 rounded-2xl bg-purple-50 p-4 text-sm text-purple-900">
-              Already booked with Theta? Share your link from the <Link href="/rewards" className="font-semibold underline">rewards page</Link> and keep the lessons going.
+              Already booked with Instainstru? Share your link from the <Link href="/rewards" className="font-semibold underline">rewards page</Link> and keep the lessons going.
             </div>
           </div>
         </section>

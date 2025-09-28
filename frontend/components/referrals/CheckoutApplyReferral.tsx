@@ -195,7 +195,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
         )}
 
         <p className="text-xs text-gray-500">
-          One referral credit per order. FTC disclosure: when your friend books their first $75+ lesson, you both receive Theta credits.
+          One referral credit per order. FTC disclosure: when your friend books their first $75+ lesson, you both receive Instainstru credits.
         </p>
       </div>
     </section>

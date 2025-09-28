@@ -46,7 +46,7 @@ router = APIRouter(prefix="/api/referrals", tags=["referrals"])
 admin_router = APIRouter(prefix="/api/admin/referrals", tags=["admin", "referrals"])
 public_router = APIRouter(tags=["referrals"])
 
-COOKIE_NAME = "theta_ref"
+COOKIE_NAME = "instainstru_ref"
 COOKIE_MAX_AGE = 30 * 24 * 60 * 60  # 30 days
 EXPIRY_NOTICE_DAYS = [14, 3]
 

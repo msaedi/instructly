@@ -2,14 +2,22 @@
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Optional, cast
-
-from dotenv import load_dotenv
-from pydantic import Field, SecretStr, ValidationInfo, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, cast
 
 if TYPE_CHECKING:
-    pass
+    load_dotenv: Callable[..., bool]
+try:
+    from dotenv import load_dotenv as _real_load_dotenv
+
+    load_dotenv = cast(Callable[..., bool], _real_load_dotenv)
+except Exception:  # pragma: no cover - optional on CI
+
+    def load_dotenv(*_args: Any, **_kwargs: Any) -> bool:
+        return False
+
+
+from pydantic import Field, SecretStr, ValidationInfo, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +232,7 @@ class Settings(BaseSettings):
         default="", description="Mapbox access token for geocoding/search"
     )
 
-    # Referral program configuration (Theta Park Slope beta)
+    # Referral program configuration (Instainstru Park Slope beta)
     referrals_enabled: bool = Field(default=True, description="Enable referral flows")
     referrals_student_amount_cents: int = Field(
         default=2000, description="Reward amount for student-side credits"

@@ -14,7 +14,7 @@ Following v110's engineering guardrails perfection, this session delivered the c
 - **Full Stack Implementation**: Backend services, repositories, APIs, and Celery jobs
 - **User Surfaces**: Rewards Hub, Landing Page, Checkout integration, Share modals
 - **Fraud Protection**: Device/IP hashing, self-referral detection, household tolerance
-- **Attribution System**: Deterministic /r/{slug} tracking with theta_ref cookies
+- **Attribution System**: Deterministic /r/{slug} tracking with instainstru_ref cookies
 - **Wallet Integration**: Credit consumption and fee rebate mechanics working
 - **Admin Controls**: Read-only dashboards, config endpoints, cap management
 
