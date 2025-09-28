@@ -2,14 +2,22 @@
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Optional, cast
-
-from dotenv import load_dotenv
-from pydantic import Field, SecretStr, ValidationInfo, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, cast
 
 if TYPE_CHECKING:
-    pass
+    load_dotenv: Callable[..., bool]
+try:
+    from dotenv import load_dotenv as _real_load_dotenv
+
+    load_dotenv = cast(Callable[..., bool], _real_load_dotenv)
+except Exception:  # pragma: no cover - optional on CI
+
+    def load_dotenv(*_args: Any, **_kwargs: Any) -> bool:
+        return False
+
+
+from pydantic import Field, SecretStr, ValidationInfo, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
