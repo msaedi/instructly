@@ -3,7 +3,13 @@
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import (  # type: ignore[attr-defined]
+    APIRouter,
+    Depends,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.params import File, Form
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session

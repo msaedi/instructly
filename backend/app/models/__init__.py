@@ -19,7 +19,7 @@ from .address import InstructorServiceArea, NYCNeighborhood, UserAddress
 from .availability import AvailabilitySlot, BlackoutDate
 from .booking import Booking, BookingStatus
 from .favorite import UserFavorite
-from .instructor import InstructorProfile
+from .instructor import InstructorPreferredPlace, InstructorProfile
 from .message import Message, MessageNotification
 from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
@@ -52,6 +52,7 @@ __all__ = [
     "UserPermission",
     # Instructor models
     "InstructorProfile",
+    "InstructorPreferredPlace",
     # Service catalog models
     "ServiceCategory",
     "ServiceCatalog",

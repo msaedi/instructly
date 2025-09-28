@@ -61,6 +61,10 @@ Restart any running Next.js dev servers after updating hosts.
 - The service-areas save button is StrictMode safe; double-clicks are ignored while the request is running.
 - To inspect outgoing payloads during development, set `NEXT_PUBLIC_PROFILE_SAVE_DEBUG=1`
   and watch the console for `[PROFILE_DEBUG]` key lists after each profile save.
+- Preferred places: `/instructors/me` exposes `preferred_teaching_locations` (address + optional label)
+  and `preferred_public_spaces`. PUT the same arrays (max two entries each) to persist, or send
+  empty arrays to clear them. The backend currently stores display strings only; `place_id`, `lat`,
+  and `lng` are reserved for future provider integrations.
 
 ## Running the stack
 

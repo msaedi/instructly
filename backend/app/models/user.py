@@ -105,6 +105,14 @@ class User(Base):
 
     instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
 
+    preferred_places = relationship(
+        "InstructorPreferredPlace",
+        back_populates="instructor",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="InstructorPreferredPlace.position",
+    )
+
     # Availability relationships - Single-table design
     availability_slots = relationship(
         "AvailabilitySlot",

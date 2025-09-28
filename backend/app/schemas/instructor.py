@@ -87,6 +87,35 @@ class InstructorFilterParams(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
+class PreferredTeachingLocationIn(BaseModel):
+    """Preferred teaching location input payload."""
+
+    address: str = Field(..., min_length=1, max_length=512)
+    label: str | None = Field(default=None, min_length=1, max_length=64)
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class PreferredPublicSpaceIn(BaseModel):
+    """Preferred public space input payload."""
+
+    address: str = Field(..., min_length=1, max_length=512)
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class PreferredTeachingLocationOut(PreferredTeachingLocationIn):
+    """Preferred teaching location response payload."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PreferredPublicSpaceOut(PreferredPublicSpaceIn):
+    """Preferred public space response payload."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ServiceBase(StandardizedModel):
     """
     Base schema for instructor services.
@@ -366,6 +395,8 @@ class InstructorProfileUpdate(StrictRequestModel):
     buffer_time_minutes: Optional[int] = Field(
         None, ge=0, le=60, description="Buffer time between bookings"
     )
+    preferred_teaching_locations: Optional[List[PreferredTeachingLocationIn]] = Field(default=None)
+    preferred_public_spaces: Optional[List[PreferredPublicSpaceIn]] = Field(default=None)
 
     @field_validator("areas_of_service")
     def validate_areas(cls, v: Optional[List[str]]) -> Optional[List[str]]:
@@ -373,6 +404,22 @@ class InstructorProfileUpdate(StrictRequestModel):
         if v is not None and len(v) > 0:
             unique_areas = list(set(area.strip().title() for area in v if area.strip()))
             return unique_areas if unique_areas else []
+        return v
+
+    @field_validator("preferred_teaching_locations")
+    def validate_preferred_teaching_locations(
+        cls, v: Optional[List[PreferredTeachingLocationIn]]
+    ) -> Optional[List[PreferredTeachingLocationIn]]:
+        if v is not None and len(v) > 2:
+            raise ValueError("preferred_teaching_locations must contain at most two entries")
+        return v
+
+    @field_validator("preferred_public_spaces")
+    def validate_preferred_public_spaces(
+        cls, v: Optional[List[PreferredPublicSpaceIn]]
+    ) -> Optional[List[PreferredPublicSpaceIn]]:
+        if v is not None and len(v) > 2:
+            raise ValueError("preferred_public_spaces must contain at most two entries")
         return v
 
     @field_validator("services")
@@ -415,6 +462,8 @@ class InstructorProfileResponse(InstructorProfileBase):
     background_check_uploaded_at: Optional[datetime] = Field(default=None)
     onboarding_completed_at: Optional[datetime] = Field(default=None)
     is_live: bool = Field(default=False)
+    preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(default_factory=list)
+    preferred_public_spaces: List[PreferredPublicSpaceOut] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -429,6 +478,38 @@ class InstructorProfileResponse(InstructorProfileBase):
         Returns:
             InstructorProfileResponse with privacy-protected user data
         """
+        preferred_places: list[Any] = []
+        if hasattr(instructor_profile, "user") and instructor_profile.user is not None:
+            preferred_places = getattr(instructor_profile.user, "preferred_places", []) or []
+
+        teaching_locations: List[PreferredTeachingLocationOut] = []
+        public_spaces: List[PreferredPublicSpaceOut] = []
+
+        if preferred_places:
+            teaching_sorted = sorted(
+                [p for p in preferred_places if getattr(p, "kind", None) == "teaching_location"],
+                key=lambda place: getattr(place, "position", 0),
+            )
+            public_sorted = sorted(
+                [p for p in preferred_places if getattr(p, "kind", None) == "public_space"],
+                key=lambda place: getattr(place, "position", 0),
+            )
+
+            for place in teaching_sorted:
+                teaching_locations.append(
+                    PreferredTeachingLocationOut(
+                        address=getattr(place, "address", ""),
+                        label=getattr(place, "label", None),
+                    )
+                )
+
+            for place in public_sorted:
+                public_spaces.append(
+                    PreferredPublicSpaceOut(
+                        address=getattr(place, "address", ""),
+                    )
+                )
+
         return cls(
             id=instructor_profile.id,
             user_id=instructor_profile.user_id,
@@ -450,6 +531,8 @@ class InstructorProfileResponse(InstructorProfileBase):
             ),
             onboarding_completed_at=getattr(instructor_profile, "onboarding_completed_at", None),
             is_live=getattr(instructor_profile, "is_live", False),
+            preferred_teaching_locations=teaching_locations,
+            preferred_public_spaces=public_spaces,
         )
 
     @field_validator("areas_of_service", mode="before")

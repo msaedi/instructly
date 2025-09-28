@@ -1,9 +1,22 @@
+import { logger } from '@/lib/logger';
+
+export interface PreferredTeachingLocationPayload {
+  address: string;
+  label?: string;
+}
+
+export interface PreferredPublicSpacePayload {
+  address: string;
+}
+
 export interface InstructorUpdatePayload {
   bio: string;
   areas_of_service: string[];
   years_experience: number;
   min_advance_booking_hours?: number;
   buffer_time_minutes?: number;
+  preferred_teaching_locations?: PreferredTeachingLocationPayload[];
+  preferred_public_spaces?: PreferredPublicSpacePayload[];
 }
 
 export interface AddressCreatePayload {
@@ -33,4 +46,3 @@ export function debugProfilePayload(name: string, payload: unknown): void {
     logger.warn('[PROFILE_DEBUG] failed to inspect payload', { name, error });
   }
 }
-import { logger } from '@/lib/logger';

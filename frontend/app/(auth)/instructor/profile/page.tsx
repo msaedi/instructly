@@ -11,7 +11,12 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { formatProblemMessages } from '@/lib/httpErrors';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
-import { debugProfilePayload } from '@/lib/profileSchemaDebug';
+import {
+  debugProfilePayload,
+  type InstructorUpdatePayload,
+  type PreferredPublicSpacePayload,
+  type PreferredTeachingLocationPayload,
+} from '@/lib/profileSchemaDebug';
 import { submitServiceAreasOnce } from './serviceAreaSubmit';
 
 type Profile = {
@@ -44,7 +49,7 @@ type ServiceAreaItem = {
 type ServiceAreasResponse = { items: ServiceAreaItem[]; total: number };
 type NYCZipCheck = { is_nyc: boolean; borough?: string | null };
 
-function buildInstructorProfilePayload(profile: Profile) {
+function buildInstructorProfilePayload(profile: Profile): InstructorUpdatePayload {
   return {
     bio: profile.bio.trim(),
     areas_of_service: profile.areas_of_service,
@@ -210,6 +215,42 @@ export default function InstructorProfileSettingsPage() {
           buffer_time_minutes: data['buffer_time_minutes'] ?? 0,
         });
 
+        const teachingFromApi = Array.isArray(data?.['preferred_teaching_locations'])
+          ? (data['preferred_teaching_locations'] as Array<Record<string, unknown>>)
+          : [];
+        const teachingTitles: Record<string, string> = {};
+        const teachingAddresses: string[] = [];
+        const seenTeaching = new Set<string>();
+        for (const item of teachingFromApi) {
+          const rawAddress = typeof item?.['address'] === 'string' ? item['address'].trim() : '';
+          if (!rawAddress) continue;
+          const key = rawAddress.toLowerCase();
+          if (seenTeaching.has(key)) continue;
+          seenTeaching.add(key);
+          teachingAddresses.push(rawAddress);
+          const labelValue = typeof item?.['label'] === 'string' ? item['label'].trim() : '';
+          teachingTitles[rawAddress] = labelValue;
+          if (teachingAddresses.length === 2) break;
+        }
+        setPreferredLocations(teachingAddresses);
+        setPreferredLocationTitles(teachingTitles);
+
+        const publicFromApi = Array.isArray(data?.['preferred_public_spaces'])
+          ? (data['preferred_public_spaces'] as Array<Record<string, unknown>>)
+          : [];
+        const publicAddresses: string[] = [];
+        const seenPublic = new Set<string>();
+        for (const item of publicFromApi) {
+          const rawAddress = typeof item?.['address'] === 'string' ? item['address'].trim() : '';
+          if (!rawAddress) continue;
+          const key = rawAddress.toLowerCase();
+          if (seenPublic.has(key)) continue;
+          seenPublic.add(key);
+          publicAddresses.push(rawAddress);
+          if (publicAddresses.length === 2) break;
+        }
+        setNeutralPlaces(publicAddresses);
+
         // Prefill service areas (neighborhoods)
         try {
           const areasRes = await fetchWithAuth('/api/addresses/service-areas/me');
@@ -346,6 +387,40 @@ export default function InstructorProfileSettingsPage() {
       }
 
       const payload = buildInstructorProfilePayload(profile);
+
+      const teachingPayload: PreferredTeachingLocationPayload[] = [];
+      const seenTeaching = new Set<string>();
+      for (const raw of preferredLocations) {
+        const trimmed = raw.trim();
+        if (!trimmed) continue;
+        const key = trimmed.toLowerCase();
+        if (seenTeaching.has(key)) continue;
+        seenTeaching.add(key);
+        const labelSource = preferredLocationTitles[trimmed] ?? preferredLocationTitles[raw] ?? '';
+        const label = labelSource?.trim?.() || '';
+        const entry: PreferredTeachingLocationPayload = { address: trimmed };
+        if (label.length > 0) {
+          entry.label = label;
+        }
+        teachingPayload.push(entry);
+        if (teachingPayload.length === 2) break;
+      }
+
+      const publicPayload: PreferredPublicSpacePayload[] = [];
+      const seenPublic = new Set<string>();
+      for (const raw of neutralPlaces) {
+        const trimmed = raw.trim();
+        if (!trimmed) continue;
+        const key = trimmed.toLowerCase();
+        if (seenPublic.has(key)) continue;
+        seenPublic.add(key);
+        publicPayload.push({ address: trimmed });
+        if (publicPayload.length === 2) break;
+      }
+
+      payload.preferred_teaching_locations = teachingPayload;
+      payload.preferred_public_spaces = publicPayload;
+
       debugProfilePayload('InstructorUpdate', payload);
       const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
         method: 'PUT',

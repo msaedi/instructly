@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .booking_repository import BookingRepository
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
+    from .instructor_preferred_place_repository import InstructorPreferredPlaceRepository
     from .instructor_profile_repository import InstructorProfileRepository
     from .message_repository import MessageRepository
     from .payment_repository import PaymentRepository
@@ -117,6 +118,15 @@ class RepositoryFactory:
         from .instructor_profile_repository import InstructorProfileRepository
 
         return InstructorProfileRepository(db)
+
+    @staticmethod
+    def create_instructor_preferred_place_repository(
+        db: Session,
+    ) -> "InstructorPreferredPlaceRepository":
+        """Create repository for instructor preferred places."""
+        from .instructor_preferred_place_repository import InstructorPreferredPlaceRepository
+
+        return InstructorPreferredPlaceRepository(db)
 
     @staticmethod
     def create_service_catalog_repository(db: Session) -> "ServiceCatalogRepository":
