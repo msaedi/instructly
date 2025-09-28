@@ -58,6 +58,10 @@ Restart any running Next.js dev servers after updating hosts.
 
 - Service areas smoke test: start the backend + frontend locally, then run
   `npm run e2e:local:profile` to verify “select two → save → reload” persistence.
+- Preferred places smoke test (mocked by default): run `npm run e2e:local:places`
+  with no additional services required. To exercise the live API instead, start the
+  frontend on port 3100 and backend on 8000, then run
+  `npm run e2e:local:places:live` (which sets `E2E_APP_ORIGIN`/`E2E_API_ORIGIN`).
 - The service-areas save button is StrictMode safe; double-clicks are ignored while the request is running.
 - To inspect outgoing payloads during development, set `NEXT_PUBLIC_PROFILE_SAVE_DEBUG=1`
   and watch the console for `[PROFILE_DEBUG]` key lists after each profile save.
