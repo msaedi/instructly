@@ -652,10 +652,13 @@ class InstructorService(BaseService):
             services = []
 
         user = getattr(profile, "user", None)
+        preferred_places: Sequence[InstructorPreferredPlace]
         if user is not None and hasattr(user, "preferred_places"):
-            preferred_places: Sequence[InstructorPreferredPlace] = cast(
-                Sequence[InstructorPreferredPlace], user.preferred_places or []
-            )
+            raw_places = getattr(user, "preferred_places", None)
+            try:
+                preferred_places = list(raw_places or [])
+            except TypeError:
+                preferred_places = []
         else:
             preferred_places = self.preferred_place_repository.list_for_instructor(profile.user_id)
 
