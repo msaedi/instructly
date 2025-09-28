@@ -992,6 +992,7 @@ export default function InstructorProfileSettingsPage() {
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <PlacesAutocompleteInput
+                    data-testid="ptl-input"
                     value={preferredAddress}
                     onValueChange={setPreferredAddress}
                     placeholder="Type address..."
@@ -999,6 +1000,7 @@ export default function InstructorProfileSettingsPage() {
                   />
                   <button
                     type="button"
+                    data-testid="ptl-add"
                     onClick={() => {
                       const v = preferredAddress.trim();
                       if (!v) return;
@@ -1015,17 +1017,21 @@ export default function InstructorProfileSettingsPage() {
                 </div>
               </div>
               <div className="min-h-10 flex flex-nowrap items-end gap-4 w-full">
-                {preferredLocations.map((loc) => (
+                {preferredLocations.map((loc, index) => (
                   <div key={loc} className="relative w-1/2 min-w-0">
                     <input
                       type="text"
                       placeholder="..."
+                      data-testid={`ptl-chip-label-${index}`}
                       value={preferredLocationTitles[loc] || ''}
                       onChange={(e) => setPreferredLocationTitles((prev) => ({ ...prev, [loc]: e.target.value }))}
                       className="absolute -top-5 left-1 text-xs text-[#7E22CE] bg-gray-100 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-transparent focus-visible:border-transparent cursor-text"
                       style={{ outline: 'none', outlineOffset: 0, boxShadow: 'none' }}
                     />
-                    <span className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0">
+                    <span
+                      data-testid={`ptl-chip-${index}`}
+                      className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0"
+                    >
                       <span className="truncate min-w-0" title={loc}>{loc}</span>
                       <button
                         type="button"
@@ -1050,6 +1056,7 @@ export default function InstructorProfileSettingsPage() {
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <PlacesAutocompleteInput
+                    data-testid="pps-input"
                     value={neutralLocations}
                     onValueChange={setNeutralLocations}
                     placeholder="Type location..."
@@ -1057,6 +1064,7 @@ export default function InstructorProfileSettingsPage() {
                   />
                   <button
                     type="button"
+                    data-testid="pps-add"
                     onClick={() => {
                       const v = neutralLocations.trim();
                       if (!v) return;
@@ -1073,9 +1081,12 @@ export default function InstructorProfileSettingsPage() {
                 </div>
               </div>
               <div className="min-h-10 flex flex-nowrap items-end gap-4 w-full">
-                {neutralPlaces.map((place) => (
+                {neutralPlaces.map((place, index) => (
                   <div key={place} className="relative w-1/2 min-w-0">
-                    <span className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0">
+                    <span
+                      data-testid={`pps-chip-${index}`}
+                      className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0"
+                    >
                       <span className="truncate min-w-0" title={place}>{place}</span>
                       <button
                         type="button"
