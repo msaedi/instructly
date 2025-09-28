@@ -178,17 +178,28 @@ def list_my_service_areas(
 
 
 @router.get("/places/autocomplete", response_model=AutocompleteResponse)
-def places_autocomplete(q: str) -> AutocompleteResponse:
+def places_autocomplete(q: str, provider: str | None = None) -> AutocompleteResponse:
     """Provider-agnostic autocomplete passthrough.
 
     Uses the configured provider to retrieve suggestions.
     """
     import anyio
 
+    from ..core.config import settings
     from ..services.geocoding.factory import create_geocoding_provider
 
-    provider = create_geocoding_provider()
-    results: list[AutocompleteResult] = anyio.run(provider.autocomplete, q)
+    requested_provider = (provider or settings.geocoding_provider or "google").lower()
+    geocoder = create_geocoding_provider(requested_provider)
+    results: list[AutocompleteResult] = anyio.run(geocoder.autocomplete, q)
+
+    if not results and requested_provider == "google" and settings.mapbox_access_token:
+        fallback = create_geocoding_provider("mapbox")
+        results = anyio.run(fallback.autocomplete, q)
+
+    if not results and requested_provider != "mock":
+        mock_provider = create_geocoding_provider("mock")
+        results = anyio.run(mock_provider.autocomplete, q)
+
     items: list[dict[str, Any]] = [
         {
             "text": r.text,
@@ -202,19 +213,43 @@ def places_autocomplete(q: str) -> AutocompleteResponse:
 
 
 @router.get("/places/details", response_model=PlaceDetails)
-def place_details(place_id: str) -> PlaceDetails:
+def place_details(place_id: str, provider: str | None = None) -> PlaceDetails:
     """Return normalized place details for a selected suggestion.
 
     Frontend uses this to auto-fill form fields without exposing provider payloads.
     """
     import anyio
 
+    from ..core.config import settings
     from ..services.geocoding.factory import create_geocoding_provider
 
-    provider = create_geocoding_provider()
-    result: GeocodedAddress | None = anyio.run(provider.get_place_details, place_id)
+    effective_provider = provider
+    normalized_place_id = place_id
+
+    if effective_provider is None and ":" in place_id:
+        prefix, remainder = place_id.split(":", 1)
+        if prefix in {"google", "mapbox", "mock"} and remainder:
+            effective_provider = prefix
+            normalized_place_id = remainder
+
+    geocoder = create_geocoding_provider(effective_provider)
+    result: GeocodedAddress | None = anyio.run(geocoder.get_place_details, normalized_place_id)
+
+    if not result and effective_provider in {None, "google"} and settings.mapbox_access_token:
+        fallback = create_geocoding_provider("mapbox")
+        result = anyio.run(fallback.get_place_details, normalized_place_id)
+
     if not result:
         raise HTTPException(status_code=404, detail="Place not found")
+    provider_id = result.provider_id
+    if effective_provider:
+        if not provider_id.startswith(f"{effective_provider}:"):
+            provider_id = f"{effective_provider}:{provider_id}" if provider_id else provider_id
+    else:
+        default_provider = (settings.geocoding_provider or "google").lower()
+        if provider_id and not provider_id.startswith(f"{default_provider}:"):
+            provider_id = f"{default_provider}:{provider_id}" if provider_id else provider_id
+
     return PlaceDetails(
         formatted_address=result.formatted_address,
         latitude=result.latitude,
@@ -225,7 +260,7 @@ def place_details(place_id: str) -> PlaceDetails:
         state=result.state,
         postal_code=result.postal_code,
         country=result.country,
-        provider_id=result.provider_id,
+        provider_id=provider_id,
     )
 
 

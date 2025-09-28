@@ -10,6 +10,7 @@ import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { formatProblemMessages } from '@/lib/httpErrors';
+import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 
 type Profile = {
   first_name: string;
@@ -653,9 +654,9 @@ export default function InstructorProfileSettingsPage() {
                           type="button"
                           onClick={() => toggleNeighborhood(nid)}
                           aria-pressed={checked}
-                          className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
-                            checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
+                        className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                          checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
                         >
                           <span className="truncate text-left">{n['name'] || nid}</span>
                           <span className="ml-2">{checked ? '✓' : '+'}</span>
@@ -700,18 +701,25 @@ export default function InstructorProfileSettingsPage() {
                   const isOpen = openBoroughsMain.has(borough);
                   const list = boroughNeighborhoods[borough] || [];
                   return (
-                    <div key={`accordion-${borough}`} ref={(el) => { boroughAccordionRefs.current[borough] = el; }} className="rounded-xl bg-white shadow-sm overflow-hidden">
+                    <div
+                      key={`accordion-${borough}`}
+                      ref={(el) => { boroughAccordionRefs.current[borough] = el; }}
+                      className="rounded-xl bg-white shadow-sm overflow-hidden"
+                    >
                       <div
-                        className="flex items-center justify-between cursor-pointer w-full pl-4 pr-3 md:pl-5 py-2 hover:bg-gray-50 transition-all"
+                        className="flex items-center justify-between cursor-pointer w-full pl-4 pr-3 md:pl-5 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
                         onClick={async () => { await toggleMainBoroughOpen(borough); }}
                         aria-expanded={isOpen}
                         role="button"
                         tabIndex={0}
                         onKeyDown={async (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); await toggleMainBoroughOpen(borough); } }}
                       >
-                        <div className="flex items-center gap-2 text-gray-800 font-medium">
+                        <div className="flex items-center gap-2 text-gray-800 dark:text-gray-100 font-medium">
                           <span className="tracking-wide text-sm">{borough}</span>
-                          <ChevronDown className={`h-4 w-4 text-gray-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                          <ChevronDown
+                            className={`h-4 w-4 text-gray-600 dark:text-gray-300 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                            aria-hidden="true"
+                          />
                         </div>
                         <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
@@ -784,12 +792,11 @@ export default function InstructorProfileSettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
-                  <input
-                    type="text"
+                  <PlacesAutocompleteInput
                     value={preferredAddress}
-                    onChange={(e) => setPreferredAddress(e.target.value)}
+                    onValueChange={setPreferredAddress}
                     placeholder="Type address..."
-                    className="w-full h-10 rounded-md border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:outline-none focus:border-purple-500"
+                    inputClassName="h-10 border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:border-purple-500"
                   />
                   <button
                     type="button"
@@ -843,12 +850,11 @@ export default function InstructorProfileSettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
-                  <input
-                    type="text"
+                  <PlacesAutocompleteInput
                     value={neutralLocations}
-                    onChange={(e) => setNeutralLocations(e.target.value)}
+                    onValueChange={setNeutralLocations}
                     placeholder="Type location..."
-                    className="w-full h-10 rounded-md border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:outline-none focus:border-purple-500"
+                    inputClassName="h-10 border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:border-purple-500"
                   />
                   <button
                     type="button"

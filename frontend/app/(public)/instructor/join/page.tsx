@@ -73,7 +73,7 @@ function JoinInner() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <div className="text-center mb-6">
-            <h1 className="text-4xl font-bold text-primary transition-colors">
+            <h1 className="text-4xl font-bold text-[#7E22CE] transition-colors">
               {BRAND.name}
             </h1>
             <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100 mt-3">
@@ -99,7 +99,7 @@ function JoinInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary hover:!bg-[var(--primary)] hover:!text-white focus:!bg-[var(--primary)] active:!bg-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--primary)] disabled:opacity-50 transform-gpu will-change-transform transition-transform antialiased"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:bg-[#7E22CE] active:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 transform-gpu will-change-transform transition-transform antialiased"
             >
               {submitting ? 'Validating…' : 'Join!'}
             </button>

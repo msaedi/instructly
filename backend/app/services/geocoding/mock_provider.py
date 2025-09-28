@@ -61,8 +61,10 @@ class MockGeocodingProvider(GeocodingProvider):
         return base
 
     async def get_place_details(self, place_id: str) -> Optional[GeocodedAddress]:
+        clean_id = place_id.split(":", 1)[1] if place_id.startswith("mock:") else place_id
         # Simulate a place details lookup; one id intentionally lacks coords (0.0) to trigger fallback
-        if place_id == "mock:needs_fallback":
+        provider_id = f"mock:{clean_id or 'times_square'}"
+        if clean_id == "needs_fallback":
             return GeocodedAddress(
                 latitude=0.0,
                 longitude=0.0,
@@ -74,7 +76,7 @@ class MockGeocodingProvider(GeocodingProvider):
                 postal_code="10036",
                 country="US",
                 neighborhood="Midtown",
-                provider_id=place_id,
+                provider_id=provider_id,
                 provider_data={"source": "mock", "note": "coords missing"},
                 confidence_score=0.8,
             )
@@ -90,7 +92,7 @@ class MockGeocodingProvider(GeocodingProvider):
             postal_code="10036",
             country="US",
             neighborhood="Midtown",
-            provider_id=place_id,
+            provider_id=provider_id,
             provider_data={"source": "mock"},
             confidence_score=0.99,
         )

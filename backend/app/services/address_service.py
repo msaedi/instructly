@@ -47,10 +47,11 @@ class AddressService(BaseService):
         # Enrich via place_id if present
         place_id = data.get("place_id")
         if place_id:
-            geocoder = create_geocoding_provider()
+            provider_override, normalized_place_id = self._resolve_place_id(place_id)
+            geocoder = create_geocoding_provider(provider_override)
             import anyio
 
-            geocoded = anyio.run(geocoder.get_place_details, place_id)
+            geocoded = anyio.run(geocoder.get_place_details, normalized_place_id)
             if geocoded:
                 data.setdefault("latitude", geocoded.latitude)
                 data.setdefault("longitude", geocoded.longitude)
@@ -149,10 +150,11 @@ class AddressService(BaseService):
         # Re-enrich if a new place_id is provided and key fields are missing
         place_id = data.get("place_id")
         if place_id:
-            geocoder = create_geocoding_provider()
+            provider_override, normalized_place_id = self._resolve_place_id(place_id)
+            geocoder = create_geocoding_provider(provider_override)
             import anyio
 
-            geocoded = anyio.run(geocoder.get_place_details, place_id)
+            geocoded = anyio.run(geocoder.get_place_details, normalized_place_id)
             if geocoded:
                 data.setdefault("latitude", geocoded.latitude)
                 data.setdefault("longitude", geocoded.longitude)
@@ -215,6 +217,14 @@ class AddressService(BaseService):
         with self.transaction():
             self.address_repo.update(address_id, is_active=False)
         return True
+
+    @staticmethod
+    def _resolve_place_id(place_id: str) -> tuple[str | None, str]:
+        if ":" in place_id:
+            prefix, remainder = place_id.split(":", 1)
+            if prefix in {"google", "mapbox", "mock"} and remainder:
+                return prefix, remainder
+        return None, place_id
 
     # Instructor service areas
     @BaseService.measure_operation("list_service_areas")

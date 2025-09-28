@@ -1,11 +1,15 @@
 """Google Maps geocoding provider."""
 
+import logging
 from typing import Any, List, Optional
 
 import httpx
 
 from ...core.config import settings
 from .base import AutocompleteResult, GeocodedAddress, GeocodingProvider
+from .mapbox_provider import MapboxProvider
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleMapsProvider(GeocodingProvider):
@@ -49,19 +53,31 @@ class GoogleMapsProvider(GeocodingProvider):
             if resp.status_code != 200:
                 return []
             data = resp.json()
+            status = data.get("status")
             results: List[AutocompleteResult] = []
             for p in data.get("predictions", []):
                 results.append(
                     AutocompleteResult(
                         text=p.get("structured_formatting", {}).get("main_text", ""),
-                        place_id=p.get("place_id", ""),
+                        place_id=self._add_prefix(p.get("place_id", "")),
                         description=p.get("description", ""),
                         types=p.get("types", []),
                     )
                 )
-            return results
+            if results or status in {"OK", "ZERO_RESULTS"}:
+                return results
+
+            # Attempt graceful fallback to Mapbox when Google denies the request (e.g. disabled key)
+            logger.warning(
+                "Google Places autocomplete returned status %s; attempting Mapbox fallback", status
+            )
+            if settings.mapbox_access_token:
+                fallback = MapboxProvider()
+                return await fallback.autocomplete(query, session_token)
+            return []
 
     async def get_place_details(self, place_id: str) -> Optional[GeocodedAddress]:
+        clean_id = self._strip_prefix(place_id)
         async with httpx.AsyncClient(timeout=10) as client:
             # Use correct field names per Google Places Details API
             # https://developers.google.com/maps/documentation/places/web-service/details
@@ -69,7 +85,7 @@ class GoogleMapsProvider(GeocodingProvider):
             resp = await client.get(
                 f"{self.base_url}/place/details/json",
                 params={
-                    "place_id": place_id,
+                    "place_id": clean_id,
                     "key": self.api_key,
                     "fields": fields,
                 },
@@ -107,6 +123,7 @@ class GoogleMapsProvider(GeocodingProvider):
                     if raw_country.lower() in {"united states", "united states of america", "usa"}
                     else raw_country[:2].upper()
                 )
+        provider_id = self._add_prefix(result.get("place_id", ""))
         return GeocodedAddress(
             latitude=loc.get("lat", 0.0),
             longitude=loc.get("lng", 0.0),
@@ -118,7 +135,19 @@ class GoogleMapsProvider(GeocodingProvider):
             postal_code=comps.get("postal_code"),
             country=country_code or comps.get("country"),
             neighborhood=comps.get("neighborhood"),
-            provider_id=result.get("place_id", ""),
+            provider_id=provider_id,
             provider_data=result,
             confidence_score=1.0,
         )
+
+    @staticmethod
+    def _add_prefix(place_id: str) -> str:
+        if not place_id:
+            return ""
+        return place_id if place_id.startswith("google:") else f"google:{place_id}"
+
+    @staticmethod
+    def _strip_prefix(place_id: str) -> str:
+        if place_id.startswith("google:"):
+            return place_id.split(":", 1)[1]
+        return place_id

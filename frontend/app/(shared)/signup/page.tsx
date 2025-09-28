@@ -105,6 +105,15 @@ function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [postSignupRedirect, setPostSignupRedirect] = useState<{ target: string; expectedUserId: string } | null>(null);
 
+  const clearFieldError = (field: keyof FormErrors) => {
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const nextErrors = { ...prev };
+      delete nextErrors[field];
+      return nextErrors;
+    });
+  };
+
   useEffect(() => {
     if (!postSignupRedirect) return;
     if (typeof window === 'undefined') return;
@@ -153,33 +162,7 @@ function SignUpForm() {
       [name]: nextValue,
     }));
 
-    // Field-specific live validation and error updates
-    if (name === 'phone') {
-      const cleaned = nextValue.replace(/\D/g, '');
-      const invalid = nextValue.trim().length > 0 && cleaned.length !== 10;
-      setErrors((prev) => ({
-        ...prev,
-        ...(invalid ? { phone: 'Please enter a valid phone number' } : {}),
-      }));
-    } else if (name === 'zipCode') {
-      const len = nextValue.length;
-      const invalidLen = len > 0 && len < 5;
-      setErrors((prev) => ({
-        ...prev,
-        // Show generic hint while typing; preserve NYC error if present
-        ...(invalidLen
-          ? { zipCode: 'Please enter a valid ZIP code' }
-          : prev.zipCode === 'Please enter a valid ZIP code' ? {} : { zipCode: prev.zipCode }),
-      }));
-    } else {
-      // Clear error for this field when user types
-      if (errors[name as keyof FormErrors]) {
-        setErrors((prev) => ({
-          ...prev,
-          [name]: undefined,
-        }));
-      }
-    }
+    clearFieldError(name as keyof FormErrors);
   };
 
   // Validate email on blur (not on first keystroke)
@@ -187,10 +170,7 @@ function SignUpForm() {
     const value = (e.target.value || '').trim();
     if (!value) {
       // Do not show "required" on blur; defer to submit
-      setErrors((prev) => {
-        const { email, ...rest } = prev;
-        return rest;
-      });
+      clearFieldError('email');
       return;
     }
     const invalid = !/\S+@\S+\.\S+/.test(value);
@@ -198,24 +178,50 @@ function SignUpForm() {
       if (invalid) {
         return { ...prev, email: 'Please enter a valid email' };
       }
-      const { email, ...rest } = prev;
-      return rest;
+      const nextErrors = { ...prev };
+      delete nextErrors.email;
+      return nextErrors;
     });
+  };
+
+  const handlePhoneBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = e.target.value || '';
+    const cleaned = value.replace(/\D/g, '');
+    if (!cleaned) {
+      clearFieldError('phone');
+      return;
+    }
+    if (cleaned.length !== 10) {
+      setErrors((prev) => ({ ...prev, phone: 'Please enter a valid phone number' }));
+      return;
+    }
+    clearFieldError('phone');
   };
 
   // Validate ZIP against backend NYC checker for instructor flow
   const handleZipBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
     const value = (e.target.value || '').trim();
-    if (value.length !== 5) return;
+    if (!value) {
+      clearFieldError('zipCode');
+      return;
+    }
+
+    if (value.length !== 5) {
+      setErrors((prev) => ({ ...prev, zipCode: 'Please enter a valid ZIP code' }));
+      return;
+    }
+
+    if (!isInstructorFlow) {
+      clearFieldError('zipCode');
+      return;
+    }
+
     try {
       const res = await checkIsNYCZip(value);
-      if (isInstructorFlow && !res.is_nyc) {
+      if (!res.is_nyc) {
         setErrors((prev) => ({ ...prev, zipCode: 'Please enter a New York City ZIP code' }));
       } else {
-        setErrors((prev) => ({
-          ...prev,
-          ...(prev.zipCode && prev.zipCode.startsWith('Please enter a New York City') ? {} : { zipCode: prev.zipCode }),
-        }));
+        clearFieldError('zipCode');
       }
     } catch {
       // Network or parsing error: do not block; keep existing validation
@@ -584,7 +590,7 @@ function SignUpForm() {
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
               <div className="mt-1">
-                <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder="(555) 555-5555" value={formData.phone} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} />
+                <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder="(555) 555-5555" value={formData.phone} onChange={handleChange} onBlur={handlePhoneBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} />
                 {errors.phone && (<p id="phone-error" role="alert" aria-live="polite" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.phone}</p>)}
               </div>
             </div>

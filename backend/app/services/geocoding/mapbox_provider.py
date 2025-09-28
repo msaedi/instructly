@@ -66,7 +66,7 @@ class MapboxProvider(GeocodingProvider):
                 results.append(
                     AutocompleteResult(
                         text=f.get("text", ""),
-                        place_id=f.get("id", ""),
+                        place_id=self._add_prefix(f.get("id", "")),
                         description=f.get("place_name", ""),
                         types=[t for t in (f.get("place_type") or [])],
                     )
@@ -75,8 +75,9 @@ class MapboxProvider(GeocodingProvider):
 
     async def get_place_details(self, place_id: str) -> Optional[GeocodedAddress]:
         # Mapbox allows fetching by feature id using the same geocoding endpoint
+        clean_id = self._strip_prefix(place_id)
         async with httpx.AsyncClient(timeout=10) as client:
-            encoded = quote(place_id, safe=".")
+            encoded = quote(clean_id, safe=".")
             resp = await client.get(
                 f"{self.base_url}/geocoding/v5/mapbox.places/{encoded}.json",
                 params={"access_token": self.access_token},
@@ -109,6 +110,7 @@ class MapboxProvider(GeocodingProvider):
                 if raw_country.lower() in {"united states", "united states of america", "usa"}
                 else raw_country[:2].upper()
             )
+        provider_id = self._add_prefix(feature.get("id", ""))
         return GeocodedAddress(
             latitude=lat,
             longitude=lng,
@@ -120,7 +122,19 @@ class MapboxProvider(GeocodingProvider):
             postal_code=postal,
             country=country,
             neighborhood=neighborhood,
-            provider_id=feature.get("id", ""),
+            provider_id=provider_id,
             provider_data=feature,
             confidence_score=float(feature.get("relevance", 1.0)),
         )
+
+    @staticmethod
+    def _add_prefix(place_id: str) -> str:
+        if not place_id:
+            return ""
+        return place_id if place_id.startswith("mapbox:") else f"mapbox:{place_id}"
+
+    @staticmethod
+    def _strip_prefix(place_id: str) -> str:
+        if place_id.startswith("mapbox:"):
+            return place_id.split(":", 1)[1]
+        return place_id

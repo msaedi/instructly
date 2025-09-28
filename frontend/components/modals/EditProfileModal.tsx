@@ -9,6 +9,7 @@ import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import type { InstructorService } from '@/features/shared/api/types';
+import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 type EditableService = Partial<InstructorService> & { hourly_rate?: number; description?: string | null; skill?: string };
 
 // Simple address type for profile editing
@@ -935,12 +936,11 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
-                        <input
-                          type="text"
+                        <PlacesAutocompleteInput
                           value={preferredAddress}
-                          onChange={(e) => setPreferredAddress(e.target.value)}
+                          onValueChange={setPreferredAddress}
                           placeholder="Type address..."
-                          className="w-full h-10 rounded-md border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:outline-none focus:border-purple-500"
+                          inputClassName="h-10 border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:border-purple-500"
                         />
                         <button
                           type="button"
@@ -994,12 +994,11 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
-                        <input
-                          type="text"
+                        <PlacesAutocompleteInput
                           value={neutralLocationInput}
-                          onChange={(e) => setNeutralLocationInput(e.target.value)}
+                          onValueChange={setNeutralLocationInput}
                           placeholder="Type location..."
-                          className="w-full h-10 rounded-md border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:outline-none focus:border-purple-500"
+                          inputClassName="h-10 border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:border-purple-500"
                         />
                         <button
                           type="button"

@@ -408,8 +408,7 @@ Examples:
                 fail("Cannot seed mock users in prod!")
             seed_mock_users(db_url, args.dry_run, mode)
         if args.seed_all:
-            # only non-prod paths fall here
-            seed_system_data(db_url, args.dry_run, mode)
+            # only non-prod paths fall here; seed_mock_users triggers system seeding internally
             seed_mock_users(db_url, args.dry_run, mode)
 
         # Post-seed ops (always run after any seeding or migration when not dry-run)
