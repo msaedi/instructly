@@ -52,6 +52,7 @@ from ..services.cache_service import CacheService
 from ..services.conflict_checker import ConflictChecker
 from ..services.email import EmailService
 from ..services.instructor_service import InstructorService
+from ..utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/public", tags=["public"])
@@ -148,7 +149,7 @@ def public_logout(response_obj: Response, request: Request) -> Response:
 
     site_mode = (_os.getenv("SITE_MODE", "").lower().strip()) or "local"
     cookie_kwargs: Dict[str, Union[str, bool]] = {"path": "/"}
-    if site_mode in {"preview", "prod", "production", "live"}:
+    if site_mode in {"preview", "prod", "production", "live", "beta"}:
         cookie_kwargs["secure"] = True
         cookie_kwargs["domain"] = ".instainstru.com"
 
@@ -156,12 +157,23 @@ def public_logout(response_obj: Response, request: Request) -> Response:
     # Clear guest cookie
     resp.delete_cookie("guest_id", **cookie_kwargs)
     # Clear session cookies by env
-    if site_mode == "preview":
-        resp.delete_cookie("sid_preview", **cookie_kwargs)
-    elif site_mode in {"prod", "production", "live"}:
-        resp.delete_cookie("sid_prod", **cookie_kwargs)
-    else:
-        resp.delete_cookie("access_token", **cookie_kwargs)
+    session_names = session_cookie_candidates(site_mode)
+    if session_names:
+        resp.delete_cookie(session_names[0], path="/")
+
+    if site_mode in {"preview", "prod", "production", "live", "beta"} and len(session_names) > 1:
+        legacy_kwargs: Dict[str, Union[str, bool]] = {"path": "/", "domain": ".instainstru.com"}
+        legacy_kwargs["secure"] = True
+        resp.delete_cookie(session_names[-1], **legacy_kwargs)
+        # Also clear any lingering preview/prod cookie variants for safety
+        for legacy_name in session_names[1:-1]:
+            resp.delete_cookie(legacy_name, **legacy_kwargs)
+    elif (
+        site_mode not in {"preview", "prod", "production", "live", "beta"}
+        and len(session_names) > 1
+    ):
+        for legacy_name in session_names[1:]:
+            resp.delete_cookie(legacy_name, path="/")
     return resp
 
 

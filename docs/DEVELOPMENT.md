@@ -38,6 +38,22 @@ Restart any running Next.js dev servers after updating hosts.
 - Local beta posts profile-picture files to `/api/uploads/r2/proxy` so the backend pushes to R2; hosted envs keep the direct signed PUT.
 - Optional R2 CORS snippet: allow origin `http://beta-local.instainstru.com:3000`, methods `PUT,GET,HEAD`, and headers `content-type,x-amz-*`.
 
+## Session cookies & auth flow
+
+- Authentication cookies are always set by the FastAPI backend and are host-only. Hosted
+  deployments (preview/beta/prod) use the `__Host-` prefix with `Secure`, `Path=/`, and no
+  `Domain` attribute so cookies scope strictly to the API origin.
+- Legacy `.instainstru.com` cookies are expired during the migration window; the server
+  still accepts them as a fallback until the rollout completes.
+- Local development keeps the original cookie names (no prefix, `Secure=false`) while still
+  omitting the `Domain` attribute so localhost and beta-local remain isolated.
+- Frontend code never proxies auth in hosted environments; `fetchWithAuth` / `http` resolve
+  requests to `NEXT_PUBLIC_API_BASE`, and `/api/proxy` is gated behind
+  `NEXT_PUBLIC_USE_PROXY=true` with `APP_ENV=local`.
+- CORS middleware is registered before router includes so 401/403 responses expose
+  `Access-Control-Allow-Origin` / `Access-Control-Allow-Credentials`, avoiding opaque
+  “network error” messages during auth debugging.
+
 ## Running the stack
 
 1. Start the backend: `cd backend && uvicorn app.main:app --reload`

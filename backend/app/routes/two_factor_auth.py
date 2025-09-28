@@ -10,6 +10,11 @@ from app.database import get_db
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
 from app.services.auth_service import AuthService
 from app.services.two_factor_auth_service import TwoFactorAuthService
+from app.utils.cookies import (
+    expire_parent_domain_cookie,
+    session_cookie_base_name,
+    set_session_cookie,
+)
 
 from ..api.dependencies.services import get_auth_service
 from ..schemas.security import (
@@ -175,6 +180,20 @@ def verify_login(
     # Issue final access token
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(data={"sub": user.email}, expires_delta=access_token_expires)
+    # Write session cookie (API host only)
+    site_mode = settings.site_mode
+    base_cookie_name = session_cookie_base_name(site_mode)
+
+    set_session_cookie(
+        response,
+        base_cookie_name,
+        access_token,
+        max_age=settings.access_token_expire_minutes * 60,
+    )
+
+    if site_mode != "local":
+        expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
+
     # Optionally set a trust cookie if client requested trust (header flag)
     trust_header = request.headers.get("X-Trust-Browser", "false").lower() == "true"
     if trust_header:

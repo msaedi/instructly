@@ -21,6 +21,14 @@ type Profile = {
   years_experience: number;
   min_advance_booking_hours?: number;
   buffer_time_minutes?: number;
+  street_line1?: string;
+  street_line2?: string;
+  locality?: string;
+  administrative_area?: string;
+  country_code?: string;
+  place_id?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 type ServiceAreaItem = { id: string; neighborhood_id?: string; ntacode?: string | null; name?: string | null; borough?: string | null };
@@ -35,6 +43,48 @@ function buildInstructorProfilePayload(profile: Profile) {
     min_advance_booking_hours: profile.min_advance_booking_hours ?? 2,
     buffer_time_minutes: profile.buffer_time_minutes ?? 0,
   };
+}
+
+type InstructorAddressPayload = {
+  street_line1: string;
+  street_line2?: string;
+  locality: string;
+  administrative_area: string;
+  postal_code: string;
+  country_code: string;
+  is_default: boolean;
+  place_id?: string;
+  latitude?: number;
+  longitude?: number;
+};
+
+function buildInstructorAddressPayload(profile: Profile): InstructorAddressPayload | null {
+  const streetLine1 = profile.street_line1?.trim();
+  const locality = profile.locality?.trim();
+  const administrativeArea = profile.administrative_area?.trim();
+  const postalCode = profile.postal_code?.trim();
+
+  if (!streetLine1 || !locality || !administrativeArea || !postalCode) {
+    return null;
+  }
+
+  const payload: InstructorAddressPayload = {
+    street_line1: streetLine1,
+    locality,
+    administrative_area: administrativeArea,
+    postal_code: postalCode,
+    country_code: profile.country_code?.trim() || 'US',
+    is_default: true,
+  };
+
+  const streetLine2 = profile.street_line2?.trim();
+  if (streetLine2) payload.street_line2 = streetLine2;
+  const placeId = profile.place_id?.trim();
+  if (placeId) payload.place_id = placeId;
+  if (typeof profile.latitude === 'number') payload.latitude = profile.latitude;
+  if (typeof profile.longitude === 'number') payload.longitude = profile.longitude;
+
+  return payload;
 }
 
 function toTitle(s: string): string {
@@ -306,7 +356,21 @@ export default function InstructorProfileSettingsPage() {
         return;
       }
 
-      // If ZIP changed, update default address postal_code
+      const deriveErrorMessage = async (resp: Response, fallback: string) => {
+        try {
+          const body = await resp.clone().json();
+          const messages = formatProblemMessages(body);
+          if (messages.length > 0) {
+            return messages.join('; ');
+          }
+        } catch (parseError) {
+          logger.warn('Failed to parse address error response', parseError instanceof Error ? parseError : undefined);
+        }
+        return fallback;
+      };
+
+      const addressPayload = buildInstructorAddressPayload(profile);
+
       try {
         const addrRes = await fetchWithAuth('/api/addresses/me');
         if (addrRes.ok) {
@@ -317,22 +381,54 @@ export default function InstructorProfileSettingsPage() {
             const currentZip = def['postal_code'] || '';
             const newZip = (profile.postal_code || '').trim();
             if (newZip && newZip !== currentZip) {
-              await fetchWithAuth(`/api/addresses/me/${def['id']}`, {
+              const patchRes = await fetchWithAuth(`/api/addresses/me/${def['id']}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ postal_code: newZip }),
               });
+              if (!patchRes.ok) {
+                const message = await deriveErrorMessage(patchRes, `Request failed (${patchRes.status})`);
+                setError(message);
+                toast.error(message);
+                return;
+              }
             }
-          } else if ((profile.postal_code || '').trim()) {
-            // No address exists yet—create one with ZIP only
-            await fetchWithAuth('/api/addresses/me', {
+          } else if (addressPayload) {
+            const createRes = await fetchWithAuth('/api/addresses/me', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ postal_code: (profile.postal_code || '').trim(), is_default: true }),
+              body: JSON.stringify(addressPayload),
             });
+            if (!createRes.ok) {
+              const message = await deriveErrorMessage(createRes, `Request failed (${createRes.status})`);
+              setError(message);
+              toast.error(message);
+              return;
+            }
           }
+        } else if (addrRes.status === 404) {
+          if (addressPayload) {
+            const createRes = await fetchWithAuth('/api/addresses/me', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(addressPayload),
+            });
+            if (!createRes.ok) {
+              const message = await deriveErrorMessage(createRes, `Request failed (${createRes.status})`);
+              setError(message);
+              toast.error(message);
+              return;
+            }
+          }
+        } else {
+          const message = await deriveErrorMessage(addrRes, `Request failed (${addrRes.status})`);
+          setError(message);
+          toast.error(message);
+          return;
         }
-      } catch {}
+      } catch (addressError) {
+        logger.warn('Failed to sync address during profile save', addressError instanceof Error ? addressError : undefined);
+      }
 
       // Persist service areas
       try {

@@ -167,7 +167,7 @@ export async function cleanFetch<T>(
         ...getAnalyticsHeaders(),
         ...((fetchOptions.headers as Record<string, string>) || {}),
       },
-      // Always include credentials so cookies (sid_preview/sid_prod) are sent
+      // Always include credentials so session cookies (__Host-sid_*) are sent
       credentials: fetchOptions?.credentials ?? 'include',
     });
 
