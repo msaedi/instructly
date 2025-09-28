@@ -470,7 +470,16 @@ class DatabaseSeeder:
     def create_availability(self):
         """Create availability slots based on patterns"""
         instructors = self.loader.get_instructors()
-        weeks_ahead = self.loader.config.get("settings", {}).get("weeks_of_availability", 4)
+        settings_cfg = self.loader.config.get("settings", {})
+        weeks_future = settings_cfg.get("availability_weeks_future")
+        weeks_past = settings_cfg.get("availability_weeks_past")
+
+        # Backwards compat: fall back to legacy single setting
+        if weeks_future is None:
+            legacy_weeks = settings_cfg.get("weeks_of_availability", 4)
+            weeks_future = legacy_weeks
+        if weeks_past is None:
+            weeks_past = 0
 
         with Session(self.engine) as session:
             for instructor_data in instructors:
@@ -490,10 +499,11 @@ class DatabaseSeeder:
                 days_data = pattern.get("days", {})
 
                 # Create availability for the next N weeks
-                for week in range(weeks_ahead):
+                # Generate slots for past weeks (if configured), current week, and future weeks
+                for week_offset in range(-weeks_past, weeks_future + 1):
                     for day_name, time_slots in days_data.items():
                         # Calculate the date for this day
-                        target_date = self._get_date_for_day(day_name, week)
+                        target_date = self._get_date_for_day(day_name, week_offset)
 
                         for time_range in time_slots:
                             start_time = time(*[int(x) for x in time_range[0].split(":")])
@@ -514,14 +524,15 @@ class DatabaseSeeder:
 
         print("✅ Created availability patterns for all instructors")
 
-    def _get_date_for_day(self, day_name, weeks_ahead):
-        """Calculate the date for a given day name and weeks ahead"""
+    def _get_date_for_day(self, day_name: str, week_offset: int) -> date:
+        """Return the calendar date for a given day name within the week offset."""
         days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        day_index = days.index(day_name.lower())
+
         today = date.today()
-        days_ahead = days.index(day_name.lower()) - today.weekday()
-        if days_ahead <= 0:
-            days_ahead += 7
-        return today + timedelta(days=days_ahead + (weeks_ahead * 7))
+        start_of_week = today - timedelta(days=today.weekday())  # Monday of the current week
+        target_week_start = start_of_week + timedelta(weeks=week_offset)
+        return target_week_start + timedelta(days=day_index)
 
     def _day_name_to_number(self, day_name):
         """Convert day name to number (0=Monday, 6=Sunday)"""
@@ -530,7 +541,9 @@ class DatabaseSeeder:
 
     def create_bookings(self):
         """Create sample bookings for testing"""
-        booking_days_ahead = self.loader.config.get("settings", {}).get("booking_days_ahead", 7)
+        settings_cfg = self.loader.config.get("settings", {})
+        booking_days_future = settings_cfg.get("booking_days_future", settings_cfg.get("booking_days_ahead", 7))
+        booking_days_past = settings_cfg.get("booking_days_past", 21)
 
         with Session(self.engine) as session:
             # Get all students
@@ -590,7 +603,7 @@ class DatabaseSeeder:
                         .filter(
                             AvailabilitySlot.instructor_id == instructor_id,
                             AvailabilitySlot.specific_date >= date.today(),
-                            AvailabilitySlot.specific_date <= date.today() + timedelta(days=booking_days_ahead),
+                            AvailabilitySlot.specific_date <= date.today() + timedelta(days=booking_days_future),
                         )
                         .all()
                     )
@@ -602,7 +615,7 @@ class DatabaseSeeder:
                     slot = random.choice(slots)
 
                     # Calculate end time based on duration
-                    start_datetime = datetime.combine(date.today(), slot.start_time)
+                    start_datetime = datetime.combine(slot.specific_date, slot.start_time)
                     end_datetime = start_datetime + timedelta(minutes=duration)
 
                     # Make sure booking doesn't exceed slot end time
@@ -653,12 +666,12 @@ class DatabaseSeeder:
             print(f"✅ Created {booking_count} sample bookings")
 
             # Create historical bookings for suspended/deactivated instructors
-            self._create_historical_bookings_for_inactive_instructors(session)
+            self._create_historical_bookings_for_inactive_instructors(session, booking_days_past)
 
             # Create completed bookings for active students (for testing Book Again)
-            self._create_completed_bookings_for_active_students(session)
+        self._create_completed_bookings_for_active_students(session, booking_days_past)
 
-    def _create_historical_bookings_for_inactive_instructors(self, session):
+    def _create_historical_bookings_for_inactive_instructors(self, session, booking_days_past: int):
         """Create past bookings for suspended/deactivated instructors for testing"""
         historical_count = 0
 
@@ -711,7 +724,7 @@ class DatabaseSeeder:
                 duration = random.choice(service.duration_options)
 
                 # Create a booking from 1-4 weeks ago
-                days_ago = random.randint(7, 28)
+                days_ago = random.randint(7, max(7, booking_days_past))
                 booking_date = date.today() - timedelta(days=days_ago)
 
                 # Random time between 10 AM and 6 PM
@@ -743,7 +756,7 @@ class DatabaseSeeder:
         if historical_count > 0:
             print(f"  📚 Created {historical_count} historical bookings for inactive instructors")
 
-    def _create_completed_bookings_for_active_students(self, session):
+    def _create_completed_bookings_for_active_students(self, session, booking_days_past: int):
         """Create completed bookings for active students with active instructors (for testing Book Again)"""
         completed_count = 0
 
@@ -801,7 +814,7 @@ class DatabaseSeeder:
                 duration = random.choice(service.duration_options)
 
                 # Create a booking from 1-8 weeks ago (in the past)
-                days_ago = random.randint(7, 56)
+                days_ago = random.randint(7, max(7, booking_days_past))
                 booking_date = date.today() - timedelta(days=days_ago)
 
                 # Random time between 10 AM and 6 PM

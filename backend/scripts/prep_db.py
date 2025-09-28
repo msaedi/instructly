@@ -315,6 +315,10 @@ Examples:
 
   SITE_MODE=preview python scripts/prep_db.py --migrate --seed-all
   SITE_MODE=prod    python scripts/prep_db.py --migrate --seed-all --force --yes
+
+  # Seed with additional mock data windows (overrides config defaults)
+  python backend/scripts/prep_db.py int --seed-all --set availability_weeks_future=6 --set availability_weeks_past=2
+  python backend/scripts/prep_db.py stg --seed-all --set booking_days_future=10 --set booking_days_past=30
 """
         ),
     )

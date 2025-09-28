@@ -1,7 +1,9 @@
 settings:
   default_password: "Test1234"
-  weeks_of_availability: 4
-  booking_days_ahead: 7
+  availability_weeks_future: 4   # weeks ahead (in addition to the current week)
+  availability_weeks_past: 1     # weeks behind today to keep for context
+  booking_days_future: 7         # window for upcoming bookings
+  booking_days_past: 21          # how far back to generate historical bookings
 
 categories:
   # Define instructor categories for easy reference

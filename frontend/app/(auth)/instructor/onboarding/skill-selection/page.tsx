@@ -126,6 +126,40 @@ function Step3SkillsPricingInner() {
     };
   }, [isAuthenticated, user]);
 
+  useEffect(() => {
+    if (selected.length === 0) return;
+    if (!servicesByCategory || Object.keys(servicesByCategory).length === 0) return;
+
+    const lookup = new Map<string, string>();
+    Object.values(servicesByCategory).forEach((services) => {
+      services.forEach((svc) => {
+        if (!lookup.has(svc.id)) {
+          lookup.set(svc.id, svc.name);
+        }
+      });
+    });
+
+    setSelected((prev) => {
+      let mutated = false;
+      const next = prev.map((svc) => {
+        if (svc.name && svc.name.trim().length > 0) {
+          return svc;
+        }
+        const resolvedName = lookup.get(svc.catalog_service_id);
+        if (resolvedName && resolvedName.trim().length > 0) {
+          mutated = true;
+          return { ...svc, name: resolvedName };
+        }
+        if (!svc.name || svc.name.trim().length === 0) {
+          mutated = true;
+          return { ...svc, name: 'Unknown Service' };
+        }
+        return svc;
+      });
+      return mutated ? next : prev;
+    });
+  }, [servicesByCategory, selected.length]);
+
   const toggleService = (svc: CatalogService) => {
     const isSelected = selected.some((s) => s.catalog_service_id === svc.id);
 
