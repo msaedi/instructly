@@ -34,6 +34,11 @@ from ..services.auth_service import AuthService
 from ..services.beta_service import BetaService
 from ..services.permission_service import PermissionService
 from ..services.search_history_service import SearchHistoryService
+from ..utils.cookies import (
+    expire_parent_domain_cookie,
+    session_cookie_base_name,
+    set_session_cookie,
+)
 from ..utils.invite_cookie import invite_cookie_name
 
 logger = logging.getLogger(__name__)
@@ -226,25 +231,19 @@ async def login(
         expires_delta=access_token_expires,
     )
 
-    # Set cookie for SSE authentication
-    import os as _os
+    # Set cookie for SSE authentication (API-host only)
+    site_mode = settings.site_mode
+    base_cookie_name = session_cookie_base_name(site_mode)
 
-    _site_mode = _os.getenv("SITE_MODE", "").lower().strip()
-    _cookie_name = (
-        "sid_preview"
-        if _site_mode == "preview"
-        else ("sid_prod" if _site_mode in {"prod", "production", "live"} else "access_token")
-    )
-    response.set_cookie(
-        key=_cookie_name,
-        value=access_token,
-        httponly=True,
-        secure=True if _site_mode in {"prod", "preview"} else settings.environment == "production",
-        samesite="lax",
+    set_session_cookie(
+        response,
+        base_cookie_name,
+        access_token,
         max_age=settings.access_token_expire_minutes * 60,
-        domain=".instainstru.com" if _site_mode in {"prod", "preview"} else None,
-        path="/",
     )
+
+    if site_mode != "local":
+        expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
 
     return LoginResponse(access_token=access_token, token_type="bearer", requires_2fa=False)
 
@@ -353,25 +352,19 @@ async def login_with_session(
         expires_delta=access_token_expires,
     )
 
-    # Set cookie for SSE authentication
-    import os as _os2
+    # Set cookie for SSE authentication (API-host only)
+    site_mode = settings.site_mode
+    base_cookie_name = session_cookie_base_name(site_mode)
 
-    _site_mode2 = _os2.getenv("SITE_MODE", "").lower().strip()
-    _cookie_name2 = (
-        "sid_preview"
-        if _site_mode2 == "preview"
-        else ("sid_prod" if _site_mode2 in {"prod", "production", "live"} else "access_token")
-    )
-    response.set_cookie(
-        key=_cookie_name2,
-        value=access_token,
-        httponly=True,
-        secure=True if _site_mode2 in {"prod", "preview"} else settings.environment == "production",
-        samesite="lax",
+    set_session_cookie(
+        response,
+        base_cookie_name,
+        access_token,
         max_age=settings.access_token_expire_minutes * 60,
-        domain=".instainstru.com" if _site_mode2 in {"prod", "preview"} else None,
-        path="/",
     )
+
+    if site_mode != "local":
+        expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
 
     return Token(access_token=access_token, token_type="bearer")
 

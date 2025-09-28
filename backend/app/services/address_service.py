@@ -230,15 +230,39 @@ class AddressService(BaseService):
     @BaseService.measure_operation("list_service_areas")
     def list_service_areas(self, instructor_id: str) -> list[dict[str, Any]]:
         areas = self.service_area_repo.list_for_instructor(instructor_id)
-        return [
-            {
-                "neighborhood_id": a.neighborhood_id,
-                "ntacode": a.neighborhood.ntacode if a.neighborhood else None,
-                "name": a.neighborhood.ntaname if a.neighborhood else None,
-                "borough": a.neighborhood.borough if a.neighborhood else None,
-            }
-            for a in areas
-        ]
+        items: list[dict[str, Any]] = []
+        for area in areas:
+            region = getattr(area, "neighborhood", None)
+            region_code = None
+            region_name = None
+            borough = None
+            region_meta: dict[str, Any] | None = None
+            if region is not None:
+                region_code = getattr(region, "region_code", None) or getattr(
+                    region, "ntacode", None
+                )
+                region_name = getattr(region, "region_name", None) or getattr(
+                    region, "ntaname", None
+                )
+                borough = getattr(region, "parent_region", None) or getattr(region, "borough", None)
+                meta_candidate = getattr(region, "region_metadata", None)
+                if isinstance(meta_candidate, dict):
+                    region_meta = meta_candidate
+            if region_meta:
+                region_code = (
+                    region_code or region_meta.get("nta_code") or region_meta.get("ntacode")
+                )
+                region_name = region_name or region_meta.get("nta_name") or region_meta.get("name")
+                borough = borough or region_meta.get("borough")
+            items.append(
+                {
+                    "neighborhood_id": area.neighborhood_id,
+                    "ntacode": region_code,
+                    "name": region_name,
+                    "borough": borough,
+                }
+            )
+        return items
 
     @BaseService.measure_operation("replace_service_areas")
     def replace_service_areas(self, instructor_id: str, neighborhood_ids: list[str]) -> int:

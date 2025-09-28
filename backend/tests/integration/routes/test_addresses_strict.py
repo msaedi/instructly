@@ -1,5 +1,9 @@
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy.orm import Session
+import ulid
+
+from app.models.region_boundary import RegionBoundary
 
 
 @pytest.fixture()
@@ -30,3 +34,35 @@ def test_delete_response_rejects_extra_body_fields(client: TestClient):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     # If the route executes, it will 404 the entity; we just ensure no 422 from model here
     assert resp.status_code in (404, 422)
+
+
+def test_replace_service_areas_uses_region_boundary(
+    client: TestClient,
+    db: Session,
+    auth_headers_instructor: dict,
+):
+    region_id = str(ulid.ULID())
+    boundary = RegionBoundary(
+        id=region_id,
+        region_type="nyc",
+        region_code="MN01",
+        region_name="Test Neighborhood",
+        parent_region="Manhattan",
+    )
+    db.add(boundary)
+    db.commit()
+
+    resp = client.put(
+        "/api/addresses/service-areas/me",
+        json={"neighborhood_ids": [region_id]},
+        headers=auth_headers_instructor,
+    )
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["total"] == 1
+    first = payload["items"][0]
+    assert first["neighborhood_id"] == region_id
+    assert first["ntacode"] == "MN01"
+    assert first["name"] == "Test Neighborhood"
+    assert first["borough"] == "Manhattan"

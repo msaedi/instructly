@@ -12,6 +12,7 @@ from .core.config import settings
 from .database import SessionLocal
 from .models.user import User
 from .repositories.beta_repository import BetaAccessRepository
+from .utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -154,20 +155,14 @@ async def get_current_user(
             except Exception:
                 site_mode = ""
 
-            # Read environment-specific cookie
-            cookie_name = None
-            if site_mode == "preview":
-                cookie_name = "sid_preview"
-            elif site_mode in {"prod", "production", "live"}:
-                cookie_name = "sid_prod"
-            elif site_mode == "local" or not site_mode:
-                cookie_name = "access_token"
-
-            if cookie_name and hasattr(request, "cookies"):
-                cookie_token = request.cookies.get(cookie_name)
-                if cookie_token:
-                    token = cookie_token
-                    logger.debug(f"Using {cookie_name} cookie for authentication")
+            if hasattr(request, "cookies"):
+                # TODO: remove legacy cookie fallback once __Host- migration is complete.
+                for cookie_name in session_cookie_candidates(site_mode):
+                    cookie_token = request.cookies.get(cookie_name)
+                    if cookie_token:
+                        token = cookie_token
+                        logger.debug(f"Using {cookie_name} cookie for authentication")
+                        break
 
         if not token:
             raise not_authenticated
@@ -253,18 +248,13 @@ async def get_current_user_optional(
         except Exception:
             site_mode = ""
 
-        cookie_name = None
-        if site_mode == "preview":
-            cookie_name = "sid_preview"
-        elif site_mode in {"prod", "production", "live"}:
-            cookie_name = "sid_prod"
-        elif site_mode == "local" or not site_mode:
-            cookie_name = "access_token"
-
-        if cookie_name and hasattr(request, "cookies"):
-            cookie_token = request.cookies.get(cookie_name)
-            if cookie_token:
-                token = cookie_token
+        if hasattr(request, "cookies"):
+            # TODO: remove legacy cookie fallback once __Host- migration is complete.
+            for cookie_name in session_cookie_candidates(site_mode):
+                cookie_token = request.cookies.get(cookie_name)
+                if cookie_token:
+                    token = cookie_token
+                    break
         if not token:
             return None
 
