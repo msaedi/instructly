@@ -11,7 +11,20 @@ booking preferences.
 import logging
 from typing import TYPE_CHECKING, Any, List, Optional, Set, cast
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import ulid
@@ -267,3 +280,52 @@ class InstructorProfile(Base):
             data["active_services_count"] = len(self.active_services)
 
         return data
+
+
+class InstructorPreferredPlace(Base):
+    """Persistent preferred places an instructor can teach from or meet."""
+
+    __tablename__ = "instructor_preferred_places"
+
+    id = Column(String(26), primary_key=True, index=True, default=lambda: str(ulid.ULID()))
+    instructor_id = Column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind = Column(String(32), nullable=False)
+    address = Column(String(512), nullable=False)
+    label = Column(String(64), nullable=True)
+    position = Column(SmallInteger, nullable=False, default=0)
+    place_id = Column(String(255), nullable=True)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('teaching_location','public_space')",
+            name="ck_instructor_preferred_places_kind",
+        ),
+        UniqueConstraint(
+            "instructor_id",
+            "kind",
+            "address",
+            name="uq_instructor_preferred_places_instructor_kind_address",
+        ),
+        Index(
+            "ix_instructor_preferred_places_instructor_kind_position",
+            "instructor_id",
+            "kind",
+            "position",
+        ),
+    )
+
+    instructor = relationship("User", back_populates="preferred_places")
+
+    def __repr__(self) -> str:
+        return (
+            f"<InstructorPreferredPlace instructor={self.instructor_id} "
+            f"kind={self.kind} pos={self.position} address='{self.address[:50]}'>"
+        )

@@ -14,6 +14,92 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
+
+def _get_public_tables(exclude: list[str]) -> list[str]:
+    """Return list of public schema base tables excluding given names."""
+
+    conn = op.get_bind()
+    rows = conn.exec_driver_sql(
+        """
+        SELECT c.relname AS table_name
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r' -- ordinary tables
+          AND n.nspname = 'public'
+          AND c.relname NOT IN (%s)
+        ORDER BY c.relname
+        """
+        % ",".join(["'%s'" % name for name in exclude])
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def _enable_rls_with_permissive_policy(table_name: str) -> None:
+    """Enable RLS and create a permissive policy on the given table."""
+
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relname = '{table_name}' AND n.nspname = 'public' AND c.relrowsecurity = true
+            ) THEN
+                EXECUTE 'ALTER TABLE public.{table_name} ENABLE ROW LEVEL SECURITY';
+            END IF;
+        END$$;
+        """
+    )
+
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_policies
+                WHERE schemaname = 'public' AND tablename = '{table_name}' AND policyname = 'all_access'
+            ) THEN
+                EXECUTE 'CREATE POLICY all_access ON public.{table_name} FOR ALL TO PUBLIC USING (true) WITH CHECK (true)';
+            END IF;
+        END$$;
+        """
+    )
+
+
+def _drop_permissive_policy_and_disable_rls(table_name: str) -> None:
+    """Drop permissive policy and disable RLS on the given table (idempotent)."""
+
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM pg_policies
+                WHERE schemaname = 'public' AND tablename = '{table_name}' AND policyname = 'all_access'
+            ) THEN
+                EXECUTE 'DROP POLICY all_access ON public.{table_name}';
+            END IF;
+        END$$;
+        """
+    )
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relname = '{table_name}' AND n.nspname = 'public' AND c.relrowsecurity = true
+            ) THEN
+                EXECUTE 'ALTER TABLE public.{table_name} DISABLE ROW LEVEL SECURITY';
+            END IF;
+        END$$;
+        """
+    )
+
 # revision identifiers, used by Alembic.
 revision: str = "006_final_constraints"
 down_revision: Union[str, None] = "005_performance_indexes"
@@ -359,6 +445,60 @@ def upgrade() -> None:
         "coverage_type IS NULL OR coverage_type IN ('primary','secondary','by_request')",
     )
 
+    print("Creating instructor_preferred_places table...")
+    op.create_table(
+        "instructor_preferred_places",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
+        sa.Column("kind", sa.String(32), nullable=False),
+        sa.Column("address", sa.String(512), nullable=False),
+        sa.Column("label", sa.String(64), nullable=True),
+        sa.Column("position", sa.SmallInteger(), server_default="0", nullable=False),
+        sa.Column("place_id", sa.String(255), nullable=True),
+        sa.Column("lat", sa.Float(), nullable=True),
+        sa.Column("lng", sa.Float(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "instructor_id",
+            "kind",
+            "address",
+            name="uq_instructor_preferred_places_instructor_kind_address",
+        ),
+        sa.CheckConstraint(
+            "kind IN ('teaching_location','public_space')",
+            name="ck_instructor_preferred_places_kind",
+        ),
+    )
+    op.create_index(
+        "ix_instructor_preferred_places_instructor_kind_position",
+        "instructor_preferred_places",
+        ["instructor_id", "kind", "position"],
+    )
+
+    if is_postgres:
+        op.execute(
+            """
+            CREATE OR REPLACE FUNCTION update_updated_at_column()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                NEW.updated_at = NOW();
+                RETURN NEW;
+            END;
+            $$ language 'plpgsql';
+            """
+        )
+        op.execute(
+            """
+            CREATE TRIGGER instructor_preferred_places_set_updated_at
+            BEFORE UPDATE ON instructor_preferred_places
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+            """
+        )
+
     # Reactions table for message reactions
     op.create_table(
         "message_reactions",
@@ -472,6 +612,19 @@ def upgrade() -> None:
         "LENGTH(content) > 0 AND LENGTH(content) <= 1000",
     )
 
+    if is_postgres:
+        print("Enabling RLS (idempotent) with permissive policies on application tables...")
+        exclude_tables = [
+            "alembic_version",
+            "spatial_ref_sys",
+            "geometry_columns",
+            "geography_columns",
+        ]
+        tables = _get_public_tables(exclude_tables)
+        for table_name in tables:
+            _enable_rls_with_permissive_policy(table_name)
+        print(f"RLS ensured on {len(tables)} tables (permissive policies created if missing)")
+
     # Add schema documentation
     print("Schema finalization complete!")
     print("")
@@ -513,6 +666,31 @@ def downgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name if bind is not None else "postgresql"
     is_postgres = dialect_name == "postgresql"
+
+    if is_postgres:
+        print("Disabling RLS and removing permissive policies (idempotent)...")
+        exclude_tables = [
+            "alembic_version",
+            "spatial_ref_sys",
+            "geometry_columns",
+            "geography_columns",
+        ]
+        tables = _get_public_tables(exclude_tables)
+        for table_name in tables:
+            _drop_permissive_policy_and_disable_rls(table_name)
+        print(f"RLS disabled on {len(tables)} tables (policies dropped if existed)")
+
+    print("Dropping instructor_preferred_places table...")
+    if is_postgres:
+        op.execute(
+            "DROP TRIGGER IF EXISTS instructor_preferred_places_set_updated_at ON instructor_preferred_places;"
+        )
+        op.execute("DROP FUNCTION IF EXISTS update_updated_at_column();")
+    op.drop_index(
+        "ix_instructor_preferred_places_instructor_kind_position",
+        table_name="instructor_preferred_places",
+    )
+    op.drop_table("instructor_preferred_places")
 
     # Drop service area tables and spatial indexes first (to avoid dependency issues)
     print("Dropping instructor service area and neighborhoods tables...")

@@ -41,6 +41,7 @@ from ..api.dependencies.services import (
     get_instructor_service,
 )
 from ..core.enums import RoleName
+from ..core.exceptions import DomainException
 from ..core.ulid_helper import is_valid_ulid
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit as legacy_rate_limit
@@ -222,6 +223,8 @@ async def update_profile(
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
         return InstructorProfileResponse(**profile_data)
+    except DomainException as e:
+        raise e.to_http_exception()
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")

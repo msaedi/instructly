@@ -11,18 +11,27 @@ Now tracks timing for all instructor operations to earn those MEGAWATTS! ⚡
 
 from datetime import datetime, timezone
 import logging
-from typing import Any, Dict, List, Optional, Set, cast
+from typing import Any, Dict, List, Optional, Sequence, Set, cast
 
 import anyio
 from sqlalchemy.orm import Session
 
 from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, NotFoundException
-from ..models.instructor import InstructorProfile
+from ..models.instructor import InstructorPreferredPlace, InstructorProfile
 from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
-from ..schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate, ServiceCreate
+from ..repositories.instructor_preferred_place_repository import (
+    InstructorPreferredPlaceRepository,
+)
+from ..schemas.instructor import (
+    InstructorProfileCreate,
+    InstructorProfileUpdate,
+    PreferredPublicSpaceIn,
+    PreferredTeachingLocationIn,
+    ServiceCreate,
+)
 from .base import BaseService
 from .cache_service import CacheService
 from .geocoding.factory import create_geocoding_provider
@@ -53,6 +62,7 @@ class InstructorService(BaseService):
         service_repository: Optional[Any] = None,
         user_repository: Optional[Any] = None,
         booking_repository: Optional[Any] = None,
+        preferred_place_repository: Optional[InstructorPreferredPlaceRepository] = None,
     ):
         """Initialize instructor service with database, cache, and repositories."""
         super().__init__(db)
@@ -73,6 +83,10 @@ class InstructorService(BaseService):
         self.catalog_repository = RepositoryFactory.create_service_catalog_repository(db)
         self.category_repository = RepositoryFactory.create_base_repository(db, ServiceCategory)
         self.analytics_repository = RepositoryFactory.create_service_analytics_repository(db)
+        self.preferred_place_repository = (
+            preferred_place_repository
+            or RepositoryFactory.create_instructor_preferred_place_repository(db)
+        )
 
     @BaseService.measure_operation("get_instructor_profile")
     def get_instructor_profile(
@@ -330,8 +344,11 @@ class InstructorService(BaseService):
             raise NotFoundException("Instructor profile not found")
 
         with self.transaction():
-            # Update basic fields
-            basic_updates = update_data.model_dump(exclude={"services"}, exclude_unset=True)
+            # Update basic fields (exclude service + preferred place payloads handled separately)
+            basic_updates = update_data.model_dump(
+                exclude={"services", "preferred_teaching_locations", "preferred_public_spaces"},
+                exclude_unset=True,
+            )
 
             # If services are being updated but bio/areas are still empty, set smart defaults
             if update_data.services is not None:
@@ -397,6 +414,22 @@ class InstructorService(BaseService):
             # Handle service updates if provided
             if update_data.services is not None:
                 self._update_services(profile.id, update_data.services)
+
+            # Replace preferred teaching locations if provided
+            if update_data.preferred_teaching_locations is not None:
+                self._replace_preferred_places(
+                    instructor_id=user_id,
+                    kind="teaching_location",
+                    items=update_data.preferred_teaching_locations,
+                )
+
+            # Replace preferred public spaces if provided
+            if update_data.preferred_public_spaces is not None:
+                self._replace_preferred_places(
+                    instructor_id=user_id,
+                    kind="public_space",
+                    items=update_data.preferred_public_spaces,
+                )
 
         # Invalidate caches
         if self.cache_service:
@@ -554,6 +587,48 @@ class InstructorService(BaseService):
                         f"- no bookings"
                     )
 
+    def _replace_preferred_places(
+        self,
+        instructor_id: str,
+        kind: str,
+        items: Sequence[PreferredTeachingLocationIn | PreferredPublicSpaceIn],
+    ) -> None:
+        """Replace preferred place rows for a given instructor/kind atomically."""
+
+        normalized: list[tuple[str, Optional[str]]] = []
+        seen_addresses: set[str] = set()
+
+        for item in items:
+            address = item.address.strip()
+            key = address.lower()
+            if key in seen_addresses:
+                raise BusinessRuleException(
+                    "Duplicate addresses are not allowed for preferred places"
+                )
+            seen_addresses.add(key)
+
+            label: Optional[str] = getattr(item, "label", None)
+            if label is not None:
+                label = label.strip()
+                if not label:
+                    label = None
+
+            normalized.append((address, label))
+
+        if len(normalized) > 2:
+            raise BusinessRuleException("At most two preferred places per category are allowed")
+
+        self.preferred_place_repository.delete_for_kind(instructor_id, kind)
+
+        for position, (address, label) in enumerate(normalized):
+            self.preferred_place_repository.create_for_kind(
+                instructor_id=instructor_id,
+                kind=kind,
+                address=address,
+                label=label,
+                position=position,
+            )
+
     def _profile_to_dict(
         self, profile: InstructorProfile, include_inactive_services: bool = False
     ) -> Dict[str, Any]:
@@ -576,6 +651,39 @@ class InstructorService(BaseService):
         else:
             services = []
 
+        user = getattr(profile, "user", None)
+        preferred_places: Sequence[InstructorPreferredPlace]
+        if user is not None and hasattr(user, "preferred_places"):
+            raw_places = getattr(user, "preferred_places", None)
+            try:
+                preferred_places = list(raw_places or [])
+            except TypeError:
+                preferred_places = []
+        else:
+            preferred_places = self.preferred_place_repository.list_for_instructor(profile.user_id)
+
+        teaching_locations: List[Dict[str, Any]] = []
+        public_spaces: List[Dict[str, Any]] = []
+
+        if preferred_places:
+            teaching_places = sorted(
+                [p for p in preferred_places if p.kind == "teaching_location"],
+                key=lambda place: place.position,
+            )
+            public_places = sorted(
+                [p for p in preferred_places if p.kind == "public_space"],
+                key=lambda place: place.position,
+            )
+
+            for place in teaching_places:
+                entry: Dict[str, Any] = {"address": place.address}
+                if place.label:
+                    entry["label"] = place.label
+                teaching_locations.append(entry)
+
+            for place in public_places:
+                public_spaces.append({"address": place.address})
+
         return {
             "id": profile.id,
             "user_id": profile.user_id,
@@ -584,6 +692,8 @@ class InstructorService(BaseService):
             "years_experience": profile.years_experience,
             "min_advance_booking_hours": profile.min_advance_booking_hours,
             "buffer_time_minutes": profile.buffer_time_minutes,
+            "preferred_teaching_locations": teaching_locations,
+            "preferred_public_spaces": public_spaces,
             # Onboarding status
             "skills_configured": getattr(profile, "skills_configured", False),
             "identity_verified_at": getattr(profile, "identity_verified_at", None),

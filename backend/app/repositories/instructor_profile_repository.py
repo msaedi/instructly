@@ -82,7 +82,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .join(User, InstructorProfile.user_id == User.id)
                 .filter(User.account_status == "active")
                 .options(
-                    joinedload(InstructorProfile.user),
+                    joinedload(InstructorProfile.user).joinedload(User.preferred_places),
                     joinedload(InstructorProfile.instructor_services).joinedload(
                         Service.catalog_entry
                     ),
@@ -123,7 +123,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 (
                     self.db.query(InstructorProfile)
                     .options(
-                        joinedload(InstructorProfile.user),
+                        joinedload(InstructorProfile.user).joinedload(User.preferred_places),
                         joinedload(InstructorProfile.instructor_services).joinedload(
                             Service.catalog_entry
                         ),
