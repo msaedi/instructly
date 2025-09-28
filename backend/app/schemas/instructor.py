@@ -360,6 +360,12 @@ class InstructorProfileUpdate(StrictRequestModel):
     areas_of_service: Optional[List[str]] = Field(None, min_length=0, max_length=10)
     years_experience: Optional[int] = Field(None, ge=0, le=50)
     services: Optional[List[ServiceCreate]] = Field(None, min_length=0, max_length=20)
+    min_advance_booking_hours: Optional[int] = Field(
+        None, ge=0, le=168, description="Minimum hours in advance for bookings"
+    )
+    buffer_time_minutes: Optional[int] = Field(
+        None, ge=0, le=60, description="Buffer time between bookings"
+    )
 
     @field_validator("areas_of_service")
     def validate_areas(cls, v: Optional[List[str]]) -> Optional[List[str]]:

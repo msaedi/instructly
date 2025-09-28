@@ -32,6 +32,8 @@ function buildInstructorProfilePayload(profile: Profile) {
     bio: profile.bio.trim(),
     areas_of_service: profile.areas_of_service,
     years_experience: Number(profile.years_experience) || 0,
+    min_advance_booking_hours: profile.min_advance_booking_hours ?? 2,
+    buffer_time_minutes: profile.buffer_time_minutes ?? 0,
   };
 }
 
