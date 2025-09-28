@@ -54,6 +54,14 @@ Restart any running Next.js dev servers after updating hosts.
   `Access-Control-Allow-Origin` / `Access-Control-Allow-Credentials`, avoiding opaque
   “network error” messages during auth debugging.
 
+### Profile quick checks
+
+- Service areas smoke test: start the backend + frontend locally, then run
+  `npm run e2e:local:profile` to verify “select two → save → reload” persistence.
+- The service-areas save button is StrictMode safe; double-clicks are ignored while the request is running.
+- To inspect outgoing payloads during development, set `NEXT_PUBLIC_PROFILE_SAVE_DEBUG=1`
+  and watch the console for `[PROFILE_DEBUG]` key lists after each profile save.
+
 ## Running the stack
 
 1. Start the backend: `cd backend && uvicorn app.main:app --reload`

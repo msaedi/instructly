@@ -49,6 +49,7 @@
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
+    "e2e:local:profile": "CI_LOCAL_E2E=1 npx playwright test frontend/e2e/profile.service-areas.spec.ts --reporter=line --trace on-first-retry",
     "size": "size-limit",
     "playwright:install": "playwright install",
     "verify:public-env": "node scripts/verify-public-env.mjs",

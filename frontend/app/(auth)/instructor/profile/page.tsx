@@ -11,6 +11,8 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { formatProblemMessages } from '@/lib/httpErrors';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
+import { debugProfilePayload } from '@/lib/profileSchemaDebug';
+import { submitServiceAreasOnce } from './serviceAreaSubmit';
 
 type Profile = {
   first_name: string;
@@ -31,7 +33,14 @@ type Profile = {
   longitude?: number | null;
 };
 
-type ServiceAreaItem = { id: string; neighborhood_id?: string; ntacode?: string | null; name?: string | null; borough?: string | null };
+type ServiceAreaItem = {
+  id: string;
+  neighborhood_id?: string;
+  ntacode?: string | null;
+  name?: string | null;
+  borough?: string | null;
+  code?: string | null;
+};
 type ServiceAreasResponse = { items: ServiceAreaItem[]; total: number };
 type NYCZipCheck = { is_nyc: boolean; borough?: string | null };
 
@@ -129,6 +138,8 @@ export default function InstructorProfileSettingsPage() {
   const [neutralPlaces, setNeutralPlaces] = useState<string[]>([]);
   const [preferredLocationTitles, setPreferredLocationTitles] = useState<Record<string, string>>({});
   const [bioTouched, setBioTouched] = useState<boolean>(false);
+  const inFlightServiceAreasRef = useRef(false);
+  const [savingServiceAreas, setSavingServiceAreas] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -335,6 +346,7 @@ export default function InstructorProfileSettingsPage() {
       }
 
       const payload = buildInstructorProfilePayload(profile);
+      debugProfilePayload('InstructorUpdate', payload);
       const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -370,6 +382,9 @@ export default function InstructorProfileSettingsPage() {
       };
 
       const addressPayload = buildInstructorAddressPayload(profile);
+      if (addressPayload) {
+        debugProfilePayload('AddressCreate', addressPayload);
+      }
 
       try {
         const addrRes = await fetchWithAuth('/api/addresses/me');
@@ -430,14 +445,21 @@ export default function InstructorProfileSettingsPage() {
         logger.warn('Failed to sync address during profile save', addressError instanceof Error ? addressError : undefined);
       }
 
-      // Persist service areas
-      try {
-        await fetchWithAuth('/api/addresses/service-areas/me', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ neighborhood_ids: Array.from(selectedNeighborhoods) }),
-        });
-      } catch {}
+      // Persist service areas (StrictMode-safe guard)
+      if (!inFlightServiceAreasRef.current) {
+        const serviceAreasPayload = { neighborhood_ids: Array.from(selectedNeighborhoods) };
+        debugProfilePayload('ServiceAreasPayload', serviceAreasPayload);
+        try {
+          await submitServiceAreasOnce({
+            fetcher: fetchWithAuth,
+            payload: serviceAreasPayload,
+            inFlightRef: inFlightServiceAreasRef,
+            setSaving: setSavingServiceAreas,
+          });
+        } catch {
+          // Swallow here; page already reports via toast earlier
+        }
+      }
 
       toast.success('Profile saved', {
         style: {
@@ -810,6 +832,7 @@ export default function InstructorProfileSettingsPage() {
                         aria-expanded={isOpen}
                         role="button"
                         tabIndex={0}
+                        data-testid={`service-area-borough-${borough.toLowerCase().replace(/\s+/g, '-')}`}
                         onKeyDown={async (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); await toggleMainBoroughOpen(borough); } }}
                       >
                         <div className="flex items-center gap-2 text-gray-800 dark:text-gray-100 font-medium">
@@ -851,12 +874,15 @@ export default function InstructorProfileSettingsPage() {
                             if (!nid) return null;
                             const checked = selectedNeighborhoods.has(nid);
                             const label = toTitle(n['name'] || String(nid));
+                            const regionCode = String(n.code || n.ntacode || idToItem[nid]?.ntacode || nid);
                             return (
                               <button
                                 key={`${borough}-${nid}`}
                                 type="button"
                                 onClick={() => toggleNeighborhood(nid)}
                                 aria-pressed={checked}
+                                data-testid={`service-area-chip-${regionCode}`}
+                                data-state={checked ? 'selected' : 'idle'}
                                 className={`inline-flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                                   checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
@@ -1070,11 +1096,12 @@ export default function InstructorProfileSettingsPage() {
             Skip for now
           </button>
           <button
-            onClick={() => { void save({ redirectTo: '/instructor/onboarding/skill-selection' }); }}
-            disabled={saving}
+            type="button"
+            onClick={() => { if (!saving && !savingServiceAreas) { void save({ redirectTo: '/instructor/onboarding/skill-selection' }); } }}
+            disabled={saving || savingServiceAreas}
             className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm justify-center"
           >
-            {saving ? 'Saving...' : 'Save & Continue'}
+            {saving || savingServiceAreas ? 'Saving...' : 'Save & Continue'}
           </button>
         </div>
       </div>
