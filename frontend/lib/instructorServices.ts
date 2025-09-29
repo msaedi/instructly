@@ -9,6 +9,30 @@ export type UIInstructorService = InstructorService & {
   service_catalog_name?: string | null;
 };
 
+export type HydrateFn = (id: string) => string | undefined;
+
+/** Prefer server-provided name first, then catalog fallback, finally the ULID. */
+export function displayServiceName(
+  svc: { service_catalog_id?: string | null; service_catalog_name?: string | null },
+  hydrateById: HydrateFn,
+): string {
+  const id = (svc.service_catalog_id || '').trim();
+  const name = (svc.service_catalog_name || '').trim();
+  if (name.length > 0) {
+    return name;
+  }
+
+  if (id.length > 0) {
+    const hydrated = hydrateById(id);
+    if (hydrated && hydrated.trim().length > 0) {
+      return hydrated.trim();
+    }
+    return `Service ${id}`;
+  }
+
+  return 'Service';
+}
+
 let catalogCache: CatalogSummary[] | null = null;
 let catalogPromise: Promise<CatalogSummary[]> | null = null;
 
@@ -129,7 +153,7 @@ export async function normalizeInstructorServices(services: unknown): Promise<UI
 }
 
 export function hydrateCatalogNameById(serviceCatalogId: string): string | undefined {
-  if (!catalogCache) return undefined;
+  if (!catalogCache || !serviceCatalogId) return undefined;
   const entry = catalogCache.find((svc) => svc.id === serviceCatalogId);
   return entry?.name;
 }
