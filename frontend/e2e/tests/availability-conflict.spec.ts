@@ -57,8 +57,8 @@ test.describe('Availability 409 conflict flow', () => {
     await pageB.goto('/instructor/availability');
 
     // Wait for page to load headers (disambiguate to the H1)
-    await expect(pageA.getByRole('heading', { name: 'Availability' })).toBeVisible();
-    await expect(pageB.getByRole('heading', { name: 'Availability' })).toBeVisible();
+    await expect(pageA.getByRole('heading', { name: 'Set Availability' })).toBeVisible();
+    await expect(pageB.getByRole('heading', { name: 'Set Availability' })).toBeVisible();
 
     // On page A: make a change and save to create a new version (mock POST 200)
     await pageA.route('**/instructors/availability/week', async (route) => {
@@ -81,10 +81,12 @@ test.describe('Availability 409 conflict flow', () => {
       }
     });
     const firstCellA = pageA.locator('[data-cell]').first();
+    const savePostA = pageA.waitForResponse((res) =>
+      res.url().includes('/instructors/availability/week') && res.request().method() === 'POST'
+    );
     await firstCellA.click();
-    const saveBtnA = pageA.getByRole('button', { name: /save changes/i });
-    await expect(saveBtnA).toBeEnabled();
-    await saveBtnA.click();
+    const responseA = await savePostA;
+    expect(responseA.status()).toBe(200);
 
     // On page B: make a conflicting change and attempt to save, expecting conflict modal (mock POST 409)
     await pageB.route('**/instructors/availability/week', async (route) => {
@@ -99,10 +101,12 @@ test.describe('Availability 409 conflict flow', () => {
       }
     });
     const firstCellB = pageB.locator('[data-cell]').nth(1);
+    const savePostB = pageB.waitForResponse((res) =>
+      res.url().includes('/instructors/availability/week') && res.request().method() === 'POST'
+    );
     await firstCellB.click();
-    const saveBtnB = pageB.getByRole('button', { name: /save changes/i });
-    await expect(saveBtnB).toBeEnabled();
-    await saveBtnB.click();
+    const responseB = await savePostB;
+    expect(responseB.status()).toBe(409);
 
     // Expect modal
     await expect(pageB.getByRole('dialog')).toBeVisible();

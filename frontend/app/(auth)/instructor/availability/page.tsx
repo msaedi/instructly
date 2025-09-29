@@ -224,8 +224,19 @@ export default function InstructorAvailabilityPage() {
             toast.success(`Applied through ${endISO}`);
             // Immediately persist the current week as well to avoid unsaved banners during navigation
             try {
-              await saveWeek({ clearExisting: true });
-            } catch {}
+              const result = await saveWeek({ clearExisting: true });
+              if (!result.success) {
+                if (result.code === 409) {
+                  setShowConflictModal(true);
+                } else {
+                  toast.error(result.message || 'Failed to save availability');
+                }
+                return;
+              }
+            } catch {
+              toast.error('Failed to save availability');
+              return;
+            }
             await refreshSchedule();
             setMessage(null);
           }}
@@ -331,9 +342,19 @@ export default function InstructorAvailabilityPage() {
               if (saveDebounceRef.current) window.clearTimeout(saveDebounceRef.current);
               saveDebounceRef.current = window.setTimeout(async () => {
                 try {
-                  await saveWeek({ clearExisting: true });
+                  const result = await saveWeek({ clearExisting: true });
+                  if (!result.success) {
+                    if (result.code === 409) {
+                      setShowConflictModal(true);
+                    } else {
+                      toast.error(result.message || 'Failed to save availability');
+                    }
+                    return;
+                  }
                   setMessage(null);
-                } catch {}
+                } catch {
+                  toast.error('Failed to save availability');
+                }
               }, 700);
             }
           }}
