@@ -714,6 +714,9 @@ class InstructorService(BaseService):
                 {
                     "id": service.id,
                     "service_catalog_id": service.service_catalog_id,
+                    "service_catalog_name": service.catalog_entry.name
+                    if service.catalog_entry
+                    else "Unknown Service",
                     "name": service.catalog_entry.name
                     if service.catalog_entry
                     else "Unknown Service",
@@ -889,12 +892,12 @@ class InstructorService(BaseService):
 
     def _instructor_service_to_dict(self, service: Service) -> Dict[str, Any]:
         """Convert instructor service to dictionary with catalog info."""
+        catalog_name = service.catalog_entry.name if service.catalog_entry else "Unknown Service"
         return {
             "id": service.id,
             "catalog_service_id": service.service_catalog_id,
-            "name": service.catalog_entry.name
-            if service.catalog_entry
-            else "Unknown",  # From catalog
+            "service_catalog_name": catalog_name,
+            "name": catalog_name,
             "category": service.category,  # From catalog
             "hourly_rate": service.hourly_rate,
             "description": service.description or service.catalog_entry.description,

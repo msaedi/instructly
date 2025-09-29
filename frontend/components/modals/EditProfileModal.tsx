@@ -8,9 +8,22 @@ import type { CatalogService, ServiceCategory } from '@/features/shared/api/clie
 import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import type { InstructorService } from '@/features/shared/api/types';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
-type EditableService = Partial<InstructorService> & { hourly_rate?: number; description?: string | null; skill?: string };
+import { normalizeInstructorServices, hydrateCatalogNameById } from '@/lib/instructorServices';
+type EditableService = {
+  service_catalog_id?: string;
+  service_catalog_name?: string | null;
+  name?: string | null;
+  skill?: string;
+  hourly_rate?: number;
+  description?: string | null;
+  requirements?: string | null;
+  age_groups?: string[] | null;
+  levels_taught?: string[] | null;
+  equipment_required?: string[] | null;
+  location_types?: string[] | null;
+  duration_options?: number[] | null;
+};
 
 // Simple address type for profile editing
 interface AddressItem {
@@ -373,11 +386,13 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         }
       } catch {}
 
+      const normalizedServices = await normalizeInstructorServices(data.services);
+
       setProfileData({
         bio: data.bio || '',
         areas_of_service: areasOfService || [],
         years_experience: data.years_experience || 0,
-        services: data.services || [],
+        services: normalizedServices,
         first_name: firstName,
         last_name: lastName,
         postal_code: postalCode,
@@ -1174,11 +1189,25 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
 
             {/* Existing services list */}
             <div className="space-y-3">
-              {profileData.services.map((service, index) => (
+              {profileData.services.map((service, index) => {
+                const hydrated = hydrateCatalogNameById(service.service_catalog_id || '');
+                const displayName =
+                  service.service_catalog_name ??
+                  hydrated ??
+                  (service.skill && service.skill.trim().length > 0 ? service.skill : service.name) ??
+                  (service.service_catalog_id ? `Service ${service.service_catalog_id}` : 'Service');
+
+                if (!service.service_catalog_name && !hydrated && process.env.NODE_ENV !== 'production') {
+                  logger.warn('Service chip missing catalog name (modal)', {
+                    serviceCatalogId: service.service_catalog_id,
+                  });
+                }
+
+                return (
                 <div key={index} className="p-4 border border-gray-200 rounded-lg bg-white">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                     <div>
-                      <span className="text-sm font-medium text-gray-900">{service.skill}</span>
+                      <span className="text-sm font-medium text-gray-900">{displayName}</span>
                     </div>
                     <div>
                       <div className="relative">
@@ -1221,7 +1250,8 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                     Remove
                   </button>
                 </div>
-              ))}
+              );
+              })}
             </div>
 
             {profileData.services.length === 0 && (

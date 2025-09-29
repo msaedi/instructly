@@ -69,6 +69,9 @@ Restart any running Next.js dev servers after updating hosts.
   and `preferred_public_spaces`. PUT the same arrays (max two entries each) to persist, or send
   empty arrays to clear them. The backend currently stores display strings only; `place_id`, `lat`,
   and `lng` are reserved for future provider integrations.
+- Instructor services: `/instructors/me` and `/instructors/{id}` now return `service_catalog_name`
+  alongside each `service_catalog_id`. Frontend pages consume that value first and only fall back to
+  client-side catalog hydration if the API omits it (useful during local dev against stale data).
 
 ## Running the stack
 
