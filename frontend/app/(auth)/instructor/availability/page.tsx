@@ -6,12 +6,20 @@ import Link from 'next/link';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useAvailability } from '@/hooks/availability/useAvailability';
 import { useBookedSlots } from '@/hooks/availability/useBookedSlots';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/queries/useAuth';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
+import { Calendar } from 'lucide-react';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 
 export default function InstructorAvailabilityPage() {
@@ -20,7 +28,7 @@ export default function InstructorAvailabilityPage() {
   const {
     currentWeekStart,
     weekSchedule,
-    hasUnsavedChanges,
+    // hasUnsavedChanges, // autosave flow no longer uses this flag here
     isLoading,
     navigateWeek,
     setWeekSchedule,
@@ -31,6 +39,7 @@ export default function InstructorAvailabilityPage() {
     lastModified,
     saveWeek,
     applyToFutureWeeks,
+    goToCurrentWeek,
   } = useAvailability();
 
   const [activeDay, setActiveDay] = useState(0);
@@ -41,6 +50,7 @@ export default function InstructorAvailabilityPage() {
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [lastUpdatedLocal, setLastUpdatedLocal] = useState<string | null>(null);
   const [modalFocusTrap, setModalFocusTrap] = useState<HTMLDivElement | null>(null);
+  const saveDebounceRef = useRef<number | null>(null);
 
   useEffect(() => {
     const mq = () => window.matchMedia('(max-width: 640px)').matches;
@@ -62,7 +72,7 @@ export default function InstructorAvailabilityPage() {
     }
   }, [currentWeekStart, isLoading, fetchBookedSlots]);
 
-  const isSaving = false;
+  // Saving indicator not used in the new autosave flow, keep for future use
 
   // Convert Date[] from hook to WeekDateInfo[] for components
   const weekDateInfo = useMemo(() => getWeekDates(currentWeekStart), [currentWeekStart]);
@@ -129,10 +139,11 @@ export default function InstructorAvailabilityPage() {
     <WeekNavigator
       currentWeekStart={currentWeekStart}
       onNavigate={navigateWeek}
-      hasUnsavedChanges={hasUnsavedChanges}
+      hasUnsavedChanges={false}
+      showSubtitle={false}
       disabled={isLoading}
     />
-  ), [currentWeekStart, navigateWeek, hasUnsavedChanges, isLoading]);
+  ), [currentWeekStart, navigateWeek, isLoading]);
 
   return (
     <div className="min-h-screen">
@@ -147,49 +158,59 @@ export default function InstructorAvailabilityPage() {
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-          <h2 className="text-3xl font-bold text-gray-600 mb-2">Availability</h2>
-          <p className="text-gray-600">Set the times you’re available to teach.</p>
-          <p className="text-xs text-gray-500 mt-1">Last updated: <span>{lastUpdatedLocal || '—'}</span></p>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-[#7E22CE]" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold text-gray-600 mb-2">Set Availability</h2>
+              <p className="text-gray-600">Set the times you’re available to teach.</p>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-6">
         {header}
 
+      {/* Tip below the week navigator */}
+      <div className="mb-3 rounded-md border border-purple-100 bg-purple-50 px-3 py-2 relative">
+        <p className="text-sm font-medium text-gray-800">Tip: Click any cell to mark yourself available</p>
+        <p className="text-xs text-gray-700">Most instructors start with 10–15 hours/week</p>
+        <p className="absolute bottom-2 right-3 text-[11px] text-gray-500">Last updated: <span>{lastUpdatedLocal || '—'}</span></p>
+      </div>
+
+      {/* Quick nav */}
+      <div className="-mt-1 mb-2 flex items-center">
+        <button
+          type="button"
+          onClick={() => {
+            goToCurrentWeek();
+          }}
+          className="px-3 py-1 rounded-md border border-purple-200 bg-purple-50 text-[#7E22CE] text-sm hover:bg-purple-100"
+        >
+          Today
+        </button>
+      </div>
+
       {/* Actions (top of grid) */}
-      <div className="mt-4 mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         {/* Repeat dropdown */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-700">Repeat this schedule:</span>
-          <select
-            className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
-            value={repeatWeeks}
-            onChange={(e) => setRepeatWeeks(parseInt(e.target.value, 10))}
-          >
-            {[1,2,3,4,6,8,12].map((w) => (
-              <option key={w} value={w}>{w} weeks</option>
-            ))}
-          </select>
+          <div className="relative inline-flex items-center">
+            <Select value={String(repeatWeeks)} onValueChange={(v) => setRepeatWeeks(parseInt(v, 10))}>
+              <SelectTrigger className="h-8 w-24 sm:w-28">
+                <SelectValue placeholder="Repeat" />
+              </SelectTrigger>
+              <SelectContent>
+                {[1,2,3,4,6,8,12].map((w) => (
+                  <SelectItem key={w} value={String(w)}>{w} weeks</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <button
-          disabled={isSaving || !hasUnsavedChanges}
-          onClick={async () => {
-            const result = await saveWeek({ clearExisting: true });
-            if (!result.success) {
-              if (result.code === 409) {
-                setShowConflictModal(true);
-              } else {
-                toast.error(result.message || 'Failed to save');
-              }
-              return;
-            }
-            toast.success('Availability saved');
-            setLastUpdatedLocal(new Date().toLocaleString());
-          }}
-          className={`px-4 py-2 rounded-md text-white ${hasUnsavedChanges ? 'bg-[#7E22CE] hover:!bg-[#7E22CE]' : 'bg-gray-300 cursor-not-allowed'}`}
-        >
-          {isSaving ? 'Saving…' : hasUnsavedChanges ? 'Save changes' : 'Saved'}
-        </button>
         <button
           onClick={async () => {
             const end = new Date(currentWeekStart);
@@ -201,44 +222,53 @@ export default function InstructorAvailabilityPage() {
               return;
             }
             toast.success(`Applied through ${endISO}`);
+            // Immediately persist the current week as well to avoid unsaved banners during navigation
+            try {
+              await saveWeek({ clearExisting: true });
+            } catch {}
+            await refreshSchedule();
+            setMessage(null);
           }}
-          className="px-3 py-2 rounded-md border border-purple-200 bg-purple-50 text-sm text-[#7E22CE] hover:bg-purple-100"
+          className="inline-flex items-center justify-center px-3 py-1 rounded-md text-white bg-[#7E22CE] hover:!bg-[#7E22CE] text-sm whitespace-nowrap"
         >
           Apply
         </button>
 
         {/* Hour range controls */}
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-gray-700">Hours:</span>
-          <select
-            className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
-            value={startHour}
-            onChange={(e) => {
-              const v = parseInt(e.target.value, 10);
-              setStartHour(v);
-              if (v >= endHour) setEndHour(Math.min(v + 1, 23));
-            }}
-          >
-            {Array.from({ length: 24 }, (_, h) => h)
-              .map((h) => (
-                <option key={h} value={h}>{formatHour(h)}</option>
-              ))}
-          </select>
+          <div className="flex flex-col leading-tight mr-1">
+            <span className="text-sm text-gray-700">Teaching window</span>
+            <span className="text-[11px] text-gray-500 -mt-0.5">Business Hours</span>
+          </div>
+          <div className="relative inline-flex items-center">
+            <Select value={String(startHour)} onValueChange={(v) => {
+              const sv = parseInt(v, 10);
+              setStartHour(sv);
+              if (sv >= endHour) setEndHour(Math.min(sv + 1, 23));
+            }}>
+              <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 24 }, (_, h) => h).map((h) => (
+                  <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <span className="text-gray-500">to</span>
-          <select
-            className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
-            value={endHour}
-            onChange={(e) => {
-              const v = parseInt(e.target.value, 10);
-              setEndHour(v);
-              if (v <= startHour) setStartHour(Math.max(v - 1, 0));
-            }}
-          >
-            {Array.from({ length: 24 }, (_, h) => h)
-              .map((h) => (
-                <option key={h} value={h}>{formatHour(h)}</option>
-              ))}
-          </select>
+          <div className="relative inline-flex items-center">
+            <Select value={String(endHour)} onValueChange={(v) => {
+              const ev = parseInt(v, 10);
+              setEndHour(ev);
+              if (ev <= startHour) setStartHour(Math.max(ev - 1, 0));
+            }}>
+              <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 24 }, (_, h) => h).map((h) => (
+                  <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -295,7 +325,18 @@ export default function InstructorAvailabilityPage() {
           weekDates={weekDateInfo}
           weekSchedule={weekSchedule}
           bookedSlots={bookedSlots}
-          onScheduleChange={(s) => setWeekSchedule(s)}
+          onScheduleChange={(s) => {
+            setWeekSchedule(s);
+            if (typeof window !== 'undefined') {
+              if (saveDebounceRef.current) window.clearTimeout(saveDebounceRef.current);
+              saveDebounceRef.current = window.setTimeout(async () => {
+                try {
+                  await saveWeek({ clearExisting: true });
+                  setMessage(null);
+                } catch {}
+              }, 700);
+            }
+          }}
           isMobile={isMobile}
           activeDayIndex={activeDay}
           onActiveDayChange={setActiveDay}

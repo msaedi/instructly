@@ -25,6 +25,7 @@ export interface UseAvailabilityReturn {
   currentWeekDisplay: string;
   version?: string;
   lastModified?: string;
+  goToCurrentWeek: () => void;
 
   // API orchestrations (thin)
   saveWeek: (opts?: { clearExisting?: boolean }) => Promise<{ success: boolean; message: string; code?: number }>;
@@ -64,6 +65,7 @@ export function useAvailability(): UseAvailabilityReturn {
     setWeekSchedule,
     setMessage,
     refreshSchedule,
+    goToCurrentWeek,
     currentWeekDisplay,
     version,
     lastModified,
@@ -206,6 +208,7 @@ export function useAvailability(): UseAvailabilityReturn {
     setWeekSchedule,
     setMessage,
     refreshSchedule,
+    goToCurrentWeek,
     currentWeekDisplay,
     ...(version && { version }),
     ...(lastModified && { lastModified }),

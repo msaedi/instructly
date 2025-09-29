@@ -11,8 +11,7 @@
  */
 
 import React from 'react';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { formatWeekRange } from '@/lib/availability/dateHelpers';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { logger } from '@/lib/logger';
 
 /**
@@ -27,6 +26,8 @@ interface WeekNavigatorProps {
   disabled?: boolean;
   /** Whether to show unsaved changes warning */
   hasUnsavedChanges?: boolean;
+  /** Whether to show the subtitle line under the week */
+  showSubtitle?: boolean;
 }
 
 /**
@@ -49,6 +50,7 @@ export default function WeekNavigator({
   onNavigate,
   disabled = false,
   hasUnsavedChanges = false,
+  showSubtitle = true,
 }: WeekNavigatorProps): React.ReactElement {
   /**
    * Handle navigation with logging
@@ -61,10 +63,26 @@ export default function WeekNavigator({
     onNavigate(direction);
   };
 
-  const weekRangeDisplay = formatWeekRange(currentWeekStart);
+  // Show month + year. If the week spans two different months/years, show both.
+  const start = currentWeekStart;
+  const end = new Date(currentWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
+  const sMonth = start.toLocaleDateString('en-US', { month: 'long' });
+  const eMonth = end.toLocaleDateString('en-US', { month: 'long' });
+  const sYear = start.getFullYear();
+  const eYear = end.getFullYear();
+  let weekRangeDisplay = '';
+  if (sYear === eYear) {
+    if (sMonth === eMonth) {
+      weekRangeDisplay = `${sMonth} ${sYear}`;
+    } else {
+      weekRangeDisplay = `${sMonth} – ${eMonth} ${sYear}`;
+    }
+  } else {
+    weekRangeDisplay = `${sMonth} ${sYear} – ${eMonth} ${eYear}`;
+  }
 
   return (
-    <div className="mb-6 bg-white rounded-lg shadow p-4">
+    <div className="mb-6 bg-white rounded-lg border border-gray-200 p-5 shadow-sm ring-1 ring-purple-100">
       <div className="flex items-center justify-between">
         {/* Previous Week Button */}
         <button
@@ -82,16 +100,17 @@ export default function WeekNavigator({
 
         {/* Week Display */}
         <div className="text-center flex-1">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <Calendar className="w-5 h-5 text-gray-500" aria-hidden="true" />
-            <h2 className="text-xl font-semibold">{weekRangeDisplay}</h2>
+          <div className="flex items-center justify-center mb-1">
+            <h2 className="text-2xl font-bold text-gray-900">{weekRangeDisplay}</h2>
           </div>
-          <p className="text-sm text-gray-600">
-            Edit availability for this specific week
-            {hasUnsavedChanges && (
-              <span className="text-amber-600 font-medium ml-2">(unsaved changes)</span>
-            )}
-          </p>
+          {showSubtitle && (
+            <p className="text-sm text-gray-600">
+              Edit availability for this specific week
+              {hasUnsavedChanges && (
+                <span className="text-amber-600 font-medium ml-2">(unsaved changes)</span>
+              )}
+            </p>
+          )}
         </div>
 
         {/* Next Week Button */}

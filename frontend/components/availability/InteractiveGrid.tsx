@@ -52,7 +52,9 @@ function buildDayCellSet(slots: TimeSlot[], startHour: number, endHour: number):
     const end = Math.min(endHour, eh);
 
     const startIdx = (start - startHour) * HALF_HOURS_PER_HOUR + (sm >= 30 ? 1 : 0);
-    const endIdx = (end - startHour) * HALF_HOURS_PER_HOUR + (em > 0 ? (em >= 30 ? 2 : 1) : 0);
+    // End index points to the end boundary in half-hour cells (exclusive)
+    // Example: end at :30 should add exactly one cell from the hour start
+    const endIdx = (end - startHour) * HALF_HOURS_PER_HOUR + (em >= 30 ? 1 : 0);
     // Fill each half-hour cell
     for (let i = startIdx; i < endIdx; i++) set.add(i);
   }
@@ -115,9 +117,19 @@ export default function InteractiveGrid({
   onScheduleChange,
   timezone,
 }: InteractiveGridProps) {
-  const hours = useMemo(() => Array.from({ length: endHour - startHour }, (_, i) => startHour + i), [startHour, endHour]);
+  // Local helper reserved for future use (kept minimal to avoid unused warnings)
+  // Remove unused computed hours to satisfy strict type checks
   const rows = useMemo(() => (endHour - startHour) * HALF_HOURS_PER_HOUR, [startHour, endHour]);
-  const [dragging, setDragging] = useState<null | { date: string; mode: 'add' | 'remove'; startCell: number; currentCell: number }>(null);
+  const [dragging, setDragging] = useState<
+    | null
+    | {
+        date: string;
+        mode: 'add' | 'remove';
+        startCell: number;
+        currentCell: number;
+        startTs: number;
+      }
+  >(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
 
@@ -246,7 +258,7 @@ export default function InteractiveGrid({
   const handleMouseDown = (date: string, cellIdx: number) => {
     const existing = buildDayCellSet(weekSchedule[date] || [], startHour, endHour);
     const mode: 'add' | 'remove' = existing.has(cellIdx) ? 'remove' : 'add';
-    setDragging({ date, mode, startCell: cellIdx, currentCell: cellIdx });
+    setDragging({ date, mode, startCell: cellIdx, currentCell: cellIdx, startTs: Date.now() });
   };
 
   const handleMouseEnter = (date: string, cellIdx: number) => {
@@ -256,6 +268,14 @@ export default function InteractiveGrid({
   const handleMouseUp = () => {
     if (!dragging) return;
     const { date, mode } = dragging;
+    const diff = Math.abs(dragging.currentCell - dragging.startCell);
+    const quickClick = Date.now() - dragging.startTs < 250;
+    // Treat small, quick clicks as single-cell toggles to avoid accidental full-hour selection
+    if (diff <= 1 && quickClick) {
+      toggleSingleCell(date, dragging.startCell);
+      setDragging(null);
+      return;
+    }
     const a = Math.min(dragging.startCell, dragging.currentCell);
     const b = Math.max(dragging.startCell, dragging.currentCell);
     const range = new Set<number>();
@@ -367,8 +387,8 @@ export default function InteractiveGrid({
             const past = isPastCell(date, r);
             const isFirst = r === 0;
             // const isLastRow = r === rows - 1; // Available for conditional styling
-            // Draw only bottom borders for consistency; first row adds a top border
-            const bottomBorder = r % 2 === 1 ? 'border-b-2 border-gray-300' : 'border-b border-gray-200';
+            // Uniform bottom borders for a cleaner, lighter grid
+            const bottomBorder = 'border-b border-gray-200';
             const bookedTooltip = booked ? 'Booked: reservation stays; editing affects future availability' : undefined;
             const isFocused = focusDay === colIndex && focusRow === r;
             const labelHour = Math.floor(r / HALF_HOURS_PER_HOUR) + startHour;
@@ -388,7 +408,7 @@ export default function InteractiveGrid({
                 onFocus={() => { setFocusDay(colIndex); setFocusRow(r); }}
                 onKeyDown={(e) => handleKeyDown(e, colIndex, r, date)}
                 data-cell={`${colIndex}-${r}`}
-                className={`relative ${isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8'} border-l ${isLastColumn ? 'border-r' : ''} ${isFirst ? 'border-t-2 border-gray-300' : ''} ${bottomBorder} ${isSelected ? 'bg-[#EDE3FA]' : 'bg-white'} ${inDragRange ? 'ring-2 ring-[#D4B5F0] ring-inset' : ''} ${past ? 'opacity-70' : ''} cursor-pointer`}
+                className={`relative ${isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8'} border-l ${isLastColumn ? 'border-r' : ''} ${isFirst ? 'border-t border-gray-200' : ''} ${bottomBorder} ${isSelected ? 'bg-[#EDE3FA]' : 'bg-white'} ${inDragRange ? 'ring-2 ring-[#D4B5F0] ring-inset' : ''} ${past ? 'opacity-70' : ''} cursor-pointer`}
               >
                 {/* booked overlay */}
                 {booked && (
@@ -424,24 +444,54 @@ export default function InteractiveGrid({
   return (
     <div ref={containerRef} className="relative w-full overflow-x-auto">
       <div ref={gridRef} className="grid" role="grid" aria-rowcount={rows} aria-colcount={isMobile ? 1 : weekDates.length}
-           style={{ gridTemplateColumns: `60px repeat(${isMobile ? 1 : weekDates.length}, minmax(0, 1fr))` }}>
-        {/* Time gutter header (no bottom border to avoid double lines) */}
-        <div className="sticky left-0 top-0 z-20 bg-white/80 backdrop-blur px-2 py-1 text-sm font-medium text-gray-900">Time</div>
+           style={{ gridTemplateColumns: `80px repeat(${isMobile ? 1 : weekDates.length}, minmax(0, 1fr))` }}>
+        {/* Empty spacer header to align with day headers (with right border for vertical grid line) */}
+        <div className="sticky left-0 top-0 z-20 bg-white/80 backdrop-blur px-2 py-1 border-r border-gray-200" />
         {/* Day headers */}
-        {weekDates.map((d, i) => (
-          <div key={`hdr-${d.fullDate}`} className={`sticky top-0 z-20 bg-white/80 backdrop-blur px-2 py-1 ${isMobile && i !== (activeDayIndex || 0) ? 'hidden' : ''}`}>
-            <div className="text-sm font-medium text-gray-900">{d.date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-            <div className="text-xs text-gray-500">{d.dateStr}</div>
-          </div>
-        ))}
-
-        {/* time rows (make the first selectable row start at top to avoid hidden row near headers) */}
-        <div className="border-r border-gray-200">
-          {hours.map((h, idx) => (
-            <div key={h} className={`h-12 md:h-16 border-gray-200 ${idx === 0 ? 'border-t-2' : 'border-t-2'} ${idx === hours.length - 1 ? 'border-b' : ''}`}>
-              <div className="text-xs text-gray-500 px-1 pt-1">{formatHour(h)}</div>
+        {weekDates.map((d, i) => {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const dd = new Date(d.date);
+          dd.setHours(0, 0, 0, 0);
+          const isToday = dd.getTime() === today.getTime();
+          return (
+            <div
+              key={`hdr-${d.fullDate}`}
+              className={`relative sticky top-0 z-20 bg-white/80 backdrop-blur px-2 pt-1 pb-0 text-center ${
+                isMobile && i !== (activeDayIndex || 0) ? 'hidden' : ''
+              }`}
+            >
+              {i > 0 && (
+                <span className="absolute left-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
+              )}
+              {i === weekDates.length - 1 && (
+                <span className="absolute right-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
+              )}
+              <div className="text-[10px] tracking-wide text-gray-500 uppercase">{d.date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+              <div className="flex items-center justify-center">
+                <span className={`inline-flex items-center justify-center text-2xl font-medium ${isToday ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827]' : 'text-gray-900'}`}>
+                  {d.date.getDate()}
+                </span>
+              </div>
             </div>
-          ))}
+          );
+        })}
+
+        {/* time rows (render per half-hour to perfectly align with grid lines) */}
+        <div className="border-r border-gray-200">
+          {Array.from({ length: rows }).map((_, r) => {
+            const isFirst = r === 0;
+            const bottomBorder = 'border-b border-gray-200';
+            const labelHour = Math.floor(r / 2) + startHour;
+            const showLabel = r % 2 === 0; // label at the start of each hour
+            return (
+              <div key={`gutter-${r}`} className={`${isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8'} ${isFirst ? 'border-t border-gray-200' : ''} ${bottomBorder} flex items-center`}>
+                {showLabel && (
+                  <div className="text-xs text-gray-500 px-1 whitespace-nowrap">{formatHour(labelHour)}</div>
+                )}
+              </div>
+            );
+          })}
         </div>
         {dayColumns}
       </div>

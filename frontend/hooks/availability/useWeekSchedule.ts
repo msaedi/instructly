@@ -59,6 +59,8 @@ export interface UseWeekScheduleReturn {
   setMessage: (message: AvailabilityMessage | null) => void;
   /** Refresh schedule from backend */
   refreshSchedule: () => Promise<void>;
+  /** Jump to the current week's Monday */
+  goToCurrentWeek: () => void;
   /** Check if a date is in the past */
   isDateInPast: (dateStr: string) => boolean;
   /** Format current week for display */
@@ -156,23 +158,8 @@ export function useWeekSchedule(
 
   const currentWeekDisplay = useMemo(() => {
     const start = weekDates[0]?.date;
-    const end = weekDates[6]?.date;
-
-    if (!start || !end) return '';
-
-    const startStr = start.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
-
-    const endStr = end.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
-
-    return `${startStr} - ${endStr}`;
+    if (!start) return '';
+    return start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }, [weekDates]);
 
   /**
@@ -284,15 +271,7 @@ export function useWeekSchedule(
    */
   const navigateWeek = useCallback(
     (direction: 'prev' | 'next') => {
-      if (hasUnsavedChanges) {
-        const confirmed = confirm(
-          'You have unsaved changes. Are you sure you want to leave without saving?'
-        );
-        if (!confirmed) {
-          logger.debug('Week navigation cancelled - unsaved changes');
-          return;
-        }
-      }
+      // Autosave is enabled; suppress prompt
 
       const newDate =
         direction === 'next'
@@ -307,7 +286,7 @@ export function useWeekSchedule(
 
       setCurrentWeekStart(newDate);
     },
-    [currentWeekStart, hasUnsavedChanges]
+    [currentWeekStart]
   );
 
   /**
@@ -317,6 +296,14 @@ export function useWeekSchedule(
     logger.debug('Refreshing schedule');
     await fetchWeekSchedule();
   }, [fetchWeekSchedule]);
+
+  /**
+   * Jump to the current week (Monday as start)
+   */
+  const goToCurrentWeek = useCallback(() => {
+    const wk = getCurrentWeekStart();
+    setCurrentWeekStart(wk);
+  }, []);
 
   /**
    * Reset state when week changes
@@ -348,6 +335,7 @@ export function useWeekSchedule(
     setWeekSchedule,
     setMessage,
     refreshSchedule,
+    goToCurrentWeek,
     isDateInPast,
     currentWeekDisplay,
     ...(version && { version }),

@@ -323,76 +323,70 @@ export default function InstructorDashboardNew() {
         </div>
 
         {/* Action items - moved directly under welcome card, full width */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 shadow-sm ring-1 ring-purple-100">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
               <ListTodo className="w-6 h-6 text-[#7E22CE]" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-800">Action items</h3>
-              <p className="text-xs text-black mt-0.5"><span className="text-[#FFD700] font-bold mr-1">*</span>Required to go live</p>
+              <h3 className="text-xl font-bold text-gray-800">Action items</h3>
+              <p className="text-xs text-gray-600 mt-0.5">Complete these steps to go live</p>
             </div>
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
               role="button"
               tabIndex={0}
               onClick={() => { const el = document.getElementById('profile-photo-upload'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const el = document.getElementById('profile-photo-upload'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } }}
             >
               <span className="text-gray-700">Upload a profile photo</span>
-              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
             </li>
             <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
               role="button"
               tabIndex={0}
               onClick={() => { setEditVariant('areas'); setShowEditModal(true); }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEditVariant('areas'); setShowEditModal(true); } }}
             >
               <span className="text-gray-700">Set your service area (where you can teach)</span>
-              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
             </li>
             <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
               role="button"
               tabIndex={0}
               onClick={() => { setEditVariant('services'); setShowEditModal(true); }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEditVariant('services'); setShowEditModal(true); } }}
             >
               <span className="text-gray-700">Set your skills</span>
-              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
             </li>
             <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
               role="button"
               tabIndex={0}
               onClick={() => setShowVerifyModal(true)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowVerifyModal(true); }}
             >
               <span className="text-gray-700">Verify your identity</span>
-              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
             </li>
             <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
               role="button"
               tabIndex={0}
               onClick={() => { const el = document.getElementById('payments-setup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const el = document.getElementById('payments-setup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } }}
             >
               <span className="text-gray-700">Set payment details (so you can get paid)</span>
-              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
             </li>
             <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
               role="button"
               tabIndex={0}
               onClick={() => router.push('/instructor/availability')}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push('/instructor/availability'); }}
             >
               <span className="text-gray-700">Set your availability</span>
-              <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
             </li>
           </ul>
         </div>
@@ -631,77 +625,71 @@ export default function InstructorDashboardNew() {
         {/* Tasks & Upcoming */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {/* Tasks checklist */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm ring-1 ring-purple-100">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <ListTodo className="w-6 h-6 text-[#7E22CE]" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">Action items</h3>
-                <p className="text-xs text-black mt-0.5"><span className="text-[#FFD700] font-bold mr-1">*</span>Required to go live</p>
+                <h3 className="text-xl font-bold text-gray-800">Action items</h3>
+                <p className="text-xs text-gray-600 mt-0.5">Complete these steps to go live</p>
               </div>
             </div>
             <ul className="space-y-2">
               <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
                 role="button"
                 tabIndex={0}
                 onClick={() => { const el = document.getElementById('profile-photo-upload'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const el = document.getElementById('profile-photo-upload'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } }}
               >
                 <span className="text-gray-700">Upload a profile photo</span>
-                <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
               </li>
 
               <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
                 role="button"
                 tabIndex={0}
                 onClick={() => { setEditVariant('areas'); setShowEditModal(true); }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEditVariant('areas'); setShowEditModal(true); } }}
               >
                 <span className="text-gray-700">Set your service area (where you can teach)</span>
-                <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
               </li>
               <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
                 role="button"
                 tabIndex={0}
                 onClick={() => { setEditVariant('services'); setShowEditModal(true); }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEditVariant('services'); setShowEditModal(true); } }}
               >
                 <span className="text-gray-700">Set your skills</span>
-                <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
               </li>
               <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
                 role="button"
                 tabIndex={0}
                 onClick={() => setShowVerifyModal(true)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowVerifyModal(true); }}
               >
                 <span className="text-gray-700">Verify your identity</span>
-                <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
               </li>
               <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
                 role="button"
                 tabIndex={0}
                 onClick={() => { const el = document.getElementById('payments-setup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const el = document.getElementById('payments-setup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } }}
               >
                 <span className="text-gray-700">Set payment details (so you can get paid)</span>
-                <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
               </li>
               <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50"
+                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
                 role="button"
                 tabIndex={0}
                 onClick={() => router.push('/instructor/availability')}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push('/instructor/availability'); }}
               >
                 <span className="text-gray-700">Set your availability</span>
-                <span aria-hidden="true" className="text-[#FFD700] font-extrabold text-3xl leading-none inline-flex items-center justify-center self-center relative top-[1px]">*</span>
               </li>
             </ul>
           </div>
