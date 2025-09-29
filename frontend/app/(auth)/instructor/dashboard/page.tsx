@@ -18,7 +18,7 @@ import { logger } from '@/lib/logger';
 import { InstructorProfile } from '@/types/instructor';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { normalizeInstructorServices, hydrateCatalogNameById } from '@/lib/instructorServices';
+import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 
 export default function InstructorDashboardNew() {
   const router = useRouter();
@@ -884,15 +884,14 @@ export default function InstructorDashboardNew() {
               </div>
               <div className="space-y-2">
                 {profile.services.map((service) => {
-                  const hydrated = hydrateCatalogNameById(service.service_catalog_id || '');
-                  const displayName =
-                    service.service_catalog_name ??
-                    hydrated ??
-                    (service.skill && service.skill.trim().length > 0 ? service.skill : undefined) ??
-                    (service.service_catalog_id ? `Service ${service.service_catalog_id}` : 'Service');
+                  const displayName = displayServiceName(service, hydrateCatalogNameById);
 
-                  if (!service.service_catalog_name && !hydrated && process.env.NODE_ENV !== 'production') {
-                    logger.warn('Missing service catalog name; falling back to placeholder', {
+                  if (
+                    process.env.NODE_ENV !== 'production' &&
+                    !service.service_catalog_name &&
+                    !hydrateCatalogNameById(service.service_catalog_id || '')
+                  ) {
+                    logger.warn('[service-name] missing catalog name (dashboard)', {
                       serviceCatalogId: service.service_catalog_id,
                     });
                   }

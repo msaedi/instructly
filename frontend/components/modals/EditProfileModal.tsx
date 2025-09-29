@@ -9,7 +9,7 @@ import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
-import { normalizeInstructorServices, hydrateCatalogNameById } from '@/lib/instructorServices';
+import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 type EditableService = {
   service_catalog_id?: string;
   service_catalog_name?: string | null;
@@ -170,6 +170,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   type AgeGroup = 'kids' | 'adults' | 'both';
   type SelectedService = {
     catalog_service_id: string;
+    service_catalog_name?: string | null;
     name: string;
     hourly_rate: string;
     ageGroup: AgeGroup;
@@ -248,9 +249,18 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
             const me = await meRes.json();
             const mapped: SelectedService[] = (me.services || []).map((svc: unknown) => {
               const s = svc as Record<string, unknown>;
+              const catalogId = String(s['service_catalog_id'] || '');
+              const serviceName = displayServiceName(
+                {
+                  service_catalog_id: catalogId,
+                  service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : (s['name'] as string | undefined) ?? null,
+                },
+                hydrateCatalogNameById
+              );
               return {
-                catalog_service_id: s['service_catalog_id'] as string,
-                name: (s['name'] as string) || '',
+                catalog_service_id: catalogId,
+                service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : null,
+                name: serviceName,
                 hourly_rate: String(s['hourly_rate'] ?? ''),
                 ageGroup:
                   Array.isArray(s['age_groups']) && s['age_groups'].length === 2
@@ -1288,22 +1298,42 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                 </div>
                 {selectedServices.length > 0 && (
                   <div className="mb-3 flex flex-wrap gap-2">
-                    {selectedServices.map((s) => (
-                      <span
-                        key={`sel-${s.catalog_service_id}`}
-                        className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0"
-                      >
-                        <span className="truncate max-w-[14rem]" title={s.name}>{s.name}</span>
-                        <button
-                          type="button"
-                          aria-label={`Remove ${s.name}`}
-                          className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
-                          onClick={() => setSelectedServices((prev) => prev.filter((x) => x.catalog_service_id !== s.catalog_service_id))}
+                    {selectedServices.map((s) => {
+                      const label = displayServiceName(
+                        {
+                          service_catalog_id: s.catalog_service_id,
+                          service_catalog_name: s.service_catalog_name ?? s.name,
+                        },
+                        hydrateCatalogNameById,
+                      );
+
+                      if (
+                        process.env.NODE_ENV !== 'production' &&
+                        !s.service_catalog_name &&
+                        !hydrateCatalogNameById(s.catalog_service_id)
+                      ) {
+                        logger.warn('[service-name] missing catalog name (edit modal chip)', {
+                          serviceCatalogId: s.catalog_service_id,
+                        });
+                      }
+
+                      return (
+                        <span
+                          key={`sel-${s.catalog_service_id}`}
+                          className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0"
                         >
-                          &times;
-                        </button>
-                      </span>
-                    ))}
+                          <span className="truncate max-w-[14rem]" title={label}>{label}</span>
+                          <button
+                            type="button"
+                            aria-label={`Remove ${label}`}
+                            className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
+                            onClick={() => setSelectedServices((prev) => prev.filter((x) => x.catalog_service_id !== s.catalog_service_id))}
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
                 {skillsFilter.trim().length > 0 && (
@@ -1320,8 +1350,31 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                               key={`global-${svc.id}`}
                               onClick={() => {
                                 const exists = selectedServices.some((s) => s.catalog_service_id === svc.id);
-                                if (exists) setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== svc.id));
-                                else setSelectedServices((prev) => ([...prev, { catalog_service_id: svc.id, name: svc.name, hourly_rate: '', ageGroup: 'adults', description: '', equipment: '', levels_taught: ['beginner','intermediate','advanced'], duration_options: [60], location_types: ['in-person'] }]));
+                                if (exists) {
+                                  setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== svc.id));
+                                } else {
+                                  setSelectedServices((prev) => {
+                                    const label = displayServiceName(
+                                      { service_catalog_id: svc.id, service_catalog_name: svc.name },
+                                      hydrateCatalogNameById,
+                                    );
+                                    return [
+                                      ...prev,
+                                      {
+                                        catalog_service_id: svc.id,
+                                        service_catalog_name: svc.name,
+                                        name: label,
+                                        hourly_rate: '',
+                                        ageGroup: 'adults',
+                                        description: '',
+                                        equipment: '',
+                                        levels_taught: ['beginner', 'intermediate', 'advanced'],
+                                        duration_options: [60],
+                                        location_types: ['in-person'],
+                                      },
+                                    ];
+                                  });
+                                }
                               }}
                               className={`px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
                                 isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1364,8 +1417,31 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                                   key={svc.id}
                                   onClick={() => {
                                     const exists = selectedServices.some((s) => s.catalog_service_id === svc.id);
-                                    if (exists) setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== svc.id));
-                                    else setSelectedServices((prev) => ([...prev, { catalog_service_id: svc.id, name: svc.name, hourly_rate: '', ageGroup: 'adults', description: '', equipment: '', levels_taught: ['beginner','intermediate','advanced'], duration_options: [60], location_types: ['in-person'] }]));
+                                    if (exists) {
+                                      setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== svc.id));
+                                    } else {
+                                      setSelectedServices((prev) => {
+                                        const label = displayServiceName(
+                                          { service_catalog_id: svc.id, service_catalog_name: svc.name },
+                                          hydrateCatalogNameById,
+                                        );
+                                        return [
+                                          ...prev,
+                                          {
+                                            catalog_service_id: svc.id,
+                                            service_catalog_name: svc.name,
+                                            name: label,
+                                            hourly_rate: '',
+                                            ageGroup: 'adults',
+                                            description: '',
+                                            equipment: '',
+                                            levels_taught: ['beginner', 'intermediate', 'advanced'],
+                                            duration_options: [60],
+                                            location_types: ['in-person'],
+                                          },
+                                        ];
+                                      });
+                                    }
                                   }}
                                   className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
                                     isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1389,11 +1465,30 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                     <p className="text-gray-500 text-sm">You can add skills now or later.</p>
                   ) : (
                     <div className="grid gap-4">
-                      {selectedServices.map((s) => (
-                        <div key={s.catalog_service_id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                      {selectedServices.map((s) => {
+                        const label = displayServiceName(
+                          {
+                            service_catalog_id: s.catalog_service_id,
+                            service_catalog_name: s.service_catalog_name ?? s.name,
+                          },
+                          hydrateCatalogNameById,
+                        );
+
+                        if (
+                          process.env.NODE_ENV !== 'production' &&
+                          !s.service_catalog_name &&
+                          !hydrateCatalogNameById(s.catalog_service_id)
+                        ) {
+                          logger.warn('[service-name] missing catalog name (edit modal summary)', {
+                            serviceCatalogId: s.catalog_service_id,
+                          });
+                        }
+
+                        return (
+                          <div key={s.catalog_service_id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                           <div className="flex items-start justify-between mb-3">
                             <div>
-                              <div className="text-base font-medium text-gray-900">{s.name}</div>
+                              <div className="text-base font-medium text-gray-900">{label}</div>
                               <div className="flex items-center gap-3 mt-1">
                                 <div className="flex items-center gap-1">
                                   <span className="text-xl font-bold text-[#7E22CE]">${s.hourly_rate || '0'}</span>
@@ -1562,8 +1657,9 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                               />
                             </div>
                           </div>
-                        </div>
-                      ))}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
