@@ -38,6 +38,9 @@ class PrivacyService(BaseService):
         self.instructor_repository = RepositoryFactory.create_instructor_profile_repository(db)
         self.search_history_repository = RepositoryFactory.create_search_history_repository(db)
         self.search_event_repository = RepositoryFactory.create_search_event_repository(db)
+        self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
+            db
+        )
 
     @BaseService.measure_operation("export_user_data")
     def export_user_data(self, user_id: str) -> dict[str, Any]:
@@ -113,13 +116,58 @@ class PrivacyService(BaseService):
         # Export instructor profile if exists
         instructor = self.instructor_repository.get_by_user_id(user_id)
         if instructor:
+            service_area_records = self.service_area_repository.list_for_instructor(user_id)
+            service_area_neighborhoods: list[dict[str, Any]] = []
+            boroughs: set[str] = set()
+
+            for area in service_area_records:
+                region = getattr(area, "neighborhood", None)
+                region_code: str | None = getattr(region, "region_code", None)
+                region_name: str | None = getattr(region, "region_name", None)
+                borough: str | None = getattr(region, "parent_region", None)
+                region_meta = getattr(region, "region_metadata", None)
+
+                if isinstance(region_meta, dict):
+                    region_code = (
+                        region_code or region_meta.get("nta_code") or region_meta.get("ntacode")
+                    )
+                    region_name = (
+                        region_name or region_meta.get("nta_name") or region_meta.get("name")
+                    )
+                    meta_borough = region_meta.get("borough")
+                    if isinstance(meta_borough, str) and meta_borough:
+                        borough = meta_borough
+
+                if borough:
+                    boroughs.add(borough)
+
+                service_area_neighborhoods.append(
+                    {
+                        "neighborhood_id": area.neighborhood_id,
+                        "ntacode": region_code,
+                        "name": region_name,
+                        "borough": borough,
+                    }
+                )
+
+            sorted_boroughs = sorted(boroughs)
+            if sorted_boroughs:
+                if len(sorted_boroughs) <= 2:
+                    service_area_summary = ", ".join(sorted_boroughs)
+                else:
+                    service_area_summary = f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
+            else:
+                service_area_summary = ""
+
             export_data["instructor_profile"] = {
                 "bio": instructor.bio,
                 "years_experience": instructor.years_experience,
-                "areas_of_service": instructor.areas_of_service,
                 "min_advance_booking_hours": instructor.min_advance_booking_hours,
                 "buffer_time_minutes": instructor.buffer_time_minutes,
                 "created_at": instructor.created_at.isoformat() if instructor.created_at else None,
+                "service_area_neighborhoods": service_area_neighborhoods,
+                "service_area_boroughs": sorted_boroughs,
+                "service_area_summary": service_area_summary,
             }
 
         # For students, the user record is sufficient (no separate student profile table)

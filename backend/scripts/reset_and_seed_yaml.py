@@ -289,7 +289,6 @@ class DatabaseSeeder:
                     user_id=user.id,
                     bio=_bio,
                     years_experience=profile_data.get("years_experience", 1),
-                    areas_of_service=", ".join(_areas_list),
                     min_advance_booking_hours=2,
                     buffer_time_minutes=0,
                     # Onboarding defaults for seeded instructors
@@ -653,9 +652,7 @@ class DatabaseSeeder:
                         hourly_rate=service.hourly_rate,
                         total_price=service.hourly_rate * (duration / 60),
                         status=BookingStatus.CONFIRMED,
-                        service_area=instructor.instructor_profile.areas_of_service
-                        if instructor.instructor_profile
-                        else None,
+                        service_area=None,
                         meeting_location="Online",
                         location_type="neutral",
                     )
@@ -743,7 +740,7 @@ class DatabaseSeeder:
                     location_type="neutral",
                     meeting_location="Zoom",
                     service_name=service.catalog_entry.name if service.catalog_entry else "Service",
-                    service_area="Manhattan",
+                    service_area=None,
                     hourly_rate=service.hourly_rate,
                     total_price=service.session_price(duration),
                     duration_minutes=duration,
@@ -931,11 +928,7 @@ class DatabaseSeeder:
                             location_type="neutral",
                             meeting_location="In-person",
                             service_name=service.catalog_entry.name if service.catalog_entry else "Service",
-                            service_area=(
-                                instructor.instructor_profile.areas_of_service
-                                if instructor.instructor_profile
-                                else None
-                            ),
+                            service_area=None,
                             hourly_rate=service.hourly_rate,
                             total_price=service.hourly_rate * (duration / 60),
                             duration_minutes=duration,

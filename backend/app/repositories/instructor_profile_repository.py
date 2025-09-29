@@ -16,6 +16,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import RepositoryException
+from ..models.address import InstructorServiceArea
 from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
@@ -83,6 +84,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .filter(User.account_status == "active")
                 .options(
                     joinedload(InstructorProfile.user).joinedload(User.preferred_places),
+                    joinedload(InstructorProfile.user)
+                    .joinedload(User.service_areas)  # type: ignore[attr-defined]
+                    .joinedload(InstructorServiceArea.neighborhood),
                     joinedload(InstructorProfile.instructor_services).joinedload(
                         Service.catalog_entry
                     ),
@@ -124,6 +128,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                     self.db.query(InstructorProfile)
                     .options(
                         joinedload(InstructorProfile.user).joinedload(User.preferred_places),
+                        joinedload(InstructorProfile.user)
+                        .joinedload(User.service_areas)  # type: ignore[attr-defined]
+                        .joinedload(InstructorServiceArea.neighborhood),
                         joinedload(InstructorProfile.instructor_services).joinedload(
                             Service.catalog_entry
                         ),
@@ -170,7 +177,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                             Service.catalog_entry
                         ),
                     )
-                    .filter(InstructorProfile.areas_of_service.ilike(f"%{area}%"))
+                    # TODO: Reintroduce area-based filtering by joining InstructorServiceArea
+                    # once service areas are fully normalized in queries.
                     .offset(skip)
                     .limit(limit)
                     .all()

@@ -560,13 +560,71 @@ def test_instructor(db: Session, test_password: str) -> User:
     profile = InstructorProfile(
         user_id=instructor.id,
         bio="Test instructor bio",
-        areas_of_service="Manhattan, Brooklyn",
         years_experience=5,
         min_advance_booking_hours=2,
         buffer_time_minutes=15,
     )
     db.add(profile)
     db.flush()
+
+    # Ensure instructor has service area coverage for Manhattan and Brooklyn
+    neighborhoods = [
+        {
+            "region_name": "Manhattan - Midtown",
+            "region_code": "MN-MID",
+            "parent_region": "Manhattan",
+        },
+        {
+            "region_name": "Brooklyn - Williamsburg",
+            "region_code": "BK-WIL",
+            "parent_region": "Brooklyn",
+        },
+    ]
+
+    for entry in neighborhoods:
+        region_boundary = (
+            db.query(RegionBoundary)
+            .filter(
+                RegionBoundary.region_type == "nyc",
+                RegionBoundary.region_name == entry["region_name"],
+            )
+            .first()
+        )
+        if not region_boundary:
+            region_boundary = RegionBoundary(
+                region_type="nyc",
+                region_code=entry["region_code"],
+                region_name=entry["region_name"],
+                parent_region=entry["parent_region"],
+                region_metadata={
+                    "borough": entry["parent_region"],
+                    "nta_name": entry["region_name"],
+                    "nta_code": entry["region_code"],
+                },
+            )
+            db.add(region_boundary)
+            db.flush()
+
+        existing_link = (
+            db.query(InstructorServiceArea)
+            .filter(
+                InstructorServiceArea.instructor_id == instructor.id,
+                InstructorServiceArea.neighborhood_id == region_boundary.id,
+            )
+            .first()
+        )
+        if existing_link:
+            existing_link.is_active = True
+        else:
+            db.add(
+                InstructorServiceArea(
+                    instructor_id=instructor.id,
+                    neighborhood_id=region_boundary.id,
+                    coverage_type="primary",
+                    is_active=True,
+                )
+            )
+
 
     # Get catalog services - use actual services from seeded data
     catalog_services = db.query(ServiceCatalog).filter(ServiceCatalog.slug.in_(["piano", "guitar"])).all()
@@ -646,12 +704,70 @@ def test_instructor_2(db: Session, test_password: str) -> User:
     profile = InstructorProfile(
         user_id=instructor.id,
         bio="Second test instructor bio",
-        areas_of_service="Queens, Bronx",
         years_experience=3,
         min_advance_booking_hours=1,
         buffer_time_minutes=10,
     )
     db.add(profile)
+    db.flush()
+
+    neighborhoods = [
+        {
+            "region_name": "Queens - Astoria",
+            "region_code": "QN-AST",
+            "parent_region": "Queens",
+        },
+        {
+            "region_name": "Bronx - Fordham",
+            "region_code": "BX-FOR",
+            "parent_region": "Bronx",
+        },
+    ]
+
+    for entry in neighborhoods:
+        region_boundary = (
+            db.query(RegionBoundary)
+            .filter(
+                RegionBoundary.region_type == "nyc",
+                RegionBoundary.region_name == entry["region_name"],
+            )
+            .first()
+        )
+        if not region_boundary:
+            region_boundary = RegionBoundary(
+                region_type="nyc",
+                region_code=entry["region_code"],
+                region_name=entry["region_name"],
+                parent_region=entry["parent_region"],
+                region_metadata={
+                    "borough": entry["parent_region"],
+                    "nta_name": entry["region_name"],
+                    "nta_code": entry["region_code"],
+                },
+            )
+            db.add(region_boundary)
+            db.flush()
+
+        existing_link = (
+            db.query(InstructorServiceArea)
+            .filter(
+                InstructorServiceArea.instructor_id == instructor.id,
+                InstructorServiceArea.neighborhood_id == region_boundary.id,
+            )
+            .first()
+        )
+        if existing_link:
+            existing_link.is_active = True
+        else:
+            db.add(
+                InstructorServiceArea(
+                    instructor_id=instructor.id,
+                    neighborhood_id=region_boundary.id,
+                    coverage_type="primary",
+                    is_active=True,
+                )
+            )
+
     db.commit()
     db.refresh(instructor)
     return instructor

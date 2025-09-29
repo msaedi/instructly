@@ -95,6 +95,9 @@ class BookingService(BaseService):
             conflict_checker_repository or RepositoryFactory.create_conflict_checker_repository(db)
         )
         self.cache_service = cache_service
+        self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
+            db
+        )
 
     @BaseService.measure_operation("create_booking")
     async def create_booking(
@@ -1154,6 +1157,9 @@ class BookingService(BaseService):
         # Calculate pricing based on selected duration
         total_price = service.session_price(selected_duration)
 
+        # Derive service area summary for booking record
+        service_area_summary = self._determine_service_area_summary(instructor_profile.user_id)
+
         # Create the booking
         booking = self.repository.create(
             student_id=student.id,
@@ -1167,7 +1173,7 @@ class BookingService(BaseService):
             total_price=total_price,
             duration_minutes=selected_duration,
             status=BookingStatus.CONFIRMED,
-            service_area=instructor_profile.areas_of_service,
+            service_area=service_area_summary,
             meeting_location=booking_data.meeting_location,
             location_type=booking_data.location_type,
             student_note=booking_data.student_note,
@@ -1180,6 +1186,29 @@ class BookingService(BaseService):
             return detailed_booking
 
         return booking
+
+    def _determine_service_area_summary(self, instructor_id: str) -> str:
+        """Summarize instructor service areas for booking metadata."""
+        areas = self.service_area_repository.list_for_instructor(instructor_id)
+        boroughs: set[str] = set()
+
+        for area in areas:
+            region = getattr(area, "neighborhood", None)
+            borough = getattr(region, "parent_region", None)
+            region_meta = getattr(region, "region_metadata", None)
+            if isinstance(region_meta, dict):
+                meta_borough = region_meta.get("borough")
+                if isinstance(meta_borough, str) and meta_borough:
+                    borough = meta_borough
+            if isinstance(borough, str) and borough:
+                boroughs.add(borough)
+
+        sorted_boroughs = sorted(boroughs)
+        if not sorted_boroughs:
+            return ""
+        if len(sorted_boroughs) <= 2:
+            return ", ".join(sorted_boroughs)
+        return f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
 
     async def _handle_post_booking_tasks(self, booking: Booking) -> None:
         """

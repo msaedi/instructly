@@ -116,6 +116,15 @@ class PreferredPublicSpaceOut(PreferredPublicSpaceIn):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ServiceAreaNeighborhoodOut(StandardizedModel):
+    """Service area neighborhood representation for instructor profile responses."""
+
+    neighborhood_id: str
+    ntacode: Optional[str] = None
+    name: Optional[str] = None
+    borough: Optional[str] = None
+
+
 class ServiceBase(StandardizedModel):
     """
     Base schema for instructor services.
@@ -323,12 +332,6 @@ class InstructorProfileBase(StandardizedModel):
         max_length=MAX_BIO_LENGTH,
         description="Instructor biography/description",
     )
-    areas_of_service: List[str] = Field(
-        ...,
-        min_length=1,
-        max_length=20,
-        description="NYC areas where instructor provides services",
-    )
     years_experience: int = Field(..., ge=0, le=50, description="Years of teaching experience")
     min_advance_booking_hours: int = Field(
         default=2, ge=0, le=168, description="Minimum hours in advance for bookings"
@@ -336,15 +339,6 @@ class InstructorProfileBase(StandardizedModel):
     buffer_time_minutes: int = Field(
         default=0, ge=0, le=60, description="Buffer time between bookings"
     )
-
-    @field_validator("areas_of_service")
-    def validate_areas(cls, v: List[str]) -> List[str]:
-        """Ensure areas are properly formatted and no duplicates."""
-        # Remove duplicates and format properly
-        unique_areas = list(set(area.strip().title() for area in v if area.strip()))
-        if not unique_areas:
-            raise ValueError("At least one area of service is required")
-        return unique_areas
 
     @field_validator("bio")
     def validate_bio(cls, v: str) -> str:
@@ -391,7 +385,6 @@ class InstructorProfileUpdate(StrictRequestModel):
     """
 
     bio: Optional[str] = Field(None, min_length=MIN_BIO_LENGTH, max_length=MAX_BIO_LENGTH)
-    areas_of_service: Optional[List[str]] = Field(None, min_length=0, max_length=10)
     years_experience: Optional[int] = Field(None, ge=0, le=50)
     services: Optional[List[ServiceCreate]] = Field(None, min_length=0, max_length=20)
     min_advance_booking_hours: Optional[int] = Field(
@@ -402,14 +395,6 @@ class InstructorProfileUpdate(StrictRequestModel):
     )
     preferred_teaching_locations: Optional[List[PreferredTeachingLocationIn]] = Field(default=None)
     preferred_public_spaces: Optional[List[PreferredPublicSpaceIn]] = Field(default=None)
-
-    @field_validator("areas_of_service")
-    def validate_areas(cls, v: Optional[List[str]]) -> Optional[List[str]]:
-        """Ensure areas are properly formatted if provided."""
-        if v is not None and len(v) > 0:
-            unique_areas = list(set(area.strip().title() for area in v if area.strip()))
-            return unique_areas if unique_areas else []
-        return v
 
     @field_validator("preferred_teaching_locations")
     def validate_preferred_teaching_locations(
@@ -469,6 +454,9 @@ class InstructorProfileResponse(InstructorProfileBase):
     is_live: bool = Field(default=False)
     preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(default_factory=list)
     preferred_public_spaces: List[PreferredPublicSpaceOut] = Field(default_factory=list)
+    service_area_neighborhoods: List[ServiceAreaNeighborhoodOut] = Field(default_factory=list)
+    service_area_boroughs: List[str] = Field(default_factory=list)
+    service_area_summary: Optional[str] = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -549,7 +537,6 @@ class InstructorProfileResponse(InstructorProfileBase):
             created_at=instructor_profile.created_at,
             updated_at=instructor_profile.updated_at,
             bio=instructor_profile.bio,
-            areas_of_service=instructor_profile.areas_of_service,
             years_experience=instructor_profile.years_experience,
             min_advance_booking_hours=instructor_profile.min_advance_booking_hours,
             buffer_time_minutes=instructor_profile.buffer_time_minutes,
@@ -567,32 +554,6 @@ class InstructorProfileResponse(InstructorProfileBase):
             preferred_teaching_locations=teaching_locations,
             preferred_public_spaces=public_spaces,
         )
-
-    @field_validator("areas_of_service", mode="before")
-    def convert_areas_to_list(cls, v: object) -> object:
-        """Convert comma-separated string to list if needed."""
-        if isinstance(v, str):
-            # Clean up any corrupted data
-            cleaned = v
-            # Remove excessive escaping
-            while '\\"' in cleaned or "\\\\" in cleaned:
-                cleaned = cleaned.replace('\\"', '"')
-                cleaned = cleaned.replace("\\'", "'")
-                cleaned = cleaned.replace("\\\\", "\\")
-
-            # Remove any curly braces
-            cleaned = cleaned.replace("{", "").replace("}", "")
-
-            # Split by comma and clean up each area
-            areas: List[str] = []
-            for area in cleaned.split(","):
-                # Remove quotes and whitespace
-                area = area.strip().strip('"').strip("'").strip()
-                if area and len(area) > 2:
-                    areas.append(area.title())
-
-            return areas
-        return v
 
     @field_validator("services")
     def sort_services(cls, v: List[ServiceResponse]) -> List[ServiceResponse]:

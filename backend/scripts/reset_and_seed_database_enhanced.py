@@ -52,10 +52,12 @@ from sqlalchemy.orm import Session  # noqa: E402
 from app.auth import get_password_hash  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.enums import RoleName
+from app.models.address import InstructorServiceArea  # noqa: E402
 from app.models.availability import AvailabilitySlot, BlackoutDate  # noqa: E402
 from app.models.booking import Booking, BookingStatus  # noqa: E402
 from app.models.instructor import InstructorProfile  # noqa: E402
 from app.models.password_reset import PasswordResetToken  # noqa: E402
+from app.models.region_boundary import RegionBoundary  # noqa: E402
 from app.models.service import Service  # noqa: E402
 from app.models.user import User
 
@@ -585,7 +587,6 @@ def create_dummy_instructors(session: Session):
             user_id=user.id,
             bio=template["bio"],
             years_experience=template["years_experience"],
-            areas_of_service=", ".join(template["areas"]),
             min_advance_booking_hours=24,
             buffer_time_minutes=15,
         )
@@ -612,6 +613,22 @@ def create_dummy_instructors(session: Session):
         # Store for later processing
         template["_user_id"] = user.id
         template["_services"] = services_created
+
+        # Persist service areas
+        for area_name in template.get("areas", []):
+            neighborhood = (
+                session.query(RegionBoundary)
+                .filter(RegionBoundary.region_type == "nyc", RegionBoundary.region_name == area_name)
+                .first()
+            )
+            if neighborhood:
+                session.add(
+                    InstructorServiceArea(
+                        instructor_id=user.id,
+                        neighborhood_id=neighborhood.id,
+                        coverage_type="primary",
+                    )
+                )
 
     session.commit()
     logger.info(f"Created {len(INSTRUCTOR_TEMPLATES)} instructors with profiles and services")

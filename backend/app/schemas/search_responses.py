@@ -17,7 +17,18 @@ class InstructorInfo(BaseModel):
     last_initial: str = Field(description="Instructor last name initial only")
     bio: Optional[str] = Field(default=None, description="Instructor bio")
     years_experience: Optional[int] = Field(default=None, description="Years of experience")
-    areas_of_service: Optional[str] = Field(default=None, description="Service areas")
+    service_area_summary: Optional[str] = Field(
+        default=None, description="Summary of borough coverage (e.g., 'Manhattan, Queens')"
+    )
+    service_area_boroughs: List[str] = Field(
+        default_factory=list, description="List of borough names the instructor serves"
+    )
+    service_area_neighborhoods: List[Dict[str, Optional[str]]] = Field(
+        default_factory=list,
+        description=(
+            "Detailed neighborhood coverage with keys: neighborhood_id, ntacode, name, borough"
+        ),
+    )
 
     @classmethod
     def from_user(
@@ -25,7 +36,9 @@ class InstructorInfo(BaseModel):
         user: Any,
         bio: Optional[str] = None,
         years_experience: Optional[int] = None,
-        areas_of_service: Optional[str] = None,
+        service_area_summary: Optional[str] = None,
+        service_area_boroughs: Optional[List[str]] = None,
+        service_area_neighborhoods: Optional[List[Dict[str, Optional[str]]]] = None,
     ) -> "InstructorInfo":
         """Create InstructorInfo from user with privacy protection."""
         return cls(
@@ -34,7 +47,9 @@ class InstructorInfo(BaseModel):
             last_initial=user.last_name[0] if user.last_name else "",
             bio=bio,
             years_experience=years_experience,
-            areas_of_service=areas_of_service,
+            service_area_summary=service_area_summary,
+            service_area_boroughs=service_area_boroughs or [],
+            service_area_neighborhoods=service_area_neighborhoods or [],
         )
 
 

@@ -332,6 +332,9 @@ class SearchService(BaseService):
         self.catalog_repository = RepositoryFactory.create_service_catalog_repository(db)
         self.analytics_repository = RepositoryFactory.create_service_analytics_repository(db)
         self.instructor_repository = RepositoryFactory.create_instructor_profile_repository(db)
+        self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
+            db
+        )
         self.review_service = ReviewService(db)
 
     @BaseService.measure_operation("natural_language_search")
@@ -797,10 +800,17 @@ class SearchService(BaseService):
                 if not instructor_service:
                     continue
 
+                service_area_context, boroughs_lower = self._build_service_area_context(
+                    instructor_profile.user_id
+                )
+
                 # Check location constraints
                 if location_constraints:
                     if not self._matches_location_constraints(
-                        instructor_service, instructor_profile, location_constraints
+                        instructor_service,
+                        instructor_profile,
+                        location_constraints,
+                        boroughs_lower,
                     ):
                         continue
 
@@ -818,7 +828,11 @@ class SearchService(BaseService):
                         user=instructor_profile.user,
                         bio=instructor_profile.bio,
                         years_experience=instructor_profile.years_experience,
-                        areas_of_service=instructor_profile.areas_of_service,
+                        service_area_summary=service_area_context["service_area_summary"],
+                        service_area_boroughs=service_area_context["service_area_boroughs"],
+                        service_area_neighborhoods=service_area_context[
+                            "service_area_neighborhoods"
+                        ],
                     ).model_dump(),
                     "offering": {
                         "id": instructor_service.id,
@@ -836,36 +850,12 @@ class SearchService(BaseService):
                         service["relevance_score"], instructor_service, parsed
                     ),
                 }
-                # Optional: attach minimal coverage metadata if available via service area repo
-                try:
-                    from ..repositories.address_repository import InstructorServiceAreaRepository
-
-                    area_repo = InstructorServiceAreaRepository(self.db)
-                    areas = area_repo.list_for_instructor(instructor_profile.user_id)
-                    if areas:
-                        result["coverage_regions"] = [
-                            {
-                                "region_id": a.neighborhood_id,
-                                "name": (
-                                    getattr(a.neighborhood, "region_name", None)
-                                    if a.neighborhood
-                                    else None
-                                ),
-                                "borough": (
-                                    getattr(a.neighborhood, "parent_region", None)
-                                    if a.neighborhood
-                                    else None
-                                ),
-                                "coverage_type": getattr(a, "coverage_type", None),
-                            }
-                            for a in areas
-                            if a.is_active
-                        ]
-                        result["coverage_region_ids"] = [
-                            a.neighborhood_id for a in areas if a.is_active
-                        ]
-                except Exception:
-                    pass
+                coverage_regions = service_area_context.get("coverage_regions")
+                coverage_region_ids = service_area_context.get("coverage_region_ids")
+                if coverage_regions:
+                    result["coverage_regions"] = coverage_regions
+                if coverage_region_ids:
+                    result["coverage_region_ids"] = coverage_region_ids
                 results.append(result)
 
         # Sort by match score
@@ -873,11 +863,80 @@ class SearchService(BaseService):
 
         return results
 
+    def _build_service_area_context(self, instructor_id: str) -> tuple[JsonDict, set[str]]:
+        """Construct service area payload used by search consumers."""
+        service_areas = self.service_area_repository.list_for_instructor(instructor_id)
+        neighborhoods: list[dict[str, Any]] = []
+        boroughs: set[str] = set()
+        coverage_regions: list[dict[str, Any]] = []
+        coverage_region_ids: list[str] = []
+
+        for area in service_areas:
+            region = getattr(area, "neighborhood", None)
+            region_code: str | None = getattr(region, "region_code", None)
+            region_name: str | None = getattr(region, "region_name", None)
+            borough: str | None = getattr(region, "parent_region", None)
+            region_meta = getattr(region, "region_metadata", None)
+
+            if isinstance(region_meta, dict):
+                region_code = (
+                    region_code or region_meta.get("nta_code") or region_meta.get("ntacode")
+                )
+                region_name = region_name or region_meta.get("nta_name") or region_meta.get("name")
+                meta_borough = region_meta.get("borough")
+                if isinstance(meta_borough, str) and meta_borough:
+                    borough = meta_borough
+
+            if borough:
+                boroughs.add(borough)
+
+            neighborhoods.append(
+                {
+                    "neighborhood_id": area.neighborhood_id,
+                    "ntacode": region_code,
+                    "name": region_name,
+                    "borough": borough,
+                }
+            )
+
+            coverage_regions.append(
+                {
+                    "region_id": area.neighborhood_id,
+                    "name": region_name,
+                    "borough": borough,
+                    "coverage_type": getattr(area, "coverage_type", None),
+                }
+            )
+            if area.is_active:
+                coverage_region_ids.append(area.neighborhood_id)
+
+        sorted_boroughs = sorted(boroughs)
+        if sorted_boroughs:
+            if len(sorted_boroughs) <= 2:
+                summary = ", ".join(sorted_boroughs)
+            else:
+                summary = f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
+        else:
+            summary = ""
+
+        context: JsonDict = {
+            "service_area_neighborhoods": neighborhoods,
+            "service_area_boroughs": sorted_boroughs,
+            "service_area_summary": summary,
+        }
+        if coverage_regions:
+            context["coverage_regions"] = coverage_regions
+        if coverage_region_ids:
+            context["coverage_region_ids"] = coverage_region_ids
+
+        return context, {borough.lower() for borough in sorted_boroughs}
+
     def _matches_location_constraints(
         self,
         instructor_service: Any,
         instructor_profile: Any,
         location_constraints: JsonDict,
+        service_area_boroughs_lower: Optional[set[str]] = None,
     ) -> bool:
         """Check if instructor matches location constraints."""
         if location_constraints.get("online"):
@@ -894,14 +953,21 @@ class SearchService(BaseService):
             ):
                 return False
 
-            # Check specific boroughs
-            areas = (
-                instructor_profile.areas_of_service.lower()
-                if instructor_profile.areas_of_service
-                else ""
-            )
-            for borough in ["manhattan", "brooklyn", "queens", "bronx", "staten_island"]:
-                if location_constraints.get(borough) and borough.replace("_", " ") not in areas:
+            if service_area_boroughs_lower is None:
+                _, service_area_boroughs_lower = self._build_service_area_context(
+                    instructor_profile.user_id
+                )
+
+            borough_requirements = {
+                "manhattan": "manhattan",
+                "brooklyn": "brooklyn",
+                "queens": "queens",
+                "bronx": "bronx",
+                "staten_island": "staten island",
+            }
+
+            for key, label in borough_requirements.items():
+                if location_constraints.get(key) and label not in service_area_boroughs_lower:
                     return False
 
         return True
