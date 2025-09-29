@@ -248,7 +248,13 @@ class TestInstructorRoutes:
         response = client.post("/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_get_my_profile_success(self, client: TestClient, test_instructor: User, auth_headers_instructor: dict):
+    def test_get_my_profile_success(
+        self,
+        client: TestClient,
+        test_instructor: User,
+        auth_headers_instructor: dict,
+        db: Session,
+    ):
         """Test getting own profile as instructor."""
         response = client.get("/instructors/me", headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_200_OK
@@ -262,6 +268,17 @@ class TestInstructorRoutes:
         assert "Brooklyn" in data["areas_of_service"]
         assert data["years_experience"] == 5
         assert len(data["services"]) == 2
+        catalog_names = {
+            svc.name
+            for svc in db.query(ServiceCatalog)
+            .filter(ServiceCatalog.slug.in_(["piano", "guitar"]))
+            .all()
+        }
+        response_names = {service["service_catalog_name"] for service in data["services"]}
+        assert response_names == catalog_names
+        for service in data["services"]:
+            assert "service_catalog_name" in service
+            assert service["service_catalog_name"]
 
     def test_get_my_profile_forbidden_for_student(self, client: TestClient, auth_headers_student: dict):
         """Test that students cannot access profile endpoint."""
@@ -280,6 +297,27 @@ class TestInstructorRoutes:
         response = client.get("/instructors/me", headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "Profile not found" in response.json()["detail"]
+
+    def test_get_instructor_profile_by_id_includes_service_names(
+        self,
+        client: TestClient,
+        test_instructor: User,
+        auth_headers_student: dict,
+        db: Session,
+    ):
+        """Ensure public profile endpoint returns catalog names."""
+        response = client.get(f"/instructors/{test_instructor.id}", headers=auth_headers_student)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        names = {svc["service_catalog_name"] for svc in data.get("services", [])}
+        expected = {
+            svc.name
+            for svc in db.query(ServiceCatalog)
+            .filter(ServiceCatalog.slug.in_(["piano", "guitar"]))
+            .all()
+        }
+        assert names == expected
 
     def test_update_profile_success(
         self, client: TestClient, test_instructor: User, auth_headers_instructor: dict, db: Session

@@ -18,6 +18,7 @@ import { logger } from '@/lib/logger';
 import { InstructorProfile } from '@/types/instructor';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { normalizeInstructorServices, hydrateCatalogNameById } from '@/lib/instructorServices';
 
 export default function InstructorDashboardNew() {
   const router = useRouter();
@@ -86,7 +87,8 @@ export default function InstructorDashboardNew() {
         areasCount: data.areas_of_service?.length || 0,
       });
 
-      setProfile(data);
+      const normalizedServices = await normalizeInstructorServices(data.services);
+      setProfile({ ...data, services: normalizedServices });
       // Fetch canonical service areas (exact neighborhoods)
       try {
         const areasRes = await fetchWithAuth('/api/addresses/service-areas/me');
@@ -881,15 +883,30 @@ export default function InstructorDashboardNew() {
                 <button onClick={() => { setEditVariant('services'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
               </div>
               <div className="space-y-2">
-                {profile.services.map((service) => (
+                {profile.services.map((service) => {
+                  const hydrated = hydrateCatalogNameById(service.service_catalog_id || '');
+                  const displayName =
+                    service.service_catalog_name ??
+                    hydrated ??
+                    (service.skill && service.skill.trim().length > 0 ? service.skill : undefined) ??
+                    (service.service_catalog_id ? `Service ${service.service_catalog_id}` : 'Service');
+
+                  if (!service.service_catalog_name && !hydrated && process.env.NODE_ENV !== 'production') {
+                    logger.warn('Missing service catalog name; falling back to placeholder', {
+                      serviceCatalogId: service.service_catalog_id,
+                    });
+                  }
+
+                  return (
                   <div key={service.id} className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-100">
                     <div>
-                      <span className="font-medium text-gray-700">{service.skill}</span>
+                      <span className="font-medium text-gray-700">{displayName}</span>
                       {service.description && <p className="text-sm text-gray-600 mt-1">{service.description}</p>}
                     </div>
                     <span className="font-bold text-[#7E22CE] text-lg">${service.hourly_rate}/hr</span>
                   </div>
-                ))}
+                );
+                })}
               </div>
             </div>
 

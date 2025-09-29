@@ -126,6 +126,9 @@ export interface InstructorService {
   /** Service catalog ID (ULID string) */
   service_catalog_id?: string;
 
+  /** Human readable service name provided by the API */
+  service_catalog_name?: string;
+
   /** Skill name (e.g., "Piano", "Yoga", "Spanish") */
   skill?: string;
 

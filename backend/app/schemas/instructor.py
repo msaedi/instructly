@@ -252,6 +252,11 @@ class ServiceResponse(ServiceBase):
     """
 
     id: str
+    service_catalog_name: str = Field(
+        ...,
+        max_length=255,
+        description="Human-readable name of the catalog service",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -510,6 +515,34 @@ class InstructorProfileResponse(InstructorProfileBase):
                     )
                 )
 
+        # Normalize instructor services with catalog names eagerly resolved
+        services_source: List[Any] = []
+        if hasattr(instructor_profile, "instructor_services"):
+            services_source = list(getattr(instructor_profile, "instructor_services", []) or [])
+        elif hasattr(instructor_profile, "services"):
+            services_source = list(getattr(instructor_profile, "services", []) or [])
+
+        services_data: List[ServiceResponse] = []
+        for service in sorted(services_source, key=lambda s: getattr(s, "service_catalog_id", "")):
+            catalog_entry = getattr(service, "catalog_entry", None)
+            catalog_name = (
+                getattr(catalog_entry, "name", None) if catalog_entry is not None else None
+            )
+            service_payload = ServiceResponse(
+                id=getattr(service, "id"),
+                service_catalog_id=getattr(service, "service_catalog_id"),
+                service_catalog_name=catalog_name or "Unknown Service",
+                hourly_rate=getattr(service, "hourly_rate"),
+                description=getattr(service, "description", None),
+                requirements=getattr(service, "requirements", None),
+                age_groups=getattr(service, "age_groups", None),
+                levels_taught=getattr(service, "levels_taught", None),
+                equipment_required=getattr(service, "equipment_required", None),
+                location_types=getattr(service, "location_types", None),
+                duration_options=getattr(service, "duration_options", None) or [60],
+            )
+            services_data.append(service_payload)
+
         return cls(
             id=instructor_profile.id,
             user_id=instructor_profile.user_id,
@@ -521,7 +554,7 @@ class InstructorProfileResponse(InstructorProfileBase):
             min_advance_booking_hours=instructor_profile.min_advance_booking_hours,
             buffer_time_minutes=instructor_profile.buffer_time_minutes,
             user=UserBasicPrivacy.from_user(instructor_profile.user),
-            services=instructor_profile.services if hasattr(instructor_profile, "services") else [],
+            services=services_data,
             is_favorited=getattr(instructor_profile, "is_favorited", None),
             favorited_count=getattr(instructor_profile, "favorited_count", 0),
             skills_configured=getattr(instructor_profile, "skills_configured", False),
