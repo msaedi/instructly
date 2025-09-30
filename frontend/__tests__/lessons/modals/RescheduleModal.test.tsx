@@ -201,7 +201,9 @@ describe('RescheduleModal', () => {
 
     const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
     const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
-    expect(dayButton).toBeDefined();
+    if (!dayButton) {
+      throw new Error(`No selectable calendar button found for ${tomorrowIso}`);
+    }
     expect(dayButton).toBeEnabled();
     fireEvent.click(dayButton);
 
@@ -229,7 +231,9 @@ describe('RescheduleModal', () => {
     });
     const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
     const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
-    expect(dayButton).toBeDefined();
+    if (!dayButton) {
+      throw new Error(`No selectable calendar button found for ${tomorrowIso}`);
+    }
     expect(dayButton).toBeEnabled();
     fireEvent.click(dayButton);
 
@@ -285,7 +289,9 @@ describe('RescheduleModal', () => {
     });
     const dateButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
     const dateButton = dateButtons.find((btn) => !btn.disabled) ?? dateButtons[0];
-    expect(dateButton).toBeDefined();
+    if (!dateButton) {
+      throw new Error(`No selectable calendar button found for ${tomorrowIso}`);
+    }
     expect(dateButton).toBeEnabled();
     fireEvent.click(dateButton);
 
