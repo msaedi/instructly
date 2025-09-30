@@ -4,9 +4,11 @@ Response models for search endpoints.
 These models ensure consistent API responses for search-related endpoints.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from .address import ServiceAreaNeighborhoodOut
 
 
 class InstructorInfo(BaseModel):
@@ -23,7 +25,7 @@ class InstructorInfo(BaseModel):
     service_area_boroughs: List[str] = Field(
         default_factory=list, description="List of borough names the instructor serves"
     )
-    service_area_neighborhoods: List[Dict[str, Optional[str]]] = Field(
+    service_area_neighborhoods: List[ServiceAreaNeighborhoodOut] = Field(
         default_factory=list,
         description=(
             "Detailed neighborhood coverage with keys: neighborhood_id, ntacode, name, borough"
@@ -38,9 +40,33 @@ class InstructorInfo(BaseModel):
         years_experience: Optional[int] = None,
         service_area_summary: Optional[str] = None,
         service_area_boroughs: Optional[List[str]] = None,
-        service_area_neighborhoods: Optional[List[Dict[str, Optional[str]]]] = None,
+        service_area_neighborhoods: Optional[
+            Sequence[ServiceAreaNeighborhoodOut | Dict[str, Optional[str]]]
+        ] = None,
     ) -> "InstructorInfo":
         """Create InstructorInfo from user with privacy protection."""
+
+        neighborhoods: List[ServiceAreaNeighborhoodOut] = []
+        if service_area_neighborhoods:
+            for entry in service_area_neighborhoods:
+                if isinstance(entry, ServiceAreaNeighborhoodOut):
+                    neighborhoods.append(entry)
+                    continue
+
+                neighborhood_id = entry.get("neighborhood_id") or entry.get("id")
+                ntacode = entry.get("ntacode") or entry.get("region_code")
+                name = entry.get("name") or entry.get("region_name")
+                borough = entry.get("borough") or entry.get("parent_region")
+
+                neighborhoods.append(
+                    ServiceAreaNeighborhoodOut(
+                        neighborhood_id=str(neighborhood_id) if neighborhood_id else "",
+                        ntacode=ntacode,
+                        name=name,
+                        borough=borough,
+                    )
+                )
+
         return cls(
             id=user.id,
             first_name=user.first_name,
@@ -49,7 +75,7 @@ class InstructorInfo(BaseModel):
             years_experience=years_experience,
             service_area_summary=service_area_summary,
             service_area_boroughs=service_area_boroughs or [],
-            service_area_neighborhoods=service_area_neighborhoods or [],
+            service_area_neighborhoods=neighborhoods,
         )
 
 

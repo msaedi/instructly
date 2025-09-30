@@ -22,6 +22,7 @@ from ..core.constants import (
     MIN_SESSION_DURATION,
 )
 from ._strict_base import StrictRequestModel
+from .address import ServiceAreaNeighborhoodOut
 from .base import Money, StandardizedModel
 
 logger = logging.getLogger(__name__)
@@ -114,15 +115,6 @@ class PreferredPublicSpaceOut(PreferredPublicSpaceIn):
     """Preferred public space response payload."""
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class ServiceAreaNeighborhoodOut(StandardizedModel):
-    """Service area neighborhood representation for instructor profile responses."""
-
-    neighborhood_id: str
-    ntacode: Optional[str] = None
-    name: Optional[str] = None
-    borough: Optional[str] = None
 
 
 class ServiceBase(StandardizedModel):

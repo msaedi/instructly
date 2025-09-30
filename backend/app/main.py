@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, AsyncGenerator
 
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.routing import APIRoute
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
@@ -78,7 +79,6 @@ from .routes import (
 from .schemas.main_responses import (
     HealthLiteResponse,
     HealthResponse,
-    PerformanceMetricsResponse,
     RootResponse,
 )
 from .services.template_registry import TemplateRegistry
@@ -204,6 +204,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # - Cleanup temporary files
 
 
+def _unique_operation_id(route: APIRoute) -> str:
+    methods = "_".join(sorted(m.lower() for m in route.methods or []))
+    path = route.path_format.replace("/", "_").replace("{", "").replace("}", "").strip("_")
+    name = (route.name or "operation").lower().replace(" ", "_")
+    return f"{methods}__{path}__{name}".strip("_")
+
+
 app = FastAPI(
     title=API_TITLE,
     description=API_DESCRIPTION,
@@ -211,6 +218,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,  # Use the new lifespan handler
+    generate_unique_id_function=_unique_operation_id,
 )
 # Register unified error envelope handlers
 from .errors import register_error_handlers  # noqa: E402
@@ -453,13 +461,6 @@ def api_health(response: Response, db: Session = Depends(get_db)) -> HealthRespo
 def health_check_lite() -> HealthLiteResponse:
     """Lightweight health check that doesn't hit database"""
     return HealthLiteResponse(status="ok")
-
-
-@app.get("/metrics/performance", response_model=PerformanceMetricsResponse)
-def get_performance_metrics() -> PerformanceMetricsResponse:
-    from .middleware.monitoring import monitor
-
-    return PerformanceMetricsResponse(metrics=monitor.get_stats())
 
 
 @app.get("/metrics")
