@@ -87,6 +87,36 @@ BOROUGH_ABBR: dict[str, str] = {
     "Staten Island": "SI",
 }
 
+BOROUGH_CENTROID: dict[str, tuple[float, float]] = {
+    "Manhattan": (-73.985, 40.758),
+    "Brooklyn": (-73.950, 40.650),
+    "Queens": (-73.820, 40.730),
+    "Bronx": (-73.900, 40.850),
+    "Staten Island": (-74.150, 40.580),
+}
+
+
+def _square_polygon(lon: float, lat: float, delta: float = 0.01) -> dict:
+    ring = [
+        [lon - delta, lat - delta],
+        [lon + delta, lat - delta],
+        [lon + delta, lat + delta],
+        [lon - delta, lat + delta],
+        [lon - delta, lat - delta],
+    ]
+    return {"type": "Polygon", "coordinates": [ring]}
+
+
+def _ensure_boundary_geometry(boundary: RegionBoundary, borough: str) -> bool:
+    metadata = dict(boundary.region_metadata or {})
+    if metadata.get("geometry"):
+        return False
+
+    lon, lat = BOROUGH_CENTROID.get(borough, BOROUGH_CENTROID["Manhattan"])
+    metadata["geometry"] = _square_polygon(lon, lat)
+    boundary.region_metadata = metadata
+    return True
+
 __all__ = [
     "add_service_area",
     "add_service_areas_for_boroughs",
@@ -106,6 +136,8 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
 
     existing = db.get(RegionBoundary, region_id)
     if existing:
+        if _ensure_boundary_geometry(existing, normalized):
+            db.flush()
         return existing
 
     by_parent = (
@@ -114,7 +146,11 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
         .first()
     )
     if by_parent:
+        if _ensure_boundary_geometry(by_parent, normalized):
+            db.flush()
         return by_parent
+
+    lon, lat = BOROUGH_CENTROID.get(normalized, BOROUGH_CENTROID["Manhattan"])
 
     boundary = RegionBoundary(
         id=region_id,
@@ -126,6 +162,7 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
             "nta_name": f"{normalized} Test Neighborhood",
             "nta_code": f"{abbr}-TEST",
             "borough": normalized,
+            "geometry": _square_polygon(lon, lat),
         },
     )
 
