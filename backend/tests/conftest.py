@@ -10,8 +10,10 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 All fixtures now create AvailabilitySlot objects directly with instructor_id and date.
 """
 
+from datetime import date, time, timedelta
 import os
 import sys
+from typing import Sequence
 
 # CRITICAL: Set testing mode BEFORE any app imports!
 os.environ["is_testing"] = "true"
@@ -42,7 +44,6 @@ from app.core.config import settings
 settings.is_testing = True
 settings.rate_limit_enabled = False
 
-from datetime import date, time, timedelta
 from unittest.mock import AsyncMock, Mock
 
 from fastapi.testclient import TestClient
@@ -53,7 +54,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.auth import get_password_hash
 
 # Now we can import from app
-from app.core.config import settings
 from app.core.enums import RoleName
 from app.database import Base, get_db
 from app.main import fastapi_app as app  # Use FastAPI instance for tests
@@ -78,6 +78,137 @@ from app.models.service_catalog import InstructorService as Service, ServiceCata
 from app.models.user import User
 from app.services.permission_service import PermissionService
 from app.services.template_service import TemplateService
+
+BOROUGH_ABBR: dict[str, str] = {
+    "Manhattan": "MN",
+    "Brooklyn": "BK",
+    "Queens": "QN",
+    "Bronx": "BR",
+    "Staten Island": "SI",
+}
+
+BOROUGH_CENTROID: dict[str, tuple[float, float]] = {
+    "Manhattan": (-73.985, 40.758),
+    "Brooklyn": (-73.950, 40.650),
+    "Queens": (-73.820, 40.730),
+    "Bronx": (-73.900, 40.850),
+    "Staten Island": (-74.150, 40.580),
+}
+
+
+def _square_polygon(lon: float, lat: float, delta: float = 0.01) -> dict:
+    ring = [
+        [lon - delta, lat - delta],
+        [lon + delta, lat - delta],
+        [lon + delta, lat + delta],
+        [lon - delta, lat + delta],
+        [lon - delta, lat - delta],
+    ]
+    return {"type": "Polygon", "coordinates": [ring]}
+
+
+def _ensure_boundary_geometry(boundary: RegionBoundary, borough: str) -> bool:
+    metadata = dict(boundary.region_metadata or {})
+    if metadata.get("geometry"):
+        return False
+
+    lon, lat = BOROUGH_CENTROID.get(borough, BOROUGH_CENTROID["Manhattan"])
+    metadata["geometry"] = _square_polygon(lon, lat)
+    boundary.region_metadata = metadata
+    return True
+
+__all__ = [
+    "add_service_area",
+    "add_service_areas_for_boroughs",
+    "seed_service_areas_from_legacy",
+    "_ensure_region_boundary",
+]
+
+def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
+    """Find or create a RegionBoundary entry for the given borough."""
+
+    normalized = (borough or "").strip()
+    if not normalized:
+        raise ValueError("borough must be a non-empty string")
+
+    abbr = BOROUGH_ABBR.get(normalized, normalized[:2].upper()) or "XX"
+    region_id = f"TEST-{abbr}"
+
+    existing = db.get(RegionBoundary, region_id)
+    if existing:
+        if _ensure_boundary_geometry(existing, normalized):
+            db.flush()
+        return existing
+
+    by_parent = (
+        db.query(RegionBoundary)
+        .filter(RegionBoundary.parent_region == normalized)
+        .first()
+    )
+    if by_parent:
+        if _ensure_boundary_geometry(by_parent, normalized):
+            db.flush()
+        return by_parent
+
+    lon, lat = BOROUGH_CENTROID.get(normalized, BOROUGH_CENTROID["Manhattan"])
+
+    boundary = RegionBoundary(
+        id=region_id,
+        region_type="nyc",
+        region_code=f"{abbr}-TEST",
+        region_name=f"{normalized} Test Neighborhood",
+        parent_region=normalized,
+        region_metadata={
+            "nta_name": f"{normalized} Test Neighborhood",
+            "nta_code": f"{abbr}-TEST",
+            "borough": normalized,
+            "geometry": _square_polygon(lon, lat),
+        },
+    )
+
+    db.add(boundary)
+    db.flush()
+    return boundary
+
+
+def add_service_area(db: Session, user: User, neighborhood_id: str) -> InstructorServiceArea:
+    """Attach a service area row for the given user."""
+
+    isa = (
+        db.query(InstructorServiceArea)
+        .filter(
+            InstructorServiceArea.instructor_id == user.id,
+            InstructorServiceArea.neighborhood_id == neighborhood_id,
+        )
+        .first()
+    )
+    if isa:
+        return isa
+
+    isa = InstructorServiceArea(
+        instructor_id=user.id,
+        neighborhood_id=neighborhood_id,
+    )
+    db.add(isa)
+    db.flush()
+    return isa
+
+
+def add_service_areas_for_boroughs(db: Session, user: User, boroughs: Sequence[str]) -> None:
+    """Attach service areas for each provided borough name."""
+
+    for borough in boroughs:
+        boundary = _ensure_region_boundary(db, borough)
+        add_service_area(db, user=user, neighborhood_id=boundary.id)
+
+
+def seed_service_areas_from_legacy(
+    db: Session, user: User, legacy_value: str | None
+) -> None:
+    """Populate service areas based on a legacy comma-separated borough string."""
+
+    parts = [part.strip() for part in (legacy_value or "").split(",") if part.strip()]
+    add_service_areas_for_boroughs(db, user=user, boroughs=parts or ["Manhattan"])
 
 # ============================================================================
 # PRODUCTION DATABASE PROTECTION
@@ -560,13 +691,71 @@ def test_instructor(db: Session, test_password: str) -> User:
     profile = InstructorProfile(
         user_id=instructor.id,
         bio="Test instructor bio",
-        areas_of_service="Manhattan, Brooklyn",
         years_experience=5,
         min_advance_booking_hours=2,
         buffer_time_minutes=15,
     )
     db.add(profile)
     db.flush()
+
+    # Ensure instructor has service area coverage for Manhattan and Brooklyn
+    neighborhoods = [
+        {
+            "region_name": "Manhattan - Midtown",
+            "region_code": "MN-MID",
+            "parent_region": "Manhattan",
+        },
+        {
+            "region_name": "Brooklyn - Williamsburg",
+            "region_code": "BK-WIL",
+            "parent_region": "Brooklyn",
+        },
+    ]
+
+    for entry in neighborhoods:
+        region_boundary = (
+            db.query(RegionBoundary)
+            .filter(
+                RegionBoundary.region_type == "nyc",
+                RegionBoundary.region_name == entry["region_name"],
+            )
+            .first()
+        )
+        if not region_boundary:
+            region_boundary = RegionBoundary(
+                region_type="nyc",
+                region_code=entry["region_code"],
+                region_name=entry["region_name"],
+                parent_region=entry["parent_region"],
+                region_metadata={
+                    "borough": entry["parent_region"],
+                    "nta_name": entry["region_name"],
+                    "nta_code": entry["region_code"],
+                },
+            )
+            db.add(region_boundary)
+            db.flush()
+
+        existing_link = (
+            db.query(InstructorServiceArea)
+            .filter(
+                InstructorServiceArea.instructor_id == instructor.id,
+                InstructorServiceArea.neighborhood_id == region_boundary.id,
+            )
+            .first()
+        )
+        if existing_link:
+            existing_link.is_active = True
+        else:
+            db.add(
+                InstructorServiceArea(
+                    instructor_id=instructor.id,
+                    neighborhood_id=region_boundary.id,
+                    coverage_type="primary",
+                    is_active=True,
+                )
+            )
+
 
     # Get catalog services - use actual services from seeded data
     catalog_services = db.query(ServiceCatalog).filter(ServiceCatalog.slug.in_(["piano", "guitar"])).all()
@@ -646,12 +835,70 @@ def test_instructor_2(db: Session, test_password: str) -> User:
     profile = InstructorProfile(
         user_id=instructor.id,
         bio="Second test instructor bio",
-        areas_of_service="Queens, Bronx",
         years_experience=3,
         min_advance_booking_hours=1,
         buffer_time_minutes=10,
     )
     db.add(profile)
+    db.flush()
+
+    neighborhoods = [
+        {
+            "region_name": "Queens - Astoria",
+            "region_code": "QN-AST",
+            "parent_region": "Queens",
+        },
+        {
+            "region_name": "Bronx - Fordham",
+            "region_code": "BX-FOR",
+            "parent_region": "Bronx",
+        },
+    ]
+
+    for entry in neighborhoods:
+        region_boundary = (
+            db.query(RegionBoundary)
+            .filter(
+                RegionBoundary.region_type == "nyc",
+                RegionBoundary.region_name == entry["region_name"],
+            )
+            .first()
+        )
+        if not region_boundary:
+            region_boundary = RegionBoundary(
+                region_type="nyc",
+                region_code=entry["region_code"],
+                region_name=entry["region_name"],
+                parent_region=entry["parent_region"],
+                region_metadata={
+                    "borough": entry["parent_region"],
+                    "nta_name": entry["region_name"],
+                    "nta_code": entry["region_code"],
+                },
+            )
+            db.add(region_boundary)
+            db.flush()
+
+        existing_link = (
+            db.query(InstructorServiceArea)
+            .filter(
+                InstructorServiceArea.instructor_id == instructor.id,
+                InstructorServiceArea.neighborhood_id == region_boundary.id,
+            )
+            .first()
+        )
+        if existing_link:
+            existing_link.is_active = True
+        else:
+            db.add(
+                InstructorServiceArea(
+                    instructor_id=instructor.id,
+                    neighborhood_id=region_boundary.id,
+                    coverage_type="primary",
+                    is_active=True,
+                )
+            )
+
     db.commit()
     db.refresh(instructor)
     return instructor

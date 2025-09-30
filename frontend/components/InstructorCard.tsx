@@ -14,6 +14,7 @@ import { reviewsApi } from '@/services/api/reviews';
 import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { at } from '@/lib/ts/safe';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
@@ -51,6 +52,8 @@ export default function InstructorCard({
   const rating = typeof searchRating?.primary_rating === 'number' ? searchRating?.primary_rating : null;
   const reviewCount = searchRating?.review_count || 0;
   const [recentReviews, setRecentReviews] = useState<import('@/services/api/reviews').ReviewItem[]>([]);
+  const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
+  const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
 
   // Fetch service catalog on mount with simple de-duplication
   useEffect(() => {
@@ -271,7 +274,7 @@ export default function InstructorCard({
               {/* Location */}
               <div className={`flex items-center ${compact ? 'text-sm mb-1' : 'text-lg mb-2'} text-gray-600`}>
                 <MapPin className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} mr-1`} />
-                <span>{instructor.areas_of_service.slice(0, 2).join(', ') || 'Manhattan'}</span>
+                <span>{serviceAreaBoroughs.slice(0, 2).join(', ') || serviceAreaDisplay}</span>
               </div>
             </div>
 

@@ -1,5 +1,7 @@
 // frontend/features/student/booking/types.ts
 
+import type { ServiceAreaNeighborhood } from '@/types/instructor';
+
 export interface Service {
   id: string;
   skill: string;
@@ -19,7 +21,9 @@ export interface Instructor {
     // Email removed for privacy
   };
   bio: string;
-  areas_of_service: string[];
+  service_area_boroughs?: string[];
+  service_area_neighborhoods?: ServiceAreaNeighborhood[];
+  service_area_summary?: string | null;
   years_experience: number;
   services: Service[];
   rating?: number;

@@ -20,7 +20,14 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
     if (request.method() === 'GET') {
       await fulfillJson(route, {
         bio: 'Experienced instructor ready to teach.',
-        areas_of_service: ['Manhattan'],
+        service_area_summary: 'Manhattan',
+        service_area_boroughs: ['Manhattan'],
+        service_area_neighborhoods: neighborhoods.map((n) => ({
+          neighborhood_id: n.id,
+          name: n.name,
+          borough: n.borough,
+          ntacode: n.code,
+        })),
         years_experience: 5,
         min_advance_booking_hours: 2,
         buffer_time_minutes: 15,
@@ -32,7 +39,14 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
     if (request.method() === 'PUT') {
       await fulfillJson(route, {
         bio: 'Experienced instructor ready to teach.',
-        areas_of_service: ['Manhattan'],
+        service_area_summary: 'Manhattan',
+        service_area_boroughs: ['Manhattan'],
+        service_area_neighborhoods: neighborhoods.map((n) => ({
+          neighborhood_id: n.id,
+          name: n.name,
+          borough: n.borough,
+          ntacode: n.code,
+        })),
         years_experience: 5,
         min_advance_booking_hours: 2,
         buffer_time_minutes: 15,

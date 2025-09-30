@@ -24,6 +24,11 @@ from app.models.service_catalog import InstructorService as Service, ServiceCata
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 
+try:  # pragma: no cover - fallback for running tests from backend/
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 def _safe_start_end(base: datetime, duration_minutes: int = 60) -> tuple[time, time, date]:
     """Return (start_time, end_time, booking_date) floored to minute, avoiding midnight wrap."""
@@ -49,12 +54,12 @@ def test_service(db, test_instructor):
             user_id=test_instructor.id,
             bio="Test bio",
             years_experience=5,
-            areas_of_service="Manhattan",
             min_advance_booking_hours=24,
             buffer_time_minutes=15,
         )
         db.add(profile)
         db.flush()
+        add_service_areas_for_boroughs(db, user=test_instructor, boroughs=["Manhattan"])
         # RBAC: Assign role
         from app.services.permission_service import PermissionService
 

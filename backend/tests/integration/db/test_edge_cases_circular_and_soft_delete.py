@@ -35,6 +35,11 @@ from app.services.booking_service import BookingService
 from app.services.instructor_service import InstructorService
 from app.services.permission_service import PermissionService
 
+try:  # pragma: no cover - fallback for direct backend/ test runs
+    from backend.tests.conftest import seed_service_areas_from_legacy
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import seed_service_areas_from_legacy
+
 
 class TestCircularDependencyEdgeCases:
     """Test cases for the one-way relationship between bookings and slots."""
@@ -661,10 +666,13 @@ def instructor_user(db: Session) -> User:
     db.refresh(user)
 
     profile = InstructorProfile(
-        user_id=user.id, bio="Test bio", years_experience=5, areas_of_service="Manhattan, Brooklyn"
+        user_id=user.id,
+        bio="Test bio",
+        years_experience=5,
     )
     db.add(profile)
     db.flush()
+    seed_service_areas_from_legacy(db, user, "Manhattan, Brooklyn")
 
     # Get or create a catalog service for Piano
     from app.models.service_catalog import ServiceCatalog, ServiceCategory

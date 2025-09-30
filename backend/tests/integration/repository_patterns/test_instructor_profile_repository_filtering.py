@@ -17,6 +17,11 @@ from app.models.service_catalog import InstructorService as Service, ServiceCata
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
+try:  # pragma: no cover - allow running from backend/ root
+    from backend.tests.conftest import seed_service_areas_from_legacy
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import seed_service_areas_from_legacy
+
 
 class TestInstructorProfileRepositoryFiltering:
     """Integration tests for find_by_filters method."""
@@ -84,45 +89,56 @@ class TestInstructorProfileRepositoryFiltering:
             test_db.add(user)
         test_db.flush()
 
-        # Create instructor profiles
-        profiles = [
-            InstructorProfile(
-                user_id=users[0].id,
-                bio="Experienced piano and guitar teacher with 10 years of experience",
-                areas_of_service="Manhattan,Brooklyn",
-                years_experience=10,
-                min_advance_booking_hours=24,
-                buffer_time_minutes=15,
-            ),
-            InstructorProfile(
-                user_id=users[1].id,
-                bio="Certified yoga instructor specializing in Vinyasa and Hatha yoga",
-                areas_of_service="Queens,Bronx",
-                years_experience=5,
-                min_advance_booking_hours=48,
-                buffer_time_minutes=30,
-            ),
-            InstructorProfile(
-                user_id=users[2].id,
-                bio="Professional music teacher offering piano and violin lessons",
-                areas_of_service="Manhattan,Staten Island",
-                years_experience=15,
-                min_advance_booking_hours=24,
-                buffer_time_minutes=0,
-            ),
-            InstructorProfile(
-                user_id=users[3].id,
-                bio="Dance instructor teaching ballet and contemporary dance",
-                areas_of_service="Brooklyn,Queens",
-                years_experience=8,
-                min_advance_booking_hours=72,
-                buffer_time_minutes=15,
-            ),
+        profile_defs = [
+            {
+                "user": users[0],
+                "bio": "Experienced piano and guitar teacher with 10 years of experience",
+                "areas": "Manhattan,Brooklyn",
+                "years": 10,
+                "min_adv": 24,
+                "buffer": 15,
+            },
+            {
+                "user": users[1],
+                "bio": "Certified yoga instructor specializing in Vinyasa and Hatha yoga",
+                "areas": "Queens,Bronx",
+                "years": 5,
+                "min_adv": 48,
+                "buffer": 30,
+            },
+            {
+                "user": users[2],
+                "bio": "Professional music teacher offering piano and violin lessons",
+                "areas": "Manhattan,Staten Island",
+                "years": 15,
+                "min_adv": 24,
+                "buffer": 0,
+            },
+            {
+                "user": users[3],
+                "bio": "Dance instructor teaching ballet and contemporary dance",
+                "areas": "Brooklyn,Queens",
+                "years": 8,
+                "min_adv": 72,
+                "buffer": 15,
+            },
         ]
 
-        for profile in profiles:
+        profiles: list[InstructorProfile] = []
+        for data in profile_defs:
+            profile = InstructorProfile(
+                user_id=data["user"].id,
+                bio=data["bio"],
+                years_experience=data["years"],
+                min_advance_booking_hours=data["min_adv"],
+                buffer_time_minutes=data["buffer"],
+            )
             test_db.add(profile)
+            profiles.append(profile)
         test_db.flush()
+
+        for data, profile in zip(profile_defs, profiles):
+            seed_service_areas_from_legacy(test_db, data["user"], data["areas"])
 
         # Get catalog services to link to
         catalog_services = test_db.query(ServiceCatalog).all()
@@ -414,10 +430,13 @@ class TestInstructorProfileRepositoryFiltering:
         repository.db.flush()
 
         profile = InstructorProfile(
-            user_id=user.id, bio="Teaches rock & roll", areas_of_service="Manhattan", years_experience=5
+            user_id=user.id,
+            bio="Teaches rock & roll",
+            years_experience=5,
         )
         repository.db.add(profile)
         repository.db.flush()
+        seed_service_areas_from_legacy(repository.db, user, "Manhattan")
 
         # Create a catalog service for Rock & Roll
         category = repository.db.query(ServiceCategory).first()

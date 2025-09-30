@@ -17,7 +17,9 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
+from app.models.address import InstructorServiceArea
 from app.models.instructor import InstructorProfile
+from app.models.region_boundary import RegionBoundary
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 
@@ -65,11 +67,39 @@ class TestInstructorRoutes:
         inactive_profile = InstructorProfile(
             user_id=inactive_instructor.id,
             bio="Inactive instructor bio with more text",  # Ensure minimum length
-            areas_of_service="Queens",
             years_experience=2,
         )
         db.add(inactive_profile)
         db.flush()
+
+        region_boundary = (
+            db.query(RegionBoundary)
+            .filter(RegionBoundary.id == "01TESTNEIGHBORHOOD")
+            .first()
+        )
+        if not region_boundary:
+            region_boundary = RegionBoundary(
+                id="01TESTNEIGHBORHOOD",
+                region_type="nyc",
+                region_code="01TESTNEIGHBORHOOD",
+                region_name="Test Neighborhood",
+                parent_region="Manhattan",
+                region_metadata={
+                    "nta_code": "01TESTNEIGHBORHOOD",
+                    "nta_name": "Test Neighborhood",
+                    "borough": "Manhattan",
+                },
+            )
+            db.add(region_boundary)
+            db.flush()
+
+        # Attach a service area to the inactive instructor
+        db.add(
+            InstructorServiceArea(
+                instructor_id=inactive_instructor.id,
+                neighborhood_id=region_boundary.id,
+            )
+        )
 
         # Add inactive service - need to link to catalog
         catalog_service = db.query(ServiceCatalog).first()  # Get any catalog service
@@ -111,6 +141,27 @@ class TestInstructorRoutes:
 
     def test_get_all_instructors_with_pagination(self, client: TestClient, test_instructor: User, db: Session):
         """Test pagination parameters."""
+        region_boundary = (
+            db.query(RegionBoundary)
+            .filter(RegionBoundary.id == "01TESTNEIGHBORHOOD")
+            .first()
+        )
+        if not region_boundary:
+            region_boundary = RegionBoundary(
+                id="01TESTNEIGHBORHOOD",
+                region_type="nyc",
+                region_code="01TESTNEIGHBORHOOD",
+                region_name="Test Neighborhood",
+                parent_region="Manhattan",
+                region_metadata={
+                    "nta_code": "01TESTNEIGHBORHOOD",
+                    "nta_name": "Test Neighborhood",
+                    "borough": "Manhattan",
+                },
+            )
+            db.add(region_boundary)
+            db.flush()
+
         # Create additional instructors
         for i in range(3):
             user = User(
@@ -128,11 +179,17 @@ class TestInstructorRoutes:
             profile = InstructorProfile(
                 user_id=user.id,
                 bio=f"Bio for instructor {i} with enough text",  # Ensure minimum length
-                areas_of_service="Manhattan",
                 years_experience=i,
             )
             db.add(profile)
             db.flush()
+
+            db.add(
+                InstructorServiceArea(
+                    instructor_id=user.id,
+                    neighborhood_id=region_boundary.id,
+                )
+            )
 
             # Get a catalog service to link to
             catalog_service = db.query(ServiceCatalog).first()
@@ -176,7 +233,6 @@ class TestInstructorRoutes:
         """Test creating a new instructor profile as a student."""
         profile_data = {
             "bio": "I am an experienced music teacher with 10 years of experience.",
-            "areas_of_service": ["Manhattan", "Brooklyn", "Queens"],
             "years_experience": 10,
             "min_advance_booking_hours": 4,
             "buffer_time_minutes": 15,
@@ -199,7 +255,6 @@ class TestInstructorRoutes:
 
         data = response.json()
         assert data["bio"] == profile_data["bio"]
-        assert set(data["areas_of_service"]) == set(profile_data["areas_of_service"])
         assert data["years_experience"] == profile_data["years_experience"]
         assert data["user"]["email"] == test_student.email
         assert len(data["services"]) == 2
@@ -223,7 +278,6 @@ class TestInstructorRoutes:
 
         profile_data = {
             "bio": "Another bio",
-            "areas_of_service": ["Manhattan"],
             "years_experience": 5,
             "services": [{"service_catalog_id": catalog_service.id, "hourly_rate": 50.0}],
         }
@@ -241,7 +295,6 @@ class TestInstructorRoutes:
         # Test empty services
         profile_data = {
             "bio": "Valid bio",
-            "areas_of_service": ["Manhattan"],
             "years_experience": 5,
             "services": [],  # Empty services not allowed
         }
@@ -264,8 +317,17 @@ class TestInstructorRoutes:
         assert "email" not in data["user"]
         assert data["user"]["last_initial"] == test_instructor.last_name[0]
         assert data["bio"] == "Test instructor bio"
-        assert "Manhattan" in data["areas_of_service"]
-        assert "Brooklyn" in data["areas_of_service"]
+        assert "areas_of_service" not in data
+        neighborhoods = data.get("service_area_neighborhoods", [])
+        assert neighborhoods, "Expected service area neighborhoods to be present"
+        for entry in neighborhoods:
+            assert {"neighborhood_id", "ntacode", "name", "borough"}.issubset(entry.keys())
+        assert {entry["borough"] for entry in neighborhoods if entry.get("borough")} == {
+            "Brooklyn",
+            "Manhattan",
+        }
+        assert data.get("service_area_boroughs") == ["Brooklyn", "Manhattan"]
+        assert data.get("service_area_summary") == "Brooklyn, Manhattan"
         assert data["years_experience"] == 5
         assert len(data["services"]) == 2
         catalog_names = {
@@ -318,6 +380,15 @@ class TestInstructorRoutes:
             .all()
         }
         assert names == expected
+        assert "areas_of_service" not in data
+        neighborhoods = data.get("service_area_neighborhoods", [])
+        assert neighborhoods, "Expected neighborhoods on public profile response"
+        assert {entry["borough"] for entry in neighborhoods if entry.get("borough")} == {
+            "Brooklyn",
+            "Manhattan",
+        }
+        assert data.get("service_area_boroughs") == ["Brooklyn", "Manhattan"]
+        assert data.get("service_area_summary") == "Brooklyn, Manhattan"
 
     def test_update_profile_success(
         self, client: TestClient, test_instructor: User, auth_headers_instructor: dict, db: Session
@@ -333,7 +404,6 @@ class TestInstructorRoutes:
         update_data = {
             "bio": "Updated bio with more experience",
             "years_experience": 7,
-            "areas_of_service": ["Manhattan", "Bronx"],  # Changed from Brooklyn to Bronx
             "services": [
                 {
                     "service_catalog_id": piano_catalog.id,
@@ -354,7 +424,6 @@ class TestInstructorRoutes:
         data = response.json()
         assert data["bio"] == update_data["bio"]
         assert data["years_experience"] == update_data["years_experience"]
-        assert set(data["areas_of_service"]) == set(update_data["areas_of_service"])
         assert len(data["services"]) == 2
 
         # Verify services are updated correctly
@@ -417,6 +486,15 @@ class TestInstructorRoutes:
         assert data["user"]["last_initial"] == test_instructor.last_name[0]
         assert data["user_id"] == test_instructor.id
         assert len(data["services"]) == 2
+        assert "areas_of_service" not in data
+        neighborhoods = data.get("service_area_neighborhoods", [])
+        assert neighborhoods
+        assert {entry["borough"] for entry in neighborhoods if entry.get("borough")} == {
+            "Brooklyn",
+            "Manhattan",
+        }
+        assert data.get("service_area_boroughs") == ["Brooklyn", "Manhattan"]
+        assert data.get("service_area_summary") == "Brooklyn, Manhattan"
 
     def test_get_instructor_by_id_not_found(self, client: TestClient):
         """Test getting non-existent instructor."""
@@ -438,7 +516,6 @@ class TestInstructorRoutes:
 
         profile_data = {
             "bio": "Test bio",
-            "areas_of_service": ["Manhattan"],
             "years_experience": 5,
             "services": [
                 {"service_catalog_id": catalog_service.id, "hourly_rate": 50.0},
@@ -463,11 +540,10 @@ class TestInstructorRoutes:
         assert len(data["services"]) == 0  # All services soft-deleted
 
     @pytest.mark.skip(reason="SQLAlchemy session conflict with bulk_save_objects")
-    def test_areas_of_service_formatting(self, client: TestClient, auth_headers_student: dict):
-        """Test that areas of service are properly formatted."""
+    def test_service_area_summary_formatting(self, client: TestClient, auth_headers_student: dict):
+        """Test that service area summary fields are present in the response."""
         profile_data = {
             "bio": "Test bio with enough characters to meet minimum requirement",
-            "areas_of_service": ["manhattan", "BROOKLYN", "queens"],  # Mixed case
             "years_experience": 5,
             "services": [{"skill": "Test", "hourly_rate": 50.0}],
         }
@@ -476,18 +552,15 @@ class TestInstructorRoutes:
         assert response.status_code == status.HTTP_201_CREATED
 
         data = response.json()
-        # Should be title-cased and deduplicated
-        assert all(area[0].isupper() for area in data["areas_of_service"])
-        assert "Manhattan" in data["areas_of_service"]
-        assert "Brooklyn" in data["areas_of_service"]
-        assert "Queens" in data["areas_of_service"]
+        # Should include derived borough summary
+        assert data.get("service_area_boroughs") == []
+        assert data.get("service_area_summary") == ""
 
     @pytest.mark.skip(reason="SQLAlchemy session conflict with bulk_save_objects")
     def test_service_skill_formatting(self, client: TestClient, auth_headers_student: dict):
         """Test that service skills are properly formatted."""
         profile_data = {
             "bio": "Test bio with enough characters to meet minimum requirement",
-            "areas_of_service": ["Manhattan"],
             "years_experience": 5,
             "services": [
                 {"skill": "piano lessons", "hourly_rate": 50.0},  # Should be title-cased
@@ -513,7 +586,6 @@ class TestInstructorRoutes:
         # Test bio too short
         profile_data = {
             "bio": "Hi",  # Too short
-            "areas_of_service": ["Manhattan"],
             "years_experience": 5,
             "services": [{"service_catalog_id": catalog_service.id, "hourly_rate": 50.0}],
         }
@@ -584,7 +656,6 @@ class TestInstructorRoutes:
         # Create profile
         profile_data = {
             "bio": "I am an experienced teacher with many years of experience.",
-            "areas_of_service": ["Manhattan", "Brooklyn"],
             "years_experience": 8,
             "min_advance_booking_hours": 3,
             "buffer_time_minutes": 10,

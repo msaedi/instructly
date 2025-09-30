@@ -6616,11 +6616,6 @@ export type components = {
          */
         InstructorProfileCreate: {
             /**
-             * Areas Of Service
-             * @description NYC areas where instructor provides services
-             */
-            areas_of_service: string[];
-            /**
              * Bio
              * @description Instructor biography/description
              */
@@ -6656,11 +6651,6 @@ export type components = {
          *     Student-facing endpoints will show only instructor last initial.
          */
         InstructorProfileResponse: {
-            /**
-             * Areas Of Service
-             * @description NYC areas where instructor provides services
-             */
-            areas_of_service: string[];
             /** Background Check Object Key */
             background_check_object_key?: string | null;
             /** Background Check Uploaded At */
@@ -6711,6 +6701,16 @@ export type components = {
             min_advance_booking_hours: number;
             /** Onboarding Completed At */
             onboarding_completed_at?: string | null;
+            /** Preferred Public Spaces */
+            preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceOut"][];
+            /** Preferred Teaching Locations */
+            preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationOut"][];
+            /** Service Area Boroughs */
+            service_area_boroughs?: string[];
+            /** Service Area Neighborhoods */
+            service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][];
+            /** Service Area Summary */
+            service_area_summary?: string | null;
             /** Services */
             services: components["schemas"]["ServiceResponse"][];
             /**
@@ -6737,10 +6737,22 @@ export type components = {
          *     All fields are optional for partial updates.
          */
         InstructorProfileUpdate: {
-            /** Areas Of Service */
-            areas_of_service?: string[] | null;
             /** Bio */
             bio?: string | null;
+            /**
+             * Buffer Time Minutes
+             * @description Buffer time between bookings
+             */
+            buffer_time_minutes?: number | null;
+            /**
+             * Min Advance Booking Hours
+             * @description Minimum hours in advance for bookings
+             */
+            min_advance_booking_hours?: number | null;
+            /** Preferred Public Spaces */
+            preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceIn"][] | null;
+            /** Preferred Teaching Locations */
+            preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationIn"][] | null;
             /** Services */
             services?: components["schemas"]["ServiceCreate"][] | null;
             /** Years Experience */
@@ -8032,6 +8044,42 @@ export type components = {
          *     ]
          */
         PopularSearchesResponse: components["schemas"]["PopularSearch"][];
+        /**
+         * PreferredPublicSpaceIn
+         * @description Preferred public space input payload.
+         */
+        PreferredPublicSpaceIn: {
+            /** Address */
+            address: string;
+        };
+        /**
+         * PreferredPublicSpaceOut
+         * @description Preferred public space response payload.
+         */
+        PreferredPublicSpaceOut: {
+            /** Address */
+            address: string;
+        };
+        /**
+         * PreferredTeachingLocationIn
+         * @description Preferred teaching location input payload.
+         */
+        PreferredTeachingLocationIn: {
+            /** Address */
+            address: string;
+            /** Label */
+            label?: string | null;
+        };
+        /**
+         * PreferredTeachingLocationOut
+         * @description Preferred teaching location response payload.
+         */
+        PreferredTeachingLocationOut: {
+            /** Address */
+            address: string;
+            /** Label */
+            label?: string | null;
+        };
         /**
          * PrivacyStatisticsResponse
          * @description Response schema for privacy statistics.
@@ -9349,6 +9397,20 @@ export type components = {
             /** Ntacode */
             ntacode?: string | null;
         };
+        /**
+         * ServiceAreaNeighborhood
+         * @description Normalized neighborhood metadata used in instructor service area responses.
+         */
+        ServiceAreaNeighborhood: {
+            /** Borough */
+            borough?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Neighborhood Id */
+            neighborhood_id: string;
+            /** Ntacode */
+            ntacode?: string | null;
+        };
         /** ServiceAreasResponse */
         ServiceAreasResponse: {
             /** Items */
@@ -9566,6 +9628,11 @@ export type components = {
              * @description ID of the service from catalog
              */
             service_catalog_id: string;
+            /**
+             * Service Catalog Name
+             * @description Human-readable name of the catalog service
+             */
+            service_catalog_name: string;
         };
         /** SignedUploadResponse */
         SignedUploadResponse: {
@@ -10536,11 +10603,6 @@ export type components = {
          */
         app__schemas__search_responses__InstructorInfo: {
             /**
-             * Areas Of Service
-             * @description Service areas
-             */
-            areas_of_service?: string | null;
-            /**
              * Bio
              * @description Instructor bio
              */
@@ -10560,6 +10622,21 @@ export type components = {
              * @description Instructor last name initial only
              */
             last_initial: string;
+            /**
+             * Service Area Boroughs
+             * @description List of borough names the instructor serves
+             */
+            service_area_boroughs?: string[];
+            /**
+             * Service Area Neighborhoods
+             * @description Detailed neighborhood coverage with keys: neighborhood_id, ntacode, name, borough
+             */
+            service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][];
+            /**
+             * Service Area Summary
+             * @description Summary of borough coverage (e.g., 'Manhattan, Queens')
+             */
+            service_area_summary?: string | null;
             /**
              * Years Experience
              * @description Years of experience
@@ -10809,6 +10886,7 @@ export interface operations {
         parameters: {
             query: {
                 q: string;
+                provider?: string | null;
             };
             header?: never;
             path?: never;
@@ -10840,6 +10918,7 @@ export interface operations {
         parameters: {
             query: {
                 place_id: string;
+                provider?: string | null;
             };
             header?: never;
             path?: never;

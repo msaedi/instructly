@@ -4,9 +4,11 @@ Response models for search endpoints.
 These models ensure consistent API responses for search-related endpoints.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from .address import ServiceAreaNeighborhoodOut
 
 
 class InstructorInfo(BaseModel):
@@ -17,7 +19,18 @@ class InstructorInfo(BaseModel):
     last_initial: str = Field(description="Instructor last name initial only")
     bio: Optional[str] = Field(default=None, description="Instructor bio")
     years_experience: Optional[int] = Field(default=None, description="Years of experience")
-    areas_of_service: Optional[str] = Field(default=None, description="Service areas")
+    service_area_summary: Optional[str] = Field(
+        default=None, description="Summary of borough coverage (e.g., 'Manhattan, Queens')"
+    )
+    service_area_boroughs: List[str] = Field(
+        default_factory=list, description="List of borough names the instructor serves"
+    )
+    service_area_neighborhoods: List[ServiceAreaNeighborhoodOut] = Field(
+        default_factory=list,
+        description=(
+            "Detailed neighborhood coverage with keys: neighborhood_id, ntacode, name, borough"
+        ),
+    )
 
     @classmethod
     def from_user(
@@ -25,16 +38,44 @@ class InstructorInfo(BaseModel):
         user: Any,
         bio: Optional[str] = None,
         years_experience: Optional[int] = None,
-        areas_of_service: Optional[str] = None,
+        service_area_summary: Optional[str] = None,
+        service_area_boroughs: Optional[List[str]] = None,
+        service_area_neighborhoods: Optional[
+            Sequence[ServiceAreaNeighborhoodOut | Dict[str, Optional[str]]]
+        ] = None,
     ) -> "InstructorInfo":
         """Create InstructorInfo from user with privacy protection."""
+
+        neighborhoods: List[ServiceAreaNeighborhoodOut] = []
+        if service_area_neighborhoods:
+            for entry in service_area_neighborhoods:
+                if isinstance(entry, ServiceAreaNeighborhoodOut):
+                    neighborhoods.append(entry)
+                    continue
+
+                neighborhood_id = entry.get("neighborhood_id") or entry.get("id")
+                ntacode = entry.get("ntacode") or entry.get("region_code")
+                name = entry.get("name") or entry.get("region_name")
+                borough = entry.get("borough") or entry.get("parent_region")
+
+                neighborhoods.append(
+                    ServiceAreaNeighborhoodOut(
+                        neighborhood_id=str(neighborhood_id) if neighborhood_id else "",
+                        ntacode=ntacode,
+                        name=name,
+                        borough=borough,
+                    )
+                )
+
         return cls(
             id=user.id,
             first_name=user.first_name,
             last_initial=user.last_name[0] if user.last_name else "",
             bio=bio,
             years_experience=years_experience,
-            areas_of_service=areas_of_service,
+            service_area_summary=service_area_summary,
+            service_area_boroughs=service_area_boroughs or [],
+            service_area_neighborhoods=neighborhoods,
         )
 
 

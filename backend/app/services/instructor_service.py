@@ -87,6 +87,9 @@ class InstructorService(BaseService):
             preferred_place_repository
             or RepositoryFactory.create_instructor_preferred_place_repository(db)
         )
+        self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
+            db
+        )
 
     @BaseService.measure_operation("get_instructor_profile")
     def get_instructor_profile(
@@ -156,6 +159,7 @@ class InstructorService(BaseService):
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
         age_group: Optional[str] = None,
+        service_area_boroughs: Optional[Sequence[str]] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> Dict[str, Any]:
@@ -170,6 +174,7 @@ class InstructorService(BaseService):
             service_catalog_id: Filter by specific service catalog ID
             min_price: Minimum hourly rate filter
             max_price: Maximum hourly rate filter
+            service_area_boroughs: Optional collection of borough labels to filter by
             skip: Number of records to skip for pagination
             limit: Maximum number of records to return
 
@@ -184,6 +189,7 @@ class InstructorService(BaseService):
             "service_catalog": service_catalog_id is not None,
             "price_range": min_price is not None or max_price is not None,
             "age_group": age_group is not None,
+            "service_area_boroughs": bool(service_area_boroughs),
             "filters_count": sum(
                 [
                     search is not None,
@@ -191,6 +197,7 @@ class InstructorService(BaseService):
                     min_price is not None,
                     max_price is not None,
                     age_group is not None,
+                    bool(service_area_boroughs),
                 ]
             ),
         }
@@ -211,6 +218,7 @@ class InstructorService(BaseService):
             min_price=min_price,
             max_price=max_price,
             age_group=age_group,
+            boroughs=service_area_boroughs,
             skip=skip,
             limit=limit,
         )
@@ -235,6 +243,8 @@ class InstructorService(BaseService):
             applied_filters["min_price"] = min_price
         if max_price is not None:
             applied_filters["max_price"] = max_price
+        if service_area_boroughs:
+            applied_filters["service_area_boroughs"] = list(service_area_boroughs)
         if age_group is not None:
             applied_filters["age_group"] = age_group
 
@@ -353,10 +363,6 @@ class InstructorService(BaseService):
             # If services are being updated but bio/areas are still empty, set smart defaults
             if update_data.services is not None:
                 missing_bio = not getattr(profile, "bio", None) or not str(profile.bio).strip()
-                missing_areas = (
-                    not getattr(profile, "areas_of_service", None)
-                    or not str(profile.areas_of_service).strip()
-                )
                 if "bio" not in basic_updates and missing_bio:
                     # Generate a bio like: "John is a New York-based yoga, tennis, and painting instructor."
                     try:
@@ -406,8 +412,6 @@ class InstructorService(BaseService):
                         # Last-resort fallback
                         basic_updates["bio"] = "Experienced instructor"
 
-                if "areas_of_service" not in basic_updates and missing_areas:
-                    basic_updates["areas_of_service"] = "Manhattan"
             if basic_updates:
                 self.profile_repository.update(profile.id, **basic_updates)
 
@@ -684,16 +688,67 @@ class InstructorService(BaseService):
             for place in public_places:
                 public_spaces.append({"address": place.address})
 
+        service_area_records = []
+        if profile.user and hasattr(profile.user, "service_areas"):
+            service_area_records = list(profile.user.service_areas)
+        else:
+            service_area_records = self.service_area_repository.list_for_instructor(profile.user_id)
+        service_area_neighborhoods: list[dict[str, Any]] = []
+        boroughs: set[str] = set()
+
+        for area in service_area_records:
+            region = getattr(area, "neighborhood", None)
+            region_code: Optional[str] = None
+            region_name: Optional[str] = None
+            borough: Optional[str] = None
+            region_meta: Optional[dict[str, Any]] = None
+            if region is not None:
+                region_code = getattr(region, "region_code", None)
+                region_name = getattr(region, "region_name", None)
+                borough = getattr(region, "parent_region", None)
+                meta_candidate = getattr(region, "region_metadata", None)
+                if isinstance(meta_candidate, dict):
+                    region_meta = meta_candidate
+            if region_meta:
+                region_code = (
+                    region_code or region_meta.get("nta_code") or region_meta.get("ntacode")
+                )
+                region_name = region_name or region_meta.get("nta_name") or region_meta.get("name")
+                borough = borough or region_meta.get("borough")
+
+            if borough:
+                boroughs.add(borough)
+
+            service_area_neighborhoods.append(
+                {
+                    "neighborhood_id": area.neighborhood_id,
+                    "ntacode": region_code,
+                    "name": region_name,
+                    "borough": borough,
+                }
+            )
+
+        sorted_boroughs = sorted(boroughs)
+        if sorted_boroughs:
+            if len(sorted_boroughs) <= 2:
+                service_area_summary = ", ".join(sorted_boroughs)
+            else:
+                service_area_summary = f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
+        else:
+            service_area_summary = ""
+
         return {
             "id": profile.id,
             "user_id": profile.user_id,
             "bio": profile.bio,
-            "areas_of_service": profile.areas_of_service,
             "years_experience": profile.years_experience,
             "min_advance_booking_hours": profile.min_advance_booking_hours,
             "buffer_time_minutes": profile.buffer_time_minutes,
             "preferred_teaching_locations": teaching_locations,
             "preferred_public_spaces": public_spaces,
+            "service_area_neighborhoods": service_area_neighborhoods,
+            "service_area_boroughs": sorted_boroughs,
+            "service_area_summary": service_area_summary,
             # Onboarding status
             "skills_configured": getattr(profile, "skills_configured", False),
             "identity_verified_at": getattr(profile, "identity_verified_at", None),

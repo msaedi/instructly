@@ -40,7 +40,15 @@ const mockInstructor = {
   id: '01K2MAY484FQGFEQVN3VKGYZ58',
   user_id: '01K2MAY484FQGFEQVN3VKGYZ58',
   bio: 'Experienced piano teacher with 10 years of experience',
-  areas_of_service: ['Upper West Side', 'Manhattan'],
+  service_area_summary: 'Upper West Side, Manhattan',
+  service_area_boroughs: ['Manhattan'],
+  service_area_neighborhoods: [
+    {
+      neighborhood_id: 'upper-west-side',
+      name: 'Upper West Side',
+      borough: 'Manhattan',
+    },
+  ],
   years_experience: 10,
   user: {
     first_name: 'Sarah',

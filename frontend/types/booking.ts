@@ -1,5 +1,7 @@
 // frontend/types/booking.ts
 
+import type { ServiceAreaNeighborhood } from '@/types/instructor';
+
 // Booking status enum
 export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 export type LocationType = 'student_home' | 'instructor_location' | 'neutral';
@@ -98,7 +100,9 @@ export interface InstructorProfile {
   user_id: string;
   bio: string;
   experience_years: number;
-  areas_of_service: string[]; // NYC neighborhoods
+  service_area_boroughs?: string[];
+  service_area_neighborhoods?: ServiceAreaNeighborhood[];
+  service_area_summary?: string | null;
   min_advance_booking_hours: number;
   buffer_time_minutes: number;
   created_at: string;

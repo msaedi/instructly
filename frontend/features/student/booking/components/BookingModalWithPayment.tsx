@@ -9,6 +9,7 @@ import { BookingModalProps, Service } from '../types';
 import { logger } from '@/lib/logger';
 import { at } from '@/lib/ts/safe';
 import { formatFullName } from '@/utils/nameDisplay';
+import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { useAuth } from '../hooks/useAuth';
 import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/booking';
 import CheckoutFlow from '@/components/booking/CheckoutFlow';
@@ -54,6 +55,9 @@ export default function BookingModalWithPayment({
     notes: '',
     agreedToTerms: false,
   });
+  const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
+  const serviceAreaDisplayFull = getServiceAreaDisplay(instructor) || 'NYC';
+  const primaryServiceArea = serviceAreaBoroughs[0] ?? serviceAreaDisplayFull;
 
   // Initialize with first service if multiple, or use the only service
   useEffect(() => {
@@ -140,7 +144,7 @@ export default function BookingModalWithPayment({
         startTime: selectedTime,
         endTime: calculateEndTime(selectedTime, duration),
         duration,
-        location: instructor.areas_of_service[0] || 'NYC',
+        location: primaryServiceArea,
         basePrice,
         serviceFee,
         totalAmount,
@@ -307,7 +311,7 @@ export default function BookingModalWithPayment({
               <div className="space-y-4 mb-6">
                 <div className="flex items-center space-x-3">
                   <MapPin className="h-5 w-5 text-gray-400" aria-hidden="true" />
-                  <span>{instructor.areas_of_service.join(', ')}</span>
+                  <span>{serviceAreaDisplayFull}</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <Clock className="h-5 w-5 text-gray-400" aria-hidden="true" />

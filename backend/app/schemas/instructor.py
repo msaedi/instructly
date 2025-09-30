@@ -11,7 +11,7 @@ These will be reimplemented differently in the new booking system.
 
 from datetime import datetime
 import logging
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -22,6 +22,7 @@ from ..core.constants import (
     MIN_SESSION_DURATION,
 )
 from ._strict_base import StrictRequestModel
+from .address import ServiceAreaNeighborhoodOut
 from .base import Money, StandardizedModel
 
 logger = logging.getLogger(__name__)
@@ -323,12 +324,6 @@ class InstructorProfileBase(StandardizedModel):
         max_length=MAX_BIO_LENGTH,
         description="Instructor biography/description",
     )
-    areas_of_service: List[str] = Field(
-        ...,
-        min_length=1,
-        max_length=20,
-        description="NYC areas where instructor provides services",
-    )
     years_experience: int = Field(..., ge=0, le=50, description="Years of teaching experience")
     min_advance_booking_hours: int = Field(
         default=2, ge=0, le=168, description="Minimum hours in advance for bookings"
@@ -336,15 +331,6 @@ class InstructorProfileBase(StandardizedModel):
     buffer_time_minutes: int = Field(
         default=0, ge=0, le=60, description="Buffer time between bookings"
     )
-
-    @field_validator("areas_of_service")
-    def validate_areas(cls, v: List[str]) -> List[str]:
-        """Ensure areas are properly formatted and no duplicates."""
-        # Remove duplicates and format properly
-        unique_areas = list(set(area.strip().title() for area in v if area.strip()))
-        if not unique_areas:
-            raise ValueError("At least one area of service is required")
-        return unique_areas
 
     @field_validator("bio")
     def validate_bio(cls, v: str) -> str:
@@ -391,7 +377,6 @@ class InstructorProfileUpdate(StrictRequestModel):
     """
 
     bio: Optional[str] = Field(None, min_length=MIN_BIO_LENGTH, max_length=MAX_BIO_LENGTH)
-    areas_of_service: Optional[List[str]] = Field(None, min_length=0, max_length=10)
     years_experience: Optional[int] = Field(None, ge=0, le=50)
     services: Optional[List[ServiceCreate]] = Field(None, min_length=0, max_length=20)
     min_advance_booking_hours: Optional[int] = Field(
@@ -402,14 +387,6 @@ class InstructorProfileUpdate(StrictRequestModel):
     )
     preferred_teaching_locations: Optional[List[PreferredTeachingLocationIn]] = Field(default=None)
     preferred_public_spaces: Optional[List[PreferredPublicSpaceIn]] = Field(default=None)
-
-    @field_validator("areas_of_service")
-    def validate_areas(cls, v: Optional[List[str]]) -> Optional[List[str]]:
-        """Ensure areas are properly formatted if provided."""
-        if v is not None and len(v) > 0:
-            unique_areas = list(set(area.strip().title() for area in v if area.strip()))
-            return unique_areas if unique_areas else []
-        return v
 
     @field_validator("preferred_teaching_locations")
     def validate_preferred_teaching_locations(
@@ -469,6 +446,9 @@ class InstructorProfileResponse(InstructorProfileBase):
     is_live: bool = Field(default=False)
     preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(default_factory=list)
     preferred_public_spaces: List[PreferredPublicSpaceOut] = Field(default_factory=list)
+    service_area_neighborhoods: List[ServiceAreaNeighborhoodOut] = Field(default_factory=list)
+    service_area_boroughs: List[str] = Field(default_factory=list)
+    service_area_summary: Optional[str] = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -543,13 +523,86 @@ class InstructorProfileResponse(InstructorProfileBase):
             )
             services_data.append(service_payload)
 
+        boroughs: set[str] = set()
+        neighborhoods_payload: List[ServiceAreaNeighborhoodOut] = []
+
+        neighborhoods_source = getattr(instructor_profile, "service_area_neighborhoods", None)
+
+        if neighborhoods_source:
+            for entry in neighborhoods_source:
+                if isinstance(entry, dict):
+                    neighborhood_id = entry.get("neighborhood_id") or entry.get("id")
+                    ntacode = entry.get("ntacode") or entry.get("region_code")
+                    name = entry.get("name") or entry.get("region_name")
+                    borough = entry.get("borough") or entry.get("parent_region")
+                else:
+                    neighborhood_id = getattr(entry, "neighborhood_id", None) or getattr(
+                        entry, "id", None
+                    )
+                    ntacode = getattr(entry, "ntacode", None) or getattr(entry, "region_code", None)
+                    name = getattr(entry, "name", None) or getattr(entry, "region_name", None)
+                    borough = getattr(entry, "borough", None) or getattr(
+                        entry, "parent_region", None
+                    )
+
+                neighborhoods_payload.append(
+                    ServiceAreaNeighborhoodOut(
+                        neighborhood_id=str(neighborhood_id) if neighborhood_id else "",
+                        ntacode=ntacode,
+                        name=name,
+                        borough=borough,
+                    )
+                )
+                if borough:
+                    boroughs.add(borough)
+        else:
+            user_service_areas: Sequence[Any] = []
+            if hasattr(instructor_profile, "user") and instructor_profile.user is not None:
+                user_service_areas = getattr(instructor_profile.user, "service_areas", []) or []
+
+            for area in user_service_areas:
+                neighborhood = getattr(area, "neighborhood", None)
+                neighborhood_id = getattr(area, "neighborhood_id", None)
+                if neighborhood is None:
+                    continue
+
+                borough = getattr(neighborhood, "parent_region", None) or getattr(
+                    neighborhood, "borough", None
+                )
+                ntacode = getattr(neighborhood, "region_code", None) or getattr(
+                    neighborhood, "ntacode", None
+                )
+                name = getattr(neighborhood, "region_name", None) or getattr(
+                    neighborhood, "name", None
+                )
+                neighborhoods_payload.append(
+                    ServiceAreaNeighborhoodOut(
+                        neighborhood_id=str(getattr(neighborhood, "id", neighborhood_id or "")),
+                        ntacode=ntacode,
+                        name=name,
+                        borough=borough,
+                    )
+                )
+                if borough:
+                    boroughs.add(borough)
+
+        sorted_boroughs = sorted(boroughs)
+        if sorted_boroughs:
+            if len(sorted_boroughs) <= 2:
+                service_area_summary = ", ".join(sorted_boroughs)
+            else:
+                service_area_summary = f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
+        else:
+            service_area_summary = None
+
+        neighborhoods_output = [entry.model_dump(mode="python") for entry in neighborhoods_payload]
+
         return cls(
             id=instructor_profile.id,
             user_id=instructor_profile.user_id,
             created_at=instructor_profile.created_at,
             updated_at=instructor_profile.updated_at,
             bio=instructor_profile.bio,
-            areas_of_service=instructor_profile.areas_of_service,
             years_experience=instructor_profile.years_experience,
             min_advance_booking_hours=instructor_profile.min_advance_booking_hours,
             buffer_time_minutes=instructor_profile.buffer_time_minutes,
@@ -566,33 +619,10 @@ class InstructorProfileResponse(InstructorProfileBase):
             is_live=getattr(instructor_profile, "is_live", False),
             preferred_teaching_locations=teaching_locations,
             preferred_public_spaces=public_spaces,
+            service_area_neighborhoods=neighborhoods_output,
+            service_area_boroughs=sorted_boroughs,
+            service_area_summary=service_area_summary,
         )
-
-    @field_validator("areas_of_service", mode="before")
-    def convert_areas_to_list(cls, v: object) -> object:
-        """Convert comma-separated string to list if needed."""
-        if isinstance(v, str):
-            # Clean up any corrupted data
-            cleaned = v
-            # Remove excessive escaping
-            while '\\"' in cleaned or "\\\\" in cleaned:
-                cleaned = cleaned.replace('\\"', '"')
-                cleaned = cleaned.replace("\\'", "'")
-                cleaned = cleaned.replace("\\\\", "\\")
-
-            # Remove any curly braces
-            cleaned = cleaned.replace("{", "").replace("}", "")
-
-            # Split by comma and clean up each area
-            areas: List[str] = []
-            for area in cleaned.split(","):
-                # Remove quotes and whitespace
-                area = area.strip().strip('"').strip("'").strip()
-                if area and len(area) > 2:
-                    areas.append(area.title())
-
-            return areas
-        return v
 
     @field_validator("services")
     def sort_services(cls, v: List[ServiceResponse]) -> List[ServiceResponse]:

@@ -43,7 +43,22 @@ export async function mockInstructorProfile(page: Page) {
             // No email for privacy
           },
           bio: 'Professional piano teacher with 10 years of experience',
-          areas_of_service: ['Upper West Side', 'Midtown'],
+          service_area_summary: 'Upper West Side, Midtown',
+          service_area_boroughs: ['Manhattan'],
+          service_area_neighborhoods: [
+            {
+              neighborhood_id: 'upper-west-side',
+              name: 'Upper West Side',
+              borough: 'Manhattan',
+              ntacode: null,
+            },
+            {
+              neighborhood_id: 'midtown',
+              name: 'Midtown',
+              borough: 'Manhattan',
+              ntacode: null,
+            },
+          ],
           years_experience: 10,
           rating: 4.9,
           total_reviews: 25,
@@ -394,7 +409,9 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
               bio: 'Professional piano teacher with 10 years of experience',
               profile_image_url: null,
               location: 'Manhattan',
-              areas_of_service: 'Manhattan, Brooklyn',
+              service_area_summary: 'Manhattan, Brooklyn',
+              service_area_boroughs: ['Manhattan', 'Brooklyn'],
+              service_area_neighborhoods: [],
               years_experience: 10,
             },
             service: {
@@ -773,7 +790,22 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
             last_initial: 'C',
           },
           bio: 'Professional piano teacher with 10 years of experience',
-          areas_of_service: ['Upper West Side', 'Midtown'],
+          service_area_summary: 'Upper West Side, Midtown',
+          service_area_boroughs: ['Manhattan'],
+          service_area_neighborhoods: [
+            {
+              neighborhood_id: 'upper-west-side',
+              name: 'Upper West Side',
+              borough: 'Manhattan',
+              ntacode: null,
+            },
+            {
+              neighborhood_id: 'midtown',
+              name: 'Midtown',
+              borough: 'Manhattan',
+              ntacode: null,
+            },
+          ],
           years_experience: 10,
           rating: 4.9,
           total_reviews: 127,

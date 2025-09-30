@@ -13,7 +13,9 @@ describe('instructor detail schema', () => {
           duration_options: [60],
         },
       ],
-      areas_of_service: [],
+      service_area_summary: null,
+      service_area_boroughs: [],
+      service_area_neighborhoods: [],
     };
     const parsed = schema.parse(payload);
     expect(parsed.user_id).toBe('01U');

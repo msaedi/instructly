@@ -30,6 +30,10 @@ from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
 from app.services.notification_service import NotificationService
 
+try:  # pragma: no cover - fallback when pytest runs from backend/
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
 
 class TestBookingServiceErrorHandling:
     """Test error handling in BookingService."""
@@ -537,11 +541,11 @@ class TestStudentDoubleBookingPrevention:
         if not profile2:
             profile2 = InstructorProfile(
                 user_id=second_instructor.id,
-                areas_of_service="['Piano']",
                 min_advance_booking_hours=1,
             )
             db.add(profile2)
             db.flush()
+            add_service_areas_for_boroughs(db, user=second_instructor, boroughs=["Manhattan"])
 
         # Get or create Piano service for second instructor
         # Get Piano catalog service
@@ -679,11 +683,11 @@ class TestStudentDoubleBookingPrevention:
         if not profile2:
             profile2 = InstructorProfile(
                 user_id=second_instructor.id,
-                areas_of_service="['Piano']",
                 min_advance_booking_hours=1,
             )
             db.add(profile2)
             db.flush()
+            add_service_areas_for_boroughs(db, user=second_instructor, boroughs=["Manhattan"])
 
         # Get or create Piano service for second instructor
         # Get Piano catalog service

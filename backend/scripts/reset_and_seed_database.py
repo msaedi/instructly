@@ -14,6 +14,7 @@ Usage:
 
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+import logging  # noqa: E402
 from pathlib import Path
 import random
 import sys
@@ -21,14 +22,13 @@ import sys
 # Add the parent directory to the path so we can import app modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import logging  # noqa: E402
-
 from sqlalchemy import create_engine, or_  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app.auth import get_password_hash  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.enums import RoleName
+from app.models.address import InstructorServiceArea  # noqa: E402
 from app.models.availability import (  # noqa: E402
     AvailabilitySlot,
     BlackoutDate,
@@ -37,6 +37,7 @@ from app.models.availability import (  # noqa: E402
 from app.models.booking import Booking, BookingStatus  # noqa: E402
 from app.models.instructor import InstructorProfile  # noqa: E402
 from app.models.password_reset import PasswordResetToken  # noqa: E402
+from app.models.region_boundary import RegionBoundary  # noqa: E402
 from app.models.service import Service  # noqa: E402
 from app.models.user import User
 
@@ -682,12 +683,26 @@ def create_dummy_instructors(session: Session):
             user_id=user.id,
             bio=template["bio"],
             years_experience=template["years_experience"],
-            areas_of_service=", ".join(template["areas"]),  # Comma-separated string
             min_advance_booking_hours=random.choice([1, 2, 4, 24]),  # Random advance booking time
             buffer_time_minutes=random.choice([0, 15, 30]),  # Random buffer time
         )
         session.add(profile)
         session.flush()
+
+        for area_name in template.get("areas", []):
+            neighborhood = (
+                session.query(RegionBoundary)
+                .filter(RegionBoundary.region_type == "nyc", RegionBoundary.region_name == area_name)
+                .first()
+            )
+            if neighborhood:
+                session.add(
+                    InstructorServiceArea(
+                        instructor_id=user.id,
+                        neighborhood_id=neighborhood.id,
+                        coverage_type="primary",
+                    )
+                )
 
         # Create services
         for svc in template["services"]:
@@ -863,7 +878,15 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
     location_types = ["student_home", "instructor_location", "neutral"]
     location_type = random.choice(location_types)
 
-    area = service.instructor_profile.areas_of_service.split(",")[0].strip()
+    area = "NYC"
+    service_area = (
+        session.query(InstructorServiceArea)
+        .join(RegionBoundary, InstructorServiceArea.neighborhood_id == RegionBoundary.id)
+        .filter(InstructorServiceArea.instructor_id == instructor_id)
+        .first()
+    )
+    if service_area and service_area.neighborhood:
+        area = service_area.neighborhood.region_name or service_area.neighborhood.parent_region or "NYC"
 
     if location_type == "student_home":
         meeting_location = f"Student's home in {area}"

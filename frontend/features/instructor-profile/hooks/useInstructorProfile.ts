@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
-import type { InstructorProfile, InstructorService } from '@/types/instructor';
+import type { InstructorProfile, InstructorService, ServiceAreaNeighborhood } from '@/types/instructor';
 import { httpJson } from '@/features/shared/api/http';
 import { withApiBase } from '@/lib/apiBase';
 import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instructorProfile';
@@ -19,7 +19,9 @@ type ServerInstructorProfileResult = {
     description?: string | null;
   }>;
   bio?: string;
-  areas_of_service?: string[];
+  service_area_boroughs?: string[];
+  service_area_neighborhoods?: ServiceAreaNeighborhood[];
+  service_area_summary?: string | null;
   years_experience?: number;
   favorited_count?: number;
   verified?: unknown;
@@ -111,7 +113,9 @@ export function useInstructorProfile(instructorId: string) {
         id: serverInst.user_id || instructorId,
         user_id: serverInst.user_id,
         bio: serverInst.bio || '',
-        areas_of_service: serverInst.areas_of_service || [],
+        service_area_boroughs: serverInst.service_area_boroughs || [],
+        service_area_neighborhoods: serverInst.service_area_neighborhoods || [],
+        service_area_summary: serverInst.service_area_summary ?? null,
         years_experience: serverInst.years_experience || 0,
         user: serverInst.user || { first_name: 'Unknown', last_initial: '' },
         services: mappedServices,

@@ -28,6 +28,7 @@ import { getString, getNumber } from '@/lib/typesafe';
 import type { InstructorService } from '@/types/instructor';
 import { at } from '@/lib/ts/safe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 
 import { storeBookingIntent, getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 
@@ -99,6 +100,7 @@ function InstructorProfileContent() {
   );
 
   const bookingModal = useBookingModal();
+  const serviceAreaBoroughs = instructor ? getServiceAreaBoroughs(instructor) : [];
 
 
 
@@ -475,22 +477,18 @@ function InstructorProfileContent() {
                 <div className="rounded-lg border border-purple-100 p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
                   <div className="grid grid-cols-4 gap-4">
                     {/* Travel to you */}
-                    {instructor.areas_of_service && instructor.areas_of_service.length > 0 && (
+                    {serviceAreaBoroughs.length > 0 && (
                       <div>
                         <div className="text-lg font-bold mb-2">Travel to you</div>
                         <div className="text-xs text-gray-600 space-y-0.5 ml-3">
-                          <div>• Upper West Side</div>
-                          <div>• Midtown</div>
-                          <div>• Upper East Side</div>
-                          <div>• Chelsea</div>
-                          <div>• Park Slope</div>
-                          <div>• Williamsburg</div>
-                          <div>• DUMBO</div>
-                          <div>• Long Island City</div>
-                          <div>• Astoria</div>
-                          <button className="text-[#7E22CE] hover:text-[#7E22CE] text-xs font-medium mt-1">
-                            See more
-                          </button>
+                          {serviceAreaBoroughs.slice(0, 8).map((borough) => (
+                            <div key={borough}>• {borough}</div>
+                          ))}
+                          {serviceAreaBoroughs.length > 8 && (
+                            <div className="text-[#7E22CE] text-xs font-medium mt-1">
+                              + {serviceAreaBoroughs.length - 8} more
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

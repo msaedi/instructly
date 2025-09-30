@@ -11,12 +11,12 @@ export interface PreferredPublicSpacePayload {
 
 export interface InstructorUpdatePayload {
   bio: string;
-  areas_of_service: string[];
   years_experience: number;
   min_advance_booking_hours?: number;
   buffer_time_minutes?: number;
   preferred_teaching_locations?: PreferredTeachingLocationPayload[];
   preferred_public_spaces?: PreferredPublicSpacePayload[];
+  services?: Array<Record<string, unknown>>;
 }
 
 export interface AddressCreatePayload {
@@ -45,4 +45,39 @@ export function debugProfilePayload(name: string, payload: unknown): void {
   } catch (error) {
     logger.warn('[PROFILE_DEBUG] failed to inspect payload', { name, error });
   }
+}
+
+const UPDATE_KEYS = new Set<keyof InstructorUpdatePayload>([
+  'bio',
+  'years_experience',
+  'min_advance_booking_hours',
+  'buffer_time_minutes',
+  'preferred_teaching_locations',
+  'preferred_public_spaces',
+  'services',
+]);
+
+export function buildProfileUpdateBody(
+  existing: unknown,
+  form: Partial<InstructorUpdatePayload> | null | undefined,
+): InstructorUpdatePayload {
+  const sanitize = (source: unknown) => {
+    if (!source || typeof source !== 'object') {
+      return {};
+    }
+
+    return Object.entries(source as Record<string, unknown>)
+      .filter(([key]) => key !== 'areas_of_service' && UPDATE_KEYS.has(key as keyof InstructorUpdatePayload))
+      .reduce<Record<string, unknown>>((acc, [key, value]) => {
+        acc[key] = value;
+        return acc;
+      }, {});
+  };
+
+  const merged = {
+    ...sanitize(existing),
+    ...sanitize(form),
+  } as Partial<InstructorUpdatePayload>;
+
+  return merged as InstructorUpdatePayload;
 }

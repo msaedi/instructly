@@ -300,7 +300,14 @@ export interface NaturalLanguageSearchResponse {
       last_initial: string;  // Privacy protected
       bio: string;
       years_experience: number;
-      areas_of_service: string;
+      service_area_summary?: string | null;
+      service_area_boroughs?: string[];
+      service_area_neighborhoods?: Array<{
+        neighborhood_id: string;
+        ntacode?: string | null;
+        name?: string | null;
+        borough?: string | null;
+      }>;
     };
     offering: {
       id: string;
@@ -528,7 +535,14 @@ export const publicApi = {
         id: string;  // ULID string
         user_id: string;  // ULID string
         bio: string;
-        areas_of_service: string[];
+        service_area_boroughs?: string[];
+        service_area_neighborhoods?: Array<{
+          neighborhood_id: string;
+          ntacode?: string | null;
+          name?: string | null;
+          borough?: string | null;
+        }>;
+        service_area_summary?: string | null;
         years_experience: number;
         min_advance_booking_hours: number;
         buffer_time_minutes: number;

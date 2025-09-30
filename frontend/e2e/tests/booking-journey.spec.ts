@@ -134,7 +134,9 @@ test.describe('Student Booking Journey', () => {
                   bio: 'Experienced instructor',
                   profile_image_url: null,
                   location: 'Manhattan',
-                  areas_of_service: 'Manhattan, Brooklyn',
+                  service_area_summary: 'Manhattan, Brooklyn',
+                  service_area_boroughs: ['Manhattan', 'Brooklyn'],
+                  service_area_neighborhoods: [],
                   years_experience: 10,
                 },
                 service: {
@@ -162,7 +164,9 @@ test.describe('Student Booking Journey', () => {
                   bio: 'Professional instructor',
                   profile_image_url: null,
                   location: 'Brooklyn',
-                  areas_of_service: 'Brooklyn, Queens',
+                  service_area_summary: 'Brooklyn, Queens',
+                  service_area_boroughs: ['Brooklyn', 'Queens'],
+                  service_area_neighborhoods: [],
                   years_experience: 5,
                 },
                 service: {

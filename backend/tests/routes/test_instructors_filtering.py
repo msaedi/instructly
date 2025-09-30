@@ -15,6 +15,11 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog
 from app.models.user import User
 
+try:  # pragma: no cover - pytest may run from backend/ directory
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 class TestInstructorsFilteringAPI:
     """API tests for instructor filtering endpoint."""
@@ -104,7 +109,6 @@ class TestInstructorsFilteringAPI:
             profile = InstructorProfile(
                 user_id=user.id,
                 bio=data["bio"],
-                areas_of_service="Manhattan,Brooklyn",
                 years_experience=5 + i,
                 min_advance_booking_hours=24,
                 buffer_time_minutes=15,
@@ -125,6 +129,8 @@ class TestInstructorsFilteringAPI:
                     duration_options=[60],  # Default duration
                 )
                 db.add(service)
+
+            add_service_areas_for_boroughs(db, user=user, boroughs=["Manhattan", "Brooklyn"])
 
         db.commit()
         return instructors
@@ -400,10 +406,13 @@ class TestInstructorsFilteringAPI:
         db.flush()
 
         profile = InstructorProfile(
-            user_id=user.id, bio="Instructor with mixed services", areas_of_service="Manhattan", years_experience=20
+            user_id=user.id,
+            bio="Instructor with mixed services",
+            years_experience=20,
         )
         db.add(profile)
         db.flush()
+        add_service_areas_for_boroughs(db, user=user, boroughs=["Manhattan"])
 
         # Add both active and inactive services - need catalog entries
         from app.models.service_catalog import ServiceCatalog

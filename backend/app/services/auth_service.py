@@ -48,6 +48,9 @@ class AuthService(BaseService):
         self.instructor_repository = (
             instructor_repository or RepositoryFactory.create_base_repository(db, InstructorProfile)
         )
+        self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
+            db
+        )
         # Avoid instantiating TFA service here to keep auth lightweight and avoid config/key coupling
 
     @BaseService.measure_operation("register_user")
@@ -122,10 +125,9 @@ class AuthService(BaseService):
                 # If registering as instructor, create profile with safe defaults
                 if role_name == RoleName.INSTRUCTOR:
                     # Derive initial service area (prefer neighborhood) and city for bio
-                    service_area_guess = (
-                        "Manhattan"  # areas_of_service: neighborhood/city for filtering
-                    )
+                    service_area_guess = "Manhattan"
                     city_guess = "New York"  # bio should use city, not borough
+                    region_boundary_id: Optional[str] = None
                     try:
                         if zip_code:
                             import anyio
@@ -142,7 +144,6 @@ class AuthService(BaseService):
                                 if getattr(geocoded, "city", None):
                                     city_guess = geocoded.city
 
-                                # Neighborhood/region name for areas_of_service if available
                                 rb_repo = RegionBoundaryRepository(self.db)
                                 region = rb_repo.find_region_by_point(
                                     lat=float(geocoded.latitude),
@@ -151,9 +152,27 @@ class AuthService(BaseService):
                                 )
                                 if region and region.get("region_name"):
                                     service_area_guess = region["region_name"]
+                                    ids = rb_repo.find_region_ids_by_partial_names(
+                                        [service_area_guess]
+                                    )
+                                    region_boundary_id = ids.get(service_area_guess)
                                 elif getattr(geocoded, "city", None):
                                     # Fallback to city when neighborhood unavailable
                                     service_area_guess = geocoded.city
+                                    ids = rb_repo.find_region_ids_by_partial_names(
+                                        [service_area_guess]
+                                    )
+                                    region_boundary_id = region_boundary_id or ids.get(
+                                        service_area_guess
+                                    )
+                        if region_boundary_id is None and service_area_guess:
+                            from app.repositories.region_boundary_repository import (
+                                RegionBoundaryRepository,
+                            )
+
+                            rb_repo = RegionBoundaryRepository(self.db)
+                            ids = rb_repo.find_region_ids_by_partial_names([service_area_guess])
+                            region_boundary_id = ids.get(service_area_guess)
                     except Exception as _e:
                         self.logger.debug(f"ZIP→neighborhood/city lookup failed: {str(_e)}")
 
@@ -166,11 +185,17 @@ class AuthService(BaseService):
                         # Provide defaults that satisfy response schema validation
                         bio=default_bio,
                         years_experience=0,
-                        # Store as comma-separated string; schema will normalize to list
-                        areas_of_service=service_area_guess,
                         min_advance_booking_hours=1,
                         buffer_time_minutes=15,
                     )
+
+                    if region_boundary_id:
+                        self.service_area_repository.upsert_area(
+                            instructor_id=user.id,
+                            neighborhood_id=region_boundary_id,
+                            coverage_type="primary",
+                            is_active=True,
+                        )
 
                 self.logger.info(f"Successfully registered user: {email} with role: {role}")
                 return user

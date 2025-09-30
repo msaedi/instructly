@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
+from pydantic.config import ConfigDict
 
 from ._strict_base import StrictRequestModel
 
@@ -73,6 +74,20 @@ class ServiceAreaItem(BaseModel):
 class ServiceAreasResponse(BaseModel):
     items: List[ServiceAreaItem]
     total: int
+
+
+class ServiceAreaNeighborhood(BaseModel):
+    """Normalized neighborhood metadata used in instructor service area responses."""
+
+    model_config = ConfigDict(title="ServiceAreaNeighborhood", extra="forbid")
+
+    neighborhood_id: str
+    ntacode: Optional[str] = None
+    name: Optional[str] = None
+    borough: Optional[str] = None
+
+
+ServiceAreaNeighborhoodOut = ServiceAreaNeighborhood
 
 
 class PlaceSuggestion(BaseModel):

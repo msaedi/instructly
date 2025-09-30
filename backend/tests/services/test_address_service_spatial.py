@@ -6,6 +6,11 @@ from app.repositories.address_repository import InstructorServiceAreaRepository
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
 from app.services.address_service import AddressService
 
+try:  # pragma: no cover - fallback when running from backend/ root
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 def _square_wkt(lng_min: float, lat_min: float, lng_max: float, lat_max: float) -> str:
     return f"POLYGON(({lng_min} {lat_min},{lng_max} {lat_min},{lng_max} {lat_max},{lng_min} {lat_max},{lng_min} {lat_min}))"
@@ -61,6 +66,8 @@ def test_get_coverage_geojson_for_instructors_builds_featurecollection(db, test_
     if not region_repo.table_has_boundary():
         pytest.skip("Boundary column not present; PostGIS likely unavailable in test DB")
 
+    add_service_areas_for_boroughs(db, user=test_instructor, boroughs=["Manhattan"])
+
     # Insert a region with valid 26-char ULID
     region_id = generate_ulid()
     region_repo.insert_wkt(
@@ -91,5 +98,10 @@ def test_get_coverage_geojson_for_instructors_builds_featurecollection(db, test_
     f = geo["features"][0]
     assert f["type"] == "Feature"
     assert f["geometry"] and isinstance(f["geometry"], dict)
-    assert f["properties"]["region_id"] == region_id
-    assert test_instructor.id in f["properties"]["instructors"]
+
+    region_ids = {feature["properties"]["region_id"] for feature in geo["features"]}
+    assert region_id in region_ids
+    assert any(
+        test_instructor.id in feature["properties"].get("instructors", [])
+        for feature in geo["features"]
+    )

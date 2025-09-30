@@ -9,7 +9,14 @@ describe('search list schema', () => {
           id: '01H',
           user_id: '01H',
           bio: 'hi',
-          areas_of_service: ['Manhattan'],
+          service_area_summary: 'Manhattan',
+          service_area_boroughs: ['Manhattan'],
+          service_area_neighborhoods: [
+            {
+              neighborhood_id: 'n1',
+              borough: 'Manhattan',
+            },
+          ],
           years_experience: 1,
           min_advance_booking_hours: 0,
           buffer_time_minutes: 0,

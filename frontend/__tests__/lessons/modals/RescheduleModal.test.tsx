@@ -197,16 +197,15 @@ describe('RescheduleModal', () => {
     });
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowDay = format(tomorrow, 'd');
+    const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
-    const dayMatcher = new RegExp(`(^|-)${tomorrowDay}$`);
-    const dayEls = await screen.findAllByText(dayMatcher);
-    const clickable = (dayEls as HTMLElement[]).find((el: HTMLElement) => !(el as HTMLButtonElement).disabled);
-    if (clickable) {
-      fireEvent.click(clickable);
-    } else if (dayEls[0]) {
-      fireEvent.click(dayEls[0]);
+    const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
+    const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
+    if (!dayButton) {
+      throw new Error(`No selectable calendar button found for ${tomorrowIso}`);
     }
+    expect(dayButton).toBeEnabled();
+    fireEvent.click(dayButton);
 
     // Confirm should be enabled after auto-selecting first time
     await waitFor(() => {
@@ -225,19 +224,18 @@ describe('RescheduleModal', () => {
     // Select tomorrow's date first
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowDay = format(tomorrow, 'd');
+    const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
     await waitFor(() => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
-    const dayMatcher = new RegExp(`(^|-)${tomorrowDay}$`);
-    const dayButtons = await screen.findAllByText(dayMatcher);
-    const clickable = (dayButtons as HTMLElement[]).find((el: HTMLElement) => !(el as HTMLButtonElement).disabled);
-    if (clickable) {
-      fireEvent.click(clickable);
-    } else if (dayButtons[0]) {
-      fireEvent.click(dayButtons[0]);
+    const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
+    const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
+    if (!dayButton) {
+      throw new Error(`No selectable calendar button found for ${tomorrowIso}`);
     }
+    expect(dayButton).toBeEnabled();
+    fireEvent.click(dayButton);
 
     // Auto-selected time should enable confirm
     await waitFor(() => {
@@ -284,18 +282,18 @@ describe('RescheduleModal', () => {
     // Select tomorrow's date
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowDay = format(tomorrow, 'd');
+    const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
     await waitFor(() => {
-      const dayMatcher = new RegExp(`(^|-)${tomorrowDay}$`);
-      const dateButtons = screen.getAllByText(dayMatcher) as HTMLElement[];
-      const clickableBtn = dateButtons.find((el) => !(el as HTMLButtonElement).disabled);
-      if (clickableBtn) {
-        fireEvent.click(clickableBtn);
-      } else if (dateButtons[0]) {
-        fireEvent.click(dateButtons[0]);
-      }
+      expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
+    const dateButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
+    const dateButton = dateButtons.find((btn) => !btn.disabled) ?? dateButtons[0];
+    if (!dateButton) {
+      throw new Error(`No selectable calendar button found for ${tomorrowIso}`);
+    }
+    expect(dateButton).toBeEnabled();
+    fireEvent.click(dateButton);
 
     // Time is auto-selected; proceed
 

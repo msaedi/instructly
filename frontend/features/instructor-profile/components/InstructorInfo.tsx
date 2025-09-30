@@ -1,12 +1,15 @@
 import { MapPin, GraduationCap, Shield, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { InstructorProfile } from '@/types/instructor';
+import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 
 interface InstructorInfoProps {
   instructor: InstructorProfile;
 }
 
 export function InstructorInfo({ instructor }: InstructorInfoProps) {
+  const serviceAreas = getServiceAreaBoroughs(instructor);
+  const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'Location not specified';
   return (
     <div className="space-y-6">
       {/* Location */}
@@ -18,9 +21,9 @@ export function InstructorInfo({ instructor }: InstructorInfoProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {instructor.areas_of_service && instructor.areas_of_service.length > 0 ? (
+          {serviceAreas.length > 0 ? (
             <div>
-              <p className="font-medium">{instructor.areas_of_service.join(', ')}</p>
+              <p className="font-medium">{serviceAreaDisplay}</p>
               <p className="text-sm text-muted-foreground mt-1">
                 Available for in-person lessons
               </p>

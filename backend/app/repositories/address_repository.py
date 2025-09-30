@@ -2,7 +2,7 @@
 
 from typing import List, Optional, cast
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..models.address import InstructorServiceArea, NYCNeighborhood, UserAddress
 from .base_repository import BaseRepository
@@ -44,7 +44,11 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
     def list_for_instructor(
         self, instructor_id: str, active_only: bool = True
     ) -> List[InstructorServiceArea]:
-        query = self._build_query().filter(InstructorServiceArea.instructor_id == instructor_id)
+        query = (
+            self._build_query()
+            .options(selectinload(InstructorServiceArea.neighborhood))
+            .filter(InstructorServiceArea.instructor_id == instructor_id)
+        )
         if active_only:
             query = query.filter(InstructorServiceArea.is_active.is_(True))
         return self._execute_query(query)
@@ -112,6 +116,7 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
         return cast(
             list[InstructorServiceArea],
             self._build_query()
+            .options(selectinload(InstructorServiceArea.neighborhood))
             .filter(
                 InstructorServiceArea.instructor_id.in_(instructor_ids),
                 InstructorServiceArea.is_active.is_(True),

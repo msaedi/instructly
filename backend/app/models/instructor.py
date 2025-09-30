@@ -50,7 +50,6 @@ class InstructorProfile(Base):
         user_id: Foreign key to users table (one-to-one relationship)
         bio: Professional biography/description
         years_experience: Years of teaching experience
-        areas_of_service: Comma-separated list of NYC areas served
         min_advance_booking_hours: Minimum hours advance notice for bookings
         buffer_time_minutes: Buffer time between bookings
         created_at: Timestamp when profile was created
@@ -82,9 +81,6 @@ class InstructorProfile(Base):
     # Profile information
     bio = Column(Text, nullable=True)
     years_experience = Column(Integer, nullable=True)
-
-    # Service areas (comma-separated NYC areas)
-    areas_of_service = Column(String, nullable=True)
 
     # Booking preferences
     min_advance_booking_hours = Column(Integer, nullable=False, default=24)
@@ -226,18 +222,6 @@ class InstructorProfile(Base):
                 return service
         return None
 
-    @property
-    def service_areas_list(self) -> List[str]:
-        """
-        Get service areas as a list.
-
-        Returns:
-            List of area strings
-        """
-        if not self.areas_of_service:
-            return []
-        return [area.strip() for area in self.areas_of_service.split(",")]
-
     def can_accept_booking_at(self, hours_until_booking: int) -> bool:
         """
         Check if instructor accepts bookings with given advance notice.
@@ -266,8 +250,6 @@ class InstructorProfile(Base):
             "user_id": self.user_id,
             "bio": self.bio,
             "years_experience": self.years_experience,
-            "areas_of_service": self.areas_of_service,
-            "service_areas_list": self.service_areas_list,
             "min_advance_booking_hours": self.min_advance_booking_hours,
             "buffer_time_minutes": self.buffer_time_minutes,
             "created_at": self.created_at.isoformat() if self.created_at else None,

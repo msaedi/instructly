@@ -44,7 +44,6 @@ def upgrade() -> None:
         sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("bio", sa.Text(), nullable=True),
         sa.Column("years_experience", sa.Integer(), nullable=True),
-        sa.Column("areas_of_service", sa.String(), nullable=True),  # VARCHAR from start, not ARRAY
         # Travel preferences JSON to store mobility options (car/subway etc.)
         sa.Column(
             "travel_preferences",
@@ -333,7 +332,6 @@ def upgrade() -> None:
 
     print("Instructor system tables created successfully!")
     print("- Enabled pgvector extension for semantic search")
-    print("- Created instructor_profiles table with areas_of_service as VARCHAR")
     print("- Enhanced service catalog system with:")
     print("  - service_categories: Categories with icon_name support")
     print("  - service_catalog: Services with embeddings, display_order, and online capability")

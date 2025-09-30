@@ -20,6 +20,11 @@ from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
 from app.services.permission_service import PermissionService
 
+try:  # pragma: no cover - fallback for direct backend test executions
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 @pytest.mark.asyncio
 async def test_student_cannot_double_book_overlapping_sessions(db: Session, catalog_data: dict):
@@ -65,11 +70,11 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
 
     profile1 = InstructorProfile(
         user_id=instructor1.id,
-        areas_of_service="['Math', 'Science']",
         min_advance_booking_hours=1,
     )
     db.add(profile1)
     db.flush()
+    add_service_areas_for_boroughs(db, user=instructor1, boroughs=["Manhattan"])
 
     # Get Math catalog service
     math_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name.ilike("%math%")).first()
@@ -108,11 +113,11 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
 
     profile2 = InstructorProfile(
         user_id=instructor2.id,
-        areas_of_service="['Piano', 'Music Theory']",
         min_advance_booking_hours=1,
     )
     db.add(profile2)
     db.flush()
+    add_service_areas_for_boroughs(db, user=instructor2, boroughs=["Brooklyn"])
 
     # Get Piano catalog service
     piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name.ilike("%piano%")).first()

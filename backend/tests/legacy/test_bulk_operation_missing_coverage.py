@@ -177,7 +177,6 @@ class TestBulkOperationMissingCoverage:
         profile = InstructorProfile(
             user_id=second_instructor.id,
             bio="Second instructor bio",
-            areas_of_service="Manhattan",
             years_experience=3,
             min_advance_booking_hours=2,
             buffer_time_minutes=15,

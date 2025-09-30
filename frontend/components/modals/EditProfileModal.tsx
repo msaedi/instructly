@@ -10,6 +10,9 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
+import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
+import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
+import type { ServiceAreaNeighborhood } from '@/types/instructor';
 type EditableService = {
   service_catalog_id?: string;
   service_catalog_name?: string | null;
@@ -77,8 +80,8 @@ interface EditProfileModalProps {
 interface ProfileFormData {
   /** Instructor bio/description */
   bio: string;
-  /** NYC neighborhoods served */
-  areas_of_service: string[];
+  /** Derived borough labels served */
+  service_area_boroughs: string[];
   /** Years of teaching experience */
   years_experience: number;
   /** Services offered by the instructor */
@@ -98,7 +101,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   // Areas saving state removed - handled by neighborhood persistence
   const [profileData, setProfileData] = useState<ProfileFormData>({
     bio: '',
-    areas_of_service: [] as string[],
+    service_area_boroughs: [] as string[],
     years_experience: 0,
     services: [] as EditableService[],
     first_name: '',
@@ -153,7 +156,14 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   ];
 
   // Neighborhood-based service areas (NYC style) - used in areas-only modal variant
-  type ServiceAreaItem = { neighborhood_id?: string; id?: string; name?: string | null; borough?: string | null };
+  type ServiceAreaItem = {
+    neighborhood_id?: string;
+    id?: string;
+    name?: string | null;
+    borough?: string | null;
+    ntacode?: string | null;
+    code?: string | null;
+  };
   const NYC_BOROUGHS = useMemo(() => ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const, []);
   const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
@@ -188,6 +198,89 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   const [svcSaving, setSvcSaving] = useState(false);
   const [skillsFilter, setSkillsFilter] = useState('');
 
+  const fetchProfile = useCallback(async () => {
+    try {
+      logger.info('Fetching instructor profile for editing');
+      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch profile');
+      }
+
+      const data = await response.json();
+
+      const neighborhoodsRaw = Array.isArray(data?.service_area_neighborhoods)
+        ? (data.service_area_neighborhoods as ServiceAreaItem[])
+        : [];
+      const neighborhoods = neighborhoodsRaw.reduce<ServiceAreaNeighborhood[]>((acc, item) => {
+        const neighborhoodId = item.neighborhood_id || item.id;
+        if (!neighborhoodId) {
+          return acc;
+        }
+        acc.push({
+          neighborhood_id: neighborhoodId,
+          ntacode: item.ntacode ?? item.code ?? null,
+          name: item.name ?? null,
+          borough: item.borough ?? null,
+        });
+        return acc;
+      }, []);
+
+      const serviceAreaSource = {
+        service_area_summary: (data?.service_area_summary as string | null | undefined) ?? null,
+        service_area_boroughs: Array.isArray(data?.service_area_boroughs)
+          ? (data.service_area_boroughs as string[])
+          : [],
+        service_area_neighborhoods: neighborhoods,
+      };
+      const boroughSelection = getServiceAreaBoroughs(serviceAreaSource);
+
+      // Fetch user names
+      let firstName = '';
+      let lastName = '';
+      try {
+        const me = await fetchWithAuth(API_ENDPOINTS.ME);
+        if (me.ok) {
+          const u = await me.json();
+          firstName = u.first_name || '';
+          lastName = u.last_name || '';
+        }
+      } catch {}
+
+      // Fetch default address postal code
+      let postalCode = '';
+      try {
+        const addrRes = await fetchWithAuth('/api/addresses/me');
+        if (addrRes.ok) {
+          const list = await addrRes.json();
+          const items = list.items || [];
+          const def = items.find((a: AddressItem) => a.is_default) || (items.length > 0 ? items[0] : null);
+          postalCode = def?.postal_code || '';
+        }
+      } catch {}
+
+      const normalizedServices = await normalizeInstructorServices(data.services);
+
+      setProfileData({
+        bio: data.bio || '',
+        service_area_boroughs: boroughSelection,
+        years_experience: data.years_experience || 0,
+        services: normalizedServices,
+        first_name: firstName,
+        last_name: lastName,
+        postal_code: postalCode,
+      });
+
+      logger.debug('Profile data loaded', {
+        servicesCount: data.services?.length || 0,
+        boroughCount: boroughSelection.length,
+      });
+    } catch (err) {
+      logger.error('Failed to load instructor profile', err);
+      setError('Failed to load profile');
+    }
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       logger.debug('Edit profile modal opened');
@@ -216,7 +309,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         } catch {}
       })();
     }
-  }, [isOpen]);
+  }, [fetchProfile, isOpen]);
 
   // Load services for services-only modal
   useEffect(() => {
@@ -353,72 +446,6 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   };
 
   /**
-   * Fetch instructor profile data
-   */
-  const fetchProfile = async () => {
-    try {
-      logger.info('Fetching instructor profile for editing');
-      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch profile');
-      }
-
-      const data = await response.json();
-
-      // Parse areas_of_service if it's a string
-      const areasOfService =
-        typeof data.areas_of_service === 'string'
-          ? JSON.parse(data.areas_of_service)
-          : data.areas_of_service;
-
-      // Fetch user names
-      let firstName = '';
-      let lastName = '';
-      try {
-        const me = await fetchWithAuth(API_ENDPOINTS.ME);
-        if (me.ok) {
-          const u = await me.json();
-          firstName = u.first_name || '';
-          lastName = u.last_name || '';
-        }
-      } catch {}
-
-      // Fetch default address postal code
-      let postalCode = '';
-      try {
-        const addrRes = await fetchWithAuth('/api/addresses/me');
-        if (addrRes.ok) {
-          const list = await addrRes.json();
-          const items = list.items || [];
-          const def = items.find((a: AddressItem) => a.is_default) || (items.length > 0 ? items[0] : null);
-          postalCode = def?.postal_code || '';
-        }
-      } catch {}
-
-      const normalizedServices = await normalizeInstructorServices(data.services);
-
-      setProfileData({
-        bio: data.bio || '',
-        areas_of_service: areasOfService || [],
-        years_experience: data.years_experience || 0,
-        services: normalizedServices,
-        first_name: firstName,
-        last_name: lastName,
-        postal_code: postalCode,
-      });
-
-      logger.debug('Profile data loaded', {
-        servicesCount: data.services?.length || 0,
-        areasCount: areasOfService?.length || 0,
-      });
-    } catch (err) {
-      logger.error('Failed to load instructor profile', err);
-      setError('Failed to load profile');
-    }
-  };
-
-  /**
    * Handle profile update submission
    */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -428,7 +455,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
 
     logger.info('Submitting profile updates', {
       servicesCount: profileData.services.length,
-      areasCount: profileData.areas_of_service.length,
+      boroughCount: profileData.service_area_boroughs.length,
     });
 
     try {
@@ -470,20 +497,26 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         }
       } catch {}
 
-      // Ensure areas_of_service is not empty
-      if (profileData.areas_of_service.length === 0) {
-        logger.warn('Profile update attempted without areas of service');
-        setError('Please select at least one area of service');
+      // Ensure at least one service area (temporary guard while modal transitions)
+      if (profileData.service_area_boroughs.length === 0) {
+        logger.warn('Profile update attempted without service area boroughs');
+        setError('Please select at least one service area');
         setLoading(false);
         return;
       }
+
+      const payload = buildProfileUpdateBody(profileData, {
+        bio: profileData.bio,
+        years_experience: profileData.years_experience,
+        services: profileData.services,
+      });
 
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(profileData),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -564,19 +597,19 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
    * Toggle area of service selection
    */
   const toggleArea = (area: string) => {
-    logger.debug('Toggling area of service', { area });
+    logger.debug('Toggling service area borough', { area });
 
     setProfileData({
       ...profileData,
-      areas_of_service: profileData.areas_of_service.includes(area)
-        ? profileData.areas_of_service.filter((a) => a !== area)
-        : [...profileData.areas_of_service, area],
+      service_area_boroughs: profileData.service_area_boroughs.includes(area)
+        ? profileData.service_area_boroughs.filter((a) => a !== area)
+        : [...profileData.service_area_boroughs, area],
     });
   };
 
   if (!isOpen) return null;
 
-  const canSubmit = profileData.services.length > 0 && profileData.areas_of_service.length > 0;
+  const canSubmit = profileData.services.length > 0 && profileData.service_area_boroughs.length > 0;
 
   const isAboutOnly = variant === 'about';
   const isAreasOnly = variant === 'areas';
@@ -624,15 +657,16 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
       } catch {}
 
       // Persist bio and years of experience along with existing services/areas
+      const payload = buildProfileUpdateBody(profileData, {
+        bio: profileData.bio,
+        years_experience: profileData.years_experience,
+        services: profileData.services,
+      });
+
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bio: profileData.bio,
-          years_experience: profileData.years_experience,
-          services: profileData.services,
-          areas_of_service: profileData.areas_of_service,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({} as Record<string, unknown>));
@@ -1098,7 +1132,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                     >
                       <input
                         type="checkbox"
-                        checked={profileData.areas_of_service.includes(area)}
+                        checked={profileData.service_area_boroughs.includes(area)}
                         onChange={() => toggleArea(area)}
                         className="rounded text-purple-600 focus:ring-[#D4B5F0]"
                       />
@@ -1106,7 +1140,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                     </label>
                   ))}
                 </div>
-                {profileData.areas_of_service.length === 0 && (
+                {profileData.service_area_boroughs.length === 0 && (
                   <p className="mt-3 text-sm text-red-600">Please select at least one area of service</p>
                 )}
               </>

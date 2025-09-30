@@ -25,6 +25,11 @@ from app.models.service_catalog import InstructorService as Service, ServiceCata
 from app.repositories import RepositoryFactory
 from app.repositories.availability_repository import AvailabilityRepository
 
+try:  # pragma: no cover - fallback for direct backend pytest invocation
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 @pytest.fixture
 def test_service(db, test_instructor):
@@ -37,12 +42,12 @@ def test_service(db, test_instructor):
             user_id=test_instructor.id,
             bio="Test bio",
             years_experience=5,
-            areas_of_service="Manhattan",
             min_advance_booking_hours=24,
             buffer_time_minutes=15,
         )
         db.add(profile)
         db.flush()
+        add_service_areas_for_boroughs(db, user=test_instructor, boroughs=["Manhattan"])
 
     # Get or create catalog service
     category = db.query(ServiceCategory).first()

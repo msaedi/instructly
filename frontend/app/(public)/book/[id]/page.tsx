@@ -18,6 +18,7 @@ import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/bo
 import { BookingPayment, PaymentStatus } from '@/features/student/payment';
 import { BookingType } from '@/features/shared/types/booking';
 import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
+import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 
 interface Service {
   id: string;
@@ -36,7 +37,14 @@ interface InstructorData {
     // No email for privacy
   };
   services: Service[];
-  areas_of_service: string[];
+  service_area_summary?: string | null;
+  service_area_boroughs?: string[];
+  service_area_neighborhoods?: Array<{
+    neighborhood_id: string;
+    ntacode?: string | null;
+    name?: string | null;
+    borough?: string | null;
+  }>;
   rating?: number;
   total_reviews?: number;
   verified?: boolean;
@@ -62,6 +70,7 @@ export default function QuickBookingPage() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [availability, setAvailability] = useState<Array<{ date: string; slots: PublicTimeSlot[] }>>([]);
   const [confirmingBooking] = useState(false);
+  const serviceAreaDisplay = instructor ? getServiceAreaDisplay(instructor) || 'NYC' : 'NYC';
 
   // Fetch instructor data
   useEffect(() => {
@@ -182,7 +191,7 @@ export default function QuickBookingPage() {
       startTime: selectedTime,
       endTime: calculateEndTime(selectedTime, duration),
       duration,
-      location: instructor.areas_of_service[0] || 'NYC',
+      location: serviceAreaDisplay,
       basePrice,
       serviceFee,
       totalAmount,
@@ -300,7 +309,7 @@ export default function QuickBookingPage() {
                 </div>
                 <div className="flex items-center text-gray-600 dark:text-gray-400">
                   <MapPin className="h-4 w-4 mr-2" />
-                  {instructor.areas_of_service[0]}
+                  {serviceAreaDisplay}
                 </div>
                 <div className="flex items-center text-gray-900 dark:text-white font-semibold">
                   <DollarSign className="h-4 w-4 mr-2" />${calculatePrice()} ({duration} minutes)
