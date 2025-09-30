@@ -1,8 +1,10 @@
 // frontend/components/modals/EditProfileModal.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { X, Plus, Trash2, DollarSign, ChevronDown, MapPin, BookOpen } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { publicApi } from '@/features/shared/api/client';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import Modal from '@/components/Modal';
@@ -13,6 +15,7 @@ import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
+import { SelectedNeighborhoodChips, type SelectedNeighborhood } from '@/features/instructor-profile/components/SelectedNeighborhoodChips';
 type EditableService = {
   service_catalog_id?: string;
   service_catalog_name?: string | null;
@@ -55,6 +58,15 @@ interface ApiErrorResponse {
   message?: string;
 }
 
+type PreferredTeachingLocationInput = {
+  address: string;
+  label?: string;
+};
+
+type PreferredPublicSpaceInput = {
+  address: string;
+};
+
 /**
  * EditProfileModal Component
  *
@@ -72,6 +84,18 @@ interface EditProfileModalProps {
   onSuccess: () => void;
   /** Which variant of the modal to show */
   variant?: 'full' | 'about' | 'areas' | 'services';
+  /** Prefilled neighborhoods provided by parent */
+  selectedServiceAreas?: SelectedNeighborhood[];
+  /** Prefilled preferred teaching locations */
+  preferredTeaching?: PreferredTeachingLocationInput[];
+  /** Prefilled preferred public spaces */
+  preferredPublic?: PreferredPublicSpaceInput[];
+  /** Callback when areas variant saves */
+  onSave?: (payload: {
+    neighborhoods: SelectedNeighborhood[];
+    preferredTeaching: PreferredTeachingLocationInput[];
+    preferredPublic: PreferredPublicSpaceInput[];
+  }) => Promise<void> | void;
 }
 
 /**
@@ -94,7 +118,16 @@ interface ProfileFormData {
   postal_code: string;
 }
 
-export default function EditProfileModal({ isOpen, onClose, onSuccess, variant = 'full' }: EditProfileModalProps) {
+export default function EditProfileModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  variant = 'full',
+  selectedServiceAreas = [],
+  preferredTeaching = [],
+  preferredPublic = [],
+  onSave,
+}: EditProfileModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [savingAbout, setSavingAbout] = useState(false);
@@ -167,15 +200,17 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   const NYC_BOROUGHS = useMemo(() => ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const, []);
   const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
-  const [, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
+  const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   const [openBoroughs, setOpenBoroughs] = useState<Set<string>>(new Set());
   const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState('');
   // Preferred locations (teaching address and public spaces) — UI-only like onboarding
   const [preferredAddress, setPreferredAddress] = useState('');
-  const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
-  const [preferredLocationTitles, setPreferredLocationTitles] = useState<Record<string, string>>({});
+  const [teachingPlaces, setTeachingPlaces] = useState<PreferredTeachingLocationInput[]>([]);
   const [neutralLocationInput, setNeutralLocationInput] = useState('');
-  const [neutralPlaces, setNeutralPlaces] = useState<string[]>([]);
+  const [publicPlaces, setPublicPlaces] = useState<PreferredPublicSpaceInput[]>([]);
+  const [savingAreas, setSavingAreas] = useState(false);
+  const areasPrefillAppliedRef = useRef(false);
+  const isAreasVariant = variant === 'areas';
   // Services & Pricing (onboarding-like)
   type AgeGroup = 'kids' | 'adults' | 'both';
   type SelectedService = {
@@ -311,6 +346,75 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
     }
   }, [fetchProfile, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || !isAreasVariant) {
+      areasPrefillAppliedRef.current = false;
+      return;
+    }
+
+    if (areasPrefillAppliedRef.current) {
+      return;
+    }
+    areasPrefillAppliedRef.current = true;
+
+    if (Array.isArray(selectedServiceAreas)) {
+      const nextIds = selectedServiceAreas
+        .map((item) => item?.neighborhood_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+      setSelectedNeighborhoods(new Set(nextIds));
+      if (selectedServiceAreas.length > 0) {
+        setIdToItem((prev) => {
+          const next = { ...prev } as Record<string, ServiceAreaItem>;
+          for (const item of selectedServiceAreas) {
+            if (!item?.neighborhood_id) continue;
+            next[item.neighborhood_id] = {
+              neighborhood_id: item.neighborhood_id,
+              id: item.neighborhood_id,
+              name: item.name,
+            };
+          }
+          return next;
+        });
+      }
+    }
+
+    const normalizeTeaching = (input?: PreferredTeachingLocationInput[]): PreferredTeachingLocationInput[] => {
+      if (!Array.isArray(input)) return [];
+      const seen = new Set<string>();
+      const result: PreferredTeachingLocationInput[] = [];
+      for (const item of input) {
+        const address = typeof item?.address === 'string' ? item.address.trim() : '';
+        if (!address) continue;
+        const key = address.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const label = typeof item?.label === 'string' ? item.label.trim() : '';
+        result.push(label ? { address, label } : { address });
+        if (result.length === 2) break;
+      }
+      return result;
+    };
+
+    const normalizePublic = (input?: PreferredPublicSpaceInput[]): PreferredPublicSpaceInput[] => {
+      if (!Array.isArray(input)) return [];
+      const seen = new Set<string>();
+      const result: PreferredPublicSpaceInput[] = [];
+      for (const item of input) {
+        const address = typeof item?.address === 'string' ? item.address.trim() : '';
+        if (!address) continue;
+        const key = address.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push({ address });
+        if (result.length === 2) break;
+      }
+      return result;
+    };
+
+    setTeachingPlaces(normalizeTeaching(preferredTeaching));
+    setPublicPlaces(normalizePublic(preferredPublic));
+  }, [isAreasVariant, isOpen, preferredPublic, preferredTeaching, selectedServiceAreas, areasPrefillAppliedRef]);
+
   // Load services for services-only modal
   useEffect(() => {
     const load = async () => {
@@ -423,6 +527,109 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
       return next;
     });
   };
+
+  const addTeachingPlace = () => {
+    const trimmed = preferredAddress.trim();
+    if (!trimmed) return;
+    let didAdd = false;
+    setTeachingPlaces((prev) => {
+      if (prev.length >= 2) return prev;
+      const exists = prev.some((place) => place.address.toLowerCase() === trimmed.toLowerCase());
+      if (exists) return prev;
+      didAdd = true;
+      return [...prev, { address: trimmed }];
+    });
+    if (didAdd) {
+      setPreferredAddress('');
+    }
+  };
+
+  const updateTeachingLabel = (index: number, label: string) => {
+    setTeachingPlaces((prev) =>
+      prev.map((place, idx) => (idx === index ? { ...place, label } : place))
+    );
+  };
+
+  const removeTeachingPlace = (index: number) => {
+    setTeachingPlaces((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const addPublicPlace = () => {
+    const trimmed = neutralLocationInput.trim();
+    if (!trimmed) return;
+    let didAdd = false;
+    setPublicPlaces((prev) => {
+      if (prev.length >= 2) return prev;
+      const exists = prev.some((place) => place.address.toLowerCase() === trimmed.toLowerCase());
+      if (exists) return prev;
+      didAdd = true;
+      return [...prev, { address: trimmed }];
+    });
+    if (didAdd) {
+      setNeutralLocationInput('');
+    }
+  };
+
+  const removePublicPlace = (index: number) => {
+    setPublicPlaces((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const selectedNeighborhoodList = useMemo<SelectedNeighborhood[]>(() => {
+    return Array.from(selectedNeighborhoods).map((id) => {
+      const item = idToItem[id];
+      const rawName = typeof item?.name === 'string' ? item.name.trim() : '';
+      const normalizedName = rawName.length > 0 ? rawName : id;
+      return { neighborhood_id: id, name: normalizedName };
+    });
+  }, [idToItem, selectedNeighborhoods]);
+
+  const handleAreasSave = useCallback(async () => {
+    const neighborhoodIds = selectedNeighborhoodList.map((item) => item.neighborhood_id);
+    const teachingPayload = teachingPlaces.slice(0, 2).map((place) => {
+      const address = place.address.trim();
+      const label = place.label?.trim();
+      return label ? { address, label } : { address };
+    });
+    const publicPayload = publicPlaces.slice(0, 2).map((place) => ({ address: place.address.trim() }));
+
+    setSavingAreas(true);
+    setError('');
+    try {
+      if (onSave) {
+        await onSave({
+          neighborhoods: selectedNeighborhoodList,
+          preferredTeaching: teachingPayload,
+          preferredPublic: publicPayload,
+        });
+        onSuccess();
+        onClose();
+        return;
+      }
+
+      await fetchWithAuth('/api/addresses/service-areas/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ neighborhood_ids: neighborhoodIds }),
+      });
+
+      await fetchWithAuth('/instructors/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preferred_teaching_locations: teachingPayload,
+          preferred_public_spaces: publicPayload,
+        }),
+      });
+
+      onSuccess();
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save service areas';
+      setError(message);
+    } finally {
+      setSavingAreas(false);
+    }
+  }, [onClose, onSave, onSuccess, publicPlaces, selectedNeighborhoodList, teachingPlaces]);
 
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
     const items = itemsOverride || boroughNeighborhoods[borough] || [];
@@ -612,7 +819,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   const canSubmit = profileData.services.length > 0 && profileData.service_area_boroughs.length > 0;
 
   const isAboutOnly = variant === 'about';
-  const isAreasOnly = variant === 'areas';
+  const isAreasOnly = isAreasVariant;
   const isServicesOnly = variant === 'services';
 
   const handleSaveBioExperience = async () => {
@@ -687,7 +894,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      showCloseButton={true}
+      showCloseButton={!isAreasVariant}
       size="lg"
       noPadding
       footer={
@@ -726,7 +933,31 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         )
       }
     >
-      <form className="divide-y divide-gray-200">
+      <form className={isAreasVariant ? 'flex min-h-full flex-col' : 'divide-y divide-gray-200'}>
+        {isAreasVariant && (
+          <div className="sticky top-0 z-30 border-b border-gray-200 bg-white px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Dialog.Title className="text-lg font-semibold text-gray-900">Service Areas</Dialog.Title>
+                <VisuallyHidden>
+                  <Dialog.Description>
+                    Manage your selected neighborhoods along with preferred teaching and public locations.
+                  </Dialog.Description>
+                </VisuallyHidden>
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </Dialog.Close>
+            </div>
+          </div>
+        )}
+        <div className={isAreasVariant ? 'flex-1 overflow-y-auto' : ''}>
         {/* Personal Information Section */}
         {!isAreasOnly && !isServicesOnly && (
         <div className="px-6 py-6">
@@ -851,7 +1082,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
 
         {/* Areas of Service Section */}
         {!isAboutOnly && !isServicesOnly && (
-          <div className="px-6 py-6">
+          <div className={isAreasOnly ? 'px-6 py-6 pb-24' : 'px-6 py-6'}>
             {isAreasOnly ? (
               <>
                 <div className="flex items-start gap-3 mb-3">
@@ -873,6 +1104,20 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                     className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
                   />
                 </div>
+                {selectedNeighborhoodList.length > 0 && (
+                  <div className="mb-4">
+                    <SelectedNeighborhoodChips
+                      selected={selectedNeighborhoodList}
+                      onRemove={(id) => {
+                        setSelectedNeighborhoods((prev) => {
+                          const next = new Set(prev);
+                          next.delete(id);
+                          return next;
+                        });
+                      }}
+                    />
+                  </div>
+                )}
                 {globalNeighborhoodFilter.trim().length > 0 && (
                   <div className="rounded-lg border border-gray-200 bg-white p-3 mb-3">
                     <div className="text-sm text-gray-700 mb-2">Results</div>
@@ -991,8 +1236,12 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                 {/* Preferred Teaching Location */}
                 <div className="mt-6">
                   <p className="text-gray-600 mt-1 mb-2">Preferred Teaching Location</p>
-                  <p className="text-xs text-gray-600 mb-2">Add a studio, gym, or home address if you teach from a fixed location.</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                  <p className="text-xs text-gray-600 mb-2 md:max-w-[28rem]">
+                    Add a studio, gym, or home address if you teach from a fixed
+                    <br />
+                    location.
+                  </p>
+                <div className="grid grid-cols-1 gap-3 items-start md:grid-cols-2">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
                         <PlacesAutocompleteInput
@@ -1003,43 +1252,36 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                         />
                         <button
                           type="button"
-                          onClick={() => {
-                            const v = preferredAddress.trim();
-                            if (!v) return;
-                            if (preferredLocations.length >= 2) return;
-                            if (!preferredLocations.includes(v)) setPreferredLocations((prev) => [...prev, v]);
-                            setPreferredAddress('');
-                          }}
+                          onClick={addTeachingPlace}
                           aria-label="Add address"
-                          disabled={preferredLocations.length >= 2}
+                          disabled={teachingPlaces.length >= 2}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                         >
                           <span className="text-base leading-none">+</span>
                         </button>
                       </div>
                     </div>
-                    <div className="min-h-10 flex flex-nowrap items-end gap-4 w-full">
-                      {preferredLocations.map((loc) => (
-                        <div key={loc} className="relative w-1/2 min-w-0">
+                    <div className="min-h-10 flex w-full flex-nowrap items-end gap-4">
+                      {teachingPlaces.map((place, index) => (
+                        <div key={`${place.address}-${index}`} className="relative w-1/2 min-w-0">
                           <input
                             type="text"
+                            value={place.label ?? ''}
+                            onChange={(e) => updateTeachingLabel(index, e.target.value)}
                             placeholder="..."
-                            value={preferredLocationTitles[loc] || ''}
-                            onChange={(e) => setPreferredLocationTitles((prev) => ({ ...prev, [loc]: e.target.value }))}
-                            className="absolute -top-5 left-1 text-xs text-[#7E22CE] bg-gray-100 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-transparent focus-visible:border-transparent cursor-text"
-                            style={{ outline: 'none', outlineOffset: 0, boxShadow: 'none' }}
+                            className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-[#7E22CE] focus:outline-none focus:ring-0"
                           />
-                          <span className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0">
-                            <span className="truncate min-w-0" title={loc}>{loc}</span>
+                          <div className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
+                            <span className="truncate min-w-0" title={place.address}>{place.address}</span>
                             <button
                               type="button"
-                              aria-label={`Remove ${loc}`}
-                              className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
-                              onClick={() => setPreferredLocations((prev) => prev.filter((x) => x !== loc))}
+                              aria-label={`Remove ${place.address}`}
+                              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-50"
+                              onClick={() => removeTeachingPlace(index)}
                             >
                               &times;
                             </button>
-                          </span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1049,8 +1291,12 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                 {/* Preferred Public Spaces */}
                 <div className="mt-6">
                   <p className="text-gray-600 mt-1 mb-2">Preferred Public Spaces</p>
-                  <p className="text-xs text-gray-600 mb-2">Suggest public spaces where you’re comfortable teaching (e.g., library, park, coffee shop).</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                  <p className="text-xs text-gray-600 mb-2 md:max-w-[28rem]">
+                    Suggest public spaces where you’re comfortable teaching
+                    <br />
+                    (e.g., library, park, coffee shop).
+                  </p>
+                <div className="grid grid-cols-1 gap-3 items-start md:grid-cols-2">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
                         <PlacesAutocompleteInput
@@ -1061,67 +1307,37 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                         />
                         <button
                           type="button"
-                          onClick={() => {
-                            const v = neutralLocationInput.trim();
-                            if (!v) return;
-                            if (neutralPlaces.length >= 2) return;
-                            if (!neutralPlaces.includes(v)) setNeutralPlaces((prev) => [...prev, v]);
-                            setNeutralLocationInput('');
-                          }}
+                          onClick={addPublicPlace}
                           aria-label="Add public space"
-                          disabled={neutralPlaces.length >= 2}
+                          disabled={publicPlaces.length >= 2}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                         >
                           <span className="text-base leading-none">+</span>
                         </button>
                       </div>
                     </div>
-                    <div className="min-h-10 flex flex-nowrap items-end gap-4 w-full">
-                      {neutralPlaces.map((place) => (
-                        <div key={place} className="relative w-1/2 min-w-0">
-                          <span className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0">
-                            <span className="truncate min-w-0" title={place}>{place}</span>
-                            <button
-                              type="button"
-                              aria-label={`Remove ${place}`}
-                              className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
-                              onClick={() => setNeutralPlaces((prev) => prev.filter((x) => x !== place))}
-                            >
-                              &times;
-                            </button>
-                          </span>
+                    <div className="min-h-10 flex w-full flex-nowrap items-end gap-4">
+                      {publicPlaces.map((place, index) => (
+                        <div key={`${place.address}-${index}`} className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
+                          <span className="truncate min-w-0" title={place.address}>{place.address}</span>
+                          <button
+                            type="button"
+                            aria-label={`Remove ${place.address}`}
+                            className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-50"
+                            onClick={() => removePublicPlace(index)}
+                          >
+                            &times;
+                          </button>
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
-                <div className="mt-4 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        // Persist selected neighborhoods
-                        await fetchWithAuth('/api/addresses/service-areas/me', {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ neighborhood_ids: Array.from(selectedNeighborhoods) }),
-                        });
-                        onSuccess();
-                        onClose();
-                      } catch {
-                        setError('Failed to save service areas');
-                      }
-                    }}
-                    className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] transition-all font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
-                  >
-                    Save
-                  </button>
-                </div>
               </>
             ) : (
               <>
                 <h3 className="text-lg font-medium text-gray-900 mb-1">Service Areas</h3>
-                <p className="text-xs text-gray-600 mb-4">
+                <p className="text-xs text-gray-600 mb-4 md:max-w-[28rem]">
                   Select all NYC areas where you provide services <span className="text-red-500">*</span>
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1732,6 +1948,31 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                 </div>
               </>
             )}
+          </div>
+        )}
+        </div>
+        {isAreasVariant && (
+          <div className="sticky bottom-0 z-30 border-t border-gray-200 bg-white px-6 py-4">
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  logger.debug('Edit profile cancelled');
+                  onClose();
+                }}
+                className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-all duration-150 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAreasSave}
+                disabled={savingAreas}
+                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
+              >
+                {savingAreas ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </div>
         )}
       </form>

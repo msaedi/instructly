@@ -20,6 +20,11 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
+import { httpPut } from '@/features/shared/api/http';
+
+type NeighborhoodSelection = { neighborhood_id: string; name: string };
+type PreferredTeachingLocation = { address: string; label?: string };
+type PreferredPublicSpace = { address: string };
 
 export default function InstructorDashboardNew() {
   const router = useRouter();
@@ -38,6 +43,9 @@ export default function InstructorDashboardNew() {
 
   const [isStartingStripeOnboarding, setIsStartingStripeOnboarding] = useState(false);
   const [serviceAreaNames, setServiceAreaNames] = useState<string[] | null>(null);
+  const [serviceAreaSelections, setServiceAreaSelections] = useState<NeighborhoodSelection[]>([]);
+  const [preferredTeachingLocations, setPreferredTeachingLocations] = useState<PreferredTeachingLocation[]>([]);
+  const [preferredPublicSpaces, setPreferredPublicSpaces] = useState<PreferredPublicSpace[]>([]);
   const [bookedMinutes, setBookedMinutes] = useState(0);
   const [hasAnyBookings, setHasAnyBookings] = useState<boolean | null>(null);
   const [hasUpcomingBookings, setHasUpcomingBookings] = useState<boolean | null>(null);
@@ -82,6 +90,40 @@ export default function InstructorDashboardNew() {
         throw new Error('Invalid profile data received');
       }
 
+      const profileRecord = data as unknown as Record<string, unknown>;
+      const teachingFromApi = Array.isArray(profileRecord['preferred_teaching_locations'])
+        ? (profileRecord['preferred_teaching_locations'] as Array<Record<string, unknown>>)
+        : [];
+      const nextTeaching: PreferredTeachingLocation[] = [];
+      const teachingSeen = new Set<string>();
+      for (const entry of teachingFromApi) {
+        const rawAddress = typeof entry?.['address'] === 'string' ? entry['address'].trim() : '';
+        if (!rawAddress) continue;
+        const key = rawAddress.toLowerCase();
+        if (teachingSeen.has(key)) continue;
+        teachingSeen.add(key);
+        const rawLabel = typeof entry?.['label'] === 'string' ? entry['label'].trim() : '';
+        nextTeaching.push(rawLabel ? { address: rawAddress, label: rawLabel } : { address: rawAddress });
+        if (nextTeaching.length === 2) break;
+      }
+      setPreferredTeachingLocations(nextTeaching);
+
+      const publicFromApi = Array.isArray(profileRecord['preferred_public_spaces'])
+        ? (profileRecord['preferred_public_spaces'] as Array<Record<string, unknown>>)
+        : [];
+      const nextPublic: PreferredPublicSpace[] = [];
+      const publicSeen = new Set<string>();
+      for (const entry of publicFromApi) {
+        const rawAddress = typeof entry?.['address'] === 'string' ? entry['address'].trim() : '';
+        if (!rawAddress) continue;
+        const key = rawAddress.toLowerCase();
+        if (publicSeen.has(key)) continue;
+        publicSeen.add(key);
+        nextPublic.push({ address: rawAddress });
+        if (nextPublic.length === 2) break;
+      }
+      setPreferredPublicSpaces(nextPublic);
+
       const serviceAreaBoroughs = getServiceAreaBoroughs(data);
 
       logger.info('Instructor profile loaded successfully', {
@@ -97,17 +139,32 @@ export default function InstructorDashboardNew() {
         const areasRes = await fetchWithAuth('/api/addresses/service-areas/me');
         if (areasRes.ok) {
           const areasJson = await areasRes.json();
-          const items = (areasJson.items || []) as Array<{ name?: string | null }>;
-          const names = Array.from(new Set(items.map((i) => (i.name || '').trim()).filter(Boolean)));
-          setServiceAreaNames(names);
+          const items = (areasJson.items || []) as Array<Record<string, unknown>>;
+          const selectionMap = new Map<string, NeighborhoodSelection>();
+          for (const item of items) {
+            const rawId = item?.['neighborhood_id'] ?? item?.['id'];
+            if (typeof rawId !== 'string' && typeof rawId !== 'number') continue;
+            const id = String(rawId);
+            const rawName = typeof item?.['name'] === 'string' ? (item['name'] as string).trim() : '';
+            selectionMap.set(id, { neighborhood_id: id, name: rawName || id });
+          }
+          const selections = Array.from(selectionMap.values());
+          setServiceAreaSelections(selections);
+          const names = selections.map((selection) => selection.name).filter((name) => name.length > 0);
+          setServiceAreaNames(names.length > 0 ? names : null);
         } else {
           setServiceAreaNames(null);
+          setServiceAreaSelections([]);
         }
       } catch {
         setServiceAreaNames(null);
+        setServiceAreaSelections([]);
       }
     } catch (err) {
       logger.error('Error fetching instructor profile', err);
+      setPreferredTeachingLocations([]);
+      setPreferredPublicSpaces([]);
+      setServiceAreaSelections([]);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
@@ -223,6 +280,29 @@ export default function InstructorDashboardNew() {
     void fetchProfile();
     setShowEditModal(false);
   };
+
+  const handleAreasModalSave = useCallback(async (payload: {
+    neighborhoods: NeighborhoodSelection[];
+    preferredTeaching: PreferredTeachingLocation[];
+    preferredPublic: PreferredPublicSpace[];
+  }) => {
+    try {
+      const neighborhoodIds = payload.neighborhoods.map((item) => item.neighborhood_id);
+      await httpPut('/api/addresses/service-areas/me', { neighborhood_ids: neighborhoodIds });
+      await httpPut('/instructors/me', {
+        preferred_teaching_locations: payload.preferredTeaching,
+        preferred_public_spaces: payload.preferredPublic,
+      });
+      setServiceAreaSelections(payload.neighborhoods);
+      setPreferredTeachingLocations(payload.preferredTeaching);
+      setPreferredPublicSpaces(payload.preferredPublic);
+      const names = payload.neighborhoods.map((item) => item.name).filter((name) => name.length > 0);
+      setServiceAreaNames(names.length > 0 ? names : null);
+    } catch (err) {
+      logger.error('Failed to save service areas from dashboard', err);
+      throw err;
+    }
+  }, []);
 
   const handleProfileDelete = () => {
     logger.info('Instructor profile deleted, logging out and redirecting home');
@@ -907,17 +987,59 @@ export default function InstructorDashboardNew() {
               </div>
               {(() => {
                 const derivedBoroughs = profile ? getServiceAreaBoroughs(profile) : [];
-                const areas = (serviceAreaNames && serviceAreaNames.length > 0)
-                  ? serviceAreaNames
-                  : derivedBoroughs;
-                return areas && areas.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {areas.map((area) => (
-                      <span key={area} className="px-2 py-1 text-xs rounded-full bg-purple-50 text-[#7E22CE] border border-purple-200">{area}</span>
-                    ))}
-              </div>
-                ) : (
-                  <p className="text-gray-500 text-sm">No service areas selected.</p>
+                const areaSource = serviceAreaSelections.length > 0
+                  ? serviceAreaSelections.map((item) => item.name)
+                  : (serviceAreaNames && serviceAreaNames.length > 0
+                    ? serviceAreaNames
+                    : derivedBoroughs);
+                const hasAreas = areaSource && areaSource.length > 0;
+                return (
+                  <div className="space-y-4">
+                    {hasAreas ? (
+                      <div className="flex flex-wrap gap-2">
+                        {areaSource.map((area) => (
+                          <span key={area} className="px-2 py-1 text-xs rounded-full bg-purple-50 text-[#7E22CE] border border-purple-200">{area}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">No service areas selected.</p>
+                    )}
+                    {preferredTeachingLocations.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Preferred Teaching Locations</p>
+                        <div className="flex flex-wrap gap-2">
+                          {preferredTeachingLocations.map((location) => {
+                            const label = location.label?.trim() || location.address;
+                            return (
+                              <span
+                                key={`teaching-${location.address}`}
+                                className="px-2 py-1 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-200"
+                                data-testid="preferred-teaching-chip"
+                              >
+                                {label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {preferredPublicSpaces.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Preferred Public Spaces</p>
+                        <div className="flex flex-wrap gap-2">
+                          {preferredPublicSpaces.map((location) => (
+                            <span
+                              key={`public-${location.address}`}
+                              className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-200"
+                              data-testid="preferred-public-chip"
+                            >
+                              {location.address}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               })()}
             </div>
@@ -947,6 +1069,10 @@ export default function InstructorDashboardNew() {
           onClose={() => setShowEditModal(false)}
           onSuccess={handleProfileUpdate}
           variant={editVariant}
+          selectedServiceAreas={serviceAreaSelections}
+          preferredTeaching={preferredTeachingLocations}
+          preferredPublic={preferredPublicSpaces}
+          onSave={handleAreasModalSave}
         />
       )}
       <Modal isOpen={showVerifyModal} onClose={() => setShowVerifyModal(false)} title="" size="xl">

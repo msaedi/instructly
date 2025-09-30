@@ -3,7 +3,6 @@ import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
 import type { InstructorProfile, InstructorService, ServiceAreaNeighborhood } from '@/types/instructor';
 import { httpJson } from '@/features/shared/api/http';
-import { withApiBase } from '@/lib/apiBase';
 import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instructorProfile';
 
 type ServerInstructorProfileResult = {
@@ -59,7 +58,7 @@ export function useInstructorProfile(instructorId: string) {
       const [instructor, serviceCatalog] = await Promise.all([
         runWithRateLimitRetry(async () => {
           const data = await httpJson<ServerInstructorProfileResult>(
-            withApiBase(`/instructors/${instructorId}`),
+            `/instructors/${instructorId}`,
             { method: 'GET' },
             loadInstructorProfileSchema,
             { endpoint: 'GET /instructors/:id' }

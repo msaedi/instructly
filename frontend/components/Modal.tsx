@@ -60,7 +60,7 @@ const Modal: React.FC<ModalProps> = ({
   const sizeClasses = {
     sm: 'max-w-md',
     md: 'max-w-lg',
-    lg: 'max-w-2xl',
+    lg: 'max-w-3xl',
     xl: 'max-w-4xl',
     full: 'max-w-7xl',
   };
@@ -81,7 +81,7 @@ const Modal: React.FC<ModalProps> = ({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-all duration-200" />
         <Dialog.Content
-          className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4 sm:p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
           onEscapeKeyDown={(e) => {
             if (!closeOnEscape) {
               e.preventDefault();
@@ -99,12 +99,12 @@ const Modal: React.FC<ModalProps> = ({
           </VisuallyHidden>
           <div
             className={`
-              pointer-events-auto w-full ${sizeClasses[size]}
-              bg-white dark:bg-gray-800 rounded-xl shadow-2xl
+              pointer-events-auto flex h-full sm:h-[min(90vh,calc(100vh-4rem))] w-full ${sizeClasses[size]}
+              flex-col overflow-hidden bg-white shadow-xl
               transform transition-all duration-200 ease-out
-              relative ${className}
+              relative sm:rounded-2xl dark:bg-gray-800 ${className}
             `}
-          >
+            >
             {title && (
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -142,15 +142,14 @@ const Modal: React.FC<ModalProps> = ({
             )}
             <div
               className={`
-                overflow-y-auto scrollbar-hide
-                ${footer ? 'max-h-[calc(100vh-12rem)]' : 'max-h-[calc(100vh-8rem)]'}
+                flex-1 overflow-y-auto scrollbar-hide
                 ${noPadding ? '' : 'p-6'}
               `}
             >
               {children}
             </div>
             {footer && (
-              <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 rounded-b-xl">
+              <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
                 {footer}
               </div>
             )}

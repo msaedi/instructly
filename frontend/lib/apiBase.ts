@@ -90,7 +90,15 @@ export const API_BASE = getApiBase();
 /**
  * Prefix a relative path with the resolved API base, avoiding duplicate slashes.
  */
+const ABSOLUTE_URL_REGEX = /^https?:\/\//i;
+
+const isAbsolute = (u: string): boolean => ABSOLUTE_URL_REGEX.test(u);
+
 export function withApiBase(path: string): string {
+  if (isAbsolute(path)) {
+    return path;
+  }
+
   const base = getApiBase();
   const cleanPath = path.replace(/^\/+/, '');
   const normalizedBase = base.replace(/\/+$/, '');
