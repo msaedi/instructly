@@ -3,8 +3,8 @@
  * Do not make direct changes to the file.
  */
 
-export interface paths {
-    "/auth/register": {
+export type paths = {
+    "/api/account/deactivate": {
         parameters: {
             query?: never;
             header?: never;
@@ -14,23 +14,2843 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Register
-         * @description Register a new user.
+         * Deactivate Account
+         * @description Permanently deactivate the current user's instructor account.
          *
-         *     Rate limited to prevent spam registrations.
+         *     Requirements:
+         *     - User must be an instructor
+         *     - Cannot have any future bookings
+         *     - Deactivated instructors cannot login or be reactivated through the API
+         */
+        post: operations["deactivate_account_api_account_deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/account/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reactivate Account
+         * @description Reactivate a suspended instructor account.
+         *
+         *     Requirements:
+         *     - User must be an instructor
+         *     - Account must be suspended (not deactivated)
+         *     - Once reactivated, instructor can receive bookings again
+         */
+        post: operations["reactivate_account_api_account_reactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/account/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Account Status
+         * @description Check the current account status and available status change options.
+         *
+         *     Returns:
+         *     - Current account status
+         *     - Whether the instructor can login
+         *     - Whether the instructor can receive bookings
+         *     - Available status change options based on current state and future bookings
+         */
+        get: operations["check_account_status_api_account_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/account/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suspend Account
+         * @description Suspend the current user's instructor account.
+         *
+         *     Requirements:
+         *     - User must be an instructor
+         *     - Cannot have any future bookings
+         *     - Suspended instructors can still login but cannot receive new bookings
+         */
+        post: operations["suspend_account_api_account_suspend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/coverage/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Bulk Coverage Geojson
+         * @description Return GeoJSON FeatureCollection of neighborhoods served by the given instructors.
+         *
+         *     'ids' is a comma-separated list of instructor user IDs.
+         */
+        get: operations["get_bulk_coverage_geojson_api_addresses_coverage_bulk_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List My Addresses */
+        get: operations["list_my_addresses_api_addresses_me_get"];
+        put?: never;
+        /** Create My Address */
+        post: operations["create_my_address_api_addresses_me_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/me/{address_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete My Address */
+        delete: operations["delete_my_address_api_addresses_me__address_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update My Address */
+        patch: operations["update_my_address_api_addresses_me__address_id__patch"];
+        trace?: never;
+    };
+    "/api/addresses/places/autocomplete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Places Autocomplete
+         * @description Provider-agnostic autocomplete passthrough.
+         *
+         *     Uses the configured provider to retrieve suggestions.
+         */
+        get: operations["places_autocomplete_api_addresses_places_autocomplete_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/places/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Place Details
+         * @description Return normalized place details for a selected suggestion.
+         *
+         *     Frontend uses this to auto-fill form fields without exposing provider payloads.
+         */
+        get: operations["place_details_api_addresses_places_details_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/regions/neighborhoods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Neighborhoods */
+        get: operations["list_neighborhoods_api_addresses_regions_neighborhoods_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/service-areas/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List My Service Areas */
+        get: operations["list_my_service_areas_api_addresses_service_areas_me_get"];
+        /** Replace My Service Areas */
+        put: operations["replace_my_service_areas_api_addresses_service_areas_me_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/zip/is-nyc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Is Nyc Zip
+         * @description Lightweight NYC ZIP check.
          *
          *     Args:
-         *         user: User creation data (including optional guest_session_id)
-         *         auth_service: Authentication service
+         *         zip: Five-digit ZIP code.
+         *
+         *     Returns:
+         *         { "is_nyc": bool, "borough": Optional[str] }
+         *
+         *     Notes:
+         *         - This endpoint is deterministic and does not require geocoding APIs.
+         *         - It is sufficient for onboarding gating; deeper enrichment occurs when
+         *           we create an address with lat/lng.
+         */
+        get: operations["is_nyc_zip_api_addresses_zip_is_nyc_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/referrals/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Referral Config */
+        get: operations["get_referral_config_api_admin_referrals_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/referrals/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Referral Health */
+        get: operations["get_referral_health_api_admin_referrals_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/referrals/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Referral Summary */
+        get: operations["get_referral_summary_api_admin_referrals_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/codebase/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Codebase Metrics History
+         * @description Return historical metrics from metrics_history.json if present.
+         */
+        get: operations["get_codebase_metrics_history_api_analytics_codebase_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/codebase/history/append": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Append Codebase Metrics History
+         * @description Append current snapshot to metrics_history.json to persist trends.
+         */
+        post: operations["append_codebase_metrics_history_api_analytics_codebase_history_append_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/codebase/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Codebase Metrics
+         * @description Return the current codebase metrics as JSON.
+         */
+        get: operations["get_codebase_metrics_api_analytics_codebase_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Analytics
+         * @description Export analytics data in various formats.
+         *
+         *     Requires EXPORT_ANALYTICS permission.
+         *
+         *     Args:
+         *         format: Export format (csv, xlsx, json)
+         *         current_user: The authenticated user with required permissions
          *         db: Database session
          *
          *     Returns:
-         *         UserResponse: The created user
+         *         Exported data or download link
+         */
+        post: operations["export_analytics_api_analytics_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/candidates/category-trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Candidates Category Trends */
+        get: operations["candidates_category_trends_api_analytics_search_candidates_category_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/candidates/queries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Candidate Service Queries
+         * @description List queries that produced candidates for a given service (recent first).
+         */
+        get: operations["candidate_service_queries_api_analytics_search_candidates_queries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/candidates/score-distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Candidates Score Distribution */
+        get: operations["candidates_score_distribution_api_analytics_search_candidates_score_distribution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/candidates/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Candidates Summary */
+        get: operations["candidates_summary_api_analytics_search_candidates_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/candidates/top-services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Candidates Top Services */
+        get: operations["candidates_top_services_api_analytics_search_candidates_top_services_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/conversion-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Conversion Metrics
+         * @description Get guest-to-user conversion metrics.
+         *
+         *     Returns conversion rates and guest engagement data.
+         */
+        get: operations["get_conversion_metrics_api_analytics_search_conversion_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/popular-searches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Popular Searches
+         * @description Get most popular search queries.
+         *
+         *     Returns search queries ordered by frequency with user counts and average results.
+         */
+        get: operations["get_popular_searches_api_analytics_search_popular_searches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/referrers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Search Referrers
+         * @description Get pages that drive searches (referrers).
+         *
+         *     Returns referrer pages with search counts and unique sessions.
+         */
+        get: operations["get_search_referrers_api_analytics_search_referrers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/search-analytics-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Search Analytics Summary
+         * @description Get comprehensive search analytics summary.
+         *
+         *     Returns totals, user breakdown, search types, conversions, and performance metrics.
+         */
+        get: operations["get_search_analytics_summary_api_analytics_search_search_analytics_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/search-performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Search Performance
+         * @description Get search performance metrics.
+         *
+         *     Returns result distribution, effectiveness metrics, and problematic queries.
+         */
+        get: operations["get_search_performance_api_analytics_search_search_performance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/search/search-trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Search Trends
+         * @description Get search trends over time.
+         *
+         *     Returns daily search counts, unique users, and unique guests.
+         */
+        get: operations["get_search_trends_api_analytics_search_search_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/2fa/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable */
+        post: operations["disable_api_auth_2fa_disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/2fa/regenerate-backup-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate Backup Codes */
+        post: operations["regenerate_backup_codes_api_auth_2fa_regenerate_backup_codes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/2fa/setup/initiate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Setup Initiate */
+        post: operations["setup_initiate_api_auth_2fa_setup_initiate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/2fa/setup/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Setup Verify */
+        post: operations["setup_verify_api_auth_2fa_setup_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/2fa/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status Endpoint */
+        get: operations["status_endpoint_api_auth_2fa_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/2fa/verify-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Login */
+        post: operations["verify_login_api_auth_2fa_verify_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Password Reset
+         * @description Confirm password reset with token and new password.
+         *
+         *     Rate limited to prevent token brute forcing.
+         *
+         *     Args:
+         *         request: Token and new password
+         *         password_reset_service: Password reset service
+         *
+         *     Returns:
+         *         PasswordResetResponse: Success message
          *
          *     Raises:
-         *         HTTPException: If email already registered or rate limit exceeded
+         *         HTTPException: If token is invalid, expired, already used, or rate limit exceeded
          */
-        post: operations["post__auth_register__register"];
+        post: operations["confirm_password_reset_api_auth_password_reset_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password-reset/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Password Reset
+         * @description Request a password reset email.
+         *
+         *     This endpoint always returns success to prevent email enumeration attacks.
+         *     If the email exists, a reset link will be sent.
+         *
+         *     Rate limited by both IP and email to prevent abuse.
+         *
+         *     Args:
+         *         request: Email address for password reset
+         *         password_reset_service: Password reset service
+         *
+         *     Returns:
+         *         PasswordResetResponse: Success message
+         *
+         *     Raises:
+         *         HTTPException: If rate limit exceeded
+         */
+        post: operations["request_password_reset_api_auth_password_reset_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password-reset/verify/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify Reset Token
+         * @description Verify if a reset token is valid.
+         *
+         *     This endpoint can be used by the frontend to check if a token
+         *     is valid before showing the password reset form.
+         *
+         *     Rate limited to prevent token enumeration.
+         *
+         *     Args:
+         *         token: The reset token to verify
+         *         password_reset_service: Password reset service
+         *
+         *     Returns:
+         *         dict: Validity status and user email (masked)
+         *
+         *     Raises:
+         *         HTTPException: If rate limit exceeded
+         */
+        get: operations["verify_reset_token_api_auth_password_reset_verify__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/beta/invites/consume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Consume Invite */
+        post: operations["consume_invite_api_beta_invites_consume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/beta/invites/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Invites */
+        post: operations["generate_invites_api_beta_invites_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/beta/invites/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Invite */
+        post: operations["send_invite_api_beta_invites_send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/beta/invites/send-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Invite Batch */
+        post: operations["send_invite_batch_api_beta_invites_send_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/beta/invites/send-batch-async": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Invite Batch Async */
+        post: operations["send_invite_batch_async_api_beta_invites_send_batch_async_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/beta/invites/send-batch-progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Invite Batch Progress */
+        get: operations["get_invite_batch_progress_api_beta_invites_send_batch_progress_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/beta/invites/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Validate Invite */
+        get: operations["validate_invite_api_beta_invites_validate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/beta/invites/verified": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Invite Verified */
+        get: operations["invite_verified_api_beta_invites_verified_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/beta/metrics/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Beta Metrics Summary
+         * @description Lightweight summary derived from in-process counters.
+         *
+         *     Note: Without Prometheus remote-read, we return cumulative counts observed since process start.
+         */
+        get: operations["get_beta_metrics_summary_api_beta_metrics_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/beta/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Beta Settings */
+        get: operations["get_beta_settings_api_beta_settings_get"];
+        /** Update Beta Settings */
+        put: operations["update_beta_settings_api_beta_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/database/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Database Health
+         * @description Simple database health check endpoint.
+         *
+         *     No authentication required - helps verify database connectivity.
+         *
+         *     Returns:
+         *         Database connection status
+         */
+        get: operations["database_health_api_database_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/database/pool-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Database Pool Status
+         * @description Get detailed database connection pool statistics.
+         *
+         *     Requires ACCESS_MONITORING permission.
+         *
+         *     Returns:
+         *         Connection pool metrics including:
+         *         - Active connections
+         *         - Available connections
+         *         - Pool configuration
+         *         - Usage percentage
+         */
+        get: operations["database_pool_status_api_database_pool_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/database/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Database Stats
+         * @description Get comprehensive database statistics.
+         *
+         *     Requires ACCESS_MONITORING permission.
+         *
+         *     Returns:
+         *         Database metrics including pool status and performance indicators
+         */
+        get: operations["database_stats_api_database_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/favorites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Favorites
+         * @description Get the current user's list of favorited instructors.
+         *
+         *     Args:
+         *         current_user: Current authenticated user email
+         *         db: Database session
+         *         favorites_service: Favorites service instance
+         *
+         *     Returns:
+         *         FavoritesList with favorited instructors
+         *
+         *     Raises:
+         *         HTTPException: If user not found
+         */
+        get: operations["get_favorites_api_favorites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/favorites/check/{instructor_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Favorite Status
+         * @description Check if the current user has favorited a specific instructor.
+         *
+         *     Args:
+         *         instructor_id: ID of the instructor to check
+         *         current_user: Current authenticated user email
+         *         db: Database session
+         *         favorites_service: Favorites service instance
+         *
+         *     Returns:
+         *         Dictionary with is_favorited boolean
+         *
+         *     Raises:
+         *         HTTPException: If user not found
+         */
+        get: operations["check_favorite_status_api_favorites_check__instructor_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/favorites/{instructor_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Favorite
+         * @description Add an instructor to the current user's favorites.
+         *
+         *     Args:
+         *         instructor_id: ID of the instructor to favorite
+         *         current_user: Current authenticated user email
+         *         db: Database session
+         *         favorites_service: Favorites service instance
+         *
+         *     Returns:
+         *         FavoriteResponse with success status
+         *
+         *     Raises:
+         *         HTTPException: If validation fails or user not found
+         */
+        post: operations["add_favorite_api_favorites__instructor_id__post"];
+        /**
+         * Remove Favorite
+         * @description Remove an instructor from the current user's favorites.
+         *
+         *     Args:
+         *         instructor_id: ID of the instructor to unfavorite
+         *         current_user: Current authenticated user email
+         *         db: Database session
+         *         favorites_service: Favorites service instance
+         *
+         *     Returns:
+         *         FavoriteResponse with success status
+         *
+         *     Raises:
+         *         HTTPException: If validation fails or user not found
+         */
+        delete: operations["remove_favorite_api_favorites__instructor_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Message Config
+         * @description Public config values for the messaging UI.
+         */
+        get: operations["get_message_config_api_messages_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/history/{booking_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Message History
+         * @description Get message history for a booking.
+         *
+         *     Returns paginated list of messages in chronological order.
+         *     Requires VIEW_MESSAGES permission.
+         */
+        get: operations["get_message_history_api_messages_history__booking_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/mark-read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Messages As Read
+         * @description Mark messages as read.
+         *
+         *     Can mark specific messages or all messages in a booking.
+         *     Requires VIEW_MESSAGES permission.
+         */
+        post: operations["mark_messages_as_read_api_messages_mark_read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Message
+         * @description Send a message in a booking chat.
+         *
+         *     Requires SEND_MESSAGES permission.
+         *     Rate limited to 10 messages per minute.
+         */
+        post: operations["send_message_api_messages_send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/stream/{booking_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Messages
+         * @description SSE endpoint for real-time message streaming.
+         *
+         *     Establishes a Server-Sent Events connection for receiving
+         *     real-time messages for a specific booking.
+         *
+         *     Requires VIEW_MESSAGES permission.
+         *     Note: Permission check is done manually since SSE endpoints
+         *     can't use regular FastAPI dependencies with EventSource.
+         */
+        get: operations["stream_messages_api_messages_stream__booking_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/typing/{booking_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Typing Indicator
+         * @description Send a typing indicator for a booking chat (ephemeral, no DB writes).
+         *     Broadcasts a NOTIFY with type=typing_status.
+         */
+        post: operations["send_typing_indicator_api_messages_typing__booking_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Unread Count
+         * @description Get total unread message count for current user.
+         *
+         *     Requires VIEW_MESSAGES permission.
+         */
+        get: operations["get_unread_count_api_messages_unread_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Message
+         * @description Soft delete a message.
+         *
+         *     Only the sender can delete their own messages.
+         *     Requires SEND_MESSAGES permission.
+         */
+        delete: operations["delete_message_api_messages__message_id__delete"];
+        options?: never;
+        head?: never;
+        /** Edit Message */
+        patch: operations["edit_message_api_messages__message_id__patch"];
+        trace?: never;
+    };
+    "/api/messages/{message_id}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Reaction */
+        post: operations["add_reaction_api_messages__message_id__reactions_post"];
+        /** Remove Reaction */
+        delete: operations["remove_reaction_api_messages__message_id__reactions_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monitoring/alerts/acknowledge/{alert_type}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge Alert
+         * @description Acknowledge an alert to reset its cooldown.
+         */
+        post: operations["acknowledge_alert_api_monitoring_alerts_acknowledge__alert_type__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monitoring/alerts/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Live Alerts
+         * @description Get very recent alerts (similar to live view).
+         */
+        get: operations["get_live_alerts_api_monitoring_alerts_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monitoring/alerts/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Recent Alerts
+         * @description Get recent alerts from the database.
+         */
+        get: operations["get_recent_alerts_api_monitoring_alerts_recent_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monitoring/alerts/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Alert Summary
+         * @description Get alert summary statistics.
+         */
+        get: operations["get_alert_summary_api_monitoring_alerts_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monitoring/cache/extended-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Extended Cache Stats
+         * @description Get extended cache statistics.
+         */
+        get: operations["get_extended_cache_stats_api_monitoring_cache_extended_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monitoring/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Monitoring Dashboard
+         * @description Get comprehensive monitoring dashboard data.
+         *
+         *     Requires monitoring API key in production.
+         */
+        get: operations["get_monitoring_dashboard_api_monitoring_dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monitoring/payment-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Payment System Health
+         * @description Get payment system health metrics.
+         *
+         *     Returns metrics about:
+         *     - Pending authorizations
+         *     - Failed authorizations
+         *     - Recent processing activity
+         *     - System alerts
+         *
+         *     Requires monitoring API key in production.
+         */
+        get: operations["get_payment_system_health_api_monitoring_payment_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monitoring/slow-queries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Slow Queries
+         * @description Get recent slow queries.
+         */
+        get: operations["get_slow_queries_api_monitoring_slow_queries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monitoring/slow-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Slow Requests
+         * @description Get recent slow requests.
+         */
+        get: operations["get_slow_requests_api_monitoring_slow_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monitoring/trigger-payment-health-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Payment Health Check
+         * @description Manually trigger a payment system health check.
+         *
+         *     This will run the health check task immediately and return the results.
+         *
+         *     Requires monitoring API key in production.
+         */
+        post: operations["trigger_payment_health_check_api_monitoring_trigger_payment_health_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Checkout
+         * @description Create a checkout/payment for a booking.
+         *
+         *     Args:
+         *         request: Checkout details including booking and payment method
+         *
+         *     Returns:
+         *         CheckoutResponse with payment details
+         *
+         *     Raises:
+         *         HTTPException: If checkout creation fails
+         */
+        post: operations["create_checkout_api_payments_checkout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/connect/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dashboard Link
+         * @description Get a link to the Stripe Express dashboard for an instructor.
+         *
+         *     Returns:
+         *         DashboardLinkResponse with dashboard URL
+         *
+         *     Raises:
+         *         HTTPException: If dashboard link creation fails
+         */
+        get: operations["get_dashboard_link_api_payments_connect_dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/connect/instant-payout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Instant Payout
+         * @description Trigger an instant payout for an instructor's connected account.
+         *
+         *     Uses Stripe's instant payout capability (account eligibility required). This does NOT aggregate platform funds; it
+         *     triggers Stripe to pay out the instructor's available balance instantly. We record a metric for adoption.
+         */
+        post: operations["request_instant_payout_api_payments_connect_instant_payout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/connect/onboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Onboarding
+         * @description Start Stripe Connect onboarding for an instructor.
+         *
+         *     Creates a Stripe Express account and generates an onboarding link.
+         *     If the instructor already has an account, returns existing details.
+         *
+         *     Returns:
+         *         OnboardingResponse with account ID and onboarding URL
+         *
+         *     Raises:
+         *         HTTPException: If onboarding setup fails
+         */
+        post: operations["start_onboarding_api_payments_connect_onboard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/connect/payout-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Payout Schedule
+         * @description Set payout schedule for the current instructor's connected account.
+         *
+         *     Default: weekly on Tuesday. Valid anchors: monday..sunday.
+         */
+        post: operations["set_payout_schedule_api_payments_connect_payout_schedule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/connect/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Onboarding Status
+         * @description Get the onboarding status for an instructor's Stripe account.
+         *
+         *     Returns:
+         *         OnboardingStatusResponse with account status details
+         *
+         *     Raises:
+         *         HTTPException: If status check fails
+         */
+        get: operations["get_onboarding_status_api_payments_connect_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Credit Balance
+         * @description Get user's credit balance
+         *
+         *     Returns available credits and expiration
+         */
+        get: operations["get_credit_balance_api_payments_credits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/earnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Instructor Earnings
+         * @description Get earnings statistics for an instructor.
+         *
+         *     Returns:
+         *         Instructor earnings data
+         *
+         *     Raises:
+         *         HTTPException: If earnings calculation fails
+         */
+        get: operations["get_instructor_earnings_api_payments_earnings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/identity/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Identity Status
+         * @description Fetch latest Stripe Identity status and persist verification on success.
+         *
+         *     This avoids blocking general status calls and lets the UI trigger a one-off refresh
+         *     right after the modal/hosted flow returns.
+         */
+        post: operations["refresh_identity_status_api_payments_identity_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/identity/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Identity Session
+         * @description Create a Stripe Identity verification session for the current user.
+         */
+        post: operations["create_identity_session_api_payments_identity_session_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payment Methods
+         * @description List all payment methods for a student.
+         *
+         *     Returns:
+         *         List of PaymentMethodResponse objects
+         *
+         *     Raises:
+         *         HTTPException: If payment method listing fails
+         */
+        get: operations["list_payment_methods_api_payments_methods_get"];
+        put?: never;
+        /**
+         * Save Payment Method
+         * @description Save a payment method for a student.
+         *
+         *     Args:
+         *         request: Payment method details
+         *
+         *     Returns:
+         *         PaymentMethodResponse with saved payment method details
+         *
+         *     Raises:
+         *         HTTPException: If payment method saving fails
+         */
+        post: operations["save_payment_method_api_payments_methods_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/methods/{method_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Payment Method
+         * @description Delete a payment method for a student.
+         *
+         *     Args:
+         *         method_id: Payment method ID to delete
+         *
+         *     Returns:
+         *         Success confirmation
+         *
+         *     Raises:
+         *         HTTPException: If payment method deletion fails
+         */
+        delete: operations["delete_payment_method_api_payments_methods__method_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Transaction History
+         * @description Get user's transaction history
+         *
+         *     Returns list of completed payments with booking details
+         */
+        get: operations["get_transaction_history_api_payments_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/webhooks/stripe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handle Stripe Webhook
+         * @description Handle Stripe webhook events from both platform and connected accounts.
+         *
+         *     Works with both local development (single secret) and deployed environments (multiple secrets).
+         *     Tries each configured webhook secret until one successfully verifies the signature.
+         *
+         *     Returns:
+         *         Success confirmation (always returns 200 to prevent Stripe retries)
+         *
+         *     Note:
+         *         This endpoint has no authentication as it uses webhook signature verification
+         */
+        post: operations["handle_stripe_webhook_api_payments_webhooks_stripe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/privacy/delete/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete My Data
+         * @description Delete user data (GDPR right to be forgotten).
+         *
+         *     Can either anonymize data or completely delete the account.
+         */
+        post: operations["delete_my_data_api_privacy_delete_me_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/privacy/delete/user/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete User Data Admin
+         * @description Delete data for any user (admin only).
+         *
+         *     For handling deletion requests on behalf of users.
+         */
+        post: operations["delete_user_data_admin_api_privacy_delete_user__user_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/privacy/export/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export My Data
+         * @description Export all data for the current user (GDPR data portability).
+         *
+         *     Returns all personal data in a structured format.
+         */
+        get: operations["export_my_data_api_privacy_export_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/privacy/export/user/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export User Data Admin
+         * @description Export data for any user (admin only).
+         *
+         *     For handling data requests on behalf of users.
+         */
+        get: operations["export_user_data_admin_api_privacy_export_user__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/privacy/retention/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Retention Policies
+         * @description Manually trigger data retention policies (admin only).
+         *
+         *     This is usually run automatically via scheduled tasks.
+         */
+        post: operations["apply_retention_policies_api_privacy_retention_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/privacy/statistics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Privacy Statistics
+         * @description Get privacy and data retention statistics (admin only).
+         *
+         *     Shows counts of data eligible for retention policies.
+         */
+        get: operations["get_privacy_statistics_api_privacy_statistics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/instructors/{instructor_id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get instructor availability for students
+         * @description Public endpoint to view instructor's available time slots for booking. No authentication required. Response detail level depends on configuration.
+         */
+        get: operations["get_instructor_public_availability_api_public_instructors__instructor_id__availability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/instructors/{instructor_id}/next-available": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get next available slot for an instructor
+         * @description Quick endpoint to find the next available booking slot
+         */
+        get: operations["get_next_available_slot_api_public_instructors__instructor_id__next_available_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Public Logout
+         * @description Clear known session cookies. Public to support cross-origin preview logout.
+         *
+         *     This does not revoke server sessions; it only instructs the browser to drop cookies.
+         */
+        post: operations["public_logout_api_public_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/referrals/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send referral invites
+         * @description Send referral invitation emails to one or more recipients.
+         */
+        post: operations["send_referral_invites_api_public_referrals_send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/session/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Guest Session
+         * @description Issue a first-party guest_id cookie used for optional auth endpoints.
+         *
+         *     Sets cookie attributes appropriate for cross-site subdomains in preview/prod.
+         */
+        post: operations["create_guest_session_api_public_session_guest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/redis/celery-queues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Celery Queue Status
+         * @description Get Celery queue status and pending tasks.
+         *
+         *     Requires ACCESS_MONITORING permission.
+         *
+         *     Returns:
+         *         Queue lengths and task counts
+         */
+        get: operations["celery_queue_status_api_redis_celery_queues_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/redis/connection-audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Redis Connection Audit
+         * @description Audit all Redis connections across the system.
+         *
+         *     Checks which Redis instance each service is using and identifies
+         *     any remaining Upstash connections.
+         *
+         *     Requires ACCESS_MONITORING permission.
+         *
+         *     Returns:
+         *         Summary of Redis connections across all services
+         */
+        get: operations["redis_connection_audit_api_redis_connection_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/redis/flush-queues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Flush Celery Queues
+         * @description Flush all Celery queues (DANGER: removes all pending tasks).
+         *
+         *     Requires ACCESS_MONITORING permission.
+         *     Use with caution - this will delete all pending tasks!
+         *
+         *     Returns:
+         *         Number of tasks removed from each queue
+         */
+        delete: operations["flush_celery_queues_api_redis_flush_queues_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/redis/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Redis Health
+         * @description Check Redis connection health.
+         *
+         *     Returns:
+         *         Basic health status
+         */
+        get: operations["redis_health_api_redis_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/redis/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Redis Stats
+         * @description Get detailed Redis statistics and metrics.
+         *
+         *     Requires ACCESS_MONITORING permission.
+         *
+         *     Returns:
+         *         Comprehensive Redis metrics including:
+         *         - Memory usage
+         *         - Connection stats
+         *         - Operation counts
+         *         - Celery queue lengths
+         */
+        get: operations["redis_stats_api_redis_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/redis/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Redis Test
+         * @description Simple Redis connection test endpoint.
+         *
+         *     No authentication required - helps verify Redis migration is working.
+         *
+         *     Returns:
+         *         Connection status and basic info
+         */
+        get: operations["redis_test_api_redis_test_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/referrals/checkout/apply-referral": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Referral Credit */
+        post: operations["apply_referral_credit_api_referrals_checkout_apply_referral_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/referrals/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim Referral Code */
+        post: operations["claim_referral_code_api_referrals_claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/referrals/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Referral Ledger */
+        get: operations["get_my_referral_ledger_api_referrals_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/booking/existing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get Existing Reviews For Bookings */
+        post: operations["get_existing_reviews_for_bookings_api_reviews_booking_existing_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/booking/{booking_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Review For Booking */
+        get: operations["get_review_for_booking_api_reviews_booking__booking_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/instructor/{instructor_id}/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Instructor Ratings */
+        get: operations["get_instructor_ratings_api_reviews_instructor__instructor_id__ratings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/instructor/{instructor_id}/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Recent Reviews */
+        get: operations["get_recent_reviews_api_reviews_instructor__instructor_id__recent_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/instructor/{instructor_id}/search-rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Search Rating */
+        get: operations["get_search_rating_api_reviews_instructor__instructor_id__search_rating_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/ratings/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get Ratings Batch */
+        post: operations["get_ratings_batch_api_reviews_ratings_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/reviews/{review_id}/respond": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Respond To Review */
+        post: operations["respond_to_review_api_reviews_reviews__review_id__respond_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Review */
+        post: operations["submit_review_api_reviews_submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-history/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Recent Searches
+         * @description Get recent searches for the current user (authenticated or guest).
+         *
+         *     For authenticated users: Pass authorization token
+         *     For guests: Pass X-Guest-Session-ID header
+         *
+         *     Args:
+         *         limit: Maximum number of searches to return (default 3)
+         *         context: Search context with user/guest identity
+         *         db: Database session
+         *
+         *     Returns:
+         *         List of recent search history entries
+         */
+        get: operations["get_recent_searches_api_search_history__get"];
+        put?: never;
+        /**
+         * Record Search
+         * @description Record a search for the current user (authenticated or guest).
+         *
+         *     For authenticated users: Pass authorization token
+         *     For guests: Pass X-Guest-Session-ID header
+         *     Optional headers:
+         *     - X-Session-ID: Browser session ID for analytics
+         *     - X-Search-Origin: Page where search originated
+         *
+         *     Args:
+         *         search_data: The search details to record
+         *         context: Search context with user/guest identity and tracking info
+         *         db: Database session
+         *
+         *     Returns:
+         *         The created or updated search history entry
+         */
+        post: operations["record_search_api_search_history__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-history/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Guest Search
+         * @description Record a guest search with strict validation.
+         */
+        post: operations["record_guest_search_api_search_history_guest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-history/interaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track Interaction
+         * @description Track user interaction with search results.
+         *
+         *     Records clicks, hovers, bookmarks, and other interactions with search results
+         *     to measure search effectiveness and result relevance.
+         *
+         *     Args:
+         *         interaction_data: Interaction details including:
+         *             - search_event_id: ID of the search event
+         *             - interaction_type: Type of interaction (click, hover, bookmark)
+         *             - instructor_id: ID of the instructor interacted with
+         *             - result_position: Position in search results
+         *             - time_to_interaction: Time from search to interaction (seconds)
+         *         request: HTTP request for headers
+         *         context: Search user context
+         *         db: Database session
+         *
+         *     Returns:
+         *         Interaction tracking confirmation
+         */
+        post: operations["track_interaction_api_search_history_interaction_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-history/{search_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Search
+         * @description Delete a search for the current user (authenticated or guest).
+         *
+         *     For authenticated users: Pass authorization token
+         *     For guests: Pass X-Guest-Session-ID header
+         *
+         *     Args:
+         *         search_id: ID of the search to delete
+         *         current_user: The authenticated user (if applicable)
+         *         x_guest_session_id: Guest session ID header (if applicable)
+         *         db: Database session
+         *
+         *     Returns:
+         *         204 No Content on success
+         *
+         *     Raises:
+         *         404 if search not found or doesn't belong to the user/guest
+         */
+        delete: operations["delete_search_api_search_history__search_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search/instructors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Instructors
+         * @description Search for instructors using natural language queries.
+         *
+         *     Supports queries like:
+         *     - "piano lessons under $50"
+         *     - "math tutor near me"
+         *     - "online yoga classes"
+         *     - "SAT prep this weekend"
+         *
+         *     Args:
+         *         q: The search query string
+         *         limit: Maximum number of results to return (1-100, default 20)
+         *         db: Database session
+         *
+         *     Returns:
+         *         Search results with instructors, services, and metadata
+         */
+        get: operations["search_instructors_api_search_instructors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/uploads/r2/finalize/profile-picture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finalize Profile Picture
+         * @description Finalize a previously uploaded profile picture: validate, process, version, store.
+         */
+        post: operations["finalize_profile_picture_api_uploads_r2_finalize_profile_picture_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/uploads/r2/proxy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Proxy Upload To R2
+         * @description Upload the file server-side for local development to avoid browser CORS issues.
+         */
+        post: operations["proxy_upload_to_r2_api_uploads_r2_proxy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/uploads/r2/signed-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Signed Upload
+         * @description Create a short-lived signed PUT URL for uploading files to R2.
+         *
+         *     We implement SigV4 signing locally to avoid requiring boto3.
+         */
+        post: operations["create_signed_upload_api_uploads_r2_signed_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/me/profile-picture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Finalize Profile Picture */
+        post: operations["upload_finalize_profile_picture_api_users_me_profile_picture_post"];
+        /** Delete Profile Picture */
+        delete: operations["delete_profile_picture_api_users_me_profile_picture_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{user_id}/profile-picture-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Profile Picture Url */
+        get: operations["get_profile_picture_url_api_users__user_id__profile_picture_url_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Password
+         * @description Change password for the current authenticated user.
+         *
+         *     Verifies the current password, enforces minimal strength, and updates the hash.
+         */
+        post: operations["change_password_auth_change_password_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -62,29 +2882,7 @@ export interface paths {
          *     Raises:
          *         HTTPException: If credentials are invalid or rate limit exceeded
          */
-        post: operations["post__auth_login__login"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/change-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Change Password
-         * @description Change password for the current authenticated user.
-         *
-         *     Verifies the current password, enforces minimal strength, and updates the hash.
-         */
-        post: operations["post__auth_change-password__change_password"];
+        post: operations["login_auth_login_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -117,7 +2915,7 @@ export interface paths {
          *     Raises:
          *         HTTPException: If credentials are invalid or rate limit exceeded
          */
-        post: operations["post__auth_login-with-session__login_with_session"];
+        post: operations["login_with_session_auth_login_with_session_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -148,7 +2946,7 @@ export interface paths {
          *     Raises:
          *         HTTPException: If user not found
          */
-        get: operations["get__auth_me__read_users_me"];
+        get: operations["read_users_me_auth_me_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -170,10 +2968,10 @@ export interface paths {
          *     Raises:
          *         HTTPException: If user not found or update fails
          */
-        patch: operations["patch__auth_me__update_current_user"];
+        patch: operations["update_current_user_auth_me_patch"];
         trace?: never;
     };
-    "/api/auth/2fa/setup/initiate": {
+    "/auth/register": {
         parameters: {
             query?: never;
             header?: never;
@@ -182,15 +2980,75 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Setup Initiate */
-        post: operations["post__api_auth_2fa_setup_initiate__setup_initiate"];
+        /**
+         * Register
+         * @description Register a new user.
+         *
+         *     Rate limited to prevent spam registrations.
+         *
+         *     Args:
+         *         user: User creation data (including optional guest_session_id)
+         *         auth_service: Authentication service
+         *         db: Database session
+         *
+         *     Returns:
+         *         UserResponse: The created user
+         *
+         *     Raises:
+         *         HTTPException: If email already registered or rate limit exceeded
+         */
+        post: operations["register_auth_register_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/auth/2fa/setup/verify": {
+    "/bookings/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Bookings
+         * @description Get bookings for the current user with advanced filtering.
+         *
+         *     Parameters:
+         *     - status: Filter by specific booking status
+         *     - upcoming/upcoming_only: Only return future bookings (accepts both parameter names)
+         *     - exclude_future_confirmed: Exclude future confirmed bookings (for History tab)
+         *     - include_past_confirmed: Include past confirmed bookings (for BookAgain)
+         *     - page/per_page: Pagination parameters
+         *
+         *     Returns: Standardized PaginatedResponse with BookingResponse items
+         */
+        get: operations["get_bookings_bookings__get"];
+        put?: never;
+        /**
+         * Create Booking
+         * @description Create a booking with payment setup (Phase 2.1).
+         *
+         *     Two-step flow:
+         *     1. Creates booking with 'pending_payment' status
+         *     2. Returns SetupIntent client_secret for card collection
+         *     3. Frontend collects card details
+         *     4. Call /bookings/{id}/confirm-payment to complete
+         *
+         *     CLEAN ARCHITECTURE: Uses instructor_id, date, and time range.
+         *     No slot references. Bookings are self-contained.
+         *
+         *     Rate limited per user to prevent booking spam.
+         */
+        post: operations["create_booking_bookings__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/check-availability": {
         parameters: {
             query?: never;
             header?: never;
@@ -199,15 +3057,23 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Setup Verify */
-        post: operations["post__api_auth_2fa_setup_verify__setup_verify"];
+        /**
+         * Check Availability
+         * @description Check if a time range is available for booking.
+         *
+         *     CLEAN ARCHITECTURE: Uses time-based checking.
+         *     No slot references. Direct time conflict checking.
+         *
+         *     Rate limited to prevent abuse of expensive availability checks.
+         */
+        post: operations["check_availability_bookings_check_availability_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/auth/2fa/disable": {
+    "/bookings/send-reminders": {
         parameters: {
             query?: never;
             header?: never;
@@ -216,23 +3082,34 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Disable */
-        post: operations["post__api_auth_2fa_disable__disable"];
+        /**
+         * Send Reminder Emails
+         * @description Send 24-hour reminder emails for tomorrow's bookings.
+         *
+         *     Should be called by scheduled job/cron.
+         *     Rate limited to prevent email spam.
+         *
+         *     Requires: MANAGE_ALL_BOOKINGS permission (admin only)
+         */
+        post: operations["send_reminder_emails_bookings_send_reminders_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/auth/2fa/status": {
+    "/bookings/stats": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Status Endpoint */
-        get: operations["get__api_auth_2fa_status__status_endpoint"];
+        /**
+         * Get Booking Stats
+         * @description Get booking statistics for instructors.
+         */
+        get: operations["get_booking_stats_bookings_stats_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -241,24 +3118,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/auth/2fa/regenerate-backup-codes": {
+    "/bookings/upcoming": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Upcoming Bookings
+         * @description Get upcoming bookings for dashboard widget.
+         */
+        get: operations["get_upcoming_bookings_bookings_upcoming_get"];
         put?: never;
-        /** Regenerate Backup Codes */
-        post: operations["post__api_auth_2fa_regenerate-backup-codes__regenerate_backup_codes"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/auth/2fa/verify-login": {
+    "/bookings/{booking_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Booking Details
+         * @description Get full booking details with privacy protection for students.
+         */
+        get: operations["get_booking_details_bookings__booking_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Booking
+         * @description Update booking details (instructor only).
+         */
+        patch: operations["update_booking_bookings__booking_id__patch"];
+        trace?: never;
+    };
+    "/bookings/{booking_id}/cancel": {
         parameters: {
             query?: never;
             header?: never;
@@ -267,8 +3171,138 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Verify Login */
-        post: operations["post__api_auth_2fa_verify-login__verify_login"];
+        /**
+         * Cancel Booking
+         * @description Cancel a booking.
+         */
+        post: operations["cancel_booking_bookings__booking_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/{booking_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Booking
+         * @description Mark a booking as completed.
+         *
+         *     Requires: COMPLETE_BOOKINGS permission (instructor only)
+         */
+        post: operations["complete_booking_bookings__booking_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/{booking_id}/confirm-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Booking Payment
+         * @description Confirm payment method for a booking (Phase 2.1).
+         *
+         *     Called after frontend collects card details via SetupIntent.
+         *     This completes the booking creation flow:
+         *     1. Saves payment method to booking
+         *     2. Schedules authorization based on lesson timing
+         *     3. Updates booking status from 'pending_payment' to 'confirmed'
+         *
+         *     Args:
+         *         booking_id: The booking to confirm payment for
+         *         payment_data: Payment method ID and save preference
+         *
+         *     Returns:
+         *         Updated BookingResponse with confirmed status
+         */
+        post: operations["confirm_booking_payment_bookings__booking_id__confirm_payment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/{booking_id}/payment-method": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Booking Payment Method
+         * @description Update booking payment method and retry authorization immediately.
+         *
+         *     - Verifies ownership (student)
+         *     - Saves payment method (optional set_as_default)
+         *     - Retries authorization off-session (immediate if <24h)
+         */
+        patch: operations["update_booking_payment_method_bookings__booking_id__payment_method_patch"];
+        trace?: never;
+    };
+    "/bookings/{booking_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Booking Preview
+         * @description Get preview information for a booking.
+         *
+         *     Clean implementation - returns only meaningful data.
+         */
+        get: operations["get_booking_preview_bookings__booking_id__preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/{booking_id}/reschedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reschedule Booking
+         * @description Reschedule flow (server-orchestrated):
+         *     - Validates access to the original booking
+         *     - Cancels the original booking according to policy (releasing/capturing as needed)
+         *     - Creates a new booking with the requested time (using original instructor/service unless overridden)
+         *     - Links audit events via payment history; returns the new booking
+         *
+         *     Note: This keeps UI simple and makes payment windows naturally align to the new schedule.
+         */
+        post: operations["reschedule_booking_bookings__booking_id__reschedule_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -292,7 +3326,7 @@ export interface paths {
          *
          *     Returns a standardized paginated response with 'items' field.
          */
-        get: operations["get__instructors__get_all_instructors"];
+        get: operations["get_all_instructors_instructors__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -301,7 +3335,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/instructors/me": {
+    "/instructors/availability/": {
         parameters: {
             query?: never;
             header?: never;
@@ -309,31 +3343,22 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get My Profile
-         * @description Get current instructor's profile.
+         * Get All Availability
+         * @description Get all availability windows.
+         *
+         *     CLEAN ARCHITECTURE: Returns only meaningful fields.
+         *     No legacy patterns.
          */
-        get: operations["get__instructors_me__get_my_profile"];
-        /**
-         * Update Profile
-         * @description Update instructor profile with soft delete support.
-         */
-        put: operations["put__instructors_me__update_profile"];
-        /**
-         * Create Instructor Profile
-         * @description Create a new instructor profile.
-         */
-        post: operations["post__instructors_me__create_instructor_profile"];
-        /**
-         * Delete Instructor Profile
-         * @description Delete instructor profile and revert to student role.
-         */
-        delete: operations["delete__instructors_me__delete_instructor_profile"];
+        get: operations["get_all_availability_instructors_availability__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/instructors/me/go-live": {
+    "/instructors/availability/apply-to-date-range": {
         parameters: {
             query?: never;
             header?: never;
@@ -343,24 +3368,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Go Live
-         * @description Mark instructor profile as live if all mandatory steps are completed.
-         *
-         *     Mandatory steps:
-         *     - Stripe Connect onboarding completed
-         *     - Identity verification completed
-         *     - At least one service configured (skills/pricing)
-         *
-         *     Background check is optional and does NOT gate going live.
+         * Apply To Date Range
+         * @description Apply a week's pattern to a date range.
          */
-        post: operations["post__instructors_me_go-live__go_live"];
+        post: operations["apply_to_date_range_instructors_availability_apply_to_date_range_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/instructors/{instructor_id}": {
+    "/instructors/availability/blackout-dates": {
         parameters: {
             query?: never;
             header?: never;
@@ -368,10 +3386,144 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Instructor Profile
-         * @description Get a specific instructor's profile by user ID with privacy protection and favorite status.
+         * Get Blackout Dates
+         * @description Get instructor's blackout dates.
          */
-        get: operations["get__instructors_instructor_id__get_instructor_profile"];
+        get: operations["get_blackout_dates_instructors_availability_blackout_dates_get"];
+        put?: never;
+        /**
+         * Add Blackout Date
+         * @description Add a blackout date (vacation/unavailable).
+         */
+        post: operations["add_blackout_date_instructors_availability_blackout_dates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructors/availability/blackout-dates/{blackout_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Blackout Date
+         * @description Delete a blackout date.
+         */
+        delete: operations["delete_blackout_date_instructors_availability_blackout_dates__blackout_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructors/availability/bulk-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Bulk Update Availability
+         * @description Bulk update availability slots.
+         */
+        patch: operations["bulk_update_availability_instructors_availability_bulk_update_patch"];
+        trace?: never;
+    };
+    "/instructors/availability/copy-week": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy Week Availability
+         * @description Copy availability from one week to another.
+         */
+        post: operations["copy_week_availability_instructors_availability_copy_week_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructors/availability/specific-date": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Specific Date Availability
+         * @description Add availability for a specific date.
+         *
+         *     Returns clean response using schema.
+         */
+        post: operations["add_specific_date_availability_instructors_availability_specific_date_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructors/availability/week": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Week Availability
+         * @description Get availability for a specific week.
+         *
+         *     Returns clean data structure without legacy fields.
+         */
+        get: operations["get_week_availability_instructors_availability_week_get"];
+        put?: never;
+        /**
+         * Save Week Availability
+         * @description Save availability for specific dates in a week.
+         *
+         *     Clean implementation with proper cache warming.
+         */
+        post: operations["save_week_availability_instructors_availability_week_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructors/availability/week/booked-slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Week Booked Slots
+         * @description Get all booked slots for a week with preview information.
+         */
+        get: operations["get_week_booked_slots_instructors_availability_week_booked_slots_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -380,15 +3532,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/instructors/{instructor_id}/coverage": {
+    "/instructors/availability/week/validate-changes": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Instructor Coverage */
-        get: operations["get__instructors_instructor_id_coverage__get_instructor_coverage"];
+        get?: never;
+        put?: never;
+        /**
+         * Validate Week Changes
+         * @description Validate planned changes to week availability.
+         */
+        post: operations["validate_week_changes_instructors_availability_week_validate_changes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructors/availability/{window_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Availability Window
+         * @description Delete an availability time slot.
+         */
+        delete: operations["delete_availability_window_instructors_availability__window_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Availability Window
+         * @description Update an availability time slot.
+         *
+         *     CLEAN ARCHITECTURE: Returns proper schema response.
+         *     No manual response building.
+         */
+        patch: operations["update_availability_window_instructors_availability__window_id__patch"];
+        trace?: never;
+    };
+    "/instructors/bookings/completed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Completed Bookings
+         * @description Get instructor's completed bookings.
+         *
+         *     Args:
+         *         limit: Maximum number of results
+         *         offset: Pagination offset
+         *
+         *     Returns:
+         *         List of completed bookings
+         */
+        get: operations["get_completed_bookings_instructors_bookings_completed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructors/bookings/pending-completion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pending Completion Bookings
+         * @description Get all bookings that are pending completion by the instructor.
+         *
+         *     Returns bookings that:
+         *     - Are confirmed status
+         *     - Have ended (based on date/time)
+         *     - Haven't been marked complete yet
+         *
+         *     Returns:
+         *         List of bookings pending completion
+         */
+        get: operations["get_pending_completion_bookings_instructors_bookings_pending_completion_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -425,62 +3662,7 @@ export interface paths {
          *         404: Booking not found
          *         422: Booking cannot be marked complete (wrong status, not instructor's booking)
          */
-        post: operations["post__instructors_bookings_booking_id_complete__mark_lesson_complete"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/bookings/pending-completion": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Pending Completion Bookings
-         * @description Get all bookings that are pending completion by the instructor.
-         *
-         *     Returns bookings that:
-         *     - Are confirmed status
-         *     - Have ended (based on date/time)
-         *     - Haven't been marked complete yet
-         *
-         *     Returns:
-         *         List of bookings pending completion
-         */
-        get: operations["get__instructors_bookings_pending-completion__get_pending_completion_bookings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/bookings/completed": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Completed Bookings
-         * @description Get instructor's completed bookings.
-         *
-         *     Args:
-         *         limit: Maximum number of results
-         *         offset: Pagination offset
-         *
-         *     Returns:
-         *         List of completed bookings
-         */
-        get: operations["get__instructors_bookings_completed__get_completed_bookings"];
-        put?: never;
-        post?: never;
+        post: operations["mark_lesson_complete_instructors_bookings__booking_id__complete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -510,14 +3692,46 @@ export interface paths {
          *     Returns:
          *         Updated booking information
          */
-        post: operations["post__instructors_bookings_booking_id_dispute__dispute_completion"];
+        post: operations["dispute_completion_instructors_bookings__booking_id__dispute_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/account/suspend": {
+    "/instructors/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Profile
+         * @description Get current instructor's profile.
+         */
+        get: operations["get_my_profile_instructors_me_get"];
+        /**
+         * Update Profile
+         * @description Update instructor profile with soft delete support.
+         */
+        put: operations["update_profile_instructors_me_put"];
+        /**
+         * Create Instructor Profile
+         * @description Create a new instructor profile.
+         */
+        post: operations["create_instructor_profile_instructors_me_post"];
+        /**
+         * Delete Instructor Profile
+         * @description Delete instructor profile and revert to student role.
+         */
+        delete: operations["delete_instructor_profile_instructors_me_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructors/me/go-live": {
         parameters: {
             query?: never;
             header?: never;
@@ -527,72 +3741,24 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Suspend Account
-         * @description Suspend the current user's instructor account.
+         * Go Live
+         * @description Mark instructor profile as live if all mandatory steps are completed.
          *
-         *     Requirements:
-         *     - User must be an instructor
-         *     - Cannot have any future bookings
-         *     - Suspended instructors can still login but cannot receive new bookings
+         *     Mandatory steps:
+         *     - Stripe Connect onboarding completed
+         *     - Identity verification completed
+         *     - At least one service configured (skills/pricing)
+         *
+         *     Background check is optional and does NOT gate going live.
          */
-        post: operations["post__api_account_suspend__suspend_account"];
+        post: operations["go_live_instructors_me_go_live_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/account/deactivate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Deactivate Account
-         * @description Permanently deactivate the current user's instructor account.
-         *
-         *     Requirements:
-         *     - User must be an instructor
-         *     - Cannot have any future bookings
-         *     - Deactivated instructors cannot login or be reactivated through the API
-         */
-        post: operations["post__api_account_deactivate__deactivate_account"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/account/reactivate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reactivate Account
-         * @description Reactivate a suspended instructor account.
-         *
-         *     Requirements:
-         *     - User must be an instructor
-         *     - Account must be suspended (not deactivated)
-         *     - Once reactivated, instructor can receive bookings again
-         */
-        post: operations["post__api_account_reactivate__reactivate_account"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/account/status": {
+    "/instructors/{instructor_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -600,16 +3766,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Check Account Status
-         * @description Check the current account status and available status change options.
-         *
-         *     Returns:
-         *     - Current account status
-         *     - Whether the instructor can login
-         *     - Whether the instructor can receive bookings
-         *     - Available status change options based on current state and future bookings
+         * Get Instructor Profile
+         * @description Get a specific instructor's profile by user ID with privacy protection and favorite status.
          */
-        get: operations["get__api_account_status__check_account_status"];
+        get: operations["get_instructor_profile_instructors__instructor_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -618,7 +3778,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/services/categories": {
+    "/instructors/{instructor_id}/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Instructor Coverage */
+        get: operations["get_instructor_coverage_instructors__instructor_id__coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics/cache": {
         parameters: {
             query?: never;
             header?: never;
@@ -626,10 +3803,204 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Service Categories
-         * @description Get all service categories.
+         * Get Cache Metrics
+         * @description Get detailed cache metrics including availability-specific stats.
          */
-        get: operations["get__services_categories__get_service_categories"];
+        get: operations["get_cache_metrics_metrics_cache_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics/cache/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Availability Cache Metrics
+         * @description Get detailed availability-specific cache metrics and top cached keys.
+         */
+        get: operations["get_availability_cache_metrics_metrics_cache_availability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics/cache/reset-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Cache Stats
+         * @description Reset cache statistics.
+         */
+        post: operations["reset_cache_stats_metrics_cache_reset_stats_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health Check
+         * @description Basic health check endpoint.
+         */
+        get: operations["health_check_metrics_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Performance Metrics
+         * @description Get performance metrics from all services.
+         */
+        get: operations["get_performance_metrics_metrics_performance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics/rate-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Rate Limit Stats
+         * @description Get current rate limit statistics.
+         *
+         *     Shows:
+         *     - Total rate limit keys
+         *     - Breakdown by endpoint/type
+         *     - Top limited clients
+         *
+         *     Requires authentication.
+         */
+        get: operations["get_rate_limit_stats_metrics_rate_limits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics/rate-limits/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Rate Limits
+         * @description Reset rate limits matching a pattern.
+         *
+         *     Useful for:
+         *     - Unblocking legitimate users
+         *     - Testing
+         *     - Emergency response
+         *
+         *     Requires admin privileges.
+         */
+        post: operations["reset_rate_limits_metrics_rate_limits_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics/rate-limits/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Test Rate Limit
+         * @description Test endpoint to verify rate limiting is working.
+         *
+         *     This endpoint has a low rate limit for testing purposes.
+         *     Try making multiple requests to see rate limiting in action.
+         */
+        get: operations["test_rate_limit_metrics_rate_limits_test_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics/slow-queries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Slow Queries
+         * @description Get recent slow queries.
+         */
+        get: operations["get_slow_queries_metrics_slow_queries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/r/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve Referral Slug */
+        get: operations["resolve_referral_slug_r__slug__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -651,7 +4022,7 @@ export interface paths {
          *
          *     Optionally filter by category slug (e.g., 'music-arts', 'academic').
          */
-        get: operations["get__services_catalog__get_catalog_services"];
+        get: operations["get_catalog_services_services_catalog_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -660,29 +4031,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/services/instructor/add": {
+    "/services/catalog/all-with-instructors": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Add Service To Profile
-         * @description Add a service from the catalog to instructor's profile.
+         * Get All Services With Instructors
+         * @description Get all catalog services organized by category with active instructor counts.
          *
-         *     Requires INSTRUCTOR role.
+         *     This endpoint is optimized for the All Services page, providing all services
+         *     with instructor availability information in a single request. Results are
+         *     cached for 5 minutes to balance performance with data freshness.
+         *
+         *     Returns:
+         *         Dictionary with categories and their services, including active instructor counts
          */
-        post: operations["post__services_instructor_add__add_service_to_profile"];
+        get: operations["get_all_services_with_instructors_services_catalog_all_with_instructors_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/services/search": {
+    "/services/catalog/kids-available": {
         parameters: {
             query?: never;
             header?: never;
@@ -690,13 +4066,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search Services
-         * @description Search for instructors by service.
+         * Get Kids Available Services
+         * @description Return catalog services that have at least one active instructor who teaches kids.
          *
-         *     This is an alias for the instructor search endpoint that focuses on service matching.
-         *     Searches across service names, categories, and search terms.
+         *     Minimal payload: id, name, slug. Cached for 5 minutes.
          */
-        get: operations["get__services_search__search_services"];
+        get: operations["get_kids_available_services_services_catalog_kids_available_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -726,7 +4101,7 @@ export interface paths {
          *     Returns:
          *         Dictionary with categories and their top services
          */
-        get: operations["get__services_catalog_top-per-category__get_top_services_per_category"];
+        get: operations["get_top_services_per_category_services_catalog_top_per_category_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -735,7 +4110,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/services/catalog/all-with-instructors": {
+    "/services/categories": {
         parameters: {
             query?: never;
             header?: never;
@@ -743,3023 +4118,105 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get All Services With Instructors
-         * @description Get all catalog services organized by category with active instructor counts.
+         * Get Service Categories
+         * @description Get all service categories.
+         */
+        get: operations["get_service_categories_services_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/services/instructor/add": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Service To Profile
+         * @description Add a service from the catalog to instructor's profile.
          *
-         *     This endpoint is optimized for the All Services page, providing all services
-         *     with instructor availability information in a single request. Results are
-         *     cached for 5 minutes to balance performance with data freshness.
+         *     Requires INSTRUCTOR role.
+         */
+        post: operations["add_service_to_profile_services_instructor_add_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/services/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Services
+         * @description Search for instructors by service.
+         *
+         *     This is an alias for the instructor search endpoint that focuses on service matching.
+         *     Searches across service names, categories, and search terms.
+         */
+        get: operations["search_services_services_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/gated/ping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gated Ping */
+        get: operations["gated_ping_v1_gated_ping_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/stripe/account-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handle Account Events
+         * @description Handle Stripe Connect account-related webhook events.
+         *
+         *     Processes events like:
+         *     - account.updated (onboarding status changes)
+         *     - account.application.deauthorized
+         *     - capability.updated
          *
          *     Returns:
-         *         Dictionary with categories and their services, including active instructor counts
-         */
-        get: operations["get__services_catalog_all-with-instructors__get_all_services_with_instructors"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/services/catalog/kids-available": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Kids Available Services
-         * @description Return catalog services that have at least one active instructor who teaches kids.
-         *
-         *     Minimal payload: id, name, slug. Cached for 5 minutes.
-         */
-        get: operations["get__services_catalog_kids-available__get_kids_available_services"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/availability/week": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Week Availability
-         * @description Get availability for a specific week.
-         *
-         *     Returns clean data structure without legacy fields.
-         */
-        get: operations["get__instructors_availability_week__get_week_availability"];
-        put?: never;
-        /**
-         * Save Week Availability
-         * @description Save availability for specific dates in a week.
-         *
-         *     Clean implementation with proper cache warming.
-         */
-        post: operations["post__instructors_availability_week__save_week_availability"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/availability/copy-week": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Copy Week Availability
-         * @description Copy availability from one week to another.
-         */
-        post: operations["post__instructors_availability_copy-week__copy_week_availability"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/availability/apply-to-date-range": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Apply To Date Range
-         * @description Apply a week's pattern to a date range.
-         */
-        post: operations["post__instructors_availability_apply-to-date-range__apply_to_date_range"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/availability/specific-date": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Add Specific Date Availability
-         * @description Add availability for a specific date.
-         *
-         *     Returns clean response using schema.
-         */
-        post: operations["post__instructors_availability_specific-date__add_specific_date_availability"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/availability/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get All Availability
-         * @description Get all availability windows.
-         *
-         *     CLEAN ARCHITECTURE: Returns only meaningful fields.
-         *     No legacy patterns.
-         */
-        get: operations["get__instructors_availability__get_all_availability"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/availability/bulk-update": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Bulk Update Availability
-         * @description Bulk update availability slots.
-         */
-        patch: operations["patch__instructors_availability_bulk-update__bulk_update_availability"];
-        trace?: never;
-    };
-    "/instructors/availability/{window_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Availability Window
-         * @description Delete an availability time slot.
-         */
-        delete: operations["delete__instructors_availability_window_id__delete_availability_window"];
-        options?: never;
-        head?: never;
-        /**
-         * Update Availability Window
-         * @description Update an availability time slot.
-         *
-         *     CLEAN ARCHITECTURE: Returns proper schema response.
-         *     No manual response building.
-         */
-        patch: operations["patch__instructors_availability_window_id__update_availability_window"];
-        trace?: never;
-    };
-    "/instructors/availability/week/booked-slots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Week Booked Slots
-         * @description Get all booked slots for a week with preview information.
-         */
-        get: operations["get__instructors_availability_week_booked-slots__get_week_booked_slots"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/availability/week/validate-changes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Validate Week Changes
-         * @description Validate planned changes to week availability.
-         */
-        post: operations["post__instructors_availability_week_validate-changes__validate_week_changes"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/availability/blackout-dates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Blackout Dates
-         * @description Get instructor's blackout dates.
-         */
-        get: operations["get__instructors_availability_blackout-dates__get_blackout_dates"];
-        put?: never;
-        /**
-         * Add Blackout Date
-         * @description Add a blackout date (vacation/unavailable).
-         */
-        post: operations["post__instructors_availability_blackout-dates__add_blackout_date"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/instructors/availability/blackout-dates/{blackout_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Blackout Date
-         * @description Delete a blackout date.
-         */
-        delete: operations["delete__instructors_availability_blackout-dates_blackout_id__delete_blackout_date"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/auth/password-reset/request": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Request Password Reset
-         * @description Request a password reset email.
-         *
-         *     This endpoint always returns success to prevent email enumeration attacks.
-         *     If the email exists, a reset link will be sent.
-         *
-         *     Rate limited by both IP and email to prevent abuse.
-         *
-         *     Args:
-         *         request: Email address for password reset
-         *         password_reset_service: Password reset service
-         *
-         *     Returns:
-         *         PasswordResetResponse: Success message
+         *         Success confirmation message
          *
          *     Raises:
-         *         HTTPException: If rate limit exceeded
+         *         HTTPException: If webhook processing fails
          */
-        post: operations["post__api_auth_password-reset_request__request_password_reset"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/auth/password-reset/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Confirm Password Reset
-         * @description Confirm password reset with token and new password.
-         *
-         *     Rate limited to prevent token brute forcing.
-         *
-         *     Args:
-         *         request: Token and new password
-         *         password_reset_service: Password reset service
-         *
-         *     Returns:
-         *         PasswordResetResponse: Success message
-         *
-         *     Raises:
-         *         HTTPException: If token is invalid, expired, already used, or rate limit exceeded
-         */
-        post: operations["post__api_auth_password-reset_confirm__confirm_password_reset"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/auth/password-reset/verify/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Verify Reset Token
-         * @description Verify if a reset token is valid.
-         *
-         *     This endpoint can be used by the frontend to check if a token
-         *     is valid before showing the password reset form.
-         *
-         *     Rate limited to prevent token enumeration.
-         *
-         *     Args:
-         *         token: The reset token to verify
-         *         password_reset_service: Password reset service
-         *
-         *     Returns:
-         *         dict: Validity status and user email (masked)
-         *
-         *     Raises:
-         *         HTTPException: If rate limit exceeded
-         */
-        get: operations["get__api_auth_password-reset_verify_token__verify_reset_token"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bookings/upcoming": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Upcoming Bookings
-         * @description Get upcoming bookings for dashboard widget.
-         */
-        get: operations["get__bookings_upcoming__get_upcoming_bookings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bookings/{booking_id}/payment-method": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Update Booking Payment Method
-         * @description Update booking payment method and retry authorization immediately.
-         *
-         *     - Verifies ownership (student)
-         *     - Saves payment method (optional set_as_default)
-         *     - Retries authorization off-session (immediate if <24h)
-         */
-        patch: operations["patch__bookings_booking_id_payment-method__update_booking_payment_method"];
-        trace?: never;
-    };
-    "/bookings/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Booking Stats
-         * @description Get booking statistics for instructors.
-         */
-        get: operations["get__bookings_stats__get_booking_stats"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bookings/check-availability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Check Availability
-         * @description Check if a time range is available for booking.
-         *
-         *     CLEAN ARCHITECTURE: Uses time-based checking.
-         *     No slot references. Direct time conflict checking.
-         *
-         *     Rate limited to prevent abuse of expensive availability checks.
-         */
-        post: operations["post__bookings_check-availability__check_availability"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bookings/send-reminders": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Send Reminder Emails
-         * @description Send 24-hour reminder emails for tomorrow's bookings.
-         *
-         *     Should be called by scheduled job/cron.
-         *     Rate limited to prevent email spam.
-         *
-         *     Requires: MANAGE_ALL_BOOKINGS permission (admin only)
-         */
-        post: operations["post__bookings_send-reminders__send_reminder_emails"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bookings/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Bookings
-         * @description Get bookings for the current user with advanced filtering.
-         *
-         *     Parameters:
-         *     - status: Filter by specific booking status
-         *     - upcoming/upcoming_only: Only return future bookings (accepts both parameter names)
-         *     - exclude_future_confirmed: Exclude future confirmed bookings (for History tab)
-         *     - include_past_confirmed: Include past confirmed bookings (for BookAgain)
-         *     - page/per_page: Pagination parameters
-         *
-         *     Returns: Standardized PaginatedResponse with BookingResponse items
-         */
-        get: operations["get__bookings__get_bookings"];
-        put?: never;
-        /**
-         * Create Booking
-         * @description Create a booking with payment setup (Phase 2.1).
-         *
-         *     Two-step flow:
-         *     1. Creates booking with 'pending_payment' status
-         *     2. Returns SetupIntent client_secret for card collection
-         *     3. Frontend collects card details
-         *     4. Call /bookings/{id}/confirm-payment to complete
-         *
-         *     CLEAN ARCHITECTURE: Uses instructor_id, date, and time range.
-         *     No slot references. Bookings are self-contained.
-         *
-         *     Rate limited per user to prevent booking spam.
-         */
-        post: operations["post__bookings__create_booking"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bookings/{booking_id}/confirm-payment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Confirm Booking Payment
-         * @description Confirm payment method for a booking (Phase 2.1).
-         *
-         *     Called after frontend collects card details via SetupIntent.
-         *     This completes the booking creation flow:
-         *     1. Saves payment method to booking
-         *     2. Schedules authorization based on lesson timing
-         *     3. Updates booking status from 'pending_payment' to 'confirmed'
-         *
-         *     Args:
-         *         booking_id: The booking to confirm payment for
-         *         payment_data: Payment method ID and save preference
-         *
-         *     Returns:
-         *         Updated BookingResponse with confirmed status
-         */
-        post: operations["post__bookings_booking_id_confirm-payment__confirm_booking_payment"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bookings/{booking_id}/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Booking Preview
-         * @description Get preview information for a booking.
-         *
-         *     Clean implementation - returns only meaningful data.
-         */
-        get: operations["get__bookings_booking_id_preview__get_booking_preview"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bookings/{booking_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Booking Details
-         * @description Get full booking details with privacy protection for students.
-         */
-        get: operations["get__bookings_booking_id__get_booking_details"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Update Booking
-         * @description Update booking details (instructor only).
-         */
-        patch: operations["patch__bookings_booking_id__update_booking"];
-        trace?: never;
-    };
-    "/bookings/{booking_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Cancel Booking
-         * @description Cancel a booking.
-         */
-        post: operations["post__bookings_booking_id_cancel__cancel_booking"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bookings/{booking_id}/reschedule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reschedule Booking
-         * @description Reschedule flow (server-orchestrated):
-         *     - Validates access to the original booking
-         *     - Cancels the original booking according to policy (releasing/capturing as needed)
-         *     - Creates a new booking with the requested time (using original instructor/service unless overridden)
-         *     - Links audit events via payment history; returns the new booking
-         *
-         *     Note: This keeps UI simple and makes payment windows naturally align to the new schedule.
-         */
-        post: operations["post__bookings_booking_id_reschedule__reschedule_booking"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bookings/{booking_id}/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Complete Booking
-         * @description Mark a booking as completed.
-         *
-         *     Requires: COMPLETE_BOOKINGS permission (instructor only)
-         */
-        post: operations["post__bookings_booking_id_complete__complete_booking"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/favorites/{instructor_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Add Favorite
-         * @description Add an instructor to the current user's favorites.
-         *
-         *     Args:
-         *         instructor_id: ID of the instructor to favorite
-         *         current_user: Current authenticated user email
-         *         db: Database session
-         *         favorites_service: Favorites service instance
-         *
-         *     Returns:
-         *         FavoriteResponse with success status
-         *
-         *     Raises:
-         *         HTTPException: If validation fails or user not found
-         */
-        post: operations["post__api_favorites_instructor_id__add_favorite"];
-        /**
-         * Remove Favorite
-         * @description Remove an instructor from the current user's favorites.
-         *
-         *     Args:
-         *         instructor_id: ID of the instructor to unfavorite
-         *         current_user: Current authenticated user email
-         *         db: Database session
-         *         favorites_service: Favorites service instance
-         *
-         *     Returns:
-         *         FavoriteResponse with success status
-         *
-         *     Raises:
-         *         HTTPException: If validation fails or user not found
-         */
-        delete: operations["delete__api_favorites_instructor_id__remove_favorite"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/favorites": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Favorites
-         * @description Get the current user's list of favorited instructors.
-         *
-         *     Args:
-         *         current_user: Current authenticated user email
-         *         db: Database session
-         *         favorites_service: Favorites service instance
-         *
-         *     Returns:
-         *         FavoritesList with favorited instructors
-         *
-         *     Raises:
-         *         HTTPException: If user not found
-         */
-        get: operations["get__api_favorites__get_favorites"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/favorites/check/{instructor_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check Favorite Status
-         * @description Check if the current user has favorited a specific instructor.
-         *
-         *     Args:
-         *         instructor_id: ID of the instructor to check
-         *         current_user: Current authenticated user email
-         *         db: Database session
-         *         favorites_service: Favorites service instance
-         *
-         *     Returns:
-         *         Dictionary with is_favorited boolean
-         *
-         *     Raises:
-         *         HTTPException: If user not found
-         */
-        get: operations["get__api_favorites_check_instructor_id__check_favorite_status"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/connect/onboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Start Onboarding
-         * @description Start Stripe Connect onboarding for an instructor.
-         *
-         *     Creates a Stripe Express account and generates an onboarding link.
-         *     If the instructor already has an account, returns existing details.
-         *
-         *     Returns:
-         *         OnboardingResponse with account ID and onboarding URL
-         *
-         *     Raises:
-         *         HTTPException: If onboarding setup fails
-         */
-        post: operations["post__api_payments_connect_onboard__start_onboarding"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/connect/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Onboarding Status
-         * @description Get the onboarding status for an instructor's Stripe account.
-         *
-         *     Returns:
-         *         OnboardingStatusResponse with account status details
-         *
-         *     Raises:
-         *         HTTPException: If status check fails
-         */
-        get: operations["get__api_payments_connect_status__get_onboarding_status"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/identity/session": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Identity Session
-         * @description Create a Stripe Identity verification session for the current user.
-         */
-        post: operations["post__api_payments_identity_session__create_identity_session"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/identity/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Refresh Identity Status
-         * @description Fetch latest Stripe Identity status and persist verification on success.
-         *
-         *     This avoids blocking general status calls and lets the UI trigger a one-off refresh
-         *     right after the modal/hosted flow returns.
-         */
-        post: operations["post__api_payments_identity_refresh__refresh_identity_status"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/connect/payout-schedule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Set Payout Schedule
-         * @description Set payout schedule for the current instructor's connected account.
-         *
-         *     Default: weekly on Tuesday. Valid anchors: monday..sunday.
-         */
-        post: operations["post__api_payments_connect_payout-schedule__set_payout_schedule"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/connect/dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Dashboard Link
-         * @description Get a link to the Stripe Express dashboard for an instructor.
-         *
-         *     Returns:
-         *         DashboardLinkResponse with dashboard URL
-         *
-         *     Raises:
-         *         HTTPException: If dashboard link creation fails
-         */
-        get: operations["get__api_payments_connect_dashboard__get_dashboard_link"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/connect/instant-payout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Request Instant Payout
-         * @description Trigger an instant payout for an instructor's connected account.
-         *
-         *     Uses Stripe's instant payout capability (account eligibility required). This does NOT aggregate platform funds; it
-         *     triggers Stripe to pay out the instructor's available balance instantly. We record a metric for adoption.
-         */
-        post: operations["post__api_payments_connect_instant-payout__request_instant_payout"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/methods": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Payment Methods
-         * @description List all payment methods for a student.
-         *
-         *     Returns:
-         *         List of PaymentMethodResponse objects
-         *
-         *     Raises:
-         *         HTTPException: If payment method listing fails
-         */
-        get: operations["get__api_payments_methods__list_payment_methods"];
-        put?: never;
-        /**
-         * Save Payment Method
-         * @description Save a payment method for a student.
-         *
-         *     Args:
-         *         request: Payment method details
-         *
-         *     Returns:
-         *         PaymentMethodResponse with saved payment method details
-         *
-         *     Raises:
-         *         HTTPException: If payment method saving fails
-         */
-        post: operations["post__api_payments_methods__save_payment_method"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/methods/{method_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Payment Method
-         * @description Delete a payment method for a student.
-         *
-         *     Args:
-         *         method_id: Payment method ID to delete
-         *
-         *     Returns:
-         *         Success confirmation
-         *
-         *     Raises:
-         *         HTTPException: If payment method deletion fails
-         */
-        delete: operations["delete__api_payments_methods_method_id__delete_payment_method"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/checkout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Checkout
-         * @description Create a checkout/payment for a booking.
-         *
-         *     Args:
-         *         request: Checkout details including booking and payment method
-         *
-         *     Returns:
-         *         CheckoutResponse with payment details
-         *
-         *     Raises:
-         *         HTTPException: If checkout creation fails
-         */
-        post: operations["post__api_payments_checkout__create_checkout"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/earnings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Instructor Earnings
-         * @description Get earnings statistics for an instructor.
-         *
-         *     Returns:
-         *         Instructor earnings data
-         *
-         *     Raises:
-         *         HTTPException: If earnings calculation fails
-         */
-        get: operations["get__api_payments_earnings__get_instructor_earnings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/transactions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Transaction History
-         * @description Get user's transaction history
-         *
-         *     Returns list of completed payments with booking details
-         */
-        get: operations["get__api_payments_transactions__get_transaction_history"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/credits": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Credit Balance
-         * @description Get user's credit balance
-         *
-         *     Returns available credits and expiration
-         */
-        get: operations["get__api_payments_credits__get_credit_balance"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payments/webhooks/stripe": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Handle Stripe Webhook
-         * @description Handle Stripe webhook events from both platform and connected accounts.
-         *
-         *     Works with both local development (single secret) and deployed environments (multiple secrets).
-         *     Tries each configured webhook secret until one successfully verifies the signature.
-         *
-         *     Returns:
-         *         Success confirmation (always returns 200 to prevent Stripe retries)
-         *
-         *     Note:
-         *         This endpoint has no authentication as it uses webhook signature verification
-         */
-        post: operations["post__api_payments_webhooks_stripe__handle_stripe_webhook"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/messages/send": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Send Message
-         * @description Send a message in a booking chat.
-         *
-         *     Requires SEND_MESSAGES permission.
-         *     Rate limited to 10 messages per minute.
-         */
-        post: operations["post__api_messages_send__send_message"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/messages/stream/{booking_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Stream Messages
-         * @description SSE endpoint for real-time message streaming.
-         *
-         *     Establishes a Server-Sent Events connection for receiving
-         *     real-time messages for a specific booking.
-         *
-         *     Requires VIEW_MESSAGES permission.
-         *     Note: Permission check is done manually since SSE endpoints
-         *     can't use regular FastAPI dependencies with EventSource.
-         */
-        get: operations["get__api_messages_stream_booking_id__stream_messages"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/messages/typing/{booking_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Send Typing Indicator
-         * @description Send a typing indicator for a booking chat (ephemeral, no DB writes).
-         *     Broadcasts a NOTIFY with type=typing_status.
-         */
-        post: operations["post__api_messages_typing_booking_id__send_typing_indicator"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/messages/{message_id}/reactions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Add Reaction */
-        post: operations["post__api_messages_message_id_reactions__add_reaction"];
-        /** Remove Reaction */
-        delete: operations["delete__api_messages_message_id_reactions__remove_reaction"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/messages/{message_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Message
-         * @description Soft delete a message.
-         *
-         *     Only the sender can delete their own messages.
-         *     Requires SEND_MESSAGES permission.
-         */
-        delete: operations["delete__api_messages_message_id__delete_message"];
-        options?: never;
-        head?: never;
-        /** Edit Message */
-        patch: operations["patch__api_messages_message_id__edit_message"];
-        trace?: never;
-    };
-    "/api/messages/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Message Config
-         * @description Public config values for the messaging UI.
-         */
-        get: operations["get__api_messages_config__get_message_config"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/messages/history/{booking_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Message History
-         * @description Get message history for a booking.
-         *
-         *     Returns paginated list of messages in chronological order.
-         *     Requires VIEW_MESSAGES permission.
-         */
-        get: operations["get__api_messages_history_booking_id__get_message_history"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/messages/unread-count": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Unread Count
-         * @description Get total unread message count for current user.
-         *
-         *     Requires VIEW_MESSAGES permission.
-         */
-        get: operations["get__api_messages_unread-count__get_unread_count"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/messages/mark-read": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Mark Messages As Read
-         * @description Mark messages as read.
-         *
-         *     Can mark specific messages or all messages in a booking.
-         *     Requires VIEW_MESSAGES permission.
-         */
-        post: operations["post__api_messages_mark-read__mark_messages_as_read"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Check
-         * @description Basic health check endpoint.
-         */
-        get: operations["get__metrics_health__health_check"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics/performance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Performance Metrics
-         * @description Get performance metrics from all services.
-         */
-        get: operations["get__metrics_performance__get_performance_metrics"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics/cache": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Cache Metrics
-         * @description Get detailed cache metrics including availability-specific stats.
-         */
-        get: operations["get__metrics_cache__get_cache_metrics"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics/cache/availability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Availability Cache Metrics
-         * @description Get detailed availability-specific cache metrics and top cached keys.
-         */
-        get: operations["get__metrics_cache_availability__get_availability_cache_metrics"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics/slow-queries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Slow Queries
-         * @description Get recent slow queries.
-         */
-        get: operations["get__metrics_slow-queries__get_slow_queries"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics/cache/reset-stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reset Cache Stats
-         * @description Reset cache statistics.
-         */
-        post: operations["post__metrics_cache_reset-stats__reset_cache_stats"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics/rate-limits": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Rate Limit Stats
-         * @description Get current rate limit statistics.
-         *
-         *     Shows:
-         *     - Total rate limit keys
-         *     - Breakdown by endpoint/type
-         *     - Top limited clients
-         *
-         *     Requires authentication.
-         */
-        get: operations["get__metrics_rate-limits__get_rate_limit_stats"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics/rate-limits/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reset Rate Limits
-         * @description Reset rate limits matching a pattern.
-         *
-         *     Useful for:
-         *     - Unblocking legitimate users
-         *     - Testing
-         *     - Emergency response
-         *
-         *     Requires admin privileges.
-         */
-        post: operations["post__metrics_rate-limits_reset__reset_rate_limits"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics/rate-limits/test": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Test Rate Limit
-         * @description Test endpoint to verify rate limiting is working.
-         *
-         *     This endpoint has a low rate limit for testing purposes.
-         *     Try making multiple requests to see rate limiting in action.
-         */
-        get: operations["get__metrics_rate-limits_test__test_rate_limit"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/monitoring/dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Monitoring Dashboard
-         * @description Get comprehensive monitoring dashboard data.
-         *
-         *     Requires monitoring API key in production.
-         */
-        get: operations["get__api_monitoring_dashboard__get_monitoring_dashboard"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/monitoring/slow-queries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Slow Queries
-         * @description Get recent slow queries.
-         */
-        get: operations["get__api_monitoring_slow-queries__get_slow_queries"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/monitoring/slow-requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Slow Requests
-         * @description Get recent slow requests.
-         */
-        get: operations["get__api_monitoring_slow-requests__get_slow_requests"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/monitoring/cache/extended-stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Extended Cache Stats
-         * @description Get extended cache statistics.
-         */
-        get: operations["get__api_monitoring_cache_extended-stats__get_extended_cache_stats"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/monitoring/alerts/acknowledge/{alert_type}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Acknowledge Alert
-         * @description Acknowledge an alert to reset its cooldown.
-         */
-        post: operations["post__api_monitoring_alerts_acknowledge_alert_type__acknowledge_alert"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/monitoring/payment-health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Payment System Health
-         * @description Get payment system health metrics.
-         *
-         *     Returns metrics about:
-         *     - Pending authorizations
-         *     - Failed authorizations
-         *     - Recent processing activity
-         *     - System alerts
-         *
-         *     Requires monitoring API key in production.
-         */
-        get: operations["get__api_monitoring_payment-health__get_payment_system_health"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/monitoring/trigger-payment-health-check": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Trigger Payment Health Check
-         * @description Manually trigger a payment system health check.
-         *
-         *     This will run the health check task immediately and return the results.
-         *
-         *     Requires monitoring API key in production.
-         */
-        post: operations["post__api_monitoring_trigger-payment-health-check__trigger_payment_health_check"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/monitoring/alerts/recent": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Recent Alerts
-         * @description Get recent alerts from the database.
-         */
-        get: operations["get__api_monitoring_alerts_recent__get_recent_alerts"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/monitoring/alerts/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Alert Summary
-         * @description Get alert summary statistics.
-         */
-        get: operations["get__api_monitoring_alerts_summary__get_alert_summary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/monitoring/alerts/live": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Live Alerts
-         * @description Get very recent alerts (similar to live view).
-         */
-        get: operations["get__api_monitoring_alerts_live__get_live_alerts"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/search-trends": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Search Trends
-         * @description Get search trends over time.
-         *
-         *     Returns daily search counts, unique users, and unique guests.
-         */
-        get: operations["get__api_analytics_search_search-trends__get_search_trends"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/popular-searches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Popular Searches
-         * @description Get most popular search queries.
-         *
-         *     Returns search queries ordered by frequency with user counts and average results.
-         */
-        get: operations["get__api_analytics_search_popular-searches__get_popular_searches"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/referrers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Search Referrers
-         * @description Get pages that drive searches (referrers).
-         *
-         *     Returns referrer pages with search counts and unique sessions.
-         */
-        get: operations["get__api_analytics_search_referrers__get_search_referrers"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/search-analytics-summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Search Analytics Summary
-         * @description Get comprehensive search analytics summary.
-         *
-         *     Returns totals, user breakdown, search types, conversions, and performance metrics.
-         */
-        get: operations["get__api_analytics_search_search-analytics-summary__get_search_analytics_summary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/conversion-metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Conversion Metrics
-         * @description Get guest-to-user conversion metrics.
-         *
-         *     Returns conversion rates and guest engagement data.
-         */
-        get: operations["get__api_analytics_search_conversion-metrics__get_conversion_metrics"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/search-performance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Search Performance
-         * @description Get search performance metrics.
-         *
-         *     Returns result distribution, effectiveness metrics, and problematic queries.
-         */
-        get: operations["get__api_analytics_search_search-performance__get_search_performance"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Export Analytics
-         * @description Export analytics data in various formats.
-         *
-         *     Requires EXPORT_ANALYTICS permission.
-         *
-         *     Args:
-         *         format: Export format (csv, xlsx, json)
-         *         current_user: The authenticated user with required permissions
-         *         db: Database session
-         *
-         *     Returns:
-         *         Exported data or download link
-         */
-        post: operations["post__api_analytics_export__export_analytics"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/candidates/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Candidates Summary */
-        get: operations["get__api_analytics_search_candidates_summary__candidates_summary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/candidates/category-trends": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Candidates Category Trends */
-        get: operations["get__api_analytics_search_candidates_category-trends__candidates_category_trends"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/candidates/top-services": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Candidates Top Services */
-        get: operations["get__api_analytics_search_candidates_top-services__candidates_top_services"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/candidates/score-distribution": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Candidates Score Distribution */
-        get: operations["get__api_analytics_search_candidates_score-distribution__candidates_score_distribution"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/search/candidates/queries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Candidate Service Queries
-         * @description List queries that produced candidates for a given service (recent first).
-         */
-        get: operations["get__api_analytics_search_candidates_queries__candidate_service_queries"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/codebase/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Codebase Metrics
-         * @description Return the current codebase metrics as JSON.
-         */
-        get: operations["get__api_analytics_codebase_metrics__get_codebase_metrics"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/codebase/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Codebase Metrics History
-         * @description Return historical metrics from metrics_history.json if present.
-         */
-        get: operations["get__api_analytics_codebase_history__get_codebase_metrics_history"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/analytics/codebase/history/append": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Append Codebase Metrics History
-         * @description Append current snapshot to metrics_history.json to persist trends.
-         */
-        post: operations["post__api_analytics_codebase_history_append__append_codebase_metrics_history"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/public/session/guest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Guest Session
-         * @description Issue a first-party guest_id cookie used for optional auth endpoints.
-         *
-         *     Sets cookie attributes appropriate for cross-site subdomains in preview/prod.
-         */
-        post: operations["post__api_public_session_guest__create_guest_session"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/public/logout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Public Logout
-         * @description Clear known session cookies. Public to support cross-origin preview logout.
-         *
-         *     This does not revoke server sessions; it only instructs the browser to drop cookies.
-         */
-        post: operations["post__api_public_logout__public_logout"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/public/instructors/{instructor_id}/availability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get instructor availability for students
-         * @description Public endpoint to view instructor's available time slots for booking. No authentication required. Response detail level depends on configuration.
-         */
-        get: operations["get__api_public_instructors_instructor_id_availability__get_instructor_public_availability"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/public/instructors/{instructor_id}/next-available": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get next available slot for an instructor
-         * @description Quick endpoint to find the next available booking slot
-         */
-        get: operations["get__api_public_instructors_instructor_id_next-available__get_next_available_slot"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/public/referrals/send": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Send referral invites
-         * @description Send referral invitation emails to one or more recipients.
-         */
-        post: operations["post__api_public_referrals_send__send_referral_invites"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/r/{slug}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Resolve Referral Slug */
-        get: operations["get__r_slug__resolve_referral_slug"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/referrals/claim": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Claim Referral Code */
-        post: operations["post__api_referrals_claim__claim_referral_code"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/referrals/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get My Referral Ledger */
-        get: operations["get__api_referrals_me__get_my_referral_ledger"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/referrals/checkout/apply-referral": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Apply Referral Credit */
-        post: operations["post__api_referrals_checkout_apply-referral__apply_referral_credit"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/referrals/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Referral Config */
-        get: operations["get__api_admin_referrals_config__get_referral_config"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/referrals/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Referral Summary */
-        get: operations["get__api_admin_referrals_summary__get_referral_summary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/referrals/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Referral Health */
-        get: operations["get__api_admin_referrals_health__get_referral_health"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/search/instructors": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Search Instructors
-         * @description Search for instructors using natural language queries.
-         *
-         *     Supports queries like:
-         *     - "piano lessons under $50"
-         *     - "math tutor near me"
-         *     - "online yoga classes"
-         *     - "SAT prep this weekend"
-         *
-         *     Args:
-         *         q: The search query string
-         *         limit: Maximum number of results to return (1-100, default 20)
-         *         db: Database session
-         *
-         *     Returns:
-         *         Search results with instructors, services, and metadata
-         */
-        get: operations["get__api_search_instructors__search_instructors"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/search-history/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Recent Searches
-         * @description Get recent searches for the current user (authenticated or guest).
-         *
-         *     For authenticated users: Pass authorization token
-         *     For guests: Pass X-Guest-Session-ID header
-         *
-         *     Args:
-         *         limit: Maximum number of searches to return (default 3)
-         *         context: Search context with user/guest identity
-         *         db: Database session
-         *
-         *     Returns:
-         *         List of recent search history entries
-         */
-        get: operations["get__api_search-history__get_recent_searches"];
-        put?: never;
-        /**
-         * Record Search
-         * @description Record a search for the current user (authenticated or guest).
-         *
-         *     For authenticated users: Pass authorization token
-         *     For guests: Pass X-Guest-Session-ID header
-         *     Optional headers:
-         *     - X-Session-ID: Browser session ID for analytics
-         *     - X-Search-Origin: Page where search originated
-         *
-         *     Args:
-         *         search_data: The search details to record
-         *         context: Search context with user/guest identity and tracking info
-         *         db: Database session
-         *
-         *     Returns:
-         *         The created or updated search history entry
-         */
-        post: operations["post__api_search-history__record_search"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/search-history/guest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Record Guest Search
-         * @description Record a guest search with strict validation.
-         */
-        post: operations["post__api_search-history_guest__record_guest_search"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/search-history/{search_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Search
-         * @description Delete a search for the current user (authenticated or guest).
-         *
-         *     For authenticated users: Pass authorization token
-         *     For guests: Pass X-Guest-Session-ID header
-         *
-         *     Args:
-         *         search_id: ID of the search to delete
-         *         current_user: The authenticated user (if applicable)
-         *         x_guest_session_id: Guest session ID header (if applicable)
-         *         db: Database session
-         *
-         *     Returns:
-         *         204 No Content on success
-         *
-         *     Raises:
-         *         404 if search not found or doesn't belong to the user/guest
-         */
-        delete: operations["delete__api_search-history_search_id__delete_search"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/search-history/interaction": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Track Interaction
-         * @description Track user interaction with search results.
-         *
-         *     Records clicks, hovers, bookmarks, and other interactions with search results
-         *     to measure search effectiveness and result relevance.
-         *
-         *     Args:
-         *         interaction_data: Interaction details including:
-         *             - search_event_id: ID of the search event
-         *             - interaction_type: Type of interaction (click, hover, bookmark)
-         *             - instructor_id: ID of the instructor interacted with
-         *             - result_position: Position in search results
-         *             - time_to_interaction: Time from search to interaction (seconds)
-         *         request: HTTP request for headers
-         *         context: Search user context
-         *         db: Database session
-         *
-         *     Returns:
-         *         Interaction tracking confirmation
-         */
-        post: operations["post__api_search-history_interaction__track_interaction"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/addresses/zip/is-nyc": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Is Nyc Zip
-         * @description Lightweight NYC ZIP check.
-         *
-         *     Args:
-         *         zip: Five-digit ZIP code.
-         *
-         *     Returns:
-         *         { "is_nyc": bool, "borough": Optional[str] }
-         *
-         *     Notes:
-         *         - This endpoint is deterministic and does not require geocoding APIs.
-         *         - It is sufficient for onboarding gating; deeper enrichment occurs when
-         *           we create an address with lat/lng.
-         */
-        get: operations["get__api_addresses_zip_is-nyc__is_nyc_zip"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/addresses/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List My Addresses */
-        get: operations["get__api_addresses_me__list_my_addresses"];
-        put?: never;
-        /** Create My Address */
-        post: operations["post__api_addresses_me__create_my_address"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/addresses/me/{address_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete My Address */
-        delete: operations["delete__api_addresses_me_address_id__delete_my_address"];
-        options?: never;
-        head?: never;
-        /** Update My Address */
-        patch: operations["patch__api_addresses_me_address_id__update_my_address"];
-        trace?: never;
-    };
-    "/api/addresses/service-areas/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List My Service Areas */
-        get: operations["get__api_addresses_service-areas_me__list_my_service_areas"];
-        /** Replace My Service Areas */
-        put: operations["put__api_addresses_service-areas_me__replace_my_service_areas"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/addresses/places/autocomplete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Places Autocomplete
-         * @description Provider-agnostic autocomplete passthrough.
-         *
-         *     Uses the configured provider to retrieve suggestions.
-         */
-        get: operations["get__api_addresses_places_autocomplete__places_autocomplete"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/addresses/places/details": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Place Details
-         * @description Return normalized place details for a selected suggestion.
-         *
-         *     Frontend uses this to auto-fill form fields without exposing provider payloads.
-         */
-        get: operations["get__api_addresses_places_details__place_details"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/addresses/coverage/bulk": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Bulk Coverage Geojson
-         * @description Return GeoJSON FeatureCollection of neighborhoods served by the given instructors.
-         *
-         *     'ids' is a comma-separated list of instructor user IDs.
-         */
-        get: operations["get__api_addresses_coverage_bulk__get_bulk_coverage_geojson"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/addresses/regions/neighborhoods": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Neighborhoods */
-        get: operations["get__api_addresses_regions_neighborhoods__list_neighborhoods"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/redis/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Redis Health
-         * @description Check Redis connection health.
-         *
-         *     Returns:
-         *         Basic health status
-         */
-        get: operations["get__api_redis_health__redis_health"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/redis/test": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Redis Test
-         * @description Simple Redis connection test endpoint.
-         *
-         *     No authentication required - helps verify Redis migration is working.
-         *
-         *     Returns:
-         *         Connection status and basic info
-         */
-        get: operations["get__api_redis_test__redis_test"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/redis/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Redis Stats
-         * @description Get detailed Redis statistics and metrics.
-         *
-         *     Requires ACCESS_MONITORING permission.
-         *
-         *     Returns:
-         *         Comprehensive Redis metrics including:
-         *         - Memory usage
-         *         - Connection stats
-         *         - Operation counts
-         *         - Celery queue lengths
-         */
-        get: operations["get__api_redis_stats__redis_stats"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/redis/celery-queues": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Celery Queue Status
-         * @description Get Celery queue status and pending tasks.
-         *
-         *     Requires ACCESS_MONITORING permission.
-         *
-         *     Returns:
-         *         Queue lengths and task counts
-         */
-        get: operations["get__api_redis_celery-queues__celery_queue_status"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/redis/connection-audit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Redis Connection Audit
-         * @description Audit all Redis connections across the system.
-         *
-         *     Checks which Redis instance each service is using and identifies
-         *     any remaining Upstash connections.
-         *
-         *     Requires ACCESS_MONITORING permission.
-         *
-         *     Returns:
-         *         Summary of Redis connections across all services
-         */
-        get: operations["get__api_redis_connection-audit__redis_connection_audit"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/redis/flush-queues": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Flush Celery Queues
-         * @description Flush all Celery queues (DANGER: removes all pending tasks).
-         *
-         *     Requires ACCESS_MONITORING permission.
-         *     Use with caution - this will delete all pending tasks!
-         *
-         *     Returns:
-         *         Number of tasks removed from each queue
-         */
-        delete: operations["delete__api_redis_flush-queues__flush_celery_queues"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/database/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Database Health
-         * @description Simple database health check endpoint.
-         *
-         *     No authentication required - helps verify database connectivity.
-         *
-         *     Returns:
-         *         Database connection status
-         */
-        get: operations["get__api_database_health__database_health"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/database/pool-status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Database Pool Status
-         * @description Get detailed database connection pool statistics.
-         *
-         *     Requires ACCESS_MONITORING permission.
-         *
-         *     Returns:
-         *         Connection pool metrics including:
-         *         - Active connections
-         *         - Available connections
-         *         - Pool configuration
-         *         - Usage percentage
-         */
-        get: operations["get__api_database_pool-status__database_pool_status"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/database/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Database Stats
-         * @description Get comprehensive database statistics.
-         *
-         *     Requires ACCESS_MONITORING permission.
-         *
-         *     Returns:
-         *         Database metrics including pool status and performance indicators
-         */
-        get: operations["get__api_database_stats__database_stats"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/privacy/export/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Export My Data
-         * @description Export all data for the current user (GDPR data portability).
-         *
-         *     Returns all personal data in a structured format.
-         */
-        get: operations["get__api_privacy_export_me__export_my_data"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/privacy/delete/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Delete My Data
-         * @description Delete user data (GDPR right to be forgotten).
-         *
-         *     Can either anonymize data or completely delete the account.
-         */
-        post: operations["post__api_privacy_delete_me__delete_my_data"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/privacy/statistics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Privacy Statistics
-         * @description Get privacy and data retention statistics (admin only).
-         *
-         *     Shows counts of data eligible for retention policies.
-         */
-        get: operations["get__api_privacy_statistics__get_privacy_statistics"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/privacy/retention/apply": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Apply Retention Policies
-         * @description Manually trigger data retention policies (admin only).
-         *
-         *     This is usually run automatically via scheduled tasks.
-         */
-        post: operations["post__api_privacy_retention_apply__apply_retention_policies"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/privacy/export/user/{user_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Export User Data Admin
-         * @description Export data for any user (admin only).
-         *
-         *     For handling data requests on behalf of users.
-         */
-        get: operations["get__api_privacy_export_user_user_id__export_user_data_admin"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/privacy/delete/user/{user_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Delete User Data Admin
-         * @description Delete data for any user (admin only).
-         *
-         *     For handling deletion requests on behalf of users.
-         */
-        post: operations["post__api_privacy_delete_user_user_id__delete_user_data_admin"];
+        post: operations["handle_account_events_webhooks_stripe_account_events_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3791,38 +4248,7 @@ export interface paths {
          *     Raises:
          *         HTTPException: If webhook processing fails
          */
-        post: operations["post__webhooks_stripe_payment-events__handle_payment_events"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/webhooks/stripe/account-events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Handle Account Events
-         * @description Handle Stripe Connect account-related webhook events.
-         *
-         *     Processes events like:
-         *     - account.updated (onboarding status changes)
-         *     - account.application.deauthorized
-         *     - capability.updated
-         *
-         *     Returns:
-         *         Success confirmation message
-         *
-         *     Raises:
-         *         HTTPException: If webhook processing fails
-         */
-        post: operations["post__webhooks_stripe_account-events__handle_account_events"];
+        post: operations["handle_payment_events_webhooks_stripe_payment_events_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3846,7 +4272,7 @@ export interface paths {
          *     Returns:
          *         Simple success message
          */
-        get: operations["get__webhooks_stripe_test__test_webhook_endpoint"];
+        get: operations["test_webhook_endpoint_webhooks_stripe_test_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3855,661 +4281,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/uploads/r2/signed-url": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Signed Upload
-         * @description Create a short-lived signed PUT URL for uploading files to R2.
-         *
-         *     We implement SigV4 signing locally to avoid requiring boto3.
-         */
-        post: operations["post__api_uploads_r2_signed-url__create_signed_upload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/uploads/r2/proxy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Proxy Upload To R2
-         * @description Upload the file server-side for local development to avoid browser CORS issues.
-         */
-        post: operations["post__api_uploads_r2_proxy__proxy_upload_to_r2"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/uploads/r2/finalize/profile-picture": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Finalize Profile Picture
-         * @description Finalize a previously uploaded profile picture: validate, process, version, store.
-         */
-        post: operations["post__api_uploads_r2_finalize_profile-picture__finalize_profile_picture"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/users/me/profile-picture": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Upload Finalize Profile Picture */
-        post: operations["post__api_users_me_profile-picture__upload_finalize_profile_picture"];
-        /** Delete Profile Picture */
-        delete: operations["delete__api_users_me_profile-picture__delete_profile_picture"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/users/{user_id}/profile-picture-url": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Profile Picture Url */
-        get: operations["get__api_users_user_id_profile-picture-url__get_profile_picture_url"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/beta/invites/validate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Validate Invite */
-        get: operations["get__api_beta_invites_validate__validate_invite"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/beta/invites/verified": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Invite Verified */
-        get: operations["get__api_beta_invites_verified__invite_verified"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/beta/invites/generate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Generate Invites */
-        post: operations["post__api_beta_invites_generate__generate_invites"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/beta/metrics/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Beta Metrics Summary
-         * @description Lightweight summary derived from in-process counters.
-         *
-         *     Note: Without Prometheus remote-read, we return cumulative counts observed since process start.
-         */
-        get: operations["get__api_beta_metrics_summary__get_beta_metrics_summary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/beta/invites/consume": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Consume Invite */
-        post: operations["post__api_beta_invites_consume__consume_invite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/beta/invites/send": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Send Invite */
-        post: operations["post__api_beta_invites_send__send_invite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/beta/invites/send-batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Send Invite Batch */
-        post: operations["post__api_beta_invites_send-batch__send_invite_batch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/beta/invites/send-batch-async": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Send Invite Batch Async */
-        post: operations["post__api_beta_invites_send-batch-async__send_invite_batch_async"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/beta/invites/send-batch-progress": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Invite Batch Progress */
-        get: operations["get__api_beta_invites_send-batch-progress__get_invite_batch_progress"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/beta/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Beta Settings */
-        get: operations["get__api_beta_settings__get_beta_settings"];
-        /** Update Beta Settings */
-        put: operations["put__api_beta_settings__update_beta_settings"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/reviews/submit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit Review */
-        post: operations["post__api_reviews_submit__submit_review"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/reviews/instructor/{instructor_id}/ratings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Instructor Ratings */
-        get: operations["get__api_reviews_instructor_instructor_id_ratings__get_instructor_ratings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/reviews/instructor/{instructor_id}/search-rating": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Search Rating */
-        get: operations["get__api_reviews_instructor_instructor_id_search-rating__get_search_rating"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/reviews/instructor/{instructor_id}/recent": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Recent Reviews */
-        get: operations["get__api_reviews_instructor_instructor_id_recent__get_recent_reviews"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/reviews/booking/{booking_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Review For Booking */
-        get: operations["get__api_reviews_booking_booking_id__get_review_for_booking"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/reviews/booking/existing": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Get Existing Reviews For Bookings */
-        post: operations["post__api_reviews_booking_existing__get_existing_reviews_for_bookings"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/reviews/reviews/{review_id}/respond": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Respond To Review */
-        post: operations["post__api_reviews_reviews_review_id_respond__respond_to_review"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/reviews/ratings/batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Get Ratings Batch */
-        post: operations["post__api_reviews_ratings_batch__get_ratings_batch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/gated/ping": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Gated Ping */
-        get: operations["get__v1_gated_ping__gated_ping"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/webhooks/stripe": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Redirect Stripe Webhook
-         * @description Redirect old webhook URL to new location.
-         *
-         *     This endpoint exists for backward compatibility with webhooks configured
-         *     at /api/webhooks/stripe instead of /api/payments/webhooks/stripe.
-         *     It simply forwards the request to the correct handler.
-         */
-        post: operations["post__api_webhooks_stripe__redirect_stripe_webhook"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read Root
-         * @description Root endpoint - API information
-         */
-        get: operations["get____read_root"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Check
-         * @description Health check endpoint with headers for mode/phase/commit.
-         */
-        get: operations["get__health__health_check"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Api Health
-         * @description Alias of /health under /api path for env-contract and monitors.
-         */
-        get: operations["get__api_health__api_health"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/lite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Check Lite
-         * @description Lightweight health check that doesn't hit database
-         */
-        get: operations["get__health_lite__health_check_lite"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Metrics Endpoint
-         * @description Prometheus metrics endpoint (lightweight).
-         */
-        get: operations["get__metrics__metrics_endpoint"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-}
+};
 export type webhooks = Record<string, never>;
-export interface components {
+export type components = {
     schemas: {
         /** AccessGrantResponse */
         AccessGrantResponse: {
             /** Access Id */
             access_id: string;
-            /** User Id */
-            user_id: string;
-            /** Role */
-            role: string;
-            /** Phase */
-            phase: string;
             /** Invited By Code */
             invited_by_code?: string | null;
+            /** Phase */
+            phase: string;
+            /** Role */
+            role: string;
+            /** User Id */
+            user_id: string;
         };
         /**
          * AccountStatusChangeResponse
          * @description Response for account status change operations.
          */
         AccountStatusChangeResponse: {
-            /** Success */
-            success: boolean;
             /** Message */
             message: string;
-            /** Previous Status */
-            previous_status: string;
             /** New Status */
             new_status: string;
+            /** Previous Status */
+            previous_status: string;
+            /** Success */
+            success: boolean;
         };
         /**
          * AccountStatusResponse
          * @description Response for account status check endpoint.
          */
         AccountStatusResponse: {
-            /** User Id */
-            user_id: string;
-            /** Role */
-            role: string;
             /** Account Status */
             account_status: string;
-            /** Can Login */
-            can_login: boolean;
-            /** Can Receive Bookings */
-            can_receive_bookings: boolean;
-            /** Is Active */
-            is_active: boolean;
-            /** Is Suspended */
-            is_suspended: boolean;
-            /** Is Deactivated */
-            is_deactivated: boolean;
-            /** Has Future Bookings */
-            has_future_bookings?: boolean | null;
-            /** Future Bookings Count */
-            future_bookings_count?: number | null;
-            /** Can Suspend */
-            can_suspend?: boolean | null;
             /** Can Deactivate */
             can_deactivate?: boolean | null;
+            /** Can Login */
+            can_login: boolean;
             /** Can Reactivate */
             can_reactivate?: boolean | null;
+            /** Can Receive Bookings */
+            can_receive_bookings: boolean;
+            /** Can Suspend */
+            can_suspend?: boolean | null;
+            /** Future Bookings Count */
+            future_bookings_count?: number | null;
+            /** Has Future Bookings */
+            has_future_bookings?: boolean | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Deactivated */
+            is_deactivated: boolean;
+            /** Is Suspended */
+            is_suspended: boolean;
+            /** Role */
+            role: string;
+            /** User Id */
+            user_id: string;
         };
         /** AddressCreate */
         AddressCreate: {
+            /** Administrative Area */
+            administrative_area: string;
+            /**
+             * Country Code
+             * @default US
+             */
+            country_code: string;
+            /** Custom Label */
+            custom_label?: string | null;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
             /**
              * Label
              * @description home|work|other
              */
             label?: string | null;
-            /** Custom Label */
-            custom_label?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Locality */
+            locality: string;
+            /** Longitude */
+            longitude?: number | null;
+            /** Place Id */
+            place_id?: string | null;
+            /** Postal Code */
+            postal_code: string;
             /** Recipient Name */
             recipient_name?: string | null;
             /** Street Line1 */
             street_line1: string;
             /** Street Line2 */
             street_line2?: string | null;
-            /** Locality */
-            locality: string;
-            /** Administrative Area */
-            administrative_area: string;
-            /** Postal Code */
-            postal_code: string;
-            /**
-             * Country Code
-             * @default US
-             */
-            country_code: string;
-            /** Latitude */
-            latitude?: number | null;
-            /** Longitude */
-            longitude?: number | null;
-            /** Place Id */
-            place_id?: string | null;
             /**
              * Verification Status
              * @default unverified
              */
             verification_status: string | null;
-            /**
-             * Is Default
-             * @default false
-             */
-            is_default: boolean;
         };
         /** AddressListResponse */
         AddressListResponse: {
@@ -4520,123 +4396,119 @@ export interface components {
         };
         /** AddressResponse */
         AddressResponse: {
+            /** Administrative Area */
+            administrative_area: string;
+            /**
+             * Country Code
+             * @default US
+             */
+            country_code: string;
+            /** Custom Label */
+            custom_label?: string | null;
+            /** District */
+            district?: string | null;
+            /** Id */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
             /**
              * Label
              * @description home|work|other
              */
             label?: string | null;
-            /** Custom Label */
-            custom_label?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Locality */
+            locality: string;
+            /** Location Metadata */
+            location_metadata?: {
+                [key: string]: unknown;
+            } | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Neighborhood */
+            neighborhood?: string | null;
+            /** Place Id */
+            place_id?: string | null;
+            /** Postal Code */
+            postal_code: string;
             /** Recipient Name */
             recipient_name?: string | null;
             /** Street Line1 */
             street_line1: string;
             /** Street Line2 */
             street_line2?: string | null;
-            /** Locality */
-            locality: string;
-            /** Administrative Area */
-            administrative_area: string;
-            /** Postal Code */
-            postal_code: string;
-            /**
-             * Country Code
-             * @default US
-             */
-            country_code: string;
-            /** Latitude */
-            latitude?: number | null;
-            /** Longitude */
-            longitude?: number | null;
-            /** Place Id */
-            place_id?: string | null;
+            /** Subneighborhood */
+            subneighborhood?: string | null;
             /**
              * Verification Status
              * @default unverified
              */
             verification_status: string | null;
-            /**
-             * Is Default
-             * @default false
-             */
-            is_default: boolean;
-            /** Id */
-            id: string;
-            /** Is Active */
-            is_active: boolean;
-            /** District */
-            district?: string | null;
-            /** Neighborhood */
-            neighborhood?: string | null;
-            /** Subneighborhood */
-            subneighborhood?: string | null;
-            /** Location Metadata */
-            location_metadata?: {
-                [key: string]: unknown;
-            } | null;
         };
         /** AddressUpdate */
         AddressUpdate: {
-            /** Label */
-            label?: string | null;
+            /** Administrative Area */
+            administrative_area?: string | null;
+            /** Country Code */
+            country_code?: string | null;
             /** Custom Label */
             custom_label?: string | null;
+            /** Is Default */
+            is_default?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Locality */
+            locality?: string | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Place Id */
+            place_id?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
             /** Recipient Name */
             recipient_name?: string | null;
             /** Street Line1 */
             street_line1?: string | null;
             /** Street Line2 */
             street_line2?: string | null;
-            /** Locality */
-            locality?: string | null;
-            /** Administrative Area */
-            administrative_area?: string | null;
-            /** Postal Code */
-            postal_code?: string | null;
-            /** Country Code */
-            country_code?: string | null;
-            /** Latitude */
-            latitude?: number | null;
-            /** Longitude */
-            longitude?: number | null;
-            /** Place Id */
-            place_id?: string | null;
             /** Verification Status */
             verification_status?: string | null;
-            /** Is Default */
-            is_default?: boolean | null;
         };
         /**
          * AdminReferralsConfigOut
          * @description Configuration snapshot for the referral program.
          */
         AdminReferralsConfigOut: {
-            /** Student Amount Cents */
-            student_amount_cents: number;
-            /** Instructor Amount Cents */
-            instructor_amount_cents: number;
-            /** Min Basket Cents */
-            min_basket_cents: number;
-            /** Hold Days */
-            hold_days: number;
             /** Expiry Months */
             expiry_months: number;
-            /** Global Cap */
-            global_cap: number;
             /** Flags */
             flags: {
                 [key: string]: boolean;
             };
+            /** Global Cap */
+            global_cap: number;
+            /** Hold Days */
+            hold_days: number;
+            /** Instructor Amount Cents */
+            instructor_amount_cents: number;
+            /** Min Basket Cents */
+            min_basket_cents: number;
+            /** Student Amount Cents */
+            student_amount_cents: number;
         };
         /**
          * AdminReferralsHealthOut
          * @description Unlocker worker and data health for admin dashboards.
          */
         AdminReferralsHealthOut: {
-            /** Workers Alive */
-            workers_alive: number;
-            /** Workers */
-            workers: string[];
             /** Backlog Pending Due */
             backlog_pending_due: number;
             /** Pending Total */
@@ -4645,24 +4517,28 @@ export interface components {
             unlocked_total: number;
             /** Void Total */
             void_total: number;
+            /** Workers */
+            workers: string[];
+            /** Workers Alive */
+            workers_alive: number;
         };
         /**
          * AdminReferralsSummaryOut
          * @description Aggregate referral summary metrics for admins.
          */
         AdminReferralsSummaryOut: {
+            /** Attributions 24H */
+            attributions_24h: number;
+            /** Cap Utilization Percent */
+            cap_utilization_percent: number;
+            /** Clicks 24H */
+            clicks_24h: number;
             /** Counts By Status */
             counts_by_status: {
                 [key: string]: number;
             };
-            /** Cap Utilization Percent */
-            cap_utilization_percent: number;
             /** Top Referrers */
             top_referrers: components["schemas"]["TopReferrerOut"][];
-            /** Clicks 24H */
-            clicks_24h: number;
-            /** Attributions 24H */
-            attributions_24h: number;
         };
         /**
          * AlertAcknowledgeResponse
@@ -4674,15 +4550,15 @@ export interface components {
          */
         AlertAcknowledgeResponse: {
             /**
-             * Status
-             * @description Acknowledgement status
-             */
-            status: string;
-            /**
              * Alert Type
              * @description Alert type that was acknowledged
              */
             alert_type: string;
+            /**
+             * Status
+             * @description Acknowledgement status
+             */
+            status: string;
         };
         /**
          * AlertDetail
@@ -4690,35 +4566,17 @@ export interface components {
          */
         AlertDetail: {
             /**
-             * Id
-             * @description Alert ID
-             */
-            id: string;
-            /**
-             * Type
-             * @description Type of alert
-             */
-            type: string;
-            /**
-             * Severity
-             * @description Alert severity level
-             */
-            severity: string;
-            /**
-             * Title
-             * @description Alert title
-             */
-            title: string;
-            /**
-             * Message
-             * @description Alert message
-             */
-            message: string;
-            /**
              * Created At
              * @description When the alert was created (ISO format)
              */
             created_at: string;
+            /**
+             * Details
+             * @description Additional alert details
+             */
+            details?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Email Sent
              * @description Whether email notification was sent
@@ -4730,12 +4588,30 @@ export interface components {
              */
             github_issue: boolean;
             /**
-             * Details
-             * @description Additional alert details
+             * Id
+             * @description Alert ID
              */
-            details?: {
-                [key: string]: unknown;
-            } | null;
+            id: string;
+            /**
+             * Message
+             * @description Alert message
+             */
+            message: string;
+            /**
+             * Severity
+             * @description Alert severity level
+             */
+            severity: string;
+            /**
+             * Title
+             * @description Alert title
+             */
+            title: string;
+            /**
+             * Type
+             * @description Type of alert
+             */
+            type: string;
         };
         /**
          * AlertInfo
@@ -4749,26 +4625,26 @@ export interface components {
          */
         AlertInfo: {
             /**
-             * Type
-             * @description Alert type
+             * Message
+             * @description Alert message
              */
-            type: string;
+            message: string;
             /**
              * Severity
              * @description Alert severity (info/warning/critical)
              */
             severity: string;
             /**
-             * Message
-             * @description Alert message
-             */
-            message: string;
-            /**
              * Timestamp
              * Format: date-time
              * @description Alert timestamp
              */
             timestamp: string;
+            /**
+             * Type
+             * @description Alert type
+             */
+            type: string;
         };
         /**
          * AlertSummaryResponse
@@ -4776,17 +4652,10 @@ export interface components {
          */
         AlertSummaryResponse: {
             /**
-             * Days
-             * @description Number of days included in summary
+             * By Day
+             * @description Daily alert counts
              */
-            days: number;
-            /**
-             * By Type
-             * @description Alert counts grouped by type
-             */
-            by_type: {
-                [key: string]: number;
-            };
+            by_day: components["schemas"]["DailyAlertCount"][];
             /**
              * By Severity
              * @description Alert counts grouped by severity
@@ -4795,10 +4664,17 @@ export interface components {
                 [key: string]: number;
             };
             /**
-             * By Day
-             * @description Daily alert counts
+             * By Type
+             * @description Alert counts grouped by type
              */
-            by_day: components["schemas"]["DailyAlertCount"][];
+            by_type: {
+                [key: string]: number;
+            };
+            /**
+             * Days
+             * @description Number of days included in summary
+             */
+            days: number;
             /**
              * Total
              * @description Total number of alerts in the period
@@ -4807,16 +4683,21 @@ export interface components {
         };
         /** AppendHistoryResponse */
         AppendHistoryResponse: {
-            /** Status */
-            status: string;
             /** Count */
             count: number;
+            /** Status */
+            status: string;
         };
         /**
          * ApplyToDateRangeRequest
          * @description Schema for applying a week pattern to a date range.
          */
         ApplyToDateRangeRequest: {
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
             /**
              * From Week Start
              * Format: date
@@ -4827,17 +4708,17 @@ export interface components {
              * Format: date
              */
             start_date: string;
-            /**
-             * End Date
-             * Format: date
-             */
-            end_date: string;
         };
         /**
          * ApplyToDateRangeResponse
          * @description Response for applying availability to date range.
          */
         ApplyToDateRangeResponse: {
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
             /** Message */
             message: string;
             /**
@@ -4845,11 +4726,6 @@ export interface components {
              * Format: date
              */
             start_date: string;
-            /**
-             * End Date
-             * Format: date
-             */
-            end_date: string;
             /** Weeks Applied */
             weeks_applied: number;
             /** Windows Created */
@@ -4897,25 +4773,37 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
-             * Top Cached Keys Sample
-             * @description Sample of top cached keys
-             */
-            top_cached_keys_sample: string[];
-            /**
-             * Recommendations
-             * @description Performance recommendations
-             */
-            recommendations: string[];
-            /**
              * Cache Tiers Info
              * @description Cache tier configuration
              */
             cache_tiers_info: {
                 [key: string]: string;
             };
+            /**
+             * Recommendations
+             * @description Performance recommendations
+             */
+            recommendations: string[];
+            /**
+             * Top Cached Keys Sample
+             * @description Sample of top cached keys
+             */
+            top_cached_keys_sample: string[];
         };
         /** AvailabilityCheckRequest */
         AvailabilityCheckRequest: {
+            /**
+             * Booking Date
+             * Format: date
+             * @description Date to check
+             */
+            booking_date: string;
+            /**
+             * End Time
+             * Format: time
+             * @description End time to check
+             */
+            end_time: string;
             /**
              * Instructor Id
              * @description Instructor to check
@@ -4927,23 +4815,11 @@ export interface components {
              */
             instructor_service_id: string;
             /**
-             * Booking Date
-             * Format: date
-             * @description Date to check
-             */
-            booking_date: string;
-            /**
              * Start Time
              * Format: time
              * @description Start time to check
              */
             start_time: string;
-            /**
-             * End Time
-             * Format: time
-             * @description End time to check
-             */
-            end_time: string;
         };
         /**
          * AvailabilityCheckResponse
@@ -4952,14 +4828,14 @@ export interface components {
         AvailabilityCheckResponse: {
             /** Available */
             available: boolean;
-            /** Reason */
-            reason?: string | null;
-            /** Min Advance Hours */
-            min_advance_hours?: number | null;
             /** Conflicts With */
             conflicts_with?: {
                 [key: string]: unknown;
             }[] | null;
+            /** Min Advance Hours */
+            min_advance_hours?: number | null;
+            /** Reason */
+            reason?: string | null;
             /** Time Info */
             time_info?: {
                 [key: string]: unknown;
@@ -4971,6 +4847,11 @@ export interface components {
          *     Clean Architecture: Only meaningful fields for single-table design.
          */
         AvailabilityWindowResponse: {
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
             /** Id */
             id: string;
             /** Instructor Id */
@@ -4985,21 +4866,16 @@ export interface components {
              * Format: time
              */
             start_time: string;
-            /**
-             * End Time
-             * Format: time
-             */
-            end_time: string;
         };
         /**
          * AvailabilityWindowUpdate
          * @description Schema for updating an availability window.
          */
         AvailabilityWindowUpdate: {
-            /** Start Time */
-            start_time?: string | null;
             /** End Time */
             end_time?: string | null;
+            /** Start Time */
+            start_time?: string | null;
         };
         /** BackupCodesResponse */
         BackupCodesResponse: {
@@ -5008,10 +4884,10 @@ export interface components {
         };
         /** BetaMetricsSummaryResponse */
         BetaMetricsSummaryResponse: {
-            /** Invites Sent 24H */
-            invites_sent_24h: number;
             /** Invites Errors 24H */
             invites_errors_24h: number;
+            /** Invites Sent 24H */
+            invites_sent_24h: number;
             /** Phase Counts 24H */
             phase_counts_24h: {
                 [key: string]: number;
@@ -5019,12 +4895,12 @@ export interface components {
         };
         /** BetaSettingsPayload */
         BetaSettingsPayload: {
+            /** Allow Signup Without Invite */
+            allow_signup_without_invite: boolean;
             /** Beta Disabled */
             beta_disabled: boolean;
             /** Beta Phase */
             beta_phase: string;
-            /** Allow Signup Without Invite */
-            allow_signup_without_invite: boolean;
         };
         /**
          * BlackoutDateCreate
@@ -5044,25 +4920,48 @@ export interface components {
          * @description Response schema for blackout dates.
          */
         BlackoutDateResponse: {
-            /** Id */
-            id: string;
-            /** Instructor Id */
-            instructor_id: string;
-            /**
-             * Date
-             * Format: date
-             */
-            date: string;
-            /** Reason */
-            reason?: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Id */
+            id: string;
+            /** Instructor Id */
+            instructor_id: string;
+            /** Reason */
+            reason?: string | null;
         };
-        /** Body_post__api_uploads_r2_proxy__proxy_upload_to_r2 */
-        Body_post__api_uploads_r2_proxy__proxy_upload_to_r2: {
+        /** Body_login_auth_login_post */
+        Body_login_auth_login_post: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Client Secret */
+            client_secret?: string | null;
+            /** Grant Type */
+            grant_type?: string | null;
+            /** Password */
+            password: string;
+            /**
+             * Scope
+             * @default
+             */
+            scope: string;
+            /** Username */
+            username: string;
+        };
+        /** Body_proxy_upload_to_r2_api_uploads_r2_proxy_post */
+        Body_proxy_upload_to_r2_api_uploads_r2_proxy_post: {
+            /**
+             * Content Type
+             * @description Content type reported by the browser
+             */
+            content_type: string;
             /**
              * File
              * Format: binary
@@ -5073,29 +4972,6 @@ export interface components {
              * @description Temporary object key from the signed upload response
              */
             key: string;
-            /**
-             * Content Type
-             * @description Content type reported by the browser
-             */
-            content_type: string;
-        };
-        /** Body_post__auth_login__login */
-        Body_post__auth_login__login: {
-            /** Grant Type */
-            grant_type?: string | null;
-            /** Username */
-            username: string;
-            /** Password */
-            password: string;
-            /**
-             * Scope
-             * @default
-             */
-            scope: string;
-            /** Client Id */
-            client_id?: string | null;
-            /** Client Secret */
-            client_secret?: string | null;
         };
         /**
          * BookedSlotsResponse
@@ -5103,22 +4979,22 @@ export interface components {
          */
         BookedSlotsResponse: {
             /**
-             * Week Start
-             * Format: date
-             */
-            week_start: string;
-            /**
-             * Week End
-             * Format: date
-             */
-            week_end: string;
-            /**
              * Booked Slots
              * @description List of booked slots with booking details
              */
             booked_slots: {
                 [key: string]: unknown;
             }[];
+            /**
+             * Week End
+             * Format: date
+             */
+            week_end: string;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
         };
         /** BookingCancel */
         BookingCancel: {
@@ -5152,6 +5028,17 @@ export interface components {
          */
         BookingCreate: {
             /**
+             * Booking Date
+             * Format: date
+             * @description Date of the booking
+             */
+            booking_date: string;
+            /**
+             * End Time
+             * @description Calculated end time (set automatically)
+             */
+            end_time?: string | null;
+            /**
              * Instructor Id
              * @description Instructor to book
              */
@@ -5162,11 +5049,21 @@ export interface components {
              */
             instructor_service_id: string;
             /**
-             * Booking Date
-             * Format: date
-             * @description Date of the booking
+             * Location Type
+             * @description Type of meeting location
+             * @default neutral
              */
-            booking_date: string;
+            location_type: ("student_home" | "instructor_location" | "neutral") | null;
+            /**
+             * Meeting Location
+             * @description Specific meeting location if applicable
+             */
+            meeting_location?: string | null;
+            /**
+             * Selected Duration
+             * @description Selected duration in minutes from service's duration_options
+             */
+            selected_duration: number;
             /**
              * Start Time
              * Format: time
@@ -5174,31 +5071,10 @@ export interface components {
              */
             start_time: string;
             /**
-             * Selected Duration
-             * @description Selected duration in minutes from service's duration_options
-             */
-            selected_duration: number;
-            /**
              * Student Note
              * @description Optional note from student
              */
             student_note?: string | null;
-            /**
-             * Meeting Location
-             * @description Specific meeting location if applicable
-             */
-            meeting_location?: string | null;
-            /**
-             * Location Type
-             * @description Type of meeting location
-             * @default neutral
-             */
-            location_type: ("student_home" | "instructor_location" | "neutral") | null;
-            /**
-             * End Time
-             * @description Calculated end time (set automatically)
-             */
-            end_time?: string | null;
         };
         /**
          * BookingCreateResponse
@@ -5207,80 +5083,80 @@ export interface components {
          *     Includes SetupIntent client_secret for collecting payment method.
          */
         BookingCreateResponse: {
-            /** Id */
-            id: string;
-            /** Student Id */
-            student_id: string;
-            /** Instructor Id */
-            instructor_id: string;
-            /** Instructor Service Id */
-            instructor_service_id: string;
-            /** Rescheduled From Booking Id */
-            rescheduled_from_booking_id?: string | null;
             /**
              * Booking Date
              * Format: date
              */
             booking_date: string;
-            /**
-             * Start Time
-             * Format: time
-             */
-            start_time: string;
-            /**
-             * End Time
-             * Format: time
-             */
-            end_time: string;
-            /** Service Name */
-            service_name: string;
-            /** Hourly Rate */
-            hourly_rate: number;
-            /** Total Price */
-            total_price: number;
-            /** Duration Minutes */
-            duration_minutes: number;
-            status: components["schemas"]["BookingStatus"];
-            /** Service Area */
-            service_area: string | null;
-            /** Meeting Location */
-            meeting_location: string | null;
-            /** Location Type */
-            location_type: string | null;
-            /** Student Note */
-            student_note: string | null;
-            /** Instructor Note */
-            instructor_note: string | null;
+            /** Cancellation Reason */
+            cancellation_reason: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Cancelled By Id */
+            cancelled_by_id: string | null;
+            /** Completed At */
+            completed_at: string | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
-            /** Confirmed At */
-            confirmed_at: string | null;
-            /** Completed At */
-            completed_at: string | null;
-            /** Cancelled At */
-            cancelled_at: string | null;
-            /** Cancelled By Id */
-            cancelled_by_id: string | null;
-            /** Cancellation Reason */
-            cancellation_reason: string | null;
-            student: components["schemas"]["StudentInfo"];
-            instructor: components["schemas"]["app__schemas__booking__InstructorInfo"];
-            instructor_service: components["schemas"]["ServiceInfo"];
-            rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
+            /** Duration Minutes */
+            duration_minutes: number;
             /**
-             * Setup Intent Client Secret
-             * @description Stripe SetupIntent client_secret for collecting payment method
+             * End Time
+             * Format: time
              */
-            setup_intent_client_secret?: string | null;
+            end_time: string;
+            /** Hourly Rate */
+            hourly_rate: number;
+            /** Id */
+            id: string;
+            instructor: components["schemas"]["app__schemas__booking__InstructorInfo"];
+            /** Instructor Id */
+            instructor_id: string;
+            /** Instructor Note */
+            instructor_note: string | null;
+            instructor_service: components["schemas"]["ServiceInfo"];
+            /** Instructor Service Id */
+            instructor_service_id: string;
+            /** Location Type */
+            location_type: string | null;
+            /** Meeting Location */
+            meeting_location: string | null;
             /**
              * Requires Payment Method
              * @description Whether payment method is required before confirmation
              * @default true
              */
             requires_payment_method: boolean;
+            rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
+            /** Rescheduled From Booking Id */
+            rescheduled_from_booking_id?: string | null;
+            /** Service Area */
+            service_area: string | null;
+            /** Service Name */
+            service_name: string;
+            /**
+             * Setup Intent Client Secret
+             * @description Stripe SetupIntent client_secret for collecting payment method
+             */
+            setup_intent_client_secret?: string | null;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            status: components["schemas"]["BookingStatus"];
+            student: components["schemas"]["StudentInfo"];
+            /** Student Id */
+            student_id: string;
+            /** Student Note */
+            student_note: string | null;
+            /** Total Price */
+            total_price: number;
         };
         /**
          * BookingPaymentMethodUpdate
@@ -5304,26 +5180,18 @@ export interface components {
          * @description Response for booking preview with privacy protection.
          */
         BookingPreviewResponse: {
+            /** Booking Date */
+            booking_date: string;
             /** Booking Id */
             booking_id: string;
-            /** Student First Name */
-            student_first_name: string;
-            /** Student Last Name */
-            student_last_name: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /** End Time */
+            end_time: string;
             /** Instructor First Name */
             instructor_first_name: string;
             /** Instructor Last Name */
             instructor_last_name: string;
-            /** Service Name */
-            service_name: string;
-            /** Booking Date */
-            booking_date: string;
-            /** Start Time */
-            start_time: string;
-            /** End Time */
-            end_time: string;
-            /** Duration Minutes */
-            duration_minutes: number;
             /** Location Type */
             location_type: string;
             /** Location Type Display */
@@ -5332,8 +5200,16 @@ export interface components {
             meeting_location: string | null;
             /** Service Area */
             service_area: string | null;
+            /** Service Name */
+            service_name: string;
+            /** Start Time */
+            start_time: string;
             /** Status */
             status: string;
+            /** Student First Name */
+            student_first_name: string;
+            /** Student Last Name */
+            student_last_name: string;
             /** Student Note */
             student_note: string | null;
             /** Total Price */
@@ -5348,21 +5224,21 @@ export interface components {
              */
             booking_date: string;
             /**
-             * Start Time
-             * Format: time
-             * @description New start time (HH:MM)
+             * Instructor Service Id
+             * @description Override service if needed (defaults to old)
              */
-            start_time: string;
+            instructor_service_id?: string | null;
             /**
              * Selected Duration
              * @description New selected duration in minutes
              */
             selected_duration: number;
             /**
-             * Instructor Service Id
-             * @description Override service if needed (defaults to old)
+             * Start Time
+             * Format: time
+             * @description New start time (HH:MM)
              */
-            instructor_service_id?: string | null;
+            start_time: string;
         };
         /**
          * BookingResponse
@@ -5373,89 +5249,89 @@ export interface components {
          *     Clean Architecture: No availability slot references.
          */
         BookingResponse: {
-            /** Id */
-            id: string;
-            /** Student Id */
-            student_id: string;
-            /** Instructor Id */
-            instructor_id: string;
-            /** Instructor Service Id */
-            instructor_service_id: string;
-            /** Rescheduled From Booking Id */
-            rescheduled_from_booking_id?: string | null;
             /**
              * Booking Date
              * Format: date
              */
             booking_date: string;
-            /**
-             * Start Time
-             * Format: time
-             */
-            start_time: string;
-            /**
-             * End Time
-             * Format: time
-             */
-            end_time: string;
-            /** Service Name */
-            service_name: string;
-            /** Hourly Rate */
-            hourly_rate: number;
-            /** Total Price */
-            total_price: number;
-            /** Duration Minutes */
-            duration_minutes: number;
-            status: components["schemas"]["BookingStatus"];
-            /** Service Area */
-            service_area: string | null;
-            /** Meeting Location */
-            meeting_location: string | null;
-            /** Location Type */
-            location_type: string | null;
-            /** Student Note */
-            student_note: string | null;
-            /** Instructor Note */
-            instructor_note: string | null;
+            /** Cancellation Reason */
+            cancellation_reason: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Cancelled By Id */
+            cancelled_by_id: string | null;
+            /** Completed At */
+            completed_at: string | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
-            /** Confirmed At */
-            confirmed_at: string | null;
-            /** Completed At */
-            completed_at: string | null;
-            /** Cancelled At */
-            cancelled_at: string | null;
-            /** Cancelled By Id */
-            cancelled_by_id: string | null;
-            /** Cancellation Reason */
-            cancellation_reason: string | null;
-            student: components["schemas"]["StudentInfo"];
+            /** Duration Minutes */
+            duration_minutes: number;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /** Hourly Rate */
+            hourly_rate: number;
+            /** Id */
+            id: string;
             instructor: components["schemas"]["app__schemas__booking__InstructorInfo"];
+            /** Instructor Id */
+            instructor_id: string;
+            /** Instructor Note */
+            instructor_note: string | null;
             instructor_service: components["schemas"]["ServiceInfo"];
+            /** Instructor Service Id */
+            instructor_service_id: string;
+            /** Location Type */
+            location_type: string | null;
+            /** Meeting Location */
+            meeting_location: string | null;
             rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
+            /** Rescheduled From Booking Id */
+            rescheduled_from_booking_id?: string | null;
+            /** Service Area */
+            service_area: string | null;
+            /** Service Name */
+            service_name: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            status: components["schemas"]["BookingStatus"];
+            student: components["schemas"]["StudentInfo"];
+            /** Student Id */
+            student_id: string;
+            /** Student Note */
+            student_note: string | null;
+            /** Total Price */
+            total_price: number;
         };
         /**
          * BookingStatsResponse
          * @description Booking statistics for instructors.
          */
         BookingStatsResponse: {
-            /** Total Bookings */
-            total_bookings: number;
-            /** Upcoming Bookings */
-            upcoming_bookings: number;
-            /** Completed Bookings */
-            completed_bookings: number;
-            /** Cancelled Bookings */
-            cancelled_bookings: number;
-            /** Total Earnings */
-            total_earnings: number;
-            /** This Month Earnings */
-            this_month_earnings: number;
             /** Average Rating */
             average_rating?: number | null;
+            /** Cancelled Bookings */
+            cancelled_bookings: number;
+            /** Completed Bookings */
+            completed_bookings: number;
+            /** This Month Earnings */
+            this_month_earnings: number;
+            /** Total Bookings */
+            total_bookings: number;
+            /** Total Earnings */
+            total_earnings: number;
+            /** Upcoming Bookings */
+            upcoming_bookings: number;
         };
         /**
          * BookingStatus
@@ -5494,14 +5370,14 @@ export interface components {
          * @description Response schema for bulk availability update.
          */
         BulkUpdateResponse: {
-            /** Successful */
-            successful: number;
             /** Failed */
             failed: number;
-            /** Skipped */
-            skipped: number;
             /** Results */
             results: components["schemas"]["OperationResult"][];
+            /** Skipped */
+            skipped: number;
+            /** Successful */
+            successful: number;
         };
         /**
          * CacheHealthStatus
@@ -5518,30 +5394,30 @@ export interface components {
          */
         CacheHealthStatus: {
             /**
-             * Status
-             * @description Health status (healthy/degraded/unhealthy)
+             * Errors
+             * @description Cache error count
              */
-            status: string;
+            errors: number;
             /**
              * Hit Rate
              * @description Cache hit rate percentage
              */
             hit_rate: string;
             /**
-             * Total Requests
-             * @description Total cache requests
-             */
-            total_requests: number;
-            /**
-             * Errors
-             * @description Cache error count
-             */
-            errors: number;
-            /**
              * Recommendations
              * @description Performance recommendations
              */
             recommendations: string[];
+            /**
+             * Status
+             * @description Health status (healthy/degraded/unhealthy)
+             */
+            status: string;
+            /**
+             * Total Requests
+             * @description Total cache requests
+             */
+            total_requests: number;
         };
         /**
          * CacheMetricsResponse
@@ -5567,15 +5443,12 @@ export interface components {
          */
         CacheMetricsResponse: {
             /**
-             * Hits
-             * @description Cache hits
+             * Availability Metrics
+             * @description Availability-specific cache metrics
              */
-            hits: number;
-            /**
-             * Misses
-             * @description Cache misses
-             */
-            misses: number;
+            availability_metrics: {
+                [key: string]: unknown;
+            };
             /**
              * Errors
              * @description Cache errors
@@ -5587,12 +5460,20 @@ export interface components {
              */
             hit_rate: string;
             /**
-             * Availability Metrics
-             * @description Availability-specific cache metrics
+             * Hits
+             * @description Cache hits
              */
-            availability_metrics: {
-                [key: string]: unknown;
-            };
+            hits: number;
+            /**
+             * Misses
+             * @description Cache misses
+             */
+            misses: number;
+            /**
+             * Performance Insights
+             * @description Cache performance insights
+             */
+            performance_insights: string[];
             /**
              * Redis Info
              * @description Redis server information
@@ -5600,31 +5481,26 @@ export interface components {
             redis_info?: {
                 [key: string]: unknown;
             } | null;
-            /**
-             * Performance Insights
-             * @description Cache performance insights
-             */
-            performance_insights: string[];
         };
         /** CandidateCategoryTrend */
         CandidateCategoryTrend: {
-            /** Date */
-            date: string;
             /** Category */
             category: string;
             /** Count */
             count: number;
+            /** Date */
+            date: string;
         };
         /** CandidateCategoryTrendsResponse */
         CandidateCategoryTrendsResponse: components["schemas"]["CandidateCategoryTrend"][];
         /** CandidateScoreDistributionResponse */
         CandidateScoreDistributionResponse: {
-            /** Gte 0 90 */
-            gte_0_90: number;
-            /** Gte 0 80 Lt 0 90 */
-            gte_0_80_lt_0_90: number;
             /** Gte 0 70 Lt 0 80 */
             gte_0_70_lt_0_80: number;
+            /** Gte 0 80 Lt 0 90 */
+            gte_0_80_lt_0_90: number;
+            /** Gte 0 90 */
+            gte_0_90: number;
             /** Lt 0 70 */
             lt_0_70: number;
         };
@@ -5632,52 +5508,52 @@ export interface components {
         CandidateServiceQueriesResponse: components["schemas"]["CandidateServiceQuery"][];
         /** CandidateServiceQuery */
         CandidateServiceQuery: {
-            /** Searched At */
-            searched_at: string;
-            /** Search Query */
-            search_query: string;
-            /** Results Count */
-            results_count: number | null;
             /** Position */
             position: number;
+            /** Results Count */
+            results_count: number | null;
             /** Score */
             score: number | null;
+            /** Search Query */
+            search_query: string;
+            /** Searched At */
+            searched_at: string;
             /** Source */
             source: string | null;
         };
         /** CandidateSummaryResponse */
         CandidateSummaryResponse: {
-            /** Total Candidates */
-            total_candidates: number;
-            /** Events With Candidates */
-            events_with_candidates: number;
             /** Avg Candidates Per Event */
             avg_candidates_per_event: number;
-            /** Zero Result Events With Candidates */
-            zero_result_events_with_candidates: number;
+            /** Events With Candidates */
+            events_with_candidates: number;
             /** Source Breakdown */
             source_breakdown: {
                 [key: string]: number;
             };
+            /** Total Candidates */
+            total_candidates: number;
+            /** Zero Result Events With Candidates */
+            zero_result_events_with_candidates: number;
         };
         /** CandidateTopService */
         CandidateTopService: {
+            /** Active Instructors */
+            active_instructors: number;
+            /** Avg Position */
+            avg_position: number;
+            /** Avg Score */
+            avg_score: number;
+            /** Candidate Count */
+            candidate_count: number;
+            /** Category Name */
+            category_name: string;
+            /** Opportunity Score */
+            opportunity_score: number;
             /** Service Catalog Id */
             service_catalog_id: string;
             /** Service Name */
             service_name: string;
-            /** Category Name */
-            category_name: string;
-            /** Candidate Count */
-            candidate_count: number;
-            /** Avg Score */
-            avg_score: number;
-            /** Avg Position */
-            avg_position: number;
-            /** Active Instructors */
-            active_instructors: number;
-            /** Opportunity Score */
-            opportunity_score: number;
         };
         /** CandidateTopServicesResponse */
         CandidateTopServicesResponse: components["schemas"]["CandidateTopService"][];
@@ -5698,23 +5574,27 @@ export interface components {
          * @description Catalog service response.
          */
         CatalogServiceResponse: {
-            /** Id */
-            id: string;
-            /** Category Id */
-            category_id: string;
             /** Category */
             category?: string | null;
-            /** Name */
-            name: string;
-            /** Slug */
-            slug: string;
+            /** Category Id */
+            category_id: string;
             /** Description */
             description?: string | null;
+            /** Id */
+            id: string;
+            /** Max Recommended Price */
+            max_recommended_price?: number | null;
+            /** Min Recommended Price */
+            min_recommended_price?: number | null;
+            /** Name */
+            name: string;
             /**
              * Search Terms
              * @default []
              */
             search_terms: string[];
+            /** Slug */
+            slug: string;
             /**
              * Typical Duration Options
              * @default [
@@ -5722,30 +5602,26 @@ export interface components {
              *     ]
              */
             typical_duration_options: number[];
-            /** Min Recommended Price */
-            min_recommended_price?: number | null;
-            /** Max Recommended Price */
-            max_recommended_price?: number | null;
         };
         /**
          * CategoryResponse
          * @description Service category response.
          */
         CategoryResponse: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /** Subtitle */
-            subtitle?: string | null;
-            /** Slug */
-            slug: string;
             /** Description */
             description?: string | null;
             /** Display Order */
             display_order: number;
             /** Icon Name */
             icon_name?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Subtitle */
+            subtitle?: string | null;
         };
         /** CheckoutApplyRequest */
         CheckoutApplyRequest: {
@@ -5763,21 +5639,6 @@ export interface components {
          */
         CheckoutResponse: {
             /**
-             * Success
-             * @description Whether payment was successful
-             */
-            success: boolean;
-            /**
-             * Payment Intent Id
-             * @description Stripe payment intent ID
-             */
-            payment_intent_id: string;
-            /**
-             * Status
-             * @description Payment status
-             */
-            status: string;
-            /**
              * Amount
              * @description Payment amount in cents
              */
@@ -5793,11 +5654,26 @@ export interface components {
              */
             client_secret?: string | null;
             /**
+             * Payment Intent Id
+             * @description Stripe payment intent ID
+             */
+            payment_intent_id: string;
+            /**
              * Requires Action
              * @description Whether payment requires additional action
              * @default false
              */
             requires_action: boolean;
+            /**
+             * Status
+             * @description Payment status
+             */
+            status: string;
+            /**
+             * Success
+             * @description Whether payment was successful
+             */
+            success: boolean;
         };
         /** CodebaseCategoryStats */
         CodebaseCategoryStats: {
@@ -5808,78 +5684,78 @@ export interface components {
         };
         /** CodebaseFileInfo */
         CodebaseFileInfo: {
-            /** Path */
-            path: string;
             /** Lines */
             lines: number;
             /** Lines With Blanks */
             lines_with_blanks: number;
+            /** Path */
+            path: string;
             /** Size Kb */
             size_kb: number;
         };
         /** CodebaseHistoryEntry */
         CodebaseHistoryEntry: {
-            /**
-             * Timestamp
-             * Format: date-time
-             */
-            timestamp: string;
-            /** Total Lines */
-            total_lines: number;
-            /** Total Files */
-            total_files: number;
             /** Backend Lines */
             backend_lines: number;
-            /** Frontend Lines */
-            frontend_lines: number;
-            /** Git Commits */
-            git_commits: number;
             /** Categories */
             categories?: {
                 [key: string]: {
                     [key: string]: components["schemas"]["CodebaseCategoryStats"];
                 };
             } | null;
-        };
-        /** CodebaseHistoryResponse */
-        CodebaseHistoryResponse: {
-            /** Items */
-            items?: components["schemas"]["CodebaseHistoryEntry"][];
-            current?: components["schemas"]["CodebaseMetricsResponse"] | null;
-        };
-        /** CodebaseMetricsResponse */
-        CodebaseMetricsResponse: {
+            /** Frontend Lines */
+            frontend_lines: number;
+            /** Git Commits */
+            git_commits: number;
             /**
              * Timestamp
              * Format: date-time
              */
             timestamp: string;
+            /** Total Files */
+            total_files: number;
+            /** Total Lines */
+            total_lines: number;
+        };
+        /** CodebaseHistoryResponse */
+        CodebaseHistoryResponse: {
+            current?: components["schemas"]["CodebaseMetricsResponse"] | null;
+            /** Items */
+            items?: components["schemas"]["CodebaseHistoryEntry"][];
+        };
+        /** CodebaseMetricsResponse */
+        CodebaseMetricsResponse: {
             backend: components["schemas"]["CodebaseSection"];
             frontend: components["schemas"]["CodebaseSection"];
             git: components["schemas"]["GitStats"];
             summary: components["schemas"]["CodebaseMetricsSummary"];
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp: string;
         };
         /** CodebaseMetricsSummary */
         CodebaseMetricsSummary: {
-            /** Total Lines */
-            total_lines: number;
             /** Total Files */
             total_files: number;
+            /** Total Lines */
+            total_lines: number;
         };
         /** CodebaseSection */
         CodebaseSection: {
-            /** Total Files */
-            total_files: number;
-            /** Total Lines */
-            total_lines: number;
-            /** Total Lines With Blanks */
-            total_lines_with_blanks: number;
             /** Categories */
             categories?: {
                 [key: string]: components["schemas"]["CodebaseCategoryStats"];
             };
             /** Largest Files */
             largest_files?: components["schemas"]["CodebaseFileInfo"][];
+            /** Total Files */
+            total_files: number;
+            /** Total Lines */
+            total_lines: number;
+            /** Total Lines With Blanks */
+            total_lines_with_blanks: number;
         };
         /**
          * ConversionBehavior
@@ -5892,15 +5768,15 @@ export interface components {
          */
         ConversionBehavior: {
             /**
-             * Avg Searches Before Conversion
-             * @description Average searches before conversion
-             */
-            avg_searches_before_conversion: number;
-            /**
              * Avg Days To Conversion
              * @description Average days to conversion
              */
             avg_days_to_conversion: number;
+            /**
+             * Avg Searches Before Conversion
+             * @description Average searches before conversion
+             */
+            avg_searches_before_conversion: number;
             /**
              * Most Common First Search
              * @description Most common first search query
@@ -5934,14 +5810,14 @@ export interface components {
          *     }
          */
         ConversionMetricsResponse: {
-            /** @description Time period for metrics */
-            period: components["schemas"]["DateRange"];
-            /** @description Guest session conversion metrics */
-            guest_sessions: components["schemas"]["GuestConversionMetrics"];
             /** @description Conversion behavior patterns */
             conversion_behavior: components["schemas"]["ConversionBehavior"];
             /** @description Guest engagement metrics */
             guest_engagement: components["schemas"]["GuestEngagement"];
+            /** @description Guest session conversion metrics */
+            guest_sessions: components["schemas"]["GuestConversionMetrics"];
+            /** @description Time period for metrics */
+            period: components["schemas"]["DateRange"];
         };
         /**
          * CopyWeekRequest
@@ -5981,12 +5857,12 @@ export interface components {
         };
         /** CoverageFeatureCollectionResponse */
         CoverageFeatureCollectionResponse: {
-            /** Type */
-            type: string;
             /** Features */
             features: {
                 [key: string]: unknown;
             }[];
+            /** Type */
+            type: string;
         };
         /**
          * CreateCheckoutRequest
@@ -6013,25 +5889,25 @@ export interface components {
         /** CreateSignedUploadRequest */
         CreateSignedUploadRequest: {
             /**
-             * Filename
-             * @description Original file name, used for extension validation
-             */
-            filename: string;
-            /**
              * Content Type
              * @description Browser-reported MIME type
              */
             content_type: string;
             /**
-             * Size Bytes
-             * @description Max 10MB
+             * Filename
+             * @description Original file name, used for extension validation
              */
-            size_bytes: number;
+            filename: string;
             /**
              * Purpose
              * @enum {string}
              */
             purpose: "background_check" | "profile_picture";
+            /**
+             * Size Bytes
+             * @description Max 10MB
+             */
+            size_bytes: number;
         };
         /**
          * CreditBalanceResponse
@@ -6060,15 +5936,15 @@ export interface components {
          */
         DailyAlertCount: {
             /**
-             * Date
-             * @description Date in YYYY-MM-DD format
-             */
-            date: string;
-            /**
              * Count
              * @description Number of alerts on this date
              */
             count: number;
+            /**
+             * Date
+             * @description Date in YYYY-MM-DD format
+             */
+            date: string;
         };
         /**
          * DailySearchTrend
@@ -6092,15 +5968,15 @@ export interface components {
              */
             total_searches: number;
             /**
-             * Unique Users
-             * @description Unique authenticated users
-             */
-            unique_users: number;
-            /**
              * Unique Guests
              * @description Unique guest sessions
              */
             unique_guests: number;
+            /**
+             * Unique Users
+             * @description Unique authenticated users
+             */
+            unique_users: number;
         };
         /**
          * DashboardLinkResponse
@@ -6125,22 +6001,22 @@ export interface components {
          */
         DataExportResponse: {
             /**
-             * Status
-             * @description Status of the export request
-             */
-            status: string;
-            /**
-             * Message
-             * @description Human-readable message
-             */
-            message: string;
-            /**
              * Data
              * @description The exported user data
              */
             data: {
                 [key: string]: unknown;
             };
+            /**
+             * Message
+             * @description Human-readable message
+             */
+            message: string;
+            /**
+             * Status
+             * @description Status of the export request
+             */
+            status: string;
         };
         /**
          * DatabaseHealthResponse
@@ -6148,10 +6024,10 @@ export interface components {
          */
         DatabaseHealthResponse: {
             /**
-             * Status
-             * @description Health status (healthy/unhealthy)
+             * Error
+             * @description Error message if unhealthy
              */
-            status: string;
+            error?: string | null;
             /**
              * Message
              * @description Health check message
@@ -6165,42 +6041,36 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /**
-             * Error
-             * @description Error message if unhealthy
+             * Status
+             * @description Health status (healthy/unhealthy)
              */
-            error?: string | null;
+            status: string;
         };
         /**
          * DatabasePoolStatusResponse
          * @description Response for database pool status endpoint.
          */
         DatabasePoolStatusResponse: {
-            /** Status */
-            status: string;
-            /** Pool */
-            pool: {
-                [key: string]: unknown;
-            };
             /** Configuration */
             configuration: {
+                [key: string]: unknown;
+            };
+            /** Pool */
+            pool: {
                 [key: string]: unknown;
             };
             /** Recommendations */
             recommendations: {
                 [key: string]: unknown;
             };
+            /** Status */
+            status: string;
         };
         /**
          * DatabaseStatsResponse
          * @description Response for database statistics endpoint.
          */
         DatabaseStatsResponse: {
-            /** Status */
-            status: string;
-            /** Pool */
-            pool: {
-                [key: string]: unknown;
-            };
             /** Configuration */
             configuration: {
                 [key: string]: unknown;
@@ -6209,6 +6079,12 @@ export interface components {
             health: {
                 [key: string]: unknown;
             };
+            /** Pool */
+            pool: {
+                [key: string]: unknown;
+            };
+            /** Status */
+            status: string;
         };
         /**
          * DateRange
@@ -6221,33 +6097,33 @@ export interface components {
          */
         DateRange: {
             /**
-             * Start
-             * @description Start date in ISO format
+             * Days
+             * @description Number of days in range
              */
-            start: string;
+            days: number;
             /**
              * End
              * @description End date in ISO format
              */
             end: string;
             /**
-             * Days
-             * @description Number of days in range
+             * Start
+             * @description Start date in ISO format
              */
-            days: number;
+            start: string;
         };
         /**
          * DeleteBlackoutResponse
          * @description Response for deleting a blackout date.
          */
         DeleteBlackoutResponse: {
+            /** Blackout Id */
+            blackout_id: string;
             /**
              * Message
              * @default Blackout date removed successfully
              */
             message: string;
-            /** Blackout Id */
-            blackout_id: string;
         };
         /**
          * DeleteMessageResponse
@@ -6255,16 +6131,16 @@ export interface components {
          */
         DeleteMessageResponse: {
             /**
-             * Success
-             * @default true
-             */
-            success: boolean;
-            /**
              * Message
              * @description Success message
              * @default Message deleted successfully
              */
             message: string;
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
         };
         /**
          * DeleteWindowResponse
@@ -6285,6 +6161,26 @@ export interface components {
          */
         EarningsResponse: {
             /**
+             * Average Earning
+             * @description Average earning per booking
+             */
+            average_earning?: number | null;
+            /**
+             * Booking Count
+             * @description Number of bookings
+             */
+            booking_count?: number | null;
+            /**
+             * Period End
+             * @description End of period
+             */
+            period_end?: string | null;
+            /**
+             * Period Start
+             * @description Start of period
+             */
+            period_start?: string | null;
+            /**
              * Total Earned
              * @description Total earnings in cents
              */
@@ -6294,26 +6190,6 @@ export interface components {
              * @description Total fees in cents
              */
             total_fees?: number | null;
-            /**
-             * Booking Count
-             * @description Number of bookings
-             */
-            booking_count?: number | null;
-            /**
-             * Average Earning
-             * @description Average earning per booking
-             */
-            average_earning?: number | null;
-            /**
-             * Period Start
-             * @description Start of period
-             */
-            period_start?: string | null;
-            /**
-             * Period End
-             * @description End of period
-             */
-            period_end?: string | null;
         };
         /** EditMessageRequest */
         EditMessageRequest: {
@@ -6332,30 +6208,30 @@ export interface components {
          */
         ExportAnalyticsResponse: {
             /**
-             * Message
-             * @description Status message
+             * Download Url
+             * @description Download URL when ready
              */
-            message: string;
+            download_url?: string | null;
             /**
              * Format
              * @description Export format (csv, xlsx, json)
              */
             format: string;
             /**
-             * User
-             * @description User email who requested export
+             * Message
+             * @description Status message
              */
-            user: string;
+            message: string;
             /**
              * Status
              * @description Export status
              */
             status: string;
             /**
-             * Download Url
-             * @description Download URL when ready
+             * User
+             * @description User email who requested export
              */
-            download_url?: string | null;
+            user: string;
         };
         /**
          * ExtendedCacheStats
@@ -6389,18 +6265,18 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
-             * Redis Info
-             * @description Redis server information
-             */
-            redis_info?: {
-                [key: string]: unknown;
-            } | null;
-            /**
              * Key Patterns
              * @description Cache key pattern counts
              */
             key_patterns?: {
                 [key: string]: number;
+            } | null;
+            /**
+             * Redis Info
+             * @description Redis server information
+             */
+            redis_info?: {
+                [key: string]: unknown;
             } | null;
         };
         /**
@@ -6414,30 +6290,30 @@ export interface components {
          */
         FavoriteResponse: {
             /**
-             * Success
-             * @description Whether the operation was successful
+             * Already Favorited
+             * @description True if already favorited (for add)
              */
-            success: boolean;
-            /**
-             * Message
-             * @description Human-readable message about the operation
-             */
-            message: string;
+            already_favorited?: boolean | null;
             /**
              * Favorite Id
              * @description ID of the created favorite (for add operations)
              */
             favorite_id?: string | null;
             /**
-             * Already Favorited
-             * @description True if already favorited (for add)
+             * Message
+             * @description Human-readable message about the operation
              */
-            already_favorited?: boolean | null;
+            message: string;
             /**
              * Not Favorited
              * @description True if not favorited (for remove)
              */
             not_favorited?: boolean | null;
+            /**
+             * Success
+             * @description Whether the operation was successful
+             */
+            success: boolean;
         };
         /**
          * FavoriteStatusResponse
@@ -6474,20 +6350,31 @@ export interface components {
          */
         FavoritedInstructor: {
             /**
-             * Id
-             * @description Instructor user ID (ULID)
-             */
-            id: string;
-            /**
              * Email
              * @description Instructor email
              */
             email: string;
             /**
+             * Favorited At
+             * @description When this instructor was favorited
+             */
+            favorited_at?: string | null;
+            /**
              * First Name
              * @description Instructor first name
              */
             first_name: string;
+            /**
+             * Id
+             * @description Instructor user ID (ULID)
+             */
+            id: string;
+            /**
+             * Is Active
+             * @description Whether the instructor is active
+             * @default true
+             */
+            is_active: boolean;
             /**
              * Last Name
              * @description Instructor last name
@@ -6495,17 +6382,6 @@ export interface components {
             last_name: string;
             /** @description Instructor profile details */
             profile?: components["schemas"]["InstructorProfileResponse"] | null;
-            /**
-             * Favorited At
-             * @description When this instructor was favorited
-             */
-            favorited_at?: string | null;
-            /**
-             * Is Active
-             * @description Whether the instructor is active
-             * @default true
-             */
-            is_active: boolean;
         };
         /**
          * FavoritesList
@@ -6563,16 +6439,16 @@ export interface components {
         };
         /** GitStats */
         GitStats: {
-            /** Total Commits */
-            total_commits: number;
-            /** Unique Contributors */
-            unique_contributors: number;
+            /** Current Branch */
+            current_branch: string;
             /** First Commit */
             first_commit: string;
             /** Last Commit */
             last_commit: string;
-            /** Current Branch */
-            current_branch: string;
+            /** Total Commits */
+            total_commits: number;
+            /** Unique Contributors */
+            unique_contributors: number;
         };
         /**
          * GuestConversionMetrics
@@ -6585,20 +6461,20 @@ export interface components {
          */
         GuestConversionMetrics: {
             /**
-             * Total
-             * @description Total guest sessions
+             * Conversion Rate
+             * @description Conversion rate percentage
              */
-            total: number;
+            conversion_rate: number;
             /**
              * Converted
              * @description Number of converted sessions
              */
             converted: number;
             /**
-             * Conversion Rate
-             * @description Conversion rate percentage
+             * Total
+             * @description Total guest sessions
              */
-            conversion_rate: number;
+            total: number;
         };
         /**
          * GuestEngagement
@@ -6632,6 +6508,16 @@ export interface components {
          */
         GuestSearchHistoryCreate: {
             /**
+             * Guest Session Id
+             * @description UUID for guest session tracking
+             */
+            guest_session_id: string;
+            /**
+             * Results Count
+             * @description Number of results returned
+             */
+            results_count?: number | null;
+            /**
              * Search Query
              * @description The search query string
              */
@@ -6642,16 +6528,6 @@ export interface components {
              * @default natural_language
              */
             search_type: string;
-            /**
-             * Results Count
-             * @description Number of results returned
-             */
-            results_count?: number | null;
-            /**
-             * Guest Session Id
-             * @description UUID for guest session tracking
-             */
-            guest_session_id: string;
         };
         /** GuestSessionResponse */
         GuestSessionResponse: {
@@ -6680,10 +6556,12 @@ export interface components {
          */
         HealthCheckResponse: {
             /**
-             * Status
-             * @description Service health status
+             * Checks
+             * @description Individual component health checks
              */
-            status: string;
+            checks: {
+                [key: string]: boolean;
+            };
             /**
              * Service
              * @description Service name
@@ -6691,10 +6569,10 @@ export interface components {
              */
             service: string;
             /**
-             * Version
-             * @description API version
+             * Status
+             * @description Service health status
              */
-            version: string;
+            status: string;
             /**
              * Timestamp
              * Format: date-time
@@ -6702,54 +6580,10 @@ export interface components {
              */
             timestamp?: string;
             /**
-             * Checks
-             * @description Individual component health checks
-             */
-            checks: {
-                [key: string]: boolean;
-            };
-        };
-        /**
-         * HealthLiteResponse
-         * @description Response for lightweight health check endpoint.
-         */
-        HealthLiteResponse: {
-            /**
-             * Status
-             * @description Health status (ok/error)
-             */
-            status: string;
-        };
-        /**
-         * HealthResponse
-         * @description Response for health check endpoint.
-         */
-        HealthResponse: {
-            /**
-             * Status
-             * @description Health status
-             */
-            status: string;
-            /**
-             * Service
-             * @description Service name
-             */
-            service: string;
-            /**
              * Version
              * @description API version
              */
             version: string;
-            /**
-             * Environment
-             * @description Environment name
-             */
-            environment: string;
-            /**
-             * Timestamp
-             * @description UTC ISO8601Z timestamp of the health response
-             */
-            timestamp: string;
         };
         /** IdentityRefreshResponse */
         IdentityRefreshResponse: {
@@ -6760,10 +6594,10 @@ export interface components {
         };
         /** IdentitySessionResponse */
         IdentitySessionResponse: {
-            /** Verification Session Id */
-            verification_session_id: string;
             /** Client Secret */
             client_secret: string;
+            /** Verification Session Id */
+            verification_session_id: string;
         };
         /** InstantPayoutResponse */
         InstantPayoutResponse: {
@@ -6787,10 +6621,11 @@ export interface components {
              */
             bio: string;
             /**
-             * Years Experience
-             * @description Years of teaching experience
+             * Buffer Time Minutes
+             * @description Buffer time between bookings
+             * @default 0
              */
-            years_experience: number;
+            buffer_time_minutes: number;
             /**
              * Min Advance Booking Hours
              * @description Minimum hours in advance for bookings
@@ -6798,16 +6633,15 @@ export interface components {
              */
             min_advance_booking_hours: number;
             /**
-             * Buffer Time Minutes
-             * @description Buffer time between bookings
-             * @default 0
-             */
-            buffer_time_minutes: number;
-            /**
              * Services
              * @description Services offered by the instructor
              */
             services: components["schemas"]["ServiceCreate"][];
+            /**
+             * Years Experience
+             * @description Years of teaching experience
+             */
+            years_experience: number;
         };
         /**
          * InstructorProfileResponse
@@ -6817,84 +6651,84 @@ export interface components {
          *     Student-facing endpoints will show only instructor last initial.
          */
         InstructorProfileResponse: {
+            /** Background Check Object Key */
+            background_check_object_key?: string | null;
+            /** Background Check Uploaded At */
+            background_check_uploaded_at?: string | null;
             /**
              * Bio
              * @description Instructor biography/description
              */
             bio: string;
             /**
-             * Years Experience
-             * @description Years of teaching experience
-             */
-            years_experience: number;
-            /**
-             * Min Advance Booking Hours
-             * @description Minimum hours in advance for bookings
-             * @default 2
-             */
-            min_advance_booking_hours: number;
-            /**
              * Buffer Time Minutes
              * @description Buffer time between bookings
              * @default 0
              */
             buffer_time_minutes: number;
-            /** Id */
-            id: string;
-            /** User Id */
-            user_id: string;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
-            /** Updated At */
-            updated_at?: string | null;
-            user: components["schemas"]["UserBasicPrivacy"];
-            /** Services */
-            services: components["schemas"]["ServiceResponse"][];
-            /**
-             * Is Favorited
-             * @description Whether the current user has favorited this instructor
-             */
-            is_favorited?: boolean | null;
             /**
              * Favorited Count
              * @description Number of students who favorited this instructor
              * @default 0
              */
             favorited_count: number;
+            /** Id */
+            id: string;
+            /** Identity Verification Session Id */
+            identity_verification_session_id?: string | null;
+            /** Identity Verified At */
+            identity_verified_at?: string | null;
+            /**
+             * Is Favorited
+             * @description Whether the current user has favorited this instructor
+             */
+            is_favorited?: boolean | null;
+            /**
+             * Is Live
+             * @default false
+             */
+            is_live: boolean;
+            /**
+             * Min Advance Booking Hours
+             * @description Minimum hours in advance for bookings
+             * @default 2
+             */
+            min_advance_booking_hours: number;
+            /** Onboarding Completed At */
+            onboarding_completed_at?: string | null;
+            /** Preferred Public Spaces */
+            preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceOut"][];
+            /** Preferred Teaching Locations */
+            preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationOut"][];
+            /** Service Area Boroughs */
+            service_area_boroughs?: string[];
+            /** Service Area Neighborhoods */
+            service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][];
+            /** Service Area Summary */
+            service_area_summary?: string | null;
+            /** Services */
+            services: components["schemas"]["ServiceResponse"][];
             /**
              * Skills Configured
              * @description Whether skills/pricing were configured at least once
              * @default false
              */
             skills_configured: boolean;
-            /** Identity Verified At */
-            identity_verified_at?: string | null;
-            /** Identity Verification Session Id */
-            identity_verification_session_id?: string | null;
-            /** Background Check Object Key */
-            background_check_object_key?: string | null;
-            /** Background Check Uploaded At */
-            background_check_uploaded_at?: string | null;
-            /** Onboarding Completed At */
-            onboarding_completed_at?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+            user: components["schemas"]["UserBasicPrivacy"];
+            /** User Id */
+            user_id: string;
             /**
-             * Is Live
-             * @default false
+             * Years Experience
+             * @description Years of teaching experience
              */
-            is_live: boolean;
-            /** Preferred Teaching Locations */
-            preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationOut"][];
-            /** Preferred Public Spaces */
-            preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceOut"][];
-            /** Service Area Neighborhoods */
-            service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][];
-            /** Service Area Boroughs */
-            service_area_boroughs?: string[];
-            /** Service Area Summary */
-            service_area_summary?: string | null;
+            years_experience: number;
         };
         /**
          * InstructorProfileUpdate
@@ -6905,48 +6739,43 @@ export interface components {
         InstructorProfileUpdate: {
             /** Bio */
             bio?: string | null;
-            /** Years Experience */
-            years_experience?: number | null;
-            /** Services */
-            services?: components["schemas"]["ServiceCreate"][] | null;
-            /**
-             * Min Advance Booking Hours
-             * @description Minimum hours in advance for bookings
-             */
-            min_advance_booking_hours?: number | null;
             /**
              * Buffer Time Minutes
              * @description Buffer time between bookings
              */
             buffer_time_minutes?: number | null;
-            /** Preferred Teaching Locations */
-            preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationIn"][] | null;
+            /**
+             * Min Advance Booking Hours
+             * @description Minimum hours in advance for bookings
+             */
+            min_advance_booking_hours?: number | null;
             /** Preferred Public Spaces */
             preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceIn"][] | null;
+            /** Preferred Teaching Locations */
+            preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationIn"][] | null;
+            /** Services */
+            services?: components["schemas"]["ServiceCreate"][] | null;
+            /** Years Experience */
+            years_experience?: number | null;
         };
         /** InstructorRatingsResponse */
         InstructorRatingsResponse: {
-            /** Overall */
-            overall: {
-                [key: string]: unknown;
-            };
             /** By Service */
             by_service?: {
                 [key: string]: unknown;
             }[];
             /** Confidence Level */
             confidence_level: string;
+            /** Overall */
+            overall: {
+                [key: string]: unknown;
+            };
         };
         /**
          * InstructorSearchResponse
          * @description Response for instructor search endpoint.
          */
         InstructorSearchResponse: {
-            /**
-             * Query
-             * @description Original search query
-             */
-            query: string;
             /**
              * Parsed
              * @description Parsed query information
@@ -6955,17 +6784,22 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
+             * Query
+             * @description Original search query
+             */
+            query: string;
+            /**
              * Results
              * @description Search results
              */
             results: components["schemas"]["SearchResult"][];
+            /** @description Search metadata */
+            search_metadata: components["schemas"]["SearchMetadata"];
             /**
              * Total Found
              * @description Total number of results found
              */
             total_found: number;
-            /** @description Search metadata */
-            search_metadata: components["schemas"]["SearchMetadata"];
         };
         /**
          * InstructorServiceCreate
@@ -6988,11 +6822,6 @@ export interface components {
              */
             catalog_service_id: string;
             /**
-             * Hourly Rate
-             * @description Hourly rate for this service
-             */
-            hourly_rate: number;
-            /**
              * Custom Description
              * @description Custom description (optional)
              */
@@ -7002,22 +6831,23 @@ export interface components {
              * @description Custom duration options in minutes (uses catalog defaults if not provided)
              */
             duration_options?: number[] | null;
+            /**
+             * Hourly Rate
+             * @description Hourly rate for this service
+             */
+            hourly_rate: number;
         };
         /**
          * InstructorServiceResponse
          * @description Instructor service response with catalog info.
          */
         InstructorServiceResponse: {
-            /** Id */
-            id: string;
             /** Catalog Service Id */
             catalog_service_id: string;
-            /** Name */
-            name: string;
             /** Category */
             category: string;
-            /** Hourly Rate */
-            hourly_rate: number;
+            /** Created At */
+            created_at?: string | null;
             /** Description */
             description?: string | null;
             /**
@@ -7027,13 +6857,17 @@ export interface components {
              *     ]
              */
             duration_options: number[];
+            /** Hourly Rate */
+            hourly_rate: number;
+            /** Id */
+            id: string;
             /**
              * Is Active
              * @default true
              */
             is_active: boolean;
-            /** Created At */
-            created_at?: string | null;
+            /** Name */
+            name: string;
             /** Updated At */
             updated_at?: string | null;
         };
@@ -7044,22 +6878,22 @@ export interface components {
         };
         /** InviteBatchProgressResponse */
         InviteBatchProgressResponse: {
-            /** Task Id */
-            task_id: string;
-            /** State */
-            state: string;
             /** Current */
             current: number;
-            /** Total */
-            total: number;
-            /** Sent */
-            sent: number;
             /** Failed */
             failed: number;
-            /** Sent Items */
-            sent_items?: components["schemas"]["InviteSendResponse"][] | null;
             /** Failed Items */
             failed_items?: components["schemas"]["InviteBatchSendFailure"][] | null;
+            /** Sent */
+            sent: number;
+            /** Sent Items */
+            sent_items?: components["schemas"]["InviteSendResponse"][] | null;
+            /** State */
+            state: string;
+            /** Task Id */
+            task_id: string;
+            /** Total */
+            total: number;
         };
         /** InviteBatchSendFailure */
         InviteBatchSendFailure: {
@@ -7073,46 +6907,46 @@ export interface components {
         };
         /** InviteBatchSendRequest */
         InviteBatchSendRequest: {
+            /** Base Url */
+            base_url?: string | null;
             /** Emails */
             emails?: string[];
-            /**
-             * Role
-             * @default instructor_beta
-             */
-            role: string;
             /**
              * Expires In Days
              * @default 14
              */
             expires_in_days: number;
-            /** Source */
-            source?: string | null;
-            /** Base Url */
-            base_url?: string | null;
-        };
-        /** InviteBatchSendResponse */
-        InviteBatchSendResponse: {
-            /** Sent */
-            sent: components["schemas"]["InviteSendResponse"][];
-            /** Failed */
-            failed: components["schemas"]["InviteBatchSendFailure"][];
-        };
-        /** InviteConsumeRequest */
-        InviteConsumeRequest: {
-            /** Code */
-            code: string;
-            /** User Id */
-            user_id: string;
             /**
              * Role
              * @default instructor_beta
              */
             role: string;
+            /** Source */
+            source?: string | null;
+        };
+        /** InviteBatchSendResponse */
+        InviteBatchSendResponse: {
+            /** Failed */
+            failed: components["schemas"]["InviteBatchSendFailure"][];
+            /** Sent */
+            sent: components["schemas"]["InviteSendResponse"][];
+        };
+        /** InviteConsumeRequest */
+        InviteConsumeRequest: {
+            /** Code */
+            code: string;
             /**
              * Phase
              * @default instructor_only
              */
             phase: string;
+            /**
+             * Role
+             * @default instructor_beta
+             */
+            role: string;
+            /** User Id */
+            user_id: string;
         };
         /** InviteGenerateRequest */
         InviteGenerateRequest: {
@@ -7121,20 +6955,20 @@ export interface components {
              * @default 1
              */
             count: number;
-            /**
-             * Role
-             * @default instructor_beta
-             */
-            role: string;
+            /** Emails */
+            emails?: string[] | null;
             /**
              * Expires In Days
              * @default 30
              */
             expires_in_days: number;
+            /**
+             * Role
+             * @default instructor_beta
+             */
+            role: string;
             /** Source */
             source?: string | null;
-            /** Emails */
-            emails?: string[] | null;
         };
         /** InviteGenerateResponse */
         InviteGenerateResponse: {
@@ -7143,46 +6977,44 @@ export interface components {
         };
         /** InviteRecord */
         InviteRecord: {
-            /** Id */
-            id: string;
             /** Code */
             code: string;
             /** Email */
             email?: string | null;
-            /** Role */
-            role: string;
             /**
              * Expires At
              * Format: date-time
              */
             expires_at: string;
+            /** Id */
+            id: string;
+            /** Role */
+            role: string;
         };
         /** InviteSendRequest */
         InviteSendRequest: {
-            /**
-             * To Email
-             * Format: email
-             */
-            to_email: string;
-            /**
-             * Role
-             * @default instructor_beta
-             */
-            role: string;
+            /** Base Url */
+            base_url?: string | null;
             /**
              * Expires In Days
              * @default 14
              */
             expires_in_days: number;
+            /**
+             * Role
+             * @default instructor_beta
+             */
+            role: string;
             /** Source */
             source?: string | null;
-            /** Base Url */
-            base_url?: string | null;
+            /**
+             * To Email
+             * Format: email
+             */
+            to_email: string;
         };
         /** InviteSendResponse */
         InviteSendResponse: {
-            /** Id */
-            id: string;
             /** Code */
             code: string;
             /**
@@ -7190,6 +7022,8 @@ export interface components {
              * Format: email
              */
             email: string;
+            /** Id */
+            id: string;
             /** Join Url */
             join_url: string;
             /** Welcome Url */
@@ -7197,20 +7031,20 @@ export interface components {
         };
         /** InviteValidateResponse */
         InviteValidateResponse: {
-            /** Valid */
-            valid: boolean;
-            /** Reason */
-            reason?: string | null;
             /** Code */
             code?: string | null;
             /** Email */
             email?: string | null;
-            /** Role */
-            role?: string | null;
             /** Expires At */
             expires_at?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Role */
+            role?: string | null;
             /** Used At */
             used_at?: string | null;
+            /** Valid */
+            valid: boolean;
         };
         /**
          * LiveAlertItem
@@ -7218,25 +7052,25 @@ export interface components {
          */
         LiveAlertItem: {
             /**
-             * Time
-             * @description Time in HH:MM:SS format
+             * Message
+             * @description Alert message (truncated if long)
              */
-            time: string;
+            message: string;
             /**
              * Severity
              * @description Alert severity (uppercase)
              */
             severity: string;
             /**
+             * Time
+             * @description Time in HH:MM:SS format
+             */
+            time: string;
+            /**
              * Type
              * @description Alert type
              */
             type: string;
-            /**
-             * Message
-             * @description Alert message (truncated if long)
-             */
-            message: string;
         };
         /**
          * LiveAlertsResponse
@@ -7244,27 +7078,25 @@ export interface components {
          */
         LiveAlertsResponse: {
             /**
-             * Minutes
-             * @description Number of minutes included
+             * Alerts
+             * @description List of recent alerts
              */
-            minutes: number;
+            alerts: components["schemas"]["LiveAlertItem"][];
             /**
              * Count
              * @description Number of alerts in the time period
              */
             count: number;
             /**
-             * Alerts
-             * @description List of recent alerts
+             * Minutes
+             * @description Number of minutes included
              */
-            alerts: components["schemas"]["LiveAlertItem"][];
+            minutes: number;
         };
         /** LoginResponse */
         LoginResponse: {
             /** Access Token */
             access_token?: string | null;
-            /** Token Type */
-            token_type?: string | null;
             /**
              * Requires 2Fa
              * @default false
@@ -7272,6 +7104,8 @@ export interface components {
             requires_2fa: boolean;
             /** Temp Token */
             temp_token?: string | null;
+            /** Token Type */
+            token_type?: string | null;
         };
         /**
          * MarkMessagesReadRequest
@@ -7295,15 +7129,15 @@ export interface components {
          */
         MarkMessagesReadResponse: {
             /**
-             * Success
-             * @default true
-             */
-            success: boolean;
-            /**
              * Messages Marked
              * @description Number of messages marked as read
              */
             messages_marked: number;
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
         };
         /**
          * MemoryMetrics
@@ -7316,20 +7150,20 @@ export interface components {
          */
         MemoryMetrics: {
             /**
-             * Used Mb
-             * @description Used memory in MB
+             * Percent
+             * @description Memory usage percentage
              */
-            used_mb: number;
+            percent: number;
             /**
              * Total Mb
              * @description Total memory in MB
              */
             total_mb: number;
             /**
-             * Percent
-             * @description Memory usage percentage
+             * Used Mb
+             * @description Used memory in MB
              */
-            percent: number;
+            used_mb: number;
         };
         /**
          * MessageConfigResponse
@@ -7344,12 +7178,8 @@ export interface components {
          * @description Response schema for a single message.
          */
         MessageResponse: {
-            /** Id */
-            id: string;
             /** Booking Id */
             booking_id: string;
-            /** Sender Id */
-            sender_id: string;
             /** Content */
             content: string;
             /**
@@ -7357,45 +7187,49 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
+            /** Delivered At */
+            delivered_at?: string | null;
+            /** Edited At */
+            edited_at?: string | null;
+            /** Id */
+            id: string;
             /**
              * Is Deleted
              * @default false
              */
             is_deleted: boolean;
-            /** Delivered At */
-            delivered_at?: string | null;
-            /** Edited At */
-            edited_at?: string | null;
-            /** Read By */
-            read_by?: {
-                [key: string]: unknown;
-            }[] | null;
+            /** My Reactions */
+            my_reactions?: string[] | null;
             /** Reactions */
             reactions?: {
                 [key: string]: unknown;
             } | null;
-            /** My Reactions */
-            my_reactions?: string[] | null;
+            /** Read By */
+            read_by?: {
+                [key: string]: unknown;
+            }[] | null;
             sender?: components["schemas"]["MessageSenderResponse"] | null;
+            /** Sender Id */
+            sender_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * MessageSenderResponse
          * @description Response schema for message sender info.
          */
         MessageSenderResponse: {
-            /** Id */
-            id: string;
-            /** First Name */
-            first_name: string;
-            /** Last Name */
-            last_name: string;
             /** Email */
             email: string;
+            /** First Name */
+            first_name: string;
+            /** Id */
+            id: string;
+            /** Last Name */
+            last_name: string;
         };
         /**
          * MessagesHistoryResponse
@@ -7404,14 +7238,14 @@ export interface components {
         MessagesHistoryResponse: {
             /** Booking Id */
             booking_id: string;
-            /** Messages */
-            messages: components["schemas"]["MessageResponse"][];
-            /** Limit */
-            limit: number;
-            /** Offset */
-            offset: number;
             /** Has More */
             has_more: boolean;
+            /** Limit */
+            limit: number;
+            /** Messages */
+            messages: components["schemas"]["MessageResponse"][];
+            /** Offset */
+            offset: number;
         };
         /**
          * MonitoringDashboardResponse
@@ -7455,6 +7289,29 @@ export interface components {
          */
         MonitoringDashboardResponse: {
             /**
+             * Alerts
+             * @description Active system alerts
+             */
+            alerts: components["schemas"]["AlertInfo"][];
+            /** @description Cache health status */
+            cache: components["schemas"]["CacheHealthStatus"];
+            /**
+             * Database
+             * @description Database metrics and pool status
+             */
+            database: {
+                [key: string]: unknown;
+            };
+            /** @description System memory metrics */
+            memory: components["schemas"]["MemoryMetrics"];
+            /**
+             * Recommendations
+             * @description Performance recommendations
+             */
+            recommendations: components["schemas"]["PerformanceRecommendation"][];
+            /** @description Request processing metrics */
+            requests: components["schemas"]["RequestMetrics"];
+            /**
              * Status
              * @description Overall system status
              */
@@ -7465,58 +7322,35 @@ export interface components {
              * @description Dashboard snapshot timestamp
              */
             timestamp: string;
-            /**
-             * Database
-             * @description Database metrics and pool status
-             */
-            database: {
-                [key: string]: unknown;
-            };
-            /** @description Cache health status */
-            cache: components["schemas"]["CacheHealthStatus"];
-            /** @description Request processing metrics */
-            requests: components["schemas"]["RequestMetrics"];
-            /** @description System memory metrics */
-            memory: components["schemas"]["MemoryMetrics"];
-            /**
-             * Alerts
-             * @description Active system alerts
-             */
-            alerts: components["schemas"]["AlertInfo"][];
-            /**
-             * Recommendations
-             * @description Performance recommendations
-             */
-            recommendations: components["schemas"]["PerformanceRecommendation"][];
         };
         /** NYCZipCheckResponse */
         NYCZipCheckResponse: {
-            /** Is Nyc */
-            is_nyc: boolean;
             /** Borough */
             borough?: string | null;
+            /** Is Nyc */
+            is_nyc: boolean;
         };
         /** NeighborhoodItem */
         NeighborhoodItem: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
             /** Borough */
             borough?: string | null;
             /** Code */
             code?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
         };
         /** NeighborhoodsListResponse */
         NeighborhoodsListResponse: {
             /** Items */
             items: components["schemas"]["NeighborhoodItem"][];
-            /** Total */
-            total: number;
             /** Page */
             page?: number | null;
             /** Per Page */
             per_page?: number | null;
+            /** Total */
+            total: number;
         };
         /**
          * NextAvailableSlotResponse
@@ -7534,33 +7368,33 @@ export interface components {
          *     }
          */
         NextAvailableSlotResponse: {
-            /** Found */
-            found: boolean;
             /**
              * Date
              * @description Date of the next available slot (YYYY-MM-DD)
              */
             date?: string | null;
             /**
-             * Start Time
-             * @description Start time (HH:MM:SS)
-             */
-            start_time?: string | null;
-            /**
-             * End Time
-             * @description End time (HH:MM:SS)
-             */
-            end_time?: string | null;
-            /**
              * Duration Minutes
              * @description Duration in minutes
              */
             duration_minutes?: number | null;
             /**
+             * End Time
+             * @description End time (HH:MM:SS)
+             */
+            end_time?: string | null;
+            /** Found */
+            found: boolean;
+            /**
              * Message
              * @description Message when no slot is found
              */
             message?: string | null;
+            /**
+             * Start Time
+             * @description Start time (HH:MM:SS)
+             */
+            start_time?: string | null;
         };
         /**
          * OnboardingResponse
@@ -7573,21 +7407,32 @@ export interface components {
              */
             account_id: string;
             /**
-             * Onboarding Url
-             * @description URL for onboarding flow
-             */
-            onboarding_url: string;
-            /**
              * Already Onboarded
              * @description Whether onboarding was already completed
              */
             already_onboarded: boolean;
+            /**
+             * Onboarding Url
+             * @description URL for onboarding flow
+             */
+            onboarding_url: string;
         };
         /**
          * OnboardingStatusResponse
          * @description Response for onboarding status check.
          */
         OnboardingStatusResponse: {
+            /**
+             * Charges Enabled
+             * @description Whether account can accept payments
+             */
+            charges_enabled: boolean;
+            /**
+             * Details Submitted
+             * @description Whether required details are submitted
+             * @default false
+             */
+            details_submitted: boolean;
             /**
              * Has Account
              * @description Whether instructor has a connected account
@@ -7599,22 +7444,11 @@ export interface components {
              */
             onboarding_completed: boolean;
             /**
-             * Charges Enabled
-             * @description Whether account can accept payments
-             */
-            charges_enabled: boolean;
-            /**
              * Payouts Enabled
              * @description Whether account can receive payouts
              * @default false
              */
             payouts_enabled: boolean;
-            /**
-             * Details Submitted
-             * @description Whether required details are submitted
-             * @default false
-             */
-            details_submitted: boolean;
             /**
              * Requirements
              * @description Outstanding requirements
@@ -7626,19 +7460,19 @@ export interface components {
          * @description Result of a single operation in bulk update.
          */
         OperationResult: {
-            /** Operation Index */
-            operation_index: number;
             /** Action */
             action: string;
+            /** Operation Index */
+            operation_index: number;
+            /** Reason */
+            reason?: string | null;
+            /** Slot Id */
+            slot_id?: string | null;
             /**
              * Status
              * @enum {string}
              */
             status: "success" | "failed" | "skipped";
-            /** Reason */
-            reason?: string | null;
-            /** Slot Id */
-            slot_id?: string | null;
         };
         /**
          * PaginatedResponse[BookingResponse]
@@ -7655,15 +7489,20 @@ export interface components {
          */
         PaginatedResponse_BookingResponse_: {
             /**
+             * Has Next
+             * @description Whether there's a next page
+             */
+            has_next: boolean;
+            /**
+             * Has Prev
+             * @description Whether there's a previous page
+             */
+            has_prev: boolean;
+            /**
              * Items
              * @description List of items
              */
             items: components["schemas"]["BookingResponse"][];
-            /**
-             * Total
-             * @description Total number of items
-             */
-            total: number;
             /**
              * Page
              * @description Current page number
@@ -7677,15 +7516,10 @@ export interface components {
              */
             per_page: number;
             /**
-             * Has Next
-             * @description Whether there's a next page
+             * Total
+             * @description Total number of items
              */
-            has_next: boolean;
-            /**
-             * Has Prev
-             * @description Whether there's a previous page
-             */
-            has_prev: boolean;
+            total: number;
         };
         /**
          * PaginatedResponse[InstructorProfileResponse]
@@ -7702,15 +7536,20 @@ export interface components {
          */
         PaginatedResponse_InstructorProfileResponse_: {
             /**
+             * Has Next
+             * @description Whether there's a next page
+             */
+            has_next: boolean;
+            /**
+             * Has Prev
+             * @description Whether there's a previous page
+             */
+            has_prev: boolean;
+            /**
              * Items
              * @description List of items
              */
             items: components["schemas"]["InstructorProfileResponse"][];
-            /**
-             * Total
-             * @description Total number of items
-             */
-            total: number;
             /**
              * Page
              * @description Current page number
@@ -7724,15 +7563,10 @@ export interface components {
              */
             per_page: number;
             /**
-             * Has Next
-             * @description Whether there's a next page
+             * Total
+             * @description Total number of items
              */
-            has_next: boolean;
-            /**
-             * Has Prev
-             * @description Whether there's a previous page
-             */
-            has_prev: boolean;
+            total: number;
         };
         /**
          * PaginatedResponse[UpcomingBookingResponse]
@@ -7749,15 +7583,20 @@ export interface components {
          */
         PaginatedResponse_UpcomingBookingResponse_: {
             /**
+             * Has Next
+             * @description Whether there's a next page
+             */
+            has_next: boolean;
+            /**
+             * Has Prev
+             * @description Whether there's a previous page
+             */
+            has_prev: boolean;
+            /**
              * Items
              * @description List of items
              */
             items: components["schemas"]["UpcomingBookingResponse"][];
-            /**
-             * Total
-             * @description Total number of items
-             */
-            total: number;
             /**
              * Page
              * @description Current page number
@@ -7771,15 +7610,10 @@ export interface components {
              */
             per_page: number;
             /**
-             * Has Next
-             * @description Whether there's a next page
+             * Total
+             * @description Total number of items
              */
-            has_next: boolean;
-            /**
-             * Has Prev
-             * @description Whether there's a previous page
-             */
-            has_prev: boolean;
+            total: number;
         };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {
@@ -7795,10 +7629,10 @@ export interface components {
         };
         /** PasswordResetConfirm */
         PasswordResetConfirm: {
-            /** Token */
-            token: string;
             /** New Password */
             new_password: string;
+            /** Token */
+            token: string;
         };
         /** PasswordResetRequest */
         PasswordResetRequest: {
@@ -7832,13 +7666,13 @@ export interface components {
          * @description Response for valid password reset token
          */
         PasswordResetVerifyResponseValid: {
+            /** Email */
+            email: string;
             /**
              * Valid
              * @default true
              */
             valid: boolean;
-            /** Email */
-            email: string;
         };
         /**
          * PaymentHealthCheckTriggerResponse
@@ -7852,6 +7686,11 @@ export interface components {
          */
         PaymentHealthCheckTriggerResponse: {
             /**
+             * Message
+             * @description Status message
+             */
+            message: string;
+            /**
              * Status
              * @description Trigger status
              */
@@ -7861,11 +7700,6 @@ export interface components {
              * @description Celery task ID
              */
             task_id: string;
-            /**
-             * Message
-             * @description Status message
-             */
-            message: string;
             /**
              * Timestamp
              * @description Trigger timestamp
@@ -7905,15 +7739,27 @@ export interface components {
          */
         PaymentHealthResponse: {
             /**
-             * Status
-             * @description Payment system health status (healthy/warning/critical)
+             * Alerts
+             * @description Current payment system alerts
              */
-            status: string;
+            alerts: string[];
             /**
-             * Timestamp
-             * @description Health check timestamp
+             * Metrics
+             * @description Payment metrics breakdown
              */
-            timestamp: string;
+            metrics: {
+                [key: string]: number;
+            };
+            /**
+             * Minutes Since Last Auth
+             * @description Minutes since last successful auth
+             */
+            minutes_since_last_auth?: number | null;
+            /**
+             * Overdue Authorizations
+             * @description Number of overdue authorizations
+             */
+            overdue_authorizations: number;
             /**
              * Payment Stats
              * @description Payment status counts
@@ -7929,27 +7775,15 @@ export interface components {
                 [key: string]: number;
             };
             /**
-             * Overdue Authorizations
-             * @description Number of overdue authorizations
+             * Status
+             * @description Payment system health status (healthy/warning/critical)
              */
-            overdue_authorizations: number;
+            status: string;
             /**
-             * Minutes Since Last Auth
-             * @description Minutes since last successful auth
+             * Timestamp
+             * @description Health check timestamp
              */
-            minutes_since_last_auth?: number | null;
-            /**
-             * Alerts
-             * @description Current payment system alerts
-             */
-            alerts: string[];
-            /**
-             * Metrics
-             * @description Payment metrics breakdown
-             */
-            metrics: {
-                [key: string]: number;
-            };
+            timestamp: string;
         };
         /**
          * PaymentMethodResponse
@@ -7957,38 +7791,38 @@ export interface components {
          */
         PaymentMethodResponse: {
             /**
-             * Id
-             * @description Payment method ID
-             */
-            id: string;
-            /**
-             * Last4
-             * @description Last 4 digits of card
-             */
-            last4: string;
-            /**
              * Brand
              * @description Card brand (visa, mastercard, etc.)
              */
             brand: string;
-            /**
-             * Is Default
-             * @description Whether this is the default payment method
-             */
-            is_default: boolean;
             /**
              * Created At
              * Format: date-time
              * @description When the payment method was added
              */
             created_at: string;
+            /**
+             * Id
+             * @description Payment method ID
+             */
+            id: string;
+            /**
+             * Is Default
+             * @description Whether this is the default payment method
+             */
+            is_default: boolean;
+            /**
+             * Last4
+             * @description Last 4 digits of card
+             */
+            last4: string;
         };
         /** PayoutScheduleResponse */
         PayoutScheduleResponse: {
-            /** Ok */
-            ok: boolean;
             /** Account Id */
             account_id?: string | null;
+            /** Ok */
+            ok: boolean;
             /** Settings */
             settings?: {
                 [key: string]: unknown;
@@ -8010,15 +7844,15 @@ export interface components {
              */
             avg_results_per_search: number;
             /**
-             * Zero Result Rate
-             * @description Percentage of searches with zero results
-             */
-            zero_result_rate: number;
-            /**
              * Most Effective Type
              * @description Most effective search type
              */
             most_effective_type: string;
+            /**
+             * Zero Result Rate
+             * @description Percentage of searches with zero results
+             */
+            zero_result_rate: number;
         };
         /**
          * PerformanceMetricsResponse
@@ -8072,13 +7906,20 @@ export interface components {
             availability_service: components["schemas"]["ServiceMetrics"];
             /** @description Booking service metrics */
             booking_service: components["schemas"]["ServiceMetrics"];
-            /** @description Conflict checker metrics */
-            conflict_checker: components["schemas"]["ServiceMetrics"];
             /**
              * Cache
              * @description Cache statistics
              */
             cache: {
+                [key: string]: unknown;
+            };
+            /** @description Conflict checker metrics */
+            conflict_checker: components["schemas"]["ServiceMetrics"];
+            /**
+             * Database
+             * @description Database connection metrics
+             */
+            database: {
                 [key: string]: unknown;
             };
             /**
@@ -8087,13 +7928,6 @@ export interface components {
              */
             system: {
                 [key: string]: number;
-            };
-            /**
-             * Database
-             * @description Database connection metrics
-             */
-            database: {
-                [key: string]: unknown;
             };
         };
         /**
@@ -8108,57 +7942,57 @@ export interface components {
          */
         PerformanceRecommendation: {
             /**
-             * Type
-             * @description Recommendation type (database/cache/memory/requests)
+             * Action
+             * @description Suggested action
              */
-            type: string;
-            /**
-             * Severity
-             * @description Severity level (info/warning)
-             */
-            severity: string;
+            action: string;
             /**
              * Message
              * @description Recommendation message
              */
             message: string;
             /**
-             * Action
-             * @description Suggested action
+             * Severity
+             * @description Severity level (info/warning)
              */
-            action: string;
+            severity: string;
+            /**
+             * Type
+             * @description Recommendation type (database/cache/memory/requests)
+             */
+            type: string;
         };
         /** PlaceDetails */
         PlaceDetails: {
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
             /** Formatted Address */
             formatted_address: string;
             /** Latitude */
             latitude: number;
             /** Longitude */
             longitude: number;
-            /** Street Number */
-            street_number?: string | null;
-            /** Street Name */
-            street_name?: string | null;
-            /** City */
-            city?: string | null;
-            /** State */
-            state?: string | null;
             /** Postal Code */
             postal_code?: string | null;
-            /** Country */
-            country?: string | null;
             /** Provider Id */
             provider_id: string;
+            /** State */
+            state?: string | null;
+            /** Street Name */
+            street_name?: string | null;
+            /** Street Number */
+            street_number?: string | null;
         };
         /** PlaceSuggestion */
         PlaceSuggestion: {
-            /** Text */
-            text: string;
-            /** Place Id */
-            place_id: string;
             /** Description */
             description: string;
+            /** Place Id */
+            place_id: string;
+            /** Text */
+            text: string;
             /**
              * Types
              * @default []
@@ -8177,6 +8011,11 @@ export interface components {
          */
         PopularSearch: {
             /**
+             * Average Results
+             * @description Average number of results returned
+             */
+            average_results: number;
+            /**
              * Query
              * @description Search query text
              */
@@ -8191,11 +8030,6 @@ export interface components {
              * @description Number of unique users who searched
              */
             unique_users: number;
-            /**
-             * Average Results
-             * @description Average number of results returned
-             */
-            average_results: number;
         };
         /**
          * PopularSearchesResponse
@@ -8252,17 +8086,17 @@ export interface components {
          */
         PrivacyStatisticsResponse: {
             /**
-             * Status
-             * @description Status of the request
-             */
-            status: string;
-            /**
              * Statistics
              * @description Privacy and retention statistics
              */
             statistics: {
                 [key: string]: unknown;
             };
+            /**
+             * Status
+             * @description Status of the request
+             */
+            status: string;
         };
         /**
          * ProblematicQuery
@@ -8275,20 +8109,20 @@ export interface components {
          */
         ProblematicQuery: {
             /**
-             * Query
-             * @description Search query text
+             * Avg Results
+             * @description Average results returned
              */
-            query: string;
+            avg_results: number;
             /**
              * Count
              * @description Number of times searched
              */
             count: number;
             /**
-             * Avg Results
-             * @description Average results returned
+             * Query
+             * @description Search query text
              */
-            avg_results: number;
+            query: string;
         };
         /** ProxyUploadResponse */
         ProxyUploadResponse: {
@@ -8317,15 +8151,15 @@ export interface components {
          */
         PublicDayAvailability: {
             /**
-             * Date
-             * @description Date in YYYY-MM-DD format
-             */
-            date: string;
-            /**
              * Available Slots
              * @description List of available time slots for booking
              */
             available_slots?: components["schemas"]["PublicTimeSlot"][];
+            /**
+             * Date
+             * @description Date in YYYY-MM-DD format
+             */
+            date: string;
             /**
              * Is Blackout
              * @description Whether this date is completely unavailable
@@ -8371,23 +8205,6 @@ export interface components {
          *     }
          */
         PublicInstructorAvailability: {
-            /** Instructor Id */
-            instructor_id: string;
-            /**
-             * Instructor First Name
-             * @description Instructor's first name if privacy settings allow
-             */
-            instructor_first_name?: string | null;
-            /**
-             * Instructor Last Initial
-             * @description Instructor's last name initial for privacy
-             */
-            instructor_last_initial?: string | null;
-            /**
-             * Detail Level
-             * @description Level of detail: minimal, summary, or full
-             */
-            detail_level: string;
             /**
              * Availability By Date
              * @description Availability indexed by date string (YYYY-MM-DD) - only in full detail
@@ -8405,10 +8222,32 @@ export interface components {
                 };
             } | null;
             /**
+             * Detail Level
+             * @description Level of detail: minimal, summary, or full
+             */
+            detail_level: string;
+            /**
+             * Earliest Available Date
+             * @description Earliest date with availability
+             */
+            earliest_available_date?: string | null;
+            /**
              * Has Availability
              * @description Whether any availability exists
              */
             has_availability?: boolean | null;
+            /**
+             * Instructor First Name
+             * @description Instructor's first name if privacy settings allow
+             */
+            instructor_first_name?: string | null;
+            /** Instructor Id */
+            instructor_id: string;
+            /**
+             * Instructor Last Initial
+             * @description Instructor's last name initial for privacy
+             */
+            instructor_last_initial?: string | null;
             /**
              * Timezone
              * @description Instructor's timezone
@@ -8416,20 +8255,15 @@ export interface components {
              */
             timezone: string;
             /**
-             * Total Available Slots
-             * @description Total number of bookable slots in the date range
-             */
-            total_available_slots?: number | null;
-            /**
              * Total Available Days
              * @description Number of days with availability
              */
             total_available_days?: number | null;
             /**
-             * Earliest Available Date
-             * @description Earliest date with availability
+             * Total Available Slots
+             * @description Total number of bookable slots in the date range
              */
-            earliest_available_date?: string | null;
+            total_available_slots?: number | null;
         };
         /**
          * PublicTimeSlot
@@ -8444,15 +8278,15 @@ export interface components {
          */
         PublicTimeSlot: {
             /**
-             * Start Time
-             * @description Start time in HH:MM format
-             */
-            start_time: string;
-            /**
              * End Time
              * @description End time in HH:MM format
              */
             end_time: string;
+            /**
+             * Start Time
+             * @description Start time in HH:MM format
+             */
+            start_time: string;
         };
         /**
          * RateLimitResetResponse
@@ -8466,16 +8300,6 @@ export interface components {
          */
         RateLimitResetResponse: {
             /**
-             * Status
-             * @description Operation status
-             */
-            status: string;
-            /**
-             * Pattern
-             * @description Pattern used for matching
-             */
-            pattern: string;
-            /**
              * Limits Reset
              * @description Number of limits reset
              */
@@ -8485,6 +8309,16 @@ export interface components {
              * @description Result message
              */
             message: string;
+            /**
+             * Pattern
+             * @description Pattern used for matching
+             */
+            pattern: string;
+            /**
+             * Status
+             * @description Operation status
+             */
+            status: string;
         };
         /**
          * RateLimitStats
@@ -8507,11 +8341,6 @@ export interface components {
          */
         RateLimitStats: {
             /**
-             * Total Keys
-             * @description Total rate limit keys in Redis
-             */
-            total_keys: number;
-            /**
              * Breakdown By Type
              * @description Breakdown by limit type
              */
@@ -8525,6 +8354,11 @@ export interface components {
             top_limited_clients: {
                 [key: string]: unknown;
             }[];
+            /**
+             * Total Keys
+             * @description Total rate limit keys in Redis
+             */
+            total_keys: number;
         };
         /**
          * RateLimitTestResponse
@@ -8542,15 +8376,15 @@ export interface components {
              */
             message: string;
             /**
-             * Timestamp
-             * @description Request timestamp
-             */
-            timestamp: string;
-            /**
              * Note
              * @description Rate limit information
              */
             note: string;
+            /**
+             * Timestamp
+             * @description Request timestamp
+             */
+            timestamp: string;
         };
         /** RatingsBatchItem */
         RatingsBatchItem: {
@@ -8582,20 +8416,20 @@ export interface components {
          */
         RecentAlertsResponse: {
             /**
-             * Total
-             * @description Total number of alerts in the time period
+             * Alerts
+             * @description List of alert details
              */
-            total: number;
+            alerts: components["schemas"]["AlertDetail"][];
             /**
              * Hours
              * @description Number of hours included in the query
              */
             hours: number;
             /**
-             * Alerts
-             * @description List of alert details
+             * Total
+             * @description Total number of alerts in the time period
              */
-            alerts: components["schemas"]["AlertDetail"][];
+            total: number;
         };
         /**
          * RedisCeleryQueuesResponse
@@ -8633,11 +8467,6 @@ export interface components {
          */
         RedisHealthResponse: {
             /**
-             * Status
-             * @description Health status (healthy/unhealthy)
-             */
-            status: string;
-            /**
              * Connected
              * @description Whether Redis is connected
              */
@@ -8647,6 +8476,11 @@ export interface components {
              * @description Error message if unhealthy
              */
             error?: string | null;
+            /**
+             * Status
+             * @description Health status (healthy/unhealthy)
+             */
+            status: string;
         };
         /**
          * RedisStatsResponse
@@ -8664,10 +8498,21 @@ export interface components {
          */
         RedisTestResponse: {
             /**
-             * Status
-             * @description Connection status
+             * Connected Clients
+             * @description Number of connected clients
+             * @default 0
              */
-            status: string;
+            connected_clients: number | null;
+            /**
+             * Error
+             * @description Error message if failed
+             */
+            error?: string | null;
+            /**
+             * Message
+             * @description Status message
+             */
+            message?: string | null;
             /**
              * Ping
              * @description Ping result
@@ -8680,27 +8525,16 @@ export interface components {
              */
             redis_version: string | null;
             /**
+             * Status
+             * @description Connection status
+             */
+            status: string;
+            /**
              * Uptime Seconds
              * @description Redis uptime in seconds
              * @default 0
              */
             uptime_seconds: number | null;
-            /**
-             * Connected Clients
-             * @description Number of connected clients
-             * @default 0
-             */
-            connected_clients: number | null;
-            /**
-             * Message
-             * @description Status message
-             */
-            message?: string | null;
-            /**
-             * Error
-             * @description Error message if failed
-             */
-            error?: string | null;
         };
         /** ReferralClaimRequest */
         ReferralClaimRequest: {
@@ -8726,26 +8560,26 @@ export interface components {
         ReferralLedgerResponse: {
             /** Code */
             code: string;
-            /** Share Url */
-            share_url: string;
-            /** Pending */
-            pending: components["schemas"]["RewardOut"][];
-            /** Unlocked */
-            unlocked: components["schemas"]["RewardOut"][];
-            /** Redeemed */
-            redeemed: components["schemas"]["RewardOut"][];
             /** Expiry Notice Days */
             expiry_notice_days: number[];
+            /** Pending */
+            pending: components["schemas"]["RewardOut"][];
+            /** Redeemed */
+            redeemed: components["schemas"]["RewardOut"][];
+            /** Share Url */
+            share_url: string;
+            /** Unlocked */
+            unlocked: components["schemas"]["RewardOut"][];
         };
         /**
          * ReferralResolveResponse
          * @description Response payload when resolving referral slugs as JSON.
          */
         ReferralResolveResponse: {
-            /** Ok */
-            ok: boolean;
             /** Code */
             code: string;
+            /** Ok */
+            ok: boolean;
             /** Redirect */
             redirect: string;
         };
@@ -8773,16 +8607,16 @@ export interface components {
              */
             emails: string[];
             /**
+             * From Name
+             * @description Display name of the inviter (falls back to a generic label if omitted)
+             */
+            from_name?: string | null;
+            /**
              * Referral Link
              * Format: uri
              * @description Referral link to include in the invite
              */
             referral_link: string;
-            /**
-             * From Name
-             * @description Display name of the inviter (falls back to a generic label if omitted)
-             */
-            from_name?: string | null;
         };
         /**
          * ReferralSendResponse
@@ -8790,25 +8624,25 @@ export interface components {
          */
         ReferralSendResponse: {
             /**
-             * Status
-             * @description Operation status ('ok' if the operation ran)
+             * Errors
+             * @description List of errors for individual recipients
              */
-            status: string;
-            /**
-             * Sent
-             * @description Number of emails successfully sent
-             */
-            sent: number;
+            errors?: components["schemas"]["ReferralSendError"][];
             /**
              * Failed
              * @description Number of emails that failed to send
              */
             failed: number;
             /**
-             * Errors
-             * @description List of errors for individual recipients
+             * Sent
+             * @description Number of emails successfully sent
              */
-            errors?: components["schemas"]["ReferralSendError"][];
+            sent: number;
+            /**
+             * Status
+             * @description Operation status ('ok' if the operation ran)
+             */
+            status: string;
         };
         /**
          * RequestMetrics
@@ -8826,28 +8660,28 @@ export interface components {
              */
             active_count: number;
             /**
-             * Total Count
-             * @description Total requests processed
-             */
-            total_count: number;
-            /**
              * Average Response Time Ms
              * @description Average response time in milliseconds
              */
             average_response_time_ms: number;
+            /**
+             * Total Count
+             * @description Total requests processed
+             */
+            total_count: number;
         };
         /**
          * RescheduledFromInfo
          * @description Minimal info about the original booking used for annotation.
          */
         RescheduledFromInfo: {
-            /** Id */
-            id: string;
             /**
              * Booking Date
              * Format: date
              */
             booking_date: string;
+            /** Id */
+            id: string;
             /**
              * Start Time
              * Format: time
@@ -8866,11 +8700,6 @@ export interface components {
          */
         ResultDistribution: {
             /**
-             * Zero Results
-             * @description Searches with zero results
-             */
-            zero_results: number;
-            /**
              * 1 5 Results
              * @description Searches with 1-5 results
              */
@@ -8885,17 +8714,17 @@ export interface components {
              * @description Searches with over 10 results
              */
             over_10_results: number;
+            /**
+             * Zero Results
+             * @description Searches with zero results
+             */
+            zero_results: number;
         };
         /**
          * RetentionPolicyResponse
          * @description Response schema for applying retention policies.
          */
         RetentionPolicyResponse: {
-            /**
-             * Status
-             * @description Status of the retention policy application
-             */
-            status: string;
             /**
              * Message
              * @description Human-readable message
@@ -8908,55 +8737,60 @@ export interface components {
             stats: {
                 [key: string]: unknown;
             };
+            /**
+             * Status
+             * @description Status of the retention policy application
+             */
+            status: string;
         };
         /** ReviewItem */
         ReviewItem: {
-            /** Id */
-            id: string;
-            /** Rating */
-            rating: number;
-            /** Review Text */
-            review_text: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Id */
+            id: string;
             /** Instructor Service Id */
             instructor_service_id: string;
+            /** Rating */
+            rating: number;
+            /** Review Text */
+            review_text: string | null;
             /** Reviewer Display Name */
             reviewer_display_name?: string | null;
         };
         /** ReviewListPageResponse */
         ReviewListPageResponse: {
-            /** Reviews */
-            reviews: components["schemas"]["ReviewItem"][];
-            /** Total */
-            total: number;
-            /** Page */
-            page: number;
-            /** Per Page */
-            per_page: number;
             /** Has Next */
             has_next: boolean;
             /** Has Prev */
             has_prev: boolean;
+            /** Page */
+            page: number;
+            /** Per Page */
+            per_page: number;
+            /** Reviews */
+            reviews: components["schemas"]["ReviewItem"][];
+            /** Total */
+            total: number;
         };
         /** ReviewResponseModel */
         ReviewResponseModel: {
-            /** Id */
-            id: string;
-            /** Review Id */
-            review_id: string;
-            /** Instructor Id */
-            instructor_id: string;
-            /** Response Text */
-            response_text: string;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Id */
+            id: string;
+            /** Instructor Id */
+            instructor_id: string;
+            /** Response Text */
+            response_text: string;
+            /** Review Id */
+            review_id: string;
         };
         /** ReviewSubmitRequest */
         ReviewSubmitRequest: {
@@ -8971,31 +8805,40 @@ export interface components {
         };
         /** ReviewSubmitResponse */
         ReviewSubmitResponse: {
-            /** Id */
-            id: string;
-            /** Rating */
-            rating: number;
-            /** Review Text */
-            review_text: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Id */
+            id: string;
             /** Instructor Service Id */
             instructor_service_id: string;
+            /** Rating */
+            rating: number;
+            /** Review Text */
+            review_text: string | null;
             /** Reviewer Display Name */
             reviewer_display_name?: string | null;
-            /** Tip Status */
-            tip_status?: string | null;
             /** Tip Client Secret */
             tip_client_secret?: string | null;
+            /** Tip Status */
+            tip_status?: string | null;
         };
         /**
          * RewardOut
          * @description Serialized reward payload.
          */
         RewardOut: {
+            /** Amount Cents */
+            amount_cents: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Expire Ts */
+            expire_ts?: string | null;
             /**
              * Id
              * Format: uuid
@@ -9003,17 +8846,8 @@ export interface components {
             id: string;
             side: components["schemas"]["RewardSide"];
             status: components["schemas"]["RewardStatus"];
-            /** Amount Cents */
-            amount_cents: number;
             /** Unlock Ts */
             unlock_ts?: string | null;
-            /** Expire Ts */
-            expire_ts?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
         };
         /**
          * RewardSide
@@ -9027,37 +8861,6 @@ export interface components {
          * @enum {string}
          */
         RewardStatus: "pending" | "unlocked" | "redeemed" | "void";
-        /**
-         * RootResponse
-         * @description Response for root endpoint.
-         */
-        RootResponse: {
-            /**
-             * Message
-             * @description Welcome message
-             */
-            message: string;
-            /**
-             * Version
-             * @description API version
-             */
-            version: string;
-            /**
-             * Docs
-             * @description Documentation URL
-             */
-            docs: string;
-            /**
-             * Environment
-             * @description Environment name
-             */
-            environment: string;
-            /**
-             * Secure
-             * @description Whether running in secure mode
-             */
-            secure: boolean;
-        };
         /**
          * SavePaymentMethodRequest
          * @description Request to save a payment method for a user.
@@ -9133,19 +8936,6 @@ export interface components {
          *     }
          */
         SearchAnalyticsSummaryResponse: {
-            /** @description Date range for analytics */
-            date_range: components["schemas"]["DateRange"];
-            /** @description Search totals and metrics */
-            totals: components["schemas"]["SearchTotals"];
-            /** @description User breakdown by type */
-            users: components["schemas"]["UserBreakdown"];
-            /**
-             * Search Types
-             * @description Breakdown by search type
-             */
-            search_types: {
-                [key: string]: components["schemas"]["SearchTypeMetrics"];
-            };
             /**
              * Conversions
              * @description Conversion metrics
@@ -9153,8 +8943,21 @@ export interface components {
             conversions: {
                 [key: string]: unknown;
             };
+            /** @description Date range for analytics */
+            date_range: components["schemas"]["DateRange"];
             /** @description Search performance metrics */
             performance: components["schemas"]["PerformanceMetrics"];
+            /**
+             * Search Types
+             * @description Breakdown by search type
+             */
+            search_types: {
+                [key: string]: components["schemas"]["SearchTypeMetrics"];
+            };
+            /** @description Search totals and metrics */
+            totals: components["schemas"]["SearchTotals"];
+            /** @description User breakdown by type */
+            users: components["schemas"]["UserBreakdown"];
         };
         /**
          * SearchEffectiveness
@@ -9194,26 +8997,29 @@ export interface components {
          */
         SearchHistoryCreate: {
             /**
-             * Search Query
-             * @description The search query string
+             * Device Context
+             * @description Device context from frontend including screen size, connection type, etc.
              */
-            search_query: string;
-            /**
-             * Search Type
-             * @description Type of search: natural_language, category, service_pill, filter, or search_history
-             * @default natural_language
-             */
-            search_type: string;
-            /**
-             * Results Count
-             * @description Number of results returned
-             */
-            results_count?: number | null;
+            device_context?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Guest Session Id
              * @description UUID for guest session tracking
              */
             guest_session_id?: string | null;
+            /**
+             * Observability Candidates
+             * @description Optional top-N candidate objects for observability. Each item may include: position, service_catalog_id (or id), score, vector_score, lexical_score, source.
+             */
+            observability_candidates?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Results Count
+             * @description Number of results returned
+             */
+            results_count?: number | null;
             /**
              * Search Context
              * @description Additional context like page origin, viewport size, etc.
@@ -9222,26 +9028,6 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /**
-             * Device Context
-             * @description Device context from frontend including screen size, connection type, etc.
-             */
-            device_context?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Observability Candidates
-             * @description Optional top-N candidate objects for observability. Each item may include: position, service_catalog_id (or id), score, vector_score, lexical_score, source.
-             */
-            observability_candidates?: {
-                [key: string]: unknown;
-            }[] | null;
-        };
-        /**
-         * SearchHistoryResponse
-         * @description Schema for search history responses.
-         */
-        SearchHistoryResponse: {
-            /**
              * Search Query
              * @description The search query string
              */
@@ -9252,11 +9038,17 @@ export interface components {
              * @default natural_language
              */
             search_type: string;
+        };
+        /**
+         * SearchHistoryResponse
+         * @description Schema for search history responses.
+         */
+        SearchHistoryResponse: {
             /**
-             * Results Count
-             * @description Number of results returned
+             * First Searched At
+             * @description When the search was first performed
              */
-            results_count?: number | null;
+            first_searched_at: string;
             /**
              * Guest Session Id
              * @description UUID for guest session tracking
@@ -9268,15 +9060,15 @@ export interface components {
              */
             id: string;
             /**
-             * First Searched At
-             * @description When the search was first performed
-             */
-            first_searched_at: string;
-            /**
              * Last Searched At
              * @description When the search was last performed
              */
             last_searched_at: string;
+            /**
+             * Results Count
+             * @description Number of results returned
+             */
+            results_count?: number | null;
             /**
              * Search Count
              * @description Number of times this search was performed
@@ -9287,14 +9079,25 @@ export interface components {
              * @description ID of the associated search event for tracking interactions
              */
             search_event_id?: string | null;
+            /**
+             * Search Query
+             * @description The search query string
+             */
+            search_query: string;
+            /**
+             * Search Type
+             * @description Type of search: natural_language, category, service_pill, filter, or search_history
+             * @default natural_language
+             */
+            search_type: string;
         };
         /**
          * SearchInteractionResponse
          * @description Response for recording search interaction.
          */
         SearchInteractionResponse: {
-            /** Success */
-            success: boolean;
+            /** Interaction Id */
+            interaction_id: string;
             /**
              * Message
              * @default Interaction recorded successfully
@@ -9305,8 +9108,8 @@ export interface components {
              * @default tracked
              */
             status: string;
-            /** Interaction Id */
-            interaction_id: string;
+            /** Success */
+            success: boolean;
         };
         /**
          * SearchMetadata
@@ -9314,20 +9117,10 @@ export interface components {
          */
         SearchMetadata: {
             /**
-             * Used Semantic Search
-             * @description Whether semantic search was used
-             */
-            used_semantic_search: boolean;
-            /**
              * Applied Filters
              * @description List of applied filters
              */
             applied_filters: string[];
-            /**
-             * Timestamp
-             * @description Search timestamp (ISO format)
-             */
-            timestamp: string;
             /**
              * Observability Candidates
              * @description Optional top-N candidates considered during search for observability/analytics (position, service_catalog_id, name, score, vector_score, lexical_score, source).
@@ -9335,6 +9128,16 @@ export interface components {
             observability_candidates?: {
                 [key: string]: unknown;
             }[] | null;
+            /**
+             * Timestamp
+             * @description Search timestamp (ISO format)
+             */
+            timestamp: string;
+            /**
+             * Used Semantic Search
+             * @description Whether semantic search was used
+             */
+            used_semantic_search: boolean;
         };
         /**
          * SearchPerformanceResponse
@@ -9362,8 +9165,6 @@ export interface components {
          *     }
          */
         SearchPerformanceResponse: {
-            /** @description Distribution of search results */
-            result_distribution: components["schemas"]["ResultDistribution"];
             /** @description Search effectiveness metrics */
             effectiveness: components["schemas"]["SearchEffectiveness"];
             /**
@@ -9371,15 +9172,17 @@ export interface components {
              * @description Queries with poor results
              */
             problematic_queries: components["schemas"]["ProblematicQuery"][];
+            /** @description Distribution of search results */
+            result_distribution: components["schemas"]["ResultDistribution"];
         };
         /** SearchRatingResponse */
         SearchRatingResponse: {
+            /** Is Service Specific */
+            is_service_specific: boolean;
             /** Primary Rating */
             primary_rating: number | null;
             /** Review Count */
             review_count: number;
-            /** Is Service Specific */
-            is_service_specific: boolean;
         };
         /**
          * SearchReferrer
@@ -9406,15 +9209,15 @@ export interface components {
              */
             search_count: number;
             /**
-             * Unique Sessions
-             * @description Number of unique sessions
-             */
-            unique_sessions: number;
-            /**
              * Search Types
              * @description Types of searches from this page
              */
             search_types: string[];
+            /**
+             * Unique Sessions
+             * @description Number of unique sessions
+             */
+            unique_sessions: number;
         };
         /**
          * SearchReferrersResponse
@@ -9438,21 +9241,10 @@ export interface components {
          */
         SearchResult: {
             /**
-             * Service
-             * @description Service catalog information
+             * Coverage Region Ids
+             * @description List of region IDs served by the instructor for quick FE mapping without extra calls
              */
-            service: {
-                [key: string]: unknown;
-            };
-            /** @description Instructor information */
-            instructor: components["schemas"]["app__schemas__search_responses__InstructorInfo"];
-            /** @description Service offering details */
-            offering: components["schemas"]["ServiceOffering"];
-            /**
-             * Match Score
-             * @description Match score (0-100)
-             */
-            match_score: number;
+            coverage_region_ids?: string[] | null;
             /**
              * Coverage Regions
              * @description List of regions served with minimal fields: region_id, name, borough, coverage_type
@@ -9460,11 +9252,22 @@ export interface components {
             coverage_regions?: {
                 [key: string]: unknown;
             }[] | null;
+            /** @description Instructor information */
+            instructor: components["schemas"]["app__schemas__search_responses__InstructorInfo"];
             /**
-             * Coverage Region Ids
-             * @description List of region IDs served by the instructor for quick FE mapping without extra calls
+             * Match Score
+             * @description Match score (0-100)
              */
-            coverage_region_ids?: string[] | null;
+            match_score: number;
+            /** @description Service offering details */
+            offering: components["schemas"]["ServiceOffering"];
+            /**
+             * Service
+             * @description Service catalog information
+             */
+            service: {
+                [key: string]: unknown;
+            };
         };
         /**
          * SearchTotals
@@ -9480,26 +9283,6 @@ export interface components {
          */
         SearchTotals: {
             /**
-             * Total Searches
-             * @description Total number of searches
-             */
-            total_searches: number;
-            /**
-             * Unique Users
-             * @description Unique authenticated users
-             */
-            unique_users: number;
-            /**
-             * Unique Guests
-             * @description Unique guest sessions
-             */
-            unique_guests: number;
-            /**
-             * Total Users
-             * @description Total unique users (authenticated + guests)
-             */
-            total_users: number;
-            /**
              * Deleted Searches
              * @description Number of deleted searches
              */
@@ -9509,6 +9292,26 @@ export interface components {
              * @description Percentage of searches deleted
              */
             deletion_rate: number;
+            /**
+             * Total Searches
+             * @description Total number of searches
+             */
+            total_searches: number;
+            /**
+             * Total Users
+             * @description Total unique users (authenticated + guests)
+             */
+            total_users: number;
+            /**
+             * Unique Guests
+             * @description Unique guest sessions
+             */
+            unique_guests: number;
+            /**
+             * Unique Users
+             * @description Unique authenticated users
+             */
+            unique_users: number;
         };
         /**
          * SearchTrendsResponse
@@ -9564,49 +9367,49 @@ export interface components {
          * @description Response after sending a message.
          */
         SendMessageResponse: {
+            message: components["schemas"]["MessageResponse"];
             /**
              * Success
              * @default true
              */
             success: boolean;
-            message: components["schemas"]["MessageResponse"];
         };
         /**
          * SendRemindersResponse
          * @description Response for sending booking reminders.
          */
         SendRemindersResponse: {
+            /** Failed Reminders */
+            failed_reminders: number;
             /** Message */
             message: string;
             /** Reminders Sent */
             reminders_sent: number;
-            /** Failed Reminders */
-            failed_reminders: number;
         };
         /** ServiceAreaItem */
         ServiceAreaItem: {
+            /** Borough */
+            borough?: string | null;
+            /** Name */
+            name?: string | null;
             /** Neighborhood Id */
             neighborhood_id: string;
             /** Ntacode */
             ntacode?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Borough */
-            borough?: string | null;
         };
         /**
          * ServiceAreaNeighborhood
          * @description Normalized neighborhood metadata used in instructor service area responses.
          */
         ServiceAreaNeighborhood: {
+            /** Borough */
+            borough?: string | null;
+            /** Name */
+            name?: string | null;
             /** Neighborhood Id */
             neighborhood_id: string;
             /** Ntacode */
             ntacode?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Borough */
-            borough?: string | null;
         };
         /** ServiceAreasResponse */
         ServiceAreasResponse: {
@@ -9626,39 +9429,12 @@ export interface components {
          */
         ServiceCreate: {
             /**
-             * Service Catalog Id
-             * @description ID of the service from catalog
-             */
-            service_catalog_id: string;
-            /**
-             * Hourly Rate
-             * @description Hourly rate in USD
-             */
-            hourly_rate: number | string;
-            /** Description */
-            description?: string | null;
-            /** Requirements */
-            requirements?: string | null;
-            /**
              * Age Groups
              * @description Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both.
              */
             age_groups?: string[] | null;
-            /**
-             * Levels Taught
-             * @description Levels taught. Allowed: 'beginner', 'intermediate', 'advanced'
-             */
-            levels_taught?: string[] | null;
-            /**
-             * Equipment Required
-             * @description List of equipment required (strings)
-             */
-            equipment_required?: string[] | null;
-            /**
-             * Location Types
-             * @description Where lessons are offered. Allowed: 'in-person', 'online'
-             */
-            location_types?: string[] | null;
+            /** Description */
+            description?: string | null;
             /**
              * Duration Options
              * @description Available duration options for this service in minutes
@@ -9667,18 +9443,45 @@ export interface components {
              *     ]
              */
             duration_options: number[];
+            /**
+             * Equipment Required
+             * @description List of equipment required (strings)
+             */
+            equipment_required?: string[] | null;
+            /**
+             * Hourly Rate
+             * @description Hourly rate in USD
+             */
+            hourly_rate: number | string;
+            /**
+             * Levels Taught
+             * @description Levels taught. Allowed: 'beginner', 'intermediate', 'advanced'
+             */
+            levels_taught?: string[] | null;
+            /**
+             * Location Types
+             * @description Where lessons are offered. Allowed: 'in-person', 'online'
+             */
+            location_types?: string[] | null;
+            /** Requirements */
+            requirements?: string | null;
+            /**
+             * Service Catalog Id
+             * @description ID of the service from catalog
+             */
+            service_catalog_id: string;
         };
         /**
          * ServiceInfo
          * @description Basic service information for booking display.
          */
         ServiceInfo: {
+            /** Description */
+            description: string | null;
             /** Id */
             id: string;
             /** Name */
             name: string;
-            /** Description */
-            description: string | null;
         };
         /**
          * ServiceMetrics
@@ -9696,6 +9499,16 @@ export interface components {
          */
         ServiceMetrics: {
             /**
+             * Cache Operations
+             * @description Cache operations performed
+             */
+            cache_operations: number;
+            /**
+             * Db Operations
+             * @description Database operations performed
+             */
+            db_operations: number;
+            /**
              * Operations
              * @description Operation counts by type
              */
@@ -9707,16 +9520,6 @@ export interface components {
              * @description Total operations performed
              */
             total_operations: number;
-            /**
-             * Cache Operations
-             * @description Cache operations performed
-             */
-            cache_operations: number;
-            /**
-             * Db Operations
-             * @description Database operations performed
-             */
-            db_operations: number;
         };
         /**
          * ServiceOffering
@@ -9724,20 +9527,10 @@ export interface components {
          */
         ServiceOffering: {
             /**
-             * Id
-             * @description Instructor service ID
+             * Age Groups
+             * @description Age groups served
              */
-            id: string;
-            /**
-             * Hourly Rate
-             * @description Hourly rate for the service
-             */
-            hourly_rate: number;
-            /**
-             * Experience Level
-             * @description Experience level
-             */
-            experience_level?: string | null;
+            age_groups?: string[] | null;
             /**
              * Description
              * @description Service description
@@ -9754,15 +9547,25 @@ export interface components {
              */
             equipment_required?: string[] | null;
             /**
+             * Experience Level
+             * @description Experience level
+             */
+            experience_level?: string | null;
+            /**
+             * Hourly Rate
+             * @description Hourly rate for the service
+             */
+            hourly_rate: number;
+            /**
+             * Id
+             * @description Instructor service ID
+             */
+            id: string;
+            /**
              * Levels Taught
              * @description Levels taught
              */
             levels_taught?: string[] | null;
-            /**
-             * Age Groups
-             * @description Age groups served
-             */
-            age_groups?: string[] | null;
             /**
              * Location Types
              * @description Location types (online/in-person)
@@ -9782,39 +9585,12 @@ export interface components {
          */
         ServiceResponse: {
             /**
-             * Service Catalog Id
-             * @description ID of the service from catalog
-             */
-            service_catalog_id: string;
-            /**
-             * Hourly Rate
-             * @description Hourly rate in USD
-             */
-            hourly_rate: number;
-            /** Description */
-            description?: string | null;
-            /** Requirements */
-            requirements?: string | null;
-            /**
              * Age Groups
              * @description Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both.
              */
             age_groups?: string[] | null;
-            /**
-             * Levels Taught
-             * @description Levels taught. Allowed: 'beginner', 'intermediate', 'advanced'
-             */
-            levels_taught?: string[] | null;
-            /**
-             * Equipment Required
-             * @description List of equipment required (strings)
-             */
-            equipment_required?: string[] | null;
-            /**
-             * Location Types
-             * @description Where lessons are offered. Allowed: 'in-person', 'online'
-             */
-            location_types?: string[] | null;
+            /** Description */
+            description?: string | null;
             /**
              * Duration Options
              * @description Available duration options for this service in minutes
@@ -9823,8 +9599,35 @@ export interface components {
              *     ]
              */
             duration_options: number[];
+            /**
+             * Equipment Required
+             * @description List of equipment required (strings)
+             */
+            equipment_required?: string[] | null;
+            /**
+             * Hourly Rate
+             * @description Hourly rate in USD
+             */
+            hourly_rate: number;
             /** Id */
             id: string;
+            /**
+             * Levels Taught
+             * @description Levels taught. Allowed: 'beginner', 'intermediate', 'advanced'
+             */
+            levels_taught?: string[] | null;
+            /**
+             * Location Types
+             * @description Where lessons are offered. Allowed: 'in-person', 'online'
+             */
+            location_types?: string[] | null;
+            /** Requirements */
+            requirements?: string | null;
+            /**
+             * Service Catalog Id
+             * @description ID of the service from catalog
+             */
+            service_catalog_id: string;
             /**
              * Service Catalog Name
              * @description Human-readable name of the catalog service
@@ -9833,18 +9636,18 @@ export interface components {
         };
         /** SignedUploadResponse */
         SignedUploadResponse: {
-            /** Upload Url */
-            upload_url: string;
-            /** Object Key */
-            object_key: string;
-            /** Public Url */
-            public_url?: string | null;
+            /** Expires At */
+            expires_at: string;
             /** Headers */
             headers: {
                 [key: string]: string;
             };
-            /** Expires At */
-            expires_at: string;
+            /** Object Key */
+            object_key: string;
+            /** Public Url */
+            public_url?: string | null;
+            /** Upload Url */
+            upload_url: string;
         };
         /**
          * SlotOperation
@@ -9858,12 +9661,12 @@ export interface components {
             action: "add" | "remove" | "update";
             /** Date */
             date?: string | null;
-            /** Start Time */
-            start_time?: string | null;
             /** End Time */
             end_time?: string | null;
             /** Slot Id */
             slot_id?: string | null;
+            /** Start Time */
+            start_time?: string | null;
         };
         /**
          * SlowQueriesResponse
@@ -9904,26 +9707,26 @@ export interface components {
          */
         SlowQueryInfo: {
             /**
-             * Query
-             * @description SQL query (truncated)
-             */
-            query: string;
-            /**
              * Duration Ms
              * @description Query duration in milliseconds
              */
             duration_ms: number;
+            /**
+             * Endpoint
+             * @description API endpoint that triggered the query
+             */
+            endpoint?: string | null;
+            /**
+             * Query
+             * @description SQL query (truncated)
+             */
+            query: string;
             /**
              * Timestamp
              * Format: date-time
              * @description Query execution timestamp
              */
             timestamp: string;
-            /**
-             * Endpoint
-             * @description API endpoint that triggered the query
-             */
-            endpoint?: string | null;
         };
         /**
          * SlowRequestInfo
@@ -9938,31 +9741,31 @@ export interface components {
          */
         SlowRequestInfo: {
             /**
-             * Path
-             * @description Request path
+             * Duration Ms
+             * @description Request duration in milliseconds
              */
-            path: string;
+            duration_ms: number;
             /**
              * Method
              * @description HTTP method
              */
             method: string;
             /**
-             * Duration Ms
-             * @description Request duration in milliseconds
+             * Path
+             * @description Request path
              */
-            duration_ms: number;
+            path: string;
+            /**
+             * Status Code
+             * @description Response status code
+             */
+            status_code: number;
             /**
              * Timestamp
              * Format: date-time
              * @description Request timestamp
              */
             timestamp: string;
-            /**
-             * Status Code
-             * @description Response status code
-             */
-            status_code: number;
         };
         /**
          * SlowRequestsResponse
@@ -9998,11 +9801,6 @@ export interface components {
          */
         SpecificDateAvailabilityCreate: {
             /**
-             * Start Time
-             * Format: time
-             */
-            start_time: string;
-            /**
              * End Time
              * Format: time
              */
@@ -10012,20 +9810,25 @@ export interface components {
              * Format: date
              */
             specific_date: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
         };
         /**
          * StudentInfo
          * @description Basic student information for booking display.
          */
         StudentInfo: {
-            /** Id */
-            id: string;
-            /** First Name */
-            first_name: string;
-            /** Last Name */
-            last_name: string;
             /** Email */
             email: string;
+            /** First Name */
+            first_name: string;
+            /** Id */
+            id: string;
+            /** Last Name */
+            last_name: string;
         };
         /**
          * SuccessResponse
@@ -10043,23 +9846,23 @@ export interface components {
          */
         SuccessResponse: {
             /**
-             * Success
-             * @description Operation success status
-             * @default true
-             */
-            success: boolean;
-            /**
-             * Message
-             * @description Human-readable success message
-             */
-            message: string;
-            /**
              * Data
              * @description Optional additional data
              */
             data?: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Message
+             * @description Human-readable success message
+             */
+            message: string;
+            /**
+             * Success
+             * @description Operation success status
+             * @default true
+             */
+            success: boolean;
         };
         /** TFADisableRequest */
         TFADisableRequest: {
@@ -10073,12 +9876,12 @@ export interface components {
         };
         /** TFASetupInitiateResponse */
         TFASetupInitiateResponse: {
-            /** Secret */
-            secret: string;
-            /** Qr Code Data Url */
-            qr_code_data_url: string;
             /** Otpauth Url */
             otpauth_url: string;
+            /** Qr Code Data Url */
+            qr_code_data_url: string;
+            /** Secret */
+            secret: string;
         };
         /** TFASetupVerifyRequest */
         TFASetupVerifyRequest: {
@@ -10087,28 +9890,28 @@ export interface components {
         };
         /** TFASetupVerifyResponse */
         TFASetupVerifyResponse: {
-            /** Enabled */
-            enabled: boolean;
             /** Backup Codes */
             backup_codes: string[];
+            /** Enabled */
+            enabled: boolean;
         };
         /** TFAStatusResponse */
         TFAStatusResponse: {
             /** Enabled */
             enabled: boolean;
-            /** Verified At */
-            verified_at?: string | null;
             /** Last Used At */
             last_used_at?: string | null;
+            /** Verified At */
+            verified_at?: string | null;
         };
         /** TFAVerifyLoginRequest */
         TFAVerifyLoginRequest: {
-            /** Temp Token */
-            temp_token: string;
-            /** Code */
-            code?: string | null;
             /** Backup Code */
             backup_code?: string | null;
+            /** Code */
+            code?: string | null;
+            /** Temp Token */
+            temp_token: string;
         };
         /** TFAVerifyLoginResponse */
         TFAVerifyLoginResponse: {
@@ -10123,15 +9926,15 @@ export interface components {
          */
         TimeRange: {
             /**
-             * Start Time
-             * Format: time
-             */
-            start_time: string;
-            /**
              * End Time
              * Format: time
              */
             end_time: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
         };
         /**
          * TimeSlot
@@ -10139,15 +9942,15 @@ export interface components {
          */
         TimeSlot: {
             /**
-             * Start Time
-             * Format: time
-             */
-            start_time: string;
-            /**
              * End Time
              * Format: time
              */
             end_time: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
         };
         /** Token */
         Token: {
@@ -10161,15 +9964,15 @@ export interface components {
          * @description Top referrer metadata for admin dashboards.
          */
         TopReferrerOut: {
+            /** Code */
+            code?: string | null;
+            /** Count */
+            count: number;
             /**
              * User Id
              * Format: uuid
              */
             user_id: string;
-            /** Count */
-            count: number;
-            /** Code */
-            code?: string | null;
         };
         /**
          * TransactionHistoryItem
@@ -10177,75 +9980,75 @@ export interface components {
          */
         TransactionHistoryItem: {
             /**
-             * Id
-             * @description Payment intent ID
-             */
-            id: string;
-            /**
-             * Service Name
-             * @description Service name
-             */
-            service_name: string;
-            /**
-             * Instructor Name
-             * @description Instructor name (first name + last initial)
-             */
-            instructor_name: string;
-            /**
              * Booking Date
              * @description Date of the booking
              */
             booking_date: string;
             /**
-             * Start Time
-             * @description Start time of the booking
+             * Created At
+             * @description When the payment was created
              */
-            start_time: string;
-            /**
-             * End Time
-             * @description End time of the booking
-             */
-            end_time: string;
-            /**
-             * Duration Minutes
-             * @description Duration in minutes
-             */
-            duration_minutes: number;
-            /**
-             * Hourly Rate
-             * @description Hourly rate charged
-             */
-            hourly_rate: number;
-            /**
-             * Total Price
-             * @description Total price before fees
-             */
-            total_price: number;
-            /**
-             * Platform Fee
-             * @description Platform fee charged
-             */
-            platform_fee: number;
+            created_at: string;
             /**
              * Credit Applied
              * @description Credits applied to this transaction
              */
             credit_applied: number;
             /**
+             * Duration Minutes
+             * @description Duration in minutes
+             */
+            duration_minutes: number;
+            /**
+             * End Time
+             * @description End time of the booking
+             */
+            end_time: string;
+            /**
              * Final Amount
              * @description Final amount charged
              */
             final_amount: number;
+            /**
+             * Hourly Rate
+             * @description Hourly rate charged
+             */
+            hourly_rate: number;
+            /**
+             * Id
+             * @description Payment intent ID
+             */
+            id: string;
+            /**
+             * Instructor Name
+             * @description Instructor name (first name + last initial)
+             */
+            instructor_name: string;
+            /**
+             * Platform Fee
+             * @description Platform fee charged
+             */
+            platform_fee: number;
+            /**
+             * Service Name
+             * @description Service name
+             */
+            service_name: string;
+            /**
+             * Start Time
+             * @description Start time of the booking
+             */
+            start_time: string;
             /**
              * Status
              * @description Payment status
              */
             status: string;
             /**
-             * Created At
-             * @description When the payment was created
+             * Total Price
+             * @description Total price before fees
              */
-            created_at: string;
+            total_price: number;
         };
         /**
          * TypingStatusResponse
@@ -10276,37 +10079,37 @@ export interface components {
          *     full last name for instructors viewing their own bookings.
          */
         UpcomingBookingResponse: {
-            /** Id */
-            id: string;
-            /** Instructor Id */
-            instructor_id: string;
             /**
              * Booking Date
              * Format: date
              */
             booking_date: string;
             /**
-             * Start Time
-             * Format: time
-             */
-            start_time: string;
-            /**
              * End Time
              * Format: time
              */
             end_time: string;
-            /** Service Name */
-            service_name: string;
-            /** Student First Name */
-            student_first_name: string;
-            /** Student Last Name */
-            student_last_name: string;
+            /** Id */
+            id: string;
             /** Instructor First Name */
             instructor_first_name: string;
+            /** Instructor Id */
+            instructor_id: string;
             /** Instructor Last Name */
             instructor_last_name: string;
             /** Meeting Location */
             meeting_location: string | null;
+            /** Service Name */
+            service_name: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Student First Name */
+            student_first_name: string;
+            /** Student Last Name */
+            student_last_name: string;
             /** Total Price */
             total_price: number;
         };
@@ -10319,10 +10122,10 @@ export interface components {
          *     Email is omitted for privacy protection.
          */
         UserBasicPrivacy: {
-            /** Id */
-            id: string;
             /** First Name */
             first_name: string;
+            /** Id */
+            id: string;
             /** Last Initial */
             last_initial: string;
         };
@@ -10344,25 +10147,25 @@ export interface components {
              */
             authenticated: number;
             /**
-             * Guests
-             * @description Number of guest sessions
-             */
-            guests: number;
-            /**
              * Converted Guests
              * @description Number of guests who converted to users
              */
             converted_guests: number;
             /**
-             * User Percentage
-             * @description Percentage of authenticated users
-             */
-            user_percentage: number;
-            /**
              * Guest Percentage
              * @description Percentage of guests
              */
             guest_percentage: number;
+            /**
+             * Guests
+             * @description Number of guest sessions
+             */
+            guests: number;
+            /**
+             * User Percentage
+             * @description Percentage of authenticated users
+             */
+            user_percentage: number;
         };
         /** UserCreate */
         UserCreate: {
@@ -10373,32 +10176,32 @@ export interface components {
             email: string;
             /** First Name */
             first_name: string;
-            /** Last Name */
-            last_name: string;
-            /** Phone */
-            phone?: string | null;
-            /** Zip Code */
-            zip_code: string;
+            /** Guest Session Id */
+            guest_session_id?: string | null;
             /**
              * Is Active
              * @default true
              */
             is_active: boolean | null;
+            /** Last Name */
+            last_name: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
+            /** Password */
+            password: string;
+            /** Phone */
+            phone?: string | null;
+            /** Role */
+            role?: string | null;
             /**
              * Timezone
              * @default America/New_York
              */
             timezone: string | null;
-            /** Password */
-            password: string;
-            /** Role */
-            role?: string | null;
-            /** Guest Session Id */
-            guest_session_id?: string | null;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
+            /** Zip Code */
+            zip_code: string;
         };
         /**
          * UserDataDeletionRequest
@@ -10418,15 +10221,10 @@ export interface components {
          */
         UserDataDeletionResponse: {
             /**
-             * Status
-             * @description Status of the deletion request
+             * Account Deleted
+             * @description Whether the account was deleted
              */
-            status: string;
-            /**
-             * Message
-             * @description Human-readable message
-             */
-            message: string;
+            account_deleted: boolean;
             /**
              * Deletion Stats
              * @description Statistics of deleted records
@@ -10435,10 +10233,15 @@ export interface components {
                 [key: string]: number;
             };
             /**
-             * Account Deleted
-             * @description Whether the account was deleted
+             * Message
+             * @description Human-readable message
              */
-            account_deleted: boolean;
+            message: string;
+            /**
+             * Status
+             * @description Status of the deletion request
+             */
+            status: string;
         };
         /** UserLogin */
         UserLogin: {
@@ -10447,15 +10250,13 @@ export interface components {
              * Format: email
              */
             email: string;
-            /** Password */
-            password: string;
             /** Guest Session Id */
             guest_session_id?: string | null;
+            /** Password */
+            password: string;
         };
         /** UserResponse */
         UserResponse: {
-            /** Id */
-            id: string;
             /**
              * Email
              * Format: email
@@ -10463,42 +10264,44 @@ export interface components {
             email: string;
             /** First Name */
             first_name: string;
-            /** Last Name */
-            last_name: string;
-            /** Phone */
-            phone?: string | null;
-            /** Zip Code */
-            zip_code: string;
+            /**
+             * Has Profile Picture
+             * @default false
+             */
+            has_profile_picture: boolean | null;
+            /** Id */
+            id: string;
             /**
              * Is Active
              * @default true
              */
             is_active: boolean | null;
-            /**
-             * Timezone
-             * @default America/New_York
-             */
-            timezone: string;
-            /**
-             * Roles
-             * @default []
-             */
-            roles: string[];
+            /** Last Name */
+            last_name: string;
             /**
              * Permissions
              * @default []
              */
             permissions: string[];
+            /** Phone */
+            phone?: string | null;
             /**
              * Profile Picture Version
              * @default 0
              */
             profile_picture_version: number | null;
             /**
-             * Has Profile Picture
-             * @default false
+             * Roles
+             * @default []
              */
-            has_profile_picture: boolean | null;
+            roles: string[];
+            /**
+             * Timezone
+             * @default America/New_York
+             */
+            timezone: string;
+            /** Zip Code */
+            zip_code: string;
         };
         /** UserUpdate */
         UserUpdate: {
@@ -10508,18 +10311,24 @@ export interface components {
             last_name?: string | null;
             /** Phone */
             phone?: string | null;
-            /** Zip Code */
-            zip_code?: string | null;
             /** Timezone */
             timezone?: string | null;
+            /** Zip Code */
+            zip_code?: string | null;
         };
         /**
          * UserWithPermissionsResponse
          * @description Enhanced user response with roles and permissions for /me endpoint.
          */
         UserWithPermissionsResponse: {
-            /** Id */
-            id: string;
+            /** Beta Access */
+            beta_access?: boolean | null;
+            /** Beta Invited By */
+            beta_invited_by?: string | null;
+            /** Beta Phase */
+            beta_phase?: string | null;
+            /** Beta Role */
+            beta_role?: string | null;
             /**
              * Email
              * Format: email
@@ -10527,50 +10336,44 @@ export interface components {
             email: string;
             /** First Name */
             first_name: string;
-            /** Last Name */
-            last_name: string;
-            /** Phone */
-            phone?: string | null;
-            /** Zip Code */
-            zip_code: string;
+            /**
+             * Has Profile Picture
+             * @default false
+             */
+            has_profile_picture: boolean | null;
+            /** Id */
+            id: string;
             /**
              * Is Active
              * @default true
              */
             is_active: boolean | null;
-            /**
-             * Timezone
-             * @default America/New_York
-             */
-            timezone: string;
-            /**
-             * Roles
-             * @default []
-             */
-            roles: string[];
+            /** Last Name */
+            last_name: string;
             /**
              * Permissions
              * @default []
              */
             permissions: string[];
+            /** Phone */
+            phone?: string | null;
             /**
              * Profile Picture Version
              * @default 0
              */
             profile_picture_version: number | null;
             /**
-             * Has Profile Picture
-             * @default false
+             * Roles
+             * @default []
              */
-            has_profile_picture: boolean | null;
-            /** Beta Access */
-            beta_access?: boolean | null;
-            /** Beta Role */
-            beta_role?: string | null;
-            /** Beta Phase */
-            beta_phase?: string | null;
-            /** Beta Invited By */
-            beta_invited_by?: string | null;
+            roles: string[];
+            /**
+             * Timezone
+             * @default America/New_York
+             */
+            timezone: string;
+            /** Zip Code */
+            zip_code: string;
         };
         /**
          * ValidateWeekRequest
@@ -10605,57 +10408,52 @@ export interface components {
          * @description Details about a slot operation in validation
          */
         ValidationSlotDetail: {
-            /** Operation Index */
-            operation_index: number;
             /** Action */
             action: string;
-            /** Date */
-            date?: string | null;
-            /** Start Time */
-            start_time?: string | null;
-            /** End Time */
-            end_time?: string | null;
-            /** Slot Id */
-            slot_id?: string | null;
-            /** Reason */
-            reason?: string | null;
             /** Conflicts With */
             conflicts_with?: {
                 [key: string]: unknown;
             }[] | null;
+            /** Date */
+            date?: string | null;
+            /** End Time */
+            end_time?: string | null;
+            /** Operation Index */
+            operation_index: number;
+            /** Reason */
+            reason?: string | null;
+            /** Slot Id */
+            slot_id?: string | null;
+            /** Start Time */
+            start_time?: string | null;
         };
         /**
          * ValidationSummary
          * @description Summary of validation results
          */
         ValidationSummary: {
-            /** Total Operations */
-            total_operations: number;
-            /** Valid Operations */
-            valid_operations: number;
+            /** Estimated Changes */
+            estimated_changes: {
+                [key: string]: number;
+            };
+            /** Has Conflicts */
+            has_conflicts: boolean;
             /** Invalid Operations */
             invalid_operations: number;
             /** Operations By Type */
             operations_by_type: {
                 [key: string]: number;
             };
-            /** Has Conflicts */
-            has_conflicts: boolean;
-            /** Estimated Changes */
-            estimated_changes: {
-                [key: string]: number;
-            };
+            /** Total Operations */
+            total_operations: number;
+            /** Valid Operations */
+            valid_operations: number;
         };
         /**
          * WebhookResponse
          * @description Response for webhook processing.
          */
         WebhookResponse: {
-            /**
-             * Status
-             * @description Processing status (success, ignored, error)
-             */
-            status: string;
             /**
              * Event Type
              * @description Stripe event type
@@ -10666,6 +10464,11 @@ export interface components {
              * @description Additional information
              */
             message?: string | null;
+            /**
+             * Status
+             * @description Processing status (success, ignored, error)
+             */
+            status: string;
         };
         /**
          * WeekAvailabilityUpdateResponse
@@ -10675,58 +10478,58 @@ export interface components {
             /** Message */
             message: string;
             /**
-             * Week Start
-             * Format: date
-             */
-            week_start: string;
-            /**
              * Week End
              * Format: date
              */
             week_end: string;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
             /** Windows Created */
             windows_created: number;
-            /** Windows Updated */
-            windows_updated: number;
             /** Windows Deleted */
             windows_deleted: number;
+            /** Windows Updated */
+            windows_updated: number;
         };
         /**
          * WeekSpecificScheduleCreate
          * @description Schema for creating schedule for specific dates.
          */
         WeekSpecificScheduleCreate: {
-            /** Schedule */
-            schedule: {
-                [key: string]: unknown;
-            }[];
             /**
              * Clear Existing
              * @description Whether to clear existing entries for the week before saving
              * @default true
              */
             clear_existing: boolean;
-            /**
-             * Week Start
-             * @description Optional Monday date. If not provided, inferred from schedule dates
-             */
-            week_start?: string | null;
+            /** Schedule */
+            schedule: {
+                [key: string]: unknown;
+            }[];
             /**
              * Version
              * @description Optional optimistic concurrency token (ETag) for this week
              */
             version?: string | null;
+            /**
+             * Week Start
+             * @description Optional Monday date. If not provided, inferred from schedule dates
+             */
+            week_start?: string | null;
         };
         /**
          * WeekValidationResponse
          * @description Response for week schedule validation
          */
         WeekValidationResponse: {
-            /** Valid */
-            valid: boolean;
-            summary: components["schemas"]["ValidationSummary"];
             /** Details */
             details: components["schemas"]["ValidationSlotDetail"][];
+            summary: components["schemas"]["ValidationSummary"];
+            /** Valid */
+            valid: boolean;
             /**
              * Warnings
              * @default []
@@ -10735,10 +10538,10 @@ export interface components {
         };
         /** DeleteResponse */
         app__routes__addresses__DeleteResponse: {
-            /** Success */
-            success: boolean;
             /** Message */
             message: string;
+            /** Success */
+            success: boolean;
         };
         /**
          * DeleteResponse
@@ -10751,22 +10554,22 @@ export interface components {
          */
         app__schemas__base_responses__DeleteResponse: {
             /**
-             * Success
-             * @description Deletion success status
-             * @default true
+             * Deleted At
+             * Format: date-time
+             * @description Deletion timestamp
              */
-            success: boolean;
+            deleted_at?: string;
             /**
              * Message
              * @description Human-readable deletion message
              */
             message: string;
             /**
-             * Deleted At
-             * Format: date-time
-             * @description Deletion timestamp
+             * Success
+             * @description Deletion success status
+             * @default true
              */
-            deleted_at?: string;
+            success: boolean;
         };
         /**
          * InstructorInfo
@@ -10776,10 +10579,10 @@ export interface components {
          *     Full last name never exposed to students.
          */
         app__schemas__booking__InstructorInfo: {
-            /** Id */
-            id: string;
             /** First Name */
             first_name: string;
+            /** Id */
+            id: string;
             /** Last Initial */
             last_initial: string;
         };
@@ -10800,35 +10603,25 @@ export interface components {
          */
         app__schemas__search_responses__InstructorInfo: {
             /**
-             * Id
-             * @description Instructor user ID
+             * Bio
+             * @description Instructor bio
              */
-            id: string;
+            bio?: string | null;
             /**
              * First Name
              * @description Instructor first name
              */
             first_name: string;
             /**
+             * Id
+             * @description Instructor user ID
+             */
+            id: string;
+            /**
              * Last Initial
              * @description Instructor last name initial only
              */
             last_initial: string;
-            /**
-             * Bio
-             * @description Instructor bio
-             */
-            bio?: string | null;
-            /**
-             * Years Experience
-             * @description Years of experience
-             */
-            years_experience?: number | null;
-            /**
-             * Service Area Summary
-             * @description Summary of borough coverage (e.g., 'Manhattan, Queens')
-             */
-            service_area_summary?: string | null;
             /**
              * Service Area Boroughs
              * @description List of borough names the instructor serves
@@ -10839,6 +10632,16 @@ export interface components {
              * @description Detailed neighborhood coverage with keys: neighborhood_id, ntacode, name, borough
              */
             service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][];
+            /**
+             * Service Area Summary
+             * @description Summary of borough coverage (e.g., 'Manhattan, Queens')
+             */
+            service_area_summary?: string | null;
+            /**
+             * Years Experience
+             * @description Years of experience
+             */
+            years_experience?: number | null;
         };
     };
     responses: never;
@@ -10846,10 +10649,141 @@ export interface components {
     requestBodies: never;
     headers: never;
     pathItems: never;
-}
+};
 export type $defs = Record<string, never>;
 export interface operations {
-    post__auth_register__register: {
+    deactivate_account_api_account_deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountStatusChangeResponse"];
+                };
+            };
+        };
+    };
+    reactivate_account_api_account_reactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountStatusChangeResponse"];
+                };
+            };
+        };
+    };
+    check_account_status_api_account_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountStatusResponse"];
+                };
+            };
+        };
+    };
+    suspend_account_api_account_suspend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountStatusChangeResponse"];
+                };
+            };
+        };
+    };
+    get_bulk_coverage_geojson_api_addresses_coverage_bulk_get: {
+        parameters: {
+            query: {
+                ids: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoverageFeatureCollectionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_my_addresses_api_addresses_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressListResponse"];
+                };
+            };
+        };
+    };
+    create_my_address_api_addresses_me_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -10858,7 +10792,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UserCreate"];
+                "application/json": components["schemas"]["AddressCreate"];
             };
         };
         responses: {
@@ -10868,7 +10802,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserResponse"];
+                    "application/json": components["schemas"]["AddressResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10882,16 +10816,49 @@ export interface operations {
             };
         };
     };
-    post__auth_login__login: {
+    delete_my_address_api_addresses_me__address_id__delete: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                address_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__routes__addresses__DeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_my_address_api_addresses_me__address_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: string;
+            };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/x-www-form-urlencoded": components["schemas"]["Body_post__auth_login__login"];
+                "application/json": components["schemas"]["AddressUpdate"];
             };
         };
         responses: {
@@ -10901,7 +10868,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoginResponse"];
+                    "application/json": components["schemas"]["AddressResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10915,18 +10882,17 @@ export interface operations {
             };
         };
     };
-    "post__auth_change-password__change_password": {
+    places_autocomplete_api_addresses_places_autocomplete_get: {
         parameters: {
-            query?: never;
+            query: {
+                q: string;
+                provider?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PasswordChangeRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -10934,7 +10900,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PasswordChangeResponse"];
+                    "application/json": components["schemas"]["AutocompleteResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10948,18 +10914,17 @@ export interface operations {
             };
         };
     };
-    "post__auth_login-with-session__login_with_session": {
+    place_details_api_addresses_places_details_get: {
         parameters: {
-            query?: never;
+            query: {
+                place_id: string;
+                provider?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UserLogin"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -10967,7 +10932,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Token"];
+                    "application/json": components["schemas"]["PlaceDetails"];
                 };
             };
             /** @description Validation Error */
@@ -10981,7 +10946,41 @@ export interface operations {
             };
         };
     };
-    get__auth_me__read_users_me: {
+    list_neighborhoods_api_addresses_regions_neighborhoods_get: {
+        parameters: {
+            query?: {
+                region_type?: string;
+                borough?: string | null;
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NeighborhoodsListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_my_service_areas_api_addresses_service_areas_me_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -10996,12 +10995,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserWithPermissionsResponse"];
+                    "application/json": components["schemas"]["ServiceAreasResponse"];
                 };
             };
         };
     };
-    patch__auth_me__update_current_user: {
+    replace_my_service_areas_api_addresses_service_areas_me_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -11010,7 +11009,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UserUpdate"];
+                "application/json": components["schemas"]["ServiceAreasUpdateRequest"];
             };
         };
         responses: {
@@ -11020,7 +11019,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserWithPermissionsResponse"];
+                    "application/json": components["schemas"]["ServiceAreasResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11034,7 +11033,38 @@ export interface operations {
             };
         };
     };
-    post__api_auth_2fa_setup_initiate__setup_initiate: {
+    is_nyc_zip_api_addresses_zip_is_nyc_get: {
+        parameters: {
+            query: {
+                zip: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NYCZipCheckResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_referral_config_api_admin_referrals_config_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -11049,23 +11079,19 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TFASetupInitiateResponse"];
+                    "application/json": components["schemas"]["AdminReferralsConfigOut"];
                 };
             };
         };
     };
-    post__api_auth_2fa_setup_verify__setup_verify: {
+    get_referral_health_api_admin_referrals_health_get: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TFASetupVerifyRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -11073,7 +11099,130 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TFASetupVerifyResponse"];
+                    "application/json": components["schemas"]["AdminReferralsHealthOut"];
+                };
+            };
+        };
+    };
+    get_referral_summary_api_admin_referrals_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReferralsSummaryOut"];
+                };
+            };
+        };
+    };
+    get_codebase_metrics_history_api_analytics_codebase_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodebaseHistoryResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    append_codebase_metrics_history_api_analytics_codebase_history_append_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppendHistoryResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_codebase_metrics_api_analytics_codebase_metrics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodebaseMetricsResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    export_analytics_api_analytics_export_post: {
+        parameters: {
+            query?: {
+                format?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportAnalyticsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11087,7 +11236,352 @@ export interface operations {
             };
         };
     };
-    post__api_auth_2fa_disable__disable: {
+    candidates_category_trends_api_analytics_search_candidates_category_trends_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandidateCategoryTrendsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    candidate_service_queries_api_analytics_search_candidates_queries_get: {
+        parameters: {
+            query: {
+                service_catalog_id: string;
+                days?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandidateServiceQueriesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    candidates_score_distribution_api_analytics_search_candidates_score_distribution_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandidateScoreDistributionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    candidates_summary_api_analytics_search_candidates_summary_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandidateSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    candidates_top_services_api_analytics_search_candidates_top_services_get: {
+        parameters: {
+            query?: {
+                days?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandidateTopServicesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_conversion_metrics_api_analytics_search_conversion_metrics_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversionMetricsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_popular_searches_api_analytics_search_popular_searches_get: {
+        parameters: {
+            query?: {
+                days?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PopularSearchesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_search_referrers_api_analytics_search_referrers_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchReferrersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_search_analytics_summary_api_analytics_search_search_analytics_summary_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchAnalyticsSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_search_performance_api_analytics_search_search_performance_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchPerformanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_search_trends_api_analytics_search_search_trends_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchTrendsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_api_auth_2fa_disable_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -11120,27 +11614,7 @@ export interface operations {
             };
         };
     };
-    get__api_auth_2fa_status__status_endpoint: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TFAStatusResponse"];
-                };
-            };
-        };
-    };
-    "post__api_auth_2fa_regenerate-backup-codes__regenerate_backup_codes": {
+    regenerate_backup_codes_api_auth_2fa_regenerate_backup_codes_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -11160,7 +11634,80 @@ export interface operations {
             };
         };
     };
-    "post__api_auth_2fa_verify-login__verify_login": {
+    setup_initiate_api_auth_2fa_setup_initiate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TFASetupInitiateResponse"];
+                };
+            };
+        };
+    };
+    setup_verify_api_auth_2fa_setup_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TFASetupVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TFASetupVerifyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    status_endpoint_api_auth_2fa_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TFAStatusResponse"];
+                };
+            };
+        };
+    };
+    verify_login_api_auth_2fa_verify_login_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -11193,7 +11740,3543 @@ export interface operations {
             };
         };
     };
-    get__instructors__get_all_instructors: {
+    confirm_password_reset_api_auth_password_reset_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_password_reset_api_auth_password_reset_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_reset_token_api_auth_password_reset_verify__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetVerifyResponseValid"] | components["schemas"]["PasswordResetVerifyResponseInvalid"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    consume_invite_api_beta_invites_consume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteConsumeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessGrantResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_invites_api_beta_invites_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteGenerateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_invite_api_beta_invites_send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteSendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteSendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_invite_batch_api_beta_invites_send_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteBatchSendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteBatchSendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_invite_batch_async_api_beta_invites_send_batch_async_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteBatchSendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteBatchAsyncStartResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_invite_batch_progress_api_beta_invites_send_batch_progress_get: {
+        parameters: {
+            query: {
+                task_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteBatchProgressResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_invite_api_beta_invites_validate_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                invite_code?: string | null;
+                email?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteValidateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invite_verified_api_beta_invites_verified_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_beta_metrics_summary_api_beta_metrics_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BetaMetricsSummaryResponse"];
+                };
+            };
+        };
+    };
+    get_beta_settings_api_beta_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BetaSettingsPayload"];
+                };
+            };
+        };
+    };
+    update_beta_settings_api_beta_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BetaSettingsPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BetaSettingsPayload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    database_health_api_database_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseHealthResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    database_pool_status_api_database_pool_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabasePoolStatusResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    database_stats_api_database_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseStatsResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_favorites_api_favorites_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FavoritesList"];
+                };
+            };
+        };
+    };
+    check_favorite_status_api_favorites_check__instructor_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FavoriteStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_favorite_api_favorites__instructor_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FavoriteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_favorite_api_favorites__instructor_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FavoriteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_message_config_api_messages_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageConfigResponse"];
+                };
+            };
+        };
+    };
+    get_message_history_api_messages_history__booking_id__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_messages_as_read_api_messages_mark_read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkMessagesReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkMessagesReadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_message_api_messages_send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendMessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_messages_api_messages_stream__booking_id__get: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_typing_indicator_api_messages_typing__booking_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TypingStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_unread_count_api_messages_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCountResponse"];
+                };
+            };
+        };
+    };
+    delete_message_api_messages__message_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteMessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_message_api_messages__message_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_reaction_api_messages__message_id__reactions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_reaction_api_messages__message_id__reactions_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledge_alert_api_monitoring_alerts_acknowledge__alert_type__post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Monitoring-API-Key"?: string | null;
+            };
+            path: {
+                alert_type: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertAcknowledgeResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_live_alerts_api_monitoring_alerts_live_get: {
+        parameters: {
+            query?: {
+                /** @description Get alerts from last N minutes */
+                minutes?: number;
+            };
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveAlertsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_recent_alerts_api_monitoring_alerts_recent_get: {
+        parameters: {
+            query?: {
+                /** @description Get alerts from last N hours */
+                hours?: number;
+                /** @description Maximum number of alerts to return */
+                limit?: number;
+                /** @description Filter by severity */
+                severity?: string | null;
+            };
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecentAlertsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_alert_summary_api_monitoring_alerts_summary_get: {
+        parameters: {
+            query?: {
+                /** @description Number of days to summarize */
+                days?: number;
+            };
+            header: {
+                "x-api-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_extended_cache_stats_api_monitoring_cache_extended_stats_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Monitoring-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtendedCacheStats"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_monitoring_dashboard_api_monitoring_dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Monitoring-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitoringDashboardResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_payment_system_health_api_monitoring_payment_health_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Monitoring-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentHealthResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_slow_queries_api_monitoring_slow_queries_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                "X-Monitoring-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlowQueriesResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_slow_requests_api_monitoring_slow_requests_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                "X-Monitoring-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlowRequestsResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_payment_health_check_api_monitoring_trigger_payment_health_check_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Monitoring-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentHealthCheckTriggerResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_checkout_api_payments_checkout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCheckoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dashboard_link_api_payments_connect_dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardLinkResponse"];
+                };
+            };
+        };
+    };
+    request_instant_payout_api_payments_connect_instant_payout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstantPayoutResponse"];
+                };
+            };
+        };
+    };
+    start_onboarding_api_payments_connect_onboard_post: {
+        parameters: {
+            query?: {
+                return_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_payout_schedule_api_payments_connect_payout_schedule_post: {
+        parameters: {
+            query?: {
+                interval?: string;
+                weekly_anchor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutScheduleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_onboarding_status_api_payments_connect_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingStatusResponse"];
+                };
+            };
+        };
+    };
+    get_credit_balance_api_payments_credits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditBalanceResponse"];
+                };
+            };
+        };
+    };
+    get_instructor_earnings_api_payments_earnings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EarningsResponse"];
+                };
+            };
+        };
+    };
+    refresh_identity_status_api_payments_identity_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityRefreshResponse"];
+                };
+            };
+        };
+    };
+    create_identity_session_api_payments_identity_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentitySessionResponse"];
+                };
+            };
+        };
+    };
+    list_payment_methods_api_payments_methods_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodResponse"][];
+                };
+            };
+        };
+    };
+    save_payment_method_api_payments_methods_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavePaymentMethodRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_payment_method_api_payments_methods__method_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__schemas__payment_schemas__DeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_transaction_history_api_payments_transactions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionHistoryItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handle_stripe_webhook_api_payments_webhooks_stripe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookResponse"];
+                };
+            };
+        };
+    };
+    delete_my_data_api_privacy_delete_me_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserDataDeletionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDataDeletionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_user_data_admin_api_privacy_delete_user__user_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserDataDeletionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDataDeletionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_my_data_api_privacy_export_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportResponse"];
+                };
+            };
+        };
+    };
+    export_user_data_admin_api_privacy_export_user__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_retention_policies_api_privacy_retention_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionPolicyResponse"];
+                };
+            };
+        };
+    };
+    get_privacy_statistics_api_privacy_statistics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacyStatisticsResponse"];
+                };
+            };
+        };
+    };
+    get_instructor_public_availability_api_public_instructors__instructor_id__availability_get: {
+        parameters: {
+            query: {
+                /** @description Start date for availability search */
+                start_date: string;
+                /** @description End date (defaults to configured days from start) */
+                end_date?: string | null;
+            };
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicInstructorAvailability"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_next_available_slot_api_public_instructors__instructor_id__next_available_get: {
+        parameters: {
+            query?: {
+                /** @description Required duration in minutes */
+                duration_minutes?: number;
+            };
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextAvailableSlotResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_logout_api_public_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    send_referral_invites_api_public_referrals_send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReferralSendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralSendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_guest_session_api_public_session_guest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestSessionResponse"];
+                };
+            };
+        };
+    };
+    celery_queue_status_api_redis_celery_queues_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedisCeleryQueuesResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    redis_connection_audit_api_redis_connection_audit_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedisConnectionAuditResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    flush_celery_queues_api_redis_flush_queues_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedisFlushQueuesResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    redis_health_api_redis_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedisHealthResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    redis_stats_api_redis_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedisStatsResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    redis_test_api_redis_test_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedisTestResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    apply_referral_credit_api_referrals_checkout_apply_referral_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutApplyResponse"] | components["schemas"]["ReferralErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_referral_code_api_referrals_claim_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReferralClaimRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralClaimResponse"] | components["schemas"]["ReferralErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_referral_ledger_api_referrals_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralLedgerResponse"];
+                };
+            };
+        };
+    };
+    get_existing_reviews_for_bookings_api_reviews_booking_existing_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": string[];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_review_for_booking_api_reviews_booking__booking_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewItem"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_instructor_ratings_api_reviews_instructor__instructor_id__ratings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstructorRatingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_recent_reviews_api_reviews_instructor__instructor_id__recent_get: {
+        parameters: {
+            query?: {
+                instructor_service_id?: string | null;
+                limit?: number;
+                page?: number;
+                min_rating?: number | null;
+                with_text?: boolean | null;
+            };
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewListPageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_search_rating_api_reviews_instructor__instructor_id__search_rating_get: {
+        parameters: {
+            query?: {
+                instructor_service_id?: string | null;
+            };
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchRatingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ratings_batch_api_reviews_ratings_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RatingsBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingsBatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    respond_to_review_api_reviews_reviews__review_id__respond_post: {
+        parameters: {
+            query: {
+                response_text: string;
+            };
+            header?: never;
+            path: {
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewResponseModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_review_api_reviews_submit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewSubmitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_recent_searches_api_search_history__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                "x-guest-session-id"?: string | null;
+                "x-session-id"?: string | null;
+                "x-search-origin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchHistoryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_search_api_search_history__post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-guest-session-id"?: string | null;
+                "x-session-id"?: string | null;
+                "x-search-origin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchHistoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_guest_search_api_search_history_guest_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-guest-session-id"?: string | null;
+                "x-session-id"?: string | null;
+                "x-search-origin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestSearchHistoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    track_interaction_api_search_history_interaction_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-guest-session-id"?: string | null;
+                "x-session-id"?: string | null;
+                "x-search-origin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchInteractionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_search_api_search_history__search_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-guest-session-id"?: string | null;
+            };
+            path: {
+                search_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_instructors_api_search_instructors_get: {
+        parameters: {
+            query: {
+                /** @description Search query */
+                q: string;
+                /** @description Maximum results to return */
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstructorSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finalize_profile_picture_api_uploads_r2_finalize_profile_picture_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FinalizeProfilePictureRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    proxy_upload_to_r2_api_uploads_r2_proxy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_proxy_upload_to_r2_api_uploads_r2_proxy_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProxyUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_signed_upload_api_uploads_r2_signed_url_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSignedUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_finalize_profile_picture_api_users_me_profile_picture_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FinalizeProfilePicturePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_profile_picture_api_users_me_profile_picture_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__schemas__base_responses__DeleteResponse"];
+                };
+            };
+        };
+    };
+    get_profile_picture_url_api_users__user_id__profile_picture_url_get: {
+        parameters: {
+            query?: {
+                variant?: ("original" | "display" | "thumb") | null;
+            };
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_password_auth_change_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordChangeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    login_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["Body_login_auth_login_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    login_with_session_auth_login_with_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserLogin"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Token"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_users_me_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserWithPermissionsResponse"];
+                };
+            };
+        };
+    };
+    update_current_user_auth_me_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserWithPermissionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_bookings_bookings__get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["BookingStatus"] | null;
+                upcoming_only?: boolean | null;
+                upcoming?: boolean | null;
+                exclude_future_confirmed?: boolean;
+                include_past_confirmed?: boolean;
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_booking_bookings__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingCreateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_availability_bookings_check_availability_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AvailabilityCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailabilityCheckResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_reminder_emails_bookings_send_reminders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendRemindersResponse"];
+                };
+            };
+        };
+    };
+    get_booking_stats_bookings_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingStatsResponse"];
+                };
+            };
+        };
+    };
+    get_upcoming_bookings_bookings_upcoming_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedResponse_UpcomingBookingResponse_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_booking_details_bookings__booking_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_booking_bookings__booking_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_booking_bookings__booking_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_booking_bookings__booking_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_booking_payment_bookings__booking_id__confirm_payment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingConfirmPayment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_booking_payment_method_bookings__booking_id__payment_method_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingPaymentMethodUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_booking_preview_bookings__booking_id__preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reschedule_booking_bookings__booking_id__reschedule_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingRescheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_all_instructors_instructors__get: {
         parameters: {
             query: {
                 /** @description Service catalog ID (required) */
@@ -11235,9 +15318,12 @@ export interface operations {
             };
         };
     };
-    get__instructors_me__get_my_profile: {
+    get_all_availability_instructors_availability__get: {
         parameters: {
-            query?: never;
+            query?: {
+                start_date?: string | null;
+                end_date?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -11250,12 +15336,21 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstructorProfileResponse"];
+                    "application/json": components["schemas"]["AvailabilityWindowResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    put__instructors_me__update_profile: {
+    apply_to_date_range_instructors_availability_apply_to_date_range_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -11264,7 +15359,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["InstructorProfileUpdate"];
+                "application/json": components["schemas"]["ApplyToDateRangeRequest"];
             };
         };
         responses: {
@@ -11274,7 +15369,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstructorProfileResponse"];
+                    "application/json": components["schemas"]["ApplyToDateRangeResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11288,7 +15383,27 @@ export interface operations {
             };
         };
     };
-    post__instructors_me__create_instructor_profile: {
+    get_blackout_dates_instructors_availability_blackout_dates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlackoutDateResponse"][];
+                };
+            };
+        };
+    };
+    add_blackout_date_instructors_availability_blackout_dates_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -11297,17 +15412,17 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["InstructorProfileCreate"];
+                "application/json": components["schemas"]["BlackoutDateCreate"];
             };
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstructorProfileResponse"];
+                    "application/json": components["schemas"]["BlackoutDateResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11321,50 +15436,12 @@ export interface operations {
             };
         };
     };
-    delete__instructors_me__delete_instructor_profile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    "post__instructors_me_go-live__go_live": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstructorProfileResponse"];
-                };
-            };
-        };
-    };
-    get__instructors_instructor_id__get_instructor_profile: {
+    delete_blackout_date_instructors_availability_blackout_dates__blackout_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                instructor_id: string;
+                blackout_id: string;
             };
             cookie?: never;
         };
@@ -11376,7 +15453,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstructorProfileResponse"];
+                    "application/json": components["schemas"]["DeleteBlackoutResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11390,304 +15467,7 @@ export interface operations {
             };
         };
     };
-    get__instructors_instructor_id_coverage__get_instructor_coverage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                instructor_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CoverageFeatureCollectionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__instructors_bookings_booking_id_complete__mark_lesson_complete: {
-        parameters: {
-            query?: {
-                notes?: string | null;
-            };
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__instructors_bookings_pending-completion__get_pending_completion_bookings": {
-        parameters: {
-            query?: {
-                /** @description Page number */
-                page?: number;
-                /** @description Items per page */
-                per_page?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__instructors_bookings_completed__get_completed_bookings: {
-        parameters: {
-            query?: {
-                /** @description Page number */
-                page?: number;
-                /** @description Items per page */
-                per_page?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__instructors_bookings_booking_id_dispute__dispute_completion: {
-        parameters: {
-            query: {
-                reason: string;
-            };
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_account_suspend__suspend_account: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AccountStatusChangeResponse"];
-                };
-            };
-        };
-    };
-    post__api_account_deactivate__deactivate_account: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AccountStatusChangeResponse"];
-                };
-            };
-        };
-    };
-    post__api_account_reactivate__reactivate_account: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AccountStatusChangeResponse"];
-                };
-            };
-        };
-    };
-    get__api_account_status__check_account_status: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AccountStatusResponse"];
-                };
-            };
-        };
-    };
-    get__services_categories__get_service_categories: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CategoryResponse"][];
-                };
-            };
-        };
-    };
-    get__services_catalog__get_catalog_services: {
-        parameters: {
-            query?: {
-                /** @description Filter by category slug */
-                category?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CatalogServiceResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__services_instructor_add__add_service_to_profile: {
+    bulk_update_availability_instructors_availability_bulk_update_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -11696,7 +15476,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["InstructorServiceCreate"];
+                "application/json": components["schemas"]["BulkUpdateRequest"];
             };
         };
         responses: {
@@ -11706,7 +15486,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstructorServiceResponse"];
+                    "application/json": components["schemas"]["BulkUpdateResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11720,82 +15500,18 @@ export interface operations {
             };
         };
     };
-    get__services_search__search_services: {
-        parameters: {
-            query: {
-                /** @description Search query */
-                q: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__services_catalog_top-per-category__get_top_services_per_category": {
-        parameters: {
-            query?: {
-                /** @description Number of top services per category */
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__services_catalog_all-with-instructors__get_all_services_with_instructors": {
+    copy_week_availability_instructors_availability_copy_week_post: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CopyWeekRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11803,21 +15519,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CopyWeekResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    "get__services_catalog_kids-available__get_kids_available_services": {
+    add_specific_date_availability_instructors_availability_specific_date_post: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecificDateAvailabilityCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11825,12 +15552,21 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CatalogServiceMinimalResponse"][];
+                    "application/json": components["schemas"]["AvailabilityWindowResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    get__instructors_availability_week__get_week_availability: {
+    get_week_availability_instructors_availability_week_get: {
         parameters: {
             query: {
                 /** @description Monday of the week */
@@ -11864,7 +15600,7 @@ export interface operations {
             };
         };
     };
-    post__instructors_availability_week__save_week_availability: {
+    save_week_availability_instructors_availability_week_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -11897,110 +15633,11 @@ export interface operations {
             };
         };
     };
-    "post__instructors_availability_copy-week__copy_week_availability": {
+    get_week_booked_slots_instructors_availability_week_booked_slots_get: {
         parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CopyWeekRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CopyWeekResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__instructors_availability_apply-to-date-range__apply_to_date_range": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ApplyToDateRangeRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApplyToDateRangeResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__instructors_availability_specific-date__add_specific_date_availability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SpecificDateAvailabilityCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AvailabilityWindowResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__instructors_availability__get_all_availability: {
-        parameters: {
-            query?: {
-                start_date?: string | null;
-                end_date?: string | null;
+            query: {
+                /** @description Start date (Monday) of the week */
+                start_date: string;
             };
             header?: never;
             path?: never;
@@ -12014,7 +15651,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AvailabilityWindowResponse"][];
+                    "application/json": components["schemas"]["BookedSlotsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12028,7 +15665,7 @@ export interface operations {
             };
         };
     };
-    "patch__instructors_availability_bulk-update__bulk_update_availability": {
+    validate_week_changes_instructors_availability_week_validate_changes_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -12037,7 +15674,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BulkUpdateRequest"];
+                "application/json": components["schemas"]["ValidateWeekRequest"];
             };
         };
         responses: {
@@ -12047,7 +15684,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BulkUpdateResponse"];
+                    "application/json": components["schemas"]["WeekValidationResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12061,7 +15698,7 @@ export interface operations {
             };
         };
     };
-    delete__instructors_availability_window_id__delete_availability_window: {
+    delete_availability_window_instructors_availability__window_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -12092,7 +15729,7 @@ export interface operations {
             };
         };
     };
-    patch__instructors_availability_window_id__update_availability_window: {
+    update_availability_window_instructors_availability__window_id__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -12127,400 +15764,12 @@ export interface operations {
             };
         };
     };
-    "get__instructors_availability_week_booked-slots__get_week_booked_slots": {
-        parameters: {
-            query: {
-                /** @description Start date (Monday) of the week */
-                start_date: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookedSlotsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__instructors_availability_week_validate-changes__validate_week_changes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ValidateWeekRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WeekValidationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__instructors_availability_blackout-dates__get_blackout_dates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BlackoutDateResponse"][];
-                };
-            };
-        };
-    };
-    "post__instructors_availability_blackout-dates__add_blackout_date": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BlackoutDateCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BlackoutDateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "delete__instructors_availability_blackout-dates_blackout_id__delete_blackout_date": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                blackout_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DeleteBlackoutResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__api_auth_password-reset_request__request_password_reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PasswordResetRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PasswordResetResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__api_auth_password-reset_confirm__confirm_password_reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PasswordResetConfirm"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PasswordResetResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_auth_password-reset_verify_token__verify_reset_token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PasswordResetVerifyResponseValid"] | components["schemas"]["PasswordResetVerifyResponseInvalid"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__bookings_upcoming__get_upcoming_bookings: {
+    get_completed_bookings_instructors_bookings_completed_get: {
         parameters: {
             query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedResponse_UpcomingBookingResponse_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "patch__bookings_booking_id_payment-method__update_booking_payment_method": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BookingPaymentMethodUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__bookings_stats__get_booking_stats: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingStatsResponse"];
-                };
-            };
-        };
-    };
-    "post__bookings_check-availability__check_availability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AvailabilityCheckRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AvailabilityCheckResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__bookings_send-reminders__send_reminder_emails": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SendRemindersResponse"];
-                };
-            };
-        };
-    };
-    get__bookings__get_bookings: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["BookingStatus"] | null;
-                upcoming_only?: boolean | null;
-                upcoming?: boolean | null;
-                exclude_future_confirmed?: boolean;
-                include_past_confirmed?: boolean;
+                /** @description Page number */
                 page?: number;
+                /** @description Items per page */
                 per_page?: number;
             };
             header?: never;
@@ -12549,7 +15798,127 @@ export interface operations {
             };
         };
     };
-    post__bookings__create_booking: {
+    get_pending_completion_bookings_instructors_bookings_pending_completion_get: {
+        parameters: {
+            query?: {
+                /** @description Page number */
+                page?: number;
+                /** @description Items per page */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_lesson_complete_instructors_bookings__booking_id__complete_post: {
+        parameters: {
+            query?: {
+                notes?: string | null;
+            };
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dispute_completion_instructors_bookings__booking_id__dispute_post: {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_profile_instructors_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstructorProfileResponse"];
+                };
+            };
+        };
+    };
+    update_profile_instructors_me_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -12558,7 +15927,40 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BookingCreate"];
+                "application/json": components["schemas"]["InstructorProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstructorProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_instructor_profile_instructors_me_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstructorProfileCreate"];
             };
         };
         responses: {
@@ -12568,7 +15970,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingCreateResponse"];
+                    "application/json": components["schemas"]["InstructorProfileResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12582,48 +15984,29 @@ export interface operations {
             };
         };
     };
-    "post__bookings_booking_id_confirm-payment__confirm_booking_payment": {
+    delete_instructor_profile_instructors_me_delete: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                booking_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BookingConfirmPayment"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
+                content?: never;
             };
         };
     };
-    get__bookings_booking_id_preview__get_booking_preview: {
+    go_live_instructors_me_go_live_post: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                booking_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -12634,188 +16017,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingPreviewResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["InstructorProfileResponse"];
                 };
             };
         };
     };
-    get__bookings_booking_id__get_booking_details: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    patch__bookings_booking_id__update_booking: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BookingUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__bookings_booking_id_cancel__cancel_booking: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BookingCancel"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__bookings_booking_id_reschedule__reschedule_booking: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BookingRescheduleRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__bookings_booking_id_complete__complete_booking: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_favorites_instructor_id__add_favorite: {
+    get_instructor_profile_instructors__instructor_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -12832,7 +16039,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FavoriteResponse"];
+                    "application/json": components["schemas"]["InstructorProfileResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12846,7 +16053,7 @@ export interface operations {
             };
         };
     };
-    delete__api_favorites_instructor_id__remove_favorite: {
+    get_instructor_coverage_instructors__instructor_id__coverage_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -12863,7 +16070,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FavoriteResponse"];
+                    "application/json": components["schemas"]["CoverageFeatureCollectionResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12877,806 +16084,7 @@ export interface operations {
             };
         };
     };
-    get__api_favorites__get_favorites: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FavoritesList"];
-                };
-            };
-        };
-    };
-    get__api_favorites_check_instructor_id__check_favorite_status: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                instructor_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FavoriteStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_payments_connect_onboard__start_onboarding: {
-        parameters: {
-            query?: {
-                return_to?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OnboardingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_payments_connect_status__get_onboarding_status: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OnboardingStatusResponse"];
-                };
-            };
-        };
-    };
-    post__api_payments_identity_session__create_identity_session: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["IdentitySessionResponse"];
-                };
-            };
-        };
-    };
-    post__api_payments_identity_refresh__refresh_identity_status: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["IdentityRefreshResponse"];
-                };
-            };
-        };
-    };
-    "post__api_payments_connect_payout-schedule__set_payout_schedule": {
-        parameters: {
-            query?: {
-                interval?: string;
-                weekly_anchor?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutScheduleResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_payments_connect_dashboard__get_dashboard_link: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardLinkResponse"];
-                };
-            };
-        };
-    };
-    "post__api_payments_connect_instant-payout__request_instant_payout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstantPayoutResponse"];
-                };
-            };
-        };
-    };
-    get__api_payments_methods__list_payment_methods: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentMethodResponse"][];
-                };
-            };
-        };
-    };
-    post__api_payments_methods__save_payment_method: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SavePaymentMethodRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentMethodResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete__api_payments_methods_method_id__delete_payment_method: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                method_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["app__schemas__payment_schemas__DeleteResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_payments_checkout__create_checkout: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateCheckoutRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CheckoutResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_payments_earnings__get_instructor_earnings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EarningsResponse"];
-                };
-            };
-        };
-    };
-    get__api_payments_transactions__get_transaction_history: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TransactionHistoryItem"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_payments_credits__get_credit_balance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreditBalanceResponse"];
-                };
-            };
-        };
-    };
-    post__api_payments_webhooks_stripe__handle_stripe_webhook: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WebhookResponse"];
-                };
-            };
-        };
-    };
-    post__api_messages_send__send_message: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SendMessageRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SendMessageResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_messages_stream_booking_id__stream_messages: {
-        parameters: {
-            query?: {
-                token?: string | null;
-            };
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: {
-                access_token?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_messages_typing_booking_id__send_typing_indicator: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TypingStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_messages_message_id_reactions__add_reaction: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                message_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReactionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete__api_messages_message_id_reactions__remove_reaction: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                message_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReactionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete__api_messages_message_id__delete_message: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                message_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DeleteMessageResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    patch__api_messages_message_id__edit_message: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                message_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EditMessageRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_messages_config__get_message_config: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageConfigResponse"];
-                };
-            };
-        };
-    };
-    get__api_messages_history_booking_id__get_message_history: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessagesHistoryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_messages_unread-count__get_unread_count": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnreadCountResponse"];
-                };
-            };
-        };
-    };
-    "post__api_messages_mark-read__mark_messages_as_read": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MarkMessagesReadRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MarkMessagesReadResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__metrics_health__health_check: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthCheckResponse"];
-                };
-            };
-        };
-    };
-    get__metrics_performance__get_performance_metrics: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PerformanceMetricsResponse"];
-                };
-            };
-        };
-    };
-    get__metrics_cache__get_cache_metrics: {
+    get_cache_metrics_metrics_cache_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -13696,7 +16104,7 @@ export interface operations {
             };
         };
     };
-    get__metrics_cache_availability__get_availability_cache_metrics: {
+    get_availability_cache_metrics_metrics_cache_availability_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -13716,27 +16124,7 @@ export interface operations {
             };
         };
     };
-    "get__metrics_slow-queries__get_slow_queries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SlowQueriesResponse"];
-                };
-            };
-        };
-    };
-    "post__metrics_cache_reset-stats__reset_cache_stats": {
+    reset_cache_stats_metrics_cache_reset_stats_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -13756,7 +16144,47 @@ export interface operations {
             };
         };
     };
-    "get__metrics_rate-limits__get_rate_limit_stats": {
+    health_check_metrics_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthCheckResponse"];
+                };
+            };
+        };
+    };
+    get_performance_metrics_metrics_performance_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceMetricsResponse"];
+                };
+            };
+        };
+    };
+    get_rate_limit_stats_metrics_rate_limits_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -13776,7 +16204,7 @@ export interface operations {
             };
         };
     };
-    "post__metrics_rate-limits_reset__reset_rate_limits": {
+    reset_rate_limits_metrics_rate_limits_reset_post: {
         parameters: {
             query: {
                 /** @description Pattern to match (e.g., 'email_*', 'ip_192.168.*') */
@@ -13808,7 +16236,7 @@ export interface operations {
             };
         };
     };
-    "get__metrics_rate-limits_test__test_rate_limit": {
+    test_rate_limit_metrics_rate_limits_test_get: {
         parameters: {
             query?: {
                 /** @description Number of requests to simulate */
@@ -13840,52 +16268,10 @@ export interface operations {
             };
         };
     };
-    get__api_monitoring_dashboard__get_monitoring_dashboard: {
+    get_slow_queries_metrics_slow_queries_get: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Monitoring-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MonitoringDashboardResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_monitoring_slow-queries__get_slow_queries": {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: {
-                "X-Monitoring-API-Key"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -13900,925 +16286,9 @@ export interface operations {
                     "application/json": components["schemas"]["SlowQueriesResponse"];
                 };
             };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
-    "get__api_monitoring_slow-requests__get_slow_requests": {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: {
-                "X-Monitoring-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SlowRequestsResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_monitoring_cache_extended-stats__get_extended_cache_stats": {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Monitoring-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExtendedCacheStats"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_monitoring_alerts_acknowledge_alert_type__acknowledge_alert: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Monitoring-API-Key"?: string | null;
-            };
-            path: {
-                alert_type: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AlertAcknowledgeResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_monitoring_payment-health__get_payment_system_health": {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Monitoring-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentHealthResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__api_monitoring_trigger-payment-health-check__trigger_payment_health_check": {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Monitoring-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentHealthCheckTriggerResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_monitoring_alerts_recent__get_recent_alerts: {
-        parameters: {
-            query?: {
-                /** @description Get alerts from last N hours */
-                hours?: number;
-                /** @description Maximum number of alerts to return */
-                limit?: number;
-                /** @description Filter by severity */
-                severity?: string | null;
-            };
-            header: {
-                "x-api-key": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecentAlertsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_monitoring_alerts_summary__get_alert_summary: {
-        parameters: {
-            query?: {
-                /** @description Number of days to summarize */
-                days?: number;
-            };
-            header: {
-                "x-api-key": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AlertSummaryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_monitoring_alerts_live__get_live_alerts: {
-        parameters: {
-            query?: {
-                /** @description Get alerts from last N minutes */
-                minutes?: number;
-            };
-            header: {
-                "x-api-key": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LiveAlertsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_analytics_search_search-trends__get_search_trends": {
-        parameters: {
-            query?: {
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchTrendsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_analytics_search_popular-searches__get_popular_searches": {
-        parameters: {
-            query?: {
-                days?: number;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PopularSearchesResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_analytics_search_referrers__get_search_referrers: {
-        parameters: {
-            query?: {
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchReferrersResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_analytics_search_search-analytics-summary__get_search_analytics_summary": {
-        parameters: {
-            query?: {
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchAnalyticsSummaryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_analytics_search_conversion-metrics__get_conversion_metrics": {
-        parameters: {
-            query?: {
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConversionMetricsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_analytics_search_search-performance__get_search_performance": {
-        parameters: {
-            query?: {
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchPerformanceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_analytics_export__export_analytics: {
-        parameters: {
-            query?: {
-                format?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExportAnalyticsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_analytics_search_candidates_summary__candidates_summary: {
-        parameters: {
-            query?: {
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CandidateSummaryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_analytics_search_candidates_category-trends__candidates_category_trends": {
-        parameters: {
-            query?: {
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CandidateCategoryTrendsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_analytics_search_candidates_top-services__candidates_top_services": {
-        parameters: {
-            query?: {
-                days?: number;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CandidateTopServicesResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_analytics_search_candidates_score-distribution__candidates_score_distribution": {
-        parameters: {
-            query?: {
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CandidateScoreDistributionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_analytics_search_candidates_queries__candidate_service_queries: {
-        parameters: {
-            query: {
-                service_catalog_id: string;
-                days?: number;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CandidateServiceQueriesResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_analytics_codebase_metrics__get_codebase_metrics: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CodebaseMetricsResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get__api_analytics_codebase_history__get_codebase_metrics_history: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CodebaseHistoryResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    post__api_analytics_codebase_history_append__append_codebase_metrics_history: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AppendHistoryResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    post__api_public_session_guest__create_guest_session: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GuestSessionResponse"];
-                };
-            };
-        };
-    };
-    post__api_public_logout__public_logout: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    get__api_public_instructors_instructor_id_availability__get_instructor_public_availability: {
-        parameters: {
-            query: {
-                /** @description Start date for availability search */
-                start_date: string;
-                /** @description End date (defaults to configured days from start) */
-                end_date?: string | null;
-            };
-            header?: never;
-            path: {
-                instructor_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PublicInstructorAvailability"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_public_instructors_instructor_id_next-available__get_next_available_slot": {
-        parameters: {
-            query?: {
-                /** @description Required duration in minutes */
-                duration_minutes?: number;
-            };
-            header?: never;
-            path: {
-                instructor_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NextAvailableSlotResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_public_referrals_send__send_referral_invites: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReferralSendRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReferralSendResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__r_slug__resolve_referral_slug: {
+    resolve_referral_slug_r__slug__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -14849,18 +16319,17 @@ export interface operations {
             };
         };
     };
-    post__api_referrals_claim__claim_referral_code: {
+    get_catalog_services_services_catalog_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Filter by category slug */
+                category?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReferralClaimRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -14868,7 +16337,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReferralClaimResponse"] | components["schemas"]["ReferralErrorResponse"];
+                    "application/json": components["schemas"]["CatalogServiceResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -14882,7 +16351,7 @@ export interface operations {
             };
         };
     };
-    get__api_referrals_me__get_my_referral_ledger: {
+    get_all_services_with_instructors_services_catalog_all_with_instructors_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -14897,23 +16366,21 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReferralLedgerResponse"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
     };
-    "post__api_referrals_checkout_apply-referral__apply_referral_credit": {
+    get_kids_available_services_services_catalog_kids_available_get: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CheckoutApplyRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -14921,7 +16388,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CheckoutApplyResponse"] | components["schemas"]["ReferralErrorResponse"];
+                    "application/json": components["schemas"]["CatalogServiceMinimalResponse"][];
+                };
+            };
+        };
+    };
+    get_top_services_per_category_services_catalog_top_per_category_get: {
+        parameters: {
+            query?: {
+                /** @description Number of top services per category */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -14935,7 +16427,7 @@ export interface operations {
             };
         };
     };
-    get__api_admin_referrals_config__get_referral_config: {
+    get_service_categories_services_categories_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -14950,19 +16442,23 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminReferralsConfigOut"];
+                    "application/json": components["schemas"]["CategoryResponse"][];
                 };
             };
         };
     };
-    get__api_admin_referrals_summary__get_referral_summary: {
+    add_service_to_profile_services_instructor_add_post: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstructorServiceCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -14970,38 +16466,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminReferralsSummaryOut"];
+                    "application/json": components["schemas"]["InstructorServiceResponse"];
                 };
             };
-        };
-    };
-    get__api_admin_referrals_health__get_referral_health: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminReferralsHealthOut"];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    get__api_search_instructors__search_instructors: {
+    search_services_services_search_get: {
         parameters: {
             query: {
                 /** @description Search query */
                 q: string;
-                /** @description Maximum results to return */
-                limit?: number | null;
             };
             header?: never;
             path?: never;
@@ -15015,7 +16498,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstructorSearchResponse"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -15029,1749 +16514,7 @@ export interface operations {
             };
         };
     };
-    "get__api_search-history__get_recent_searches": {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: {
-                "x-guest-session-id"?: string | null;
-                "x-session-id"?: string | null;
-                "x-search-origin"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchHistoryResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__api_search-history__record_search": {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-guest-session-id"?: string | null;
-                "x-session-id"?: string | null;
-                "x-search-origin"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SearchHistoryCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchHistoryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__api_search-history_guest__record_guest_search": {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-guest-session-id"?: string | null;
-                "x-session-id"?: string | null;
-                "x-search-origin"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GuestSearchHistoryCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchHistoryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "delete__api_search-history_search_id__delete_search": {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-guest-session-id"?: string | null;
-            };
-            path: {
-                search_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__api_search-history_interaction__track_interaction": {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-guest-session-id"?: string | null;
-                "x-session-id"?: string | null;
-                "x-search-origin"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchInteractionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_addresses_zip_is-nyc__is_nyc_zip": {
-        parameters: {
-            query: {
-                zip: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NYCZipCheckResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_addresses_me__list_my_addresses: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AddressListResponse"];
-                };
-            };
-        };
-    };
-    post__api_addresses_me__create_my_address: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddressCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AddressResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete__api_addresses_me_address_id__delete_my_address: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                address_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["app__routes__addresses__DeleteResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    patch__api_addresses_me_address_id__update_my_address: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                address_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddressUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AddressResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_addresses_service-areas_me__list_my_service_areas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceAreasResponse"];
-                };
-            };
-        };
-    };
-    "put__api_addresses_service-areas_me__replace_my_service_areas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ServiceAreasUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceAreasResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_addresses_places_autocomplete__places_autocomplete: {
-        parameters: {
-            query: {
-                q: string;
-                provider?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AutocompleteResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_addresses_places_details__place_details: {
-        parameters: {
-            query: {
-                place_id: string;
-                provider?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaceDetails"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_addresses_coverage_bulk__get_bulk_coverage_geojson: {
-        parameters: {
-            query: {
-                ids: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CoverageFeatureCollectionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_addresses_regions_neighborhoods__list_neighborhoods: {
-        parameters: {
-            query?: {
-                region_type?: string;
-                borough?: string | null;
-                page?: number;
-                per_page?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NeighborhoodsListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_redis_health__redis_health: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RedisHealthResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get__api_redis_test__redis_test: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RedisTestResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get__api_redis_stats__redis_stats: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RedisStatsResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    "get__api_redis_celery-queues__celery_queue_status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RedisCeleryQueuesResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    "get__api_redis_connection-audit__redis_connection_audit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RedisConnectionAuditResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    "delete__api_redis_flush-queues__flush_celery_queues": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RedisFlushQueuesResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get__api_database_health__database_health: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DatabaseHealthResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    "get__api_database_pool-status__database_pool_status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DatabasePoolStatusResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get__api_database_stats__database_stats: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DatabaseStatsResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get__api_privacy_export_me__export_my_data: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataExportResponse"];
-                };
-            };
-        };
-    };
-    post__api_privacy_delete_me__delete_my_data: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UserDataDeletionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserDataDeletionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_privacy_statistics__get_privacy_statistics: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PrivacyStatisticsResponse"];
-                };
-            };
-        };
-    };
-    post__api_privacy_retention_apply__apply_retention_policies: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RetentionPolicyResponse"];
-                };
-            };
-        };
-    };
-    get__api_privacy_export_user_user_id__export_user_data_admin: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataExportResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_privacy_delete_user_user_id__delete_user_data_admin: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UserDataDeletionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserDataDeletionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__webhooks_stripe_payment-events__handle_payment_events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WebhookResponse"];
-                };
-            };
-        };
-    };
-    "post__webhooks_stripe_account-events__handle_account_events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WebhookResponse"];
-                };
-            };
-        };
-    };
-    get__webhooks_stripe_test__test_webhook_endpoint: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WebhookResponse"];
-                };
-            };
-        };
-    };
-    "post__api_uploads_r2_signed-url__create_signed_upload": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateSignedUploadRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignedUploadResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_uploads_r2_proxy__proxy_upload_to_r2: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_post__api_uploads_r2_proxy__proxy_upload_to_r2"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProxyUploadResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__api_uploads_r2_finalize_profile-picture__finalize_profile_picture": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FinalizeProfilePictureRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__api_users_me_profile-picture__upload_finalize_profile_picture": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FinalizeProfilePicturePayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "delete__api_users_me_profile-picture__delete_profile_picture": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["app__schemas__base_responses__DeleteResponse"];
-                };
-            };
-        };
-    };
-    "get__api_users_user_id_profile-picture-url__get_profile_picture_url": {
-        parameters: {
-            query?: {
-                variant?: ("original" | "display" | "thumb") | null;
-            };
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_beta_invites_validate__validate_invite: {
-        parameters: {
-            query?: {
-                code?: string | null;
-                invite_code?: string | null;
-                email?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InviteValidateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_beta_invites_verified__invite_verified: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    post__api_beta_invites_generate__generate_invites: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InviteGenerateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InviteGenerateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_beta_metrics_summary__get_beta_metrics_summary: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BetaMetricsSummaryResponse"];
-                };
-            };
-        };
-    };
-    post__api_beta_invites_consume__consume_invite: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InviteConsumeRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AccessGrantResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_beta_invites_send__send_invite: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InviteSendRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InviteSendResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__api_beta_invites_send-batch__send_invite_batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InviteBatchSendRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InviteBatchSendResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "post__api_beta_invites_send-batch-async__send_invite_batch_async": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InviteBatchSendRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InviteBatchAsyncStartResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_beta_invites_send-batch-progress__get_invite_batch_progress": {
-        parameters: {
-            query: {
-                task_id: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InviteBatchProgressResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_beta_settings__get_beta_settings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BetaSettingsPayload"];
-                };
-            };
-        };
-    };
-    put__api_beta_settings__update_beta_settings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BetaSettingsPayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BetaSettingsPayload"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_reviews_submit__submit_review: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReviewSubmitRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReviewSubmitResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_reviews_instructor_instructor_id_ratings__get_instructor_ratings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                instructor_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstructorRatingsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "get__api_reviews_instructor_instructor_id_search-rating__get_search_rating": {
-        parameters: {
-            query?: {
-                instructor_service_id?: string | null;
-            };
-            header?: never;
-            path: {
-                instructor_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchRatingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_reviews_instructor_instructor_id_recent__get_recent_reviews: {
-        parameters: {
-            query?: {
-                instructor_service_id?: string | null;
-                limit?: number;
-                page?: number;
-                min_rating?: number | null;
-                with_text?: boolean | null;
-            };
-            header?: never;
-            path: {
-                instructor_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReviewListPageResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__api_reviews_booking_booking_id__get_review_for_booking: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReviewItem"] | null;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_reviews_booking_existing__get_existing_reviews_for_bookings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": string[];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": string[];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_reviews_reviews_review_id_respond__respond_to_review: {
-        parameters: {
-            query: {
-                response_text: string;
-            };
-            header?: never;
-            path: {
-                review_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReviewResponseModel"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post__api_reviews_ratings_batch__get_ratings_batch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RatingsBatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RatingsBatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get__v1_gated_ping__gated_ping: {
+    gated_ping_v1_gated_ping_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -16791,7 +16534,7 @@ export interface operations {
             };
         };
     };
-    post__api_webhooks_stripe__redirect_stripe_webhook: {
+    handle_account_events_webhooks_stripe_account_events_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -16811,7 +16554,7 @@ export interface operations {
             };
         };
     };
-    get____read_root: {
+    handle_payment_events_webhooks_stripe_payment_events_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -16826,12 +16569,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RootResponse"];
+                    "application/json": components["schemas"]["WebhookResponse"];
                 };
             };
         };
     };
-    get__health__health_check: {
+    test_webhook_endpoint_webhooks_stripe_test_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -16846,67 +16589,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthResponse"];
-                };
-            };
-        };
-    };
-    get__api_health__api_health: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthResponse"];
-                };
-            };
-        };
-    };
-    get__health_lite__health_check_lite: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthLiteResponse"];
-                };
-            };
-        };
-    };
-    get__metrics__metrics_endpoint: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["WebhookResponse"];
                 };
             };
         };
