@@ -185,7 +185,11 @@ class TestInstructorProfileRepositoryMethods:
 
         # All returned profiles should serve the area
         for profile in profiles:
-            assert "manhattan" in profile.areas_of_service.lower()
+            assert profile.user is not None
+            assert any(
+                getattr(area.neighborhood, "parent_region", "").lower() == "manhattan"
+                for area in getattr(profile.user, "service_areas", [])
+            )
 
     def test_get_profiles_by_experience(self, db, test_instructor):
         """Test filtering profiles by years of experience."""

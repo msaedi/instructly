@@ -33,7 +33,9 @@ class TestInstructorServiceFiltering:
     @pytest.fixture
     def mock_profile_repository(self):
         """Create a mock profile repository."""
-        return Mock()
+        repository = Mock()
+        repository.find_by_filters.return_value = []
+        return repository
 
     @pytest.fixture
     def instructor_service(self, mock_db, mock_profile_repository):
@@ -47,7 +49,6 @@ class TestInstructorServiceFiltering:
         profile.id = user_id
         profile.user_id = user_id
         profile.bio = bio
-        profile.areas_of_service = ["Manhattan", "Brooklyn"]
         profile.years_experience = 5
         profile.min_advance_booking_hours = 24
         profile.buffer_time_minutes = 15
@@ -59,6 +60,11 @@ class TestInstructorServiceFiltering:
         user.first_name = first_name
         user.last_name = last_name
         user.email = f"{first_name.lower()}.{last_name.lower()}@example.com"
+        neighborhood = Mock()
+        neighborhood.parent_region = "Manhattan"
+        area = Mock()
+        area.neighborhood = neighborhood
+        user.service_areas = [area]
         profile.user = user
 
         # Mock services
@@ -100,6 +106,7 @@ class TestInstructorServiceFiltering:
             min_price=None,
             max_price=None,
             age_group=None,
+            boroughs=None,
             skip=0,
             limit=100,
         )
@@ -126,6 +133,7 @@ class TestInstructorServiceFiltering:
             min_price=None,
             max_price=None,
             age_group=None,
+            boroughs=None,
             skip=0,
             limit=100,
         )
@@ -150,6 +158,7 @@ class TestInstructorServiceFiltering:
             min_price=None,
             max_price=None,
             age_group=None,
+            boroughs=None,
             skip=0,
             limit=100,
         )
@@ -174,6 +183,7 @@ class TestInstructorServiceFiltering:
             min_price=70.0,
             max_price=90.0,
             age_group=None,
+            boroughs=None,
             skip=0,
             limit=100,
         )
@@ -201,6 +211,7 @@ class TestInstructorServiceFiltering:
             min_price=50.0,
             max_price=100.0,
             age_group=None,
+            boroughs=None,
             skip=0,
             limit=100,
         )
@@ -230,6 +241,7 @@ class TestInstructorServiceFiltering:
             min_price=None,
             max_price=None,
             age_group=None,
+            boroughs=None,
             skip=10,
             limit=5,
         )
@@ -327,6 +339,27 @@ class TestInstructorServiceFiltering:
         result = instructor_service.get_instructors_filtered(min_price=0.0, max_price=0.0)
         assert result["metadata"]["filters_applied"] == {"min_price": 0.0, "max_price": 0.0}
 
+    def test_service_area_borough_filter(self, instructor_service, mock_profile_repository):
+        """Test filtering by service area borough list."""
+
+        boroughs = ["Manhattan", "Queens"]
+        mock_profile_repository.find_by_filters.return_value = []
+
+        result = instructor_service.get_instructors_filtered(service_area_boroughs=boroughs)
+
+        mock_profile_repository.find_by_filters.assert_called_once_with(
+            search=None,
+            service_catalog_id=None,
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            boroughs=boroughs,
+            skip=0,
+            limit=100,
+        )
+
+        assert result["metadata"]["filters_applied"] == {"service_area_boroughs": boroughs}
+
     def test_age_group_filter_passed_to_repository(self, instructor_service, mock_profile_repository):
         """Test that age_group is threaded to repository and appears in metadata."""
         mock_profile_repository.find_by_filters.return_value = []
@@ -339,6 +372,7 @@ class TestInstructorServiceFiltering:
             min_price=None,
             max_price=None,
             age_group="kids",
+            boroughs=None,
             skip=0,
             limit=100,
         )

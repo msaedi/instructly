@@ -20,6 +20,11 @@ from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
 
+try:  # pragma: no cover - fallback for direct backend pytest invocation
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 class TestStudentConflictValidationIntegration:
     """Integration tests for student conflict validation."""
@@ -72,11 +77,11 @@ class TestStudentConflictValidationIntegration:
 
         profile = InstructorProfile(
             user_id=instructor.id,
-            areas_of_service="['Math', 'Algebra']",
             min_advance_booking_hours=1,
         )
         db.add(profile)
         db.flush()
+        add_service_areas_for_boroughs(db, user=instructor, boroughs=["Manhattan"])
         # RBAC: Assign role
         from app.services.permission_service import PermissionService
 
@@ -148,11 +153,11 @@ class TestStudentConflictValidationIntegration:
 
         profile = InstructorProfile(
             user_id=instructor.id,
-            areas_of_service="['Piano', 'Music Theory']",
             min_advance_booking_hours=1,
         )
         db.add(profile)
         db.flush()
+        add_service_areas_for_boroughs(db, user=instructor, boroughs=["Brooklyn"])
         # RBAC: Assign role
         from app.services.permission_service import PermissionService
 

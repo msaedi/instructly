@@ -9,14 +9,19 @@ This module defines ORM models for:
 
 from datetime import datetime, timezone
 import logging
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 import ulid
 
 from ..database import Base
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from .region_boundary import RegionBoundary
+    from .user import User
 
 
 class UserAddress(Base):
@@ -104,19 +109,42 @@ class InstructorServiceArea(Base):
 
     __tablename__ = "instructor_service_areas"
 
-    instructor_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    neighborhood_id = Column(
-        String(26), ForeignKey("region_boundaries.id", ondelete="CASCADE"), primary_key=True
+    instructor_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True
     )
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    is_active = Column(Boolean, nullable=False, default=True)
-    coverage_type = Column(String(20), nullable=True)
-    max_distance_miles = Column(Numeric(5, 2), nullable=True)
+    neighborhood_id: Mapped[str] = mapped_column(
+        String(26),
+        ForeignKey("region_boundaries.id", ondelete="RESTRICT"),
+        primary_key=True,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    coverage_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    max_distance_miles: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
 
-    instructor = relationship("User", backref="service_areas")
-    # Import locally to avoid circular import at module import time
-    neighborhood = relationship("RegionBoundary")
+    instructor: Mapped["User"] = relationship(
+        "User",
+        back_populates="service_areas",
+        lazy="joined",
+    )
+    neighborhood: Mapped["RegionBoundary"] = relationship("RegionBoundary", lazy="joined")
 
     def __repr__(self) -> str:
         return f"<InstructorServiceArea instructor={self.instructor_id} neighborhood={self.neighborhood_id} active={self.is_active}>"
+
+
+# Re-export RegionBoundary so downstream imports can rely on the address module
+from .region_boundary import RegionBoundary  # noqa: E402  (import at end to avoid circular import)
+
+__all__ = [
+    "UserAddress",
+    "NYCNeighborhood",
+    "InstructorServiceArea",
+    "RegionBoundary",
+]

@@ -128,7 +128,6 @@ class TestSchemaPrivacyProtection:
         instructor_id = generate_ulid()
         profile.user_id = instructor_id
         profile.bio = "Experienced yoga instructor"
-        profile.areas_of_service = ["Manhattan", "Brooklyn"]
         profile.years_experience = 5
         profile.min_advance_booking_hours = 2
         profile.buffer_time_minutes = 15
@@ -152,7 +151,19 @@ class TestSchemaPrivacyProtection:
         user.last_initial = "T"
         type(user).last_initial = PropertyMock(return_value="T")
 
+        neighborhood = MagicMock()
+        neighborhood.region_code = "MN01"
+        neighborhood.region_name = "Midtown"
+        neighborhood.parent_region = "Manhattan"
+        neighborhood.region_metadata = {
+            "nta_code": "MN01",
+            "nta_name": "Midtown",
+            "borough": "Manhattan",
+        }
+        area = MagicMock()
+        area.neighborhood = neighborhood
         profile.user = user
+        profile.user.service_areas = [area]
 
         # Create InstructorProfileResponse using from_orm
         response = InstructorProfileResponse.from_orm(profile)

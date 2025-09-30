@@ -101,6 +101,10 @@ class TestBookingServiceUnit:
         mock_conflict_checker_repo = Mock()
         service.conflict_checker_repository = mock_conflict_checker_repo
 
+        service_area_repo = Mock()
+        service_area_repo.list_for_instructor.return_value = []
+        service.service_area_repository = service_area_repo
+
         return service
 
     @pytest.fixture
@@ -160,7 +164,11 @@ class TestBookingServiceUnit:
         profile.id = generate_ulid()
         profile.user_id = generate_ulid()  # Same as mock_instructor.id
         profile.min_advance_booking_hours = 24
-        profile.areas_of_service = "Manhattan, Brooklyn"
+        neighborhood = Mock()
+        neighborhood.parent_region = "Manhattan"
+        area = Mock()
+        area.neighborhood = neighborhood
+        profile.user = Mock(service_areas=[area])
         return profile
 
     @pytest.fixture

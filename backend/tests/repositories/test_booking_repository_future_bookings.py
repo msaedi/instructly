@@ -20,6 +20,11 @@ from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 
+try:  # pragma: no cover - fallback for direct backend test invocation
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 class TestBookingRepositoryFutureBookings:
     """Test the get_instructor_future_bookings method."""
@@ -354,12 +359,13 @@ class TestBookingRepositoryFutureBookings:
         profile = InstructorProfile(
             user_id=second_instructor.id,
             bio="Second instructor bio",
-            areas_of_service="Manhattan",
             years_experience=3,
             min_advance_booking_hours=2,
             buffer_time_minutes=15,
         )
         db.add(profile)
+        db.flush()
+        add_service_areas_for_boroughs(db, user=second_instructor, boroughs=["Manhattan"])
         db.commit()
 
         # Create booking for first instructor

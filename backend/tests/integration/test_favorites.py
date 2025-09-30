@@ -14,6 +14,11 @@ import pytest
 from sqlalchemy.orm import Session
 from tests.fixtures.unique_test_data import unique_data
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.conftest import seed_service_areas_from_legacy
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import seed_service_areas_from_legacy
+
 from app.core.enums import RoleName
 from app.models.favorite import UserFavorite
 from app.models.user import User
@@ -104,8 +109,11 @@ def multiple_instructors(test_password: str, db: Session) -> list[User]:
 
         # Create instructor profile using repository
         instructor_repo.create(
-            user_id=user.id, bio=f"Test instructor {i}", years_experience=5, areas_of_service="Manhattan,Brooklyn"
+            user_id=user.id,
+            bio=f"Test instructor {i}",
+            years_experience=5,
         )
+        seed_service_areas_from_legacy(db, user, "Manhattan,Brooklyn")
 
         instructors.append(user)
 

@@ -39,6 +39,11 @@ from app.models import (
 from app.models.service_catalog import InstructorService as Service
 from app.services.permission_service import PermissionService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 class TestArchitecturalValidation:
     """Tests that validate our core architectural decisions."""
@@ -171,12 +176,12 @@ class TestModelInstantiation:
             user_id=instructor_user.id,
             bio="Expert instructor",
             years_experience=10,
-            areas_of_service="Manhattan, Brooklyn",
             min_advance_booking_hours=24,
             buffer_time_minutes=15,
         )
         db.add(profile)
         db.flush()
+        add_service_areas_for_boroughs(db, user=instructor_user, boroughs=["Manhattan", "Brooklyn"])
 
         assert profile.id is not None
         assert profile.user_id == instructor_user.id

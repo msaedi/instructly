@@ -159,6 +159,7 @@ class InstructorService(BaseService):
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
         age_group: Optional[str] = None,
+        service_area_boroughs: Optional[Sequence[str]] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> Dict[str, Any]:
@@ -173,6 +174,7 @@ class InstructorService(BaseService):
             service_catalog_id: Filter by specific service catalog ID
             min_price: Minimum hourly rate filter
             max_price: Maximum hourly rate filter
+            service_area_boroughs: Optional collection of borough labels to filter by
             skip: Number of records to skip for pagination
             limit: Maximum number of records to return
 
@@ -187,6 +189,7 @@ class InstructorService(BaseService):
             "service_catalog": service_catalog_id is not None,
             "price_range": min_price is not None or max_price is not None,
             "age_group": age_group is not None,
+            "service_area_boroughs": bool(service_area_boroughs),
             "filters_count": sum(
                 [
                     search is not None,
@@ -194,6 +197,7 @@ class InstructorService(BaseService):
                     min_price is not None,
                     max_price is not None,
                     age_group is not None,
+                    bool(service_area_boroughs),
                 ]
             ),
         }
@@ -214,6 +218,7 @@ class InstructorService(BaseService):
             min_price=min_price,
             max_price=max_price,
             age_group=age_group,
+            boroughs=service_area_boroughs,
             skip=skip,
             limit=limit,
         )
@@ -238,6 +243,8 @@ class InstructorService(BaseService):
             applied_filters["min_price"] = min_price
         if max_price is not None:
             applied_filters["max_price"] = max_price
+        if service_area_boroughs:
+            applied_filters["service_area_boroughs"] = list(service_area_boroughs)
         if age_group is not None:
             applied_filters["age_group"] = age_group
 
@@ -681,7 +688,11 @@ class InstructorService(BaseService):
             for place in public_places:
                 public_spaces.append({"address": place.address})
 
-        service_area_records = self.service_area_repository.list_for_instructor(profile.user_id)
+        service_area_records = []
+        if profile.user and hasattr(profile.user, "service_areas"):
+            service_area_records = list(profile.user.service_areas)
+        else:
+            service_area_records = self.service_area_repository.list_for_instructor(profile.user_id)
         service_area_neighborhoods: list[dict[str, Any]] = []
         boroughs: set[str] = set()
 

@@ -14,6 +14,11 @@ from app.models.service_catalog import InstructorService as Service, ServiceCata
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
+try:  # pragma: no cover - fallback for backend/ pytest runs
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 class TestInstructorProfileRepositoryAccountStatus:
     """Test repository methods filter by account status."""
@@ -44,13 +49,13 @@ class TestInstructorProfileRepositoryAccountStatus:
             profile = InstructorProfile(
                 user_id=user.id,
                 bio=f"Bio for {account_status} instructor with enough text",
-                areas_of_service="Manhattan, Brooklyn",
                 years_experience=5,
                 min_advance_booking_hours=24,
                 buffer_time_minutes=15,
             )
             db.add(profile)
             db.flush()
+            add_service_areas_for_boroughs(db, user=user, boroughs=["Manhattan", "Brooklyn"])
 
             # Add a service
             catalog_service = db.query(ServiceCatalog).first()

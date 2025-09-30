@@ -10,8 +10,10 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 All fixtures now create AvailabilitySlot objects directly with instructor_id and date.
 """
 
+from datetime import date, time, timedelta
 import os
 import sys
+from typing import Sequence
 
 # CRITICAL: Set testing mode BEFORE any app imports!
 os.environ["is_testing"] = "true"
@@ -42,7 +44,6 @@ from app.core.config import settings
 settings.is_testing = True
 settings.rate_limit_enabled = False
 
-from datetime import date, time, timedelta
 from unittest.mock import AsyncMock, Mock
 
 from fastapi.testclient import TestClient
@@ -53,7 +54,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.auth import get_password_hash
 
 # Now we can import from app
-from app.core.config import settings
 from app.core.enums import RoleName
 from app.database import Base, get_db
 from app.main import fastapi_app as app  # Use FastAPI instance for tests
@@ -78,6 +78,89 @@ from app.models.service_catalog import InstructorService as Service, ServiceCata
 from app.models.user import User
 from app.services.permission_service import PermissionService
 from app.services.template_service import TemplateService
+
+BOROUGH_ABBR: dict[str, str] = {
+    "Manhattan": "MN",
+    "Brooklyn": "BK",
+    "Queens": "QN",
+    "Bronx": "BR",
+    "Staten Island": "SI",
+}
+
+__all__ = [
+    "add_service_area",
+    "add_service_areas_for_boroughs",
+    "seed_service_areas_from_legacy",
+    "_ensure_region_boundary",
+]
+
+def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
+    """Find or create a RegionBoundary entry for the given borough."""
+
+    normalized = (borough or "").strip()
+    if not normalized:
+        raise ValueError("borough must be a non-empty string")
+
+    abbr = BOROUGH_ABBR.get(normalized, normalized[:2].upper()) or "XX"
+    region_id = f"TEST-{abbr}"
+
+    existing = db.get(RegionBoundary, region_id)
+    if existing:
+        return existing
+
+    by_parent = (
+        db.query(RegionBoundary)
+        .filter(RegionBoundary.parent_region == normalized)
+        .first()
+    )
+    if by_parent:
+        return by_parent
+
+    boundary = RegionBoundary(
+        id=region_id,
+        region_type="nyc",
+        region_code=f"{abbr}-TEST",
+        region_name=f"{normalized} Test Neighborhood",
+        parent_region=normalized,
+        region_metadata={
+            "nta_name": f"{normalized} Test Neighborhood",
+            "nta_code": f"{abbr}-TEST",
+            "borough": normalized,
+        },
+    )
+
+    db.add(boundary)
+    db.flush()
+    return boundary
+
+
+def add_service_area(db: Session, user: User, neighborhood_id: str) -> InstructorServiceArea:
+    """Attach a service area row for the given user."""
+
+    isa = InstructorServiceArea(
+        instructor_id=user.id,
+        neighborhood_id=neighborhood_id,
+    )
+    db.add(isa)
+    db.flush()
+    return isa
+
+
+def add_service_areas_for_boroughs(db: Session, user: User, boroughs: Sequence[str]) -> None:
+    """Attach service areas for each provided borough name."""
+
+    for borough in boroughs:
+        boundary = _ensure_region_boundary(db, borough)
+        add_service_area(db, user=user, neighborhood_id=boundary.id)
+
+
+def seed_service_areas_from_legacy(
+    db: Session, user: User, legacy_value: str | None
+) -> None:
+    """Populate service areas based on a legacy comma-separated borough string."""
+
+    parts = [part.strip() for part in (legacy_value or "").split(",") if part.strip()]
+    add_service_areas_for_boroughs(db, user=user, boroughs=parts or ["Manhattan"])
 
 # ============================================================================
 # PRODUCTION DATABASE PROTECTION

@@ -540,11 +540,10 @@ class TestInstructorRoutes:
         assert len(data["services"]) == 0  # All services soft-deleted
 
     @pytest.mark.skip(reason="SQLAlchemy session conflict with bulk_save_objects")
-    def test_areas_of_service_formatting(self, client: TestClient, auth_headers_student: dict):
-        """Test that areas of service are properly formatted."""
+    def test_service_area_summary_formatting(self, client: TestClient, auth_headers_student: dict):
+        """Test that service area summary fields are present in the response."""
         profile_data = {
             "bio": "Test bio with enough characters to meet minimum requirement",
-            "areas_of_service": ["manhattan", "BROOKLYN", "queens"],  # Mixed case
             "years_experience": 5,
             "services": [{"skill": "Test", "hourly_rate": 50.0}],
         }
@@ -553,18 +552,15 @@ class TestInstructorRoutes:
         assert response.status_code == status.HTTP_201_CREATED
 
         data = response.json()
-        # Should be title-cased and deduplicated
-        assert all(area[0].isupper() for area in data["areas_of_service"])
-        assert "Manhattan" in data["areas_of_service"]
-        assert "Brooklyn" in data["areas_of_service"]
-        assert "Queens" in data["areas_of_service"]
+        # Should include derived borough summary
+        assert data.get("service_area_boroughs") == []
+        assert data.get("service_area_summary") == ""
 
     @pytest.mark.skip(reason="SQLAlchemy session conflict with bulk_save_objects")
     def test_service_skill_formatting(self, client: TestClient, auth_headers_student: dict):
         """Test that service skills are properly formatted."""
         profile_data = {
             "bio": "Test bio with enough characters to meet minimum requirement",
-            "areas_of_service": ["Manhattan"],
             "years_experience": 5,
             "services": [
                 {"skill": "piano lessons", "hourly_rate": 50.0},  # Should be title-cased
@@ -660,7 +656,6 @@ class TestInstructorRoutes:
         # Create profile
         profile_data = {
             "bio": "I am an experienced teacher with many years of experience.",
-            "areas_of_service": ["Manhattan", "Brooklyn"],
             "years_experience": 8,
             "min_advance_booking_hours": 3,
             "buffer_time_minutes": 10,

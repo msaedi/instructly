@@ -18,6 +18,11 @@ from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 class TestBookingServiceAccountStatus:
     """Test booking service respects account status."""
@@ -304,13 +309,13 @@ class TestBookingServiceAccountStatus:
         profile = InstructorProfile(
             user_id=active_instructor.id,
             bio="Active instructor bio",
-            areas_of_service="Manhattan",
             years_experience=5,
             min_advance_booking_hours=2,
             buffer_time_minutes=15,
         )
         db.add(profile)
         db.flush()
+        add_service_areas_for_boroughs(db, user=active_instructor, boroughs=["Manhattan"])
 
         # Add a service - use a service that definitely exists
         # First, let's use any available service from the catalog
@@ -367,13 +372,13 @@ class TestBookingServiceAccountStatus:
         profile = InstructorProfile(
             user_id=active_instructor.id,
             bio="Another active instructor bio",
-            areas_of_service="Brooklyn",
             years_experience=3,
             min_advance_booking_hours=1,
             buffer_time_minutes=10,
         )
         db.add(profile)
         db.flush()
+        add_service_areas_for_boroughs(db, user=active_instructor, boroughs=["Brooklyn"])
 
         # Add a service - use any available service
         available_service = catalog_data["services"][0] if catalog_data["services"] else None

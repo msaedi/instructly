@@ -15,7 +15,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.sql import func
 import ulid
 
@@ -23,7 +23,7 @@ from ..database import Base
 from .favorite import UserFavorite
 
 if TYPE_CHECKING:
-    pass
+    from .address import InstructorServiceArea
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +180,13 @@ class User(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         uselist=False,
+    )
+
+    service_areas: Mapped[list["InstructorServiceArea"]] = relationship(
+        "InstructorServiceArea",
+        back_populates="instructor",
+        lazy="selectin",
+        cascade="all, delete-orphan",
     )
 
     # Favorites relationships

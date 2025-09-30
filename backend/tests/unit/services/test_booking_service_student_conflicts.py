@@ -34,8 +34,14 @@ class TestStudentConflictValidation:
         repository = Mock()
         repository.check_time_conflict = Mock(return_value=False)  # No instructor conflicts by default
         repository.check_student_time_conflict = Mock(return_value=[])  # No student conflicts by default
-        repository.create = Mock()
-        repository.get_booking_with_details = Mock()
+        repository.create = Mock(
+            return_value=Mock(
+                spec=Booking,
+                id=generate_ulid(),
+                status=BookingStatus.CONFIRMED,
+            )
+        )
+        repository.get_booking_with_details = Mock(return_value=None)
         return repository
 
     @pytest.fixture
@@ -65,7 +71,12 @@ class TestStudentConflictValidation:
         profile = Mock(spec=InstructorProfile)
         profile.id = generate_ulid()
         profile.min_advance_booking_hours = 1
-        profile.areas_of_service = "['Math']"
+        neighborhood = Mock()
+        neighborhood.parent_region = "Manhattan"
+        area = Mock()
+        area.neighborhood = neighborhood
+        profile.user = Mock()
+        profile.user.service_areas = [area]
         repository.get_instructor_profile = Mock(return_value=profile)
 
         return repository
@@ -116,6 +127,10 @@ class TestStudentConflictValidation:
         service.transaction().__exit__ = Mock()
         service.invalidate_cache = Mock()
         service.log_operation = Mock()
+
+        service_area_repo = Mock()
+        service_area_repo.list_for_instructor.return_value = []
+        service.service_area_repository = service_area_repo
         return service
 
     @pytest.mark.asyncio
@@ -146,6 +161,9 @@ class TestStudentConflictValidation:
         # Mock the prerequisites validation to bypass instructor status check
         service = Mock()
         service.duration_options = [60]
+        service.hourly_rate = 50.0
+        service.catalog_entry = Mock(name="Test Service")
+        service.session_price = Mock(return_value=50.0)
         profile = Mock()
         booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
 
@@ -204,9 +222,14 @@ class TestStudentConflictValidation:
         service.duration_options = [60]
         service.hourly_rate = 50.0
         service.catalog_entry = Mock(name="Test Service")
+        service.session_price = Mock(return_value=50.0)
         profile = Mock()
         profile.min_advance_booking_hours = 0
-        profile.areas_of_service = "Manhattan"
+        neighborhood = Mock()
+        neighborhood.parent_region = "Manhattan"
+        area = Mock()
+        area.neighborhood = neighborhood
+        profile.user = Mock(service_areas=[area])
         booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
 
         # Should succeed
@@ -250,9 +273,14 @@ class TestStudentConflictValidation:
         service.duration_options = [60]
         service.hourly_rate = 50.0
         service.catalog_entry = Mock(name="Test Service")
+        service.session_price = Mock(return_value=50.0)
         profile = Mock()
         profile.min_advance_booking_hours = 0
-        profile.areas_of_service = "Manhattan"
+        neighborhood = Mock()
+        neighborhood.parent_region = "Manhattan"
+        area = Mock()
+        area.neighborhood = neighborhood
+        profile.user = Mock(service_areas=[area])
         booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
 
         # Create bookings
@@ -360,9 +388,14 @@ class TestStudentConflictValidation:
         service.duration_options = [60]
         service.hourly_rate = 50.0
         service.catalog_entry = Mock(name="Test Service")
+        service.session_price = Mock(return_value=50.0)
         profile = Mock()
         profile.min_advance_booking_hours = 0
-        profile.areas_of_service = "Manhattan"
+        neighborhood = Mock()
+        neighborhood.parent_region = "Manhattan"
+        area = Mock()
+        area.neighborhood = neighborhood
+        profile.user = Mock(service_areas=[area])
         booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
 
         # Create new booking

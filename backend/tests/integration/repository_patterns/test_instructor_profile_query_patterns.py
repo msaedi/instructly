@@ -14,11 +14,20 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.ulid_helper import generate_ulid
+from app.models.address import InstructorServiceArea
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
+from app.models.region_boundary import RegionBoundary
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
+
+try:  # pragma: no cover - fallback when tests run from backend/
+    from backend.tests.conftest import add_service_areas_for_boroughs  # noqa: I001
+    from backend.tests.conftest import seed_service_areas_from_legacy  # noqa: I001
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs  # noqa: I001
+    from tests.conftest import seed_service_areas_from_legacy  # noqa: I001
 
 
 @pytest.fixture
@@ -29,10 +38,13 @@ def test_service(db: Session, test_instructor: User) -> Service:
 
     if not profile:
         profile = InstructorProfile(
-            user_id=test_instructor.id, bio="Test bio", years_experience=5, areas_of_service="Manhattan"
+            user_id=test_instructor.id,
+            bio="Test bio",
+            years_experience=5,
         )
         db.add(profile)
         db.flush()
+        add_service_areas_for_boroughs(db, user=test_instructor, boroughs=["Manhattan"])
 
     # Get or create catalog service
     category = db.query(ServiceCategory).first()
@@ -77,7 +89,7 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             "email": "senior@test.com",
             "years_experience": 10,
             "bio": "Experienced instructor with 10 years",
-            "areas_of_service": "Manhattan",
+            "service_areas": "Manhattan",
             "instructor_services": ["Advanced Math", "Physics"],
             "rates": [100.0, 120.0],
         },
@@ -86,7 +98,7 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             "email": "mid@test.com",
             "years_experience": 5,
             "bio": "Skilled instructor with 5 years",
-            "areas_of_service": "Brooklyn",
+            "service_areas": "Brooklyn",
             "instructor_services": ["Basic Math", "Chemistry"],
             "rates": [70.0, 80.0],
         },
@@ -95,7 +107,7 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             "email": "junior@test.com",
             "years_experience": 2,
             "bio": "Enthusiastic new instructor",
-            "areas_of_service": "Manhattan",
+            "service_areas": "Manhattan",
             "instructor_services": ["Elementary Math"],
             "rates": [50.0],
         },
@@ -104,7 +116,7 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             "email": "specialist@test.com",
             "years_experience": 8,
             "bio": "Specialist in advanced topics",
-            "areas_of_service": "Queens",
+            "service_areas": "Queens",
             "instructor_services": ["Quantum Physics", "Advanced Calculus", "Research Methods"],
             "rates": [150.0, 140.0, 160.0],
         },
@@ -130,12 +142,13 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             user_id=user.id,
             bio=data["bio"],
             years_experience=data["years_experience"],
-            areas_of_service=data["areas_of_service"],
             min_advance_booking_hours=24,
             buffer_time_minutes=15,
         )
         db.add(profile)
         db.flush()
+
+        seed_service_areas_from_legacy(db, user, data["service_areas"])
 
         # Get or create category for services
         category = db.query(ServiceCategory).first()
@@ -226,9 +239,12 @@ class TestInstructorProfileQueryPatterns:
         query = (
             db.query(InstructorProfile)
             .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.instructor_services))
-            .filter(InstructorProfile.areas_of_service == target_area)
             .join(User)
             .filter(User.is_active == True)
+            .join(InstructorServiceArea, InstructorServiceArea.instructor_id == User.id)
+            .join(RegionBoundary, InstructorServiceArea.neighborhood_id == RegionBoundary.id)
+            .filter(func.lower(RegionBoundary.parent_region) == target_area.lower())
+            .distinct()
             .order_by(InstructorProfile.years_experience.desc())
         )
 
@@ -239,8 +255,12 @@ class TestInstructorProfileQueryPatterns:
 
         assert len(results) >= 2  # Senior and Junior instructors
         for profile in results:
-            assert profile.areas_of_service == target_area
-            assert profile.user.is_active == True
+            boroughs = {
+                getattr(area.neighborhood, "parent_region", "")
+                for area in getattr(profile.user, "service_areas", [])
+            }
+            assert target_area in boroughs
+            assert profile.user.is_active is True
 
     def test_query_pattern_get_profiles_by_experience(self, db: Session, test_instructors_with_profiles: List[User]):
         """Document query for filtering profiles by minimum years of experience."""
@@ -485,7 +505,11 @@ class TestInstructorProfileQueryPatterns:
 
         # Area filter
         if search_params["areas"]:
-            filters.append(InstructorProfile.areas_of_service.in_(search_params["areas"]))
+            query = query.join(
+                InstructorServiceArea, InstructorServiceArea.instructor_id == User.id
+            ).join(RegionBoundary, InstructorServiceArea.neighborhood_id == RegionBoundary.id)
+            normalized_areas = [area.lower() for area in search_params["areas"]]
+            filters.append(func.lower(RegionBoundary.parent_region).in_(normalized_areas))
 
         query = query.filter(and_(*filters))
 
@@ -500,7 +524,11 @@ class TestInstructorProfileQueryPatterns:
         assert len(results) >= 2  # At least Junior and Mid-level match
         for profile in results:
             assert profile.years_experience >= 2
-            assert profile.areas_of_service in ["Manhattan", "Brooklyn"]
+            boroughs = {
+                getattr(area.neighborhood, "parent_region", "")
+                for area in getattr(profile.user, "service_areas", [])
+            }
+            assert any(b in {"Manhattan", "Brooklyn"} for b in boroughs)
 
     def test_query_pattern_get_featured_instructors(self, db: Session, test_instructors_with_profiles: List[User]):
         """Document query for getting featured/top instructors."""

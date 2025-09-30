@@ -247,13 +247,26 @@ class TestCompleteEndpointPrivacy:
 
     def _is_instructor_context(self, data: dict) -> bool:
         """Check if this data structure represents instructor information."""
-        instructor_keys = ["instructor_id", "instructor", "bio", "years_experience", "areas_of_service"]
+        instructor_keys = [
+            "instructor_id",
+            "instructor",
+            "bio",
+            "years_experience",
+            "service_area_summary",
+            "service_area_boroughs",
+        ]
         return any(key in data for key in instructor_keys)
 
     def _should_have_privacy_protection(self, data: Any) -> bool:
         """Check if response should have privacy protection."""
         content_str = json.dumps(data) if isinstance(data, (dict, list)) else str(data)
-        instructor_indicators = ["instructor", "bio", "years_experience", "areas_of_service"]
+        instructor_indicators = [
+            "instructor",
+            "bio",
+            "years_experience",
+            "service_area_summary",
+            "service_area_boroughs",
+        ]
         return any(indicator in content_str.lower() for indicator in instructor_indicators)
 
     def _has_privacy_protection(self, data: Any) -> bool:

@@ -10,9 +10,17 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.auth import get_password_hash
 from app.core.ulid_helper import generate_ulid
+from app.models.instructor import InstructorProfile
+from app.models.user import User
 from app.schemas.booking import BookingResponse, InstructorInfo
 from app.schemas.instructor import InstructorProfileResponse, UserBasicPrivacy
+
+try:  # pragma: no cover - support running tests from backend/ root
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
 
 
 class TestSchemaPrivacyProtection:
@@ -120,49 +128,43 @@ class TestSchemaPrivacyProtection:
         assert response.student.first_name == "John"
         assert response.student.last_name == "Smith"  # Students see their own full name
 
-    def test_instructor_profile_response_from_orm(self):
+    def test_instructor_profile_response_from_orm(self, db):
         """Test InstructorProfileResponse.model_validate() protects privacy."""
-        # Create mock instructor profile
-        profile = MagicMock()
-        profile.id = generate_ulid()
-        instructor_id = generate_ulid()
-        profile.user_id = instructor_id
-        profile.bio = "Experienced yoga instructor"
-        profile.areas_of_service = ["Manhattan", "Brooklyn"]
-        profile.years_experience = 5
-        profile.min_advance_booking_hours = 2
-        profile.buffer_time_minutes = 15
-        profile.created_at = datetime.now()
-        profile.updated_at = None
-        profile.services = []
 
-        # Mock user with proper attributes
-        from unittest.mock import PropertyMock
+        user = User(
+            email="sarah.t@example.com",
+            hashed_password=get_password_hash("TestPassword123!"),
+            first_name="Sarah",
+            last_name="Thompson",
+            phone="+12125550000",
+            zip_code="10001",
+        )
+        db.add(user)
+        db.flush()
 
-        user = MagicMock()
-        user.id = generate_ulid()
-        user.first_name = "Sarah"
-        user.last_name = "Thompson"
-        user.email = "sarah.t@example.com"
-        # Ensure attributes return strings
-        type(user).last_name = PropertyMock(return_value="Thompson")
-        type(user).first_name = PropertyMock(return_value="Sarah")
+        profile = InstructorProfile(
+            user_id=user.id,
+            bio="Experienced yoga instructor",
+            years_experience=5,
+            min_advance_booking_hours=2,
+            buffer_time_minutes=15,
+        )
+        db.add(profile)
+        db.flush()
 
-        # Calculate last_initial for the mock
-        user.last_initial = "T"
-        type(user).last_initial = PropertyMock(return_value="T")
+        add_service_areas_for_boroughs(db, user, ["Manhattan"])
 
-        profile.user = user
+        db.refresh(user)
+        db.refresh(profile)
 
-        # Create InstructorProfileResponse using from_orm
         response = InstructorProfileResponse.from_orm(profile)
 
-        # Verify user privacy is protected
         assert response.user.first_name == "Sarah"
         assert response.user.last_initial == "T"
-        # Email should NOT be exposed for privacy
         assert not hasattr(response.user, "email")
         assert not hasattr(response.user, "last_name")
+        assert response.service_area_boroughs == ["Manhattan"]
+        assert response.service_area_summary == "Manhattan"
 
 
 class TestInstructorEndpointPrivacy:

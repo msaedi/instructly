@@ -10,13 +10,13 @@ for commonly accessed relationships.
 """
 
 import logging
-from typing import Any, List, Optional, cast
+from typing import Any, List, Optional, Sequence, cast
 
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, selectinload
 
 from ..core.exceptions import RepositoryException
-from ..models.address import InstructorServiceArea
+from ..models.address import InstructorServiceArea, RegionBoundary
 from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
@@ -80,17 +80,19 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         try:
             query = (
                 self.db.query(InstructorProfile)
-                .join(User, InstructorProfile.user_id == User.id)
+                .join(InstructorProfile.user)
+                .join(User.service_areas, isouter=True)
+                .join(InstructorServiceArea.neighborhood, isouter=True)
                 .filter(User.account_status == "active")
                 .options(
-                    joinedload(InstructorProfile.user).joinedload(User.preferred_places),
-                    joinedload(InstructorProfile.user)
-                    .joinedload(User.service_areas)  # type: ignore[attr-defined]
-                    .joinedload(InstructorServiceArea.neighborhood),
-                    joinedload(InstructorProfile.instructor_services).joinedload(
+                    selectinload(InstructorProfile.user)
+                    .selectinload(User.service_areas)
+                    .selectinload(InstructorServiceArea.neighborhood),
+                    selectinload(InstructorProfile.instructor_services).selectinload(
                         Service.catalog_entry
                     ),
                 )
+                .distinct()
                 .offset(skip)
                 .limit(limit)
             )
@@ -126,12 +128,14 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 Optional[InstructorProfile],
                 (
                     self.db.query(InstructorProfile)
+                    .join(InstructorProfile.user)
+                    .join(User.service_areas, isouter=True)
+                    .join(InstructorServiceArea.neighborhood, isouter=True)
                     .options(
-                        joinedload(InstructorProfile.user).joinedload(User.preferred_places),
-                        joinedload(InstructorProfile.user)
-                        .joinedload(User.service_areas)  # type: ignore[attr-defined]
-                        .joinedload(InstructorServiceArea.neighborhood),
-                        joinedload(InstructorProfile.instructor_services).joinedload(
+                        selectinload(InstructorProfile.user)
+                        .selectinload(User.service_areas)
+                        .selectinload(InstructorServiceArea.neighborhood),
+                        selectinload(InstructorProfile.instructor_services).selectinload(
                             Service.catalog_entry
                         ),
                     )
@@ -165,24 +169,29 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             List of profiles that service the area
         """
         try:
+            base_query = (
+                self.db.query(InstructorProfile)
+                .join(InstructorProfile.user)
+                .filter(User.account_status == "active")
+            )
+
+            filtered_query = self._apply_area_filters(base_query, area)
+
             return cast(
                 List[InstructorProfile],
-                (
-                    self.db.query(InstructorProfile)
-                    .join(User, InstructorProfile.user_id == User.id)
-                    .filter(User.account_status == "active")
-                    .options(
-                        joinedload(InstructorProfile.user),
-                        joinedload(InstructorProfile.instructor_services).joinedload(
-                            Service.catalog_entry
-                        ),
-                    )
-                    # TODO: Reintroduce area-based filtering by joining InstructorServiceArea
-                    # once service areas are fully normalized in queries.
-                    .offset(skip)
-                    .limit(limit)
-                    .all()
-                ),
+                filtered_query.options(
+                    selectinload(InstructorProfile.user),
+                    selectinload(InstructorProfile.user)
+                    .selectinload(User.service_areas)
+                    .selectinload(InstructorServiceArea.neighborhood),
+                    selectinload(InstructorProfile.instructor_services).selectinload(
+                        Service.catalog_entry
+                    ),
+                )
+                .distinct()
+                .offset(skip)
+                .limit(limit)
+                .all(),
             )
         except Exception as e:
             self.logger.error(f"Error getting profiles by area: {str(e)}")
@@ -207,15 +216,21 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 List[InstructorProfile],
                 (
                     self.db.query(InstructorProfile)
-                    .join(User, InstructorProfile.user_id == User.id)
+                    .join(InstructorProfile.user)
+                    .join(User.service_areas, isouter=True)
+                    .join(InstructorServiceArea.neighborhood, isouter=True)
                     .filter(User.account_status == "active")
                     .options(
-                        joinedload(InstructorProfile.user),
-                        joinedload(InstructorProfile.instructor_services).joinedload(
+                        selectinload(InstructorProfile.user),
+                        selectinload(InstructorProfile.user)
+                        .selectinload(User.service_areas)
+                        .selectinload(InstructorServiceArea.neighborhood),
+                        selectinload(InstructorProfile.instructor_services).selectinload(
                             Service.catalog_entry
                         ),
                     )
                     .filter(InstructorProfile.years_experience >= min_years)
+                    .distinct()
                     .offset(skip)
                     .limit(limit)
                     .all()
@@ -238,6 +253,27 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.logger.error(f"Error counting active profiles: {str(e)}")
             raise RepositoryException(f"Failed to count profiles: {str(e)}")
 
+    def _apply_area_filters(self, query: Any, area: str) -> Any:
+        """Apply borough/neighborhood filters to the provided query."""
+
+        normalized = (area or "").strip()
+        if not normalized:
+            return query
+
+        normalized_lower = normalized.lower()
+
+        return (
+            query.join(User.service_areas)
+            .join(InstructorServiceArea.neighborhood)
+            .filter(
+                or_(
+                    func.lower(RegionBoundary.parent_region) == normalized_lower,
+                    func.lower(RegionBoundary.region_name) == normalized_lower,
+                    func.lower(RegionBoundary.region_code) == normalized_lower,
+                )
+            )
+        )
+
     def find_by_filters(
         self,
         search: Optional[str] = None,
@@ -245,6 +281,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
         age_group: Optional[str] = None,
+        boroughs: Optional[Sequence[str]] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[InstructorProfile]:
@@ -258,6 +295,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             service_catalog_id: Filter by specific service catalog ID
             min_price: Minimum hourly rate filter
             max_price: Maximum hourly rate filter
+            boroughs: Optional collection of borough names to filter by (case-insensitive)
             skip: Number of records to skip for pagination
             limit: Maximum number of records to return
 
@@ -272,17 +310,31 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             # Start with base query including eager loading
             query = (
                 self.db.query(InstructorProfile)
-                .join(User, InstructorProfile.user_id == User.id)
+                .join(InstructorProfile.user)
+                .join(User.service_areas, isouter=True)
+                .join(InstructorServiceArea.neighborhood, isouter=True)
                 .join(Service, InstructorProfile.id == Service.instructor_profile_id)
                 .join(ServiceCatalog, Service.service_catalog_id == ServiceCatalog.id)
                 .join(ServiceCategory, ServiceCatalog.category_id == ServiceCategory.id)
                 .options(
-                    joinedload(InstructorProfile.user),
-                    joinedload(InstructorProfile.instructor_services)
-                    .joinedload(Service.catalog_entry)
-                    .joinedload(ServiceCatalog.category),
+                    selectinload(InstructorProfile.user),
+                    selectinload(InstructorProfile.user)
+                    .selectinload(User.service_areas)
+                    .selectinload(InstructorServiceArea.neighborhood),
+                    selectinload(InstructorProfile.instructor_services).selectinload(
+                        Service.catalog_entry
+                    ),
                 )
             )
+
+            if boroughs:
+                normalized_boroughs = [
+                    b.lower() for b in boroughs if isinstance(b, str) and b.strip()
+                ]
+                if normalized_boroughs:
+                    query = query.filter(
+                        func.lower(RegionBoundary.parent_region).in_(normalized_boroughs)
+                    )
 
             # Apply search filter if provided
             if search:
@@ -374,5 +426,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         when load_relationships=True.
         """
         return query.options(
-            joinedload(InstructorProfile.user), joinedload(InstructorProfile.instructor_services)
+            selectinload(InstructorProfile.user)
+            .selectinload(User.service_areas)
+            .selectinload(InstructorServiceArea.neighborhood),
+            selectinload(InstructorProfile.instructor_services).selectinload(Service.catalog_entry),
         )

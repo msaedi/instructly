@@ -11,7 +11,7 @@ These will be reimplemented differently in the new booking system.
 
 from datetime import datetime
 import logging
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -531,6 +531,80 @@ class InstructorProfileResponse(InstructorProfileBase):
             )
             services_data.append(service_payload)
 
+        boroughs: set[str] = set()
+        neighborhoods_payload: List[ServiceAreaNeighborhoodOut] = []
+
+        neighborhoods_source = getattr(instructor_profile, "service_area_neighborhoods", None)
+
+        if neighborhoods_source:
+            for entry in neighborhoods_source:
+                if isinstance(entry, dict):
+                    neighborhood_id = entry.get("neighborhood_id") or entry.get("id")
+                    ntacode = entry.get("ntacode") or entry.get("region_code")
+                    name = entry.get("name") or entry.get("region_name")
+                    borough = entry.get("borough") or entry.get("parent_region")
+                else:
+                    neighborhood_id = getattr(entry, "neighborhood_id", None) or getattr(
+                        entry, "id", None
+                    )
+                    ntacode = getattr(entry, "ntacode", None) or getattr(entry, "region_code", None)
+                    name = getattr(entry, "name", None) or getattr(entry, "region_name", None)
+                    borough = getattr(entry, "borough", None) or getattr(
+                        entry, "parent_region", None
+                    )
+
+                neighborhoods_payload.append(
+                    ServiceAreaNeighborhoodOut(
+                        neighborhood_id=str(neighborhood_id) if neighborhood_id else "",
+                        ntacode=ntacode,
+                        name=name,
+                        borough=borough,
+                    )
+                )
+                if borough:
+                    boroughs.add(borough)
+        else:
+            user_service_areas: Sequence[Any] = []
+            if hasattr(instructor_profile, "user") and instructor_profile.user is not None:
+                user_service_areas = getattr(instructor_profile.user, "service_areas", []) or []
+
+            for area in user_service_areas:
+                neighborhood = getattr(area, "neighborhood", None)
+                neighborhood_id = getattr(area, "neighborhood_id", None)
+                if neighborhood is None:
+                    continue
+
+                borough = getattr(neighborhood, "parent_region", None) or getattr(
+                    neighborhood, "borough", None
+                )
+                ntacode = getattr(neighborhood, "region_code", None) or getattr(
+                    neighborhood, "ntacode", None
+                )
+                name = getattr(neighborhood, "region_name", None) or getattr(
+                    neighborhood, "name", None
+                )
+                neighborhoods_payload.append(
+                    ServiceAreaNeighborhoodOut(
+                        neighborhood_id=str(getattr(neighborhood, "id", neighborhood_id or "")),
+                        ntacode=ntacode,
+                        name=name,
+                        borough=borough,
+                    )
+                )
+                if borough:
+                    boroughs.add(borough)
+
+        sorted_boroughs = sorted(boroughs)
+        if sorted_boroughs:
+            if len(sorted_boroughs) <= 2:
+                service_area_summary = ", ".join(sorted_boroughs)
+            else:
+                service_area_summary = f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
+        else:
+            service_area_summary = None
+
+        neighborhoods_output = [entry.model_dump(mode="python") for entry in neighborhoods_payload]
+
         return cls(
             id=instructor_profile.id,
             user_id=instructor_profile.user_id,
@@ -553,6 +627,9 @@ class InstructorProfileResponse(InstructorProfileBase):
             is_live=getattr(instructor_profile, "is_live", False),
             preferred_teaching_locations=teaching_locations,
             preferred_public_spaces=public_spaces,
+            service_area_neighborhoods=neighborhoods_output,
+            service_area_boroughs=sorted_boroughs,
+            service_area_summary=service_area_summary,
         )
 
     @field_validator("services")

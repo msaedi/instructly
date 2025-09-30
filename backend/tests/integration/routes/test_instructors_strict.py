@@ -26,7 +26,7 @@ def client(_enable_strict):
 def test_create_instructor_profile_rejects_extra_field(client: TestClient):
     body = {
         "bio": "Experienced teacher",
-        "areas_of_service": ["Manhattan"],
+        "service_area_boroughs": ["Manhattan"],
         "years_experience": 5,
         "services": [
             {

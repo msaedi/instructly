@@ -24,6 +24,11 @@ from app.models.service_catalog import (
 from app.repositories.factory import RepositoryFactory
 from app.services.instructor_service import InstructorService as InstructorServiceClass
 
+try:  # pragma: no cover - accommodate direct backend test runs
+    from backend.tests.conftest import add_service_areas_for_boroughs
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import add_service_areas_for_boroughs
+
 
 def unique_slug(base: str) -> str:
     """Generate a unique slug for testing."""
@@ -626,8 +631,9 @@ def mock_instructor_profile(db: Session, test_instructor):
         user_id=test_instructor.id,
         bio="Test instructor",
         years_experience=5,
-        areas_of_service="Manhattan,Brooklyn",
     )
     db.add(profile)
     db.commit()
+
+    add_service_areas_for_boroughs(db, user=test_instructor, boroughs=["Manhattan", "Brooklyn"])
     return profile
