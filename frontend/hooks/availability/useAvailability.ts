@@ -28,7 +28,7 @@ export interface UseAvailabilityReturn {
   goToCurrentWeek: () => void;
 
   // API orchestrations (thin)
-  saveWeek: (opts?: { clearExisting?: boolean }) => Promise<{ success: boolean; message: string; code?: number }>;
+  saveWeek: (opts?: { clearExisting?: boolean; scheduleOverride?: WeekSchedule }) => Promise<{ success: boolean; message: string; code?: number }>;
   validateWeek: () => Promise<{ success: boolean; message: string; issues?: unknown[] }>;
   copyFromPreviousWeek: () => Promise<{ success: boolean; message: string }>;
   applyToFutureWeeks: (endISO: string) => Promise<{ success: boolean; message: string }>;
@@ -73,21 +73,9 @@ export function useAvailability(): UseAvailabilityReturn {
 
   const saveWeek: UseAvailabilityReturn['saveWeek'] = useCallback(async (opts) => {
     const week_start = formatDateForAPI(currentWeekStart);
-    // 1) Load authoritative server snapshot for the current week to avoid accidental drops
-    let serverWeek: WeekSchedule = {};
-    try {
-      const res = await fetchWithAuth(`${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}?start_date=${week_start}`);
-      if (res.ok) {
-        serverWeek = await res.json();
-        const etag = res.headers.get('ETag');
-        if (typeof window !== 'undefined' && etag) (window as Window & { __week_version?: string }).__week_version = etag;
-      }
-    } catch {
-      logger.warn('Could not load server week before save; proceeding with local snapshot');
-    }
-
-    // 2) Build a robust snapshot by overlaying local edits over server snapshot (and saved snapshot)
-    const merged: WeekSchedule = { ...serverWeek, ...savedWeekSchedule, ...weekSchedule };
+    // Build a snapshot by overlaying local edits over last saved snapshot
+    const localSource: WeekSchedule = opts?.scheduleOverride ?? weekSchedule;
+    const merged: WeekSchedule = { ...savedWeekSchedule, ...localSource };
     // Flatten into list of { date, start_time, end_time } per backend schema
     const schedule: Array<{ date: string; start_time: string; end_time: string }> = [];
     Object.entries(merged).forEach(([date, slots]) => {
@@ -103,6 +91,10 @@ export function useAvailability(): UseAvailabilityReturn {
     });
 
     try {
+      const effectiveVersion =
+        (typeof window !== 'undefined' && (window as Window & { __week_version?: string }).__week_version) ||
+        version;
+
       const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,12 +102,13 @@ export function useAvailability(): UseAvailabilityReturn {
           week_start,
           clear_existing: Boolean(opts?.clearExisting),
           schedule,
-          version,
+          version: effectiveVersion,
         }),
       });
       // Capture new version from response headers if present
       const newVersion = res.headers?.get?.('ETag') || undefined;
-      if (newVersion) {
+      if (newVersion && typeof window !== 'undefined') {
+        (window as Window & { __week_version?: string }).__week_version = newVersion;
         logger.debug('Updated week version from POST', { newVersion });
       }
       if (!res.ok) {
@@ -123,13 +116,13 @@ export function useAvailability(): UseAvailabilityReturn {
         const err = await res.json().catch(() => ({} as Record<string, unknown>));
         return { success: false, message: extractErrorMessage(err, 'Failed to save availability'), code: status };
       }
-      await refreshSchedule();
+      // Avoid immediate refresh to prevent flicker/race while user is editing.
       return { success: true, message: 'Availability saved' };
     } catch (e) {
       logger.error('saveWeek error', e);
       return { success: false, message: 'Network error while saving' };
     }
-  }, [currentWeekStart, weekSchedule, savedWeekSchedule, version, refreshSchedule]);
+  }, [currentWeekStart, weekSchedule, savedWeekSchedule, version]);
 
   const validateWeek: UseAvailabilityReturn['validateWeek'] = useCallback(async () => {
     try {

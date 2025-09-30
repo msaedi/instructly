@@ -224,7 +224,7 @@ export default function InstructorAvailabilityPage() {
             toast.success(`Applied through ${endISO}`);
             // Immediately persist the current week as well to avoid unsaved banners during navigation
             try {
-              const result = await saveWeek({ clearExisting: true });
+              const result = await saveWeek({ clearExisting: true, scheduleOverride: weekSchedule });
               if (!result.success) {
                 if (result.code === 409) {
                   setShowConflictModal(true);
@@ -342,7 +342,7 @@ export default function InstructorAvailabilityPage() {
               if (saveDebounceRef.current) window.clearTimeout(saveDebounceRef.current);
               saveDebounceRef.current = window.setTimeout(async () => {
                 try {
-                  const result = await saveWeek({ clearExisting: true });
+                  const result = await saveWeek({ clearExisting: true, scheduleOverride: s });
                   if (!result.success) {
                     if (result.code === 409) {
                       setShowConflictModal(true);
