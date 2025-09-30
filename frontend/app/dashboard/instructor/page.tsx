@@ -14,6 +14,7 @@ import DeleteProfileModal from '@/components/modals/DeleteProfileModal';
 import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor';
+import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import StripeOnboarding from '@/components/instructor/StripeOnboarding';
@@ -84,10 +85,11 @@ export default function InstructorDashboard() {
         throw new Error('Invalid profile data received');
       }
 
+      const serviceAreaBoroughs = getServiceAreaBoroughs(data);
       logger.info('Instructor profile loaded successfully', {
         userId: data.user_id,
         servicesCount: data.services.length,
-        areasCount: data.areas_of_service?.length || 0,
+        boroughCount: serviceAreaBoroughs.length,
       });
 
       setProfile(data);
@@ -376,7 +378,12 @@ export default function InstructorDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-1">Areas of Service</h3>
-                <p className="text-gray-900">{profile.areas_of_service.join(', ')}</p>
+                <p className="text-gray-900">
+                  {(() => {
+                    const boroughs = getServiceAreaBoroughs(profile);
+                    return boroughs.length > 0 ? boroughs.join(', ') : 'Not specified';
+                  })()}
+                </p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-1">Experience</h3>

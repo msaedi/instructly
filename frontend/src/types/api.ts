@@ -1,6 +1,8 @@
 // Generated TypeScript types for InstaInstru API
 // DO NOT EDIT - This file is auto-generated from Pydantic schemas
 
+import type { ServiceAreaNeighborhood } from '@/types/instructor';
+
 // Enums
 export enum UserRole {
   STUDENT = 'student',
@@ -295,7 +297,9 @@ export interface UserBasic {
 
 export interface InstructorProfileBase {
   bio: string;
-  areas_of_service: string[];
+  service_area_boroughs?: string[];
+  service_area_neighborhoods?: ServiceAreaNeighborhood[];
+  service_area_summary?: string | null;
   years_experience: number;
   min_advance_booking_hours?: number;
   buffer_time_minutes?: number;
@@ -303,7 +307,7 @@ export interface InstructorProfileBase {
 
 export interface InstructorProfileUpdate {
   bio?: string | null;
-  areas_of_service?: string[] | null;
+  service_area_boroughs?: string[] | null;
   years_experience?: number | null;
   services?: ServiceCreate[] | null;
 }
@@ -484,11 +488,13 @@ export type BookingResponse = Gen.components['schemas']['BookingResponse'];
 
 export interface InstructorProfileCreate {
   bio: string;
-  areas_of_service: string[];
   years_experience: number;
   min_advance_booking_hours?: number;
   buffer_time_minutes?: number;
   services: ServiceCreate[];
+  service_area_summary?: string | null;
+  service_area_boroughs?: string[];
+  service_area_neighborhoods?: ServiceAreaNeighborhood[];
 }
 
 // Replace ad-hoc definition with type alias to generated type

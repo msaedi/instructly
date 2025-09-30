@@ -17,6 +17,13 @@
  *
  * @interface InstructorBasic
  */
+export interface ServiceAreaNeighborhood {
+  neighborhood_id: string;
+  ntacode?: string | null;
+  name?: string | null;
+  borough?: string | null;
+}
+
 export interface InstructorBasic {
   /** Instructor profile ID (ULID string) */
   id: string;
@@ -36,8 +43,14 @@ export interface InstructorBasic {
   /** Years of teaching experience */
   years_experience: number;
 
-  /** Areas served in NYC (array of neighborhood names) */
-  areas_of_service: string[];
+  /** Ordered list of borough labels derived from neighborhoods */
+  service_area_boroughs?: string[];
+
+  /** Detailed neighborhood metadata for service areas */
+  service_area_neighborhoods?: ServiceAreaNeighborhood[];
+
+  /** Human-readable summary provided by backend */
+  service_area_summary?: string | null;
 
   /** Average rating (optional, for future use) */
   average_rating?: number;
@@ -68,8 +81,14 @@ export interface InstructorProfile {
   /** Detailed bio/description */
   bio: string;
 
-  /** Areas served in NYC (stored as comma-separated string in DB, parsed to array) */
-  areas_of_service: string[];
+  /** Ordered list of borough labels derived from neighborhoods */
+  service_area_boroughs?: string[];
+
+  /** Detailed neighborhood metadata for service areas */
+  service_area_neighborhoods?: ServiceAreaNeighborhood[];
+
+  /** Human-readable summary provided by backend */
+  service_area_summary?: string | null;
 
   /** Years of teaching experience */
   years_experience: number;

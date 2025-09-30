@@ -10,6 +10,7 @@ import { formatFullName } from '@/utils/nameDisplay';
 import { useAuth } from '../hooks/useAuth';
 import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/booking';
 import { at } from '@/lib/ts/safe';
+import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
 import { BookingType } from '@/features/shared/types/booking';
 import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
@@ -34,6 +35,9 @@ export default function BookingModal({
     notes: '',
     agreedToTerms: false,
   });
+  const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
+  const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
+  const primaryServiceArea = serviceAreaBoroughs[0] ?? serviceAreaDisplay;
 
   // Initialize with first service if multiple, or use the only service
   useEffect(() => {
@@ -167,7 +171,7 @@ export default function BookingModal({
         startTime: selectedTime,
         endTime: calculateEndTime(selectedTime, duration),
         duration,
-        location: at(instructor.areas_of_service, 0) || 'NYC',
+        location: primaryServiceArea,
         basePrice,
         serviceFee,
         totalAmount,
@@ -254,7 +258,7 @@ export default function BookingModal({
       startTime: selectedTime,
       endTime: calculateEndTime(selectedTime, duration),
       duration,
-      location: at(instructor.areas_of_service, 0) || 'NYC',
+      location: primaryServiceArea,
       basePrice,
       serviceFee,
       totalAmount,
@@ -543,7 +547,7 @@ export default function BookingModal({
                     {instructor.user.first_name}&apos;s Studio
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {at(instructor.areas_of_service, 0)} • Location details will be provided after
+                    {primaryServiceArea} • Location details will be provided after
                     booking
                   </div>
                 </div>

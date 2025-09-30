@@ -19,6 +19,7 @@ import { InstructorProfile } from '@/types/instructor';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
+import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 
 export default function InstructorDashboardNew() {
   const router = useRouter();
@@ -81,10 +82,12 @@ export default function InstructorDashboardNew() {
         throw new Error('Invalid profile data received');
       }
 
+      const serviceAreaBoroughs = getServiceAreaBoroughs(data);
+
       logger.info('Instructor profile loaded successfully', {
         userId: data.user_id,
         servicesCount: data.services.length,
-        areasCount: data.areas_of_service?.length || 0,
+        boroughCount: serviceAreaBoroughs.length,
       });
 
       const normalizedServices = await normalizeInstructorServices(data.services);
@@ -903,9 +906,10 @@ export default function InstructorDashboardNew() {
                 <button onClick={() => { setEditVariant('areas'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
               </div>
               {(() => {
+                const derivedBoroughs = profile ? getServiceAreaBoroughs(profile) : [];
                 const areas = (serviceAreaNames && serviceAreaNames.length > 0)
                   ? serviceAreaNames
-                  : (profile.areas_of_service || []);
+                  : derivedBoroughs;
                 return areas && areas.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {areas.map((area) => (

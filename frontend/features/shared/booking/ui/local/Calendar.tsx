@@ -29,13 +29,18 @@ export default function Calendar({ currentMonth, selectedDate, availableDates, p
         {days.map((iso) => {
           const selectable = availableDates.includes(iso as string);
           const isSel = selectedDate === iso || preSelectedDate === iso;
+          const label = iso;
           return (
             <button
               key={iso}
+              type="button"
+              data-testid={`cal-day-${label}`}
+              aria-label={label}
+              disabled={!selectable}
               onClick={() => selectable && onDateSelect(iso)}
               className={`h-10 text-xs border rounded ${selectable ? 'hover:bg-gray-50' : 'opacity-40 cursor-not-allowed'} ${isSel ? 'bg-blue-600 text-white' : ''}`}
             >
-              {iso.slice(5)}
+              {label.slice(5)}
             </button>
           );
         })}

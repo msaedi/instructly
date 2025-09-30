@@ -1,5 +1,7 @@
 // frontend/types/api.ts
 
+import type { ServiceAreaNeighborhood } from '@/types/instructor';
+
 /**
  * API Type Definitions
  *
@@ -278,8 +280,14 @@ export interface Instructor {
   /** Brief bio/description */
   bio: string;
 
-  /** Areas served in NYC */
-  areas_of_service: string[];
+  /** Ordered list of borough labels derived from service areas */
+  service_area_boroughs?: string[];
+
+  /** Detailed neighborhood metadata for service areas */
+  service_area_neighborhoods?: ServiceAreaNeighborhood[];
+
+  /** Human-readable summary provided by backend */
+  service_area_summary?: string | null;
 
   /** Years of teaching experience */
   years_experience: number;

@@ -17,6 +17,8 @@ import {
   type PreferredPublicSpacePayload,
   type PreferredTeachingLocationPayload,
 } from '@/lib/profileSchemaDebug';
+import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
+import type { ServiceAreaNeighborhood } from '@/types/instructor';
 import { submitServiceAreasOnce } from './serviceAreaSubmit';
 
 type Profile = {
@@ -24,7 +26,9 @@ type Profile = {
   last_name: string;
   postal_code: string;
   bio: string;
-  areas_of_service: string[];
+  service_area_summary?: string | null;
+  service_area_boroughs: string[];
+  service_area_neighborhoods?: ServiceAreaNeighborhood[];
   years_experience: number;
   min_advance_booking_hours?: number;
   buffer_time_minutes?: number;
@@ -52,7 +56,6 @@ type NYCZipCheck = { is_nyc: boolean; borough?: string | null };
 function buildInstructorProfilePayload(profile: Profile): InstructorUpdatePayload {
   return {
     bio: profile.bio.trim(),
-    areas_of_service: profile.areas_of_service,
     years_experience: Number(profile.years_experience) || 0,
     min_advance_booking_hours: profile.min_advance_booking_hours ?? 2,
     buffer_time_minutes: profile.buffer_time_minutes ?? 0,
@@ -126,7 +129,8 @@ export default function InstructorProfileSettingsPage() {
     last_name: '',
     postal_code: '',
     bio: '',
-    areas_of_service: [],
+    service_area_summary: null,
+    service_area_boroughs: [],
     years_experience: 0
   });
   const [isNYC, setIsNYC] = useState<boolean>(true); // default to true for now
@@ -202,14 +206,40 @@ export default function InstructorProfileSettingsPage() {
           logger.debug('Prefill: using user.zip_code fallback for postal_code', { postal_code: postalCode });
         }
 
+        const neighborhoodsRaw = Array.isArray(data?.['service_area_neighborhoods'])
+          ? (data['service_area_neighborhoods'] as ServiceAreaItem[])
+          : [];
+        const neighborhoods = neighborhoodsRaw.reduce<ServiceAreaNeighborhood[]>((acc, item) => {
+          const neighborhoodId = item.neighborhood_id || item.id;
+          if (!neighborhoodId) {
+            return acc;
+          }
+          acc.push({
+            neighborhood_id: neighborhoodId,
+            ntacode: item.ntacode ?? item.code ?? null,
+            name: item.name ?? null,
+            borough: item.borough ?? null,
+          });
+          return acc;
+        }, []);
+        const boroughsFromApi = Array.isArray(data?.['service_area_boroughs'])
+          ? (data['service_area_boroughs'] as string[]).filter((value) => typeof value === 'string' && value.trim().length > 0)
+          : [];
+
         setProfile({
           first_name: firstName,
           last_name: lastName,
           postal_code: postalCode,
           bio: data['bio'] || '',
-          areas_of_service: Array.isArray(data['areas_of_service'])
-            ? data['areas_of_service']
-            : (data['areas_of_service'] || '').split(',').map((x: string) => x.trim()).filter((x: string) => x.length),
+          service_area_summary: (data['service_area_summary'] as string | null | undefined) ?? null,
+          service_area_boroughs:
+            boroughsFromApi.length > 0
+              ? boroughsFromApi
+              : getServiceAreaBoroughs({
+                  service_area_boroughs: boroughsFromApi,
+                  service_area_neighborhoods: neighborhoods,
+                }),
+          service_area_neighborhoods: neighborhoods,
           years_experience: data['years_experience'] ?? 0,
           min_advance_booking_hours: data['min_advance_booking_hours'] ?? 2,
           buffer_time_minutes: data['buffer_time_minutes'] ?? 0,

@@ -21,7 +21,19 @@ export async function loadSearchListSchema() {
       id: z.string(),
       user_id: z.string(),
       bio: z.string(),
-      areas_of_service: z.array(z.string()),
+      service_area_summary: z.string().optional().nullable(),
+      service_area_boroughs: z.array(z.string()).optional().default([]),
+      service_area_neighborhoods: z
+        .array(
+          z.object({
+            neighborhood_id: z.string(),
+            ntacode: z.string().optional().nullable(),
+            name: z.string().optional().nullable(),
+            borough: z.string().optional().nullable(),
+          }),
+        )
+        .optional()
+        .default([]),
       years_experience: z.number(),
       min_advance_booking_hours: z.number().optional(),
       buffer_time_minutes: z.number().optional(),

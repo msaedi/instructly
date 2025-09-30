@@ -50,7 +50,15 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
       if (method === 'GET') {
         return fulfillJson(route, {
           bio: 'Mock instructor bio for preferred places smoke.',
-          areas_of_service: ['Manhattan'],
+          service_area_summary: 'Manhattan',
+          service_area_boroughs: ['Manhattan'],
+          service_area_neighborhoods: [
+            {
+              neighborhood_id: 'mock-manhattan',
+              name: 'Manhattan',
+              borough: 'Manhattan',
+            },
+          ],
           years_experience: 5,
           min_advance_booking_hours: 2,
           buffer_time_minutes: 0,
@@ -98,7 +106,15 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
 
         return fulfillJson(route, {
           bio: data?.bio ?? 'Mock instructor bio for preferred places smoke.',
-          areas_of_service: data?.areas_of_service ?? ['Manhattan'],
+          service_area_summary: 'Manhattan',
+          service_area_boroughs: ['Manhattan'],
+          service_area_neighborhoods: [
+            {
+              neighborhood_id: 'mock-manhattan',
+              name: 'Manhattan',
+              borough: 'Manhattan',
+            },
+          ],
           years_experience: data?.years_experience ?? 5,
           min_advance_booking_hours: data?.min_advance_booking_hours ?? 2,
           buffer_time_minutes: data?.buffer_time_minutes ?? 0,
@@ -210,7 +226,6 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
       async ({ api }) => {
         const payload = {
           bio: 'E2E seed biography for preferred places smoke test.',
-          areas_of_service: ['Manhattan'],
           years_experience: 5,
           min_advance_booking_hours: 2,
           buffer_time_minutes: 0,

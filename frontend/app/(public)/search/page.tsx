@@ -142,9 +142,20 @@ function SearchPageContent() {
                 id: getString(instructor, 'id', ''),
                 user_id: getString(instructor, 'id', ''),
                 bio: getString(instructor, 'bio', ''),
-                areas_of_service: getString(instructor, 'areas_of_service')
-                  ? getString(instructor, 'areas_of_service').split(', ')
-                  : [],
+                service_area_summary: getString(instructor, 'service_area_summary', ''),
+                service_area_boroughs: getArray(instructor, 'service_area_boroughs')
+                  .map((value) => (typeof value === 'string' ? value : null))
+                  .filter((value): value is string => Boolean(value && value.trim()))
+                  .map((value) => value.trim()),
+                service_area_neighborhoods: getArray(instructor, 'service_area_neighborhoods')
+                  .filter((value): value is Record<string, unknown> => isRecord(value))
+                  .map((value) => ({
+                    neighborhood_id: getString(value, 'neighborhood_id', ''),
+                    ntacode: getString(value, 'ntacode') || null,
+                    name: getString(value, 'name') || null,
+                    borough: getString(value, 'borough') || null,
+                  }))
+                  .filter((value) => value.neighborhood_id.length > 0),
                 years_experience: getNumber(instructor, 'years_experience', 0),
                 user: {
                   first_name: getString(instructor, 'first_name', 'Unknown'),

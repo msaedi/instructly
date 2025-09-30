@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin, Home, Users } from 'lucide-react';
 import type { InstructorProfile } from '@/types/instructor';
+import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 
 interface LocationCardProps {
   instructor: InstructorProfile;
@@ -14,7 +15,7 @@ export function LocationCard({ instructor }: LocationCardProps) {
     { type: 'online', label: 'Online Lessons' },
   ];
 
-  const serviceAreas = instructor.areas_of_service || [];
+  const serviceAreas = getServiceAreaBoroughs(instructor);
 
   return (
     <Card>

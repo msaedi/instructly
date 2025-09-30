@@ -19,6 +19,7 @@ import { fetchAPI, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
 import type { FavoritesListResponse } from '@/features/shared/api/types';
+import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 // Use dashboard-specific saved address shape (differs from common Address)
 type SavedAddress = {
   id: string;
@@ -839,7 +840,7 @@ function StudentDashboardContent() {
                         );
                         const primaryRate = services?.[0]?.hourly_rate as number | undefined;
                         const primarySubject = uniqueServices[0] || null;
-                        const primaryArea = (fav.profile?.areas_of_service || [])[0] || null;
+                        const primaryArea = getServiceAreaDisplay(fav.profile ?? {}) || null;
                         const yearsExp = fav.profile?.years_experience || null;
 
                         return (

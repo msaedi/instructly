@@ -6616,11 +6616,6 @@ export type components = {
          */
         InstructorProfileCreate: {
             /**
-             * Areas Of Service
-             * @description NYC areas where instructor provides services
-             */
-            areas_of_service: string[];
-            /**
              * Bio
              * @description Instructor biography/description
              */
@@ -6643,6 +6638,21 @@ export type components = {
              */
             services: components["schemas"]["ServiceCreate"][];
             /**
+             * Service Area Summary
+             * @description Human-readable description of service coverage
+             */
+            service_area_summary?: string | null;
+            /**
+             * Service Area Boroughs
+             * @description Ordered list of NYC borough labels derived from neighborhoods
+             */
+            service_area_boroughs?: string[];
+            /**
+             * Service Area Neighborhoods
+             * @description Detailed neighborhood coverage metadata
+             */
+            service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][];
+            /**
              * Years Experience
              * @description Years of teaching experience
              */
@@ -6657,10 +6667,20 @@ export type components = {
          */
         InstructorProfileResponse: {
             /**
-             * Areas Of Service
-             * @description NYC areas where instructor provides services
+             * Service Area Summary
+             * @description Human-readable description of service coverage
              */
-            areas_of_service: string[];
+            service_area_summary?: string | null;
+            /**
+             * Service Area Boroughs
+             * @description Ordered list of NYC borough labels derived from neighborhoods
+             */
+            service_area_boroughs?: string[];
+            /**
+             * Service Area Neighborhoods
+             * @description Detailed neighborhood coverage metadata
+             */
+            service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][];
             /** Background Check Object Key */
             background_check_object_key?: string | null;
             /** Background Check Uploaded At */
@@ -6737,12 +6757,16 @@ export type components = {
          *     All fields are optional for partial updates.
          */
         InstructorProfileUpdate: {
-            /** Areas Of Service */
-            areas_of_service?: string[] | null;
             /** Bio */
             bio?: string | null;
             /** Services */
             services?: components["schemas"]["ServiceCreate"][] | null;
+            /** Service Area Summary */
+            service_area_summary?: string | null;
+            /** Service Area Boroughs */
+            service_area_boroughs?: string[] | null;
+            /** Service Area Neighborhoods */
+            service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][] | null;
             /** Years Experience */
             years_experience?: number | null;
         };
@@ -10536,10 +10560,20 @@ export type components = {
          */
         app__schemas__search_responses__InstructorInfo: {
             /**
-             * Areas Of Service
-             * @description Service areas
+             * Service Area Summary
+             * @description Human-readable description of service coverage
              */
-            areas_of_service?: string | null;
+            service_area_summary?: string | null;
+            /**
+             * Service Area Boroughs
+             * @description Ordered list of NYC borough labels derived from neighborhoods
+             */
+            service_area_boroughs?: string[] | null;
+            /**
+             * Service Area Neighborhoods
+             * @description Detailed neighborhood coverage metadata
+             */
+            service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][] | null;
             /**
              * Bio
              * @description Instructor bio

@@ -137,6 +137,17 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
 def add_service_area(db: Session, user: User, neighborhood_id: str) -> InstructorServiceArea:
     """Attach a service area row for the given user."""
 
+    isa = (
+        db.query(InstructorServiceArea)
+        .filter(
+            InstructorServiceArea.instructor_id == user.id,
+            InstructorServiceArea.neighborhood_id == neighborhood_id,
+        )
+        .first()
+    )
+    if isa:
+        return isa
+
     isa = InstructorServiceArea(
         instructor_id=user.id,
         neighborhood_id=neighborhood_id,
