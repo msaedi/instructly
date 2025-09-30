@@ -631,6 +631,54 @@ export default function EditProfileModal({
     }
   }, [onClose, onSave, onSuccess, publicPlaces, selectedNeighborhoodList, teachingPlaces]);
 
+  const handleServicesSave = useCallback(async () => {
+    try {
+      setSvcSaving(true);
+      const payload: ProfileServiceUpdatePayload = {
+        services: selectedServices
+          .filter((service) => service.hourly_rate.trim() !== '')
+          .map((service) => ({
+            service_catalog_id: service.catalog_service_id,
+            hourly_rate: Number(service.hourly_rate),
+            age_groups: service.ageGroup === 'both' ? ['kids', 'adults'] : [service.ageGroup],
+            ...(service.description?.trim() ? { description: service.description.trim() } : {}),
+            duration_options: (service.duration_options?.length ? service.duration_options : [60]).sort((a, b) => a - b),
+            levels_taught: service.levels_taught,
+            ...(service.equipment
+              ?.split(',')
+              .map((value) => value.trim())
+              .filter(Boolean)?.length
+              ? {
+                  equipment_required: service.equipment
+                    .split(',')
+                    .map((value) => value.trim())
+                    .filter(Boolean),
+                }
+              : {}),
+            location_types: service.location_types?.length ? service.location_types : ['in-person'],
+          })),
+      };
+
+      const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const msg = await res.json().catch((): ApiErrorResponse => ({}));
+        throw new Error(msg.detail || 'Failed to save');
+      }
+
+      onSuccess();
+      onClose();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSvcSaving(false);
+    }
+  }, [selectedServices, onClose, onSuccess]);
+
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
     const items = itemsOverride || boroughNeighborhoods[borough] || [];
     const ids = items.map((i) => i.neighborhood_id || i.id).filter((id): id is string => typeof id === 'string');
@@ -821,6 +869,7 @@ export default function EditProfileModal({
   const isAboutOnly = variant === 'about';
   const isAreasOnly = isAreasVariant;
   const isServicesOnly = variant === 'services';
+  const isStickyVariant = isAreasVariant || isServicesOnly;
 
   const handleSaveBioExperience = async () => {
     try {
@@ -894,7 +943,7 @@ export default function EditProfileModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      showCloseButton={!isAreasVariant}
+      showCloseButton={!isStickyVariant}
       size="lg"
       noPadding
       footer={
@@ -933,15 +982,19 @@ export default function EditProfileModal({
         )
       }
     >
-      <form className={isAreasVariant ? 'flex min-h-full flex-col' : 'divide-y divide-gray-200'}>
-        {isAreasVariant && (
+      <form className={isStickyVariant ? 'flex min-h-full flex-col' : 'divide-y divide-gray-200'}>
+        {isStickyVariant && (
           <div className="sticky top-0 z-30 border-b border-gray-200 bg-white px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <Dialog.Title className="text-lg font-semibold text-gray-900">Service Areas</Dialog.Title>
+                <Dialog.Title className="text-lg font-semibold text-gray-900">
+                  {isAreasVariant ? 'Service Areas' : 'Skills & Pricing'}
+                </Dialog.Title>
                 <VisuallyHidden>
                   <Dialog.Description>
-                    Manage your selected neighborhoods along with preferred teaching and public locations.
+                    {isAreasVariant
+                      ? 'Manage your selected neighborhoods along with preferred teaching and public locations.'
+                      : 'Manage your skills, services, and pricing details.'}
                   </Dialog.Description>
                 </VisuallyHidden>
               </div>
@@ -957,7 +1010,7 @@ export default function EditProfileModal({
             </div>
           </div>
         )}
-        <div className={isAreasVariant ? 'flex-1 overflow-y-auto' : ''}>
+        <div className={isStickyVariant ? 'flex-1 overflow-y-auto' : ''}>
         {/* Personal Information Section */}
         {!isAreasOnly && !isServicesOnly && (
         <div className="px-6 py-6">
@@ -1914,44 +1967,12 @@ export default function EditProfileModal({
                   )}
                 </div>
 
-                <div className="mt-4 flex justify-end">
-                  <button type="button" onClick={async () => {
-                    try {
-                      setSvcSaving(true);
-                      const payload: ProfileServiceUpdatePayload = {
-                        services: selectedServices
-                          .filter((s) => s.hourly_rate.trim() !== '')
-                          .map((s) => ({
-                            service_catalog_id: s.catalog_service_id,
-                            hourly_rate: Number(s.hourly_rate),
-                            age_groups: s.ageGroup === 'both' ? ['kids','adults'] : [s.ageGroup],
-                            ...(s.description?.trim() ? { description: s.description.trim() } : {}),
-                            duration_options: (s.duration_options?.length ? s.duration_options : [60]).sort((a,b)=>a-b),
-                            levels_taught: s.levels_taught,
-                            ...(s.equipment?.split(',').map((x)=>x.trim()).filter(Boolean)?.length ? { equipment_required: s.equipment.split(',').map((x)=>x.trim()).filter(Boolean) } : {}),
-                            location_types: s.location_types?.length ? s.location_types : ['in-person'],
-                          })),
-                      };
-                      const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, { method: 'PUT', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
-                      if (!res.ok) {
-                        const msg = await res.json().catch((): ApiErrorResponse => ({}));
-                        throw new Error(msg.detail || 'Failed to save');
-                      }
-                      onSuccess();
-                      onClose();
-                    } catch (e: unknown) {
-                      setError(e instanceof Error ? e.message : 'Failed to save');
-                    } finally {
-                      setSvcSaving(false);
-                    }
-                  }} disabled={svcSaving} className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] disabled:opacity-50">{svcSaving ? 'Saving…' : 'Save'}</button>
-                </div>
               </>
             )}
           </div>
         )}
         </div>
-        {isAreasVariant && (
+        {isStickyVariant && (
           <div className="sticky bottom-0 z-30 border-t border-gray-200 bg-white px-6 py-4">
             <div className="flex justify-end gap-3">
               <button
@@ -1966,11 +1987,11 @@ export default function EditProfileModal({
               </button>
               <button
                 type="button"
-                onClick={handleAreasSave}
-                disabled={savingAreas}
+                onClick={isAreasVariant ? () => { void handleAreasSave(); } : () => { void handleServicesSave(); }}
+                disabled={isAreasVariant ? savingAreas : svcSaving}
                 className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
               >
-                {savingAreas ? 'Saving…' : 'Save'}
+                {(isAreasVariant ? savingAreas : svcSaving) ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>
