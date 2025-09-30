@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, cast
+from typing import Any, Dict, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
+from ..models.region_boundary import RegionBoundary
 from ..repositories.address_repository import (
     InstructorServiceAreaRepository,
     NYCNeighborhoodRepository,
@@ -18,6 +19,25 @@ from .base import BaseService
 from .cache_service import CacheService, get_cache_service
 from .geocoding.factory import create_geocoding_provider
 from .location_enrichment import LocationEnrichmentService
+
+_BOROUGH_CENTROID: Dict[str, Tuple[float, float]] = {
+    "Manhattan": (-73.985, 40.758),
+    "Brooklyn": (-73.950, 40.650),
+    "Queens": (-73.820, 40.730),
+    "Bronx": (-73.900, 40.850),
+    "Staten Island": (-74.150, 40.580),
+}
+
+
+def _square_polygon(lon: float, lat: float, delta: float = 0.01) -> Dict[str, Any]:
+    ring = [
+        [lon - delta, lat - delta],
+        [lon + delta, lat - delta],
+        [lon + delta, lat + delta],
+        [lon - delta, lat + delta],
+        [lon - delta, lat - delta],
+    ]
+    return {"type": "Polygon", "coordinates": [ring]}
 
 
 class AddressService(BaseService):
@@ -32,6 +52,42 @@ class AddressService(BaseService):
             self.cache: Optional[CacheService] = cache_service or get_cache_service(db)
         except Exception:
             self.cache = None
+
+    def _geometry_for_boundary(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        geom = row.get("geometry")
+        if isinstance(geom, dict) and "type" in geom and "coordinates" in geom:
+            return geom
+
+        boundary: Optional[RegionBoundary] = None
+        try:
+            boundary = self.db.get(RegionBoundary, row.get("id"))
+        except Exception:
+            boundary = None
+
+        metadata = getattr(boundary, "region_metadata", None) if boundary else None
+        if isinstance(metadata, dict):
+            candidate = metadata.get("geometry")
+            if isinstance(candidate, dict) and "type" in candidate and "coordinates" in candidate:
+                return candidate
+
+            centroid = metadata.get("centroid") or metadata.get("center")
+            if (
+                isinstance(centroid, (list, tuple))
+                and len(centroid) == 2
+                and all(isinstance(x, (float, int)) for x in centroid)
+            ):
+                lon, lat = float(centroid[0]), float(centroid[1])
+                return _square_polygon(lon, lat)
+
+        borough_value = (
+            (metadata.get("borough") if isinstance(metadata, dict) else None)
+            or row.get("parent_region")
+            or getattr(boundary, "parent_region", None)
+            or "Manhattan"
+        )
+        borough = borough_value.strip() if isinstance(borough_value, str) else "Manhattan"
+        lon, lat = _BOROUGH_CENTROID.get(borough, _BOROUGH_CENTROID["Manhattan"])
+        return _square_polygon(lon, lat)
 
     # User addresses
     @BaseService.measure_operation("list_addresses")
@@ -311,7 +367,7 @@ class AddressService(BaseService):
                 features.append(
                     {
                         "type": "Feature",
-                        "geometry": row["geometry"],
+                        "geometry": self._geometry_for_boundary(row),
                         "properties": {
                             "region_id": row["id"],
                             "name": row["region_name"],
