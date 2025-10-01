@@ -30,6 +30,8 @@ from app.models.availability import AvailabilitySlot
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User
+from app.repositories.address_repository import InstructorServiceAreaRepository
+from app.repositories.region_boundary_repository import RegionBoundaryRepository
 
 # Test configuration
 BASE_URL = "http://localhost:8000"
@@ -140,11 +142,23 @@ class CatalogSystemTester:
                 user_id=instructor.id,
                 bio="Professional pianist with 15 years of teaching experience. Specializing in classical and jazz piano.",
                 years_experience=15,
-                areas_of_service="Manhattan, Brooklyn",
                 min_advance_booking_hours=24,
                 buffer_time_minutes=15,
             )
             self.session.add(profile)
+            self.session.flush()
+
+            area_repo = InstructorServiceAreaRepository(self.session)
+            boundary_repo = RegionBoundaryRepository(self.session)
+            borough = boundary_repo.list_regions(
+                region_type="nyc", parent_region="Manhattan", limit=1
+            )
+            if borough:
+                area_repo.replace_areas(instructor.id, [borough[0]["id"]])
+                self.print_success("Seeded Manhattan service area for instructor")
+            else:
+                self.print_info("No Manhattan boundary found; service areas not seeded")
+
             self.session.commit()
             self.print_success("Created instructor profile")
 
