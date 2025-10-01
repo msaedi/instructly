@@ -54,6 +54,7 @@ from .routes import (
     database_monitor,
     favorites,
     gated,
+    instructor_background_checks,
     instructor_bookings,
     instructors,
     internal,
@@ -350,6 +351,7 @@ app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 app.include_router(auth.router)
 app.include_router(two_factor_auth.router)
 app.include_router(instructors.router)
+app.include_router(instructor_background_checks.router)
 app.include_router(instructor_bookings.router)
 app.include_router(account_management.router)
 app.include_router(services.router)

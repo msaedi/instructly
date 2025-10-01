@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Dict, Optional, cast
 
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import NotFoundException, ServiceException
 from ..integrations.checkr_client import CheckrClient, CheckrError
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
+from ..schemas.bgc import BackgroundCheckStatusLiteral
 from .base import BaseService
 
 
@@ -47,13 +48,13 @@ class BackgroundCheckService(BaseService):
         if not user:
             raise ServiceException("Instructor profile missing associated user")
 
-        candidate_payload: dict[str, Any] = {
+        candidate_payload: Dict[str, Any] = {
             "first_name": user.first_name,
             "last_name": user.last_name,
             "email": user.email,
         }
 
-        optional_fields = {
+        optional_fields: Dict[str, Optional[str]] = {
             "phone": getattr(user, "phone", None),
             "zipcode": getattr(user, "zip_code", None),
         }
@@ -77,7 +78,7 @@ class BackgroundCheckService(BaseService):
                 "Failed to initiate instructor background check", details=details
             ) from exc
 
-        report_id = invitation.get("report_id")
+        report_id = cast(Optional[str], invitation.get("report_id"))
 
         with self.transaction():
             self.repository.update_bgc(
@@ -94,7 +95,7 @@ class BackgroundCheckService(BaseService):
         self,
         report_id: str,
         *,
-        status: str,
+        status: BackgroundCheckStatusLiteral,
         completed: bool,
     ) -> bool:
         """Update instructor profile fields based on a Checkr report event."""
@@ -102,7 +103,7 @@ class BackgroundCheckService(BaseService):
         completed_at = datetime.now(timezone.utc) if completed else None
 
         with self.transaction():
-            updated = self.repository.update_bgc_by_report_id(
+            updated: int = self.repository.update_bgc_by_report_id(
                 report_id,
                 status=status,
                 completed_at=completed_at,

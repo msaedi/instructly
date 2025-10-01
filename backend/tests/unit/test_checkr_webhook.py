@@ -93,7 +93,7 @@ def test_report_completed_clear_updates_profile(client, db):
 
     response = client.post(
         "/webhooks/checkr/",
-        data=body,
+        content=body,
         headers={"X-Checkr-Signature": signature, "Content-Type": "application/json"},
     )
 
@@ -107,7 +107,7 @@ def test_report_completed_clear_updates_profile(client, db):
     # Idempotent retry
     response_retry = client.post(
         "/webhooks/checkr/",
-        data=body,
+        content=body,
         headers={"X-Checkr-Signature": signature, "Content-Type": "application/json"},
     )
     assert response_retry.status_code == 200
@@ -129,7 +129,7 @@ def test_report_completed_consider_marks_review(client, db):
 
     response = client.post(
         "/webhooks/checkr/",
-        data=body,
+        content=body,
         headers={"X-Checkr-Signature": signature, "Content-Type": "application/json"},
     )
 
@@ -164,7 +164,7 @@ def test_unknown_report_id_is_noop(client, db):
 
     response = client.post(
         "/webhooks/checkr/",
-        data=body,
+        content=body,
         headers={"X-Checkr-Signature": signature, "Content-Type": "application/json"},
     )
 

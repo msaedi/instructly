@@ -15,8 +15,9 @@ from typing import Any, List, Optional, Sequence, cast
 
 from sqlalchemy import func, or_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Query, Session, selectinload
 
+from ..core.bgc_policy import must_be_verified_for_public
 from ..core.exceptions import RepositoryException
 from ..models.address import InstructorServiceArea, RegionBoundary
 from ..models.instructor import InstructorProfile
@@ -39,6 +40,13 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         """Initialize with InstructorProfile model."""
         super().__init__(db, InstructorProfile)
         self.logger = logging.getLogger(__name__)
+
+    def _apply_verified_filter(self, query: Query) -> Query:
+        """Restrict results to verified instructors when required."""
+
+        if must_be_verified_for_public():
+            query = query.filter(InstructorProfile.bgc_status == "passed")
+        return query
 
     def get_by_user_id(self, user_id: str) -> Optional[InstructorProfile]:
         """
@@ -80,24 +88,21 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             List of InstructorProfile objects with all relationships loaded
         """
         try:
-            query = (
-                self.db.query(InstructorProfile)
-                .join(InstructorProfile.user)
-                .join(User.service_areas, isouter=True)
-                .join(InstructorServiceArea.neighborhood, isouter=True)
-                .filter(User.account_status == "active")
-                .options(
-                    selectinload(InstructorProfile.user)
-                    .selectinload(User.service_areas)
-                    .selectinload(InstructorServiceArea.neighborhood),
-                    selectinload(InstructorProfile.instructor_services).selectinload(
-                        Service.catalog_entry
-                    ),
-                )
-                .distinct()
-                .offset(skip)
-                .limit(limit)
+            query = self.db.query(InstructorProfile)
+            query = query.join(InstructorProfile.user)
+            query = query.join(User.service_areas, isouter=True)
+            query = query.join(InstructorServiceArea.neighborhood, isouter=True)
+            query = query.filter(User.account_status == "active")
+            query = self._apply_verified_filter(query)
+            query = query.options(
+                selectinload(InstructorProfile.user)
+                .selectinload(User.service_areas)
+                .selectinload(InstructorServiceArea.neighborhood),
+                selectinload(InstructorProfile.instructor_services).selectinload(
+                    Service.catalog_entry
+                ),
             )
+            query = query.distinct().offset(skip).limit(limit)
 
             profiles = cast(List[InstructorProfile], query.all())
 
@@ -176,6 +181,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .join(InstructorProfile.user)
                 .filter(User.account_status == "active")
             )
+            base_query = self._apply_verified_filter(base_query)
 
             filtered_query = self._apply_area_filters(base_query, area)
 
@@ -448,6 +454,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             # Ensure we only get active services and active instructors
             query = query.filter(Service.is_active == True)
             query = query.filter(User.account_status == "active")
+            query = self._apply_verified_filter(query)
 
             # Remove duplicates (since joins can create multiple rows per profile)
             # and apply pagination

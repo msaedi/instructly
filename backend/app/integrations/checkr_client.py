@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, Dict, Optional, cast
 
 import httpx
 from pydantic import SecretStr
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class CheckrError(RuntimeError):
     """Raised when the Checkr API responds with an error."""
 
-    def __init__(self, message: str, status_code: int | None = None) -> None:
+    def __init__(self, message: str, status_code: Optional[int] = None) -> None:
         super().__init__(message)
         self.status_code = status_code
 
@@ -40,19 +40,19 @@ class CheckrClient:
         self._timeout = timeout
         self._transport = transport
 
-    async def create_candidate(self, **payload: Any) -> dict[str, Any]:
+    async def create_candidate(self, **payload: Any) -> Dict[str, Any]:
         """Create a new candidate in Checkr."""
 
-        body = {key: value for key, value in payload.items() if value is not None}
+        body: Dict[str, Any] = {key: value for key, value in payload.items() if value is not None}
         return await self._post("/candidates", json_body=body)
 
-    async def create_invitation(self, *, candidate_id: str, package: str) -> dict[str, Any]:
+    async def create_invitation(self, *, candidate_id: str, package: str) -> Dict[str, Any]:
         """Create a hosted invitation for a candidate."""
 
         json_body = {"candidate_id": candidate_id, "package": package}
         return await self._post("/invitations", json_body=json_body)
 
-    async def _post(self, path: str, *, json_body: dict[str, Any]) -> dict[str, Any]:
+    async def _post(self, path: str, *, json_body: Dict[str, Any]) -> Dict[str, Any]:
         url = f"{self._base_url}{path}"
 
         async with httpx.AsyncClient(
@@ -76,7 +76,7 @@ class CheckrClient:
                 raise CheckrError("Failed to reach Checkr API") from exc
 
         try:
-            return response.json()
+            return cast(Dict[str, Any], response.json())
         except json.JSONDecodeError as exc:
             logger.error("Invalid JSON from Checkr for %s: %s", path, response.text)
             raise CheckrError("Received malformed JSON from Checkr") from exc

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 from sqlalchemy.orm import Session
 import stripe
 
+from ..core.bgc_policy import is_verified, must_be_verified_for_public
 from ..core.enums import RoleName
 from ..core.exceptions import (
     BusinessRuleException,
@@ -1054,6 +1055,13 @@ class BookingService(BaseService):
                 )
             else:
                 raise BusinessRuleException("This instructor cannot receive bookings at this time")
+
+        if must_be_verified_for_public() and not is_verified(
+            getattr(instructor_profile, "bgc_status", None)
+        ):
+            raise BusinessRuleException(
+                "This instructor is pending verification and cannot be booked at this time"
+            )
 
         return service, instructor_profile
 
