@@ -71,16 +71,11 @@ async def trigger_background_check_invite(
             already_in_progress=True,
         )
 
-    report_id = await background_check_service.invite(instructor_id)
-
-    # Refresh profile state after invite
-    refreshed = _get_instructor_profile(instructor_id, repo)
-    db.refresh(refreshed)
-    refreshed_status = _status_literal(getattr(refreshed, "bgc_status", None))
+    invite_result = await background_check_service.invite(instructor_id)
 
     return BackgroundCheckInviteResponse(
-        status=refreshed_status,
-        report_id=report_id or getattr(refreshed, "bgc_report_id", None),
+        status=invite_result["status"],
+        report_id=invite_result.get("report_id"),
     )
 
 

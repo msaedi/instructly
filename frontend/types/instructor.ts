@@ -116,6 +116,10 @@ export interface InstructorProfile {
 
   /** Background check status (for future use) */
   background_check_completed?: boolean;
+  /** Background check Review status literal */
+  bgc_status?: string;
+  /** Timestamp for completed background check */
+  bgc_completed_at?: string | null;
 
   /** Date when instructor joined */
   created_at?: string;

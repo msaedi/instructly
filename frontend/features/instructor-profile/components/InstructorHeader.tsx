@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Star, CheckCircle, Heart, Share2 } from 'lucide-react';
+import { Star, Heart, Share2, ShieldCheck } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { useRouter } from 'next/navigation';
@@ -9,6 +9,7 @@ import { favoritesApi } from '@/services/api/favorites';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import type { InstructorProfile } from '@/types/instructor';
+import { VerifiedBadge } from '@/components/common/VerifiedBadge';
 
 interface InstructorHeaderProps {
   instructor: InstructorProfile;
@@ -46,6 +47,11 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   };
 
   const displayName = getDisplayName();
+  const bgcStatus = typeof (instructor as { bgc_status?: string }).bgc_status === 'string'
+    ? ((instructor as { bgc_status?: string }).bgc_status || '').toLowerCase()
+    : undefined;
+  const backgroundCheckPassed = bgcStatus === 'passed' || Boolean(instructor.background_check_completed);
+  const bgcCompletedAt = (instructor as { bgc_completed_at?: string | null }).bgc_completed_at ?? null;
   const [shareCopied, setShareCopied] = useState(false);
   const handleShare = async () => {
     try {
@@ -144,9 +150,9 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
               {/* Name with Heart Button */}
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl lg:text-3xl font-bold text-[#7E22CE]" data-testid="instructor-profile-name">{displayName}</h1>
-                {instructor.is_verified && (
-                  <CheckCircle className="h-7 w-7 text-[#7E22CE]" />
-                )}
+                {backgroundCheckPassed ? (
+                  <VerifiedBadge dateISO={bgcCompletedAt} className="ml-2" />
+                ) : null}
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleHeartClick}
@@ -200,10 +206,10 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
               )}
 
               {/* Background Check Badge */}
-              {instructor.background_check_completed && (
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">Background Checked</span>
+              {backgroundCheckPassed && (
+                <div className="flex items-center gap-2 text-emerald-700">
+                  <ShieldCheck className="h-4 w-4" />
+                  <span className="text-sm">Background check cleared</span>
                 </div>
               )}
               </div>

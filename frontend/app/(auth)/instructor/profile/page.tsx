@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, ExternalLink } from 'lucide-react';
+import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, ExternalLink, ShieldCheck } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -20,6 +20,7 @@ import {
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
 import { submitServiceAreasOnce } from './serviceAreaSubmit';
+import { BGCStep } from '@/components/instructor/BGCStep';
 
 type Profile = {
   first_name: string;
@@ -124,6 +125,7 @@ export default function InstructorProfileSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   // Success toast handled via Sonner; no local success banner state
   const [userId, setUserId] = useState<string | null>(null);
+  const [instructorProfileId, setInstructorProfileId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile>({
     first_name: '',
     last_name: '',
@@ -164,6 +166,19 @@ export default function InstructorProfileSettingsPage() {
           } catch {}
         } else {
           logger.debug('Prefill: /instructors/me body keys', { keys: Object.keys(data || {}) });
+        }
+
+        try {
+          const profileIdValue = (data as Record<string, unknown>)?.['id'];
+          if (typeof profileIdValue === 'string') {
+            setInstructorProfileId(profileIdValue);
+          } else if (typeof profileIdValue === 'number') {
+            setInstructorProfileId(String(profileIdValue));
+          } else {
+            setInstructorProfileId(null);
+          }
+        } catch {
+          setInstructorProfileId(null);
         }
 
         // Get user info for name fields (use /auth/me)
@@ -736,6 +751,20 @@ export default function InstructorProfileSettingsPage() {
       {/* Success toast is shown as a floating element; banner removed for cleaner UI */}
 
       <div className="mt-6 space-y-6">
+        {instructorProfileId ? (
+          <div id="bgc-step-card" className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Background check</h2>
+                <p className="text-sm text-muted-foreground">Start your Checkr background screening to unlock bookings.</p>
+              </div>
+            </div>
+            <BGCStep instructorId={instructorProfileId} />
+          </div>
+        ) : null}
         {/* Personal Information Section */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-start justify-between mb-4">

@@ -88,9 +88,10 @@ async def test_invite_creates_candidate_and_updates_profile(db):
     service = _service_factory(db, MockTransport(handler))
     profile = _create_instructor(db)
 
-    report_id = await service.invite(profile.id)
+    result = await service.invite(profile.id)
 
-    assert report_id == "rpt_123"
+    assert result["report_id"] == "rpt_123"
+    assert result["status"] == "pending"
     assert captured_requests["candidate"]["email"] == "instructor@example.com"
     assert "ssn" not in captured_requests["candidate"]
     assert captured_requests["invitation"] == {

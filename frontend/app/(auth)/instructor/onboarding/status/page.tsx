@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { getConnectStatus, fetchWithAuth, API_ENDPOINTS, createStripeIdentitySession, createSignedUpload } from '@/lib/api';
+import { getConnectStatus, fetchWithAuth, API_ENDPOINTS, createStripeIdentitySession } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { loadStripe } from '@stripe/stripe-js';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { BGCStep } from '@/components/instructor/BGCStep';
+import type { BGCStatus } from '@/lib/api/bgc';
+import { ShieldCheck } from 'lucide-react';
 
 export default function OnboardingStatusPage() {
   const router = useRouter();
@@ -24,10 +26,16 @@ export default function OnboardingStatusPage() {
   const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
-  const [bgUploading, setBgUploading] = useState(false);
   const [skillsSkipped, setSkillsSkipped] = useState(false);
   const [verificationSkipped, setVerificationSkipped] = useState(false);
+  const [instructorProfileId, setInstructorProfileId] = useState<string | null>(null);
+  const [bgcSnapshot, setBgcSnapshot] = useState<{ status: BGCStatus | null; completedAt: string | null }>({ status: null, completedAt: null });
   const redirectingRef = useRef(false);
+
+  useEffect(() => {
+    if (bgcSnapshot.status === null) return;
+    setVerificationSkipped(bgcSnapshot.status !== 'passed');
+  }, [bgcSnapshot.status]);
 
   useEffect(() => {
     (async () => {
@@ -47,6 +55,18 @@ export default function OnboardingStatusPage() {
         if (s) setConnectStatus(s);
         if (me) {
           setProfile(me);
+          try {
+            const profileIdValue = (me as Record<string, unknown>)?.['id'];
+            if (typeof profileIdValue === 'string') {
+              setInstructorProfileId(profileIdValue);
+            } else if (typeof profileIdValue === 'number') {
+              setInstructorProfileId(String(profileIdValue));
+            } else {
+              setInstructorProfileId(null);
+            }
+          } catch {
+            setInstructorProfileId(null);
+          }
         }
 
         // Check if skills were skipped
@@ -59,8 +79,11 @@ export default function OnboardingStatusPage() {
         // Check if verification was skipped
         if (typeof window !== 'undefined' && sessionStorage.getItem('verificationSkipped') === 'true') {
           setVerificationSkipped(true);
-        } else if (me && (!me['background_check_status'] || me['background_check_status'] === 'pending')) {
-          setVerificationSkipped(true);
+        } else if (me) {
+          const rawBgc = typeof me['bgc_status'] === 'string'
+            ? me['bgc_status']
+            : (typeof me['background_check_status'] === 'string' ? me['background_check_status'] : '');
+          setVerificationSkipped(rawBgc?.toLowerCase() !== 'passed');
         }
       } finally {
         setLoading(false);
@@ -79,29 +102,40 @@ export default function OnboardingStatusPage() {
     profile &&
       (profile['skills_configured'] || (Array.isArray(profile['services']) && profile['services'].length > 0)) &&
       connectStatus && connectStatus.onboarding_completed &&
-      (profile['identity_verified_at'] || profile['identity_verification_session_id'])
+      (profile['identity_verified_at'] || profile['identity_verification_session_id']) &&
+      bgcSnapshot.status === 'passed'
   );
 
   const needsStripe = !(connectStatus && connectStatus.onboarding_completed);
   const needsIdentity = !(profile && (profile['identity_verified_at'] || profile['identity_verification_session_id']));
   const needsSkills = !(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)));
+  const needsBGC = bgcSnapshot.status !== 'passed';
 
   // Compute pending in canonical step order for display
   const pendingRequired: string[] = [];
   if (needsSkills) pendingRequired.push('Skills & pricing');
   if (needsIdentity) pendingRequired.push('ID verification');
+  if (needsBGC) pendingRequired.push('Background check');
   if (needsStripe) pendingRequired.push('Stripe Connect');
 
   // User-facing labels for the fun/actionable card in the desired order
   const pendingLabels: string[] = [];
   if (needsSkills) pendingLabels.push('Add skills');
   if (needsIdentity) pendingLabels.push('Verify Identity');
+  if (needsBGC) pendingLabels.push('Start background check');
   if (needsStripe) pendingLabels.push('Payment setup');
 
   const formatList = (items: string[]) => {
     if (items.length <= 1) return items.join('');
     if (items.length === 2) return `${items[0]} and ${items[1]}`;
     return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+  };
+
+  const scrollToBGC = () => {
+    try {
+      const el = document.getElementById('bgc-step-card');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch {}
   };
 
   const goLive = async () => {
@@ -142,40 +176,6 @@ export default function OnboardingStatusPage() {
       }
     } catch {
       // no-op
-    }
-  };
-
-  const backgroundInputRef = useRef<HTMLInputElement | null>(null);
-  const onBackgroundFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    try {
-      setBgUploading(true);
-      const signed = await createSignedUpload({
-        filename: f.name,
-        content_type: f.type || 'application/octet-stream',
-        size_bytes: f.size,
-        purpose: 'background_check',
-      });
-      const putRes = await fetch(signed.upload_url, {
-        method: 'PUT',
-        headers: signed.headers,
-        body: f,
-      });
-      if (!putRes.ok) throw new Error('Upload failed');
-      // Refresh profile to reflect background check upload status if backend exposes it
-      try {
-        const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-        if (meRes.ok) {
-          const me = await meRes.json();
-          setProfile(me);
-        }
-      } catch {}
-    } catch (err) {
-      logger.error('Background upload failed', err);
-    } finally {
-      setBgUploading(false);
-      if (backgroundInputRef.current) backgroundInputRef.current.value = '';
     }
   };
 
@@ -363,6 +363,24 @@ export default function OnboardingStatusPage() {
           </div>
         )}
 
+        {instructorProfileId ? (
+          <div id="bgc-step-card" className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Background check</h2>
+                <p className="text-sm text-muted-foreground">Invite yourself via Checkr to complete your screening.</p>
+              </div>
+            </div>
+            <BGCStep
+              instructorId={instructorProfileId}
+              onStatusUpdate={({ status, completedAt }) => setBgcSnapshot({ status, completedAt })}
+            />
+          </div>
+        ) : null}
+
         <div className="mt-6 space-y-4">
           {/* 1) Skills & pricing */}
           <Row label="Skills & pricing" ok={Boolean(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-[#7E22CE] hover:underline">Edit</Link>} />
@@ -371,25 +389,11 @@ export default function OnboardingStatusPage() {
           {/* 3) Background check */}
           <Row
             label="Background check"
-            ok={Boolean(profile?.['background_check_uploaded_at'])}
+            ok={bgcSnapshot.status === 'passed'}
             action={
-              <div>
-                <input
-                  ref={backgroundInputRef}
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg"
-                  className="hidden"
-                  onChange={onBackgroundFileSelected}
-                  disabled={bgUploading}
-                />
-                <button
-                  onClick={() => backgroundInputRef.current?.click()}
-                  className="text-[#7E22CE] hover:underline disabled:text-gray-400"
-                  disabled={bgUploading}
-                >
-                  {bgUploading ? 'Uploading…' : (profile?.['background_check_uploaded_at'] ? 'Replace' : 'Upload')}
-                </button>
-              </div>
+              bgcSnapshot.status === 'passed'
+                ? <span className="text-gray-400 text-sm">Completed</span>
+                : <button onClick={scrollToBGC} className="text-[#7E22CE] hover:underline text-sm">Start</button>
             }
           />
           {/* 4) Stripe Connect */}

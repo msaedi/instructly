@@ -102,6 +102,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                     Service.catalog_entry
                 ),
             )
+            query = query.order_by(InstructorProfile.id)
             query = query.distinct().offset(skip).limit(limit)
 
             profiles = cast(List[InstructorProfile], query.all())

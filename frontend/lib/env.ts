@@ -88,3 +88,9 @@ export const NEXT_PUBLIC_APP_URL = env.get('NEXT_PUBLIC_APP_URL');
 export const NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = env.get('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY');
 export const NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = env.get('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
 export const NEXT_TELEMETRY_DISABLED = env.get('NEXT_TELEMETRY_DISABLED');
+
+const APP_ENV = (process.env['NEXT_PUBLIC_APP_ENV'] ?? process.env['NEXT_PUBLIC_SITE_MODE'] ?? 'production').toLowerCase();
+const PROD_LIKE = new Set(['production', 'prod', 'beta']);
+export const SITE_MODE = APP_ENV;
+export const IS_PROD = PROD_LIKE.has(SITE_MODE);
+export const IS_NON_PROD = !IS_PROD;

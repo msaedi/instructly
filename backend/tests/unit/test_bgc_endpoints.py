@@ -13,6 +13,16 @@ from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.background_check_service import BackgroundCheckService
 
+CSRF_COOKIE = "csrftoken"
+CSRF_HEADER = "X-CSRFToken"
+CSRF_ORIGIN = "https://app.instainstru.com"
+
+
+def _csrf_headers(client):
+    token = "testtoken"
+    client.cookies.set(CSRF_COOKIE, token)
+    return {CSRF_HEADER: token, "Origin": CSRF_ORIGIN}
+
 
 def _create_instructor(db, *, status: str | None = None, report_id: str | None = None):
     owner = User(
@@ -66,6 +76,22 @@ def override_background_check_service(db):
         app.dependency_overrides.pop(get_background_check_service, None)
 
 
+@pytest.fixture(autouse=True)
+def force_local_site_mode(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "local")
+
+
+@pytest.fixture
+def owner_auth_override():
+    def _apply(user: User) -> None:
+        app.dependency_overrides[get_current_user] = lambda: user
+
+    try:
+        yield _apply
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
 @contextmanager
 def auth_override(user: User):
     app.dependency_overrides[get_current_user] = lambda: user
@@ -75,10 +101,15 @@ def auth_override(user: User):
         app.dependency_overrides.pop(get_current_user, None)
 
 
-def test_invite_creates_pending_status(client, db):
+def test_invite_creates_pending_status(client, db, owner_auth_override):
     owner, profile = _create_instructor(db, status="failed")
-    with auth_override(owner):
-        response = client.post(f"/api/instructors/{profile.id}/bgc/invite")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
 
     refreshed = db.query(InstructorProfile).filter_by(id=profile.id).one()
     assert refreshed.bgc_status == "pending"
@@ -93,11 +124,16 @@ def test_invite_creates_pending_status(client, db):
     assert payload["already_in_progress"] is False
 
 
-def test_invite_is_idempotent_when_pending(client, db):
+def test_invite_is_idempotent_when_pending(client, db, owner_auth_override):
     owner, profile = _create_instructor(db, status="pending", report_id="rpt_existing")
 
-    with auth_override(owner):
-        response = client.post(f"/api/instructors/{profile.id}/bgc/invite")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -120,8 +156,19 @@ def test_invite_forbidden_for_other_users(client, db):
     db.commit()
     db.refresh(other)
 
-    with auth_override(other):
-        response = client.post(f"/api/instructors/{profile.id}/bgc/invite")
+    def _override_other() -> None:
+        app.dependency_overrides[get_current_user] = lambda: other
+
+    try:
+        _override_other()
+        headers = _csrf_headers(client)
+        response = client.post(
+            f"/api/instructors/{profile.id}/bgc/invite",
+            headers=headers,
+            json={},
+        )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
 
     assert response.status_code == 403
 

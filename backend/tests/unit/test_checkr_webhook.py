@@ -145,7 +145,7 @@ def test_invalid_signature_returns_400(client):
 
     response = client.post(
         "/webhooks/checkr/",
-        data=body,
+        content=body,
         headers={"X-Checkr-Signature": "bad-signature", "Content-Type": "application/json"},
     )
 

@@ -2,7 +2,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Star, MapPin, Heart, CheckCircle } from 'lucide-react';
+import { Star, MapPin, Heart } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
 import { useEffect, useState } from 'react';
@@ -16,6 +16,8 @@ import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { at } from '@/lib/ts/safe';
+import { VerifiedBadge } from '@/components/common/VerifiedBadge';
+import { IS_PROD } from '@/lib/env';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
 let catalogCache: ServiceCatalogItem[] | null = null;
@@ -54,6 +56,13 @@ export default function InstructorCard({
   const [recentReviews, setRecentReviews] = useState<import('@/services/api/reviews').ReviewItem[]>([]);
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
+  const bgcStatusValue = (instructor as { bgc_status?: string }).bgc_status;
+  const bgcCompletedAt = (instructor as { bgc_completed_at?: string | null }).bgc_completed_at ?? null;
+  const backgroundCheckCompleted = Boolean((instructor as { background_check_completed?: boolean }).background_check_completed);
+  const hasPassedBGC = typeof bgcStatusValue === 'string'
+    ? bgcStatusValue.toLowerCase() === 'passed'
+    : backgroundCheckCompleted;
+  const shouldShowVerifiedBadge = IS_PROD ? true : hasPassedBGC;
 
   // Fetch service catalog on mount with simple de-duplication
   useEffect(() => {
@@ -229,9 +238,9 @@ export default function InstructorCard({
                 <h2 className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-[#7E22CE]`} data-testid="instructor-name">
                   {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
                 </h2>
-                {instructor.verified && (
-                  <CheckCircle className={`${compact ? 'h-5 w-5' : 'h-7 w-7'} text-[#7E22CE] ml-2`} />
-                )}
+                {shouldShowVerifiedBadge ? (
+                  <VerifiedBadge dateISO={bgcCompletedAt} className={compact ? 'ml-2' : 'ml-3'} />
+                ) : null}
               </div>
 
               {/* Services as pills */}
