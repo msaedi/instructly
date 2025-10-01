@@ -325,7 +325,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"bio\": \"Experienced piano teacher with 10 years of teaching students of all ages. Specializing in classical and jazz piano.\",\n  \"areas_of_service\": [\"Manhattan\", \"Brooklyn\"],\n  \"years_experience\": 10,\n  \"min_advance_booking_hours\": 24,\n  \"buffer_time_minutes\": 15,\n  \"services\": [\n    {\n      \"skill\": \"Piano\",\n      \"hourly_rate\": 80.00,\n      \"description\": \"Classical and jazz piano lessons for all levels\",\n      \"duration_override\": 60\n    },\n    {\n      \"skill\": \"Music Theory\",\n      \"hourly_rate\": 60.00,\n      \"description\": \"Comprehensive music theory instruction\"\n    }\n  ]\n}"
+              "raw": "{\n  \"bio\": \"Experienced piano teacher with 10 years of teaching students of all ages. Specializing in classical and jazz piano.\",\n  \"service_area_neighborhoods\": [\n    {\n      \"neighborhood_id\": \"01HNYN3QK4P9WXY2ZABCD12345\",\n      \"ntacode\": \"MN12\",\n      \"name\": \"Upper West Side\",\n      \"borough\": \"Manhattan\"\n    }\n  ],\n  \"service_area_boroughs\": [\"Manhattan\"],\n  \"service_area_summary\": \"Manhattan\",\n  \"years_experience\": 10,\n  \"min_advance_booking_hours\": 24,\n  \"buffer_time_minutes\": 15,\n  \"services\": [\n    {\n      \"skill\": \"Piano\",\n      \"hourly_rate\": 80.00,\n      \"description\": \"Classical and jazz piano lessons for all levels\",\n      \"duration_override\": 60\n    },\n    {\n      \"skill\": \"Music Theory\",\n      \"hourly_rate\": 60.00,\n      \"description\": \"Comprehensive music theory instruction\"\n    }\n  ]\n}"
             },
             "url": {
               "raw": "{{base_url}}/instructors/profile",
@@ -360,7 +360,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"bio\": \"Updated bio with more information about my teaching experience and methods.\",\n  \"years_experience\": 11,\n  \"areas_of_service\": [\"Manhattan\", \"Brooklyn\", \"Queens\"],\n  \"services\": [\n    {\n      \"skill\": \"Piano\",\n      \"hourly_rate\": 90.00,\n      \"description\": \"Updated: Classical, jazz, and contemporary piano lessons\"\n    }\n  ]\n}"
+              "raw": "{\n  \"bio\": \"Updated bio with more information about my teaching experience and methods.\",\n  \"service_area_neighborhoods\": [\n    {\n      \"neighborhood_id\": \"01JK8M6N7P0Q2R5S8TUVWXYZ12\",\n      \"ntacode\": \"MN17\",\n      \"name\": \"Midtown West\",\n      \"borough\": \"Manhattan\"\n    },\n    {\n      \"neighborhood_id\": \"01LMNOPQRSTUVWX23456789YZ\",\n      \"ntacode\": \"BK09\",\n      \"name\": \"Brooklyn Heights\",\n      \"borough\": \"Brooklyn\"\n    }\n  ],\n  \"service_area_boroughs\": [\"Manhattan\", \"Brooklyn\"],\n  \"service_area_summary\": \"Manhattan + 1 more\",\n  \"years_experience\": 11,\n  \"services\": [\n    {\n      \"skill\": \"Piano\",\n      \"hourly_rate\": 90.00,\n      \"description\": \"Updated: Classical, jazz, and contemporary piano lessons\"\n    }\n  ]\n}"
             },
             "url": {
               "raw": "{{base_url}}/instructors/profile",

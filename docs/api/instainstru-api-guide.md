@@ -367,7 +367,22 @@ Get list of all instructor profiles with optional filtering.
     "id": 1,
     "user_id": 123,
     "bio": "Experienced piano teacher...",
-    "areas_of_service": ["Manhattan", "Brooklyn"],
+    "service_area_neighborhoods": [
+      {
+        "neighborhood_id": "01HNYN3QK4P9WXY2ZABCD12345",
+        "ntacode": "MN12",
+        "name": "Upper West Side",
+        "borough": "Manhattan"
+      },
+      {
+        "neighborhood_id": "01JK8M6N7P0Q2R5S8TUVWXYZ12",
+        "ntacode": "BK09",
+        "name": "Brooklyn Heights",
+        "borough": "Brooklyn"
+      }
+    ],
+    "service_area_boroughs": ["Manhattan", "Brooklyn"],
+    "service_area_summary": "Manhattan + 1 more",
     "years_experience": 10,
     "min_advance_booking_hours": 24,
     "buffer_time_minutes": 15,
@@ -399,7 +414,22 @@ Get list of all instructor profiles with optional filtering.
       "id": 1,
       "user_id": 123,
       "bio": "Experienced piano teacher with 15 years of teaching experience. Juilliard graduate specializing in classical piano.",
-      "areas_of_service": ["Manhattan", "Brooklyn"],
+      "service_area_neighborhoods": [
+        {
+          "neighborhood_id": "01HNYN3QK4P9WXY2ZABCD12345",
+          "ntacode": "MN12",
+          "name": "Upper West Side",
+          "borough": "Manhattan"
+        },
+        {
+          "neighborhood_id": "01JK8M6N7P0Q2R5S8TUVWXYZ12",
+          "ntacode": "BK09",
+          "name": "Brooklyn Heights",
+          "borough": "Brooklyn"
+        }
+      ],
+      "service_area_boroughs": ["Manhattan", "Brooklyn"],
+      "service_area_summary": "Manhattan + 1 more",
       "years_experience": 15,
       "min_advance_booking_hours": 2,
       "buffer_time_minutes": 0,
@@ -486,7 +516,16 @@ Create instructor profile (converts user to instructor).
 ```json
 {
   "bio": "Experienced piano teacher with 10 years of teaching experience",
-  "areas_of_service": ["Manhattan", "Brooklyn"],
+  "service_area_neighborhoods": [
+    {
+      "neighborhood_id": "01HNYN3QK4P9WXY2ZABCD12345",
+      "ntacode": "MN12",
+      "name": "Upper West Side",
+      "borough": "Manhattan"
+    }
+  ],
+  "service_area_boroughs": ["Manhattan"],
+  "service_area_summary": "Manhattan",
   "years_experience": 10,
   "min_advance_booking_hours": 24,
   "buffer_time_minutes": 15,
@@ -500,6 +539,8 @@ Create instructor profile (converts user to instructor).
   ]
 }
 ```
+
+_Note: service areas are managed through the InstructorServiceArea APIs; the fields above illustrate the derived values returned in profile responses._
 
 **Response (201)**: Same as GET /instructors/ single profile
 
@@ -531,7 +572,16 @@ Update instructor profile.
 ```json
 {
   "bio": "Updated bio",
-  "areas_of_service": ["Manhattan", "Brooklyn", "Queens"],
+  "service_area_neighborhoods": [
+    {
+      "neighborhood_id": "01LMNOPQRSTUVWX23456789YZ",
+      "ntacode": "BK09",
+      "name": "Brooklyn Heights",
+      "borough": "Brooklyn"
+    }
+  ],
+  "service_area_boroughs": ["Brooklyn"],
+  "service_area_summary": "Brooklyn",
   "years_experience": 11,
   "services": [
     {
@@ -542,6 +592,8 @@ Update instructor profile.
   ]
 }
 ```
+
+_Set service areas via the dedicated service-area endpoints; derived fields above will reflect the saved neighborhoods in subsequent responses._
 
 **Response (200)**: Updated profile
 
@@ -1440,11 +1492,20 @@ export interface Service {
   is_active?: boolean;  // Included when filtering is applied
 }
 
+export interface ServiceAreaNeighborhood {
+  neighborhood_id: string;
+  ntacode?: string | null;
+  name: string;
+  borough: string;
+}
+
 export interface InstructorProfile {
   id: number;
   user_id: number;
   bio: string;
-  areas_of_service: string[];
+  service_area_neighborhoods: ServiceAreaNeighborhood[];
+  service_area_boroughs: string[];
+  service_area_summary: string | null;
   years_experience: number;
   min_advance_booking_hours: number;
   buffer_time_minutes: number;

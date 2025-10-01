@@ -1379,23 +1379,33 @@ components:
               type: integer
               description: Effective duration in minutes
 
+    ServiceAreaNeighborhood:
+      type: object
+      required:
+        - neighborhood_id
+        - name
+        - borough
+      properties:
+        neighborhood_id:
+          type: string
+        ntacode:
+          type: string
+          nullable: true
+        name:
+          type: string
+        borough:
+          type: string
+
     InstructorProfileBase:
       type: object
       required:
         - bio
-        - areas_of_service
         - years_experience
       properties:
         bio:
           type: string
           minLength: 10
           maxLength: 1000
-        areas_of_service:
-          type: array
-          items:
-            type: string
-          minItems: 1
-          maxItems: 20
         years_experience:
           type: integer
           minimum: 0
@@ -1432,11 +1442,6 @@ components:
           type: string
           minLength: 10
           maxLength: 1000
-        areas_of_service:
-          type: array
-          items:
-            type: string
-          maxItems: 10
         years_experience:
           type: integer
           minimum: 0
@@ -1471,6 +1476,19 @@ components:
                 email:
                   type: string
                   format: email
+            service_area_neighborhoods:
+              type: array
+              items:
+                $ref: '#/components/schemas/ServiceAreaNeighborhood'
+              default: []
+            service_area_boroughs:
+              type: array
+              items:
+                type: string
+              default: []
+            service_area_summary:
+              type: string
+              nullable: true
             services:
               type: array
               items:
