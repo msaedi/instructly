@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from .core.config import settings
+from .core.config import assert_env, settings
 from .core.constants import (
     ALLOWED_ORIGINS,
     API_DESCRIPTION,
@@ -75,6 +75,7 @@ from .routes import (
     two_factor_auth,
     uploads,
     users_profile_picture,
+    webhooks_checkr,
 )
 from .schemas.main_responses import (
     HealthLiteResponse,
@@ -118,9 +119,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','') or 'unset'})"
     )
 
+    site_mode_raw = os.getenv("SITE_MODE", "")
+    assert_env(site_mode_raw, settings.checkr_env)
+
     # Enforce is_testing discipline without changing preview/prod behavior otherwise
     try:
-        site_mode = os.getenv("SITE_MODE", "").strip().lower()
+        site_mode = site_mode_raw.strip().lower()
         if site_mode in {"preview", "prod", "production", "live"} and bool(
             getattr(settings, "is_testing", False)
         ):
@@ -371,6 +375,7 @@ app.include_router(redis_monitor.router)
 app.include_router(database_monitor.router)
 app.include_router(privacy.router, prefix="/api", tags=["privacy"])
 app.include_router(stripe_webhooks.router)
+app.include_router(webhooks_checkr.router)
 app.include_router(prometheus.router)
 app.include_router(uploads.router)
 app.include_router(users_profile_picture.router)

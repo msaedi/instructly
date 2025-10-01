@@ -160,6 +160,47 @@ def upgrade() -> None:
     op.create_index("ix_alert_history_alert_type", "alert_history", ["alert_type"])
     op.create_index("ix_alert_history_severity", "alert_history", ["severity"])
 
+    # Background check guard rails on instructor profiles
+    print("Adding background check fields to instructor_profiles...")
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_status", sa.String(length=20), nullable=False, server_default="pending"),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_report_id", sa.String(length=64), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_completed_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_env", sa.String(length=20), nullable=False, server_default="sandbox"),
+    )
+    op.create_check_constraint(
+        "ck_instructor_profiles_bgc_status",
+        "instructor_profiles",
+        "bgc_status IN ('pending','passed','review','failed')",
+    )
+    op.create_check_constraint(
+        "ck_instructor_profiles_bgc_env",
+        "instructor_profiles",
+        "bgc_env IN ('sandbox','production')",
+    )
+
+    print("Creating bgc_consent table...")
+    op.create_table(
+        "bgc_consent",
+        sa.Column("id", sa.String(length=26), nullable=False),
+        sa.Column("instructor_id", sa.String(length=26), nullable=False),
+        sa.Column("consented_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("consent_version", sa.Text(), nullable=False),
+        sa.ForeignKeyConstraint(["instructor_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("ix_bgc_consent_instructor_id", "bgc_consent", ["instructor_id"])
+
     # Add messages table for chat system
     print("Creating messages table for chat system...")
     op.create_table(
@@ -767,6 +808,37 @@ def downgrade() -> None:
     op.drop_index("ix_messages_sender_id", "messages")
     op.drop_index("ix_messages_booking_created", "messages")
     op.drop_table("messages")
+
+    print("Dropping bgc_consent table and background check columns...")
+    op.drop_index("ix_bgc_consent_instructor_id", table_name="bgc_consent")
+    op.drop_table("bgc_consent")
+
+    if is_postgres:
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP CONSTRAINT IF EXISTS ck_instructor_profiles_bgc_env"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP CONSTRAINT IF EXISTS ck_instructor_profiles_bgc_status"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_env"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_completed_at"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_report_id"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_status"
+        )
+    else:
+        op.drop_constraint("ck_instructor_profiles_bgc_env", "instructor_profiles", type_="check")
+        op.drop_constraint("ck_instructor_profiles_bgc_status", "instructor_profiles", type_="check")
+        op.drop_column("instructor_profiles", "bgc_env")
+        op.drop_column("instructor_profiles", "bgc_completed_at")
+        op.drop_column("instructor_profiles", "bgc_report_id")
+        op.drop_column("instructor_profiles", "bgc_status")
 
     # Drop alert history table
     print("Dropping alert_history table...")

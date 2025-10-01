@@ -11,9 +11,13 @@ from functools import lru_cache
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from ...core.config import settings
+from ...integrations import CheckrClient
+from ...repositories.instructor_profile_repository import InstructorProfileRepository
 from ...services.account_lifecycle_service import AccountLifecycleService
 from ...services.auth_service import AuthService
 from ...services.availability_service import AvailabilityService
+from ...services.background_check_service import BackgroundCheckService
 from ...services.base import BaseService
 from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
@@ -203,6 +207,26 @@ def get_referral_checkout_service(
     """Provide referral checkout helper service."""
 
     return ReferralCheckoutService(db, wallet_service)
+
+
+def get_background_check_service(
+    db: Session = Depends(get_db),
+) -> BackgroundCheckService:
+    """Provide background check service wired to Checkr."""
+
+    repository = InstructorProfileRepository(db)
+    client = CheckrClient(
+        api_key=settings.checkr_api_key,
+        base_url=settings.checkr_api_base,
+    )
+
+    return BackgroundCheckService(
+        db,
+        client=client,
+        repository=repository,
+        package=settings.checkr_package,
+        env=settings.checkr_env,
+    )
 
 
 def get_week_operation_service(

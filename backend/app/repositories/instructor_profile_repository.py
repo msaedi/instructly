@@ -9,10 +9,12 @@ This repository eliminates N+1 query problems by using eager loading
 for commonly accessed relationships.
 """
 
+from datetime import datetime
 import logging
 from typing import Any, List, Optional, Sequence, cast
 
 from sqlalchemy import func, or_
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from ..core.exceptions import RepositoryException
@@ -252,6 +254,68 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         except Exception as e:
             self.logger.error(f"Error counting active profiles: {str(e)}")
             raise RepositoryException(f"Failed to count profiles: {str(e)}")
+
+    def update_bgc(
+        self,
+        instructor_id: str,
+        *,
+        status: str,
+        report_id: str | None,
+        env: str,
+    ) -> None:
+        """Persist background check metadata for a specific instructor profile."""
+
+        try:
+            profile = self.get_by_id(instructor_id, load_relationships=False)
+            if not profile:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+
+            profile.bgc_status = status
+            profile.bgc_report_id = report_id
+            profile.bgc_env = env
+
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update background check metadata for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException(
+                f"Failed to update background check metadata for instructor {instructor_id}"
+            ) from exc
+
+    def update_bgc_by_report_id(
+        self,
+        report_id: str,
+        *,
+        status: str,
+        completed_at: datetime | None = None,
+    ) -> int:
+        """Update background check fields based on a Checkr report identifier."""
+
+        try:
+            profile = self.find_one_by(bgc_report_id=report_id)
+            if not profile:
+                return 0
+
+            profile.bgc_status = status
+            if completed_at is not None:
+                profile.bgc_completed_at = completed_at
+
+            self.db.flush()
+            return 1
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update background check metadata for report %s: %s",
+                report_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException(
+                f"Failed to update background check metadata for report {report_id}"
+            ) from exc
 
     def _apply_area_filters(self, query: Any, area: str) -> Any:
         """Apply borough/neighborhood filters to the provided query."""

@@ -30,6 +30,9 @@ if not os.getenv("CI"):
     load_dotenv(env_path)
 
 
+PRODUCTION_SITE_MODES = {"prod", "production", "live"}
+
+
 class Settings(BaseSettings):
     # Use a default secret key for CI/testing environments
     secret_key: SecretStr = Field(
@@ -93,6 +96,28 @@ class Settings(BaseSettings):
         "production"
         if os.getenv("SITE_MODE", "local").lower() in {"prod", "production", "live"}
         else "development"
+    )
+
+    # Checkr configuration
+    checkr_env: str = Field(
+        default="sandbox",
+        description="Target Checkr environment (sandbox|production)",
+    )
+    checkr_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        description="Checkr API key for background check operations",
+    )
+    checkr_package: str = Field(
+        default="essential",
+        description="Default Checkr package to request for instructor background checks",
+    )
+    checkr_api_base: str = Field(
+        default="https://api.checkr.com/v1",
+        description="Base URL for Checkr API",
+    )
+    checkr_webhook_secret: SecretStr = Field(
+        default=SecretStr(""),
+        description="Shared secret for verifying Checkr webhook signatures",
     )
 
     @property
@@ -419,6 +444,20 @@ class Settings(BaseSettings):
     def stg_database_url(self) -> str:
         """Staging database URL."""
         return self.stg_database_url_raw
+
+
+def assert_env(site_mode: str, checkr_env: str) -> None:
+    """Abort startup when Checkr configuration does not match the SITE_MODE."""
+
+    normalized_site_mode = (site_mode or "").strip().lower()
+    normalized_checkr_env = (checkr_env or "").strip().lower()
+
+    if normalized_site_mode in PRODUCTION_SITE_MODES:
+        if normalized_checkr_env != "production":
+            raise RuntimeError("Refusing to start: production requires CHECKR_ENV=production")
+    else:
+        if normalized_checkr_env != "sandbox":
+            raise RuntimeError("Refusing to start: non-prod requires CHECKR_ENV=sandbox")
 
 
 settings = Settings()
