@@ -15,7 +15,7 @@ import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
-import { SelectedNeighborhoodChips, type SelectedNeighborhood } from '@/features/instructor-profile/components/SelectedNeighborhoodChips';
+import { SelectedNeighborhoodChips, type SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
 type EditableService = {
   service_catalog_id?: string;
   service_catalog_name?: string | null;
