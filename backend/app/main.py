@@ -317,6 +317,7 @@ app.add_middleware(
     allow_methods=["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
+logger.info("CORS allow_origins=%s allow_credentials=%s", _DYN_ALLOWED_ORIGINS, True)
 
 # Keep MonitoringMiddleware (pure ASGI-style) below CORS
 app.add_middleware(MonitoringMiddleware)
