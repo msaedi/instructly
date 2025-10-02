@@ -9,12 +9,15 @@ This repository eliminates N+1 query problems by using eager loading
 for commonly accessed relationships.
 """
 
+from datetime import datetime
 import logging
 from typing import Any, List, Optional, Sequence, cast
 
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Query, Session, selectinload
 
+from ..core.bgc_policy import must_be_verified_for_public
 from ..core.exceptions import RepositoryException
 from ..models.address import InstructorServiceArea, RegionBoundary
 from ..models.instructor import InstructorProfile
@@ -37,6 +40,13 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         """Initialize with InstructorProfile model."""
         super().__init__(db, InstructorProfile)
         self.logger = logging.getLogger(__name__)
+
+    def _apply_verified_filter(self, query: Query) -> Query:
+        """Restrict results to verified instructors when required."""
+
+        if must_be_verified_for_public():
+            query = query.filter(InstructorProfile.bgc_status == "passed")
+        return query
 
     def get_by_user_id(self, user_id: str) -> Optional[InstructorProfile]:
         """
@@ -78,24 +88,21 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             List of InstructorProfile objects with all relationships loaded
         """
         try:
-            query = (
-                self.db.query(InstructorProfile)
-                .join(InstructorProfile.user)
-                .join(User.service_areas, isouter=True)
-                .join(InstructorServiceArea.neighborhood, isouter=True)
-                .filter(User.account_status == "active")
-                .options(
-                    selectinload(InstructorProfile.user)
-                    .selectinload(User.service_areas)
-                    .selectinload(InstructorServiceArea.neighborhood),
-                    selectinload(InstructorProfile.instructor_services).selectinload(
-                        Service.catalog_entry
-                    ),
-                )
-                .distinct()
-                .offset(skip)
-                .limit(limit)
+            query = self.db.query(InstructorProfile)
+            query = query.join(InstructorProfile.user)
+            query = query.join(User.service_areas, isouter=True)
+            query = query.join(InstructorServiceArea.neighborhood, isouter=True)
+            query = query.filter(User.account_status == "active")
+            query = self._apply_verified_filter(query)
+            query = query.options(
+                selectinload(InstructorProfile.user)
+                .selectinload(User.service_areas)
+                .selectinload(InstructorServiceArea.neighborhood),
+                selectinload(InstructorProfile.instructor_services).selectinload(
+                    Service.catalog_entry
+                ),
             )
+            query = query.distinct().offset(skip).limit(limit)
 
             profiles = cast(List[InstructorProfile], query.all())
 
@@ -174,6 +181,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .join(InstructorProfile.user)
                 .filter(User.account_status == "active")
             )
+            base_query = self._apply_verified_filter(base_query)
 
             filtered_query = self._apply_area_filters(base_query, area)
 
@@ -252,6 +260,68 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         except Exception as e:
             self.logger.error(f"Error counting active profiles: {str(e)}")
             raise RepositoryException(f"Failed to count profiles: {str(e)}")
+
+    def update_bgc(
+        self,
+        instructor_id: str,
+        *,
+        status: str,
+        report_id: str | None,
+        env: str,
+    ) -> None:
+        """Persist background check metadata for a specific instructor profile."""
+
+        try:
+            profile = self.get_by_id(instructor_id, load_relationships=False)
+            if not profile:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+
+            profile.bgc_status = status
+            profile.bgc_report_id = report_id
+            profile.bgc_env = env
+
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update background check metadata for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException(
+                f"Failed to update background check metadata for instructor {instructor_id}"
+            ) from exc
+
+    def update_bgc_by_report_id(
+        self,
+        report_id: str,
+        *,
+        status: str,
+        completed_at: datetime | None = None,
+    ) -> int:
+        """Update background check fields based on a Checkr report identifier."""
+
+        try:
+            profile = self.find_one_by(bgc_report_id=report_id)
+            if not profile:
+                return 0
+
+            profile.bgc_status = status
+            if completed_at is not None:
+                profile.bgc_completed_at = completed_at
+
+            self.db.flush()
+            return 1
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update background check metadata for report %s: %s",
+                report_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException(
+                f"Failed to update background check metadata for report {report_id}"
+            ) from exc
 
     def _apply_area_filters(self, query: Any, area: str) -> Any:
         """Apply borough/neighborhood filters to the provided query."""
@@ -384,6 +454,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             # Ensure we only get active services and active instructors
             query = query.filter(Service.is_active == True)
             query = query.filter(User.account_status == "active")
+            query = self._apply_verified_filter(query)
 
             # Remove duplicates (since joins can create multiple rows per profile)
             # and apply pagination

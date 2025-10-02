@@ -95,6 +95,12 @@ class InstructorProfile(Base):
     onboarding_completed_at = Column(DateTime(timezone=True), nullable=True)
     is_live = Column(Boolean, nullable=False, default=False)
 
+    # Background check status tracking
+    bgc_status = Column(String(20), nullable=False, default="pending", server_default="pending")
+    bgc_report_id = Column(String(64), nullable=True)
+    bgc_completed_at = Column(DateTime(timezone=True), nullable=True)
+    bgc_env = Column(String(20), nullable=False, default="sandbox", server_default="sandbox")
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -115,12 +121,32 @@ class InstructorProfile(Base):
         passive_deletes=True,  # Don't load services just to delete them
     )
 
+    # Background check consents
+    bgc_consents = relationship(
+        "BGCConsent",
+        back_populates="instructor_profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="BGCConsent.consented_at",
+    )
+
     # Payment relationship
     stripe_connected_account = relationship(
         "StripeConnectedAccount",
         back_populates="instructor_profile",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "bgc_status IN ('pending','passed','review','failed')",
+            name="ck_instructor_profiles_bgc_status",
+        ),
+        CheckConstraint(
+            "bgc_env IN ('sandbox','production')",
+            name="ck_instructor_profiles_bgc_env",
+        ),
     )
 
     def __init__(self, **kwargs: Any) -> None:
@@ -262,6 +288,25 @@ class InstructorProfile(Base):
             data["active_services_count"] = len(self.active_services)
 
         return data
+
+
+class BGCConsent(Base):
+    """Stored consent acknowledgements for instructor background checks."""
+
+    __tablename__ = "bgc_consent"
+
+    id = Column(String(26), primary_key=True, index=True, default=lambda: str(ulid.ULID()))
+    instructor_id = Column(
+        String(26), ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    consented_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    consent_version = Column(Text, nullable=False)
+
+    instructor_profile = relationship(
+        "InstructorProfile", back_populates="bgc_consents", passive_deletes=True
+    )
+
+    __table_args__ = (Index("ix_bgc_consent_instructor_id", "instructor_id"),)
 
 
 class InstructorPreferredPlace(Base):
