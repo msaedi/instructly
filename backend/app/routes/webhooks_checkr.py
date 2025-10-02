@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from hashlib import sha256
 import hmac
 import json
@@ -9,10 +10,10 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from ..api.dependencies.services import get_background_check_service
+from ..api.dependencies.repositories import get_instructor_repo
 from ..core.config import settings
+from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas.webhook_responses import WebhookAckResponse
-from ..services.background_check_service import BackgroundCheckService
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ def _verify_signature(payload: bytes, signature: str | None) -> None:
 @router.post("/", response_model=WebhookAckResponse)
 async def handle_checkr_webhook(
     request: Request,
-    background_check_service: BackgroundCheckService = Depends(get_background_check_service),
+    repository: InstructorProfileRepository = Depends(get_instructor_repo),
 ) -> WebhookAckResponse:
     """Process Checkr webhook events for background check reports."""
 
@@ -82,10 +83,10 @@ async def handle_checkr_webhook(
 
         result = (data_object.get("result") or data_object.get("adjudication") or "").lower()
         status_value = "passed" if result == "clear" else "review"
-        background_check_service.update_status_from_report(
+        repository.update_bgc_by_report_id(
             report_id,
             status=status_value,
-            completed=True,
+            completed_at=datetime.now(timezone.utc),
         )
         return WebhookAckResponse(ok=True)
 
@@ -93,10 +94,10 @@ async def handle_checkr_webhook(
         if not report_id:
             return WebhookAckResponse(ok=True)
 
-        background_check_service.update_status_from_report(
+        repository.update_bgc_by_report_id(
             report_id,
             status="review",
-            completed=False,
+            completed_at=None,
         )
         return WebhookAckResponse(ok=True)
 

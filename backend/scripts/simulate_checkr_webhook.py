@@ -1,0 +1,461 @@
+"""Simulate Checkr background check flows by instructor email.
+
+Defaults to STG by reading `backend/.env` and selecting `stg_database_url`. No
+`.env.stg` is required. Use `--env` to pick beta/int/prod, or `--env-file` to point
+at a custom env file.
+
+Usage examples:
+  # simplest: defaults to staging using backend/.env
+  python backend/scripts/simulate_checkr_webhook.py --email 'owner@example.com' --result clear
+
+  # beta
+  python backend/scripts/simulate_checkr_webhook.py --env beta --email 'owner@example.com' --result consider
+
+  # reset (re-enable Start button)
+  python backend/scripts/simulate_checkr_webhook.py --email 'owner@example.com' --reset
+
+Safety:
+  - Refuses to run in production unless --force-prod is provided.
+"""
+
+# ruff: noqa: I001
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import hashlib
+import hmac
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Optional, Sequence
+from urllib.parse import urlparse
+
+import httpx
+from dotenv import dotenv_values
+from sqlalchemy import func
+
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+ENV_CHOICES: Sequence[str] = ("local", "int", "stg", "beta", "prod")
+DEFAULT_ENV = "stg"
+WEBHOOK_PATH = "/webhooks/checkr/"
+REQUEST_HOST_FALLBACK = "localhost:8000"
+
+
+def _truthy(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _bootstrap_env(env: Optional[str], env_file: Optional[str]) -> str:
+    env_name = (env or DEFAULT_ENV).lower()
+
+    if env_file:
+        explicit = Path(env_file).expanduser().resolve()
+        if not explicit.exists():
+            print(f"Provided --env-file does not exist: {explicit}", file=sys.stderr)
+            sys.exit(2)
+        env_map = dotenv_values(explicit)
+        loaded_from = str(explicit)
+    else:
+        backend_env = Path(__file__).resolve().parents[2] / "backend" / ".env"
+        if not backend_env.exists():
+            print("backend/.env not found; provide --env-file", file=sys.stderr)
+            sys.exit(2)
+        env_map = dotenv_values(backend_env)
+        loaded_from = str(backend_env)
+
+    key_map = {
+        "stg": "stg_database_url",
+        "beta": "preview_database_url",
+        "int": "test_database_url",
+        "prod": "prod_database_url",
+    }
+    db_key = key_map.get(env_name, "stg_database_url")
+    db_url = (env_map.get(db_key) or "").strip()
+    if not db_url:
+        print(f"Missing {db_key} in {loaded_from}", file=sys.stderr)
+        sys.exit(2)
+
+    if env_name != "int" and "instainstru_test" in db_url:
+        print("Refusing to use test database outside --env int", file=sys.stderr)
+        sys.exit(2)
+
+    os.environ["DATABASE_URL"] = db_url
+    if env_name == "stg" and "SITE_MODE" not in os.environ:
+        os.environ["SITE_MODE"] = "stg"
+    os.environ.setdefault("CHECKR_ENV", "sandbox")
+    os.environ.setdefault("CHECKR_FAKE", "true")
+    os.environ.setdefault("CHECKR_WEBHOOK_SECRET", "whsec_test")
+    os.environ.setdefault("CHECKR_WEBHOOK_URL", "http://localhost:8000/webhooks/checkr/")
+    os.environ.setdefault("SUPPRESS_DB_MESSAGES", "1")
+    os.environ["SIM_ENV_FILE"] = loaded_from
+    os.environ["SIM_ENV_NAME"] = env_name
+    return env_name
+
+
+def _redact_database_url(raw_url: str | None) -> str:
+    if not raw_url:
+        return "<unknown>"
+
+    parsed = urlparse(raw_url)
+    scheme = parsed.scheme or ""
+
+    if scheme.startswith("sqlite"):
+        path = parsed.path or parsed.netloc or ""
+        return f"{scheme}://{path.lstrip('/')}"
+
+    host = parsed.hostname or ""
+    port = f":{parsed.port}" if parsed.port else ""
+    db_name = parsed.path.lstrip("/") if parsed.path else ""
+    parts = []
+    if host:
+        parts.append(host)
+    if port:
+        parts.append(port)
+    if db_name:
+        parts.append(f"/{db_name}")
+    masked_host = "".join(parts) if parts else raw_url
+    return masked_host
+
+
+def _resolve_origin_from_host(host: str, *, site_mode: str) -> str:
+    trimmed = host.strip()
+    if trimmed.startswith("http://") or trimmed.startswith("https://"):
+        return trimmed.rstrip("/")
+    scheme = "https" if site_mode == "prod" else "http"
+    return f"{scheme}://{trimmed.lstrip('/')}"
+
+
+def _resolve_webhook_url(
+    *,
+    explicit: Optional[str],
+    current_settings,
+    environment: str,
+) -> str:
+    if explicit:
+        return explicit
+
+    env_override = os.getenv("CHECKR_WEBHOOK_URL")
+    if env_override:
+        return env_override
+
+    base_url = getattr(current_settings, "api_base_url", None) or getattr(current_settings, "api_url", None)
+    if base_url:
+        return f"{str(base_url).rstrip('/')}{WEBHOOK_PATH}"
+
+    site_mode = getattr(current_settings, "site_mode", "local")
+    host_candidates = [
+        getattr(current_settings, "api_host", None),
+        getattr(current_settings, "api_domain", None),
+    ]
+    if site_mode == "prod":
+        host_candidates.append(getattr(current_settings, "prod_api_domain", None))
+    elif environment in {"stg", "beta"} or site_mode in {"preview", "stg"}:
+        host_candidates.append(getattr(current_settings, "preview_api_domain", None))
+
+    host = next((str(candidate) for candidate in host_candidates if candidate), REQUEST_HOST_FALLBACK)
+    origin = _resolve_origin_from_host(host, site_mode=site_mode if isinstance(site_mode, str) else "local")
+    return f"{origin}{WEBHOOK_PATH}"
+
+
+def _secret_value(secret: object | None) -> str:
+    if secret is None:
+        return ""
+    getter = getattr(secret, "get_secret_value", None)
+    if callable(getter):
+        return str(getter())
+    return str(secret)
+
+
+def _post_webhook_via_asgi(target_url: str, body: bytes, headers: dict[str, str]) -> tuple[int, str]:
+    from urllib.parse import urlparse
+
+    parsed = urlparse(target_url)
+    base_url = f"{parsed.scheme or 'http'}://{parsed.netloc or 'webhook.local'}"
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+
+    from app.main import app as fastapi_app
+
+    async def _send() -> tuple[int, str]:
+        transport = httpx.ASGITransport(app=fastapi_app)
+        async with httpx.AsyncClient(transport=transport, base_url=base_url) as client:
+            response = await client.post(path, content=body, headers=headers)
+            return response.status_code, response.text
+
+    return asyncio.run(_send())
+
+
+def _get_bgc_client(current_settings):
+    from app.integrations.checkr_client import CheckrClient, FakeCheckrClient
+
+    site_mode = getattr(current_settings, "site_mode", "local")
+    if site_mode != "prod" or _truthy(os.getenv("CHECKR_FAKE")):
+        return FakeCheckrClient()
+
+    return CheckrClient(
+        api_key=current_settings.checkr_api_key,
+        base_url=current_settings.checkr_api_base,
+    )
+
+
+async def _ensure_invite(service, profile) -> Optional[str]:
+    result = await service.invite(profile.id)
+    return result.get("report_id")
+
+
+def main() -> None:
+    env_parser = argparse.ArgumentParser(add_help=False)
+    env_parser.add_argument(
+        "--env",
+        "--environment",
+        dest="environment",
+        choices=ENV_CHOICES,
+        default=DEFAULT_ENV,
+        help="Environment shortcut (default: stg)",
+    )
+    env_parser.add_argument("--env-file", dest="env_file", help="Explicit .env file to load", default=None)
+    env_parser.add_argument(
+        "--force-prod",
+        dest="force_prod",
+        action="store_true",
+        help="Allow execution when SITE_MODE resolves to production",
+    )
+
+    pre_args, remaining_args = env_parser.parse_known_args()
+    environment_name = _bootstrap_env(pre_args.environment, pre_args.env_file)
+
+    if str(BACKEND_DIR) not in sys.path:
+        sys.path.insert(0, str(BACKEND_DIR))
+
+    from app.core.config import settings
+    from app.database import SessionLocal
+    from app.models.instructor import InstructorProfile
+    from app.models.user import User
+    from app.repositories.instructor_profile_repository import InstructorProfileRepository
+    from app.services.background_check_service import BackgroundCheckService
+
+    resolved_db_url = (os.getenv("DATABASE_URL") or "").lower()
+    resolved_site_mode = (os.getenv("SITE_MODE") or getattr(settings, "site_mode", "") or "").lower()
+    if environment_name != "int" and (
+        "instainstru_test" in resolved_db_url or resolved_site_mode == "int"
+    ):
+        print(
+            "Aborting: resolved to INT (test) database unexpectedly. "
+            "Pass --env-file explicitly or ensure backend/.env has stg_database_url set.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    parser = argparse.ArgumentParser(
+        description="Simulate a Checkr webhook by instructor email",
+        parents=[env_parser],
+    )
+    parser.add_argument("--email", required=True, help="Instructor email address")
+    parser.add_argument(
+        "--result",
+        choices=["clear", "consider"],
+        default="clear",
+        help="Report result to simulate (default: clear)",
+    )
+    parser.add_argument(
+        "--url",
+        default=None,
+        help="Override webhook URL (otherwise derived from settings)",
+    )
+    parser.add_argument(
+        "--secret",
+        default=None,
+        help="Override webhook signing secret",
+    )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Reset the instructor's background check status to failed (non-prod only)",
+    )
+
+    args = parser.parse_args(remaining_args, namespace=pre_args)
+
+    site_mode = getattr(settings, "site_mode", getattr(settings, "environment", "local"))
+    if str(site_mode).lower() in {"prod", "production"} and not args.force_prod:
+        print("Refusing to run: resolved SITE_MODE=production (use --force-prod to override).", file=sys.stderr)
+        sys.exit(2)
+
+    webhook_url = _resolve_webhook_url(
+        explicit=args.url,
+        current_settings=settings,
+        environment=environment_name,
+    )
+
+    display_db = _redact_database_url(os.getenv("DATABASE_URL"))
+    env_file = os.getenv("SIM_ENV_FILE", "backend/.env")
+    print(
+        f"Using ENV={environment_name} DB={display_db} WEBHOOK_URL={webhook_url} ENV_FILE={env_file}"
+    )
+
+    db = SessionLocal()
+    try:
+        normalized_email = args.email.strip().lower()
+
+        user: Optional[User] = (
+            db.query(User)
+            .filter(func.lower(User.email) == normalized_email)
+            .one_or_none()
+        )
+        if not user:
+            print(f"User not found for email: {args.email}", file=sys.stderr)
+            sys.exit(1)
+
+        profile: Optional[InstructorProfile] = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == user.id).one_or_none()
+        )
+        if not profile:
+            if str(site_mode).lower() in {"prod", "production"}:
+                print(
+                    f"Instructor profile not found for user: {args.email}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+            profile = InstructorProfile(
+                user_id=user.id,
+                bgc_status="failed",
+                bgc_env=settings.checkr_env,
+            )
+            db.add(profile)
+            db.commit()
+            db.refresh(profile)
+
+        if args.reset:
+            profile.bgc_status = "failed"
+            profile.bgc_report_id = None
+            profile.bgc_completed_at = None
+            db.commit()
+            print(f"Reset complete for {args.email}")
+            return
+
+        repository = InstructorProfileRepository(db)
+        client = _get_bgc_client(settings)
+        service = BackgroundCheckService(
+            db,
+            client=client,
+            repository=repository,
+            package=settings.checkr_package,
+            env=settings.checkr_env,
+        )
+
+        report_id = profile.bgc_report_id
+        needs_invite = not report_id or (profile.bgc_status or "").lower() == "failed"
+
+        if needs_invite:
+            report_id = asyncio.run(_ensure_invite(service, profile))
+            db.refresh(profile)
+            report_id = report_id or profile.bgc_report_id
+
+        if not report_id:
+            print("Unable to determine background check report_id for webhook simulation.", file=sys.stderr)
+            sys.exit(1)
+
+        payload = {
+            "type": "report.completed",
+            "data": {
+                "object": {
+                    "id": report_id,
+                    "status": "completed",
+                    "result": args.result,
+                }
+            },
+        }
+
+        body = json.dumps(payload).encode("utf-8")
+        secret_value = (
+            args.secret
+            or os.getenv("CHECKR_WEBHOOK_SECRET")
+            or _secret_value(getattr(settings, "checkr_webhook_secret", None))
+            or "whsec_test"
+        )
+        signature = hmac.new(str(secret_value).encode("utf-8"), body, hashlib.sha256).hexdigest()
+
+        request = urllib.request.Request(
+            webhook_url,
+            data=body,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "X-Checkr-Signature": signature,
+            },
+        )
+
+        def _invoke_internal() -> tuple[int, str]:
+            return _post_webhook_via_asgi(
+                webhook_url,
+                body,
+                {
+                    "Content-Type": "application/json",
+                    "X-Checkr-Signature": signature,
+                },
+            )
+
+        try:
+            with urllib.request.urlopen(request) as response:  # noqa: S310
+                response_body = response.read().decode("utf-8")
+                print(f"Webhook dispatched -> {response.status}: {response_body}")
+        except urllib.error.HTTPError as exc:  # pragma: no cover
+            if exc.code >= 500:
+                status_code, response_body = _invoke_internal()
+                if status_code >= 200 and status_code < 300:
+                    print(f"Webhook dispatched -> {status_code}: {response_body}")
+                else:
+                    print(f"Webhook failed -> {status_code}: {response_body}", file=sys.stderr)
+                    sys.exit(1)
+            else:
+                detail = exc.read().decode("utf-8", errors="ignore")
+                print(f"Webhook failed -> {exc.code}: {detail}", file=sys.stderr)
+                sys.exit(1)
+        except urllib.error.URLError:
+            status_code, response_body = _invoke_internal()
+            if status_code >= 200 and status_code < 300:
+                print(f"Webhook dispatched -> {status_code}: {response_body}")
+            else:
+                print(f"Webhook failed -> {status_code}: {response_body}", file=sys.stderr)
+                sys.exit(1)
+
+        # Refresh profile to reflect webhook update; fallback to direct service update if needed
+        db.expire_all()
+        profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == user.id)
+            .one()
+        )
+        if (
+            args.result == "clear"
+            and (profile.bgc_status or "").lower() != "passed"
+        ):
+            service.update_status_from_report(report_id, status="passed", completed=True)
+            db.expire_all()
+            profile = (
+                db.query(InstructorProfile)
+                .filter(InstructorProfile.user_id == user.id)
+                .one()
+            )
+            if (profile.bgc_status or "").lower() != "passed":
+                print(
+                    "Unable to mark background check as passed after webhook.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    main()

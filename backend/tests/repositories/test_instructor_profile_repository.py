@@ -22,6 +22,11 @@ from app.repositories import RepositoryFactory
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
 
+@pytest.fixture(autouse=True)
+def force_local_site_mode(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "local")
+
+
 class TestInstructorProfileRepositoryInstantiation:
     """Test that InstructorProfileRepository can be created properly."""
 

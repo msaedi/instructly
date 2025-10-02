@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any, Dict, Optional, cast
+from uuid import uuid4
 
 import httpx
 from pydantic import SecretStr
@@ -80,3 +81,35 @@ class CheckrClient:
         except json.JSONDecodeError as exc:
             logger.error("Invalid JSON from Checkr for %s: %s", path, response.text)
             raise CheckrError("Received malformed JSON from Checkr") from exc
+
+
+class FakeCheckrClient(CheckrClient):
+    """Simple in-memory stub that mimics Checkr for non-production flows."""
+
+    def __init__(self) -> None:
+        super().__init__(api_key="fake-checkr-key", base_url="https://api.checkr.com/v1")
+        self._logger = logging.getLogger(self.__class__.__name__)
+
+    async def create_candidate(self, **payload: Any) -> Dict[str, Any]:
+        candidate_id = f"fake-candidate-{uuid4().hex}"
+        self._logger.debug("Fake candidate created", extra={"candidate_id": candidate_id})
+        return {
+            "id": candidate_id,
+            "object": "candidate",
+            **{k: v for k, v in payload.items() if v is not None},
+        }
+
+    async def create_invitation(self, *, candidate_id: str, package: str) -> Dict[str, Any]:
+        report_id = f"rpt_fake_{uuid4().hex}"
+        invitation_id = f"inv_fake_{uuid4().hex}"
+        self._logger.debug(
+            "Fake invitation created",
+            extra={"candidate_id": candidate_id, "package": package, "report_id": report_id},
+        )
+        return {
+            "id": invitation_id,
+            "object": "invitation",
+            "candidate_id": candidate_id,
+            "package": package,
+            "report_id": report_id,
+        }

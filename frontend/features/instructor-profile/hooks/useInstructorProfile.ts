@@ -122,6 +122,12 @@ export function useInstructorProfile(instructorId: string) {
         // Only include optional properties when they have actual values
         ...(typeof (serverInst as Record<string, unknown>)['verified'] !== 'undefined' && { is_verified: Boolean((serverInst as Record<string, unknown>)['verified']) }),
         ...(typeof (serverInst as Record<string, unknown>)['is_favorited'] !== 'undefined' && { is_favorited: Boolean((serverInst as Record<string, unknown>)['is_favorited']) }),
+        ...(typeof (serverInst as Record<string, unknown>)['bgc_status'] === 'string' && {
+          bgc_status: String((serverInst as Record<string, unknown>)['bgc_status']),
+        }),
+        ...(typeof (serverInst as Record<string, unknown>)['bgc_completed_at'] === 'string' && {
+          bgc_completed_at: String((serverInst as Record<string, unknown>)['bgc_completed_at']),
+        }),
       };
 
       return instructorProfile;

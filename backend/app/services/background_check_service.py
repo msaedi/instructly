@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, TypedDict, cast
 
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,11 @@ from ..integrations.checkr_client import CheckrClient, CheckrError
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas.bgc import BackgroundCheckStatusLiteral
 from .base import BaseService
+
+
+class InviteResult(TypedDict):
+    status: BackgroundCheckStatusLiteral
+    report_id: Optional[str]
 
 
 class BackgroundCheckService(BaseService):
@@ -33,7 +38,7 @@ class BackgroundCheckService(BaseService):
         self.env = env
 
     @BaseService.measure_operation("bgc.invite")
-    async def invite(self, instructor_id: str) -> str:
+    async def invite(self, instructor_id: str) -> InviteResult:
         """Create a Checkr candidate and hosted invitation for an instructor."""
 
         profile = self.repository.get_by_id(instructor_id, load_relationships=True)
@@ -88,7 +93,10 @@ class BackgroundCheckService(BaseService):
                 env=self.env,
             )
 
-        return report_id or ""
+        return {
+            "status": "pending",
+            "report_id": report_id,
+        }
 
     @BaseService.measure_operation("bgc.webhook_update")
     def update_status_from_report(

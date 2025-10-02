@@ -597,7 +597,7 @@ export default function InstructorDashboardNew() {
                   onClick={async () => {
                     try {
                       setIsStartingStripeOnboarding(true);
-                      const retPath = '/instructor/dashboard?stripe_onboarding_return=true';
+                      const retPath = '/instructor/dashboard';
                       const resp = await paymentService.startOnboardingWithReturn(retPath);
                       if (resp?.onboarding_url) {
                         window.location.href = resp.onboarding_url;

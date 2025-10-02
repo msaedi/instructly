@@ -5,15 +5,13 @@ import json
 from pydantic import SecretStr
 import pytest
 
-from app.api.dependencies.services import get_background_check_service
+from app.api.dependencies.repositories import get_instructor_repo
 from app.auth import get_password_hash
 from app.core.config import settings
-from app.integrations.checkr_client import CheckrClient
 from app.main import fastapi_app as app
 from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
-from app.services.background_check_service import BackgroundCheckService
 
 
 def _create_instructor_with_report(
@@ -59,26 +57,15 @@ def configure_webhook_secret():
 
 
 @pytest.fixture(autouse=True)
-def override_background_check_service(db):
-    def _override():
-        repository = InstructorProfileRepository(db)
-        client = CheckrClient(
-            api_key=settings.checkr_api_key,
-            base_url=settings.checkr_api_base,
-        )
-        return BackgroundCheckService(
-            db,
-            client=client,
-            repository=repository,
-            package=settings.checkr_package,
-            env=settings.checkr_env,
-        )
+def override_instructor_repo(db):
+    def _override() -> InstructorProfileRepository:
+        return InstructorProfileRepository(db)
 
-    app.dependency_overrides[get_background_check_service] = _override
+    app.dependency_overrides[get_instructor_repo] = _override
     try:
         yield
     finally:
-        app.dependency_overrides.pop(get_background_check_service, None)
+        app.dependency_overrides.pop(get_instructor_repo, None)
 
 
 def test_report_completed_clear_updates_profile(client, db):
@@ -145,7 +132,7 @@ def test_invalid_signature_returns_400(client):
 
     response = client.post(
         "/webhooks/checkr/",
-        data=body,
+        content=body,
         headers={"X-Checkr-Signature": "bad-signature", "Content-Type": "application/json"},
     )
 
