@@ -67,7 +67,7 @@ export default function Step3PaymentSetup() {
     try {
       setConnectLoading(true);
       setError(null);
-      const resp = await paymentService.startOnboardingWithReturn('/instructor/onboarding/payment-setup?stripe_onboarding_return=true');
+      const resp = await paymentService.startOnboardingWithReturn('/instructor/onboarding/payment-setup');
       if (resp.already_onboarded) {
         const s = await getConnectStatus().catch(() => null);
         if (s) setConnectStatus(s);

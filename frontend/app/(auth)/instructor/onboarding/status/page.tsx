@@ -183,7 +183,7 @@ export default function OnboardingStatusPage() {
     try {
       setConnectLoading(true);
       redirectingRef.current = false;
-      const resp = await paymentService.startOnboardingWithReturn('/instructor/onboarding/status?stripe_onboarding_return=true');
+      const resp = await paymentService.startOnboardingWithReturn('/instructor/onboarding/status');
       if (resp.already_onboarded) {
         const s = await getConnectStatus().catch(() => null);
         if (s) setConnectStatus(s);

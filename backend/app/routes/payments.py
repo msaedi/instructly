@@ -17,7 +17,7 @@ Key Features:
 from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
@@ -93,6 +93,7 @@ def validate_student_role(user: User) -> None:
     dependencies=[Depends(rate_limit("financial"))],
 )
 async def start_onboarding(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
@@ -126,6 +127,109 @@ async def start_onboarding(
                 },
             )
 
+        callback_from: Optional[str] = None
+        if return_to and return_to.startswith("/"):
+            parsed_return = urlparse(return_to)
+            redirect_path = (parsed_return.path or "").strip().lower()
+            if redirect_path:
+                segments = [segment for segment in redirect_path.split("/") if segment]
+                if (
+                    len(segments) >= 3
+                    and segments[0] == "instructor"
+                    and segments[1] == "onboarding"
+                ):
+                    callback_from = segments[2]
+                elif len(segments) >= 2 and segments[0] == "instructor":
+                    callback_from = segments[1]
+                elif segments:
+                    callback_from = segments[-1]
+
+        if callback_from:
+            sanitized = "".join(ch for ch in callback_from if ch.isalnum() or ch in {"-", "_"})
+            callback_from = sanitized or None
+
+        configured_frontend = (settings.frontend_url or "").strip()
+        local_frontend = (settings.local_beta_frontend_origin or "").strip()
+        request_host = (request.headers.get("host") or "").strip()
+
+        def normalize_origin(raw: Optional[str]) -> Optional[str]:
+            if not raw:
+                return None
+            parsed_raw = urlparse(raw)
+            scheme = parsed_raw.scheme or request.url.scheme
+            if parsed_raw.netloc:
+                return f"{scheme}://{parsed_raw.netloc}".rstrip("/")
+            if parsed_raw.path and raw.startswith(("http://", "https://")):
+                return raw.rstrip("/")
+            return None
+
+        origin: Optional[str] = None
+        origin_candidates: list[str] = []
+
+        if configured_frontend:
+            origin_candidates.append(configured_frontend)
+
+        request_host_lower = request_host.lower()
+        parsed_front = urlparse(configured_frontend) if configured_frontend else None
+        configured_hostname = (parsed_front.hostname or "").lower() if parsed_front else ""
+
+        if (
+            request_host_lower.startswith("api.")
+            and configured_hostname
+            and request_host_lower.split(":", 1)[0].removeprefix("api.") == configured_hostname
+        ):
+            scheme = (
+                parsed_front.scheme or request.url.scheme if parsed_front else request.url.scheme
+            )
+            netloc = parsed_front.netloc or configured_hostname
+            origin_candidates.insert(0, f"{scheme}://{netloc}")
+
+        if local_frontend and (
+            "beta-local" in request_host_lower or "beta-local" in local_frontend.lower()
+        ):
+            origin_candidates.insert(0, local_frontend)
+
+        if request_host:
+            origin_candidates.append(f"{request.url.scheme}://{request_host}")
+
+        origin_candidates.append(str(request.base_url))
+
+        for candidate in origin_candidates:
+            normalized = normalize_origin(candidate)
+            if normalized:
+                origin = normalized
+                break
+
+        if not origin:
+            origin = str(request.base_url).rstrip("/")
+
+        raw_path = (settings.connect_return_path or "/").strip() or "/"
+        path_only, _, existing_query = raw_path.partition("?")
+        base_query_pairs = (
+            dict(parse_qsl(existing_query, keep_blank_values=True)) if existing_query else {}
+        )
+        if callback_from:
+            base_query_pairs["from"] = callback_from
+
+        return_query = urlencode(base_query_pairs, doseq=True)
+        normalized_path = path_only.lstrip("/") or ""
+        if return_query:
+            normalized_path = (
+                f"{normalized_path}?{return_query}" if normalized_path else f"?{return_query}"
+            )
+
+        refresh_query_pairs = dict(base_query_pairs)
+        refresh_query_pairs["refresh"] = "1"
+        refresh_query = urlencode(refresh_query_pairs, doseq=True)
+        refresh_path = path_only.lstrip("/") or ""
+        if refresh_query:
+            refresh_path = (
+                f"{refresh_path}?{refresh_query}" if refresh_path else f"?{refresh_query}"
+            )
+
+        return_url = urljoin(f"{origin}/", normalized_path)
+        refresh_url = urljoin(f"{origin}/", refresh_path)
+
         # Check if account already exists
         existing_account = stripe_service.payment_repository.get_connected_account_by_instructor_id(
             instructor_profile.id
@@ -145,17 +249,11 @@ async def start_onboarding(
                 )
             else:
                 # Create new onboarding link for existing account
-                # Determine return URLs based on optional return_to
-                safe_path = (
-                    return_to
-                    if return_to and return_to.startswith("/")
-                    else "/instructor/dashboard?stripe_onboarding_return=true"
-                )
                 onboarding_url = await run_in_threadpool(
                     stripe_service.create_account_link,
                     instructor_profile.id,
-                    f"{settings.frontend_url}{safe_path}",
-                    f"{settings.frontend_url}{safe_path}",
+                    refresh_url,
+                    return_url,
                 )
 
                 return OnboardingResponse(
@@ -170,16 +268,11 @@ async def start_onboarding(
         )
 
         # Create onboarding link
-        safe_path = (
-            return_to
-            if return_to and return_to.startswith("/")
-            else "/instructor/dashboard?stripe_onboarding_return=true"
-        )
         onboarding_url = await run_in_threadpool(
             stripe_service.create_account_link,
             instructor_profile.id,
-            f"{settings.frontend_url}{safe_path}",
-            f"{settings.frontend_url}{safe_path}",
+            refresh_url,
+            return_url,
         )
 
         logger.info(f"Started onboarding for instructor {instructor_profile.id}")
