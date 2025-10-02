@@ -16,7 +16,8 @@ Key Features:
 
 from datetime import datetime, timezone
 import logging
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
+from urllib.parse import urljoin, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
@@ -297,7 +298,27 @@ async def create_identity_session(
         from app.core.config import settings
 
         # Redirect back to onboarding status page in the new Phoenix structure
-        return_url = f"{settings.frontend_url}/instructor/onboarding/status?identity_return=true"
+        configured_frontend = (settings.frontend_url or "").strip()
+        request_host = (request.headers.get("host") or "").strip()
+        origin: Optional[str] = None
+
+        if configured_frontend:
+            parsed = urlparse(configured_frontend)
+            configured_host = (parsed.netloc or "").lower()
+            if request_host and configured_host and configured_host == request_host.lower():
+                scheme = parsed.scheme or request.url.scheme
+                origin = f"{scheme}://{configured_host}".rstrip("/")
+
+        if not origin:
+            if request_host:
+                origin = f"{request.url.scheme}://{request_host}".rstrip("/")
+            elif configured_frontend:
+                origin = configured_frontend.rstrip("/")
+            else:
+                origin = str(request.base_url).rstrip("/")
+
+        path = settings.identity_return_path.lstrip("/")
+        return_url = urljoin(f"{origin}/", path)
         result = cast(
             Dict[str, Any],
             await run_in_threadpool(

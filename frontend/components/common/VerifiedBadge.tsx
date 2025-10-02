@@ -9,9 +9,17 @@ function formatCompletedDate(dateISO?: string | null): string | undefined {
   const parsed = new Date(dateISO);
   if (Number.isNaN(parsed.getTime())) return undefined;
   try {
-    return new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(parsed);
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(parsed);
   } catch {
-    return parsed.toLocaleDateString();
+    return parsed.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
   }
 }
 
@@ -23,8 +31,8 @@ export interface VerifiedBadgeProps {
 export function VerifiedBadge({ dateISO, className }: VerifiedBadgeProps) {
   const formattedDate = formatCompletedDate(dateISO);
   const tooltipText = formattedDate
-    ? `Background check cleared on ${formattedDate}.`
-    : 'Background check cleared.';
+    ? `Background check cleared on ${formattedDate}`
+    : 'Background check cleared';
 
   const badge = (
     <span

@@ -1,58 +1,96 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
-import { createStripeIdentitySession, createSignedUpload, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+import { toast } from 'sonner';
+import { createStripeIdentitySession, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import BGCStep from '@/components/instructor/BGCStep';
+import { ShieldCheck } from 'lucide-react';
 
 export default function Step4Verification() {
-  // Suppress hydration warning if needed (browser extensions can cause mismatches)
-  // This is only for development - remove if the issue persists in production
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromStatus = (searchParams?.get('from') || '').toLowerCase() === 'status';
+  const identityReturn = (searchParams?.get('identity_return') || '').toLowerCase() === 'true';
+
   const [identityLoading, setIdentityLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [fileInfo, setFileInfo] = useState<{ name: string; size: number } | null>(null);
+  const [refreshingIdentity, setRefreshingIdentity] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Note: we no longer use a local skillsSkipped state here
-  const [verificationComplete, setVerificationComplete] = useState<boolean>(false);
-  // Note: we no longer use a local verificationSkipped state here
+  const [verificationComplete, setVerificationComplete] = useState(false);
+  const [instructorProfileId, setInstructorProfileId] = useState<string | null>(null);
+  const hasRefreshedRef = useRef(false);
 
   useEffect(() => {
-    const load = async () => {
+    const loadProfile = async () => {
       try {
-        // Check sessionStorage for skip flags
-        if (typeof window !== 'undefined') {
-          // read-only checks removed; state no longer used
+        const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+        if (!res.ok) return;
+        const profile = await res.json();
+        if (profile?.id) setInstructorProfileId(String(profile.id));
+        if (profile?.identity_verified_at || profile?.identity_verification_session_id) {
+          setVerificationComplete(true);
         }
-
-        // Check if instructor has completed verification or has no skills in profile
-        try {
-          const profileRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-          if (profileRes.ok) {
-            const profile = await profileRes.json();
-            // skills presence is no longer used to set local state
-            // Check if verification is complete
-            if (profile.identity_verified_at || profile.identity_verification_session_id) {
-              setVerificationComplete(true);
-            }
-          }
-        } catch {
-          // Ignore errors - assume not skipped
-        }
-      } catch {
-        logger.warn('Failed to load connect status');
+      } catch (err) {
+        logger.warn('Failed to load verification status', err instanceof Error ? err : undefined);
       }
     };
-    void load();
+
+    void loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (!identityReturn || hasRefreshedRef.current) return;
+    hasRefreshedRef.current = true;
+    let active = true;
+
+    const refreshIdentity = async () => {
+      setRefreshingIdentity(true);
+      try {
+        const res = await fetchWithAuth(API_ENDPOINTS.STRIPE_IDENTITY_REFRESH, { method: 'POST' });
+        if (!active) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.verified) {
+            setVerificationComplete(true);
+            toast.success('Identity check complete', {
+              description: 'Next, start your background check.',
+            });
+          } else {
+            toast.info('Identity check updated', {
+              description: 'Stripe is still finishing your verification.',
+            });
+          }
+        } else {
+          toast.error('Unable to refresh identity status');
+        }
+      } catch {
+        if (active) toast.error('Unable to refresh identity status');
+      } finally {
+        if (active) {
+          setRefreshingIdentity(false);
+          const params = new URLSearchParams(searchParams?.toString() || '');
+          params.delete('identity_return');
+          const query = params.toString();
+          router.replace(`/instructor/onboarding/verification${query ? `?${query}` : ''}`);
+        }
+      }
+    };
+
+    void refreshIdentity();
+    return () => {
+      active = false;
+    };
+  }, [identityReturn, router, searchParams]);
 
   const startIdentity = async () => {
     try {
       setIdentityLoading(true);
       setError(null);
       const session = await createStripeIdentitySession();
-      // Prefer Stripe.js modal to avoid brittle hosted-link flows
       try {
         const publishableKey = process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'];
         if (publishableKey) {
@@ -63,12 +101,11 @@ export default function Step4Verification() {
             setError(result.error.message || 'Verification could not be started');
             return;
           }
-          // On completion or dismissal, take user to status
-          window.location.href = '/instructor/onboarding/status?identity_return=true';
+          router.replace('/instructor/onboarding/verification?identity_return=true');
           return;
         }
-      } catch {
-        // Fallback to hosted link
+      } catch (sdkError) {
+        logger.warn('Falling back to hosted Stripe Identity flow', sdkError instanceof Error ? sdkError : undefined);
       }
       window.location.href = `https://verify.stripe.com/start/${session.client_secret}`;
     } catch (e) {
@@ -79,67 +116,35 @@ export default function Step4Verification() {
     }
   };
 
-  const onFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setError(null);
-    setUploading(true);
-    try {
-      const signed = await createSignedUpload({
-        filename: f.name,
-        content_type: f.type || 'application/octet-stream',
-        size_bytes: f.size,
-        purpose: 'background_check',
-      });
-      const putRes = await fetch(signed.upload_url, {
-        method: 'PUT',
-        headers: signed.headers,
-        body: f,
-      });
-      if (!putRes.ok) throw new Error('Upload failed');
-      setFileInfo({ name: f.name, size: f.size });
-    } catch (err) {
-      logger.error('Upload failed', err);
-      setError('Upload failed');
-    } finally {
-      setUploading(false);
-    }
+  const handleContinue = () => {
+    const target = fromStatus ? '/instructor/onboarding/status' : '/instructor/onboarding/payment-setup';
+    router.push(target);
   };
 
   return (
     <div className="min-h-screen">
-      {/* Header - matching other pages */}
       <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
 
-          {/* Progress Bar - 4 Steps - Absolutely centered */}
           <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
-            {/* Walking Stick Figure Animation - positioned on the line between step 2 and 3 */}
             <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '284px' }}>
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-                {/* Head */}
                 <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
-                {/* Body */}
                 <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
-                {/* Left arm */}
                 <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
-                {/* Right arm */}
                 <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
-                {/* Left leg */}
                 <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
-                {/* Right leg */}
                 <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
               </svg>
             </div>
 
-            {/* Step 1 - Previous */}
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
-                  onClick={() => window.location.href = '/instructor/profile'}
+                  onClick={() => { window.location.href = '/instructor/profile'; }}
                   className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
                   title="Step 1: Account Setup"
                 ></button>
@@ -148,11 +153,10 @@ export default function Step4Verification() {
               <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
-            {/* Step 2 - Previous */}
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
-                  onClick={() => window.location.href = '/instructor/onboarding/skill-selection'}
+                  onClick={() => { window.location.href = '/instructor/onboarding/skill-selection'; }}
                   className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
                   title="Step 2: Skills & Pricing"
                 ></button>
@@ -161,11 +165,10 @@ export default function Step4Verification() {
               <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
-            {/* Step 3 - Current (Verification) */}
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
-                  onClick={() => {/* Already on this page */}}
+                  onClick={() => {}}
                   className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
                   title="Step 3: Verification (Current)"
                 ></button>
@@ -174,11 +177,10 @@ export default function Step4Verification() {
               <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
-            {/* Step 4 - Upcoming */}
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
-                  onClick={() => window.location.href = '/instructor/onboarding/payment-setup'}
+                  onClick={() => { window.location.href = '/instructor/onboarding/payment-setup'; }}
                   className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
                   title="Step 4: Payment Setup"
                 ></button>
@@ -194,145 +196,102 @@ export default function Step4Verification() {
       </header>
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        {/* Page Header with subtle purple accent */}
         <div className="bg-white rounded-lg p-6 mb-8 border border-gray-200">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Build Trust With Students</h1>
-            <p className="text-gray-600">Complete your verification to start teaching confidently on iNSTAiNSTRU.</p>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Build trust with students</h1>
+            <p className="text-gray-600">Complete identity verification and your background check to finish onboarding.</p>
           </div>
         </div>
 
-      {error && <div className="mt-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 border border-red-200">{error}</div>}
+        {refreshingIdentity && (
+          <div className="mb-4 rounded-lg bg-purple-50 border border-purple-200 px-4 py-2 text-sm text-purple-700">
+            Updating your verification status…
+          </div>
+        )}
 
-      <div className="grid gap-6">
-        {/* ID Verification Card */}
-        <div className="relative">
-          <div className="relative bg-white rounded-lg border border-gray-200 p-6 hover:shadow-sm transition-shadow">
-          <div className="grid grid-cols-[3rem_1fr] gap-4">
-            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 self-center">Identity Verification</h2>
-            <p className="text-gray-600 mt-2 col-span-2">Verify your identity with a government-issued ID and a selfie</p>
+        {error && (
+          <div className="mt-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 border border-red-200">{error}</div>
+        )}
 
-            <div className="mt-4 col-span-2 grid grid-cols-[1fr_auto] gap-4 items-end">
-              <div className="space-y-2 text-sm text-gray-500">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>~5 minutes</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                  <span>Secure & encrypted</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">Your information is safe and will only be used for verification purposes.</p>
+        <div className="grid gap-6">
+          <section className="relative bg-white rounded-lg border border-gray-200 p-6 hover:shadow-sm transition-shadow">
+            <div className="grid grid-cols-[3rem_1fr] gap-4">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                </svg>
               </div>
+              <h2 className="text-xl font-bold text-gray-900 self-center">Identity verification</h2>
+              <p className="text-gray-600 mt-2 col-span-2">Verify your identity with a government-issued ID and a selfie.</p>
 
-              <button
-                onClick={startIdentity}
-                disabled={identityLoading}
-                aria-label="Start verification"
-                className="inline-flex items-center justify-center w-56 whitespace-nowrap px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm"
-              >
-                {identityLoading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 mr-2 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <div className="mt-4 col-span-2 grid grid-cols-[1fr_auto] gap-4 items-end">
+                <div className="space-y-2 text-sm text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Starting...
-                  </>
-                ) : (
-                  <>Start Verification</>
-                )}
-              </button>
-            </div>
-          </div>
-          </div>
-        </div>
-
-        {/* Background Check Card - Enhanced */}
-        <div className="bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow p-6">
-          <div className="grid grid-cols-[3rem_1fr] gap-4">
-            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 self-center">Background Check</h2>
-            <p className="text-gray-600 mt-2 col-span-2">Upload your background check document</p>
-
-              <div className="mt-2 col-span-2 grid grid-cols-[1fr_auto] items-end gap-4">
-                <div>
-                  <p className="text-xs text-gray-500">We accept background checks from Checkr, Sterling, or NYC DOE.</p>
-                  <p className="mt-2 text-xs text-gray-500">All uploaded files are securely encrypted and will remain confidential</p>
-
-                  <div className="mt-4">
-                    <p className="text-xs text-gray-500 whitespace-nowrap mb-1">File Requirements:</p>
-                    <ul className="list-disc pl-5 text-xs text-gray-500 space-y-1">
-                      <li className="whitespace-nowrap">Formats: PDF, JPG, PNG</li>
-                      <li className="whitespace-nowrap">Maximum size: 10 MB</li>
-                    </ul>
+                    <span>~5 minutes</span>
                   </div>
-                </div>
-                <div className="flex justify-end">
-                  <label className="inline-flex items-center justify-center w-40 px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#7E22CE] font-medium hover:bg-purple-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20">
-                    <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={onFileSelected} disabled={uploading} />
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
-                    <span>{uploading ? 'Uploading…' : 'Choose File'}</span>
-                  </label>
-                </div>
-                {fileInfo && (
-                  <div className="col-start-2 mt-3 flex items-center gap-2 text-sm text-green-700">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>{fileInfo.name}</span>
+                    <span>Secure & encrypted</span>
                   </div>
-                )}
+                  {verificationComplete && (
+                    <p className="text-xs text-emerald-600">Identity verification completed.</p>
+                  )}
+                </div>
+
+                <button
+                  onClick={startIdentity}
+                  disabled={identityLoading}
+                  aria-label="Start verification"
+                  className="inline-flex items-center justify-center w-56 whitespace-nowrap px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm"
+                >
+                  {identityLoading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 mr-2 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Starting…
+                    </>
+                  ) : (
+                    <>Start verification</>
+                  )}
+                </button>
               </div>
-          </div>
+            </div>
+          </section>
+
+          <section id="bgc-step-card" className="bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6 text-[#7E22CE]" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Background check</h3>
+                <p className="text-sm text-muted-foreground mt-1">Start your Checkr background screening to unlock bookings.</p>
+              </div>
+            </div>
+            {instructorProfileId ? (
+              <BGCStep instructorId={instructorProfileId} />
+            ) : (
+              <p className="text-sm text-gray-500">Loading background check status…</p>
+            )}
+          </section>
+        </div>
+
+        <div className="mt-8 flex items-center justify-end">
+          <button
+            onClick={handleContinue}
+            className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+          >
+            Continue
+          </button>
         </div>
       </div>
-
-      <div className="mt-8 flex items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            // If verification wasn't completed, mark it as skipped
-            if (!verificationComplete && typeof window !== 'undefined') {
-              sessionStorage.setItem('verificationSkipped', 'true');
-            }
-            window.location.href = '/instructor/onboarding/payment-setup';
-          }}
-          className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
-        >
-          Skip for now
-        </button>
-        <button
-          onClick={() => {
-            // If verification wasn't completed, mark it as skipped
-            if (!verificationComplete && typeof window !== 'undefined') {
-              sessionStorage.setItem('verificationSkipped', 'true');
-            }
-            window.location.href = '/instructor/onboarding/payment-setup';
-          }}
-          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
-        >
-          Continue
-        </button>
-      </div>
-      </div>
-
-      {/* Animation CSS moved to global (app/globals.css) */}
     </div>
   );
 }

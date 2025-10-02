@@ -81,13 +81,14 @@ class Settings(BaseSettings):
     admin_email: str = "admin@instainstru.com"  # Email for critical alerts
 
     # Frontend URL - will use production URL if not set
-    frontend_url: str = "https://instructly-ten.vercel.app"
+    frontend_url: str = "https://beta.instainstru.com"
+    identity_return_path: str = "/instructor/onboarding/verification?identity_return=true"
     local_beta_frontend_origin: str = Field(
         default="http://beta-local.instainstru.com:3000",
         description="Local-only override for beta invite links",
     )
     frontend_referral_landing_url: str = Field(
-        default="https://instructly-ten.vercel.app/referrals",
+        default="https://beta.instainstru.com/referrals",
         description="Landing page for public referral links",
     )
 
