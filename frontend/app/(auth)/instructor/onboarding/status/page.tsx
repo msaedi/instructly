@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getConnectStatus, fetchWithAuth, API_ENDPOINTS, createStripeIdentitySession } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { loadStripe } from '@stripe/stripe-js';
@@ -31,6 +31,13 @@ export default function OnboardingStatusPage() {
   const [instructorProfileId, setInstructorProfileId] = useState<string | null>(null);
   const [bgcSnapshot, setBgcSnapshot] = useState<{ status: BGCStatus | null; completedAt: string | null }>({ status: null, completedAt: null });
   const redirectingRef = useRef(false);
+
+  const handleBgcSnapshot = useCallback(
+    (next: { status: BGCStatus | null; reportId: string | null; completedAt: string | null }) => {
+      setBgcSnapshot({ status: next.status, completedAt: next.completedAt });
+    },
+    []
+  );
 
   useEffect(() => {
     if (bgcSnapshot.status === null) return;
@@ -129,13 +136,6 @@ export default function OnboardingStatusPage() {
     if (items.length <= 1) return items.join('');
     if (items.length === 2) return `${items[0]} and ${items[1]}`;
     return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
-  };
-
-  const scrollToBGC = () => {
-    try {
-      const el = document.getElementById('bgc-step-card');
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch {}
   };
 
   const goLive = async () => {
@@ -374,10 +374,7 @@ export default function OnboardingStatusPage() {
                 <p className="text-sm text-muted-foreground">Invite yourself via Checkr to complete your screening.</p>
               </div>
             </div>
-            <BGCStep
-              instructorId={instructorProfileId}
-              onStatusUpdate={({ status, completedAt }) => setBgcSnapshot({ status, completedAt })}
-            />
+            <BGCStep instructorId={instructorProfileId} onStatusUpdate={handleBgcSnapshot} />
           </div>
         ) : null}
 
@@ -393,7 +390,14 @@ export default function OnboardingStatusPage() {
             action={
               bgcSnapshot.status === 'passed'
                 ? <span className="text-gray-400 text-sm">Completed</span>
-                : <button onClick={scrollToBGC} className="text-[#7E22CE] hover:underline text-sm">Start</button>
+                : (
+                  <button
+                    onClick={() => router.push('/instructor/onboarding/verification?from=status#bgc-step-card')}
+                    className="text-[#7E22CE] hover:underline text-sm"
+                  >
+                    Start
+                  </button>
+                )
             }
           />
           {/* 4) Stripe Connect */}

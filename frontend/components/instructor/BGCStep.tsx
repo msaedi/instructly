@@ -81,84 +81,103 @@ export function BGCStep({ instructorId, onStatusUpdate }: BGCStepProps) {
   const [status, setStatus] = React.useState<BGCStatus | null>(null);
   const [reportId, setReportId] = React.useState<string | null>(null);
   const [completedAt, setCompletedAt] = React.useState<string | null>(null);
-  const [loadingStatus, setLoadingStatus] = React.useState(true);
+  const [loading, setLoading] = React.useState(true);
   const [inviteLoading, setInviteLoading] = React.useState(false);
   const [statusError, setStatusError] = React.useState(false);
   const [isForbidden, setIsForbidden] = React.useState(false);
   const [cooldownActive, setCooldownActive] = React.useState(false);
   const cooldownRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusChipRef = React.useRef<HTMLSpanElement | null>(null);
+  const isMountedRef = React.useRef(true);
+  const previousStatusRef = React.useRef<BGCStatus | null>(null);
 
-  const emitStatus = React.useCallback(
-    (next: { status: BGCStatus | null; reportId: string | null; completedAt: string | null }) => {
-      onStatusUpdate?.(next);
+  const setStatusSafe = React.useCallback((next: BGCStatus | null) => {
+    if (previousStatusRef.current === next) {
+      return;
+    }
+    previousStatusRef.current = next;
+    setStatus(next);
+  }, []);
+
+  const pushSnapshot = React.useCallback(
+    (snapshot: { status: BGCStatus | null; reportId: string | null; completedAt: string | null }) => {
+      setStatusSafe(snapshot.status);
+      setReportId(snapshot.reportId);
+      setCompletedAt(snapshot.completedAt);
+      onStatusUpdate?.(snapshot);
     },
-    [onStatusUpdate]
+    [onStatusUpdate, setStatusSafe]
   );
 
   const loadStatus = React.useCallback(async () => {
-    setLoadingStatus(true);
+    if (!isMountedRef.current) return;
     try {
       const res = await bgcStatus(instructorId);
-      setStatus(res.status);
-      setReportId(res.report_id ?? null);
-      setCompletedAt(res.completed_at ?? null);
-      emitStatus({ status: res.status, reportId: res.report_id ?? null, completedAt: res.completed_at ?? null });
+      if (!isMountedRef.current) return;
+      pushSnapshot({
+        status: res.status,
+        reportId: res.report_id ?? null,
+        completedAt: res.completed_at ?? null,
+      });
       setStatusError(false);
     } catch (error) {
+      if (!isMountedRef.current) return;
       const message = error instanceof Error ? error.message : 'Unable to load background check status';
       toast.error(message);
-      setStatus(null);
-      setReportId(null);
-      setCompletedAt(null);
-      emitStatus({ status: null, reportId: null, completedAt: null });
+      pushSnapshot({ status: 'failed', reportId: null, completedAt: null });
       setStatusError(true);
-    } finally {
-      setLoadingStatus(false);
     }
-  }, [emitStatus, instructorId]);
+  }, [instructorId, pushSnapshot]);
 
   React.useEffect(() => {
-    let active = true;
+    isMountedRef.current = true;
+    let alive = true;
+    setLoading(true);
     (async () => {
       try {
         const res = await bgcStatus(instructorId);
-        if (!active) return;
-        setStatus(res.status);
-        setReportId(res.report_id ?? null);
-        setCompletedAt(res.completed_at ?? null);
-        emitStatus({ status: res.status, reportId: res.report_id ?? null, completedAt: res.completed_at ?? null });
+        if (!alive || !isMountedRef.current) return;
+        pushSnapshot({
+          status: res.status,
+          reportId: res.report_id ?? null,
+          completedAt: res.completed_at ?? null,
+        });
         setStatusError(false);
       } catch (error) {
-        if (!active) return;
+        if (!alive || !isMountedRef.current) return;
         const message = error instanceof Error ? error.message : 'Unable to load background check status';
         toast.error(message);
-        setStatus(null);
-        setReportId(null);
-        setCompletedAt(null);
-        emitStatus({ status: null, reportId: null, completedAt: null });
+        pushSnapshot({ status: 'failed', reportId: null, completedAt: null });
         setStatusError(true);
       } finally {
-        if (active) setLoadingStatus(false);
+        if (alive && isMountedRef.current) {
+          setLoading(false);
+        }
       }
     })();
     return () => {
-      active = false;
-    };
-  }, [emitStatus, instructorId]);
-
-  React.useEffect(() => {
-    return () => {
+      alive = false;
+      isMountedRef.current = false;
       if (cooldownRef.current) {
         clearTimeout(cooldownRef.current);
       }
     };
-  }, []);
+  }, [instructorId, pushSnapshot]);
+
+  React.useEffect(() => {
+    if (status !== 'pending' && status !== 'review') {
+      return undefined;
+    }
+    const intervalId = window.setInterval(() => {
+      void loadStatus();
+    }, 15000);
+    return () => window.clearInterval(intervalId);
+  }, [status, loadStatus]);
 
   const disabled =
     isForbidden ||
     inviteLoading ||
-    loadingStatus ||
+    loading ||
     cooldownActive ||
     status === 'pending' ||
     status === 'review' ||
@@ -171,17 +190,11 @@ export function BGCStep({ instructorId, onStatusUpdate }: BGCStepProps) {
     try {
       const res = await bgcInvite(instructorId);
       if (res.already_in_progress) {
-        toast('Background check already in progress', {
-          description: 'We will refresh your status momentarily.',
-        });
+        toast.success('Background check already in progress');
       } else {
-        toast.success('Background check invitation sent.', {
-          description: 'Check your email from Checkr for next steps.',
-        });
+        toast.success('Background check started');
       }
-      setStatus(res.status);
-      setReportId(res.report_id ?? null);
-      emitStatus({ status: res.status, reportId: res.report_id ?? null, completedAt: completedAt });
+      pushSnapshot({ status: res.status, reportId: res.report_id ?? null, completedAt });
       setStatusError(false);
       await loadStatus();
       statusChipRef.current?.focus();
@@ -197,11 +210,14 @@ export function BGCStep({ instructorId, onStatusUpdate }: BGCStepProps) {
           });
           forbiddenError = true;
         } else {
-          toast.error('Unable to start background check', { description });
+          toast.error('Unable to start background check', {
+            description: 'Please try again. If the problem persists, contact support.',
+          });
         }
       } else {
-        const message = error instanceof Error ? error.message : 'Unable to start background check';
-        toast.error('Unable to start background check', { description: message });
+        toast.error('Unable to start background check', {
+          description: 'Please try again. If the problem persists, contact support.',
+        });
       }
     } finally {
       setInviteLoading(false);
@@ -218,7 +234,7 @@ export function BGCStep({ instructorId, onStatusUpdate }: BGCStepProps) {
   return (
     <div className="space-y-4" data-testid="bgc-step">
       <div className="flex flex-wrap items-center gap-3" aria-live="polite">
-        <StatusChip status={status} loading={loadingStatus} ref={statusChipRef} />
+        <StatusChip status={status} loading={loading} ref={statusChipRef} />
         {reportId ? (
           <span className="text-xs text-muted-foreground break-all">Report ID: {reportId}</span>
         ) : null}

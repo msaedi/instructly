@@ -1,6 +1,6 @@
 process.env.NEXT_PUBLIC_APP_ENV = 'preview';
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BGCStep } from '@/components/instructor/BGCStep';
 import { bgcInvite, bgcStatus } from '@/lib/api/bgc';
@@ -68,7 +68,7 @@ describe('BGCStep', () => {
     await waitFor(() => {
       expect(mockedBGCInvite).toHaveBeenCalledWith('instructor-456');
     });
-    expect(toast.success).toHaveBeenCalledWith('Background check invitation sent.', expect.any(Object));
+    expect(toast.success).toHaveBeenCalledWith('Background check started');
     expect(button).toBeDisabled();
     const debounceCall = timeoutSpy.mock.calls.find(([, delay]) => delay === 1000);
     expect(debounceCall).toBeTruthy();
@@ -96,8 +96,7 @@ describe('BGCStep', () => {
     await waitFor(() => {
       expect(mockedBGCInvite).toHaveBeenCalledWith('instructor-789');
     });
-    expect(toast).toHaveBeenCalledWith('Background check already in progress', expect.any(Object));
-    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith('Background check already in progress');
   });
 
   it('disables CTA and shows message when forbidden', async () => {
@@ -122,5 +121,35 @@ describe('BGCStep', () => {
     });
     expect(button).toBeDisabled();
     expect(screen.getByText('Only the owner can start a background check.')).toBeInTheDocument();
+  });
+
+  it('polls while pending or review and stops once passed', async () => {
+    jest.useFakeTimers();
+    mockedBGCStatus
+      .mockResolvedValueOnce({ status: 'pending', env: 'sandbox' })
+      .mockResolvedValueOnce({ status: 'pending', env: 'sandbox' })
+      .mockResolvedValueOnce({ status: 'passed', env: 'sandbox', completed_at: '2025-01-01T00:00:00Z' });
+
+    render(<BGCStep instructorId="instructor-poll" />);
+
+    await waitFor(() => expect(screen.getByText(/Verification pending/)).toBeInTheDocument());
+    expect(mockedBGCStatus).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      jest.advanceTimersByTime(15000);
+    });
+    await waitFor(() => expect(mockedBGCStatus).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      jest.advanceTimersByTime(15000);
+    });
+    await waitFor(() => expect(mockedBGCStatus).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(screen.getByText(/Verified/)).toBeInTheDocument());
+
+    await act(async () => {
+      jest.advanceTimersByTime(45000);
+    });
+    expect(mockedBGCStatus).toHaveBeenCalledTimes(3);
+    jest.useRealTimers();
   });
 });
