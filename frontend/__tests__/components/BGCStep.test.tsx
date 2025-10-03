@@ -61,6 +61,7 @@ describe('BGCStep', () => {
     render(<BGCStep instructorId="instructor-456" />);
 
     const button = await screen.findByRole('button', { name: /start background check/i });
+    await waitFor(() => expect(screen.getByText(/Not started/)).toBeInTheDocument());
     await waitFor(() => expect(button).not.toBeDisabled());
 
     await userEvent.click(button);

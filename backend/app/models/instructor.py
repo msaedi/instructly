@@ -96,7 +96,7 @@ class InstructorProfile(Base):
     is_live = Column(Boolean, nullable=False, default=False)
 
     # Background check status tracking
-    bgc_status = Column(String(20), nullable=False, default="pending", server_default="pending")
+    bgc_status = Column(String(20), nullable=True)
     bgc_report_id = Column(String(64), nullable=True)
     bgc_completed_at = Column(DateTime(timezone=True), nullable=True)
     bgc_env = Column(String(20), nullable=False, default="sandbox", server_default="sandbox")

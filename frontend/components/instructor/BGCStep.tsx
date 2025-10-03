@@ -23,8 +23,8 @@ const STATUS_META: Record<BGCStatus, { label: string; className: string }> = {
     className: 'bg-orange-100 text-orange-800 border border-orange-200',
   },
   failed: {
-    label: 'Not approved',
-    className: 'bg-red-100 text-red-700 border border-red-200',
+    label: 'Not started',
+    className: 'bg-slate-100 text-slate-700 border border-slate-200',
   },
 };
 
@@ -44,17 +44,8 @@ const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(({ status,
     );
   }
 
-  if (!status) {
-    return (
-      <span className="inline-flex focus:outline-none" role="status" tabIndex={-1} ref={ref}>
-        <Badge className="border border-gray-200 bg-gray-100 text-gray-600">
-          Status unavailable
-        </Badge>
-      </span>
-    );
-  }
-
-  const meta = STATUS_META[status];
+  const resolvedStatus: BGCStatus = status ?? 'failed';
+  const meta = STATUS_META[resolvedStatus];
 
   return (
     <span className="inline-flex focus:outline-none" role="status" tabIndex={-1} ref={ref}>

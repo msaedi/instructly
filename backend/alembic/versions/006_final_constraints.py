@@ -164,7 +164,14 @@ def upgrade() -> None:
     print("Adding background check fields to instructor_profiles...")
     op.add_column(
         "instructor_profiles",
-        sa.Column("bgc_status", sa.String(length=20), nullable=False, server_default="pending"),
+        sa.Column("bgc_status", sa.String(length=20), nullable=True),
+    )
+    op.alter_column(
+        "instructor_profiles",
+        "bgc_status",
+        existing_type=sa.String(length=20),
+        nullable=True,
+        server_default=None,
     )
     op.add_column(
         "instructor_profiles",
