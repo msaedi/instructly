@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -27,6 +28,8 @@ from ..schemas.bgc import (
 from ..services.background_check_service import BackgroundCheckService
 
 CONSENT_WINDOW = timedelta(hours=24)
+
+logger = logging.getLogger(__name__)
 
 
 class ConsentPayload(BaseModel):
@@ -110,10 +113,28 @@ async def trigger_background_check_invite(
             already_in_progress=True,
         )
 
-    if not repo.has_recent_consent(instructor_id, CONSENT_WINDOW):
+    latest_consent = repo.latest_consent(instructor_id)
+    now = datetime.now(timezone.utc)
+    consent_recent = bool(
+        latest_consent
+        and latest_consent.consented_at
+        and latest_consent.consented_at >= now - CONSENT_WINDOW
+    )
+
+    logger.info(
+        "BGC invite: instructor=%s consent_recent=%s consent_at=%s",
+        instructor_id,
+        consent_recent,
+        getattr(latest_consent, "consented_at", None),
+    )
+
+    if not consent_recent:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"message": "FCRA consent required"},
+            detail={
+                "message": "FCRA consent required",
+                "code": "bgc_consent_required",
+            },
         )
 
     try:
@@ -155,11 +176,18 @@ async def get_background_check_status(
 
     status_value = _status_literal(getattr(profile, "bgc_status", None))
 
+    latest_consent = repo.latest_consent(instructor_id)
+    consent_recent_at = getattr(latest_consent, "consented_at", None)
+    now = datetime.now(timezone.utc)
+    consent_recent = bool(consent_recent_at and consent_recent_at >= now - CONSENT_WINDOW)
+
     return BackgroundCheckStatusResponse(
         status=status_value,
         report_id=getattr(profile, "bgc_report_id", None),
         completed_at=getattr(profile, "bgc_completed_at", None),
         env=getattr(profile, "bgc_env", "sandbox"),
+        consent_recent=consent_recent,
+        consent_recent_at=consent_recent_at,
     )
 
 

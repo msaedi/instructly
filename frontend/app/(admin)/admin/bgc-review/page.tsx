@@ -76,6 +76,9 @@ export default function AdminBGCReviewPage() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'bgc', 'review', 'list'], exact: false }),
       queryClient.invalidateQueries({ queryKey: ['admin', 'bgc', 'review', 'count'], exact: false }),
     ]);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('bgc-review-refresh'));
+    }
   };
 
   const handleOverride = async (item: BGCReviewItem, action: 'approve' | 'reject') => {

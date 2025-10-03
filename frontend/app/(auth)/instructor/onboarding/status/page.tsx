@@ -29,12 +29,30 @@ export default function OnboardingStatusPage() {
   const [skillsSkipped, setSkillsSkipped] = useState(false);
   const [verificationSkipped, setVerificationSkipped] = useState(false);
   const [instructorProfileId, setInstructorProfileId] = useState<string | null>(null);
-  const [bgcSnapshot, setBgcSnapshot] = useState<{ status: BGCStatus | null; completedAt: string | null }>({ status: null, completedAt: null });
+  const [bgcSnapshot, setBgcSnapshot] = useState<{
+    status: BGCStatus | null;
+    completedAt: string | null;
+    consentRecent: boolean;
+    consentRecentAt: string | null;
+  }>({ status: null, completedAt: null, consentRecent: false, consentRecentAt: null });
   const redirectingRef = useRef(false);
 
   const handleBgcSnapshot = useCallback(
-    (next: { status: BGCStatus | null; reportId: string | null; completedAt: string | null }) => {
-      setBgcSnapshot({ status: next.status, completedAt: next.completedAt });
+    (
+      next: {
+        status: BGCStatus | null;
+        reportId: string | null;
+        completedAt: string | null;
+        consentRecent: boolean;
+        consentRecentAt: string | null;
+      },
+    ) => {
+      setBgcSnapshot({
+        status: next.status,
+        completedAt: next.completedAt,
+        consentRecent: next.consentRecent,
+        consentRecentAt: next.consentRecentAt,
+      });
     },
     []
   );

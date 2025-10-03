@@ -83,3 +83,12 @@ class TestAdminBGCReviewQueue:
         count_after = client.get("/api/admin/bgc/review/count", headers=headers)
         assert count_after.status_code == 200
         assert count_after.json()["count"] == 0
+
+        latest_consent = client.get(
+            f"/api/admin/bgc/consent/{profile.id}/latest",
+            headers=headers,
+        )
+        assert latest_consent.status_code == 200
+        payload = latest_consent.json()
+        assert payload["instructor_id"] == profile.id
+        assert payload["consent_version"] == "v1"

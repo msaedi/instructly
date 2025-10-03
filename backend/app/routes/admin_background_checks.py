@@ -66,6 +66,13 @@ class BGCOverrideResponse(BaseModel):
     new_status: Literal["passed", "failed"]
 
 
+class BGCLatestConsentResponse(BaseModel):
+    instructor_id: str
+    consented_at: datetime
+    consent_version: str
+    ip_address: str | None = None
+
+
 @router.get("/review/count", response_model=BGCReviewCountResponse)
 async def bgc_review_count(
     repo: InstructorProfileRepository = Depends(get_instructor_repo),
@@ -170,3 +177,23 @@ async def bgc_review_override(
     profile.bgc_completed_at = now
     repo.db.commit()
     return BGCOverrideResponse(ok=True, new_status="failed")
+
+
+@router.get("/consent/{instructor_id}/latest", response_model=BGCLatestConsentResponse)
+async def admin_latest_consent(
+    instructor_id: str,
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    _: None = Depends(require_admin),
+) -> BGCLatestConsentResponse:
+    """Return the most recent consent record for an instructor."""
+
+    consent = repo.latest_consent(instructor_id)
+    if not consent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no consent on file")
+
+    return BGCLatestConsentResponse(
+        instructor_id=consent.instructor_id,
+        consented_at=consent.consented_at,
+        consent_version=consent.consent_version,
+        ip_address=consent.ip_address,
+    )

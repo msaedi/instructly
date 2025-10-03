@@ -282,6 +282,17 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 "Failed to count profiles by background check status"
             ) from exc
 
+    def latest_consent(self, instructor_id: str) -> Optional[BGCConsent]:
+        """Return the most recent consent record for an instructor."""
+
+        return cast(
+            Optional[BGCConsent],
+            self.db.query(BGCConsent)
+            .filter(BGCConsent.instructor_id == instructor_id)
+            .order_by(BGCConsent.consented_at.desc())
+            .first(),
+        )
+
     def update_bgc(
         self,
         instructor_id: str,
@@ -376,16 +387,11 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         """Return True when instructor has consented within the provided window."""
 
         try:
+            latest = self.latest_consent(instructor_id)
+            if not latest:
+                return False
             threshold = datetime.now(timezone.utc) - window
-            exists = (
-                self.db.query(BGCConsent)
-                .filter(
-                    BGCConsent.instructor_id == instructor_id,
-                    BGCConsent.consented_at >= threshold,
-                )
-                .first()
-            )
-            return exists is not None
+            return bool(latest.consented_at and latest.consented_at >= threshold)
         except SQLAlchemyError as exc:
             self.logger.error(
                 "Failed to check background check consent recency for instructor %s: %s",

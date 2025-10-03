@@ -2,13 +2,42 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import { Search, Server, Code, FlaskConical, Gift, ShieldCheck } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { useBGCReviewCount } from './bgc-review/hooks';
+import { httpGet } from '@/features/shared/api/http';
 
 function ReviewBadge({ className }: { className?: string }) {
-  const { data: count } = useBGCReviewCount();
+  const [count, setCount] = useState<number | null>(null);
+
+  const fetchCount = useCallback(async () => {
+    try {
+      const result = await httpGet<{ count: number }>('/api/admin/bgc/review/count', {
+        credentials: 'include',
+      });
+      setCount(typeof result?.count === 'number' ? result.count : 0);
+    } catch {
+      setCount(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    void fetchCount();
+
+    const handleRefresh = () => {
+      if (mounted) void fetchCount();
+    };
+
+    window.addEventListener('bgc-review-refresh', handleRefresh);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('bgc-review-refresh', handleRefresh);
+    };
+  }, [fetchCount]);
+
   if (!count) return null;
 
   return (

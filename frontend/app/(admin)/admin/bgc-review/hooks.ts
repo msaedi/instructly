@@ -31,6 +31,7 @@ const COUNT_QUERY_KEY: QueryKey = ['admin', 'bgc', 'review', 'count'];
 const LIST_QUERY_KEY_PREFIX: QueryKey = ['admin', 'bgc', 'review', 'list'];
 
 export function useBGCReviewCount() {
+  const isClient = typeof window !== 'undefined';
   return useQuery({
     queryKey: COUNT_QUERY_KEY,
     queryFn: async () => {
@@ -39,10 +40,12 @@ export function useBGCReviewCount() {
     },
     refetchOnWindowFocus: false,
     retry: 1,
+    enabled: isClient,
   });
 }
 
 export function useBGCReviewList(limit = 50) {
+  const isClient = typeof window !== 'undefined';
   return useInfiniteQuery<BGCReviewPageResult, Error>({
     queryKey: [...LIST_QUERY_KEY_PREFIX, limit],
     initialPageParam: null as string | null,
@@ -54,6 +57,7 @@ export function useBGCReviewList(limit = 50) {
     getNextPageParam: (lastPage) => lastPage.next_cursor,
     refetchOnWindowFocus: false,
     retry: 1,
+    enabled: isClient,
   });
 }
 
