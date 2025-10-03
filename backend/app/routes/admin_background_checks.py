@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -56,6 +56,10 @@ class BGCReviewItemModel(BaseModel):
     checkr_report_url: str | None = None
     consented_at_recent_at: datetime | None = None
     is_live: bool
+    in_dispute: bool = False
+    dispute_note: str | None = None
+    dispute_opened_at: datetime | None = None
+    dispute_resolved_at: datetime | None = None
 
 
 class BGCReviewListResponse(BaseModel):
@@ -81,6 +85,10 @@ class BGCCaseItemModel(BaseModel):
     checkr_report_url: str | None = None
     consent_recent: bool
     consent_recent_at: datetime | None = None
+    in_dispute: bool = False
+    dispute_note: str | None = None
+    dispute_opened_at: datetime | None = None
+    dispute_resolved_at: datetime | None = None
 
     def to_review_model(self) -> BGCReviewItemModel:
         return BGCReviewItemModel(
@@ -96,6 +104,10 @@ class BGCCaseItemModel(BaseModel):
             consented_at_recent_at=self.consent_recent_at,
             checkr_report_url=self.checkr_report_url,
             is_live=self.is_live,
+            in_dispute=self.in_dispute,
+            dispute_note=self.dispute_note,
+            dispute_opened_at=self.dispute_opened_at,
+            dispute_resolved_at=self.dispute_resolved_at,
         )
 
 
@@ -117,6 +129,14 @@ class BGCHistoryItem(BaseModel):
 class BGCHistoryResponse(BaseModel):
     items: list[BGCHistoryItem]
     next_cursor: str | None = None
+
+
+class BGCDisputeResponse(BaseModel):
+    ok: bool
+    in_dispute: bool
+    dispute_note: str | None = None
+    dispute_opened_at: datetime | None = None
+    dispute_resolved_at: datetime | None = None
 
 
 class BGCExpiringItem(BaseModel):
@@ -166,6 +186,10 @@ def _build_case_item(
         checkr_report_url=_build_checkr_report_url(report_id),
         consent_recent=consent_recent,
         consent_recent_at=consent_recent_at,
+        in_dispute=bool(getattr(profile, "bgc_in_dispute", False)),
+        dispute_note=getattr(profile, "bgc_dispute_note", None),
+        dispute_opened_at=getattr(profile, "bgc_dispute_opened_at", None),
+        dispute_resolved_at=getattr(profile, "bgc_dispute_resolved_at", None),
     )
 
 
@@ -394,6 +418,12 @@ async def bgc_review_override(
     action = payload.action
     now = datetime.now(timezone.utc)
 
+    if getattr(profile, "bgc_in_dispute", False) and action == "reject":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot finalize adverse action while dispute is open",
+        )
+
     if action == "approve":
         repo.update_bgc(
             instructor_id,
@@ -421,6 +451,76 @@ async def bgc_review_override(
     profile.bgc_completed_at = now
     repo.db.commit()
     return BGCOverrideResponse(ok=True, new_status="failed")
+
+
+@router.post("/{instructor_id}/dispute/open", response_model=BGCDisputeResponse)
+async def open_bgc_dispute(
+    instructor_id: str,
+    payload: dict[str, Any] = Body(...),
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    _: None = Depends(require_admin),
+) -> BGCDisputeResponse:
+    note = payload.get("note") if isinstance(payload, dict) else None
+    try:
+        repo.set_dispute_open(instructor_id, note=note)
+        repo.db.commit()
+    except RepositoryException as exc:
+        repo.db.rollback()
+        message = str(exc)
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "not found" in message.lower()
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail="Unable to open dispute") from exc
+
+    profile = repo.get_by_id(instructor_id, load_relationships=False)
+    logger.info(
+        "Background check dispute opened",
+        extra={"evt": "bgc_dispute_open", "instructor_id": instructor_id},
+    )
+    return BGCDisputeResponse(
+        ok=True,
+        in_dispute=bool(getattr(profile, "bgc_in_dispute", False)),
+        dispute_note=getattr(profile, "bgc_dispute_note", None),
+        dispute_opened_at=getattr(profile, "bgc_dispute_opened_at", None),
+        dispute_resolved_at=getattr(profile, "bgc_dispute_resolved_at", None),
+    )
+
+
+@router.post("/{instructor_id}/dispute/resolve", response_model=BGCDisputeResponse)
+async def resolve_bgc_dispute(
+    instructor_id: str,
+    payload: dict[str, Any] = Body(...),
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    _: None = Depends(require_admin),
+) -> BGCDisputeResponse:
+    note = payload.get("note") if isinstance(payload, dict) else None
+    try:
+        repo.set_dispute_resolved(instructor_id, note=note)
+        repo.db.commit()
+    except RepositoryException as exc:
+        repo.db.rollback()
+        message = str(exc)
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "not found" in message.lower()
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail="Unable to resolve dispute") from exc
+
+    profile = repo.get_by_id(instructor_id, load_relationships=False)
+    logger.info(
+        "Background check dispute resolved",
+        extra={"evt": "bgc_dispute_resolve", "instructor_id": instructor_id},
+    )
+    return BGCDisputeResponse(
+        ok=True,
+        in_dispute=bool(getattr(profile, "bgc_in_dispute", False)),
+        dispute_note=getattr(profile, "bgc_dispute_note", None),
+        dispute_opened_at=getattr(profile, "bgc_dispute_opened_at", None),
+        dispute_resolved_at=getattr(profile, "bgc_dispute_resolved_at", None),
+    )
 
 
 @router.get("/consent/{instructor_id}/latest", response_model=BGCLatestConsentResponse)

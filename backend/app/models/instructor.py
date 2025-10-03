@@ -104,6 +104,10 @@ class InstructorProfile(Base):
     bgc_env = Column(String(20), nullable=False, default="sandbox", server_default="sandbox")
     bgc_valid_until = Column(DateTime(timezone=True), nullable=True)
     bgc_invited_at = Column(DateTime(timezone=True), nullable=True)
+    bgc_in_dispute = Column(Boolean, nullable=False, default=False, server_default="false")
+    bgc_dispute_note = Column(Text, nullable=True)
+    bgc_dispute_opened_at = Column(DateTime(timezone=True), nullable=True)
+    bgc_dispute_resolved_at = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

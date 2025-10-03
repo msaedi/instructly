@@ -17,6 +17,10 @@ export interface BGCCaseItem {
   consent_recent_at: string | null;
   checkr_report_url: string | null;
   is_live: boolean;
+  in_dispute: boolean;
+  dispute_note: string | null;
+  dispute_opened_at: string | null;
+  dispute_resolved_at: string | null;
 }
 
 export interface BGCCaseListResult {
@@ -40,6 +44,10 @@ export interface AdminInstructorDetail {
   consent_recent_at: string | null;
   created_at: string | null;
   updated_at: string | null;
+  bgc_in_dispute: boolean;
+  bgc_dispute_note: string | null;
+  bgc_dispute_opened_at: string | null;
+  bgc_dispute_resolved_at: string | null;
 }
 
 const COUNTS_QUERY_KEY: QueryKey = ['admin', 'bgc', 'counts'];
@@ -84,6 +92,50 @@ export function useBGCOverride() {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('bgc-review-refresh'));
       }
+    },
+  });
+}
+
+interface DisputePayload {
+  id: string;
+  note: string | null;
+}
+
+function invalidateBackgroundCheckQueries(queryClient: ReturnType<typeof useQueryClient>, instructorId: string) {
+  void queryClient.invalidateQueries({ queryKey: COUNTS_QUERY_KEY });
+  void queryClient.invalidateQueries({ queryKey: CASES_QUERY_KEY_PREFIX, exact: false });
+  void queryClient.invalidateQueries({ queryKey: ['admin', 'instructor', instructorId] });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('bgc-review-refresh'));
+  }
+}
+
+type DisputeResponse = {
+  ok: boolean;
+  in_dispute: boolean;
+  dispute_note: string | null;
+  dispute_opened_at: string | null;
+  dispute_resolved_at: string | null;
+};
+
+export function useBGCDisputeOpen() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: DisputePayload) =>
+      httpPost<DisputeResponse>(`/api/admin/bgc/${id}/dispute/open`, { note }),
+    onSuccess: (_, variables) => {
+      invalidateBackgroundCheckQueries(queryClient, variables.id);
+    },
+  });
+}
+
+export function useBGCDisputeResolve() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: DisputePayload) =>
+      httpPost<DisputeResponse>(`/api/admin/bgc/${id}/dispute/resolve`, { note }),
+    onSuccess: (_, variables) => {
+      invalidateBackgroundCheckQueries(queryClient, variables.id);
     },
   });
 }
