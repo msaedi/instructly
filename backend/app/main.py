@@ -43,6 +43,7 @@ from .ratelimit.identity import resolve_identity
 from .routes import (
     account_management,
     addresses,
+    admin_background_checks,
     alerts,
     analytics,
     auth,
@@ -385,6 +386,7 @@ app.include_router(beta.router)
 app.include_router(reviews.router)
 app.include_router(gated.router)
 app.include_router(internal.router)
+app.include_router(admin_background_checks.router)
 
 
 # Identity + uploads: new endpoints are included via existing payments router and addresses router

@@ -262,6 +262,26 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.logger.error(f"Error counting active profiles: {str(e)}")
             raise RepositoryException(f"Failed to count profiles: {str(e)}")
 
+    def count_by_bgc_status(self, status: str) -> int:
+        """Return total profiles matching a given background-check status."""
+
+        try:
+            total = (
+                self.db.query(func.count(InstructorProfile.id))
+                .filter(InstructorProfile.bgc_status == status)
+                .scalar()
+            )
+            return int(total or 0)
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to count instructor profiles by bgc_status=%s: %s",
+                status,
+                str(exc),
+            )
+            raise RepositoryException(
+                "Failed to count profiles by background check status"
+            ) from exc
+
     def update_bgc(
         self,
         instructor_id: str,
