@@ -181,7 +181,8 @@ async def start_onboarding(
             scheme = (
                 parsed_front.scheme or request.url.scheme if parsed_front else request.url.scheme
             )
-            netloc = parsed_front.netloc or configured_hostname
+            parsed_netloc = parsed_front.netloc if parsed_front else ""
+            netloc = parsed_netloc or configured_hostname
             origin_candidates.insert(0, f"{scheme}://{netloc}")
 
         if local_frontend and (

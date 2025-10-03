@@ -16,7 +16,7 @@ except Exception:  # pragma: no cover - optional on CI
         return False
 
 
-from pydantic import Field, SecretStr, ValidationInfo, field_validator
+from pydantic import Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,10 @@ class Settings(BaseSettings):
     checkr_env: str = Field(
         default="sandbox",
         description="Target Checkr environment (sandbox|production)",
+    )
+    checkr_fake: bool | None = Field(
+        default=None,
+        description="When true, use the FakeCheckr client. Defaults to true outside production.",
     )
     checkr_api_key: SecretStr = Field(
         default=SecretStr(""),
@@ -458,6 +462,14 @@ class Settings(BaseSettings):
         """Staging database URL."""
         return self.stg_database_url_raw
 
+    @model_validator(mode="after")
+    def _default_checkr_fake(self) -> "Settings":
+        """Ensure FakeCheckr is enabled by default in non-production environments."""
+
+        if self.checkr_fake is None:
+            self.checkr_fake = self.site_mode != "prod"
+        return self
+
 
 def assert_env(site_mode: str, checkr_env: str) -> None:
     """Abort startup when Checkr configuration does not match the SITE_MODE."""
@@ -474,3 +486,9 @@ def assert_env(site_mode: str, checkr_env: str) -> None:
 
 
 settings = Settings()
+logger.info(
+    "[CONFIG] Background check configuration: site_mode=%s checkr_env=%s checkr_fake=%s",
+    settings.site_mode,
+    settings.checkr_env,
+    settings.checkr_fake,
+)

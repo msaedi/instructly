@@ -14,6 +14,8 @@ from ..api.dependencies.auth import get_current_user
 from ..api.dependencies.database import get_db
 from ..api.dependencies.services import get_background_check_service
 from ..core.config import settings
+from ..core.exceptions import ServiceException
+from ..integrations.checkr_client import CheckrError
 from ..models.instructor import InstructorProfile
 from ..models.user import User
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
@@ -87,6 +89,18 @@ async def trigger_background_check_invite(
     profile = _get_instructor_profile(instructor_id, repo)
     _ensure_owner_or_admin(current_user, profile.user_id)
 
+    if background_check_service.config_error and settings.site_mode != "prod":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": (
+                    "Background check configuration missing sandbox API key while CHECKR_FAKE=false. "
+                    "Set CHECKR_FAKE=true (default) or provide CHECKR_API_KEY."
+                ),
+                "config_error": background_check_service.config_error,
+            },
+        )
+
     current_status = _status_literal(getattr(profile, "bgc_status", None))
 
     if current_status in {"pending", "review", "passed"}:
@@ -102,7 +116,26 @@ async def trigger_background_check_invite(
             detail={"message": "FCRA consent required"},
         )
 
-    invite_result = await background_check_service.invite(instructor_id)
+    try:
+        invite_result = await background_check_service.invite(instructor_id)
+    except ServiceException as exc:
+        root_cause = exc.__cause__
+        if (
+            isinstance(root_cause, CheckrError)
+            and "api key must be provided" in str(root_cause).lower()
+            and settings.site_mode != "prod"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": (
+                        "Checkr API key must be provided to send background check invites. "
+                        "Use CHECKR_FAKE=true for non-production or supply CHECKR_API_KEY."
+                    ),
+                },
+            ) from exc
+
+        raise
 
     return BackgroundCheckInviteResponse(
         status=invite_result["status"],

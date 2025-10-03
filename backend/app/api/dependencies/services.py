@@ -7,12 +7,13 @@ with their required dependencies properly injected.
 """
 
 from functools import lru_cache
+import logging
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from ...core.config import settings
-from ...integrations import CheckrClient
+from ...integrations import CheckrClient, FakeCheckrClient
 from ...repositories.instructor_profile_repository import InstructorProfileRepository
 from ...services.account_lifecycle_service import AccountLifecycleService
 from ...services.auth_service import AuthService
@@ -36,6 +37,8 @@ from ...services.two_factor_auth_service import TwoFactorAuthService
 from ...services.wallet_service import WalletService
 from ...services.week_operation_service import WeekOperationService
 from .database import get_db
+
+logger = logging.getLogger(__name__)
 
 # Service instance cache keyed by service type
 _service_instances: dict[type[BaseService], BaseService] = {}
@@ -215,18 +218,51 @@ def get_background_check_service(
     """Provide background check service wired to Checkr."""
 
     repository = InstructorProfileRepository(db)
-    client = CheckrClient(
-        api_key=settings.checkr_api_key,
-        base_url=settings.checkr_api_base,
+    use_fake = bool(settings.checkr_fake)
+    config_error: str | None = None
+
+    logger.info(
+        "Background check client selection",
+        extra={
+            "site_mode": settings.site_mode,
+            "checkr_env": settings.checkr_env,
+            "checkr_fake": use_fake,
+        },
     )
 
-    return BackgroundCheckService(
+    if use_fake:
+        client: CheckrClient = FakeCheckrClient()
+    else:
+        try:
+            client = CheckrClient(
+                api_key=settings.checkr_api_key,
+                base_url=settings.checkr_api_base,
+            )
+        except ValueError as exc:  # Missing API key or malformed configuration
+            if settings.site_mode == "prod":
+                raise
+
+            config_error = str(exc)
+            logger.warning(
+                "Falling back to FakeCheckrClient due to configuration error",
+                extra={
+                    "error": config_error,
+                    "site_mode": settings.site_mode,
+                },
+            )
+            client = FakeCheckrClient()
+
+    service = BackgroundCheckService(
         db,
         client=client,
         repository=repository,
         package=settings.checkr_package,
         env=settings.checkr_env,
+        is_fake_client=isinstance(client, FakeCheckrClient),
+        config_error=config_error,
     )
+
+    return service
 
 
 def get_week_operation_service(

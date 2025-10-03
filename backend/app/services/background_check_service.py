@@ -30,12 +30,16 @@ class BackgroundCheckService(BaseService):
         repository: InstructorProfileRepository,
         package: str,
         env: str,
+        is_fake_client: bool = False,
+        config_error: str | None = None,
     ) -> None:
         super().__init__(db)
         self.client = client
         self.repository = repository
         self.package = package
         self.env = env
+        self.is_fake_client = is_fake_client
+        self.config_error = config_error
 
     @BaseService.measure_operation("bgc.invite")
     async def invite(self, instructor_id: str) -> InviteResult:
