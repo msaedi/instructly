@@ -75,9 +75,10 @@ interface BGCStepProps {
     reportId: string | null;
     completedAt: string | null;
   }) => void;
+  ensureConsent?: () => Promise<boolean>;
 }
 
-export function BGCStep({ instructorId, onStatusUpdate }: BGCStepProps) {
+export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStepProps) {
   const [status, setStatus] = React.useState<BGCStatus | null>(null);
   const [reportId, setReportId] = React.useState<string | null>(null);
   const [completedAt, setCompletedAt] = React.useState<string | null>(null);
@@ -187,8 +188,16 @@ export function BGCStep({ instructorId, onStatusUpdate }: BGCStepProps) {
     setInviteLoading(true);
     setIsForbidden(false);
     let forbiddenError = false;
+    let attemptedInvite = false;
     try {
+      if (ensureConsent) {
+        const consentOk = await ensureConsent();
+        if (!consentOk) {
+          return;
+        }
+      }
       const res = await bgcInvite(instructorId);
+      attemptedInvite = true;
       if (res.already_in_progress) {
         toast.success('Background check already in progress');
       } else {
@@ -221,7 +230,7 @@ export function BGCStep({ instructorId, onStatusUpdate }: BGCStepProps) {
       }
     } finally {
       setInviteLoading(false);
-      if (!forbiddenError) {
+      if (attemptedInvite && !forbiddenError) {
         setCooldownActive(true);
         if (cooldownRef.current) clearTimeout(cooldownRef.current);
         cooldownRef.current = setTimeout(() => {

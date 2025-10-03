@@ -17,7 +17,7 @@ Key Features:
 from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
-from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
+from urllib.parse import ParseResult, parse_qsl, urlencode, urljoin, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
@@ -155,7 +155,7 @@ async def start_onboarding(
         def normalize_origin(raw: Optional[str]) -> Optional[str]:
             if not raw:
                 return None
-            parsed_raw = urlparse(raw)
+            parsed_raw: ParseResult = urlparse(raw)
             scheme = parsed_raw.scheme or request.url.scheme
             if parsed_raw.netloc:
                 return f"{scheme}://{parsed_raw.netloc}".rstrip("/")

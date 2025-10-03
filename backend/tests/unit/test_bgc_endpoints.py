@@ -49,6 +49,15 @@ def _create_instructor(db, *, status: str | None = None, report_id: str | None =
     return owner, profile
 
 
+def _record_consent(client, profile_id: str, headers):
+    response = client.post(
+        f"/api/instructors/{profile_id}/bgc/consent",
+        headers=headers,
+        json={"consent_version": "v1"},
+    )
+    assert response.status_code == 200
+
+
 @pytest.fixture(autouse=True)
 def override_background_check_service(db):
     def _override():
@@ -105,6 +114,7 @@ def test_invite_creates_pending_status(client, db, owner_auth_override):
     owner, profile = _create_instructor(db, status="failed")
     owner_auth_override(owner)
     headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
     response = client.post(
         f"/api/instructors/{profile.id}/bgc/invite",
         headers=headers,
@@ -140,6 +150,36 @@ def test_invite_is_idempotent_when_pending(client, db, owner_auth_override):
     assert payload["already_in_progress"] is True
     assert payload["status"] == "pending"
     assert payload["report_id"] == "rpt_existing"
+
+
+def test_invite_requires_recent_consent(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+
+    assert response.status_code == 400
+    detail_payload = response.json()["detail"]
+    if isinstance(detail_payload, dict):
+        detail_message = detail_payload.get("message")
+    else:
+        detail_message = detail_payload
+    assert detail_message == "FCRA consent required"
+
+    _record_consent(client, profile.id, headers)
+
+    valid_response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+
+    assert valid_response.status_code == 200
 
 
 def test_invite_forbidden_for_other_users(client, db):

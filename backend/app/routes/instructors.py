@@ -41,7 +41,7 @@ from ..api.dependencies.services import (
     get_instructor_service,
 )
 from ..core.enums import RoleName
-from ..core.exceptions import DomainException
+from ..core.exceptions import DomainException, ValidationException
 from ..core.ulid_helper import is_valid_ulid
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit as legacy_rate_limit
@@ -247,8 +247,7 @@ async def go_live(
     - Stripe Connect onboarding completed
     - Identity verification completed
     - At least one service configured (skills/pricing)
-
-    Background check is optional and does NOT gate going live.
+    - Background check cleared within the platform
     """
     if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
@@ -284,6 +283,12 @@ async def go_live(
     identity_ok = bool(profile_data.get("identity_verified_at"))
     connect_ok = bool(connect.get("onboarding_completed"))
 
+    profile_record = instructor_service.profile_repository.find_one_by(user_id=current_user.id)
+    if not profile_record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+
+    bgc_ok = (getattr(profile_record, "bgc_status", "") or "").lower() == "passed"
+
     missing: list[str] = []
     if not skills_ok:
         missing.append("skills")
@@ -291,22 +296,20 @@ async def go_live(
         missing.append("identity")
     if not connect_ok:
         missing.append("stripe_connect")
+    if not bgc_ok:
+        missing.append("background_check")
 
     if missing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"message": "Prerequisites not met", "missing": missing},
-        )
+        raise ValidationException(
+            "Prerequisites not met",
+            code="GO_LIVE_PREREQUISITES",
+            details={"missing": missing},
+        ).to_http_exception()
 
     # Set live and completion timestamp
     try:
         with instructor_service.transaction():
-            # Refresh ORM profile
-            profile = instructor_service.profile_repository.find_one_by(user_id=current_user.id)
-            if not profile:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
-                )
+            profile = profile_record
             # Update flags
             if not getattr(profile, "onboarding_completed_at", None):
                 instructor_service.profile_repository.update(

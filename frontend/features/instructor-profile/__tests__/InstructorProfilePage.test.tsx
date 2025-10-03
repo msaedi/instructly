@@ -76,6 +76,8 @@ const mockInstructor = {
   ],
   is_verified: true,
   background_check_completed: true,
+  bgc_status: 'passed',
+  bgc_completed_at: '2025-01-15T00:00:00Z',
   is_favorited: false,
   favorited_count: 5,
 };

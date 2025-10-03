@@ -9,7 +9,7 @@ This repository eliminates N+1 query problems by using eager loading
 for commonly accessed relationships.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, List, Optional, Sequence, cast
 
@@ -20,7 +20,7 @@ from sqlalchemy.orm import Query, Session, selectinload
 from ..core.bgc_policy import must_be_verified_for_public
 from ..core.exceptions import RepositoryException
 from ..models.address import InstructorServiceArea, RegionBoundary
-from ..models.instructor import InstructorProfile
+from ..models.instructor import BGCConsent, InstructorProfile
 from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
 from .base_repository import BaseRepository
@@ -323,6 +323,56 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             raise RepositoryException(
                 f"Failed to update background check metadata for report {report_id}"
             ) from exc
+
+    def record_bgc_consent(
+        self,
+        instructor_id: str,
+        *,
+        consent_version: str,
+        ip_address: str | None,
+    ) -> BGCConsent:
+        """Persist a new consent acknowledgement for the instructor."""
+
+        try:
+            consent = BGCConsent(
+                instructor_id=instructor_id,
+                consent_version=consent_version,
+                consented_at=datetime.now(timezone.utc),
+                ip_address=ip_address,
+            )
+            self.db.add(consent)
+            self.db.flush()  # Ensure ULID assigned for downstream use
+            return consent
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to persist background check consent for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to record background check consent") from exc
+
+    def has_recent_consent(self, instructor_id: str, window: timedelta) -> bool:
+        """Return True when instructor has consented within the provided window."""
+
+        try:
+            threshold = datetime.now(timezone.utc) - window
+            exists = (
+                self.db.query(BGCConsent)
+                .filter(
+                    BGCConsent.instructor_id == instructor_id,
+                    BGCConsent.consented_at >= threshold,
+                )
+                .first()
+            )
+            return exists is not None
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to check background check consent recency for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to verify consent recency") from exc
 
     def _apply_area_filters(self, query: Any, area: str) -> Any:
         """Apply borough/neighborhood filters to the provided query."""

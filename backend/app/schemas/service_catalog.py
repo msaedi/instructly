@@ -38,6 +38,9 @@ class CatalogServiceResponse(BaseModel):
     typical_duration_options: List[int] = [60]
     min_recommended_price: Optional[float] = None
     max_recommended_price: Optional[float] = None
+    display_order: int | None = None
+    online_capable: bool | None = None
+    requires_certification: bool | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 

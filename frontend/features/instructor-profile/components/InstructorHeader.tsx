@@ -50,7 +50,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   const bgcStatus = typeof (instructor as { bgc_status?: string }).bgc_status === 'string'
     ? ((instructor as { bgc_status?: string }).bgc_status || '').toLowerCase()
     : undefined;
-  const backgroundCheckPassed = bgcStatus === 'passed' || Boolean(instructor.background_check_completed);
+  const backgroundCheckPassed = bgcStatus === 'passed';
   const bgcCompletedAt = (instructor as { bgc_completed_at?: string | null }).bgc_completed_at ?? null;
   const [shareCopied, setShareCopied] = useState(false);
   const handleShare = async () => {

@@ -17,7 +17,6 @@ import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { at } from '@/lib/ts/safe';
 import { VerifiedBadge } from '@/components/common/VerifiedBadge';
-import { IS_PROD } from '@/lib/env';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
 let catalogCache: ServiceCatalogItem[] | null = null;
@@ -61,8 +60,8 @@ export default function InstructorCard({
   const backgroundCheckCompleted = Boolean((instructor as { background_check_completed?: boolean }).background_check_completed);
   const hasPassedBGC = typeof bgcStatusValue === 'string'
     ? bgcStatusValue.toLowerCase() === 'passed'
-    : backgroundCheckCompleted;
-  const shouldShowVerifiedBadge = IS_PROD ? true : hasPassedBGC;
+    : Boolean(backgroundCheckCompleted);
+  const shouldShowVerifiedBadge = hasPassedBGC;
 
   // Fetch service catalog on mount with simple de-duplication
   useEffect(() => {

@@ -75,6 +75,23 @@ describe('BGCStep', () => {
     timeoutSpy.mockRestore();
   });
 
+  it('waits for consent before starting invite', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    const ensureConsent = jest.fn().mockResolvedValueOnce(false);
+
+    render(<BGCStep instructorId="instructor-consent" ensureConsent={ensureConsent} />);
+
+    const button = await screen.findByRole('button', { name: /start background check/i });
+    await waitFor(() => expect(button).not.toBeDisabled());
+
+    await userEvent.click(button);
+
+    await waitFor(() => {
+      expect(ensureConsent).toHaveBeenCalledTimes(1);
+    });
+    expect(mockedBGCInvite).not.toHaveBeenCalled();
+  });
+
   it('shows neutral toast when already in progress', async () => {
     mockedBGCStatus
       .mockResolvedValueOnce({ status: 'failed', env: 'sandbox' })

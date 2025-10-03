@@ -46,6 +46,10 @@ class TimingMiddlewareASGI:
             await self.app(scope, receive, send)
             return
 
+        if method == "GET" and path == "/health":
+            await self.app(scope, receive, send)
+            return
+
         # Skip timing for SSE endpoints to avoid interference with streaming
         if path.startswith(SSE_PATH_PREFIX):
             await self.app(scope, receive, send)

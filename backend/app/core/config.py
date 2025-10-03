@@ -120,6 +120,14 @@ class Settings(BaseSettings):
         default=SecretStr(""),
         description="Shared secret for verifying Checkr webhook signatures",
     )
+    bgc_suppress_adverse_emails: bool = Field(
+        default=True,
+        description="When true, suppress adverse-action email delivery (non-prod default)",
+    )
+    scheduler_enabled: bool = Field(
+        default=True,
+        description="Enable background schedulers (disabled automatically during tests)",
+    )
     connect_return_path: str = Field(
         default="/instructor/onboarding/connect?connect_return=1",
         description="Frontend callback path after Stripe Connect onboarding",
