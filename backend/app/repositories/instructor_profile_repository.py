@@ -432,6 +432,79 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.db.rollback()
             raise RepositoryException("Failed to update background check invite timestamp") from exc
 
+    def list_expiring_within(self, days: int, limit: int = 1000) -> list[InstructorProfile]:
+        """Return instructors whose background checks expire within the given window."""
+
+        try:
+            now = datetime.now(timezone.utc)
+            end = now + timedelta(days=max(days, 0))
+            results = (
+                self.db.query(self.model)
+                .options(selectinload(self.model.user))
+                .filter(
+                    self.model.bgc_valid_until.isnot(None),
+                    self.model.bgc_valid_until >= now,
+                    self.model.bgc_valid_until <= end,
+                )
+                .order_by(self.model.bgc_valid_until.asc())
+                .limit(limit)
+                .all()
+            )
+            return cast(List[InstructorProfile], results)
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to list expiring background checks within %s days: %s",
+                days,
+                str(exc),
+            )
+            raise RepositoryException("Failed to list expiring background checks") from exc
+
+    def list_expired(self, limit: int = 1000) -> list[InstructorProfile]:
+        """Return instructors whose background checks have expired while live."""
+
+        try:
+            now = datetime.now(timezone.utc)
+            results = (
+                self.db.query(self.model)
+                .options(selectinload(self.model.user))
+                .filter(
+                    self.model.bgc_valid_until.isnot(None),
+                    self.model.bgc_valid_until < now,
+                    self.model.is_live.is_(True),
+                )
+                .order_by(self.model.bgc_valid_until.asc())
+                .limit(limit)
+                .all()
+            )
+            return cast(List[InstructorProfile], results)
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to list expired background checks: %s",
+                str(exc),
+            )
+            raise RepositoryException("Failed to list expired background checks") from exc
+
+    def set_live(self, instructor_id: str, is_live: bool) -> None:
+        """Toggle instructor live status without loading the full profile."""
+
+        try:
+            updated = (
+                self.db.query(self.model)
+                .filter(self.model.id == instructor_id)
+                .update({self.model.is_live: is_live})
+            )
+            if not updated:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update live status for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to update live status") from exc
+
     def append_history(
         self,
         instructor_id: str,

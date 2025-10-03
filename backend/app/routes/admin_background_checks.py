@@ -119,6 +119,12 @@ class BGCHistoryResponse(BaseModel):
     next_cursor: str | None = None
 
 
+class BGCExpiringItem(BaseModel):
+    instructor_id: str
+    email: str | None = None
+    bgc_valid_until: datetime | None = None
+
+
 def _build_case_item(
     profile: InstructorProfile,
     repo: InstructorProfileRepository,
@@ -347,6 +353,29 @@ async def bgc_history(
     next_cursor = entries[fetch_limit].id if len(entries) > fetch_limit else None
 
     return BGCHistoryResponse(items=items, next_cursor=next_cursor)
+
+
+@router.get("/expiring", response_model=list[BGCExpiringItem])
+async def bgc_expiring(
+    days: int = Query(30, ge=1, le=180, description="Lookahead window in days"),
+    limit: int = Query(100, ge=1, le=1000),
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    _: None = Depends(require_admin),
+) -> list[BGCExpiringItem]:
+    """Return instructors whose background checks are expiring soon."""
+
+    expiring_profiles = repo.list_expiring_within(days, limit=limit)
+    results: list[BGCExpiringItem] = []
+    for profile in expiring_profiles:
+        user = getattr(profile, "user", None)
+        results.append(
+            BGCExpiringItem(
+                instructor_id=profile.id,
+                email=getattr(user, "email", None),
+                bgc_valid_until=getattr(profile, "bgc_valid_until", None),
+            )
+        )
+    return results
 
 
 @router.post("/{instructor_id}/override", response_model=BGCOverrideResponse)

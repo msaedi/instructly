@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, List, cast
+from typing import Any, List, Optional, cast
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -130,3 +130,23 @@ class BackgroundJobRepository:
             self.logger.error("Failed to reschedule job %s: %s", job_id, str(exc))
             self.db.rollback()
             raise RepositoryException("Failed to reschedule background job") from exc
+
+    def get_next_scheduled(self, job_type: str) -> BackgroundJob | None:
+        """Return the next scheduled job for a given type, if any."""
+
+        try:
+            now = _utcnow()
+            result = (
+                self.db.query(BackgroundJob)
+                .filter(
+                    BackgroundJob.type == job_type,
+                    BackgroundJob.status.in_(["queued", "running"]),
+                    BackgroundJob.available_at >= now - timedelta(days=1),
+                )
+                .order_by(BackgroundJob.available_at.asc())
+                .first()
+            )
+            return cast(Optional[BackgroundJob], result)
+        except SQLAlchemyError as exc:
+            self.logger.error("Failed to load scheduled job for type %s: %s", job_type, str(exc))
+            raise RepositoryException("Failed to load scheduled job") from exc
