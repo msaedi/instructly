@@ -1,18 +1,20 @@
 from hashlib import sha256
 import hmac
 import json
+import types
 
 from pydantic import SecretStr
 import pytest
 
 from app.api.dependencies.repositories import get_instructor_repo
+from app.api.dependencies.services import get_background_check_workflow_service
 from app.auth import get_password_hash
 from app.core.config import settings
 from app.main import fastapi_app as app
 from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
-from app.routes import webhooks_checkr
+from app.services.background_check_workflow_service import BackgroundCheckWorkflowService
 
 
 def _create_instructor_with_report(
@@ -107,35 +109,41 @@ def test_report_completed_clear_updates_profile(client, db):
     assert updated_retry.bgc_completed_at is not None
 
 
-def test_report_completed_consider_marks_review(client, db, monkeypatch):
+def test_report_completed_consider_marks_review(client, db):
     profile = _create_instructor_with_report(db, report_id="rpt_consider")
-    triggered: dict[str, str] = {}
-
-    monkeypatch.setattr(
-        webhooks_checkr,
-        "schedule_final_adverse_action",
-        lambda profile_id: triggered.setdefault("profile_id", profile_id),
-    )
     settings.bgc_suppress_adverse_emails = True
 
-    payload = {
-        "type": "report.completed",
-        "data": {"object": {"id": "rpt_consider", "result": "consider"}},
-    }
-    body = json.dumps(payload).encode("utf-8")
-    signature = _sign_payload(body, settings.checkr_webhook_secret.get_secret_value())
+    repo = InstructorProfileRepository(db)
+    workflow = BackgroundCheckWorkflowService(repo)
+    calls: dict[str, str] = {}
 
-    response = client.post(
-        "/webhooks/checkr/",
-        content=body,
-        headers={"X-Checkr-Signature": signature, "Content-Type": "application/json"},
-    )
+    def fake_schedule(self, profile_id: str) -> None:
+        calls["profile_id"] = profile_id
 
-    assert response.status_code == 200
-    updated = db.query(InstructorProfile).filter_by(id=profile.id).one()
-    assert updated.bgc_status == "review"
-    assert updated.bgc_completed_at is not None
-    assert triggered["profile_id"] == profile.id
+    workflow.schedule_final_adverse_action = types.MethodType(fake_schedule, workflow)
+
+    app.dependency_overrides[get_background_check_workflow_service] = lambda: workflow
+    try:
+        payload = {
+            "type": "report.completed",
+            "data": {"object": {"id": "rpt_consider", "result": "consider"}},
+        }
+        body = json.dumps(payload).encode("utf-8")
+        signature = _sign_payload(body, settings.checkr_webhook_secret.get_secret_value())
+
+        response = client.post(
+            "/webhooks/checkr/",
+            content=body,
+            headers={"X-Checkr-Signature": signature, "Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 200
+        updated = db.query(InstructorProfile).filter_by(id=profile.id).one()
+        assert updated.bgc_status == "review"
+        assert updated.bgc_completed_at is not None
+        assert calls["profile_id"] == profile.id
+    finally:
+        app.dependency_overrides.pop(get_background_check_workflow_service, None)
 
 
 def test_invalid_signature_returns_400(client):
@@ -181,7 +189,9 @@ def test_execute_final_adverse_action_changes_status(db):
     profile.bgc_completed_at = None
     db.commit()
 
-    webhooks_checkr._execute_final_adverse_action(profile.id)
+    repo = InstructorProfileRepository(db)
+    workflow = BackgroundCheckWorkflowService(repo)
+    workflow.execute_final_adverse_action(profile.id)
 
     db.expire_all()
     refreshed = db.query(InstructorProfile).filter_by(id=profile.id).one()

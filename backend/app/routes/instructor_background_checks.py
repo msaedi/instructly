@@ -137,6 +137,15 @@ async def trigger_background_check_invite(
             },
         )
 
+    invite_time = datetime.now(timezone.utc)
+    if getattr(
+        profile, "bgc_invited_at", None
+    ) and invite_time - profile.bgc_invited_at < timedelta(hours=24):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Invite rate-limited; try again later",
+        )
+
     try:
         invite_result = await background_check_service.invite(instructor_id)
     except ServiceException as exc:
@@ -157,6 +166,8 @@ async def trigger_background_check_invite(
             ) from exc
 
         raise
+
+    repo.set_bgc_invited_at(instructor_id, invite_time)
 
     return BackgroundCheckInviteResponse(
         status=invite_result["status"],

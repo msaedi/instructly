@@ -413,6 +413,25 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.db.rollback()
             raise RepositoryException("Failed to update background check validity") from exc
 
+    def set_bgc_invited_at(self, instructor_id: str, when: datetime) -> None:
+        """Record when the most recent Checkr invite was sent."""
+
+        try:
+            profile = self.get_by_id(instructor_id, load_relationships=False)
+            if not profile:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+
+            profile.bgc_invited_at = when
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update bgc_invited_at for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to update background check invite timestamp") from exc
+
     def append_history(
         self,
         instructor_id: str,

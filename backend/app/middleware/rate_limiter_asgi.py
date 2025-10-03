@@ -33,6 +33,9 @@ class RateLimitMiddlewareASGI:
         self.app = app
         self.rate_limiter = rate_limiter or RateLimiter()
         self.general_limit = getattr(settings, "rate_limit_general_per_minute", 100)
+        self._invite_path = re.compile(r"^/api/instructors/[^/]+/bgc/invite$")
+        self.invite_limit = 10
+        self.invite_window_seconds = 3600
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI application entrypoint."""
@@ -90,6 +93,25 @@ class RateLimitMiddlewareASGI:
         # Get client IP
         client = scope.get("client")
         client_ip = client[0] if client else "unknown"
+
+        if method == "POST" and self._invite_path.match(path):
+            allowed_invite, _, retry_after_invite = self.rate_limiter.check_rate_limit(
+                identifier=f"invite:{client_ip}",
+                limit=self.invite_limit,
+                window_seconds=self.invite_window_seconds,
+                window_name="bgc_invite_ip",
+            )
+            if not allowed_invite:
+                response = JSONResponse(
+                    status_code=429,
+                    content={
+                        "code": "rate_limited",
+                        "detail": "Too many invites from this IP. Try again later.",
+                    },
+                    headers={"Retry-After": str(retry_after_invite)},
+                )
+                await response(scope, receive, send)
+                return
 
         # Light exemptions for local/preview on low-risk routes
         site_mode = getattr(settings, "site_mode", "local") or "local"

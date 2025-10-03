@@ -310,11 +310,7 @@ async def _background_jobs_worker() -> None:
                                 completed_at=completed_at,
                             )
                             if follow_up and profile is not None:
-                                from app.routes.webhooks_checkr import (
-                                    schedule_final_adverse_action,
-                                )
-
-                                schedule_final_adverse_action(profile.id)
+                                workflow.schedule_final_adverse_action(profile.id)
                         elif job.type == "webhook.report_suspended":
                             report_id = payload.get("report_id")
                             if not report_id:

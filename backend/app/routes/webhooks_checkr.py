@@ -14,9 +14,7 @@ from ..api.dependencies.repositories import get_background_job_repo
 from ..api.dependencies.services import get_background_check_workflow_service
 from ..core.config import settings
 from ..core.exceptions import RepositoryException
-from ..database import SessionLocal
 from ..repositories.background_job_repository import BackgroundJobRepository
-from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas.webhook_responses import WebhookAckResponse
 from ..services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
@@ -114,7 +112,7 @@ async def handle_checkr_webhook(
                     "Background check requires review",
                     extra={"instructor_id": profile.id, "report_id": report_id},
                 )
-                schedule_final_adverse_action(profile.id)
+                workflow_service.schedule_final_adverse_action(profile.id)
         except RepositoryException as exc:
             logger.warning(
                 "Background check workflow deferred: %s", str(exc), extra={"report_id": report_id}
@@ -169,29 +167,3 @@ async def handle_checkr_webhook(
     # Other event types are acknowledged but ignored
     logger.debug("Ignoring unsupported Checkr webhook event", extra={"event_type": event_type})
     return WebhookAckResponse(ok=True)
-
-
-def schedule_final_adverse_action(profile_id: str) -> None:
-    """Backward-compatible wrapper used by legacy tests."""
-
-    session = SessionLocal()
-    try:
-        repo = InstructorProfileRepository(session)
-        service = BackgroundCheckWorkflowService(repo)
-        service.schedule_final_adverse_action(profile_id)
-        session.commit()
-    finally:
-        session.close()
-
-
-def _execute_final_adverse_action(profile_id: str) -> None:
-    """Backward-compatible wrapper for direct final adverse execution."""
-
-    session = SessionLocal()
-    try:
-        repo = InstructorProfileRepository(session)
-        service = BackgroundCheckWorkflowService(repo)
-        service.execute_final_adverse_action(profile_id)
-        session.commit()
-    finally:
-        session.close()

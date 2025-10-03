@@ -103,6 +103,7 @@ class InstructorProfile(Base):
     bgc_completed_at = Column(DateTime(timezone=True), nullable=True)
     bgc_env = Column(String(20), nullable=False, default="sandbox", server_default="sandbox")
     bgc_valid_until = Column(DateTime(timezone=True), nullable=True)
+    bgc_invited_at = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
