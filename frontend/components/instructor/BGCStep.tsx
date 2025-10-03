@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { IS_NON_PROD } from '@/lib/env';
 import { ApiProblemError } from '@/lib/api/fetch';
 
+const POLL_BACKOFF_MS = [15000, 60000, 300000] as const;
+
 const STATUS_META: Record<BGCStatus, { label: string; className: string }> = {
   passed: {
     label: 'Verified',
@@ -83,17 +85,25 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   const [isForbidden, setIsForbidden] = React.useState(false);
   const [cooldownActive, setCooldownActive] = React.useState(false);
   const cooldownRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollTimerRef = React.useRef<number | null>(null);
+  const backoffIdxRef = React.useRef(0);
   const statusChipRef = React.useRef<HTMLSpanElement | null>(null);
   const isMountedRef = React.useRef(true);
   const previousStatusRef = React.useRef<BGCStatus | null>(null);
+  const statusRef = React.useRef<BGCStatus | null>(null);
 
   const setStatusSafe = React.useCallback((next: BGCStatus | null) => {
     if (previousStatusRef.current === next) {
       return;
     }
     previousStatusRef.current = next;
+    statusRef.current = next;
     setStatus(next);
   }, []);
+
+  React.useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   const pushSnapshot = React.useCallback(
     (snapshot: {
@@ -181,18 +191,46 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       if (cooldownRef.current) {
         clearTimeout(cooldownRef.current);
       }
+      if (pollTimerRef.current !== null) {
+        window.clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
     };
   }, [instructorId, pushSnapshot]);
 
-  React.useEffect(() => {
-    if (status !== 'pending' && status !== 'review') {
-      return undefined;
+  const scheduleNextPoll = React.useCallback(() => {
+    if (backoffIdxRef.current >= POLL_BACKOFF_MS.length) {
+      return;
     }
-    const intervalId = window.setInterval(() => {
-      void loadStatus();
-    }, 15000);
-    return () => window.clearInterval(intervalId);
-  }, [status, loadStatus]);
+
+    const delay = POLL_BACKOFF_MS[backoffIdxRef.current];
+    pollTimerRef.current = window.setTimeout(async () => {
+      pollTimerRef.current = null;
+      await loadStatus();
+      const currentStatus = statusRef.current;
+      if (currentStatus === 'pending' || currentStatus === 'review') {
+        backoffIdxRef.current += 1;
+        scheduleNextPoll();
+      }
+    }, delay);
+  }, [loadStatus]);
+
+  React.useEffect(() => {
+    if (pollTimerRef.current !== null) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    backoffIdxRef.current = 0;
+    if (status === 'pending' || status === 'review') {
+      scheduleNextPoll();
+    }
+    return () => {
+      if (pollTimerRef.current !== null) {
+        window.clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, [status, scheduleNextPoll]);
 
   const disabled =
     isForbidden ||
