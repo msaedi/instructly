@@ -37,3 +37,4 @@ def test_instructor_bgc_defaults_and_consent_relationship(db):
 
     assert consent.instructor_profile.id == instructor.id
     assert instructor.bgc_consents[0].consent_version == "v1"
+    assert instructor.bgc_consents[0].ip_address is None

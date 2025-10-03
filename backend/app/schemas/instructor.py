@@ -253,13 +253,33 @@ class ServiceResponse(ServiceBase):
     """
 
     id: str
+    name: str | None = Field(
+        default=None,
+        description="Resolved name of the service from the catalog",
+    )
     service_catalog_name: str = Field(
         ...,
         max_length=255,
         description="Human-readable name of the catalog service",
     )
+    display_order: int | None = Field(
+        default=None,
+        description="Display order hint from the catalog (nullable)",
+    )
+    online_capable: bool | None = Field(
+        default=None,
+        description="Whether the catalog service supports online delivery",
+    )
+    requires_certification: bool | None = Field(
+        default=None,
+        description="Whether the catalog service requires certification",
+    )
+    is_active: bool | None = Field(
+        default=None,
+        description="Whether this service is currently active for the instructor",
+    )
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 
 
 class UserBasic(StandardizedModel):

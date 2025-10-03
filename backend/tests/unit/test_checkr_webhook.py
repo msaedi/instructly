@@ -12,6 +12,7 @@ from app.main import fastapi_app as app
 from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
+from app.routes import webhooks_checkr
 
 
 def _create_instructor_with_report(
@@ -47,6 +48,7 @@ def _sign_payload(body: bytes, secret: str) -> str:
 def configure_webhook_secret():
     original_secret = settings.checkr_webhook_secret
     original_api_key = settings.checkr_api_key
+    original_bgc_suppression = settings.bgc_suppress_adverse_emails
     settings.checkr_webhook_secret = SecretStr("whsec_test_secret")
     settings.checkr_api_key = SecretStr("sk_test_webhook")
     try:
@@ -54,6 +56,7 @@ def configure_webhook_secret():
     finally:
         settings.checkr_webhook_secret = original_secret
         settings.checkr_api_key = original_api_key
+        settings.bgc_suppress_adverse_emails = original_bgc_suppression
 
 
 @pytest.fixture(autouse=True)
@@ -104,8 +107,16 @@ def test_report_completed_clear_updates_profile(client, db):
     assert updated_retry.bgc_completed_at is not None
 
 
-def test_report_completed_consider_marks_review(client, db):
+def test_report_completed_consider_marks_review(client, db, monkeypatch):
     profile = _create_instructor_with_report(db, report_id="rpt_consider")
+    triggered: dict[str, str] = {}
+
+    monkeypatch.setattr(
+        webhooks_checkr,
+        "schedule_final_adverse_action",
+        lambda profile_id: triggered.setdefault("profile_id", profile_id),
+    )
+    settings.bgc_suppress_adverse_emails = True
 
     payload = {
         "type": "report.completed",
@@ -124,6 +135,7 @@ def test_report_completed_consider_marks_review(client, db):
     updated = db.query(InstructorProfile).filter_by(id=profile.id).one()
     assert updated.bgc_status == "review"
     assert updated.bgc_completed_at is not None
+    assert triggered["profile_id"] == profile.id
 
 
 def test_invalid_signature_returns_400(client):
@@ -161,3 +173,17 @@ def test_unknown_report_id_is_noop(client, db):
     untouched = db.query(InstructorProfile).filter_by(id=profile.id).one()
     assert untouched.bgc_status == "pending"
     assert untouched.bgc_completed_at is None
+
+
+def test_execute_final_adverse_action_changes_status(db):
+    settings.bgc_suppress_adverse_emails = True
+    profile = _create_instructor_with_report(db, report_id="rpt_final", status="review")
+    profile.bgc_completed_at = None
+    db.commit()
+
+    webhooks_checkr._execute_final_adverse_action(profile.id)
+
+    db.expire_all()
+    refreshed = db.query(InstructorProfile).filter_by(id=profile.id).one()
+    assert refreshed.bgc_status == "failed"
+    assert refreshed.bgc_completed_at is not None

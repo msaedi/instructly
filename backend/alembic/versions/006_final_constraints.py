@@ -188,6 +188,11 @@ def upgrade() -> None:
         "instructor_profiles",
         "bgc_env IN ('sandbox','production')",
     )
+    op.create_check_constraint(
+        "ck_live_requires_bgc_passed",
+        "instructor_profiles",
+        "(is_live = FALSE) OR (bgc_status = 'passed')",
+    )
 
     print("Creating bgc_consent table...")
     op.create_table(
@@ -196,6 +201,7 @@ def upgrade() -> None:
         sa.Column("instructor_id", sa.String(length=26), nullable=False),
         sa.Column("consented_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("consent_version", sa.Text(), nullable=False),
+        sa.Column("ip_address", sa.String(length=45), nullable=True),
         sa.ForeignKeyConstraint(["instructor_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -821,6 +827,9 @@ def downgrade() -> None:
             "ALTER TABLE instructor_profiles DROP CONSTRAINT IF EXISTS ck_instructor_profiles_bgc_status"
         )
         op.execute(
+            "ALTER TABLE instructor_profiles DROP CONSTRAINT IF EXISTS ck_live_requires_bgc_passed"
+        )
+        op.execute(
             "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_env"
         )
         op.execute(
@@ -835,6 +844,7 @@ def downgrade() -> None:
     else:
         op.drop_constraint("ck_instructor_profiles_bgc_env", "instructor_profiles", type_="check")
         op.drop_constraint("ck_instructor_profiles_bgc_status", "instructor_profiles", type_="check")
+        op.drop_constraint("ck_live_requires_bgc_passed", "instructor_profiles", type_="check")
         op.drop_column("instructor_profiles", "bgc_env")
         op.drop_column("instructor_profiles", "bgc_completed_at")
         op.drop_column("instructor_profiles", "bgc_report_id")

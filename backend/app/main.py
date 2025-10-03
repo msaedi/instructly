@@ -40,7 +40,6 @@ from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
 from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY
 from .ratelimit.identity import resolve_identity
-from .repositories.beta_repository import BetaSettingsRepository
 from .routes import (
     account_management,
     addresses,
@@ -424,32 +423,21 @@ def read_root() -> RootResponse:
     )
 
 
-@app.get("/health", response_model=HealthResponse)
-def health_check(response: Response, db: Session = Depends(get_db)) -> HealthResponse:
-    """Health check endpoint with headers for mode/phase/commit."""
+def _apply_health_headers(response: Response) -> None:
     import os as _os
 
-    # Determine phase from settings table (fallback to 'beta')
-    phase = "beta"
-    try:
-        s = BetaSettingsRepository(db).get_singleton()
-        if getattr(s, "beta_phase", None):
-            phase = str(s.beta_phase)
-    except Exception:
-        phase = "beta"
-
-    # Headers
     site_mode = _os.getenv("SITE_MODE", "").lower().strip() or "unset"
     response.headers["X-Site-Mode"] = site_mode
-    response.headers["X-Phase"] = phase
+    response.headers["X-Phase"] = _os.getenv("BETA_PHASE", "beta")
     response.headers["X-Commit-Sha"] = _os.getenv("COMMIT_SHA", "dev")
-    # Local-only testing marker
     try:
         if site_mode == "local" and bool(getattr(settings, "is_testing", False)):
             response.headers["X-Testing"] = "1"
     except Exception:
         pass
 
+
+def _health_payload() -> HealthResponse:
     return HealthResponse(
         status="healthy",
         service=f"{BRAND_NAME.lower()}-api",
@@ -459,10 +447,16 @@ def health_check(response: Response, db: Session = Depends(get_db)) -> HealthRes
     )
 
 
+@app.get("/health", response_model=HealthResponse, include_in_schema=False)
+def health_check(response: Response) -> HealthResponse:
+    _apply_health_headers(response)
+    return _health_payload()
+
+
 @app.get("/api/health", response_model=HealthResponse)
-def api_health(response: Response, db: Session = Depends(get_db)) -> HealthResponse:
-    """Alias of /health under /api path for env-contract and monitors."""
-    return health_check(response, db)
+def api_health(response: Response) -> HealthResponse:
+    _apply_health_headers(response)
+    return _health_payload()
 
 
 @app.get("/health/lite", response_model=HealthLiteResponse)

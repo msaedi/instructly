@@ -78,6 +78,10 @@ class RateLimitMiddlewareASGI:
             await self.app(scope, receive, send)
             return
 
+        if method == "GET" and path == "/health":
+            await self.app(scope, receive, send)
+            return
+
         # Always allow CORS preflight requests
         if method == "OPTIONS":
             await self.app(scope, receive, send)

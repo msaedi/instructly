@@ -15,6 +15,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from datetime import date, datetime, time, timedelta, timezone
 import json
+import os
 import random
 
 # Add the scripts directory to Python path so imports work from anywhere
@@ -31,7 +32,7 @@ from app.core.config import settings
 from app.core.enums import RoleName
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
-from app.models.instructor import InstructorProfile
+from app.models.instructor import BGCConsent, InstructorProfile
 from app.models.payment import PlatformCredit, StripeConnectedAccount
 from app.models.rbac import Role, UserRole as UserRoleJunction
 from app.models.review import Review, ReviewStatus
@@ -300,8 +301,25 @@ class DatabaseSeeder:
                     onboarding_completed_at=_now,
                     is_live=_is_active_account,
                 )
+                if os.getenv("SEED_FORCE_BGC_PASSED", "1") == "1" and profile.is_live:
+                    now_utc = datetime.now(timezone.utc)
+                    profile.bgc_status = "passed"
+                    profile.bgc_env = profile.bgc_env or "sandbox"
+                    profile.bgc_completed_at = now_utc
+
                 session.add(profile)
                 session.flush()
+
+                if os.getenv("SEED_FORCE_BGC_PASSED", "1") == "1" and profile.is_live:
+                    now_utc = profile.bgc_completed_at or datetime.now(timezone.utc)
+                    session.add(
+                        BGCConsent(
+                            instructor_id=profile.id,
+                            consent_version="seed.v1",
+                            consented_at=now_utc,
+                            ip_address="127.0.0.1",
+                        )
+                    )
 
                 # Create services from catalog
                 service_count = 0

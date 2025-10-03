@@ -139,6 +139,12 @@ class ProductionStartup:
         """Set up production monitoring."""
         logger.info("Setting up monitoring...")
 
+        if getattr(settings, "is_testing", False) or not getattr(
+            settings, "scheduler_enabled", True
+        ):
+            logger.info("Skipping background monitoring task (scheduler disabled/testing mode)")
+            return
+
         # Start periodic health check task
         from ..monitoring.production_monitor import periodic_health_check
 

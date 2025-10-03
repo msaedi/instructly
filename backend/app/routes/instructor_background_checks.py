@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.params import Path
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_user
 from ..api.dependencies.database import get_db
 from ..api.dependencies.services import get_background_check_service
+from ..core.config import settings
 from ..models.instructor import InstructorProfile
 from ..models.user import User
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
@@ -20,6 +23,28 @@ from ..schemas.bgc import (
     BackgroundCheckStatusResponse,
 )
 from ..services.background_check_service import BackgroundCheckService
+
+CONSENT_WINDOW = timedelta(hours=24)
+
+
+class ConsentPayload(BaseModel):
+    """Payload required to record FCRA consent."""
+
+    consent_version: str = Field(..., min_length=1, max_length=50)
+
+
+class ConsentResponse(BaseModel):
+    """Acknowledgement returned after recording consent."""
+
+    ok: bool = True
+
+
+class MockStatusResponse(BaseModel):
+    """Response returned by non-production mock status changers."""
+
+    ok: bool = True
+    status: BackgroundCheckStatusLiteral
+
 
 router = APIRouter(
     prefix="/api/instructors/{instructor_id}/bgc",
@@ -71,6 +96,12 @@ async def trigger_background_check_invite(
             already_in_progress=True,
         )
 
+    if not repo.has_recent_consent(instructor_id, CONSENT_WINDOW):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "FCRA consent required"},
+        )
+
     invite_result = await background_check_service.invite(instructor_id)
 
     return BackgroundCheckInviteResponse(
@@ -97,3 +128,94 @@ async def get_background_check_status(
         completed_at=getattr(profile, "bgc_completed_at", None),
         env=getattr(profile, "bgc_env", "sandbox"),
     )
+
+
+@router.post("/consent", response_model=ConsentResponse)
+async def record_background_check_consent(
+    payload: ConsentPayload,
+    request: Request,
+    instructor_id: str = Path(..., description="Instructor profile ULID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ConsentResponse:
+    """Persist the instructor's consent acknowledgement for FCRA compliance."""
+
+    repo = InstructorProfileRepository(db)
+    profile = _get_instructor_profile(instructor_id, repo)
+    _ensure_owner_or_admin(current_user, profile.user_id)
+
+    ip_address = request.client.host if request.client else None
+    repo.record_bgc_consent(
+        instructor_id,
+        consent_version=payload.consent_version,
+        ip_address=ip_address,
+    )
+
+    return ConsentResponse()
+
+
+def _ensure_non_production() -> None:
+    if str(settings.site_mode).lower() == "prod":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Unavailable in production"
+        )
+
+
+@router.post("/mock/pass", response_model=MockStatusResponse)
+async def mock_background_check_pass(
+    instructor_id: str = Path(..., description="Instructor profile ULID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MockStatusResponse:
+    """Non-production helper to mark background check as passed."""
+
+    _ensure_non_production()
+    repo = InstructorProfileRepository(db)
+    profile = _get_instructor_profile(instructor_id, repo)
+    _ensure_owner_or_admin(current_user, profile.user_id)
+
+    profile.bgc_status = "passed"
+    profile.bgc_completed_at = getattr(profile, "bgc_completed_at", None) or datetime.now(
+        timezone.utc
+    )
+
+    return MockStatusResponse(status="passed")
+
+
+@router.post("/mock/review", response_model=MockStatusResponse)
+async def mock_background_check_review(
+    instructor_id: str = Path(..., description="Instructor profile ULID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MockStatusResponse:
+    """Non-production helper to mark background check as under review."""
+
+    _ensure_non_production()
+    repo = InstructorProfileRepository(db)
+    profile = _get_instructor_profile(instructor_id, repo)
+    _ensure_owner_or_admin(current_user, profile.user_id)
+
+    profile.bgc_status = "review"
+    profile.bgc_completed_at = None
+
+    return MockStatusResponse(status="review")
+
+
+@router.post("/mock/reset", response_model=MockStatusResponse)
+async def mock_background_check_reset(
+    instructor_id: str = Path(..., description="Instructor profile ULID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MockStatusResponse:
+    """Non-production helper to reset background check metadata."""
+
+    _ensure_non_production()
+    repo = InstructorProfileRepository(db)
+    profile = _get_instructor_profile(instructor_id, repo)
+    _ensure_owner_or_admin(current_user, profile.user_id)
+
+    profile.bgc_status = "failed"
+    profile.bgc_completed_at = None
+    profile.bgc_report_id = None
+
+    return MockStatusResponse(status="failed")

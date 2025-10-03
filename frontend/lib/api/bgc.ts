@@ -24,3 +24,10 @@ export async function bgcInvite(instructorId: string): Promise<BGCInviteResponse
 export async function bgcStatus(instructorId: string): Promise<BGCStatusResponse> {
   return httpGet<BGCStatusResponse>(`/api/instructors/${instructorId}/bgc/status`);
 }
+
+export async function bgcConsent(
+  instructorId: string,
+  payload: { consent_version: string }
+): Promise<{ ok: boolean }> {
+  return httpPost<{ ok: boolean }>(`/api/instructors/${instructorId}/bgc/consent`, payload);
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
@@ -10,6 +10,9 @@ import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import BGCStep from '@/components/instructor/BGCStep';
 import { ShieldCheck } from 'lucide-react';
+import Modal from '@/components/Modal';
+import { Button } from '@/components/ui/button';
+import { bgcConsent } from '@/lib/api/bgc';
 
 export default function Step4Verification() {
   const router = useRouter();
@@ -23,6 +26,10 @@ export default function Step4Verification() {
   const [verificationComplete, setVerificationComplete] = useState(false);
   const [instructorProfileId, setInstructorProfileId] = useState<string | null>(null);
   const hasRefreshedRef = useRef(false);
+  const [consentModalOpen, setConsentModalOpen] = useState(false);
+  const [consentSubmitting, setConsentSubmitting] = useState(false);
+  const [hasRecentConsent, setHasRecentConsent] = useState(false);
+  const consentResolverRef = useRef<((value: boolean) => void) | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -41,6 +48,50 @@ export default function Step4Verification() {
 
     void loadProfile();
   }, []);
+
+  const ensureConsent = useCallback(async () => {
+    if (hasRecentConsent) {
+      return true;
+    }
+    return new Promise<boolean>((resolve) => {
+      consentResolverRef.current = resolve;
+      setConsentModalOpen(true);
+    });
+  }, [hasRecentConsent]);
+
+  const handleCloseConsentModal = useCallback(() => {
+    if (consentSubmitting) return;
+    setConsentModalOpen(false);
+    if (consentResolverRef.current) {
+      consentResolverRef.current(false);
+      consentResolverRef.current = null;
+    }
+  }, [consentSubmitting]);
+
+  const handleConfirmConsent = useCallback(async () => {
+    if (!instructorProfileId) {
+      consentResolverRef.current?.(false);
+      consentResolverRef.current = null;
+      setConsentModalOpen(false);
+      return;
+    }
+    try {
+      setConsentSubmitting(true);
+      await bgcConsent(instructorProfileId, { consent_version: 'v1' });
+      setHasRecentConsent(true);
+      consentResolverRef.current?.(true);
+      consentResolverRef.current = null;
+      setConsentModalOpen(false);
+      toast.success('Consent recorded', {
+        description: 'We will now continue to Checkr to start your background check.',
+      });
+    } catch (error) {
+      const description = error instanceof Error ? error.message : 'Unable to record consent';
+      toast.error('Consent required', { description });
+    } finally {
+      setConsentSubmitting(false);
+    }
+  }, [instructorProfileId]);
 
   useEffect(() => {
     if (!identityReturn || hasRefreshedRef.current) return;
@@ -276,7 +327,7 @@ export default function Step4Verification() {
               </div>
             </div>
             {instructorProfileId ? (
-              <BGCStep instructorId={instructorProfileId} />
+              <BGCStep instructorId={instructorProfileId} ensureConsent={ensureConsent} />
             ) : (
               <p className="text-sm text-gray-500">Loading background check status…</p>
             )}
@@ -292,6 +343,30 @@ export default function Step4Verification() {
           </button>
         </div>
       </div>
+
+      <Modal
+        isOpen={consentModalOpen}
+        onClose={handleCloseConsentModal}
+        title="FCRA Disclosure & Authorization"
+        closeOnBackdrop={!consentSubmitting}
+        closeOnEscape={!consentSubmitting}
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={handleCloseConsentModal} disabled={consentSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmConsent} disabled={consentSubmitting}>
+              {consentSubmitting ? 'Recording…' : 'I consent'}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-gray-700 leading-relaxed">
+          I authorize InstaInstru and its background screening provider to obtain my background report
+          for onboarding and ongoing participation. This authorization remains in effect while I
+          participate on the platform, and I can revoke it by contacting support.
+        </p>
+      </Modal>
     </div>
   );
 }

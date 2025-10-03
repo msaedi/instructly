@@ -301,6 +301,7 @@ class BGCConsent(Base):
     )
     consented_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     consent_version = Column(Text, nullable=False)
+    ip_address = Column(String(45), nullable=True)
 
     instructor_profile = relationship(
         "InstructorProfile", back_populates="bgc_consents", passive_deletes=True
