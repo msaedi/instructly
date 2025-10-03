@@ -132,7 +132,7 @@ describe('AdminBGCReviewPage', () => {
     jest.clearAllMocks();
     global.fetch = originalFetch;
     if ('clipboard' in navigator) {
-      delete (navigator as Record<string, unknown>).clipboard;
+      Reflect.deleteProperty(navigator, 'clipboard');
     }
   });
 
