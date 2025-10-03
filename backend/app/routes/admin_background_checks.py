@@ -104,6 +104,27 @@ class BGCCaseListResponse(BaseModel):
     next_cursor: str | None = None
 
 
+class BGCHistoryItem(BaseModel):
+    id: str
+    result: str
+    package: str | None = None
+    env: str
+    completed_at: datetime
+    created_at: datetime
+    report_id_present: bool
+
+
+class BGCHistoryResponse(BaseModel):
+    items: list[BGCHistoryItem]
+    next_cursor: str | None = None
+
+
+class BGCExpiringItem(BaseModel):
+    instructor_id: str
+    email: str | None = None
+    bgc_valid_until: datetime | None = None
+
+
 def _build_case_item(
     profile: InstructorProfile,
     repo: InstructorProfileRepository,
@@ -289,6 +310,72 @@ async def bgc_cases(
         search=q,
     )
     return BGCCaseListResponse(items=items, next_cursor=next_cursor)
+
+
+@router.get("/history/{instructor_id}", response_model=BGCHistoryResponse)
+async def bgc_history(
+    instructor_id: str,
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    cursor: Optional[str] = Query(None, description="Opaque history ULID cursor"),
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    _: None = Depends(require_admin),
+) -> BGCHistoryResponse:
+    """Return append-only history of background check completions."""
+
+    fetch_limit = min(limit, MAX_LIMIT)
+
+    try:
+        entries = repo.get_history(
+            instructor_id,
+            limit=fetch_limit + 1,
+            cursor=cursor,
+        )
+    except RepositoryException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+    items: list[BGCHistoryItem] = []
+    for entry in entries[:fetch_limit]:
+        items.append(
+            BGCHistoryItem(
+                id=entry.id,
+                result=entry.result,
+                package=entry.package,
+                env=entry.env,
+                completed_at=entry.completed_at,
+                created_at=entry.created_at,
+                report_id_present=bool(entry.report_id_enc),
+            )
+        )
+
+    next_cursor = entries[fetch_limit].id if len(entries) > fetch_limit else None
+
+    return BGCHistoryResponse(items=items, next_cursor=next_cursor)
+
+
+@router.get("/expiring", response_model=list[BGCExpiringItem])
+async def bgc_expiring(
+    days: int = Query(30, ge=1, le=180, description="Lookahead window in days"),
+    limit: int = Query(100, ge=1, le=1000),
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    _: None = Depends(require_admin),
+) -> list[BGCExpiringItem]:
+    """Return instructors whose background checks are expiring soon."""
+
+    expiring_profiles = repo.list_expiring_within(days, limit=limit)
+    results: list[BGCExpiringItem] = []
+    for profile in expiring_profiles:
+        user = getattr(profile, "user", None)
+        results.append(
+            BGCExpiringItem(
+                instructor_id=profile.id,
+                email=getattr(user, "email", None),
+                bgc_valid_until=getattr(profile, "bgc_valid_until", None),
+            )
+        )
+    return results
 
 
 @router.post("/{instructor_id}/override", response_model=BGCOverrideResponse)

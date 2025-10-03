@@ -13,14 +13,15 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, List, Optional, Sequence, cast
 
-from sqlalchemy import func, or_
+from sqlalchemy import desc, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, joinedload, selectinload
 
 from ..core.bgc_policy import must_be_verified_for_public
+from ..core.crypto import encrypt_str
 from ..core.exceptions import RepositoryException
 from ..models.address import InstructorServiceArea, RegionBoundary
-from ..models.instructor import BGCConsent, InstructorProfile
+from ..models.instructor import BackgroundCheck, BGCConsent, InstructorProfile
 from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
 from .base_repository import BaseRepository
@@ -373,6 +374,196 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             raise RepositoryException(
                 f"Failed to update background check metadata for report {report_id}"
             ) from exc
+
+    def get_by_report_id(self, report_id: str) -> Optional[InstructorProfile]:
+        """Return the instructor profile associated with a Checkr report."""
+
+        try:
+            return cast(
+                Optional[InstructorProfile],
+                self.db.query(self.model)
+                .options(joinedload(self.model.user))
+                .filter(self.model.bgc_report_id == report_id)
+                .first(),
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to load instructor profile by report %s: %s",
+                report_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to load instructor profile by report id") from exc
+
+    def update_valid_until(self, instructor_id: str, valid_until: datetime | None) -> None:
+        """Persist the background check validity window for an instructor."""
+
+        try:
+            profile = self.get_by_id(instructor_id, load_relationships=False)
+            if not profile:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+
+            profile.bgc_valid_until = valid_until
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update bgc_valid_until for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to update background check validity") from exc
+
+    def set_bgc_invited_at(self, instructor_id: str, when: datetime) -> None:
+        """Record when the most recent Checkr invite was sent."""
+
+        try:
+            profile = self.get_by_id(instructor_id, load_relationships=False)
+            if not profile:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+
+            profile.bgc_invited_at = when
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update bgc_invited_at for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to update background check invite timestamp") from exc
+
+    def list_expiring_within(self, days: int, limit: int = 1000) -> list[InstructorProfile]:
+        """Return instructors whose background checks expire within the given window."""
+
+        try:
+            now = datetime.now(timezone.utc)
+            end = now + timedelta(days=max(days, 0))
+            results = (
+                self.db.query(self.model)
+                .options(selectinload(self.model.user))
+                .filter(
+                    self.model.bgc_valid_until.isnot(None),
+                    self.model.bgc_valid_until >= now,
+                    self.model.bgc_valid_until <= end,
+                )
+                .order_by(self.model.bgc_valid_until.asc())
+                .limit(limit)
+                .all()
+            )
+            return cast(List[InstructorProfile], results)
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to list expiring background checks within %s days: %s",
+                days,
+                str(exc),
+            )
+            raise RepositoryException("Failed to list expiring background checks") from exc
+
+    def list_expired(self, limit: int = 1000) -> list[InstructorProfile]:
+        """Return instructors whose background checks have expired while live."""
+
+        try:
+            now = datetime.now(timezone.utc)
+            results = (
+                self.db.query(self.model)
+                .options(selectinload(self.model.user))
+                .filter(
+                    self.model.bgc_valid_until.isnot(None),
+                    self.model.bgc_valid_until < now,
+                    self.model.is_live.is_(True),
+                )
+                .order_by(self.model.bgc_valid_until.asc())
+                .limit(limit)
+                .all()
+            )
+            return cast(List[InstructorProfile], results)
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to list expired background checks: %s",
+                str(exc),
+            )
+            raise RepositoryException("Failed to list expired background checks") from exc
+
+    def set_live(self, instructor_id: str, is_live: bool) -> None:
+        """Toggle instructor live status without loading the full profile."""
+
+        try:
+            updated = (
+                self.db.query(self.model)
+                .filter(self.model.id == instructor_id)
+                .update({self.model.is_live: is_live})
+            )
+            if not updated:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update live status for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to update live status") from exc
+
+    def append_history(
+        self,
+        instructor_id: str,
+        report_id: str | None,
+        *,
+        result: str,
+        package: str | None,
+        env: str,
+        completed_at: datetime,
+    ) -> str:
+        """Append a background check completion record."""
+
+        try:
+            record = BackgroundCheck(
+                instructor_id=instructor_id,
+                report_id_enc=encrypt_str(report_id) if report_id else None,
+                result=result,
+                package=package,
+                env=env,
+                completed_at=completed_at,
+            )
+            self.db.add(record)
+            self.db.flush()
+            return str(record.id)
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to append background check history for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to append background check history") from exc
+
+    def get_history(
+        self,
+        instructor_id: str,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> list[BackgroundCheck]:
+        """Fetch background check history entries in reverse-chronological order."""
+
+        try:
+            query = (
+                self.db.query(BackgroundCheck)
+                .filter(BackgroundCheck.instructor_id == instructor_id)
+                .order_by(desc(BackgroundCheck.created_at), desc(BackgroundCheck.id))
+            )
+
+            if cursor:
+                query = query.filter(BackgroundCheck.id < cursor)
+
+            return list(query.limit(max(limit, 1)).all())
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to load background check history for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to load background check history") from exc
 
     def record_bgc_consent(
         self,

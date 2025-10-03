@@ -1,10 +1,11 @@
 # backend/app/main.py
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 import contextlib
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 from types import ModuleType
@@ -28,7 +29,8 @@ from .core.constants import (
     CORS_ORIGIN_REGEX,
     SSE_PATH_PREFIX,
 )
-from .database import get_db
+from .core.exceptions import RepositoryException
+from .database import SessionLocal, get_db
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
 from .middleware.https_redirect import create_https_redirect_middleware
@@ -41,6 +43,8 @@ from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
 from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY
 from .ratelimit.identity import resolve_identity
+from .repositories.background_job_repository import BackgroundJobRepository
+from .repositories.instructor_profile_repository import InstructorProfileRepository
 from .routes import (
     account_management,
     addresses,
@@ -85,6 +89,10 @@ from .schemas.main_responses import (
     HealthResponse,
     RootResponse,
 )
+from .services.background_check_workflow_service import (
+    BackgroundCheckWorkflowService,
+)
+from .services.email import EmailService
 from .services.template_registry import TemplateRegistry
 from .services.template_service import TemplateService
 
@@ -201,10 +209,21 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error(f"Failed to start message notification service: {str(e)}")
         # Continue without real-time messaging if it fails
 
+    _ensure_expiry_job_scheduled()
+
+    job_worker_task: asyncio.Task[None] | None = None
+    if getattr(settings, "scheduler_enabled", True) and not getattr(settings, "is_testing", False):
+        job_worker_task = asyncio.create_task(_background_jobs_worker())
+
     yield
 
     # Shutdown
     logger.info(f"{BRAND_NAME} API shutting down...")
+
+    if job_worker_task is not None:
+        job_worker_task.cancel()
+        with contextlib.suppress(Exception):
+            await job_worker_task
 
     # Stop message notification service
     try:
@@ -239,6 +258,192 @@ app = FastAPI(
 from .errors import register_error_handlers  # noqa: E402
 
 register_error_handlers(app)
+
+
+def _next_expiry_run(now: datetime | None = None) -> datetime:
+    reference = now or datetime.now(timezone.utc)
+    next_run = reference.replace(hour=3, minute=0, second=0, microsecond=0)
+    if next_run <= reference:
+        next_run += timedelta(days=1)
+    return next_run
+
+
+async def _background_jobs_worker() -> None:
+    """Process persisted background jobs with retry support."""
+
+    poll_interval = max(1, int(getattr(settings, "jobs_poll_interval", 2)))
+    batch_size = max(1, int(getattr(settings, "jobs_batch", 25)))
+
+    while True:
+        try:
+            await asyncio.sleep(poll_interval)
+
+            db = SessionLocal()
+            try:
+                job_repo = BackgroundJobRepository(db)
+                repo = InstructorProfileRepository(db)
+                workflow = BackgroundCheckWorkflowService(repo)
+
+                jobs = job_repo.fetch_due(limit=batch_size)
+                if not jobs:
+                    db.commit()
+                    continue
+
+                for job in jobs:
+                    try:
+                        job_repo.mark_running(job.id)
+                        db.flush()
+
+                        payload = job.payload or {}
+
+                        if job.type == "webhook.report_completed":
+                            report_id = payload.get("report_id")
+                            if not report_id:
+                                raise RepositoryException("Missing report_id in job payload")
+
+                            completed_raw = payload.get("completed_at")
+                            if completed_raw:
+                                completed_at = datetime.fromisoformat(completed_raw)
+                                if completed_at.tzinfo is None:
+                                    completed_at = completed_at.replace(tzinfo=timezone.utc)
+                            else:
+                                completed_at = datetime.now(timezone.utc)
+
+                            result = payload.get("result", "unknown")
+                            package = payload.get("package")
+                            env = payload.get("env", settings.checkr_env)
+
+                            status_value, profile, follow_up = workflow.handle_report_completed(
+                                report_id=report_id,
+                                result=result,
+                                package=package,
+                                env=env,
+                                completed_at=completed_at,
+                            )
+                            if follow_up and profile is not None:
+                                workflow.schedule_final_adverse_action(profile.id)
+                        elif job.type == "webhook.report_suspended":
+                            report_id = payload.get("report_id")
+                            if not report_id:
+                                raise RepositoryException("Missing report_id in suspended payload")
+                            workflow.handle_report_suspended(report_id)
+                        elif job.type == "bgc.expiry_sweep":
+                            days = int(payload.get("days", 30))
+                            suppress_emails = getattr(
+                                settings, "bgc_suppress_adverse_emails", False
+                            )
+
+                            email_service = EmailService(db)
+
+                            expiring = repo.list_expiring_within(days)
+                            for expiring_profile in expiring:
+                                user = getattr(expiring_profile, "user", None)
+                                recipient = getattr(user, "email", None)
+                                if not recipient:
+                                    continue
+
+                                if suppress_emails:
+                                    logger.info(
+                                        "Expiry reminder suppressed",
+                                        extra={
+                                            "instructor_id": expiring_profile.id,
+                                            "valid_until": expiring_profile.bgc_valid_until,
+                                        },
+                                    )
+                                else:
+                                    expires_on = (
+                                        expiring_profile.bgc_valid_until.isoformat()
+                                        if expiring_profile.bgc_valid_until
+                                        else "soon"
+                                    )
+                                    html_body = (
+                                        "<p>Your background check is nearing expiration. "
+                                        f"It will expire on {expires_on}. Please re-submit your background check to remain active on InstaInstru.</p>"
+                                    )
+                                    email_service.send_email(
+                                        recipient,
+                                        "Background check expiring soon",
+                                        html_body,
+                                    )
+
+                            expired_profiles = repo.list_expired()
+                            for expired_profile in expired_profiles:
+                                repo.set_live(expired_profile.id, False)
+                                user = getattr(expired_profile, "user", None)
+                                recipient = getattr(user, "email", None)
+                                if not recipient:
+                                    continue
+
+                                if suppress_emails:
+                                    logger.info(
+                                        "Expired notification suppressed",
+                                        extra={"instructor_id": expired_profile.id},
+                                    )
+                                else:
+                                    html_body = (
+                                        "<p>Your background check has expired. "
+                                        "Please complete a new background check to restore your live status.</p>"
+                                    )
+                                    email_service.send_email(
+                                        recipient,
+                                        "Background check expired",
+                                        html_body,
+                                    )
+
+                            next_available = _next_expiry_run()
+                            job_repo.enqueue(
+                                type="bgc.expiry_sweep",
+                                payload={"days": days},
+                                available_at=next_available,
+                            )
+                        else:
+                            logger.warning(
+                                "Unknown background job type encountered",
+                                extra={"job_id": job.id, "type": job.type},
+                            )
+
+                        job_repo.mark_succeeded(job.id)
+                        db.commit()
+                    except asyncio.CancelledError:
+                        db.rollback()
+                        raise
+                    except Exception as exc:  # pragma: no cover - safety logging
+                        db.rollback()
+                        logger.exception(
+                            "Error processing background job",
+                            extra={"job_id": job.id, "type": job.type},
+                        )
+                        job_repo.mark_failed(job.id, error=str(exc))
+                        db.commit()
+            finally:
+                db.close()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover - safety logging
+            logger.exception("Background job worker loop error: %s", str(exc))
+
+
+def _ensure_expiry_job_scheduled() -> None:
+    """Seed the background check expiry sweep job if missing."""
+
+    session = SessionLocal()
+    try:
+        job_repo = BackgroundJobRepository(session)
+        existing = job_repo.get_next_scheduled("bgc.expiry_sweep")
+        if existing is None:
+            job_repo.enqueue(
+                type="bgc.expiry_sweep",
+                payload={"days": 30},
+                available_at=_next_expiry_run(),
+            )
+            session.commit()
+        else:
+            session.commit()
+    except Exception as exc:  # pragma: no cover - safety logging
+        session.rollback()
+        logger.warning("Unable to seed expiry sweep job: %s", str(exc))
+    finally:
+        session.close()
 
 
 @app.middleware("http")

@@ -27,9 +27,27 @@ jobs:
             pip install "pydantic>=2" "pydantic-settings>=2" python-dotenv alembic "sqlalchemy>=2" psycopg2-binary
           fi
 
+      - name: Show CI env (masked)
+        env:
+          SITE_MODE: ci
+          CHECKR_ENV: sandbox
+          CHECKR_FAKE: "true"
+          SCHEDULER_ENABLED: "false"
+          BGC_ENCRYPTION_KEY: ${{ secrets.BGC_ENCRYPTION_KEY }}
+        run: |
+          echo "SITE_MODE=$SITE_MODE"
+          echo "CHECKR_ENV=$CHECKR_ENV"
+          echo "CHECKR_FAKE=$CHECKR_FAKE"
+          echo "SCHEDULER_ENABLED=$SCHEDULER_ENABLED"
+          echo "BGC_ENCRYPTION_KEY set? $([[ -n \"$BGC_ENCRYPTION_KEY\" ]] && echo yes || echo no)"
+
       - name: Dry-run migrate
         env:
-          SITE_MODE: ${{ matrix.mode }}
+          SITE_MODE: ci
+          CHECKR_ENV: sandbox
+          CHECKR_FAKE: "true"
+          SCHEDULER_ENABLED: "false"
+          BGC_ENCRYPTION_KEY: ${{ secrets.BGC_ENCRYPTION_KEY }}
           PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
           PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: |

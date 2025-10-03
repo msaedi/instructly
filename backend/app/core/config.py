@@ -128,9 +128,33 @@ class Settings(BaseSettings):
         default=True,
         description="When true, suppress adverse-action email delivery (non-prod default)",
     )
+    bgc_encryption_key: str | None = Field(
+        default=None,
+        description="Base64-encoded 32-byte key for encrypting background check data",
+    )
     scheduler_enabled: bool = Field(
         default=True,
         description="Enable background schedulers (disabled automatically during tests)",
+    )
+    jobs_backoff_base: int = Field(
+        default=30,
+        description="Base backoff in seconds for background job retries",
+        ge=1,
+    )
+    jobs_backoff_cap: int = Field(
+        default=1800,
+        description="Maximum backoff in seconds for background job retries",
+        ge=1,
+    )
+    jobs_poll_interval: int = Field(
+        default=2,
+        description="Background job worker poll interval in seconds",
+        ge=1,
+    )
+    jobs_batch: int = Field(
+        default=25,
+        description="Maximum number of jobs processed per polling interval",
+        ge=1,
     )
     connect_return_path: str = Field(
         default="/instructor/onboarding/connect?connect_return=1",
@@ -392,6 +416,16 @@ class Settings(BaseSettings):
                 secrets.append(secret_str)
 
         return secrets
+
+    @field_validator("bgc_encryption_key")
+    @classmethod
+    def require_bgc_key_in_prod(cls, value: str | None, info: ValidationInfo) -> str | None:
+        """Ensure encryption key is configured when running in production."""
+
+        environment = info.data.get("environment", "development")
+        if environment == "production" and not value:
+            raise ValueError("BGC_ENCRYPTION_KEY must be set in production environments.")
+        return value
 
     @field_validator("int_database_url_raw")
     @classmethod

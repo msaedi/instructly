@@ -12,6 +12,7 @@ import logging
 from typing import TYPE_CHECKING, Any, List, Optional, Set, cast
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     Column,
@@ -25,6 +26,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import ulid
@@ -100,6 +102,8 @@ class InstructorProfile(Base):
     bgc_report_id = Column(String(64), nullable=True)
     bgc_completed_at = Column(DateTime(timezone=True), nullable=True)
     bgc_env = Column(String(20), nullable=False, default="sandbox", server_default="sandbox")
+    bgc_valid_until = Column(DateTime(timezone=True), nullable=True)
+    bgc_invited_at = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -128,6 +132,14 @@ class InstructorProfile(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="BGCConsent.consented_at",
+    )
+
+    bgc_history = relationship(
+        "BackgroundCheck",
+        back_populates="instructor_profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="BackgroundCheck.created_at",
     )
 
     # Payment relationship
@@ -308,6 +320,48 @@ class BGCConsent(Base):
     )
 
     __table_args__ = (Index("ix_bgc_consent_instructor_id", "instructor_id"),)
+
+
+class BackgroundCheck(Base):
+    """Append-only history log for background check completions."""
+
+    __tablename__ = "background_checks"
+
+    id = Column(String(26), primary_key=True, index=True, default=lambda: str(ulid.ULID()))
+    instructor_id = Column(
+        String(26), ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    report_id_enc = Column(Text, nullable=True)
+    result = Column(String(32), nullable=False)
+    package = Column(Text, nullable=True)
+    env = Column(String(20), nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    instructor_profile = relationship(
+        "InstructorProfile", back_populates="bgc_history", passive_deletes=True
+    )
+
+
+class BackgroundJob(Base):
+    """Persisted background job entry for retryable workflows."""
+
+    __tablename__ = "background_jobs"
+
+    id = Column(String, primary_key=True, index=True)
+    type = Column(String, nullable=False)
+    payload = Column(
+        JSONB(astext_type=Text()).with_variant(JSON(), "sqlite"),
+        nullable=False,
+    )
+    status = Column(String(20), nullable=False, default="queued")
+    attempts = Column(Integer, nullable=False, default=0)
+    available_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
 
 class InstructorPreferredPlace(Base):
