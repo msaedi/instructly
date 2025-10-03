@@ -15,7 +15,7 @@ from typing import Any, List, Optional, Sequence, cast
 
 from sqlalchemy import func, or_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Query, Session, selectinload
+from sqlalchemy.orm import Query, Session, joinedload, selectinload
 
 from ..core.bgc_policy import must_be_verified_for_public
 from ..core.exceptions import RepositoryException
@@ -281,6 +281,25 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             raise RepositoryException(
                 "Failed to count profiles by background check status"
             ) from exc
+
+    def get_by_id_join_user(self, instructor_id: str) -> Optional[InstructorProfile]:
+        """Fetch an instructor profile with user eager-loaded."""
+
+        try:
+            return cast(
+                Optional[InstructorProfile],
+                self.db.query(self.model)
+                .options(joinedload(self.model.user))
+                .filter(self.model.id == instructor_id)
+                .first(),
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to load instructor profile %s with user: %s",
+                instructor_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to load instructor profile") from exc
 
     def latest_consent(self, instructor_id: str) -> Optional[BGCConsent]:
         """Return the most recent consent record for an instructor."""

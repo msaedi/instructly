@@ -20,7 +20,8 @@ def test_instructor_bgc_defaults_and_consent_relationship(db):
     db.flush()
     db.refresh(instructor)
 
-    assert instructor.bgc_status == "pending"
+    # New default: background checks start as "Not started" (NULL status) until consent/invite
+    assert instructor.bgc_status is None
     assert instructor.bgc_env == "sandbox"
     assert instructor.bgc_report_id is None
     assert instructor.bgc_completed_at is None

@@ -1,60 +1,72 @@
 'use client';
 
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryKey,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 
 import { httpGet, httpPost } from '@/features/shared/api/http';
 
-export interface BGCReviewItem {
+export interface BGCCaseItem {
   instructor_id: string;
   name: string;
   email: string;
-  bgc_status: string;
+  bgc_status: string | null;
   bgc_report_id: string | null;
   bgc_completed_at: string | null;
   created_at: string | null;
-  consented_at_recent: boolean;
+  updated_at: string | null;
+  consent_recent: boolean;
+  consent_recent_at: string | null;
   checkr_report_url: string | null;
+  is_live: boolean;
 }
 
-export interface BGCReviewPageResult {
-  items: BGCReviewItem[];
+export interface BGCCaseListResult {
+  items: BGCCaseItem[];
   next_cursor: string | null;
 }
 
-const COUNT_QUERY_KEY: QueryKey = ['admin', 'bgc', 'review', 'count'];
-const LIST_QUERY_KEY_PREFIX: QueryKey = ['admin', 'bgc', 'review', 'list'];
+export interface BGCCounts {
+  review: number;
+  pending: number;
+}
 
-export function useBGCReviewCount() {
+export interface AdminInstructorDetail {
+  id: string;
+  name: string;
+  email: string;
+  is_live: boolean;
+  bgc_status: string | null;
+  bgc_report_id: string | null;
+  bgc_completed_at: string | null;
+  consent_recent_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+const COUNTS_QUERY_KEY: QueryKey = ['admin', 'bgc', 'counts'];
+const CASES_QUERY_KEY_PREFIX: QueryKey = ['admin', 'bgc', 'cases'];
+
+export function useBGCCounts() {
   const isClient = typeof window !== 'undefined';
   return useQuery({
-    queryKey: COUNT_QUERY_KEY,
-    queryFn: async () => {
-      const data = await httpGet<{ count: number }>('/api/admin/bgc/review/count');
-      return data?.count ?? 0;
-    },
+    queryKey: COUNTS_QUERY_KEY,
+    queryFn: async () => httpGet<BGCCounts>('/api/admin/bgc/counts'),
     refetchOnWindowFocus: false,
     retry: 1,
     enabled: isClient,
   });
 }
 
-export function useBGCReviewList(limit = 50) {
+export function useBGCCases(status: 'review' | 'pending' | 'all', q = '', limit = 50) {
   const isClient = typeof window !== 'undefined';
-  return useInfiniteQuery<BGCReviewPageResult, Error>({
-    queryKey: [...LIST_QUERY_KEY_PREFIX, limit],
-    initialPageParam: null as string | null,
-    queryFn: async ({ pageParam }) => {
-      const cursor = (pageParam as string | null) ?? null;
-      const cursorParam = cursor ? `&cursor=${encodeURIComponent(cursor)}` : '';
-      return httpGet<BGCReviewPageResult>(`/api/admin/bgc/review?limit=${limit}${cursorParam}`);
+  return useQuery({
+    queryKey: [...CASES_QUERY_KEY_PREFIX, status, q, limit],
+    queryFn: async () => {
+      const params = new URLSearchParams({ status, limit: String(limit) });
+      if (q.trim()) {
+        params.set('q', q.trim());
+      }
+      return httpGet<BGCCaseListResult>(`/api/admin/bgc/cases?${params.toString()}`);
     },
-    getNextPageParam: (lastPage) => lastPage.next_cursor,
     refetchOnWindowFocus: false,
     retry: 1,
     enabled: isClient,
@@ -67,8 +79,26 @@ export function useBGCOverride() {
     mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
       httpPost<{ ok: boolean; new_status: string }>(`/api/admin/bgc/${id}/override`, { action }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: COUNT_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: LIST_QUERY_KEY_PREFIX, exact: false });
+      void queryClient.invalidateQueries({ queryKey: COUNTS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: CASES_QUERY_KEY_PREFIX, exact: false });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('bgc-review-refresh'));
+      }
     },
+  });
+}
+
+export function useAdminInstructorDetail(instructorId: string | null) {
+  const isClient = typeof window !== 'undefined';
+  return useQuery<AdminInstructorDetail | null, Error>({
+    queryKey: ['admin', 'instructor', instructorId],
+    queryFn: async () => {
+      if (!instructorId) return null;
+      return httpGet<AdminInstructorDetail>(`/api/admin/instructors/${instructorId}`, {
+        credentials: 'include',
+      });
+    },
+    enabled: isClient && Boolean(instructorId),
+    staleTime: 60_000,
   });
 }

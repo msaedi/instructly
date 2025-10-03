@@ -34,8 +34,8 @@ describe('AdminReferralsPage', () => {
     mockLogout.mockReset();
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();
-      if (url.includes('/api/admin/bgc/review/count')) {
-        return Promise.resolve(createJsonResponse({ count: 3 }));
+      if (url.includes('/api/admin/bgc/counts')) {
+        return Promise.resolve(createJsonResponse({ review: 3, pending: 2 }));
       }
       if (url.includes('/api/admin/referrals/health')) {
         return Promise.resolve(
