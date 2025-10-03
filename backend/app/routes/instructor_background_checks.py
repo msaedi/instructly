@@ -16,6 +16,7 @@ from ..api.dependencies.database import get_db
 from ..api.dependencies.services import get_background_check_service
 from ..core.config import settings
 from ..core.exceptions import ServiceException
+from ..core.metrics import BGC_INVITES_TOTAL
 from ..integrations.checkr_client import CheckrError
 from ..models.instructor import InstructorProfile
 from ..models.user import User
@@ -93,6 +94,16 @@ async def trigger_background_check_invite(
     _ensure_owner_or_admin(current_user, profile.user_id)
 
     if background_check_service.config_error and settings.site_mode != "prod":
+        logger.error(
+            "Background check invite blocked due to configuration error",
+            extra={
+                "evt": "bgc_invite",
+                "instructor_id": instructor_id,
+                "outcome": "error",
+                "config_error": background_check_service.config_error,
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="error").inc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -107,11 +118,23 @@ async def trigger_background_check_invite(
     current_status = _status_literal(getattr(profile, "bgc_status", None))
 
     if current_status in {"pending", "review", "passed"}:
-        return BackgroundCheckInviteResponse(
+        response = BackgroundCheckInviteResponse(
             status=current_status,
             report_id=getattr(profile, "bgc_report_id", None),
             already_in_progress=True,
         )
+        logger.info(
+            "Background check invite skipped; already in progress",
+            extra={
+                "evt": "bgc_invite",
+                "instructor_id": instructor_id,
+                "outcome": "ok",
+                "already_in_progress": True,
+                "status": current_status,
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="ok").inc()
+        return response
 
     latest_consent = repo.latest_consent(instructor_id)
     now = datetime.now(timezone.utc)
@@ -121,14 +144,16 @@ async def trigger_background_check_invite(
         and latest_consent.consented_at >= now - CONSENT_WINDOW
     )
 
-    logger.info(
-        "BGC invite: instructor=%s consent_recent=%s consent_at=%s",
-        instructor_id,
-        consent_recent,
-        getattr(latest_consent, "consented_at", None),
-    )
-
     if not consent_recent:
+        logger.info(
+            "Background check invite blocked; consent required",
+            extra={
+                "evt": "bgc_invite",
+                "instructor_id": instructor_id,
+                "outcome": "consent_required",
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="consent_required").inc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -141,6 +166,15 @@ async def trigger_background_check_invite(
     if getattr(
         profile, "bgc_invited_at", None
     ) and invite_time - profile.bgc_invited_at < timedelta(hours=24):
+        logger.info(
+            "Background check invite rate limited",
+            extra={
+                "evt": "bgc_invite",
+                "instructor_id": instructor_id,
+                "outcome": "rate_limited",
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="rate_limited").inc()
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Invite rate-limited; try again later",
@@ -155,6 +189,16 @@ async def trigger_background_check_invite(
             and "api key must be provided" in str(root_cause).lower()
             and settings.site_mode != "prod"
         ):
+            logger.error(
+                "Background check invite failed due to missing API key",
+                extra={
+                    "evt": "bgc_invite",
+                    "instructor_id": instructor_id,
+                    "outcome": "error",
+                    "error": str(root_cause),
+                },
+            )
+            BGC_INVITES_TOTAL.labels(outcome="error").inc()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
@@ -165,9 +209,29 @@ async def trigger_background_check_invite(
                 },
             ) from exc
 
+        logger.error(
+            "Background check invite failed",
+            extra={
+                "evt": "bgc_invite",
+                "instructor_id": instructor_id,
+                "outcome": "error",
+                "error": str(exc),
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="error").inc()
         raise
 
     repo.set_bgc_invited_at(instructor_id, invite_time)
+
+    logger.info(
+        "Background check invite sent",
+        extra={
+            "evt": "bgc_invite",
+            "instructor_id": instructor_id,
+            "outcome": "ok",
+        },
+    )
+    BGC_INVITES_TOTAL.labels(outcome="ok").inc()
 
     return BackgroundCheckInviteResponse(
         status=invite_result["status"],

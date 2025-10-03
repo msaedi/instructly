@@ -1,0 +1,20 @@
+groups:
+- name: bgc_alerts
+  rules:
+  - record: job:checkr_webhook_errors:rate5m
+    expr: sum by (result) (rate(checkr_webhook_total{outcome="error"}[5m]))
+  - alert: CheckrWebhookErrorRateHigh
+    expr: job:checkr_webhook_errors:rate5m > 0
+    for: 10m
+    labels: { severity: page }
+    annotations:
+      summary: "Checkr webhook errors > 0 for 10m"
+      description: "Errors processing report.completed webhooks for 10 minutes."
+
+  - alert: BGCPendingOver7dHigh
+    expr: bgc_pending_over_7d > 0
+    for: 1h
+    labels: { severity: warn }
+    annotations:
+      summary: "Background checks pending > 7 days present"
+      description: "{{ $value }} checks pending >7d"

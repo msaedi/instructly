@@ -14,6 +14,7 @@ from ..api.dependencies.repositories import get_background_job_repo
 from ..api.dependencies.services import get_background_check_workflow_service
 from ..core.config import settings
 from ..core.exceptions import RepositoryException
+from ..core.metrics import CHECKR_WEBHOOK_TOTAL
 from ..repositories.background_job_repository import BackgroundJobRepository
 from ..schemas.webhook_responses import WebhookAckResponse
 from ..services.background_check_workflow_service import (
@@ -28,6 +29,15 @@ router = APIRouter(prefix="/webhooks/checkr", tags=["webhooks"])
 def _compute_signature(secret: str, payload: bytes) -> str:
     mac = hmac.new(secret.encode("utf-8"), payload, sha256)
     return mac.hexdigest()
+
+
+def _result_label(result: str) -> str:
+    normalized = (result or "").lower()
+    if normalized == "clear":
+        return "clear"
+    if normalized == "consider":
+        return "consider"
+    return "other"
 
 
 def _verify_signature(payload: bytes, signature: str | None) -> None:
@@ -80,8 +90,6 @@ async def handle_checkr_webhook(
     data_object = payload.get("data", {}).get("object", {}) or {}
     report_id = data_object.get("id")
 
-    logger.info("Checkr webhook received", extra={"event_type": event_type, "report_id": report_id})
-
     if not event_type:
         return WebhookAckResponse(ok=True)
 
@@ -95,6 +103,7 @@ async def handle_checkr_webhook(
             "consider": "consider",
             "suspended": "suspended",
         }.get(raw_result, "unknown")
+        result_label = _result_label(normalized_result)
 
         completed_at = datetime.now(timezone.utc)
         package_value = data_object.get("package") or settings.checkr_package
@@ -113,9 +122,30 @@ async def handle_checkr_webhook(
                     extra={"instructor_id": profile.id, "report_id": report_id},
                 )
                 workflow_service.schedule_final_adverse_action(profile.id)
+
+            CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="success").inc()
+            logger.info(
+                "Checkr webhook processed",
+                extra={
+                    "evt": "checkr_webhook",
+                    "type": event_type,
+                    "result": normalized_result,
+                    "report_id": report_id,
+                    "outcome": "success",
+                },
+            )
         except RepositoryException as exc:
+            CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="queued").inc()
             logger.warning(
-                "Background check workflow deferred: %s", str(exc), extra={"report_id": report_id}
+                "Background check workflow deferred: %s",
+                str(exc),
+                extra={
+                    "evt": "checkr_webhook",
+                    "type": event_type,
+                    "result": normalized_result,
+                    "report_id": report_id,
+                    "outcome": "queued",
+                },
             )
             job_repository.enqueue(
                 type="webhook.report_completed",
@@ -128,9 +158,16 @@ async def handle_checkr_webhook(
                 },
             )
         except Exception:  # pragma: no cover - safety fallback
+            CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="error").inc()
             logger.exception(
                 "Unhandled error processing report.completed; enqueueing retry",
-                extra={"report_id": report_id},
+                extra={
+                    "evt": "checkr_webhook",
+                    "type": event_type,
+                    "result": normalized_result,
+                    "report_id": report_id,
+                    "outcome": "error",
+                },
             )
             job_repository.enqueue(
                 type="webhook.report_completed",
@@ -151,6 +188,15 @@ async def handle_checkr_webhook(
 
         try:
             workflow_service.handle_report_suspended(report_id)
+            logger.info(
+                "Checkr webhook processed",
+                extra={
+                    "evt": "checkr_webhook",
+                    "type": event_type,
+                    "report_id": report_id,
+                    "outcome": "success",
+                },
+            )
         except RepositoryException as exc:
             logger.warning(
                 "Unable to process report.suspended event: %s",

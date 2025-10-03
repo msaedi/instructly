@@ -30,6 +30,7 @@ from .core.constants import (
     SSE_PATH_PREFIX,
 )
 from .core.exceptions import RepositoryException
+from .core.metrics import BACKGROUND_JOB_FAILURES_TOTAL, BGC_PENDING_7D
 from .database import SessionLocal, get_db
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
@@ -333,6 +334,9 @@ async def _background_jobs_worker() -> None:
                                 settings, "bgc_suppress_adverse_emails", False
                             )
 
+                            pending_over_7d = repo.count_pending_older_than(7)
+                            BGC_PENDING_7D.set(pending_over_7d)
+
                             email_service = EmailService(db)
 
                             expiring = repo.list_expiring_within(days)
@@ -409,10 +413,18 @@ async def _background_jobs_worker() -> None:
                         raise
                     except Exception as exc:  # pragma: no cover - safety logging
                         db.rollback()
+                        job_type = job.type or "unknown"
+                        attempts = getattr(job, "attempts", 0)
                         logger.exception(
                             "Error processing background job",
-                            extra={"job_id": job.id, "type": job.type},
+                            extra={
+                                "evt": "bgc_job_failed",
+                                "job_id": job.id,
+                                "type": job.type,
+                                "attempts": attempts,
+                            },
                         )
+                        BACKGROUND_JOB_FAILURES_TOTAL.labels(type=job_type).inc()
                         job_repo.mark_failed(job.id, error=str(exc))
                         db.commit()
             finally:

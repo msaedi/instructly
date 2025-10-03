@@ -432,6 +432,85 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.db.rollback()
             raise RepositoryException("Failed to update background check invite timestamp") from exc
 
+    def count_pending_older_than(self, days: int) -> int:
+        """Return count of instructors pending longer than the provided number of days."""
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max(days, 0))
+        try:
+            total = (
+                self.db.query(func.count(self.model.id))
+                .filter(
+                    self.model.bgc_status == "pending",
+                    self.model.updated_at <= cutoff,
+                )
+                .scalar()
+            )
+            return int(total or 0)
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to count pending background checks older than %s days: %s",
+                days,
+                str(exc),
+            )
+            raise RepositoryException("Failed to count pending background checks") from exc
+
+    def set_dispute_open(self, instructor_id: str, note: str | None) -> None:
+        """Mark an instructor's background check as disputed with optional note."""
+
+        now = datetime.now(timezone.utc)
+        try:
+            updated = (
+                self.db.query(self.model)
+                .filter(self.model.id == instructor_id)
+                .update(
+                    {
+                        self.model.bgc_in_dispute: True,
+                        self.model.bgc_dispute_opened_at: now,
+                        self.model.bgc_dispute_resolved_at: None,
+                        self.model.bgc_dispute_note: note,
+                    }
+                )
+            )
+            if updated == 0:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to open dispute for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to mark dispute open") from exc
+
+    def set_dispute_resolved(self, instructor_id: str, note: str | None) -> None:
+        """Resolve an instructor's background check dispute and persist a note."""
+
+        now = datetime.now(timezone.utc)
+        try:
+            updated = (
+                self.db.query(self.model)
+                .filter(self.model.id == instructor_id)
+                .update(
+                    {
+                        self.model.bgc_in_dispute: False,
+                        self.model.bgc_dispute_resolved_at: now,
+                        self.model.bgc_dispute_note: note,
+                    }
+                )
+            )
+            if updated == 0:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to resolve dispute for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to resolve dispute") from exc
+
     def list_expiring_within(self, days: int, limit: int = 1000) -> list[InstructorProfile]:
         """Return instructors whose background checks expire within the given window."""
 

@@ -193,6 +193,22 @@ def upgrade() -> None:
         "instructor_profiles",
         sa.Column("bgc_invited_at", sa.DateTime(timezone=True), nullable=True),
     )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_in_dispute", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_dispute_note", sa.Text(), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_dispute_opened_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_dispute_resolved_at", sa.DateTime(timezone=True), nullable=True),
+    )
     op.create_check_constraint(
         "ck_instructor_profiles_bgc_status",
         "instructor_profiles",
@@ -976,6 +992,18 @@ def downgrade() -> None:
             "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_invited_at"
         )
         op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_dispute_resolved_at"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_dispute_opened_at"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_dispute_note"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_in_dispute"
+        )
+        op.execute(
             "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_status"
         )
     else:
@@ -987,6 +1015,10 @@ def downgrade() -> None:
         op.drop_column("instructor_profiles", "bgc_report_id")
         op.drop_column("instructor_profiles", "bgc_valid_until")
         op.drop_column("instructor_profiles", "bgc_invited_at")
+        op.drop_column("instructor_profiles", "bgc_dispute_resolved_at")
+        op.drop_column("instructor_profiles", "bgc_dispute_opened_at")
+        op.drop_column("instructor_profiles", "bgc_dispute_note")
+        op.drop_column("instructor_profiles", "bgc_in_dispute")
         op.drop_column("instructor_profiles", "bgc_status")
 
     # Drop alert history table

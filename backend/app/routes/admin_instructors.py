@@ -29,6 +29,10 @@ class AdminInstructorDetailResponse(BaseModel):
     consent_recent_at: datetime | None
     created_at: datetime | None
     updated_at: datetime | None
+    bgc_in_dispute: bool
+    bgc_dispute_note: str | None
+    bgc_dispute_opened_at: datetime | None
+    bgc_dispute_resolved_at: datetime | None
 
 
 @router.get("/{instructor_id}", response_model=AdminInstructorDetailResponse)
@@ -66,4 +70,8 @@ async def admin_instructor_detail(
         consent_recent_at=consented_at,
         created_at=getattr(profile, "created_at", None),
         updated_at=getattr(profile, "updated_at", None),
+        bgc_in_dispute=bool(getattr(profile, "bgc_in_dispute", False)),
+        bgc_dispute_note=getattr(profile, "bgc_dispute_note", None),
+        bgc_dispute_opened_at=getattr(profile, "bgc_dispute_opened_at", None),
+        bgc_dispute_resolved_at=getattr(profile, "bgc_dispute_resolved_at", None),
     )

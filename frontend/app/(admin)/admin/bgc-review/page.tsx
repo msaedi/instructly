@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { RefreshCw, Loader2, CheckCircle2, XCircle, Copy } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -18,6 +18,8 @@ import {
   useBGCCounts,
   useBGCCases,
   useBGCOverride,
+  useBGCDisputeOpen,
+  useBGCDisputeResolve,
   type AdminInstructorDetail,
   type BGCCaseItem,
 } from './hooks';
@@ -41,6 +43,7 @@ export default function AdminBGCReviewPage() {
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [isPreviewOpen, setPreviewOpen] = useState(false);
+  const [disputeNoteDraft, setDisputeNoteDraft] = useState('');
   const previewDetail = useAdminInstructorDetail(isPreviewOpen ? previewId : null);
 
   const countsQuery = useBGCCounts();
@@ -51,8 +54,20 @@ export default function AdminBGCReviewPage() {
   const { data, isLoading, isFetching } = useBGCCases(statusFilter, queryTerm, 50);
 
   const overrideMutation = useBGCOverride();
+  const openDisputeMutation = useBGCDisputeOpen();
+  const resolveDisputeMutation = useBGCDisputeResolve();
 
   const items = useMemo<BGCCaseItem[]>(() => data?.items ?? [], [data]);
+
+  useEffect(() => {
+    if (!isPreviewOpen) {
+      setDisputeNoteDraft('');
+      return;
+    }
+    if (previewDetail.data) {
+      setDisputeNoteDraft(previewDetail.data.bgc_dispute_note ?? '');
+    }
+  }, [isPreviewOpen, previewDetail.data]);
 
   const filteredItems = useMemo<BGCCaseItem[]>(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -119,9 +134,44 @@ export default function AdminBGCReviewPage() {
     }
   };
 
+  const handleOpenDispute = async () => {
+    if (!previewId) return;
+    try {
+      const trimmed = disputeNoteDraft.trim();
+      const response = await openDisputeMutation.mutateAsync({
+        id: previewId,
+        note: trimmed.length > 0 ? trimmed : null,
+      });
+      setDisputeNoteDraft(response.dispute_note ?? '');
+      toast.success('Dispute opened');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to open dispute';
+      toast.error(message);
+    }
+  };
+
+  const handleResolveDispute = async () => {
+    if (!previewId) return;
+    try {
+      const trimmed = disputeNoteDraft.trim();
+      const response = await resolveDisputeMutation.mutateAsync({
+        id: previewId,
+        note: trimmed.length > 0 ? trimmed : null,
+      });
+      setDisputeNoteDraft(response.dispute_note ?? '');
+      toast.success('Dispute resolved');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to resolve dispute';
+      toast.error(message);
+    }
+  };
+
   const closePreview = () => {
     setPreviewOpen(false);
     setPreviewId(null);
+    setDisputeNoteDraft('');
   };
 
   return (
@@ -248,6 +298,7 @@ export default function AdminBGCReviewPage() {
                       const isLive = item.is_live;
                       const statusValue = (item.bgc_status ?? '').toLowerCase();
                       const showActions = statusValue === 'review';
+                      const inDispute = item.in_dispute;
                       const badgeTone = statusValue === 'review'
                         ? 'bg-amber-50 text-amber-800 border-amber-200'
                         : statusValue === 'pending'
@@ -281,6 +332,11 @@ export default function AdminBGCReviewPage() {
                                 </button>
                               )}
                               <span className="text-xs text-gray-400">{item.instructor_id}</span>
+                              {inDispute ? (
+                                <Badge className="mt-1 w-fit border border-rose-200 bg-rose-50 text-rose-700">
+                                  Dispute
+                                </Badge>
+                              ) : null}
                             </div>
                           </td>
                           <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{item.email || '—'}</td>
@@ -339,7 +395,8 @@ export default function AdminBGCReviewPage() {
                                     size="sm"
                                     variant="destructive"
                                     onClick={() => handleOverride(item, 'reject')}
-                                    disabled={isProcessing}
+                                    disabled={isProcessing || inDispute}
+                                    title={inDispute ? 'Resolve dispute before rejecting' : undefined}
                                   >
                                     Reject
                                   </Button>
@@ -386,7 +443,15 @@ export default function AdminBGCReviewPage() {
                     ) : previewDetail.error ? (
                       <div className="text-red-600">Unable to load instructor information.</div>
                     ) : previewDetail.data ? (
-                      <PreviewContent detail={previewDetail.data} />
+                      <PreviewContent
+                        detail={previewDetail.data}
+                        disputeNote={disputeNoteDraft}
+                        onDisputeNoteChange={setDisputeNoteDraft}
+                        onOpenDispute={handleOpenDispute}
+                        onResolveDispute={handleResolveDispute}
+                        openPending={openDisputeMutation.isPending}
+                        resolvePending={resolveDisputeMutation.isPending}
+                      />
                     ) : (
                       <div>No instructor selected.</div>
                     )}
@@ -401,9 +466,32 @@ export default function AdminBGCReviewPage() {
   );
 }
 
-function PreviewContent({ detail }: { detail: AdminInstructorDetail }) {
+function PreviewContent({
+  detail,
+  disputeNote,
+  onDisputeNoteChange,
+  onOpenDispute,
+  onResolveDispute,
+  openPending,
+  resolvePending,
+}: {
+  detail: AdminInstructorDetail;
+  disputeNote: string;
+  onDisputeNoteChange: (value: string) => void;
+  onOpenDispute: () => void;
+  onResolveDispute: () => void;
+  openPending: boolean;
+  resolvePending: boolean;
+}) {
+  const openedLabel = detail.bgc_dispute_opened_at
+    ? formatDistanceToNow(new Date(detail.bgc_dispute_opened_at), { addSuffix: true })
+    : null;
+  const resolvedLabel = detail.bgc_dispute_resolved_at
+    ? formatDistanceToNow(new Date(detail.bgc_dispute_resolved_at), { addSuffix: true })
+    : null;
+
   return (
-    <dl className="space-y-2">
+    <dl className="space-y-3">
       <div>
         <dt className="text-xs uppercase text-gray-400">Name</dt>
         <dd className="font-medium">{detail.name || '—'}</dd>
@@ -412,7 +500,7 @@ function PreviewContent({ detail }: { detail: AdminInstructorDetail }) {
         <dt className="text-xs uppercase text-gray-400">Email</dt>
         <dd>{detail.email || '—'}</dd>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <div>
           <dt className="text-xs uppercase text-gray-400">Live status</dt>
           <dd>{detail.is_live ? 'Live' : 'Not live'}</dd>
@@ -426,7 +514,7 @@ function PreviewContent({ detail }: { detail: AdminInstructorDetail }) {
         <dt className="text-xs uppercase text-gray-400">Consent recent at</dt>
         <dd>
           {detail.consent_recent_at
-            ? `${formatDistanceToNow(new Date(detail.consent_recent_at), { addSuffix: true })}`
+            ? formatDistanceToNow(new Date(detail.consent_recent_at), { addSuffix: true })
             : '—'}
         </dd>
       </div>
@@ -446,6 +534,55 @@ function PreviewContent({ detail }: { detail: AdminInstructorDetail }) {
             '—'
           )}
         </dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase text-gray-400">Dispute status</dt>
+        <dd className="flex flex-col gap-1">
+          {detail.bgc_in_dispute ? (
+            <Badge className="w-fit border border-rose-200 bg-rose-50 text-rose-700">In dispute</Badge>
+          ) : (
+            <span className="text-gray-500 dark:text-gray-400">No active dispute</span>
+          )}
+          {openedLabel ? (
+            <span className="text-xs text-gray-500 dark:text-gray-400">Opened {openedLabel}</span>
+          ) : null}
+          {resolvedLabel ? (
+            <span className="text-xs text-gray-500 dark:text-gray-400">Last resolved {resolvedLabel}</span>
+          ) : null}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase text-gray-400">Dispute note</dt>
+        <dd>
+          <textarea
+            value={disputeNote}
+            onChange={(event) => onDisputeNoteChange(event.target.value)}
+            rows={4}
+            placeholder="Document dispute context or resolution steps"
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/60 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100"
+          />
+        </dd>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 pt-2">
+        <Button
+          type="button"
+          size="sm"
+          onClick={onOpenDispute}
+          disabled={openPending || detail.bgc_in_dispute}
+        >
+          {openPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Open dispute
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onResolveDispute}
+          disabled={resolvePending || !detail.bgc_in_dispute}
+        >
+          {resolvePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Resolve dispute
+        </Button>
       </div>
     </dl>
   );

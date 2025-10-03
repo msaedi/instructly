@@ -102,10 +102,10 @@ class BackgroundCheckWorkflowService:
 
         self._schedule_final_adverse_action(profile_id)
 
-    def execute_final_adverse_action(self, profile_id: str) -> None:
+    def execute_final_adverse_action(self, profile_id: str) -> bool:
         """Expose final adverse action executor for legacy callers/tests."""
 
-        self._execute_final_adverse_action(profile_id)
+        return self._execute_final_adverse_action(profile_id)
 
     def _handle_non_clear_report(self, profile: InstructorProfile) -> None:
         self._send_pre_adverse_email(profile)
@@ -192,7 +192,7 @@ class BackgroundCheckWorkflowService:
         await asyncio.sleep(max(delay.total_seconds(), 0))
         await asyncio.to_thread(self._execute_final_adverse_action, profile_id)
 
-    def _execute_final_adverse_action(self, profile_id: str) -> None:
+    def _execute_final_adverse_action(self, profile_id: str) -> bool:
         session = SessionLocal()
         try:
             repo = InstructorProfileRepository(session)
@@ -202,7 +202,14 @@ class BackgroundCheckWorkflowService:
                     "Final adverse action skipped; profile missing",
                     extra={"profile_id": profile_id},
                 )
-                return
+                return False
+
+            if getattr(profile, "bgc_in_dispute", False):
+                logger.info(
+                    "Final adverse action paused due to dispute",
+                    extra={"evt": "bgc_adverse_paused", "instructor_id": profile_id},
+                )
+                return False
 
             current_status = (getattr(profile, "bgc_status", "") or "").lower()
             if current_status != "review":
@@ -210,15 +217,17 @@ class BackgroundCheckWorkflowService:
                     "Final adverse action skipped; status changed",
                     extra={"profile_id": profile_id, "status": current_status},
                 )
-                return
+                return False
 
             profile.bgc_status = "failed"
             profile.bgc_completed_at = _ensure_utc(datetime.now(timezone.utc))
             session.flush()
             session.commit()
             self._send_final_adverse_email(profile)
+            return True
         except Exception as exc:  # pragma: no cover - safety logging
             logger.error("Failed to complete final adverse action: %s", str(exc))
             session.rollback()
+            return False
         finally:
             session.close()
