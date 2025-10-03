@@ -3,8 +3,20 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import ReferralsAdminClient from '../ReferralsAdminClient';
 import { usePathname } from 'next/navigation';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const originalFetch = global.fetch;
+
+function createJsonResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+    },
+    json: async () => body,
+  } as unknown as Response;
+}
 
 jest.mock('@/hooks/useAdminAuth', () => ({
   useAdminAuth: () => ({ isAdmin: true, isLoading: false }),
@@ -22,11 +34,12 @@ describe('AdminReferralsPage', () => {
     mockLogout.mockReset();
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/api/admin/bgc/counts')) {
+        return Promise.resolve(createJsonResponse({ review: 3, pending: 2 }));
+      }
       if (url.includes('/api/admin/referrals/health')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: async () => ({
+        return Promise.resolve(
+          createJsonResponse({
             workers_alive: 3,
             workers: ['celery@worker-1', 'celery@worker-2', 'celery@worker-3'],
             backlog_pending_due: 5,
@@ -34,13 +47,11 @@ describe('AdminReferralsPage', () => {
             unlocked_total: 8,
             void_total: 1,
           }),
-        } as unknown as Response);
+        );
       }
       if (url.includes('/api/admin/referrals/summary')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: async () => ({
+        return Promise.resolve(
+          createJsonResponse({
             counts_by_status: {
               pending: 12,
               unlocked: 8,
@@ -58,14 +69,10 @@ describe('AdminReferralsPage', () => {
             clicks_24h: 15,
             attributions_24h: 4,
           }),
-        } as unknown as Response);
+        );
       }
 
-      return Promise.resolve({
-        ok: false,
-        status: 404,
-        json: async () => ({}),
-      } as unknown as Response);
+      return Promise.resolve(createJsonResponse({}, 404));
     }) as typeof fetch;
   });
 
@@ -74,10 +81,22 @@ describe('AdminReferralsPage', () => {
   });
 
   it('renders unlocker health and summary metrics', async () => {
-    render(<ReferralsAdminClient />);
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReferralsAdminClient />
+      </QueryClientProvider>,
+    );
 
     const fetchMock = global.fetch as jest.Mock;
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3));
 
     expect(screen.getByRole('link', { name: /instainstru/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Referrals Admin' })).toBeInTheDocument();
@@ -100,8 +119,9 @@ describe('AdminReferralsPage', () => {
     expect(screen.getByText('referrer-1')).toBeInTheDocument();
     expect(screen.getByText('ALPHA1')).toBeInTheDocument();
 
+    const initialCalls = fetchMock.mock.calls.length;
     const user = userEvent.setup();
     await user.click(refreshButton);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(initialCalls));
   });
 });

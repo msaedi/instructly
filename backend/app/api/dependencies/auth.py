@@ -311,6 +311,14 @@ async def get_current_active_user_optional(
     return None
 
 
+async def require_admin(user: User = Depends(get_current_user)) -> User:
+    """Dependency that ensures the caller has administrator privileges."""
+
+    if not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user
+
+
 def require_beta_access(role: Optional[str] = None) -> Callable[..., Awaitable[User]]:
     async def verify_beta(
         request: Request,

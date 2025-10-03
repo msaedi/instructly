@@ -28,6 +28,8 @@ class BackgroundCheckStatusResponse(BaseModel):
     report_id: str | None = None
     completed_at: datetime | None = None
     env: Literal["sandbox", "production"]
+    consent_recent: bool = False
+    consent_recent_at: datetime | None = None
 
 
 __all__ = [

@@ -65,6 +65,8 @@ interface BGCStepProps {
     status: BGCStatus | null;
     reportId: string | null;
     completedAt: string | null;
+    consentRecent: boolean;
+    consentRecentAt: string | null;
   }) => void;
   ensureConsent?: () => Promise<boolean>;
 }
@@ -73,6 +75,8 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   const [status, setStatus] = React.useState<BGCStatus | null>(null);
   const [reportId, setReportId] = React.useState<string | null>(null);
   const [completedAt, setCompletedAt] = React.useState<string | null>(null);
+  const [consentRecent, setConsentRecent] = React.useState(false);
+  const [consentRecentAt, setConsentRecentAt] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [inviteLoading, setInviteLoading] = React.useState(false);
   const [statusError, setStatusError] = React.useState(false);
@@ -92,10 +96,18 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   }, []);
 
   const pushSnapshot = React.useCallback(
-    (snapshot: { status: BGCStatus | null; reportId: string | null; completedAt: string | null }) => {
+    (snapshot: {
+      status: BGCStatus | null;
+      reportId: string | null;
+      completedAt: string | null;
+      consentRecent: boolean;
+      consentRecentAt: string | null;
+    }) => {
       setStatusSafe(snapshot.status);
       setReportId(snapshot.reportId);
       setCompletedAt(snapshot.completedAt);
+      setConsentRecent(snapshot.consentRecent);
+      setConsentRecentAt(snapshot.consentRecentAt);
       onStatusUpdate?.(snapshot);
     },
     [onStatusUpdate, setStatusSafe]
@@ -110,13 +122,21 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         status: res.status,
         reportId: res.report_id ?? null,
         completedAt: res.completed_at ?? null,
+        consentRecent: Boolean(res.consent_recent),
+        consentRecentAt: res.consent_recent_at ?? null,
       });
       setStatusError(false);
     } catch (error) {
       if (!isMountedRef.current) return;
       const message = error instanceof Error ? error.message : 'Unable to load background check status';
       toast.error(message);
-      pushSnapshot({ status: 'failed', reportId: null, completedAt: null });
+      pushSnapshot({
+        status: 'failed',
+        reportId: null,
+        completedAt: null,
+        consentRecent: false,
+        consentRecentAt: null,
+      });
       setStatusError(true);
     }
   }, [instructorId, pushSnapshot]);
@@ -133,13 +153,21 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           status: res.status,
           reportId: res.report_id ?? null,
           completedAt: res.completed_at ?? null,
+          consentRecent: Boolean(res.consent_recent),
+          consentRecentAt: res.consent_recent_at ?? null,
         });
         setStatusError(false);
       } catch (error) {
         if (!alive || !isMountedRef.current) return;
         const message = error instanceof Error ? error.message : 'Unable to load background check status';
         toast.error(message);
-        pushSnapshot({ status: 'failed', reportId: null, completedAt: null });
+        pushSnapshot({
+          status: 'failed',
+          reportId: null,
+          completedAt: null,
+          consentRecent: false,
+          consentRecentAt: null,
+        });
         setStatusError(true);
       } finally {
         if (alive && isMountedRef.current) {
@@ -175,17 +203,21 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
     status === 'review' ||
     status === 'passed';
 
-  const handleStart = async () => {
+  const handleStart = async (afterConsent = false): Promise<void> => {
     setInviteLoading(true);
     setIsForbidden(false);
     let forbiddenError = false;
     let attemptedInvite = false;
+    let ensuredAt: string | null = null;
     try {
-      if (ensureConsent) {
+      if (ensureConsent && !consentRecent) {
         const consentOk = await ensureConsent();
         if (!consentOk) {
           return;
         }
+        ensuredAt = new Date().toISOString();
+        setConsentRecent(true);
+        setConsentRecentAt(ensuredAt);
       }
       const res = await bgcInvite(instructorId);
       attemptedInvite = true;
@@ -194,7 +226,13 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       } else {
         toast.success('Background check started');
       }
-      pushSnapshot({ status: res.status, reportId: res.report_id ?? null, completedAt });
+      pushSnapshot({
+        status: res.status,
+        reportId: res.report_id ?? null,
+        completedAt,
+        consentRecent: true,
+        consentRecentAt: ensuredAt ?? consentRecentAt,
+      });
       setStatusError(false);
       await loadStatus();
       statusChipRef.current?.focus();
@@ -202,13 +240,31 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       let description = 'Please try again in a moment.';
       if (error instanceof ApiProblemError) {
         const detail = error.problem?.detail;
-        description = typeof detail === 'string' && detail.trim().length > 0 ? detail : description;
+        const detailObject =
+          typeof detail === 'object' && detail !== null ? (detail as Record<string, unknown>) : null;
+        const detailMessage =
+          typeof detail === 'string' && detail.trim().length > 0
+            ? detail
+            : detailObject && typeof detailObject['message'] === 'string'
+              ? (detailObject['message'] as string)
+              : undefined;
+        const code = detailObject && typeof detailObject['code'] === 'string' ? (detailObject['code'] as string) : undefined;
+        description = detailMessage ?? description;
         if (error.response.status === 403) {
           setIsForbidden(true);
           toast.info('Only the owner can start a background check.', {
             description,
           });
           forbiddenError = true;
+        } else if (code === 'bgc_consent_required' && ensureConsent && !afterConsent) {
+          const consentOk = await ensureConsent();
+          if (consentOk) {
+            ensuredAt = new Date().toISOString();
+            setConsentRecent(true);
+            setConsentRecentAt(ensuredAt);
+            await handleStart(true);
+            return;
+          }
         } else {
           toast.error('Unable to start background check', {
             description: 'Please try again. If the problem persists, contact support.',
@@ -248,7 +304,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         </p>
       ) : null}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
-        <Button onClick={handleStart} disabled={disabled} aria-disabled={disabled}>
+        <Button onClick={() => void handleStart()} disabled={disabled} aria-disabled={disabled}>
           {inviteLoading ? 'Starting…' : 'Start background check'}
         </Button>
         <p className="text-sm text-muted-foreground max-w-xl">

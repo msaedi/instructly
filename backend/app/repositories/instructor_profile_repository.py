@@ -15,7 +15,7 @@ from typing import Any, List, Optional, Sequence, cast
 
 from sqlalchemy import func, or_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Query, Session, selectinload
+from sqlalchemy.orm import Query, Session, joinedload, selectinload
 
 from ..core.bgc_policy import must_be_verified_for_public
 from ..core.exceptions import RepositoryException
@@ -262,6 +262,56 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.logger.error(f"Error counting active profiles: {str(e)}")
             raise RepositoryException(f"Failed to count profiles: {str(e)}")
 
+    def count_by_bgc_status(self, status: str) -> int:
+        """Return total profiles matching a given background-check status."""
+
+        try:
+            total = (
+                self.db.query(func.count(InstructorProfile.id))
+                .filter(InstructorProfile.bgc_status == status)
+                .scalar()
+            )
+            return int(total or 0)
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to count instructor profiles by bgc_status=%s: %s",
+                status,
+                str(exc),
+            )
+            raise RepositoryException(
+                "Failed to count profiles by background check status"
+            ) from exc
+
+    def get_by_id_join_user(self, instructor_id: str) -> Optional[InstructorProfile]:
+        """Fetch an instructor profile with user eager-loaded."""
+
+        try:
+            return cast(
+                Optional[InstructorProfile],
+                self.db.query(self.model)
+                .options(joinedload(self.model.user))
+                .filter(self.model.id == instructor_id)
+                .first(),
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to load instructor profile %s with user: %s",
+                instructor_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to load instructor profile") from exc
+
+    def latest_consent(self, instructor_id: str) -> Optional[BGCConsent]:
+        """Return the most recent consent record for an instructor."""
+
+        return cast(
+            Optional[BGCConsent],
+            self.db.query(BGCConsent)
+            .filter(BGCConsent.instructor_id == instructor_id)
+            .order_by(BGCConsent.consented_at.desc())
+            .first(),
+        )
+
     def update_bgc(
         self,
         instructor_id: str,
@@ -356,16 +406,11 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         """Return True when instructor has consented within the provided window."""
 
         try:
+            latest = self.latest_consent(instructor_id)
+            if not latest:
+                return False
             threshold = datetime.now(timezone.utc) - window
-            exists = (
-                self.db.query(BGCConsent)
-                .filter(
-                    BGCConsent.instructor_id == instructor_id,
-                    BGCConsent.consented_at >= threshold,
-                )
-                .first()
-            )
-            return exists is not None
+            return bool(latest.consented_at and latest.consented_at >= threshold)
         except SQLAlchemyError as exc:
             self.logger.error(
                 "Failed to check background check consent recency for instructor %s: %s",

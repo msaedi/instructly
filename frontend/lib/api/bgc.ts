@@ -15,6 +15,8 @@ export interface BGCStatusResponse {
   report_id?: string | null;
   completed_at?: string | null;
   env: BGCEnv;
+  consent_recent?: boolean;
+  consent_recent_at?: string | null;
 }
 
 export async function bgcInvite(instructorId: string): Promise<BGCInviteResponse> {

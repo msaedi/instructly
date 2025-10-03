@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+import contextlib
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
@@ -43,6 +44,8 @@ from .ratelimit.identity import resolve_identity
 from .routes import (
     account_management,
     addresses,
+    admin_background_checks,
+    admin_instructors,
     alerts,
     analytics,
     auth,
@@ -104,13 +107,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """
-    Lifespan context manager for startup and shutdown events.
+try:  # pragma: no cover - optional dependency for warmup
+    import httpx
+except Exception:  # pragma: no cover
+    httpx = None
 
-    This replaces the deprecated @app.on_event decorators.
-    """
+
+@asynccontextmanager
+async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Handle application startup/shutdown without deprecated events."""
     # Startup
     logger.info(f"{BRAND_NAME} API starting up...")
     import os
@@ -136,6 +141,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         raise
     except Exception as e:
         logger.error(f"Startup guard evaluation failed: {e}")
+
+    # Pre-warm lightweight health endpoint to avoid first request cold start spikes
+    if httpx is not None:
+        with contextlib.suppress(Exception):
+            async with httpx.AsyncClient(app=app, base_url="http://test") as client:
+                await client.get("/health")
 
     # Log database selection (this will show which database is being used)
     from .core.database_config import DatabaseConfig
@@ -221,7 +232,7 @@ app = FastAPI(
     version=API_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan,  # Use the new lifespan handler
+    lifespan=app_lifespan,  # Use the new lifespan handler
     generate_unique_id_function=_unique_operation_id,
 )
 # Register unified error envelope handlers
@@ -385,6 +396,8 @@ app.include_router(beta.router)
 app.include_router(reviews.router)
 app.include_router(gated.router)
 app.include_router(internal.router)
+app.include_router(admin_background_checks.router)
+app.include_router(admin_instructors.router)
 
 
 # Identity + uploads: new endpoints are included via existing payments router and addresses router

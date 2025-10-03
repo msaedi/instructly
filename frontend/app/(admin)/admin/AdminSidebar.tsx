@@ -2,7 +2,40 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, Server, Code, FlaskConical, Gift } from 'lucide-react';
+import { useEffect } from 'react';
+import { Search, Server, Code, FlaskConical, Gift, ShieldCheck } from 'lucide-react';
+
+import { cn } from '@/lib/utils';
+import { useBGCCounts } from './bgc-review/hooks';
+
+function ReviewBadge({ className }: { className?: string }) {
+  const { data, refetch } = useBGCCounts();
+  const count = data?.review ?? 0;
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      void refetch();
+    };
+
+    window.addEventListener('bgc-review-refresh', handleRefresh);
+    return () => {
+      window.removeEventListener('bgc-review-refresh', handleRefresh);
+    };
+  }, [refetch]);
+
+  if (!count) return null;
+
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center justify-center rounded-full bg-purple-600 px-2 py-0.5 text-xs font-semibold text-white shadow-sm',
+        className,
+      )}
+    >
+      {count}
+    </span>
+  );
+}
 
 function AdminSidebar() {
   const pathname = usePathname();
@@ -38,6 +71,13 @@ function AdminSidebar() {
       ],
     },
     {
+      key: 'bgc',
+      label: 'Background Checks',
+      href: '/admin/bgc-review',
+      icon: ShieldCheck,
+      items: [{ name: 'Review Queue', href: '/admin/bgc-review' }],
+    },
+    {
       key: 'referrals',
       label: 'Referrals',
       href: '/admin/referrals',
@@ -67,39 +107,43 @@ function AdminSidebar() {
           const Icon = cat.icon;
           const active = pathname.startsWith(`/admin/${cat.key}`);
           return (
-            <li key={cat.key}>
-              <Link
-                href={cat.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50/70 dark:hover:bg-gray-800/40'
-                }`}
-                aria-current={active ? 'page' : undefined}
-              >
+          <li key={cat.key}>
+            <Link
+              href={cat.href}
+              className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                active
+                  ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50/70 dark:hover:bg-gray-800/40'
+              }`}
+              aria-current={active ? 'page' : undefined}
+            >
+              <span className="flex items-center gap-3">
                 <Icon className="h-4 w-4" />
                 {cat.label}
-              </Link>
-              {active && (
-                <ul className="mt-1 ml-8 space-y-1">
-                  {cat.items.map((sub) => {
-                    const subActive = pathname === sub.href;
-                    return (
-                      <li key={sub.href}>
-                        <Link
-                          href={sub.href}
-                          className={`block px-2 py-1.5 rounded-md text-sm ${
-                            subActive
-                              ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/10'
-                              : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50/60 dark:hover:bg-gray-800/40'
-                          }`}
-                          aria-current={subActive ? 'page' : undefined}
-                        >
-                          {sub.name}
-                        </Link>
-                      </li>
-                    );
-                  })}
+              </span>
+              {cat.key === 'bgc' ? <ReviewBadge /> : null}
+            </Link>
+            {active && (
+              <ul className="mt-1 ml-8 space-y-1">
+                {cat.items.map((sub) => {
+                  const subActive = pathname === sub.href;
+                  return (
+                    <li key={sub.href}>
+                      <Link
+                        href={sub.href}
+                        className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm ${
+                          subActive
+                            ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/10'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50/60 dark:hover:bg-gray-800/40'
+                        }`}
+                        aria-current={subActive ? 'page' : undefined}
+                      >
+                          <span>{sub.name}</span>
+                          {sub.href === '/admin/bgc-review' ? <ReviewBadge /> : null}
+                      </Link>
+                    </li>
+                  );
+                })}
                 </ul>
               )}
             </li>
