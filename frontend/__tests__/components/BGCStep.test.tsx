@@ -141,9 +141,10 @@ describe('BGCStep', () => {
     expect(screen.getByText('Only the owner can start a background check.')).toBeInTheDocument();
   });
 
-  it('polls while pending or review and stops once passed', async () => {
+  it('polls pending status with backoff 15s→60s→300s then clears when passed', async () => {
     jest.useFakeTimers();
     mockedBGCStatus
+      .mockResolvedValueOnce({ status: 'pending', env: 'sandbox' })
       .mockResolvedValueOnce({ status: 'pending', env: 'sandbox' })
       .mockResolvedValueOnce({ status: 'pending', env: 'sandbox' })
       .mockResolvedValueOnce({ status: 'passed', env: 'sandbox', completed_at: '2025-01-01T00:00:00Z' });
@@ -159,15 +160,54 @@ describe('BGCStep', () => {
     await waitFor(() => expect(mockedBGCStatus).toHaveBeenCalledTimes(2));
 
     await act(async () => {
-      jest.advanceTimersByTime(15000);
+      jest.advanceTimersByTime(60000);
     });
     await waitFor(() => expect(mockedBGCStatus).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      jest.advanceTimersByTime(300000);
+    });
+    await waitFor(() => expect(mockedBGCStatus).toHaveBeenCalledTimes(4));
     await waitFor(() => expect(screen.getByText(/Verified/)).toBeInTheDocument());
 
     await act(async () => {
-      jest.advanceTimersByTime(45000);
+      jest.advanceTimersByTime(600000);
     });
-    expect(mockedBGCStatus).toHaveBeenCalledTimes(3);
-    jest.useRealTimers();
+    expect(mockedBGCStatus).toHaveBeenCalledTimes(4);
+  });
+
+  it('polls review status with identical backoff and stops after completion', async () => {
+    jest.useFakeTimers();
+    mockedBGCStatus
+      .mockResolvedValueOnce({ status: 'review', env: 'sandbox' })
+      .mockResolvedValueOnce({ status: 'review', env: 'sandbox' })
+      .mockResolvedValueOnce({ status: 'review', env: 'sandbox' })
+      .mockResolvedValueOnce({ status: 'passed', env: 'sandbox', completed_at: '2025-02-02T00:00:00Z' });
+
+    render(<BGCStep instructorId="instructor-review" />);
+
+    await waitFor(() => expect(screen.getByText(/Under review/)).toBeInTheDocument());
+    expect(mockedBGCStatus).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      jest.advanceTimersByTime(15000);
+    });
+    await waitFor(() => expect(mockedBGCStatus).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      jest.advanceTimersByTime(60000);
+    });
+    await waitFor(() => expect(mockedBGCStatus).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      jest.advanceTimersByTime(300000);
+    });
+    await waitFor(() => expect(mockedBGCStatus).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(screen.getByText(/Verified/)).toBeInTheDocument());
+
+    await act(async () => {
+      jest.advanceTimersByTime(600000);
+    });
+    expect(mockedBGCStatus).toHaveBeenCalledTimes(4);
   });
 });
