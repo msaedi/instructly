@@ -19,6 +19,7 @@ from ...services.account_lifecycle_service import AccountLifecycleService
 from ...services.auth_service import AuthService
 from ...services.availability_service import AvailabilityService
 from ...services.background_check_service import BackgroundCheckService
+from ...services.background_check_workflow_service import BackgroundCheckWorkflowService
 from ...services.base import BaseService
 from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
@@ -37,6 +38,7 @@ from ...services.two_factor_auth_service import TwoFactorAuthService
 from ...services.wallet_service import WalletService
 from ...services.week_operation_service import WeekOperationService
 from .database import get_db
+from .repositories import get_instructor_repo
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +203,14 @@ def get_wallet_service(db: Session = Depends(get_db)) -> WalletService:
     """Provide wallet service instance."""
 
     return WalletService(db)
+
+
+def get_background_check_workflow_service(
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+) -> BackgroundCheckWorkflowService:
+    """Provide the background check workflow service."""
+
+    return BackgroundCheckWorkflowService(repo)
 
 
 def get_referral_checkout_service(
