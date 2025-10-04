@@ -109,6 +109,10 @@ class InstructorProfile(Base):
     bgc_dispute_opened_at = Column(DateTime(timezone=True), nullable=True)
     bgc_dispute_resolved_at = Column(DateTime(timezone=True), nullable=True)
 
+    bgc_pre_adverse_notice_id = Column(String(26), nullable=True)
+    bgc_pre_adverse_sent_at = Column(DateTime(timezone=True), nullable=True)
+    bgc_final_adverse_sent_at = Column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -136,6 +140,14 @@ class InstructorProfile(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="BGCConsent.consented_at",
+    )
+
+    bgc_adverse_events = relationship(
+        "BGCAdverseActionEvent",
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="BGCAdverseActionEvent.created_at",
     )
 
     bgc_history = relationship(
@@ -344,6 +356,32 @@ class BackgroundCheck(Base):
 
     instructor_profile = relationship(
         "InstructorProfile", back_populates="bgc_history", passive_deletes=True
+    )
+
+
+class BGCAdverseActionEvent(Base):
+    """Persisted events for adverse-action notifications."""
+
+    __tablename__ = "bgc_adverse_action_events"
+
+    id = Column(String(26), primary_key=True, index=True, default=lambda: str(ulid.ULID()))
+    profile_id = Column(
+        String(26), ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    notice_id = Column(String(26), nullable=False)
+    event_type = Column(String(40), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    profile = relationship("InstructorProfile", back_populates="bgc_adverse_events")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "profile_id",
+            "notice_id",
+            "event_type",
+            name="uq_bgc_adverse_action_events_profile_notice_type",
+        ),
+        Index("ix_bgc_adverse_action_events_profile", "profile_id"),
     )
 
 

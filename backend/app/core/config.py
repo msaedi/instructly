@@ -124,6 +124,22 @@ class Settings(BaseSettings):
         default=SecretStr(""),
         description="Shared secret for verifying Checkr webhook signatures",
     )
+    checkr_applicant_portal_url: str = Field(
+        default="https://applicant.checkr.com/",
+        description="URL for applicants to access their Checkr reports",
+    )
+    checkr_dispute_contact_url: str = Field(
+        default="https://help.checkr.com/hc/en-us/articles/217419328-Contact-Checkr",
+        description="URL with instructions to contact Checkr regarding disputes",
+    )
+    ftc_summary_of_rights_url: str = Field(
+        default="https://www.consumerfinance.gov/learnmore/",
+        description="Link to the FTC Summary of Your Rights Under the FCRA",
+    )
+    bgc_support_email: str = Field(
+        default="support@instainstru.com",
+        description="Contact email for InstaInstru background check questions",
+    )
     bgc_suppress_adverse_emails: bool = Field(
         default=True,
         description="When true, suppress adverse-action email delivery (non-prod default)",

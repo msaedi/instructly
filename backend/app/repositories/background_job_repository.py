@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, List, Optional, cast
+from typing import TYPE_CHECKING, Any, List, Optional, cast
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -15,6 +15,10 @@ from ..core.exceptions import RepositoryException
 from ..models.instructor import BackgroundJob
 
 logger = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:
+    from ..services.background_check_workflow_service import FinalAdversePayload
 
 
 def _utcnow() -> datetime:
@@ -150,3 +154,39 @@ class BackgroundJobRepository:
         except SQLAlchemyError as exc:
             self.logger.error("Failed to load scheduled job for type %s: %s", job_type, str(exc))
             raise RepositoryException("Failed to load scheduled job") from exc
+
+    def get_pending_final_adverse_job(
+        self, profile_id: str, notice_id: str
+    ) -> BackgroundJob | None:
+        """Return existing queued final adverse jobs for the given profile/notice."""
+
+        try:
+            jobs = cast(
+                List[BackgroundJob],
+                (
+                    self.db.query(BackgroundJob)
+                    .filter(
+                        BackgroundJob.type == "background_check.final_adverse_action",
+                        BackgroundJob.status == "queued",
+                    )
+                    .all()
+                ),
+            )
+            for job in jobs:
+                payload_raw = job.payload
+                if not isinstance(payload_raw, dict):
+                    continue
+                payload = cast("FinalAdversePayload", payload_raw)
+                if (
+                    payload["profile_id"] == profile_id
+                    and payload["pre_adverse_notice_id"] == notice_id
+                ):
+                    return job
+            return None
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to check pending final adverse job for %s: %s",
+                profile_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to inspect background jobs") from exc

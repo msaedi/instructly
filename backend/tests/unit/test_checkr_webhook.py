@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import hmac
 import json
@@ -5,6 +6,9 @@ import types
 
 from pydantic import SecretStr
 import pytest
+from sqlalchemy.orm import Session
+from tests.unit.services._adverse_helpers import ensure_adverse_schema
+import ulid
 
 from app.api.dependencies.repositories import get_instructor_repo
 from app.api.dependencies.services import get_background_check_workflow_service
@@ -18,7 +22,7 @@ from app.services.background_check_workflow_service import BackgroundCheckWorkfl
 
 
 def _create_instructor_with_report(
-    db, report_id: str, status: str = "pending"
+    db: Session, report_id: str, status: str = "pending"
 ) -> InstructorProfile:
     user = User(
         email="webhook-instructor@example.com",
@@ -47,7 +51,7 @@ def _sign_payload(body: bytes, secret: str) -> str:
 
 
 @pytest.fixture(autouse=True)
-def configure_webhook_secret():
+def configure_webhook_secret() -> None:
     original_secret = settings.checkr_webhook_secret
     original_api_key = settings.checkr_api_key
     original_bgc_suppression = settings.bgc_suppress_adverse_emails
@@ -73,7 +77,7 @@ def override_instructor_repo(db):
         app.dependency_overrides.pop(get_instructor_repo, None)
 
 
-def test_report_completed_clear_updates_profile(client, db):
+def test_report_completed_clear_updates_profile(client, db: Session) -> None:
     profile = _create_instructor_with_report(db, report_id="rpt_clear")
 
     payload = {
@@ -109,7 +113,7 @@ def test_report_completed_clear_updates_profile(client, db):
     assert updated_retry.bgc_completed_at is not None
 
 
-def test_report_completed_consider_marks_review(client, db):
+def test_report_completed_consider_marks_review(client, db: Session) -> None:
     profile = _create_instructor_with_report(db, report_id="rpt_consider")
     settings.bgc_suppress_adverse_emails = True
 
@@ -159,7 +163,7 @@ def test_invalid_signature_returns_400(client):
     assert response.status_code == 400
 
 
-def test_unknown_report_id_is_noop(client, db):
+def test_unknown_report_id_is_noop(client, db: Session) -> None:
     profile = _create_instructor_with_report(db, report_id="rpt_existing", status="pending")
 
     payload = {
@@ -183,15 +187,22 @@ def test_unknown_report_id_is_noop(client, db):
     assert untouched.bgc_completed_at is None
 
 
-def test_execute_final_adverse_action_changes_status(db):
+def test_execute_final_adverse_action_changes_status(db: Session) -> None:
     settings.bgc_suppress_adverse_emails = True
+    ensure_adverse_schema(db)
     profile = _create_instructor_with_report(db, report_id="rpt_final", status="review")
     profile.bgc_completed_at = None
+
+    sent_at = datetime.now(timezone.utc)
+    notice_id = str(ulid.ULID())
+    profile.bgc_pre_adverse_notice_id = notice_id
+    profile.bgc_pre_adverse_sent_at = sent_at
     db.commit()
 
     repo = InstructorProfileRepository(db)
     workflow = BackgroundCheckWorkflowService(repo)
-    workflow.execute_final_adverse_action(profile.id)
+    scheduled_at = sent_at + timedelta(days=5)
+    workflow.execute_final_adverse_action(profile.id, notice_id, scheduled_at)
 
     db.expire_all()
     refreshed = db.query(InstructorProfile).filter_by(id=profile.id).one()

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 from types import ModuleType
-from typing import TYPE_CHECKING, AsyncGenerator
+from typing import TYPE_CHECKING, AsyncGenerator, cast
 
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -91,7 +91,9 @@ from .schemas.main_responses import (
     RootResponse,
 )
 from .services.background_check_workflow_service import (
+    FINAL_ADVERSE_JOB_TYPE,
     BackgroundCheckWorkflowService,
+    FinalAdversePayload,
 )
 from .services.email import EmailService
 from .services.template_registry import TemplateRegistry
@@ -321,13 +323,22 @@ async def _background_jobs_worker() -> None:
                                 env=env,
                                 completed_at=completed_at,
                             )
-                            if follow_up and profile is not None:
-                                workflow.schedule_final_adverse_action(profile.id)
                         elif job.type == "webhook.report_suspended":
                             report_id = payload.get("report_id")
                             if not report_id:
                                 raise RepositoryException("Missing report_id in suspended payload")
                             workflow.handle_report_suspended(report_id)
+                        elif job.type == FINAL_ADVERSE_JOB_TYPE:
+                            payload_raw = job.payload
+                            if not isinstance(payload_raw, dict):
+                                raise RepositoryException("Invalid payload for final adverse job")
+                            final_payload = cast(FinalAdversePayload, payload_raw)
+                            profile_id = final_payload["profile_id"]
+                            notice_id = final_payload["pre_adverse_notice_id"]
+                            scheduled_at = job.available_at or datetime.now(timezone.utc)
+                            workflow.execute_final_adverse_action(
+                                profile_id, notice_id, scheduled_at
+                            )
                         elif job.type == "bgc.expiry_sweep":
                             days = int(payload.get("days", 30))
                             suppress_emails = getattr(

@@ -21,7 +21,12 @@ from ..core.bgc_policy import must_be_verified_for_public
 from ..core.crypto import encrypt_str
 from ..core.exceptions import RepositoryException
 from ..models.address import InstructorServiceArea, RegionBoundary
-from ..models.instructor import BackgroundCheck, BGCConsent, InstructorProfile
+from ..models.instructor import (
+    BackgroundCheck,
+    BGCAdverseActionEvent,
+    BGCConsent,
+    InstructorProfile,
+)
 from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
 from .base_repository import BaseRepository
@@ -431,6 +436,94 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             )
             self.db.rollback()
             raise RepositoryException("Failed to update background check invite timestamp") from exc
+
+    def set_pre_adverse_notice(self, instructor_id: str, notice_id: str, sent_at: datetime) -> None:
+        """Persist metadata for the latest pre-adverse notice."""
+
+        try:
+            updated = (
+                self.db.query(self.model)
+                .filter(self.model.id == instructor_id)
+                .update(
+                    {
+                        self.model.bgc_pre_adverse_notice_id: notice_id,
+                        self.model.bgc_pre_adverse_sent_at: sent_at,
+                    }
+                )
+            )
+            if updated == 0:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to persist pre-adverse metadata for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to persist pre-adverse metadata") from exc
+
+    def set_final_adverse_sent_at(self, instructor_id: str, sent_at: datetime) -> None:
+        """Store when the final adverse email was delivered."""
+
+        try:
+            updated = (
+                self.db.query(self.model)
+                .filter(self.model.id == instructor_id)
+                .update({self.model.bgc_final_adverse_sent_at: sent_at})
+            )
+            if updated == 0:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update final adverse timestamp for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to persist final adverse timestamp") from exc
+
+    def record_adverse_event(self, instructor_id: str, notice_id: str, event_type: str) -> str:
+        """Insert an idempotency marker for adverse-action notifications."""
+
+        try:
+            event = BGCAdverseActionEvent(
+                profile_id=instructor_id, notice_id=notice_id, event_type=event_type
+            )
+            self.db.add(event)
+            self.db.flush()
+            return cast(str, event.id)
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to record adverse-action event for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to record adverse-action event") from exc
+
+    def has_adverse_event(self, instructor_id: str, notice_id: str, event_type: str) -> bool:
+        """Return True if an adverse-action event marker already exists."""
+
+        try:
+            exists = (
+                self.db.query(BGCAdverseActionEvent.id)
+                .filter(
+                    BGCAdverseActionEvent.profile_id == instructor_id,
+                    BGCAdverseActionEvent.notice_id == notice_id,
+                    BGCAdverseActionEvent.event_type == event_type,
+                )
+                .first()
+            )
+            return exists is not None
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to check adverse-action event for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to check adverse-action event") from exc
 
     def count_pending_older_than(self, days: int) -> int:
         """Return count of instructors pending longer than the provided number of days."""
