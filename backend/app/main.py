@@ -243,6 +243,8 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if getattr(settings, "scheduler_enabled", True) and not getattr(settings, "is_testing", False):
         job_worker_task = asyncio.create_task(_background_jobs_worker())
 
+    _prewarm_metrics_cache()
+
     yield
 
     # Shutdown
@@ -756,8 +758,7 @@ def metrics_endpoint() -> Response:
 fastapi_app = app
 
 
-@fastapi_app.on_event("startup")
-async def _prewarm_metrics_cache() -> None:
+def _prewarm_metrics_cache() -> None:
     """Warm metrics cache so the first scrape is fast."""
 
     prometheus_metrics.prewarm()
