@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from pydantic.functional_validators import field_validator
 
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 
 
 class ReviewSubmitRequest(StrictRequestModel):
@@ -25,7 +25,7 @@ class ReviewSubmitRequest(StrictRequestModel):
         return v2
 
 
-class ReviewItem(BaseModel):
+class ReviewItem(StrictModel):
     id: str
     rating: int
     review_text: Optional[str]
@@ -39,7 +39,7 @@ class ReviewSubmitResponse(ReviewItem):
     tip_client_secret: Optional[str] = None
 
 
-class ReviewResponseModel(BaseModel):
+class ReviewResponseModel(StrictModel):
     id: str
     review_id: str
     instructor_id: str
@@ -47,7 +47,7 @@ class ReviewResponseModel(BaseModel):
     created_at: datetime
 
 
-class InstructorRatingsResponse(BaseModel):
+class InstructorRatingsResponse(StrictModel):
     overall: Dict[str, Any]
     by_service: List[Dict[str, Any]] = Field(default_factory=list)
     confidence_level: str = Field(..., pattern="^(new|establishing|established|trusted)$")
@@ -57,7 +57,7 @@ class ReviewListResponse(BaseModel):
     reviews: List[ReviewItem]
 
 
-class SearchRatingResponse(BaseModel):
+class SearchRatingResponse(StrictModel):
     primary_rating: Optional[float]
     review_count: int
     is_service_specific: bool
@@ -67,17 +67,17 @@ class RatingsBatchRequest(StrictRequestModel):
     instructor_ids: List[str] = Field(..., min_length=1)
 
 
-class RatingsBatchItem(BaseModel):
+class RatingsBatchItem(StrictModel):
     instructor_id: str
     rating: Optional[float]
     review_count: int
 
 
-class RatingsBatchResponse(BaseModel):
+class RatingsBatchResponse(StrictModel):
     results: List[RatingsBatchItem]
 
 
-class ReviewListPageResponse(BaseModel):
+class ReviewListPageResponse(StrictModel):
     reviews: List[ReviewItem]
     total: int
     page: int
