@@ -8,15 +8,13 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from ._strict_base import StrictRequestModel
 
 
-class PasswordResetRequest(BaseModel):
-    model_config = StrictRequestModel.model_config
+class PasswordResetRequest(StrictRequestModel):
     """Request model for initiating password reset"""
 
     email: EmailStr
 
 
-class PasswordResetConfirm(BaseModel):
-    model_config = StrictRequestModel.model_config
+class PasswordResetConfirm(StrictRequestModel):
     """Request model for confirming password reset with new password"""
 
     token: str

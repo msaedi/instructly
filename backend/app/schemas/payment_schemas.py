@@ -16,18 +16,16 @@ from ._strict_base import StrictRequestModel
 # ========== Request Models ==========
 
 
-class SavePaymentMethodRequest(BaseModel):
+class SavePaymentMethodRequest(StrictRequestModel):
     """Request to save a payment method for a user."""
 
     payment_method_id: str = Field(..., description="Stripe payment method ID")
     set_as_default: bool = Field(
         default=False, description="Whether to set as default payment method"
     )
-    # Harden request DTOs
-    model_config = StrictRequestModel.model_config
 
 
-class CreateCheckoutRequest(BaseModel):
+class CreateCheckoutRequest(StrictRequestModel):
     """Request to create a checkout/payment for a booking."""
 
     booking_id: str = Field(..., description="Booking ID to process payment for")
@@ -35,8 +33,6 @@ class CreateCheckoutRequest(BaseModel):
     save_payment_method: bool = Field(
         default=False, description="Whether to save payment method for future use"
     )
-    # Harden request DTOs
-    model_config = StrictRequestModel.model_config
 
 
 # ========== Response Models ==========

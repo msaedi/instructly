@@ -19,7 +19,7 @@ import logging
 from typing import Any, Dict, List, Optional, cast
 from urllib.parse import ParseResult, parse_qsl, urlencode, urljoin, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -699,7 +699,7 @@ async def request_instant_payout(
 
 @router.post("/methods", response_model=PaymentMethodResponse)
 async def save_payment_method(
-    request: SavePaymentMethodRequest,
+    payload: SavePaymentMethodRequest = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
@@ -708,7 +708,7 @@ async def save_payment_method(
     Save a payment method for a student.
 
     Args:
-        request: Payment method details
+        payload: Payment method details
 
     Returns:
         PaymentMethodResponse with saved payment method details
@@ -726,8 +726,8 @@ async def save_payment_method(
         # Save payment method
         payment_method = stripe_service.save_payment_method(
             user_id=current_user.id,
-            payment_method_id=request.payment_method_id,
-            set_as_default=request.set_as_default,
+            payment_method_id=payload.payment_method_id,
+            set_as_default=payload.set_as_default,
         )
 
         logger.info(f"Saved payment method for user {current_user.id}")
@@ -854,7 +854,7 @@ async def delete_payment_method(
     "/checkout", response_model=CheckoutResponse, dependencies=[Depends(rate_limit("financial"))]
 )
 async def create_checkout(
-    request: CreateCheckoutRequest,
+    payload: CreateCheckoutRequest = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
@@ -863,7 +863,7 @@ async def create_checkout(
     Create a checkout/payment for a booking.
 
     Args:
-        request: Checkout details including booking and payment method
+        payload: Checkout details including booking and payment method
 
     Returns:
         CheckoutResponse with payment details
@@ -879,7 +879,7 @@ async def create_checkout(
         )
 
     # Idempotency: raw key from method+route+user+body hash
-    raw_key = f"POST:/api/payments/checkout:user:{current_user.id}:booking:{request.booking_id}"
+    raw_key = f"POST:/api/payments/checkout:user:{current_user.id}:booking:{payload.booking_id}"
     cached = get_cached(raw_key)
     if cached:
         # Return cached success response
@@ -890,7 +890,7 @@ async def create_checkout(
         validate_student_role(current_user)
 
         # Get booking and verify ownership
-        booking = stripe_service.booking_repository.get_by_id(request.booking_id)
+        booking = stripe_service.booking_repository.get_by_id(payload.booking_id)
         if not booking:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
 
@@ -915,18 +915,18 @@ async def create_checkout(
             )
 
         # Save payment method if requested
-        if request.save_payment_method:
+        if payload.save_payment_method:
             stripe_service.save_payment_method(
                 user_id=current_user.id,
-                payment_method_id=request.payment_method_id,
+                payment_method_id=payload.payment_method_id,
                 set_as_default=False,
             )
 
         # Process payment
         payment_result = await run_in_threadpool(
             stripe_service.process_booking_payment,
-            request.booking_id,
-            request.payment_method_id,
+            payload.booking_id,
+            payload.payment_method_id,
         )
 
         # Update booking status if payment succeeded
@@ -934,7 +934,7 @@ async def create_checkout(
             booking.status = "CONFIRMED"
             stripe_service.db.flush()
 
-        logger.info(f"Processed payment for booking {request.booking_id}")
+        logger.info(f"Processed payment for booking {payload.booking_id}")
 
         # If the Stripe service indicates 3DS is required, surface client_secret
         client_secret = (

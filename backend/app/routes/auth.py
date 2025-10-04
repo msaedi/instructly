@@ -55,7 +55,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def register(
     request: Request,
     response: Response,
-    user: UserCreate,
+    payload: UserCreate = Body(...),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
 ) -> UserResponse:
@@ -65,7 +65,7 @@ async def register(
     Rate limited to prevent spam registrations.
 
     Args:
-        user: User creation data (including optional guest_session_id)
+        payload: User creation data (including optional guest_session_id)
         auth_service: Authentication service
         db: Database session
 
@@ -77,21 +77,21 @@ async def register(
     """
     try:
         db_user = auth_service.register_user(
-            email=user.email,
-            password=user.password,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            phone=user.phone,
-            zip_code=user.zip_code,
-            role=user.role,
+            email=payload.email,
+            password=payload.password,
+            first_name=payload.first_name,
+            last_name=payload.last_name,
+            phone=payload.phone,
+            zip_code=payload.zip_code,
+            role=payload.role,
         )
 
         # Convert guest searches if guest_session_id provided
-        if user.guest_session_id:
+        if payload.guest_session_id:
             try:
                 search_service = SearchHistoryService(db)
                 converted_count = search_service.convert_guest_searches_to_user(
-                    guest_session_id=user.guest_session_id, user_id=db_user.id
+                    guest_session_id=payload.guest_session_id, user_id=db_user.id
                 )
                 logger.info(f"Converted {converted_count} guest searches for new user {db_user.id}")
             except Exception as e:
@@ -101,7 +101,7 @@ async def register(
         # Beta invite consumption (server-side guarantee)
         try:
             invite_code = None
-            metadata_obj = getattr(user, "metadata", None)
+            metadata_obj = getattr(payload, "metadata", None)
             if isinstance(metadata_obj, dict):
                 invite_code = metadata_obj.get("invite_code")
             if invite_code:
@@ -109,7 +109,7 @@ async def register(
                 grant, reason = svc.consume_and_grant(
                     code=str(invite_code),
                     user_id=db_user.id,
-                    role=user.role or "student",
+                    role=payload.role or "student",
                     phase="instructor_only",
                 )
                 if grant:
