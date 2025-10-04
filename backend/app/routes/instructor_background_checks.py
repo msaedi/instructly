@@ -37,6 +37,8 @@ class ConsentPayload(BaseModel):
     """Payload required to record FCRA consent."""
 
     consent_version: str = Field(..., min_length=1, max_length=50)
+    disclosure_version: str = Field(..., min_length=1, max_length=50)
+    user_agent: str | None = Field(default=None, max_length=512)
 
 
 class ConsentResponse(BaseModel):
@@ -281,10 +283,23 @@ async def record_background_check_consent(
     _ensure_owner_or_admin(current_user, profile.user_id)
 
     ip_address = request.client.host if request.client else None
-    repo.record_bgc_consent(
+    user_agent = payload.user_agent or request.headers.get("user-agent")
+    consent = repo.record_bgc_consent(
         instructor_id,
-        consent_version=payload.consent_version,
+        consent_version=payload.disclosure_version,
         ip_address=ip_address,
+    )
+
+    logger.info(
+        "Background check disclosure authorized",
+        extra={
+            "evt": "bgc_consent",
+            "instructor_id": instructor_id,
+            "consent_version": payload.consent_version,
+            "disclosure_version": payload.disclosure_version,
+            "user_agent": user_agent,
+            "consent_record_id": consent.id,
+        },
     )
 
     return ConsentResponse()

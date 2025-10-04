@@ -27,7 +27,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 from sqlalchemy.sql import func
 import ulid
 
@@ -99,7 +99,7 @@ class InstructorProfile(Base):
 
     # Background check status tracking
     bgc_status = Column(String(20), nullable=True)
-    bgc_report_id = Column(String(64), nullable=True)
+    _bgc_report_id = Column("bgc_report_id", String(64), nullable=True)
     bgc_completed_at = Column(DateTime(timezone=True), nullable=True)
     bgc_env = Column(String(20), nullable=False, default="sandbox", server_default="sandbox")
     bgc_valid_until = Column(DateTime(timezone=True), nullable=True)
@@ -108,6 +108,50 @@ class InstructorProfile(Base):
     bgc_dispute_note = Column(Text, nullable=True)
     bgc_dispute_opened_at = Column(DateTime(timezone=True), nullable=True)
     bgc_dispute_resolved_at = Column(DateTime(timezone=True), nullable=True)
+
+    bgc_pre_adverse_notice_id = Column(String(26), nullable=True)
+    bgc_pre_adverse_sent_at = Column(DateTime(timezone=True), nullable=True)
+    bgc_final_adverse_sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    def _get_bgc_report_id(self) -> str | None:
+        """Decrypt the stored background-check report identifier."""
+
+        raw_value = getattr(self, "_bgc_report_id", None)
+        if raw_value in (None, ""):
+            return raw_value
+
+        raw_value_str = cast(str, raw_value)
+
+        from ..core.crypto import decrypt_report_token
+        from ..core.metrics import BGC_REPORT_ID_DECRYPT_TOTAL
+
+        try:
+            decrypted = decrypt_report_token(raw_value_str)
+        except ValueError:
+            return raw_value_str
+        if decrypted != raw_value_str:
+            BGC_REPORT_ID_DECRYPT_TOTAL.inc()
+        return decrypted
+
+    def _set_bgc_report_id(self, report_id: str | None) -> None:
+        """Encrypt inbound background-check report identifiers before storing."""
+
+        if report_id in (None, ""):
+            self._bgc_report_id = report_id
+            return
+
+        from ..core.crypto import encrypt_report_token
+        from ..core.metrics import BGC_REPORT_ID_ENCRYPT_TOTAL
+
+        report_id_str = cast(str, report_id)
+        encrypted = encrypt_report_token(report_id_str)
+        if encrypted != report_id_str:
+            BGC_REPORT_ID_ENCRYPT_TOTAL.labels(source="write").inc()
+        self._bgc_report_id = encrypted
+
+    bgc_report_id = synonym(
+        "_bgc_report_id", descriptor=property(_get_bgc_report_id, _set_bgc_report_id)
+    )
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -136,6 +180,14 @@ class InstructorProfile(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="BGCConsent.consented_at",
+    )
+
+    bgc_adverse_events = relationship(
+        "BGCAdverseActionEvent",
+        back_populates="profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="BGCAdverseActionEvent.created_at",
     )
 
     bgc_history = relationship(
@@ -344,6 +396,32 @@ class BackgroundCheck(Base):
 
     instructor_profile = relationship(
         "InstructorProfile", back_populates="bgc_history", passive_deletes=True
+    )
+
+
+class BGCAdverseActionEvent(Base):
+    """Persisted events for adverse-action notifications."""
+
+    __tablename__ = "bgc_adverse_action_events"
+
+    id = Column(String(26), primary_key=True, index=True, default=lambda: str(ulid.ULID()))
+    profile_id = Column(
+        String(26), ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    notice_id = Column(String(26), nullable=False)
+    event_type = Column(String(40), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    profile = relationship("InstructorProfile", back_populates="bgc_adverse_events")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "profile_id",
+            "notice_id",
+            "event_type",
+            name="uq_bgc_adverse_action_events_profile_notice_type",
+        ),
+        Index("ix_bgc_adverse_action_events_profile", "profile_id"),
     )
 
 

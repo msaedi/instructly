@@ -8,8 +8,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import logging
 import os
+import threading
+from time import monotonic
 from types import ModuleType
-from typing import TYPE_CHECKING, AsyncGenerator
+from typing import TYPE_CHECKING, AsyncGenerator, Optional, Tuple, cast
 
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,7 +44,7 @@ from .middleware.prometheus_middleware import PrometheusMiddleware
 # Use the new ASGI middleware to avoid "No response returned" errors
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
-from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY
+from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY, prometheus_metrics
 from .ratelimit.identity import resolve_identity
 from .repositories.background_job_repository import BackgroundJobRepository
 from .repositories.instructor_profile_repository import InstructorProfileRepository
@@ -91,7 +93,9 @@ from .schemas.main_responses import (
     RootResponse,
 )
 from .services.background_check_workflow_service import (
+    FINAL_ADVERSE_JOB_TYPE,
     BackgroundCheckWorkflowService,
+    FinalAdversePayload,
 )
 from .services.email import EmailService
 from .services.template_registry import TemplateRegistry
@@ -122,6 +126,27 @@ except Exception:  # pragma: no cover
     httpx = None
 
 
+_METRICS_CACHE_TTL_SECONDS = 1.0
+_metrics_cache: Optional[Tuple[float, bytes]] = None
+_metrics_cache_lock = threading.Lock()
+
+
+def _validate_startup_config() -> None:
+    """Validate encryption configuration for production startups."""
+
+    from app.core.config import settings as runtime_settings
+
+    mode = (getattr(runtime_settings, "site_mode", "") or "").strip().lower()
+
+    if mode == "prod":
+        from app.core.crypto import validate_bgc_encryption_key
+
+        validate_bgc_encryption_key(getattr(runtime_settings, "bgc_encryption_key", None))
+        logger.info("Background-check report encryption enabled for production")
+    elif getattr(runtime_settings, "bgc_encryption_key", None):
+        logger.info("Background-check report encryption enabled")
+
+
 @asynccontextmanager
 async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Handle application startup/shutdown without deprecated events."""
@@ -135,6 +160,8 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     site_mode_raw = os.getenv("SITE_MODE", "")
     assert_env(site_mode_raw, settings.checkr_env)
+
+    _validate_startup_config()
 
     # Enforce is_testing discipline without changing preview/prod behavior otherwise
     try:
@@ -321,13 +348,22 @@ async def _background_jobs_worker() -> None:
                                 env=env,
                                 completed_at=completed_at,
                             )
-                            if follow_up and profile is not None:
-                                workflow.schedule_final_adverse_action(profile.id)
                         elif job.type == "webhook.report_suspended":
                             report_id = payload.get("report_id")
                             if not report_id:
                                 raise RepositoryException("Missing report_id in suspended payload")
                             workflow.handle_report_suspended(report_id)
+                        elif job.type == FINAL_ADVERSE_JOB_TYPE:
+                            payload_raw = job.payload
+                            if not isinstance(payload_raw, dict):
+                                raise RepositoryException("Invalid payload for final adverse job")
+                            final_payload = cast(FinalAdversePayload, payload_raw)
+                            profile_id = final_payload["profile_id"]
+                            notice_id = final_payload["pre_adverse_notice_id"]
+                            scheduled_at = job.available_at or datetime.now(timezone.utc)
+                            workflow.execute_final_adverse_action(
+                                profile_id, notice_id, scheduled_at
+                            )
                         elif job.type == "bgc.expiry_sweep":
                             days = int(payload.get("days", 30))
                             suppress_emails = getattr(
@@ -698,11 +734,34 @@ def health_check_lite() -> HealthLiteResponse:
 @app.get("/metrics")
 def metrics_endpoint() -> Response:
     """Prometheus metrics endpoint (lightweight)."""
-    return Response(generate_latest(PROM_REGISTRY), media_type=CONTENT_TYPE_LATEST)
+    global _metrics_cache
+
+    now = monotonic()
+    with _metrics_cache_lock:
+        if _metrics_cache is not None:
+            cached_at, payload = _metrics_cache
+            if now - cached_at <= _METRICS_CACHE_TTL_SECONDS:
+                return Response(payload, media_type=CONTENT_TYPE_LATEST)
+
+    payload_raw = generate_latest(PROM_REGISTRY)
+    payload = cast(bytes, payload_raw)
+
+    with _metrics_cache_lock:
+        _metrics_cache = (now, payload)
+
+    return Response(payload, media_type=CONTENT_TYPE_LATEST)
 
 
 # Keep the original FastAPI app for tools/tests that need access to routes
 fastapi_app = app
+
+
+@fastapi_app.on_event("startup")
+async def _prewarm_metrics_cache() -> None:
+    """Warm metrics cache so the first scrape is fast."""
+
+    prometheus_metrics.prewarm()
+
 
 # Wrap with ASGI middleware for production
 wrapped_app: ASGIApp = TimingMiddlewareASGI(app)

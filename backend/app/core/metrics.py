@@ -33,6 +33,34 @@ BACKGROUND_JOB_FAILURES_TOTAL = Counter(
 )
 
 
+# Adverse-action scheduling and execution metrics.
+BGC_FINAL_ADVERSE_SCHEDULED_TOTAL = Counter(
+    "bgc_final_adverse_scheduled_total",
+    "Final adverse action jobs scheduled",
+    registry=REGISTRY,
+)
+BGC_FINAL_ADVERSE_EXECUTED_TOTAL = Counter(
+    "bgc_final_adverse_executed_total",
+    "Final adverse action job outcomes",
+    ["outcome"],
+    registry=REGISTRY,
+)
+
+
+# Background-check report identifier encryption metrics.
+BGC_REPORT_ID_ENCRYPT_TOTAL = Counter(
+    "bgc_report_id_encrypt_total",
+    "bgc report identifiers encrypted",
+    ["source"],
+    registry=REGISTRY,
+)
+BGC_REPORT_ID_DECRYPT_TOTAL = Counter(
+    "bgc_report_id_decrypt_total",
+    "bgc report identifiers decrypted",
+    registry=REGISTRY,
+)
+
+
 # Tracks number of instructors pending background check review beyond seven days.
 BGC_PENDING_7D = Gauge(
     "bgc_pending_over_7d",
@@ -45,5 +73,9 @@ __all__ = [
     "BGC_INVITES_TOTAL",
     "CHECKR_WEBHOOK_TOTAL",
     "BACKGROUND_JOB_FAILURES_TOTAL",
+    "BGC_FINAL_ADVERSE_SCHEDULED_TOTAL",
+    "BGC_FINAL_ADVERSE_EXECUTED_TOTAL",
+    "BGC_REPORT_ID_ENCRYPT_TOTAL",
+    "BGC_REPORT_ID_DECRYPT_TOTAL",
     "BGC_PENDING_7D",
 ]

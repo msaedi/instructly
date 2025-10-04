@@ -209,6 +209,19 @@ def upgrade() -> None:
         "instructor_profiles",
         sa.Column("bgc_dispute_resolved_at", sa.DateTime(timezone=True), nullable=True),
     )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_pre_adverse_notice_id", sa.String(length=26), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_pre_adverse_sent_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_final_adverse_sent_at", sa.DateTime(timezone=True), nullable=True),
+    )
+
     op.create_check_constraint(
         "ck_instructor_profiles_bgc_status",
         "instructor_profiles",
@@ -262,6 +275,28 @@ def upgrade() -> None:
             "background_checks",
             ["instructor_id", "created_at"],
         )
+
+    print("Creating bgc_adverse_action_events table...")
+    op.create_table(
+        "bgc_adverse_action_events",
+        sa.Column("id", sa.String(length=26), nullable=False),
+        sa.Column("profile_id", sa.String(length=26), nullable=False),
+        sa.Column("notice_id", sa.String(length=26), nullable=False),
+        sa.Column("event_type", sa.String(length=40), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["profile_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_unique_constraint(
+        "uq_bgc_adverse_action_events_profile_notice_type",
+        "bgc_adverse_action_events",
+        ["profile_id", "notice_id", "event_type"],
+    )
+    op.create_index(
+        "ix_bgc_adverse_action_events_profile",
+        "bgc_adverse_action_events",
+        ["profile_id"],
+    )
 
     print("Creating background_jobs table...")
     payload_type = (
@@ -930,6 +965,15 @@ def downgrade() -> None:
     op.drop_index("ix_messages_booking_created", "messages")
     op.drop_table("messages")
 
+    print("Dropping bgc_adverse_action_events table...")
+    op.drop_index("ix_bgc_adverse_action_events_profile", "bgc_adverse_action_events")
+    op.drop_constraint(
+        "uq_bgc_adverse_action_events_profile_notice_type",
+        "bgc_adverse_action_events",
+        type_="unique",
+    )
+    op.drop_table("bgc_adverse_action_events")
+
     print("Dropping background_checks history table...")
     if is_postgres:
         op.execute("DROP INDEX IF EXISTS ix_background_checks_instructor_created_at_desc;")
@@ -1004,6 +1048,15 @@ def downgrade() -> None:
             "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_in_dispute"
         )
         op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_final_adverse_sent_at"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_pre_adverse_sent_at"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_pre_adverse_notice_id"
+        )
+        op.execute(
             "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_status"
         )
     else:
@@ -1019,6 +1072,9 @@ def downgrade() -> None:
         op.drop_column("instructor_profiles", "bgc_dispute_opened_at")
         op.drop_column("instructor_profiles", "bgc_dispute_note")
         op.drop_column("instructor_profiles", "bgc_in_dispute")
+        op.drop_column("instructor_profiles", "bgc_final_adverse_sent_at")
+        op.drop_column("instructor_profiles", "bgc_pre_adverse_sent_at")
+        op.drop_column("instructor_profiles", "bgc_pre_adverse_notice_id")
         op.drop_column("instructor_profiles", "bgc_status")
 
     # Drop alert history table

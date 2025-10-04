@@ -10,9 +10,9 @@ import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import BGCStep from '@/components/instructor/BGCStep';
 import { ShieldCheck } from 'lucide-react';
-import Modal from '@/components/Modal';
-import { Button } from '@/components/ui/button';
-import { bgcConsent } from '@/lib/api/bgc';
+import BackgroundCheckDisclosureModal from '@/components/consent/BackgroundCheckDisclosureModal';
+import { bgcConsent, type BGCConsentPayload } from '@/lib/api/bgc';
+import { DISCLOSURE_VERSION } from '@/config/constants';
 
 export default function Step4Verification() {
   const router = useRouter();
@@ -59,8 +59,10 @@ export default function Step4Verification() {
     });
   }, [hasRecentConsent]);
 
-  const handleCloseConsentModal = useCallback(() => {
-    if (consentSubmitting) return;
+  const handleDeclineDisclosure = useCallback(() => {
+    if (consentSubmitting) {
+      return;
+    }
     setConsentModalOpen(false);
     if (consentResolverRef.current) {
       consentResolverRef.current(false);
@@ -68,21 +70,29 @@ export default function Step4Verification() {
     }
   }, [consentSubmitting]);
 
-  const handleConfirmConsent = useCallback(async () => {
+  const handleAcceptDisclosure = useCallback(async () => {
     if (!instructorProfileId) {
       consentResolverRef.current?.(false);
       consentResolverRef.current = null;
       setConsentModalOpen(false);
       return;
     }
+
     try {
       setConsentSubmitting(true);
-      await bgcConsent(instructorProfileId, { consent_version: 'v1' });
+      const payload: BGCConsentPayload = {
+        consent_version: DISCLOSURE_VERSION,
+        disclosure_version: DISCLOSURE_VERSION,
+      };
+      if (typeof window !== 'undefined' && window.navigator?.userAgent) {
+        payload.user_agent = window.navigator.userAgent;
+      }
+      await bgcConsent(instructorProfileId, payload);
       setHasRecentConsent(true);
       consentResolverRef.current?.(true);
       consentResolverRef.current = null;
       setConsentModalOpen(false);
-      toast.success('Consent recorded', {
+      toast.success('Disclosure accepted', {
         description: 'We will now continue to Checkr to start your background check.',
       });
     } catch (error) {
@@ -166,6 +176,10 @@ export default function Step4Verification() {
       setIdentityLoading(false);
     }
   };
+
+  const handleStatusUpdate = useCallback((snapshot: { consentRecent: boolean }) => {
+    setHasRecentConsent(snapshot.consentRecent);
+  }, []);
 
   const handleContinue = () => {
     const target = fromStatus ? '/instructor/onboarding/status' : '/instructor/onboarding/payment-setup';
@@ -327,7 +341,13 @@ export default function Step4Verification() {
               </div>
             </div>
             {instructorProfileId ? (
-              <BGCStep instructorId={instructorProfileId} ensureConsent={ensureConsent} />
+              <BGCStep
+                instructorId={instructorProfileId}
+                ensureConsent={ensureConsent}
+                onStatusUpdate={({ consentRecent }) =>
+                  handleStatusUpdate({ consentRecent })
+                }
+              />
             ) : (
               <p className="text-sm text-gray-500">Loading background check status…</p>
             )}
@@ -344,29 +364,12 @@ export default function Step4Verification() {
         </div>
       </div>
 
-      <Modal
+      <BackgroundCheckDisclosureModal
         isOpen={consentModalOpen}
-        onClose={handleCloseConsentModal}
-        title="FCRA Disclosure & Authorization"
-        closeOnBackdrop={!consentSubmitting}
-        closeOnEscape={!consentSubmitting}
-        footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={handleCloseConsentModal} disabled={consentSubmitting}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirmConsent} disabled={consentSubmitting}>
-              {consentSubmitting ? 'Recording…' : 'I consent'}
-            </Button>
-          </div>
-        }
-      >
-        <p className="text-sm text-gray-700 leading-relaxed">
-          I authorize InstaInstru and its background screening provider to obtain my background report
-          for onboarding and ongoing participation. This authorization remains in effect while I
-          participate on the platform, and I can revoke it by contacting support.
-        </p>
-      </Modal>
+        onDecline={handleDeclineDisclosure}
+        onAccept={handleAcceptDisclosure}
+        submitting={consentSubmitting}
+      />
     </div>
   );
 }
