@@ -44,7 +44,7 @@ from .middleware.prometheus_middleware import PrometheusMiddleware
 # Use the new ASGI middleware to avoid "No response returned" errors
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
-from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY
+from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY, prometheus_metrics
 from .ratelimit.identity import resolve_identity
 from .repositories.background_job_repository import BackgroundJobRepository
 from .repositories.instructor_profile_repository import InstructorProfileRepository
@@ -754,6 +754,14 @@ def metrics_endpoint() -> Response:
 
 # Keep the original FastAPI app for tools/tests that need access to routes
 fastapi_app = app
+
+
+@fastapi_app.on_event("startup")
+async def _prewarm_metrics_cache() -> None:
+    """Warm metrics cache so the first scrape is fast."""
+
+    prometheus_metrics.prewarm()
+
 
 # Wrap with ASGI middleware for production
 wrapped_app: ASGIApp = TimingMiddlewareASGI(app)

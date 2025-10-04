@@ -7,7 +7,9 @@ and best practices for metric types.
 """
 
 from collections import defaultdict
-import time
+import os
+from threading import Lock
+from time import monotonic
 from typing import Dict, Optional, cast
 
 from prometheus_client import (
@@ -117,14 +119,22 @@ preview_bypass_total = Counter(
 active_operations: Dict[str, int] = defaultdict(int)
 
 
+def _metrics_ttl_seconds() -> float:
+    """Return cache TTL seconds based on SITE_MODE."""
+
+    mode = (os.getenv("SITE_MODE") or "").strip().lower()
+    if mode in {"ci", "test"}:
+        return 2.0
+    return 1.0
+
+
 class PrometheusMetrics:
     """Manages Prometheus metrics collection and exposure."""
 
-    # Simple micro-cache to speed up repeated scrapes within a short window
-    _cache_data: Optional[bytes] = None
-    _cache_ts: float = 0.0
-    _cache_ttl_seconds: float = 0.2  # 200ms micro-cache
-    _dirty_since_last_scrape: bool = True
+    _cache_lock: Lock = Lock()
+    _cache_payload: Optional[bytes] = None
+    _cache_ts: Optional[float] = None
+    _cache_ttl_seconds: float = _metrics_ttl_seconds()
 
     @staticmethod
     def record_http_request(method: str, endpoint: str, duration: float, status_code: int) -> None:
@@ -133,8 +143,6 @@ class PrometheusMetrics:
 
         http_request_duration_seconds.labels(**labels).observe(duration)
         http_requests_total.labels(**labels).inc()
-        # Mark cache as dirty so next scrape doesn't serve stale data
-        PrometheusMetrics._dirty_since_last_scrape = True
 
     @staticmethod
     def track_http_request_start(method: str, endpoint: str) -> None:
@@ -175,7 +183,6 @@ class PrometheusMetrics:
         # Record error if applicable
         if status == "error" and error_type:
             errors_total.labels(service=service, operation=operation, error_type=error_type).inc()
-        PrometheusMetrics._dirty_since_last_scrape = True
 
     @staticmethod
     def get_metrics() -> bytes:
@@ -185,50 +192,65 @@ class PrometheusMetrics:
         Returns:
             Metrics data in Prometheus text format
         """
-        now = time.perf_counter()
-        # Serve cached payload if within TTL and nothing changed since last scrape
-        if (
-            PrometheusMetrics._cache_data is not None
-            and (now - PrometheusMetrics._cache_ts) < PrometheusMetrics._cache_ttl_seconds
-            and not PrometheusMetrics._dirty_since_last_scrape
-        ):
-            return PrometheusMetrics._cache_data
+        now = monotonic()
+        payload = PrometheusMetrics._cache_payload
+        ts = PrometheusMetrics._cache_ts
+        ttl = PrometheusMetrics._cache_ttl_seconds
 
-        data = cast(bytes, generate_latest(REGISTRY))
-        PrometheusMetrics._cache_data = data
-        PrometheusMetrics._cache_ts = now
-        PrometheusMetrics._dirty_since_last_scrape = False
-        return data
+        if payload is not None and ts is not None and (now - ts) <= ttl:
+            return payload
+
+        with PrometheusMetrics._cache_lock:
+            payload = PrometheusMetrics._cache_payload
+            ts = PrometheusMetrics._cache_ts
+            ttl = PrometheusMetrics._cache_ttl_seconds
+
+            if payload is None or ts is None or (now - ts) > ttl:
+                PrometheusMetrics._refresh_cache_locked()
+                payload = PrometheusMetrics._cache_payload
+
+        return cast(bytes, payload)
 
     @staticmethod
     def get_content_type() -> str:
         """Get the content type for Prometheus metrics."""
         return cast(str, CONTENT_TYPE_LATEST)
 
+    @staticmethod
+    def _refresh_cache_locked() -> None:
+        """Refresh cached metrics payload. Caller must hold lock."""
+
+        PrometheusMetrics._cache_payload = cast(bytes, generate_latest(REGISTRY))
+        PrometheusMetrics._cache_ts = monotonic()
+        PrometheusMetrics._cache_ttl_seconds = _metrics_ttl_seconds()
+
+    @staticmethod
+    def prewarm() -> None:
+        """Populate the metrics cache so first request is warm."""
+
+        with PrometheusMetrics._cache_lock:
+            PrometheusMetrics._refresh_cache_locked()
+
     # Domain helpers
     @staticmethod
     def inc_credits_applied(source: str = "authorization") -> None:
         """Increment credits applied counter."""
         credits_applied_total.labels(source=source).inc()
-        PrometheusMetrics._dirty_since_last_scrape = True
 
     @staticmethod
     def inc_instant_payout_request(status: str) -> None:
         """Increment instant payout request counter with given status label."""
         instant_payout_requests_total.labels(status=status).inc()
-        PrometheusMetrics._dirty_since_last_scrape = True
 
     @staticmethod
     def inc_beta_phase_header(phase: str) -> None:
         """Increment beta phase header distribution counter."""
         beta_phase_header_total.labels(phase=phase).inc()
-        PrometheusMetrics._dirty_since_last_scrape = True
 
     @staticmethod
     def inc_preview_bypass(via: str) -> None:
         """Increment preview bypass counter by mechanism (session|header)."""
         preview_bypass_total.labels(via=via).inc()
-        PrometheusMetrics._dirty_since_last_scrape = True
 
 
 # Singleton instance
