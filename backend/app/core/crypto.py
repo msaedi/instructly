@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import base64
-from typing import Optional, cast
+import os
+from typing import Optional
 
+from cryptography.exceptions import InvalidTag
 from cryptography.fernet import Fernet, InvalidToken
-from cryptography.hazmat.primitives import padding
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .config import settings
 
 _FERNET_INSTANCE: Optional[Fernet] = None
 _FERNET_KEY: Optional[str] = None
 _AES_KEY: Optional[bytes] = None
+
+_TOKEN_PREFIX = "v1:"
+_NONCE_LEN = 12
 
 
 def validate_bgc_encryption_key(key: str | None) -> None:
@@ -58,13 +62,27 @@ def _decoded_key() -> Optional[bytes]:
     return key_bytes
 
 
-def _aes_cipher() -> Optional[Cipher]:
-    """Return an AES cipher for compact report-id encryption."""
+def _aesgcm() -> Optional[AESGCM]:
+    """Return an AES-GCM cipher for compact report-id encryption."""
 
     key_bytes = _decoded_key()
     if key_bytes is None:
         return None
-    return Cipher(algorithms.AES(key_bytes), modes.ECB())
+    return AESGCM(key_bytes)
+
+
+def _b64u_encode(data: bytes) -> str:
+    """Encode bytes to urlsafe base64 without newlines."""
+
+    return base64.urlsafe_b64encode(data).decode("utf-8")
+
+
+def _b64u_decode(payload: str) -> bytes:
+    """Decode urlsafe base64 string, tolerating missing padding."""
+
+    padding_len = (-len(payload)) % 4
+    padded = payload + ("=" * padding_len)
+    return base64.urlsafe_b64decode(padded.encode("utf-8"))
 
 
 def _fernet() -> Optional[Fernet]:
@@ -112,53 +130,54 @@ def decrypt_str(token: str) -> str:
 
 
 def encrypt_report_token(plain: str) -> str:
-    """Encrypt a background-check report id using compact AES blocks."""
+    """Encrypt a background-check report id using AES-GCM."""
 
     if plain == "":
         return plain
 
-    cipher = _aes_cipher()
+    cipher = _aesgcm()
     if cipher is None:
         return plain
 
-    padder = padding.PKCS7(128).padder()
-    padded = padder.update(plain.encode("utf-8")) + padder.finalize()
-
-    encryptor = cipher.encryptor()
-    encrypted = encryptor.update(padded) + encryptor.finalize()
-
-    token = base64.urlsafe_b64encode(encrypted).decode("utf-8").rstrip("=")
-    return f"v1:{token}"
+    nonce = os.urandom(_NONCE_LEN)
+    ciphertext = cipher.encrypt(nonce, plain.encode("utf-8"), associated_data=None)
+    payload = nonce + ciphertext
+    encoded = _b64u_encode(payload)
+    return f"{_TOKEN_PREFIX}{encoded}"
 
 
 def decrypt_report_token(token: str) -> str:
-    """Decrypt compact AES report identifiers (fallback to plaintext)."""
+    """Decrypt AES-GCM report identifiers; fallback to legacy/plaintext."""
 
     if token == "":
         return token
 
-    cipher = _aes_cipher()
+    cipher = _aesgcm()
     if cipher is None:
         return token
 
-    if not token.startswith("v1:"):
+    if not token.startswith(_TOKEN_PREFIX):
         return token
 
-    payload = token[3:]
-    padding_len = (-len(payload)) % 4
-    padded_payload = payload + ("=" * padding_len)
+    payload_b64 = token[len(_TOKEN_PREFIX) :]
 
     try:
-        encrypted = base64.urlsafe_b64decode(padded_payload.encode("utf-8"))
-    except Exception as exc:
+        payload = _b64u_decode(payload_b64)
+    except Exception as exc:  # pragma: no cover - malformed payload
         raise ValueError("Unable to decode background check token") from exc
 
-    decryptor = cipher.decryptor()
-    padded = decryptor.update(encrypted) + decryptor.finalize()
+    if len(payload) <= _NONCE_LEN:
+        raise ValueError("Malformed background check token")
 
-    unpadder = padding.PKCS7(128).unpadder()
-    data = unpadder.update(padded) + unpadder.finalize()
-    return cast(str, data.decode("utf-8"))
+    nonce = payload[:_NONCE_LEN]
+    ciphertext = payload[_NONCE_LEN:]
+
+    try:
+        decrypted = cipher.decrypt(nonce, ciphertext, associated_data=None)
+    except InvalidTag as exc:
+        raise ValueError("Unable to decrypt background check token") from exc
+
+    return decrypted.decode("utf-8")
 
 
 def assert_encryption_ready() -> None:

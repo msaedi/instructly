@@ -47,6 +47,11 @@ jobs:
         env:
           SITE_MODE: prod
           BGC_ENCRYPTION_KEY: ${{ secrets.BGC_ENCRYPTION_KEY }}
+          PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          CHECKR_ENV: sandbox
+          CHECKR_FAKE: "true"
+          SCHEDULER_ENABLED: "false"
         run: |
           python - <<'PY'
           import importlib

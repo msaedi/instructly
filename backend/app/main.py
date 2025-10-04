@@ -8,8 +8,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import logging
 import os
+import threading
+from time import monotonic
 from types import ModuleType
-from typing import TYPE_CHECKING, AsyncGenerator, cast
+from typing import TYPE_CHECKING, AsyncGenerator, Optional, Tuple, cast
 
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -122,6 +124,11 @@ try:  # pragma: no cover - optional dependency for warmup
     import httpx
 except Exception:  # pragma: no cover
     httpx = None
+
+
+_METRICS_CACHE_TTL_SECONDS = 1.0
+_metrics_cache: Optional[Tuple[float, bytes]] = None
+_metrics_cache_lock = threading.Lock()
 
 
 def _validate_startup_config() -> None:
@@ -727,7 +734,22 @@ def health_check_lite() -> HealthLiteResponse:
 @app.get("/metrics")
 def metrics_endpoint() -> Response:
     """Prometheus metrics endpoint (lightweight)."""
-    return Response(generate_latest(PROM_REGISTRY), media_type=CONTENT_TYPE_LATEST)
+    global _metrics_cache
+
+    now = monotonic()
+    with _metrics_cache_lock:
+        if _metrics_cache is not None:
+            cached_at, payload = _metrics_cache
+            if now - cached_at <= _METRICS_CACHE_TTL_SECONDS:
+                return Response(payload, media_type=CONTENT_TYPE_LATEST)
+
+    payload_raw = generate_latest(PROM_REGISTRY)
+    payload = cast(bytes, payload_raw)
+
+    with _metrics_cache_lock:
+        _metrics_cache = (now, payload)
+
+    return Response(payload, media_type=CONTENT_TYPE_LATEST)
 
 
 # Keep the original FastAPI app for tools/tests that need access to routes
