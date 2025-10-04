@@ -27,9 +27,15 @@ export async function bgcStatus(instructorId: string): Promise<BGCStatusResponse
   return httpGet<BGCStatusResponse>(`/api/instructors/${instructorId}/bgc/status`);
 }
 
+export interface BGCConsentPayload {
+  consent_version: string;
+  disclosure_version: string;
+  user_agent?: string;
+}
+
 export async function bgcConsent(
   instructorId: string,
-  payload: { consent_version: string }
+  payload: BGCConsentPayload
 ): Promise<{ ok: boolean }> {
   return httpPost<{ ok: boolean }>(`/api/instructors/${instructorId}/bgc/consent`, payload);
 }

@@ -49,13 +49,33 @@ def _create_instructor(db, *, status: str | None = None, report_id: str | None =
     return owner, profile
 
 
+DISCLOSURE_VERSION = "v1.0.0"
+
+
 def _record_consent(client, profile_id: str, headers):
     response = client.post(
         f"/api/instructors/{profile_id}/bgc/consent",
         headers=headers,
-        json={"consent_version": "v1"},
+        json={
+            "consent_version": DISCLOSURE_VERSION,
+            "disclosure_version": DISCLOSURE_VERSION,
+            "user_agent": "pytest-client",
+        },
     )
     assert response.status_code == 200
+
+
+def test_consent_persists_disclosure_version(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+
+    _record_consent(client, profile.id, headers)
+
+    repo = InstructorProfileRepository(db)
+    latest = repo.latest_consent(profile.id)
+    assert latest is not None
+    assert latest.consent_version == DISCLOSURE_VERSION
 
 
 @pytest.fixture(autouse=True)
