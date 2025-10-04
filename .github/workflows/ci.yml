@@ -101,6 +101,10 @@ jobs:
         working-directory: frontend
         run: npm run typecheck:strict
 
+      - name: Response-model strict audit (soft)
+        run: |
+          python tools/audit_response_model_strict.py || true
+
       - name: Knip dead code check (hard fail)
         working-directory: frontend
         run: |
