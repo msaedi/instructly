@@ -7,13 +7,19 @@ and provide proper documentation through FastAPI's automatic docs.
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from ._strict_base import StrictModel
 
 
-class AlertDetail(BaseModel):
+class AlertDetail(StrictModel):
     """Individual alert details."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="forbid",
+        validate_assignment=True,
+    )
 
     id: str = Field(description="Alert ID")
     type: str = Field(description="Type of alert")
@@ -26,27 +32,35 @@ class AlertDetail(BaseModel):
     details: Optional[Dict[str, Any]] = Field(default=None, description="Additional alert details")
 
 
-class RecentAlertsResponse(BaseModel):
+class RecentAlertsResponse(StrictModel):
     """Response for recent alerts endpoint."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="forbid",
+        validate_assignment=True,
+    )
 
     total: int = Field(description="Total number of alerts in the time period")
     hours: int = Field(description="Number of hours included in the query")
     alerts: List[AlertDetail] = Field(description="List of alert details")
 
 
-class DailyAlertCount(BaseModel):
+class DailyAlertCount(StrictModel):
     """Daily alert count for summary."""
 
     date: str = Field(description="Date in YYYY-MM-DD format")
     count: int = Field(description="Number of alerts on this date")
 
 
-class AlertSummaryResponse(BaseModel):
+class AlertSummaryResponse(StrictModel):
     """Response for alert summary endpoint."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="forbid",
+        validate_assignment=True,
+    )
 
     days: int = Field(description="Number of days included in summary")
     by_type: Dict[str, int] = Field(description="Alert counts grouped by type")
@@ -55,7 +69,7 @@ class AlertSummaryResponse(BaseModel):
     total: int = Field(description="Total number of alerts in the period")
 
 
-class LiveAlertItem(BaseModel):
+class LiveAlertItem(StrictModel):
     """Simplified alert item for live view."""
 
     time: str = Field(description="Time in HH:MM:SS format")
@@ -64,10 +78,14 @@ class LiveAlertItem(BaseModel):
     message: str = Field(description="Alert message (truncated if long)")
 
 
-class LiveAlertsResponse(BaseModel):
+class LiveAlertsResponse(StrictModel):
     """Response for live alerts endpoint."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="forbid",
+        validate_assignment=True,
+    )
 
     minutes: int = Field(description="Number of minutes included")
     count: int = Field(description="Number of alerts in the time period")
