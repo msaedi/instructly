@@ -32,7 +32,12 @@ export function UserAvatar({ user, size = 40, className, variant = 'thumb', fall
       try {
         const safeUserId = String(user.id);
         const res = await getProfilePictureUrl(safeUserId, variant);
-        if (mounted && res?.success) setUrl(res.data.url);
+        if (!mounted) return;
+        if (res?.success && res.data?.url) {
+          setUrl(res.data.url);
+        } else {
+          setUrl(null);
+        }
       } catch {
         if (mounted) setUrl(null);
       }

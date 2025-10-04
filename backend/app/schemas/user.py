@@ -38,9 +38,7 @@ class UserBase(BaseModel):
         return v
 
 
-class UserCreate(UserBase):
-    model_config = StrictRequestModel.model_config
-
+class UserCreate(StrictRequestModel, UserBase):
     password: str
     role: Optional[str] = None  # For backward compatibility during registration
     guest_session_id: Optional[str] = None  # For conversion on signup

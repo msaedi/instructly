@@ -51,15 +51,29 @@ class AvailabilityWindowBase(StrictRequestModel):
         return v
 
 
-class SpecificDateAvailabilityCreate(AvailabilityWindowBase):
+class SpecificDateAvailabilityCreate(StrictRequestModel):
     """Schema for creating availability on a specific date."""
 
     model_config = StrictRequestModel.model_config
 
+    start_time: TimeType
+    end_time: TimeType
     specific_date: DateType
 
     # Date validation removed - handled in service layer with user timezone context
     # Past date validation requires knowing the user's timezone
+
+    @field_validator("end_time")
+    @classmethod
+    def validate_time_order(cls, v: TimeType, info: Any) -> TimeType:
+        """Ensure end time is after start time."""
+        if (
+            isinstance(getattr(info, "data", None), dict)
+            and info.data.get("start_time")
+            and v <= info.data["start_time"]
+        ):
+            raise ValueError("End time must be after start time")
+        return v
 
 
 class AvailabilityWindowUpdate(StrictRequestModel):

@@ -139,8 +139,7 @@ class BookingCreate(StrictRequestModel):
         return self
 
 
-class BookingRescheduleRequest(BaseModel):
-    model_config = StrictRequestModel.model_config
+class BookingRescheduleRequest(StrictRequestModel):
     """
     Request to reschedule an existing booking by specifying a new date/time and duration.
 
@@ -543,8 +542,7 @@ class BookingListResponse(StandardizedModel):
         return (self.total + self.per_page - 1) // self.per_page
 
 
-class AvailabilityCheckRequest(BaseModel):
-    model_config = StrictRequestModel.model_config
+class AvailabilityCheckRequest(StrictRequestModel):
     """
     Check if a specific time is available for booking.
 

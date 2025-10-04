@@ -336,7 +336,7 @@ async def apply_to_date_range(
     dependencies=[Depends(require_beta_access("instructor"))],
 )
 def add_specific_date_availability(
-    availability_data: SpecificDateAvailabilityCreate,
+    payload: SpecificDateAvailabilityCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
 ) -> AvailabilityWindowResponse:
@@ -349,7 +349,7 @@ def add_specific_date_availability(
 
     try:
         slot = availability_service.add_specific_date_availability(
-            instructor_id=current_user.id, availability_data=availability_data
+            instructor_id=current_user.id, availability_data=payload
         )
 
         # Pydantic v2 way - use model_validate instead of from_orm

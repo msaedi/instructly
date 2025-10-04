@@ -11,7 +11,7 @@ and brute force attacks.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 
 from ..api.dependencies.services import get_password_reset_service
 from ..core.config import settings
@@ -46,7 +46,7 @@ router = APIRouter(prefix="/api/auth/password-reset", tags=["password-reset"])
 )
 async def request_password_reset(
     request: Request,  # Add this for rate limiting
-    reset_request: PasswordResetRequest,  # Renamed to avoid confusion
+    payload: PasswordResetRequest = Body(...),
     password_reset_service: PasswordResetService = Depends(get_password_reset_service),
 ) -> PasswordResetResponse:
     """
@@ -58,7 +58,7 @@ async def request_password_reset(
     Rate limited by both IP and email to prevent abuse.
 
     Args:
-        request: Email address for password reset
+        payload: Email address for password reset
         password_reset_service: Password reset service
 
     Returns:
@@ -67,7 +67,7 @@ async def request_password_reset(
     Raises:
         HTTPException: If rate limit exceeded
     """
-    password_reset_service.request_password_reset(email=reset_request.email)
+    password_reset_service.request_password_reset(email=payload.email)
 
     # Always return success to prevent email enumeration
     return PasswordResetResponse(
@@ -83,7 +83,7 @@ async def request_password_reset(
 )
 async def confirm_password_reset(
     request: Request,  # Add this for rate limiting
-    confirm_request: PasswordResetConfirm,  # Renamed to avoid confusion
+    payload: PasswordResetConfirm = Body(...),
     password_reset_service: PasswordResetService = Depends(get_password_reset_service),
 ) -> PasswordResetResponse:
     """
@@ -92,7 +92,7 @@ async def confirm_password_reset(
     Rate limited to prevent token brute forcing.
 
     Args:
-        request: Token and new password
+        payload: Token and new password
         password_reset_service: Password reset service
 
     Returns:
@@ -103,8 +103,8 @@ async def confirm_password_reset(
     """
     try:
         password_reset_service.confirm_password_reset(
-            token=confirm_request.token,
-            new_password=confirm_request.new_password,
+            token=payload.token,
+            new_password=payload.new_password,
         )
 
         return PasswordResetResponse(
