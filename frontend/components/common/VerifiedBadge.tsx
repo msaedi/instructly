@@ -62,5 +62,3 @@ export function VerifiedBadge({ dateISO, className }: VerifiedBadgeProps) {
     </Tooltip.Provider>
   );
 }
-
-export default VerifiedBadge;

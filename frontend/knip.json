@@ -1,0 +1,30 @@
+{
+  "$schema": "https://unpkg.com/knip/schema.json",
+  "project": ["tsconfig.json"],
+  "paths": {
+    "@/*": ["./*"],
+    "@/components/*": ["./components/*"]
+  },
+  "entry": [
+    "app/**/page.tsx",
+    "app/**/layout.tsx",
+    "components/**/*.{ts,tsx}",
+    "features/**/*.{ts,tsx}",
+    "hooks/**/*.{ts,tsx}",
+    "lib/**/*.{ts,tsx}",
+    "services/**/*.{ts,tsx}",
+    "utils/**/*.{ts,tsx}",
+    "contexts/**/*.{ts,tsx}",
+    "scripts/**",
+    "e2e/**"
+  ],
+  "ignore": ["types/reference/**","reference/dormant/**","**/*.stories.@(ts|tsx)","examples/**"],
+  "ignoreBinaries": ["jq","python","lint-staged"],
+  "ignoreDependencies": [
+    "@tanstack/react-query-devtools",
+    "eslint-config-next",
+    "tailwindcss",
+    "ts-prune",
+    "vercel"
+  ]
+}

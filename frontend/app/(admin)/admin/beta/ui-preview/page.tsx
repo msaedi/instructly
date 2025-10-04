@@ -9,7 +9,7 @@ import * as Popover from '@radix-ui/react-popover';
 import { useState } from 'react';
 import { Geist, Sora, Inter } from 'next/font/google';
 import Link from 'next/link';
-import { m, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'motion/react';
 
 // Fonts for comparison (must be module-scope)
 const geistSans = Geist({ subsets: ['latin'] });

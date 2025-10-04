@@ -46,7 +46,6 @@ jest.mock('sonner', () => {
 
 jest.mock('@/components/instructor/BGCStep', () => ({
   __esModule: true,
-  default: () => <div data-testid="bgc-step">BGC Step</div>,
   BGCStep: () => <div data-testid="bgc-step">BGC Step</div>,
 }));
 

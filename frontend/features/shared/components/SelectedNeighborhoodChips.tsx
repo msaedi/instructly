@@ -37,5 +37,3 @@ export function SelectedNeighborhoodChips({ selected, onRemove }: SelectedNeighb
     </div>
   );
 }
-
-export default SelectedNeighborhoodChips;

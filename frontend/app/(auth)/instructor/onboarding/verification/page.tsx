@@ -8,9 +8,9 @@ import { toast } from 'sonner';
 import { createStripeIdentitySession, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import BGCStep from '@/components/instructor/BGCStep';
+import { BGCStep } from '@/components/instructor/BGCStep';
 import { ShieldCheck } from 'lucide-react';
-import BackgroundCheckDisclosureModal from '@/components/consent/BackgroundCheckDisclosureModal';
+import { BackgroundCheckDisclosureModal } from '@/components/consent/BackgroundCheckDisclosureModal';
 import { bgcConsent, type BGCConsentPayload } from '@/lib/api/bgc';
 import { DISCLOSURE_VERSION } from '@/config/constants';
 
