@@ -7,7 +7,7 @@ Thin wrappers over PersonalAssetService following repository/service pattern.
 import logging
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
@@ -52,19 +52,27 @@ def upload_finalize_profile_picture(
 @router.get("/{user_id}/profile-picture-url", response_model=SuccessResponse)
 def get_profile_picture_url(
     user_id: str,
+    response: Response,
     variant: Optional[Literal["original", "display", "thumb"]] = Query("display"),
-    current_user: User = Depends(get_current_active_user),
     asset_service: PersonalAssetService = Depends(get_personal_asset_service),
 ) -> SuccessResponse:
     try:
         view = asset_service.get_profile_picture_view(user_id, variant or "display")
-        return SuccessResponse(
-            success=True,
-            message="OK",
-            data={"url": view.url, "expires_at": view.expires_at},
-        )
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as exc:
+        response.headers["Cache-Control"] = "public, max-age=600"
+        response.headers["CDN-Cache-Control"] = "public, max-age=600"
+        return SuccessResponse(success=False, message=str(exc), data=None)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    response.headers["CDN-Cache-Control"] = "public, max-age=3600"
+
+    return SuccessResponse(
+        success=True,
+        message="OK",
+        data={"url": view.url, "expires_at": view.expires_at},
+    )
 
 
 @router.delete("/me/profile-picture", response_model=DeleteResponse)

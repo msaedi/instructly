@@ -47,8 +47,11 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
       try {
         if (!user?.id) return;
         const res = await getProfilePictureUrl(String(user.id), 'display');
-        if (!cancelled && res?.success && res.data?.url) {
+        if (cancelled) return;
+        if (res?.success && res.data?.url) {
           setExistingUrl(res.data.url);
+        } else {
+          setExistingUrl(null);
         }
       } catch {
         if (!cancelled) setExistingUrl(null);

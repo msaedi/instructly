@@ -426,11 +426,37 @@ export async function finalizeProfilePicture(object_key: string): Promise<{ succ
   return res.json();
 }
 
-export async function getProfilePictureUrl(userId: string, variant: 'original' | 'display' | 'thumb' = 'display'):
-  Promise<{ success: boolean; message: string; data: { url: string; expires_at: string } }>{
-  const res = await fetchWithAuth(`${API_ENDPOINTS.PROFILE_PICTURE_URL(userId)}?variant=${variant}`);
-  if (!res.ok) throw new Error(await getErrorMessage(res));
-  return res.json();
+export async function getProfilePictureUrl(
+  userId: string,
+  variant: 'original' | 'display' | 'thumb' = 'display',
+): Promise<{ success: boolean; message: string; data: { url: string; expires_at: string } | null }>
+{
+  const endpoint = `${API_ENDPOINTS.PROFILE_PICTURE_URL(userId)}?variant=${variant}`;
+  const url = withApiBase(endpoint);
+
+  try {
+    const response = await fetch(url, { credentials: 'include' });
+
+    if (response.status === 401 || response.status === 404) {
+      logger.debug('Profile picture not available', { userId, status: response.status });
+      return { success: false, message: 'Profile picture not available', data: null };
+    }
+
+    if (!response.ok) {
+      const message = await getErrorMessage(response);
+      logger.warn('Profile picture fetch failed', { userId, status: response.status, message });
+      return { success: false, message, data: null };
+    }
+
+    return (await response.json()) as {
+      success: boolean;
+      message: string;
+      data: { url: string; expires_at: string } | null;
+    };
+  } catch (error) {
+    logger.warn('Profile picture fetch error', error, { userId });
+    return { success: false, message: (error as Error)?.message ?? 'Profile picture fetch failed', data: null };
+  }
 }
 
 export async function getConnectStatus(): Promise<{
