@@ -358,5 +358,3 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
     </div>
   );
 }
-
-export default BGCStep;

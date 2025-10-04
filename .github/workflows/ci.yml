@@ -101,6 +101,18 @@ jobs:
         working-directory: frontend
         run: npm run typecheck:strict
 
+      - name: Knip dead code check (hard fail)
+        working-directory: frontend
+        run: |
+          npx knip --reporter=json > .artifacts/knip.json || true
+          count=$(node -e "const fs=require('fs');try{const d=JSON.parse(fs.readFileSync('.artifacts/knip.json','utf8'));console.log(Array.isArray(d)?d.length:(d.issues?d.issues.length:0));}catch{console.log(0)}")
+          echo "Knip count: ${count}"
+          if [ "${count}" -gt 0 ]; then
+            echo "❌ Dead code detected (${count})"
+            exit 1
+          fi
+          echo "✅ No dead code"
+
       - name: Contract audit (guardrail)
         working-directory: frontend
         run: npm run audit:contract:ci

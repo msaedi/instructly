@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import BackgroundCheckDisclosureModal from '@/components/consent/BackgroundCheckDisclosureModal';
+import { BackgroundCheckDisclosureModal } from '@/components/consent/BackgroundCheckDisclosureModal';
 import { FTC_RIGHTS_URL } from '@/config/constants';
 
 describe('BackgroundCheckDisclosureModal', () => {

@@ -225,5 +225,3 @@ export function BackgroundCheckDisclosureModal({
     </Modal>
   );
 }
-
-export default BackgroundCheckDisclosureModal;
