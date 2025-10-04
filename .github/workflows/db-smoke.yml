@@ -29,10 +29,11 @@ jobs:
 
       - name: Show CI env (masked)
         env:
-          SITE_MODE: ci
+          SITE_MODE: ${{ matrix.mode }}   # preview or prod
           CHECKR_ENV: sandbox
           CHECKR_FAKE: "true"
           SCHEDULER_ENABLED: "false"
+          # Only set key in prod; harmless if unset in preview
           BGC_ENCRYPTION_KEY: ${{ secrets.BGC_ENCRYPTION_KEY }}
         run: |
           echo "SITE_MODE=$SITE_MODE"
@@ -41,12 +42,25 @@ jobs:
           echo "SCHEDULER_ENABLED=$SCHEDULER_ENABLED"
           echo "BGC_ENCRYPTION_KEY set? $([[ -n \"$BGC_ENCRYPTION_KEY\" ]] && echo yes || echo no)"
 
+      - name: Prod boot sanity (imports app to trigger startup guard)
+        if: ${{ matrix.mode == 'prod' }}
+        env:
+          SITE_MODE: prod
+          BGC_ENCRYPTION_KEY: ${{ secrets.BGC_ENCRYPTION_KEY }}
+        run: |
+          python - <<'PY'
+          import importlib
+          m = importlib.import_module("backend.app.main")
+          print("Imported backend.app.main OK; startup guard passed.")
+          PY
+
       - name: Dry-run migrate
         env:
-          SITE_MODE: ci
+          SITE_MODE: ${{ matrix.mode }}   # preview or prod
           CHECKR_ENV: sandbox
           CHECKR_FAKE: "true"
           SCHEDULER_ENABLED: "false"
+          # available to the job; only required if app is started in prod
           BGC_ENCRYPTION_KEY: ${{ secrets.BGC_ENCRYPTION_KEY }}
           PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
           PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}

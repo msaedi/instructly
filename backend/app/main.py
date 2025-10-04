@@ -124,6 +124,22 @@ except Exception:  # pragma: no cover
     httpx = None
 
 
+def _validate_startup_config() -> None:
+    """Validate encryption configuration for production startups."""
+
+    from app.core.config import settings as runtime_settings
+
+    mode = (getattr(runtime_settings, "site_mode", "") or "").strip().lower()
+
+    if mode == "prod":
+        from app.core.crypto import validate_bgc_encryption_key
+
+        validate_bgc_encryption_key(getattr(runtime_settings, "bgc_encryption_key", None))
+        logger.info("Background-check report encryption enabled for production")
+    elif getattr(runtime_settings, "bgc_encryption_key", None):
+        logger.info("Background-check report encryption enabled")
+
+
 @asynccontextmanager
 async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Handle application startup/shutdown without deprecated events."""
@@ -137,6 +153,8 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     site_mode_raw = os.getenv("SITE_MODE", "")
     assert_env(site_mode_raw, settings.checkr_env)
+
+    _validate_startup_config()
 
     # Enforce is_testing discipline without changing preview/prod behavior otherwise
     try:

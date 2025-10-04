@@ -27,7 +27,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 from sqlalchemy.sql import func
 import ulid
 
@@ -99,7 +99,7 @@ class InstructorProfile(Base):
 
     # Background check status tracking
     bgc_status = Column(String(20), nullable=True)
-    bgc_report_id = Column(String(64), nullable=True)
+    _bgc_report_id = Column("bgc_report_id", String(64), nullable=True)
     bgc_completed_at = Column(DateTime(timezone=True), nullable=True)
     bgc_env = Column(String(20), nullable=False, default="sandbox", server_default="sandbox")
     bgc_valid_until = Column(DateTime(timezone=True), nullable=True)
@@ -112,6 +112,46 @@ class InstructorProfile(Base):
     bgc_pre_adverse_notice_id = Column(String(26), nullable=True)
     bgc_pre_adverse_sent_at = Column(DateTime(timezone=True), nullable=True)
     bgc_final_adverse_sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    def _get_bgc_report_id(self) -> str | None:
+        """Decrypt the stored background-check report identifier."""
+
+        raw_value = getattr(self, "_bgc_report_id", None)
+        if raw_value in (None, ""):
+            return raw_value
+
+        raw_value_str = cast(str, raw_value)
+
+        from ..core.crypto import decrypt_report_token
+        from ..core.metrics import BGC_REPORT_ID_DECRYPT_TOTAL
+
+        try:
+            decrypted = decrypt_report_token(raw_value_str)
+        except ValueError:
+            return raw_value_str
+        if decrypted != raw_value_str:
+            BGC_REPORT_ID_DECRYPT_TOTAL.inc()
+        return decrypted
+
+    def _set_bgc_report_id(self, report_id: str | None) -> None:
+        """Encrypt inbound background-check report identifiers before storing."""
+
+        if report_id in (None, ""):
+            self._bgc_report_id = report_id
+            return
+
+        from ..core.crypto import encrypt_report_token
+        from ..core.metrics import BGC_REPORT_ID_ENCRYPT_TOTAL
+
+        report_id_str = cast(str, report_id)
+        encrypted = encrypt_report_token(report_id_str)
+        if encrypted != report_id_str:
+            BGC_REPORT_ID_ENCRYPT_TOTAL.labels(source="write").inc()
+        self._bgc_report_id = encrypted
+
+    bgc_report_id = synonym(
+        "_bgc_report_id", descriptor=property(_get_bgc_report_id, _set_bgc_report_id)
+    )
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

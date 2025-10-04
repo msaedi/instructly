@@ -18,8 +18,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, joinedload, selectinload
 
 from ..core.bgc_policy import must_be_verified_for_public
-from ..core.crypto import encrypt_str
+from ..core.crypto import decrypt_report_token, encrypt_report_token, encrypt_str
 from ..core.exceptions import RepositoryException
+from ..core.metrics import BGC_REPORT_ID_DECRYPT_TOTAL, BGC_REPORT_ID_ENCRYPT_TOTAL
 from ..models.address import InstructorServiceArea, RegionBoundary
 from ..models.instructor import (
     BackgroundCheck,
@@ -359,7 +360,11 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         """Update background check fields based on a Checkr report identifier."""
 
         try:
-            profile = self.find_one_by(bgc_report_id=report_id)
+            profile_id = self._resolve_profile_id_by_report(report_id)
+            if profile_id is None:
+                return 0
+
+            profile = self.get_by_id(profile_id, load_relationships=False)
             if not profile:
                 return 0
 
@@ -384,11 +389,15 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         """Return the instructor profile associated with a Checkr report."""
 
         try:
+            profile_id = self._resolve_profile_id_by_report(report_id)
+            if profile_id is None:
+                return None
+
             return cast(
                 Optional[InstructorProfile],
                 self.db.query(self.model)
                 .options(joinedload(self.model.user))
-                .filter(self.model.bgc_report_id == report_id)
+                .filter(self.model.id == profile_id)
                 .first(),
             )
         except SQLAlchemyError as exc:
@@ -961,3 +970,80 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             .selectinload(InstructorServiceArea.neighborhood),
             selectinload(InstructorProfile.instructor_services).selectinload(Service.catalog_entry),
         )
+
+    @staticmethod
+    def _encrypt_report_id(report_id: str | None, *, source: str = "write") -> str | None:
+        """Encrypt report identifier strings for storage and track metrics."""
+
+        if report_id in (None, ""):
+            return report_id
+
+        report_id_str = cast(str, report_id)
+        encrypted = encrypt_report_token(report_id_str)
+        if encrypted != report_id_str:
+            BGC_REPORT_ID_ENCRYPT_TOTAL.labels(source=source).inc()
+        return encrypted
+
+    @staticmethod
+    def _decrypt_report_id(value: str | None) -> str | None:
+        """Decrypt stored report identifiers while tolerating legacy plaintext."""
+
+        if value in (None, ""):
+            return value
+
+        try:
+            value_str = cast(str, value)
+            decrypted = decrypt_report_token(value_str)
+        except ValueError:
+            return value
+
+        if decrypted != value_str:
+            BGC_REPORT_ID_DECRYPT_TOTAL.inc()
+        return decrypted
+
+    def _resolve_profile_id_by_report(self, report_id: str | None) -> str | None:
+        """Locate the instructor profile identifier matching a Checkr report."""
+
+        if not report_id:
+            return None
+
+        try:
+            candidates: Sequence[tuple[str, str | None]] = (
+                self.db.query(self.model.id, self.model._bgc_report_id)
+                .filter(self.model._bgc_report_id.isnot(None))
+                .all()
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error("Failed resolving report %s: %s", report_id, str(exc))
+            raise RepositoryException("Failed to look up instructor by report id") from exc
+
+        for candidate_id, stored_value in candidates:
+            if self._decrypt_report_id(stored_value) == report_id:
+                return candidate_id
+        return None
+
+    def find_profile_ids_by_report_fragment(self, fragment: str) -> set[str]:
+        """Return profile identifiers whose report matches the provided substring."""
+
+        normalized = (fragment or "").strip().lower()
+        if not normalized:
+            return set()
+
+        try:
+            candidates: Sequence[tuple[str, str | None]] = (
+                self.db.query(self.model.id, self.model._bgc_report_id)
+                .filter(self.model._bgc_report_id.isnot(None))
+                .all()
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error("Failed to search report ids containing '%s': %s", fragment, str(exc))
+            raise RepositoryException(
+                "Failed to search instructor profiles by report fragment"
+            ) from exc
+
+        matches: set[str] = set()
+        for candidate_id, stored_value in candidates:
+            decrypted = self._decrypt_report_id(stored_value)
+            if decrypted and normalized in decrypted.lower():
+                matches.add(candidate_id)
+        return matches

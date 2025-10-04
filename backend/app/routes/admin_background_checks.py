@@ -225,16 +225,21 @@ def _get_bgc_cases(
             name_concat = (
                 func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")
             )
-            query = query.filter(
-                or_(
-                    func.lower(repo.model.id).like(like_value),
-                    func.lower(func.coalesce(repo.model.bgc_report_id, "")).like(like_value),
-                    func.lower(func.coalesce(User.email, "")).like(like_value),
-                    func.lower(func.coalesce(User.first_name, "")).like(like_value),
-                    func.lower(func.coalesce(User.last_name, "")).like(like_value),
-                    func.lower(name_concat).like(like_value),
-                )
-            )
+            try:
+                report_matches = repo.find_profile_ids_by_report_fragment(term)
+            except RepositoryException:
+                report_matches = set()
+
+            filters = [
+                func.lower(repo.model.id).like(like_value),
+                func.lower(func.coalesce(User.email, "")).like(like_value),
+                func.lower(func.coalesce(User.first_name, "")).like(like_value),
+                func.lower(func.coalesce(User.last_name, "")).like(like_value),
+                func.lower(name_concat).like(like_value),
+            ]
+            if report_matches:
+                filters.append(repo.model.id.in_(report_matches))
+            query = query.filter(or_(*filters))
 
     if joined_user:
         query = query.distinct()
