@@ -143,6 +143,7 @@ class PrometheusMetrics:
 
         http_request_duration_seconds.labels(**labels).observe(duration)
         http_requests_total.labels(**labels).inc()
+        PrometheusMetrics._invalidate_cache()
 
     @staticmethod
     def track_http_request_start(method: str, endpoint: str) -> None:
@@ -183,6 +184,7 @@ class PrometheusMetrics:
         # Record error if applicable
         if status == "error" and error_type:
             errors_total.labels(service=service, operation=operation, error_type=error_type).inc()
+        PrometheusMetrics._invalidate_cache()
 
     @staticmethod
     def get_metrics() -> bytes:
@@ -231,26 +233,38 @@ class PrometheusMetrics:
         with PrometheusMetrics._cache_lock:
             PrometheusMetrics._refresh_cache_locked()
 
+    @staticmethod
+    def _invalidate_cache() -> None:
+        """Invalidate cached metrics so next scrape refreshes."""
+
+        with PrometheusMetrics._cache_lock:
+            PrometheusMetrics._cache_ts = None
+            PrometheusMetrics._cache_payload = None
+
     # Domain helpers
     @staticmethod
     def inc_credits_applied(source: str = "authorization") -> None:
         """Increment credits applied counter."""
         credits_applied_total.labels(source=source).inc()
+        PrometheusMetrics._invalidate_cache()
 
     @staticmethod
     def inc_instant_payout_request(status: str) -> None:
         """Increment instant payout request counter with given status label."""
         instant_payout_requests_total.labels(status=status).inc()
+        PrometheusMetrics._invalidate_cache()
 
     @staticmethod
     def inc_beta_phase_header(phase: str) -> None:
         """Increment beta phase header distribution counter."""
         beta_phase_header_total.labels(phase=phase).inc()
+        PrometheusMetrics._invalidate_cache()
 
     @staticmethod
     def inc_preview_bypass(via: str) -> None:
         """Increment preview bypass counter by mechanism (session|header)."""
         preview_bypass_total.labels(via=via).inc()
+        PrometheusMetrics._invalidate_cache()
 
 
 # Singleton instance
