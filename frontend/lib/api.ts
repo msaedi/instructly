@@ -454,8 +454,15 @@ export async function getProfilePictureUrl(
       data: { url: string; expires_at: string } | null;
     };
   } catch (error) {
-    logger.warn('Profile picture fetch error', error, { userId });
-    return { success: false, message: (error as Error)?.message ?? 'Profile picture fetch failed', data: null };
+    logger.warn('Profile picture fetch error', {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      success: false,
+      message: (error as Error)?.message ?? 'Profile picture fetch failed',
+      data: null,
+    };
   }
 }
 
