@@ -64,7 +64,7 @@
     "type:smoke": "tsd --files \"type-tests/**/*.test-d.ts\"",
     "type:smoke:ci": "npm run type:smoke",
     "audit:lhci": "cross-env NEXT_PUBLIC_API_BASE=https://example.invalid next build && lhci autorun || true",
-    "lhci": "lhci autorun --config=lhci.config.json || true"
+    "lhci": "lhci autorun --config=lhci.config.js || true"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

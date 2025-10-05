@@ -26,7 +26,7 @@ jobs:
         run: npm run build
       - name: Run Lighthouse CI (hard gate)
         working-directory: frontend
-        run: npx lhci autorun --config=lhci.config.json
+        run: npx lhci autorun --config=lhci.config.js
       - name: Upload LHCI artifacts
         if: always()
         uses: actions/upload-artifact@v4
