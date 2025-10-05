@@ -1,11 +1,9 @@
 from typing import Any, Dict, List
 
-from pydantic import BaseModel
-
 from ._strict_base import StrictModel
 
 
-class CoverageFeatureCollectionResponse(BaseModel):
+class CoverageFeatureCollectionResponse(StrictModel):
     type: str
     features: List[Dict[str, Any]]
 

@@ -1,13 +1,13 @@
-"""
-Pydantic response models for Codebase Metrics endpoints.
-"""
+"""Pydantic response models for Codebase Metrics endpoints."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from ._strict_base import StrictModel
 
 
 class CodebaseCategoryStats(BaseModel):
@@ -43,7 +43,8 @@ class CodebaseMetricsSummary(BaseModel):
     total_files: int = Field(..., ge=0)
 
 
-class CodebaseMetricsResponse(BaseModel):
+class CodebaseMetricsResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     timestamp: datetime
     backend: CodebaseSection
     frontend: CodebaseSection
@@ -62,11 +63,13 @@ class CodebaseHistoryEntry(BaseModel):
     categories: Optional[Dict[str, Dict[str, CodebaseCategoryStats]]] = None
 
 
-class CodebaseHistoryResponse(BaseModel):
+class CodebaseHistoryResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     items: List[CodebaseHistoryEntry] = Field(default_factory=list)
     current: Optional[CodebaseMetricsResponse] = None
 
 
-class AppendHistoryResponse(BaseModel):
+class AppendHistoryResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     status: str
     count: int = Field(..., ge=0)

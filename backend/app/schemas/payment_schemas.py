@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 
 # ========== Request Models ==========
 
@@ -38,7 +38,7 @@ class CreateCheckoutRequest(StrictRequestModel):
 # ========== Response Models ==========
 
 
-class PaymentMethodResponse(BaseModel):
+class PaymentMethodResponse(StrictModel):
     """Response model for payment method information."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -50,7 +50,8 @@ class PaymentMethodResponse(BaseModel):
     created_at: datetime = Field(..., description="When the payment method was added")
 
 
-class OnboardingResponse(BaseModel):
+class OnboardingResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for starting instructor onboarding."""
 
     account_id: str = Field(..., description="Stripe connected account ID")
@@ -58,7 +59,8 @@ class OnboardingResponse(BaseModel):
     already_onboarded: bool = Field(..., description="Whether onboarding was already completed")
 
 
-class OnboardingStatusResponse(BaseModel):
+class OnboardingStatusResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for onboarding status check."""
 
     has_account: bool = Field(..., description="Whether instructor has a connected account")
@@ -71,14 +73,16 @@ class OnboardingStatusResponse(BaseModel):
     requirements: List[str] = Field(default_factory=list, description="Outstanding requirements")
 
 
-class DashboardLinkResponse(BaseModel):
+class DashboardLinkResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for Stripe Express dashboard link."""
 
     dashboard_url: str = Field(..., description="URL to Stripe Express dashboard")
     expires_in_minutes: int = Field(default=5, description="Minutes until link expires")
 
 
-class CheckoutResponse(BaseModel):
+class CheckoutResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for checkout/payment creation."""
 
     success: bool = Field(..., description="Whether payment was successful")
@@ -94,7 +98,7 @@ class CheckoutResponse(BaseModel):
     )
 
 
-class CustomerResponse(BaseModel):
+class CustomerResponse(StrictModel):
     """Response for customer creation/retrieval."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -104,7 +108,7 @@ class CustomerResponse(BaseModel):
     created_at: datetime = Field(..., description="When customer was created")
 
 
-class PaymentIntentResponse(BaseModel):
+class PaymentIntentResponse(StrictModel):
     """Response for payment intent operations."""
 
     payment_intent_id: str = Field(..., description="Stripe payment intent ID")
@@ -120,7 +124,8 @@ class PaymentIntentResponse(BaseModel):
 # ========== Analytics Response Models ==========
 
 
-class PlatformRevenueResponse(BaseModel):
+class PlatformRevenueResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for platform revenue statistics."""
 
     total_amount: int = Field(..., description="Total payment amount in cents")
@@ -129,7 +134,8 @@ class PlatformRevenueResponse(BaseModel):
     average_transaction: float = Field(..., description="Average transaction amount")
 
 
-class InstructorEarningsResponse(BaseModel):
+class InstructorEarningsResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for instructor earnings statistics."""
 
     total_earned: int = Field(..., description="Total instructor earnings in cents (after fees)")
@@ -141,7 +147,8 @@ class InstructorEarningsResponse(BaseModel):
 # ========== Webhook Response Models ==========
 
 
-class WebhookResponse(BaseModel):
+class WebhookResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for webhook processing."""
 
     status: str = Field(..., description="Processing status (success, ignored, error)")
@@ -171,7 +178,8 @@ class TransactionHistoryItem(BaseModel):
     created_at: str = Field(..., description="When the payment was created")
 
 
-class CreditBalanceResponse(BaseModel):
+class CreditBalanceResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for credit balance inquiry."""
 
     available: float = Field(..., description="Available credit balance")
@@ -182,7 +190,8 @@ class CreditBalanceResponse(BaseModel):
 # ========== Error Response Models ==========
 
 
-class PaymentErrorResponse(BaseModel):
+class PaymentErrorResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Error response for payment operations."""
 
     error: str = Field(..., description="Error type")
@@ -196,13 +205,15 @@ class PaymentErrorResponse(BaseModel):
 # ========== Generic Response Models ==========
 
 
-class DeleteResponse(BaseModel):
+class DeleteResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for delete operations."""
 
     success: bool = Field(..., description="Whether deletion was successful")
 
 
-class EarningsResponse(BaseModel):
+class EarningsResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for earnings data."""
 
     total_earned: Optional[int] = Field(None, description="Total earnings in cents")

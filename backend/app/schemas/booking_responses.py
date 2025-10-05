@@ -1,11 +1,13 @@
+from ._strict_base import StrictModel
+
 """Response models for booking endpoints."""
 
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 
-class SendRemindersResponse(BaseModel):
+class SendRemindersResponse(StrictModel):
     """Response for sending booking reminders."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
@@ -15,7 +17,7 @@ class SendRemindersResponse(BaseModel):
     failed_reminders: int
 
 
-class BookingPreviewResponse(BaseModel):
+class BookingPreviewResponse(StrictModel):
     """Response for booking preview with privacy protection."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)

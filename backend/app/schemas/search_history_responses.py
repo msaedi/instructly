@@ -1,9 +1,11 @@
+from ._strict_base import StrictModel
+
 """Response models for search history endpoints."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 
-class SearchInteractionResponse(BaseModel):
+class SearchInteractionResponse(StrictModel):
     """Response for recording search interaction."""
 
     success: bool

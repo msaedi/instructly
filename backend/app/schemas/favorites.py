@@ -9,10 +9,11 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._strict_base import StrictModel
 from .instructor import InstructorProfileResponse
 
 
-class FavoriteResponse(BaseModel):
+class FavoriteResponse(StrictModel):
     """Response for favorite add/remove operations."""
 
     success: bool = Field(..., description="Whether the operation was successful")
@@ -103,7 +104,7 @@ class FavoritesList(BaseModel):
     )
 
 
-class FavoriteStatusResponse(BaseModel):
+class FavoriteStatusResponse(StrictModel):
     """Response for single favorite status check."""
 
     is_favorited: bool = Field(..., description="Whether the instructor is favorited")

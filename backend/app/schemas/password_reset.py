@@ -5,7 +5,7 @@ from typing import Union
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 
 
 class PasswordResetRequest(StrictRequestModel):
@@ -29,7 +29,8 @@ class PasswordResetConfirm(StrictRequestModel):
         return v
 
 
-class PasswordResetResponse(BaseModel):
+class PasswordResetResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response after requesting password reset"""
 
     message: str

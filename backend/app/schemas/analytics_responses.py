@@ -1,3 +1,5 @@
+from ._strict_base import StrictModel
+
 """
 Response schemas for analytics endpoints.
 
@@ -236,7 +238,7 @@ class PerformanceMetrics(BaseModel):
     )
 
 
-class SearchAnalyticsSummaryResponse(BaseModel):
+class SearchAnalyticsSummaryResponse(StrictModel):
     """Comprehensive search analytics summary."""
 
     date_range: DateRange = Field(description="Date range for analytics")
@@ -306,7 +308,7 @@ class GuestEngagement(BaseModel):
     )
 
 
-class ConversionMetricsResponse(BaseModel):
+class ConversionMetricsResponse(StrictModel):
     """Guest-to-user conversion metrics response."""
 
     period: DateRange = Field(description="Time period for metrics")
@@ -395,7 +397,7 @@ class ProblematicQuery(BaseModel):
     )
 
 
-class SearchPerformanceResponse(BaseModel):
+class SearchPerformanceResponse(StrictModel):
     """Search performance metrics response."""
 
     result_distribution: ResultDistribution = Field(description="Distribution of search results")
@@ -429,7 +431,7 @@ class SearchPerformanceResponse(BaseModel):
     )
 
 
-class ExportAnalyticsResponse(BaseModel):
+class ExportAnalyticsResponse(StrictModel):
     """Analytics export response."""
 
     message: str = Field(description="Status message")
@@ -454,7 +456,8 @@ class ExportAnalyticsResponse(BaseModel):
 # ===== Candidates (Top-N) Analytics Schemas =====
 
 
-class CandidateSummaryResponse(BaseModel):
+class CandidateSummaryResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     total_candidates: int
     events_with_candidates: int
     avg_candidates_per_event: float
@@ -500,7 +503,8 @@ class CandidateServiceQueriesResponse(RootModel[List[CandidateServiceQuery]]):
     pass
 
 
-class CandidateScoreDistributionResponse(BaseModel):
+class CandidateScoreDistributionResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     gte_0_90: int
     gte_0_80_lt_0_90: int
     gte_0_70_lt_0_80: int

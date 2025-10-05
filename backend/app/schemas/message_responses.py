@@ -1,3 +1,5 @@
+from ._strict_base import StrictModel
+
 # backend/app/schemas/message_responses.py
 """
 Response schemas for the message/chat system.
@@ -6,10 +8,10 @@ Response schemas for the message/chat system.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
 
 
-class MessageSenderResponse(BaseModel):
+class MessageSenderResponse(StrictModel):
     """Response schema for message sender info."""
 
     id: str
@@ -20,7 +22,7 @@ class MessageSenderResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class MessageResponse(BaseModel):
+class MessageResponse(StrictModel):
     """Response schema for a single message."""
 
     id: str
@@ -42,14 +44,16 @@ class MessageResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class SendMessageResponse(BaseModel):
+class SendMessageResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response after sending a message."""
 
     success: bool = True
     message: MessageResponse
 
 
-class MessagesHistoryResponse(BaseModel):
+class MessagesHistoryResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for message history request."""
 
     booking_id: str
@@ -59,14 +63,15 @@ class MessagesHistoryResponse(BaseModel):
     has_more: bool
 
 
-class UnreadCountResponse(BaseModel):
+class UnreadCountResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for unread message count."""
 
     unread_count: int
     user_id: str
 
 
-class MessageNotificationResponse(BaseModel):
+class MessageNotificationResponse(StrictModel):
     """Response schema for message notification."""
 
     id: str
@@ -79,27 +84,31 @@ class MessageNotificationResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class MarkMessagesReadResponse(BaseModel):
+class MarkMessagesReadResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response after marking messages as read."""
 
     success: bool = True
     messages_marked: int = Field(..., description="Number of messages marked as read")
 
 
-class DeleteMessageResponse(BaseModel):
+class DeleteMessageResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response after deleting a message."""
 
     success: bool = True
     message: str = Field(default="Message deleted successfully", description="Success message")
 
 
-class TypingStatusResponse(BaseModel):
+class TypingStatusResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for typing indicator endpoints (empty body)."""
 
     success: bool = True
 
 
-class MessageConfigResponse(BaseModel):
+class MessageConfigResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Public config values for messaging UI."""
 
     edit_window_minutes: int

@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._strict_base import StrictModel
 from .address import ServiceAreaNeighborhoodOut
 
 
@@ -130,7 +131,7 @@ class SearchMetadata(BaseModel):
     )
 
 
-class InstructorSearchResponse(BaseModel):
+class InstructorSearchResponse(StrictModel):
     """Response for instructor search endpoint."""
 
     model_config = ConfigDict(from_attributes=True)

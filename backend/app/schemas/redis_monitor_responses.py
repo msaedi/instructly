@@ -1,3 +1,5 @@
+from ._strict_base import StrictModel
+
 """
 Response models for Redis monitoring endpoints.
 
@@ -7,10 +9,10 @@ and monitoring endpoints.
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 
-class RedisHealthResponse(BaseModel):
+class RedisHealthResponse(StrictModel):
     """Response for Redis health check endpoint."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -20,7 +22,7 @@ class RedisHealthResponse(BaseModel):
     error: Optional[str] = Field(default=None, description="Error message if unhealthy")
 
 
-class RedisTestResponse(BaseModel):
+class RedisTestResponse(StrictModel):
     """Response for Redis test endpoint."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -34,25 +36,29 @@ class RedisTestResponse(BaseModel):
     error: Optional[str] = Field(default=None, description="Error message if failed")
 
 
-class RedisStatsResponse(BaseModel):
+class RedisStatsResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for Redis statistics."""
 
     stats: Dict[str, Any]
 
 
-class RedisCeleryQueuesResponse(BaseModel):
+class RedisCeleryQueuesResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for Redis Celery queues."""
 
     queues: Dict[str, Any]
 
 
-class RedisConnectionAuditResponse(BaseModel):
+class RedisConnectionAuditResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for Redis connection audit."""
 
     connections: List[Dict[str, Any]]
 
 
-class RedisFlushQueuesResponse(BaseModel):
+class RedisFlushQueuesResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for flushing Redis queues."""
 
     message: str

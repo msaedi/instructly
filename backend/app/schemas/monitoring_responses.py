@@ -123,7 +123,7 @@ class PerformanceRecommendation(BaseModel):
     )
 
 
-class MonitoringDashboardResponse(BaseModel):
+class MonitoringDashboardResponse(StrictModel):
     """Comprehensive monitoring dashboard response."""
 
     status: str = Field(description="Overall system status")
@@ -195,7 +195,7 @@ class SlowQueryInfo(BaseModel):
     )
 
 
-class SlowQueriesResponse(BaseModel):
+class SlowQueriesResponse(StrictModel):
     """Slow queries response."""
 
     slow_queries: List[SlowQueryInfo] = Field(description="List of slow queries")
@@ -240,7 +240,7 @@ class SlowRequestInfo(BaseModel):
     )
 
 
-class SlowRequestsResponse(BaseModel):
+class SlowRequestsResponse(StrictModel):
     """Slow requests response."""
 
     slow_requests: List[SlowRequestInfo] = Field(description="List of slow requests")
@@ -291,7 +291,7 @@ class ExtendedCacheStats(BaseModel):
     )
 
 
-class AlertAcknowledgeResponse(BaseModel):
+class AlertAcknowledgeResponse(StrictModel):
     """Alert acknowledgement response."""
 
     status: str = Field(description="Acknowledgement status")
@@ -524,7 +524,7 @@ class ComponentHealth(BaseModel):
     )
 
 
-class DetailedHealthCheckResponse(BaseModel):
+class DetailedHealthCheckResponse(StrictModel):
     """Detailed health check response with component statuses."""
 
     status: str = Field(description="Overall system status")
@@ -555,7 +555,7 @@ class DetailedHealthCheckResponse(BaseModel):
     )
 
 
-class PaymentHealthResponse(BaseModel):
+class PaymentHealthResponse(StrictModel):
     """Payment system health monitoring response."""
 
     status: str = Field(description="Payment system health status (healthy/warning/critical)")
@@ -598,7 +598,7 @@ class PaymentHealthResponse(BaseModel):
     )
 
 
-class PaymentHealthCheckTriggerResponse(BaseModel):
+class PaymentHealthCheckTriggerResponse(StrictModel):
     """Response for manually triggered payment health check."""
 
     status: str = Field(description="Trigger status")

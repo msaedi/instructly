@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from pydantic import AnyUrl, BaseModel, EmailStr, Field
+from pydantic import AnyUrl, BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.referrals import (
     ReferralCodeStatus,
@@ -13,7 +13,7 @@ from app.models.referrals import (
     WalletTransactionType,
 )
 
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 
 
 class ReferralSendRequest(StrictRequestModel):
@@ -34,7 +34,8 @@ class ReferralSendError(BaseModel):
     error: str
 
 
-class ReferralSendResponse(BaseModel):
+class ReferralSendResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response after attempting to send referral invites."""
 
     status: str = Field(description="Operation status ('ok' if the operation ran)")
@@ -80,12 +81,14 @@ class ReferralClaimRequest(StrictRequestModel):
     code: str
 
 
-class ReferralClaimResponse(BaseModel):
+class ReferralClaimResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     attributed: bool
     reason: Optional[str] = None
 
 
-class ReferralLedgerResponse(BaseModel):
+class ReferralLedgerResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     code: str
     share_url: str
     pending: List[RewardOut]
@@ -98,17 +101,20 @@ class CheckoutApplyRequest(StrictRequestModel):
     order_id: str
 
 
-class CheckoutApplyResponse(BaseModel):
+class CheckoutApplyResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     applied_cents: int
 
 
-class ReferralErrorResponse(BaseModel):
+class ReferralErrorResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Standard error envelope for referral endpoints."""
 
     reason: str
 
 
-class ReferralResolveResponse(BaseModel):
+class ReferralResolveResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response payload when resolving referral slugs as JSON."""
 
     ok: bool

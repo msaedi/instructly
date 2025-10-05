@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 
 DATE_ONLY_REGEX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -595,7 +595,7 @@ class AvailabilityCheckRequest(StrictRequestModel):
     #     return v
 
 
-class AvailabilityCheckResponse(BaseModel):
+class AvailabilityCheckResponse(StrictModel):
     """Response for availability check."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
@@ -731,7 +731,8 @@ class BookingOpportunity(BaseModel):
     available: bool = True
 
 
-class FindBookingOpportunitiesResponse(BaseModel):
+class FindBookingOpportunitiesResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response with available booking opportunities."""
 
     opportunities: List[BookingOpportunity]
