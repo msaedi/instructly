@@ -47,8 +47,6 @@ class BookingCreate(StrictRequestModel):
     the lesson will occur.
     """
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
     instructor_id: str = Field(..., description="Instructor to book")
     instructor_service_id: str = Field(..., description="Instructor service being booked")
     booking_date: date = Field(..., description="Date of the booking")
@@ -597,8 +595,6 @@ class AvailabilityCheckRequest(StrictRequestModel):
 
 class AvailabilityCheckResponse(StrictModel):
     """Response for availability check."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     available: bool
     reason: Optional[str] = None

@@ -371,8 +371,6 @@ class ValidationSummary(BaseModel):
 class WeekValidationResponse(StrictModel):
     """Response for week schedule validation"""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
     valid: bool
     summary: ValidationSummary
     details: List[ValidationSlotDetail]

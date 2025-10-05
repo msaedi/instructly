@@ -18,6 +18,20 @@ from ..core.exceptions import RepositoryException
 from ..models.instructor import InstructorProfile
 from ..models.user import User
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
+from ..schemas.admin_background_checks import (
+    BGCCaseCountsResponse,
+    BGCCaseItemModel,
+    BGCCaseListResponse,
+    BGCDisputeResponse,
+    BGCExpiringItem,
+    BGCHistoryItem,
+    BGCHistoryResponse,
+    BGCLatestConsentResponse,
+    BGCOverrideResponse,
+    BGCReviewCountResponse,
+    BGCReviewListResponse,
+)
+from ..utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
 
@@ -37,112 +51,6 @@ def _build_checkr_report_url(report_id: str | None) -> str | None:
         # Use sandbox indicator for clarity when linking out of non-prod
         return f"{base_url}/sandbox/reports/{report_id}"
     return f"{base_url}/reports/{report_id}"
-
-
-class BGCReviewCountResponse(BaseModel):
-    count: int
-
-
-class BGCReviewItemModel(BaseModel):
-    instructor_id: str
-    name: str
-    email: str
-    bgc_status: str
-    bgc_report_id: str | None = None
-    bgc_completed_at: datetime | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    consented_at_recent: bool
-    checkr_report_url: str | None = None
-    consented_at_recent_at: datetime | None = None
-    is_live: bool
-    in_dispute: bool = False
-    dispute_note: str | None = None
-    dispute_opened_at: datetime | None = None
-    dispute_resolved_at: datetime | None = None
-
-
-class BGCReviewListResponse(BaseModel):
-    items: list[BGCReviewItemModel]
-    next_cursor: str | None = None
-
-
-class BGCCaseCountsResponse(BaseModel):
-    review: int
-    pending: int
-
-
-class BGCCaseItemModel(BaseModel):
-    instructor_id: str
-    name: str
-    email: str
-    is_live: bool
-    bgc_status: str
-    bgc_report_id: str | None = None
-    bgc_completed_at: datetime | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    checkr_report_url: str | None = None
-    consent_recent: bool
-    consent_recent_at: datetime | None = None
-    in_dispute: bool = False
-    dispute_note: str | None = None
-    dispute_opened_at: datetime | None = None
-    dispute_resolved_at: datetime | None = None
-
-    def to_review_model(self) -> BGCReviewItemModel:
-        return BGCReviewItemModel(
-            instructor_id=self.instructor_id,
-            name=self.name,
-            email=self.email,
-            bgc_status=self.bgc_status,
-            bgc_report_id=self.bgc_report_id,
-            bgc_completed_at=self.bgc_completed_at,
-            created_at=self.created_at,
-            updated_at=self.updated_at,
-            consented_at_recent=self.consent_recent,
-            consented_at_recent_at=self.consent_recent_at,
-            checkr_report_url=self.checkr_report_url,
-            is_live=self.is_live,
-            in_dispute=self.in_dispute,
-            dispute_note=self.dispute_note,
-            dispute_opened_at=self.dispute_opened_at,
-            dispute_resolved_at=self.dispute_resolved_at,
-        )
-
-
-class BGCCaseListResponse(BaseModel):
-    items: list[BGCCaseItemModel]
-    next_cursor: str | None = None
-
-
-class BGCHistoryItem(BaseModel):
-    id: str
-    result: str
-    package: str | None = None
-    env: str
-    completed_at: datetime
-    created_at: datetime
-    report_id_present: bool
-
-
-class BGCHistoryResponse(BaseModel):
-    items: list[BGCHistoryItem]
-    next_cursor: str | None = None
-
-
-class BGCDisputeResponse(BaseModel):
-    ok: bool
-    in_dispute: bool
-    dispute_note: str | None = None
-    dispute_opened_at: datetime | None = None
-    dispute_resolved_at: datetime | None = None
-
-
-class BGCExpiringItem(BaseModel):
-    instructor_id: str
-    email: str | None = None
-    bgc_valid_until: datetime | None = None
 
 
 def _build_case_item(
@@ -173,24 +81,26 @@ def _build_case_item(
 
     report_id = getattr(profile, "bgc_report_id", None)
 
-    return BGCCaseItemModel(
-        instructor_id=profile.id,
-        name=display_name,
-        email=email,
-        is_live=bool(getattr(profile, "is_live", False)),
-        bgc_status=getattr(profile, "bgc_status", ""),
-        bgc_report_id=report_id,
-        bgc_completed_at=getattr(profile, "bgc_completed_at", None),
-        created_at=getattr(profile, "created_at", None),
-        updated_at=getattr(profile, "updated_at", None),
-        checkr_report_url=_build_checkr_report_url(report_id),
-        consent_recent=consent_recent,
-        consent_recent_at=consent_recent_at,
-        in_dispute=bool(getattr(profile, "bgc_in_dispute", False)),
-        dispute_note=getattr(profile, "bgc_dispute_note", None),
-        dispute_opened_at=getattr(profile, "bgc_dispute_opened_at", None),
-        dispute_resolved_at=getattr(profile, "bgc_dispute_resolved_at", None),
-    )
+    payload = {
+        "instructor_id": profile.id,
+        "name": display_name,
+        "email": email,
+        "is_live": bool(getattr(profile, "is_live", False)),
+        "bgc_status": getattr(profile, "bgc_status", ""),
+        "bgc_report_id": report_id,
+        "bgc_completed_at": getattr(profile, "bgc_completed_at", None),
+        "created_at": getattr(profile, "created_at", None),
+        "updated_at": getattr(profile, "updated_at", None),
+        "checkr_report_url": _build_checkr_report_url(report_id),
+        "consent_recent": consent_recent,
+        "consent_recent_at": consent_recent_at,
+        "in_dispute": bool(getattr(profile, "bgc_in_dispute", False)),
+        "dispute_note": getattr(profile, "bgc_dispute_note", None),
+        "dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
+        "dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
+    }
+
+    return BGCCaseItemModel(**model_filter(BGCCaseItemModel, payload))
 
 
 def _get_bgc_cases(
@@ -255,18 +165,6 @@ class OverridePayload(BaseModel):
     action: Literal["approve", "reject"]
 
 
-class BGCOverrideResponse(BaseModel):
-    ok: bool
-    new_status: Literal["passed", "failed"]
-
-
-class BGCLatestConsentResponse(BaseModel):
-    instructor_id: str
-    consented_at: datetime
-    consent_version: str
-    ip_address: str | None = None
-
-
 @router.get("/review/count", response_model=BGCReviewCountResponse)
 async def bgc_review_count(
     repo: InstructorProfileRepository = Depends(get_instructor_repo),
@@ -274,7 +172,8 @@ async def bgc_review_count(
 ) -> BGCReviewCountResponse:
     """Return total instructors currently in review state."""
 
-    return BGCReviewCountResponse(count=repo.count_by_bgc_status("review"))
+    payload = {"count": repo.count_by_bgc_status("review")}
+    return BGCReviewCountResponse(**model_filter(BGCReviewCountResponse, payload))
 
 
 @router.get("/review", response_model=BGCReviewListResponse)
@@ -294,10 +193,9 @@ async def bgc_review_list(
         search=None,
     )
 
-    return BGCReviewListResponse(
-        items=[case.to_review_model() for case in items],
-        next_cursor=next_cursor,
-    )
+    review_items = [case.to_review_model() for case in items]
+    payload = {"items": review_items, "next_cursor": next_cursor}
+    return BGCReviewListResponse(**model_filter(BGCReviewListResponse, payload))
 
 
 @router.get("/counts", response_model=BGCCaseCountsResponse)
@@ -307,10 +205,11 @@ async def bgc_counts(
 ) -> BGCCaseCountsResponse:
     """Return total counts for review and pending background check queues."""
 
-    return BGCCaseCountsResponse(
-        review=repo.count_by_bgc_status("review"),
-        pending=repo.count_by_bgc_status("pending"),
-    )
+    payload = {
+        "review": repo.count_by_bgc_status("review"),
+        "pending": repo.count_by_bgc_status("pending"),
+    }
+    return BGCCaseCountsResponse(**model_filter(BGCCaseCountsResponse, payload))
 
 
 @router.get("/cases", response_model=BGCCaseListResponse)
@@ -338,7 +237,8 @@ async def bgc_cases(
         cursor=cursor,
         search=q,
     )
-    return BGCCaseListResponse(items=items, next_cursor=next_cursor)
+    payload = {"items": items, "next_cursor": next_cursor}
+    return BGCCaseListResponse(**model_filter(BGCCaseListResponse, payload))
 
 
 @router.get("/history/{instructor_id}", response_model=BGCHistoryResponse)
@@ -367,21 +267,21 @@ async def bgc_history(
 
     items: list[BGCHistoryItem] = []
     for entry in entries[:fetch_limit]:
-        items.append(
-            BGCHistoryItem(
-                id=entry.id,
-                result=entry.result,
-                package=entry.package,
-                env=entry.env,
-                completed_at=entry.completed_at,
-                created_at=entry.created_at,
-                report_id_present=bool(entry.report_id_enc),
-            )
-        )
+        item_payload = {
+            "id": entry.id,
+            "result": entry.result,
+            "package": entry.package,
+            "env": entry.env,
+            "completed_at": entry.completed_at,
+            "created_at": entry.created_at,
+            "report_id_present": bool(entry.report_id_enc),
+        }
+        items.append(BGCHistoryItem(**model_filter(BGCHistoryItem, item_payload)))
 
     next_cursor = entries[fetch_limit].id if len(entries) > fetch_limit else None
 
-    return BGCHistoryResponse(items=items, next_cursor=next_cursor)
+    payload = {"items": items, "next_cursor": next_cursor}
+    return BGCHistoryResponse(**model_filter(BGCHistoryResponse, payload))
 
 
 @router.get("/expiring", response_model=list[BGCExpiringItem])
@@ -397,13 +297,12 @@ async def bgc_expiring(
     results: list[BGCExpiringItem] = []
     for profile in expiring_profiles:
         user = getattr(profile, "user", None)
-        results.append(
-            BGCExpiringItem(
-                instructor_id=profile.id,
-                email=getattr(user, "email", None),
-                bgc_valid_until=getattr(profile, "bgc_valid_until", None),
-            )
-        )
+        item_payload = {
+            "instructor_id": profile.id,
+            "email": getattr(user, "email", None),
+            "bgc_valid_until": getattr(profile, "bgc_valid_until", None),
+        }
+        results.append(BGCExpiringItem(**model_filter(BGCExpiringItem, item_payload)))
     return results
 
 
@@ -438,7 +337,8 @@ async def bgc_review_override(
         )
         profile.bgc_completed_at = profile.bgc_completed_at or now
         repo.db.commit()
-        return BGCOverrideResponse(ok=True, new_status="passed")
+        response_payload = {"ok": True, "new_status": "passed"}
+        return BGCOverrideResponse(**model_filter(BGCOverrideResponse, response_payload))
 
     if not settings.bgc_suppress_adverse_emails:
         logger.info(
@@ -455,7 +355,8 @@ async def bgc_review_override(
     )
     profile.bgc_completed_at = now
     repo.db.commit()
-    return BGCOverrideResponse(ok=True, new_status="failed")
+    response_payload = {"ok": True, "new_status": "failed"}
+    return BGCOverrideResponse(**model_filter(BGCOverrideResponse, response_payload))
 
 
 @router.post("/{instructor_id}/dispute/open", response_model=BGCDisputeResponse)
@@ -484,13 +385,14 @@ async def open_bgc_dispute(
         "Background check dispute opened",
         extra={"evt": "bgc_dispute_open", "instructor_id": instructor_id},
     )
-    return BGCDisputeResponse(
-        ok=True,
-        in_dispute=bool(getattr(profile, "bgc_in_dispute", False)),
-        dispute_note=getattr(profile, "bgc_dispute_note", None),
-        dispute_opened_at=getattr(profile, "bgc_dispute_opened_at", None),
-        dispute_resolved_at=getattr(profile, "bgc_dispute_resolved_at", None),
-    )
+    response_payload = {
+        "ok": True,
+        "in_dispute": bool(getattr(profile, "bgc_in_dispute", False)),
+        "dispute_note": getattr(profile, "bgc_dispute_note", None),
+        "dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
+        "dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
+    }
+    return BGCDisputeResponse(**model_filter(BGCDisputeResponse, response_payload))
 
 
 @router.post("/{instructor_id}/dispute/resolve", response_model=BGCDisputeResponse)
@@ -519,13 +421,14 @@ async def resolve_bgc_dispute(
         "Background check dispute resolved",
         extra={"evt": "bgc_dispute_resolve", "instructor_id": instructor_id},
     )
-    return BGCDisputeResponse(
-        ok=True,
-        in_dispute=bool(getattr(profile, "bgc_in_dispute", False)),
-        dispute_note=getattr(profile, "bgc_dispute_note", None),
-        dispute_opened_at=getattr(profile, "bgc_dispute_opened_at", None),
-        dispute_resolved_at=getattr(profile, "bgc_dispute_resolved_at", None),
-    )
+    response_payload = {
+        "ok": True,
+        "in_dispute": bool(getattr(profile, "bgc_in_dispute", False)),
+        "dispute_note": getattr(profile, "bgc_dispute_note", None),
+        "dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
+        "dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
+    }
+    return BGCDisputeResponse(**model_filter(BGCDisputeResponse, response_payload))
 
 
 @router.get("/consent/{instructor_id}/latest", response_model=BGCLatestConsentResponse)
@@ -540,9 +443,10 @@ async def admin_latest_consent(
     if not consent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no consent on file")
 
-    return BGCLatestConsentResponse(
-        instructor_id=consent.instructor_id,
-        consented_at=consent.consented_at,
-        consent_version=consent.consent_version,
-        ip_address=consent.ip_address,
-    )
+    payload = {
+        "instructor_id": consent.instructor_id,
+        "consented_at": consent.consented_at,
+        "consent_version": consent.consent_version,
+        "ip_address": consent.ip_address,
+    }
+    return BGCLatestConsentResponse(**model_filter(BGCLatestConsentResponse, payload))
