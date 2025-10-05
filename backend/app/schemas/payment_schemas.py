@@ -81,6 +81,46 @@ class DashboardLinkResponse(StrictModel):
     expires_in_minutes: int = Field(default=5, description="Minutes until link expires")
 
 
+class IdentitySessionResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    """Response for initiating a Stripe Identity verification session."""
+
+    verification_session_id: str = Field(..., description="Stripe verification session identifier")
+    client_secret: str = Field(..., description="Client secret for the verification session")
+
+
+class IdentityRefreshResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    """Response for refreshing Stripe Identity verification status."""
+
+    status: str = Field(..., description="Latest verification status from Stripe")
+    verified: bool = Field(..., description="Whether the user is now verified")
+
+
+class PayoutScheduleResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    """Response for payout schedule updates."""
+
+    ok: bool = Field(..., description="Whether the schedule update succeeded")
+    account_id: Optional[str] = Field(None, description="Stripe connected account identifier")
+    settings: Optional[Dict[str, Any]] = Field(
+        None, description="Stripe payout schedule settings that were applied"
+    )
+
+
+class InstantPayoutResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    """Response for instant payout attempts."""
+
+    ok: bool = Field(..., description="Whether the instant payout request succeeded")
+    payout_id: Optional[str] = Field(
+        None, description="Stripe payout identifier if one was created"
+    )
+    status: Optional[str] = Field(
+        None, description="Stripe status of the payout (e.g., pending, paid)"
+    )
+
+
 class CheckoutResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for checkout/payment creation."""
