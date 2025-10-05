@@ -99,7 +99,7 @@ class InstructorProfile(Base):
 
     # Background check status tracking
     bgc_status = Column(String(20), nullable=True)
-    _bgc_report_id = Column("bgc_report_id", String(64), nullable=True)
+    _bgc_report_id = Column("bgc_report_id", Text, nullable=True)
     bgc_completed_at = Column(DateTime(timezone=True), nullable=True)
     bgc_env = Column(String(20), nullable=False, default="sandbox", server_default="sandbox")
     bgc_valid_until = Column(DateTime(timezone=True), nullable=True)

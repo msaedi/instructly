@@ -161,6 +161,7 @@ jobs:
         FRONTEND_URL: http://localhost:3000
         ENVIRONMENT: test
         REDIS_URL: redis://localhost:6379
+        BGC_ENCRYPTION_KEY: ${{ secrets.BGC_ENCRYPTION_KEY }}
       run: |
         cd backend
         pytest -q --cov=app --cov-report=xml

@@ -177,6 +177,13 @@ def upgrade() -> None:
         "instructor_profiles",
         sa.Column("bgc_report_id", sa.String(length=64), nullable=True),
     )
+    op.alter_column(
+        "instructor_profiles",
+        "bgc_report_id",
+        existing_type=sa.String(length=64),
+        type_=sa.Text(),
+        existing_nullable=True,
+    )
     op.add_column(
         "instructor_profiles",
         sa.Column("bgc_completed_at", sa.DateTime(timezone=True), nullable=True),

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import cast
 
+import pytest
 from sqlalchemy.orm import Session
 from tests.conftest import mocked_send
 from tests.unit.services._adverse_helpers import ensure_adverse_schema
@@ -8,7 +9,7 @@ import ulid
 
 from app.core.config import settings
 from app.database import SessionLocal
-from app.models.instructor import BackgroundJob, InstructorProfile
+from app.models.instructor import BackgroundCheck, BackgroundJob, InstructorProfile
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.background_check_workflow_service import (
@@ -39,6 +40,46 @@ def _create_profile(db: Session) -> InstructorProfile:
     db.add(profile)
     db.flush()
     return profile
+
+
+def test_report_completed_encrypts_report_id(db: Session) -> None:
+    ensure_adverse_schema(db)
+    if not settings.bgc_encryption_key:
+        pytest.skip("BGC_ENCRYPTION_KEY not configured")
+
+    _reset_jobs(db)
+    profile = _create_profile(db)
+    repo = InstructorProfileRepository(db)
+    workflow = BackgroundCheckWorkflowService(repo)
+
+    report_id = str(ulid.ULID())
+    profile.bgc_report_id = report_id
+    completed_at = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    db.commit()
+
+    workflow.handle_report_completed(
+        report_id=report_id,
+        result="clear",
+        package="standard",
+        env=settings.checkr_env,
+        completed_at=completed_at,
+    )
+
+    db.flush()
+    db.refresh(profile)
+    raw_value = getattr(profile, "_bgc_report_id", None)
+
+    assert profile.bgc_report_id == report_id
+    assert raw_value and raw_value.startswith("v1:") and len(raw_value) > 64
+
+    history_entry = (
+        db.query(BackgroundCheck)
+        .filter(BackgroundCheck.instructor_id == profile.id)
+        .order_by(BackgroundCheck.created_at.desc())
+        .first()
+    )
+    assert history_entry is not None
+    assert history_entry.report_id_enc and len(history_entry.report_id_enc) > 0
 
 
 def test_pre_to_final_adverse_flow(db: Session) -> None:
