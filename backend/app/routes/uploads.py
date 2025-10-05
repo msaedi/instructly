@@ -20,8 +20,10 @@ from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.user import User
 from ..schemas.base_responses import SuccessResponse
+from ..schemas.upload_responses import ProxyUploadResponse, SignedUploadResponse
 from ..services.dependencies import get_personal_asset_service
 from ..services.personal_asset_service import PersonalAssetService
+from ..utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
 
@@ -39,21 +41,6 @@ class CreateSignedUploadRequest(BaseModel):
     content_type: str = Field(..., description="Browser-reported MIME type")
     size_bytes: int = Field(..., ge=1, le=10 * 1024 * 1024, description="Max 10MB")
     purpose: Literal["background_check", "profile_picture"]
-
-
-class SignedUploadResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    upload_url: str
-    object_key: str
-    public_url: str | None = None
-    headers: dict[str, str]
-    expires_at: str
-
-
-class ProxyUploadResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    ok: bool
-    url: str | None = None
 
 
 _PROXY_ALLOWED_CONTENT_TYPES: set[str] = {"image/jpeg", "image/png", "image/webp"}
@@ -120,13 +107,15 @@ def create_signed_upload(
     except Exception:
         public_url = None
 
-    return SignedUploadResponse(
-        upload_url=pre.url,
-        object_key=object_key,
-        public_url=public_url,
-        headers=pre.headers,
-        expires_at=pre.expires_at,
-    )
+    response_payload = {
+        "upload_url": pre.url,
+        "object_key": object_key,
+        "public_url": public_url,
+        "headers": pre.headers,
+        "expires_at": pre.expires_at,
+    }
+
+    return SignedUploadResponse(**model_filter(SignedUploadResponse, response_payload))
 
 
 @router.post("/r2/proxy", response_model=ProxyUploadResponse)
@@ -198,7 +187,8 @@ async def proxy_upload_to_r2(
     except Exception:  # pragma: no cover - formatting/logging path
         public_url = None
 
-    return ProxyUploadResponse(ok=True, url=public_url)
+    response_payload = {"ok": True, "url": public_url}
+    return ProxyUploadResponse(**model_filter(ProxyUploadResponse, response_payload))
 
 
 class FinalizeProfilePictureRequest(BaseModel):

@@ -379,6 +379,17 @@ class TestResponseModelCoverage:
             "CandidateCategoryTrend",
             "CandidateServiceQuery",
             "CandidateTopService",
+            # Nested strict response helpers
+            "CategoryWithServices",
+            "NeighborhoodItem",
+            "TopCategoryItem",
+            "TopCategoryServiceItem",
+            "ServiceSearchMetadata",
+            "AllServicesMetadata",
+            "CategoryServiceDetail",
+            "TopServicesMetadata",
+            # Strict request companion declared in responses module
+            "BetaSettingsUpdateRequest",
         }
         unused_models = unused_models - allowed_unused
 

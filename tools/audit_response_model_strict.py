@@ -6,7 +6,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 ROUTES = ROOT / "backend" / "app" / "routes"
 SCHEMAS = ROOT / "backend" / "app" / "schemas"
 
-DEC = re.compile(r'@router\.(get|post|put|delete|patch)\([^)]*response_model\s*=\s*([A-Za-z0-9_.\[\]]+)')
+DEC = re.compile(r'@router\.(get|post|put|delete|patch)\(([^)]*)\)')
+RM = re.compile(r'response_model\s*=\s*([A-Za-z0-9_.\[\]None]+)')
 CLS = re.compile(r'class\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)\s*:')
 
 
@@ -28,8 +29,16 @@ total_refs = 0
 for route_file in ROUTES.rglob("*.py"):
     text = route_file.read_text(encoding="utf-8", errors="ignore")
     for match in DEC.finditer(text):
+        args = match.group(2)
+        if "response_class=" in args:
+            continue
+        rm = RM.search(args)
+        if not rm:
+            continue
+        raw = rm.group(1).strip()
+        if raw in {"None", "Response"}:
+            continue
         total_refs += 1
-        raw = match.group(2).strip()
         # normalize Optional/List[...] -> inner name
         model = re.sub(r'.*\[([A-Za-z0-9_\.]+)\].*', r'\1', raw)
         short = model.split(".")[-1]

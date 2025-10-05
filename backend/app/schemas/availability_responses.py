@@ -5,7 +5,9 @@ from ._strict_base import StrictModel
 from datetime import date
 from typing import Any, Dict, List
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, RootModel
+
+from .availability_window import TimeRange
 
 
 class WeekAvailabilityUpdateResponse(StrictModel):
@@ -66,3 +68,7 @@ class DeleteBlackoutResponse(StrictModel):
 
     message: str = "Blackout date removed successfully"
     blackout_id: str
+
+
+class WeekAvailabilityResponse(RootModel[Dict[str, List[TimeRange]]]):
+    """Week availability mapping keyed by ISO date string."""

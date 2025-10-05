@@ -173,11 +173,11 @@ def decrypt_report_token(token: str) -> str:
     ciphertext = payload[_NONCE_LEN:]
 
     try:
-        decrypted = cipher.decrypt(nonce, ciphertext, associated_data=None)
+        decrypted_bytes: bytes = cipher.decrypt(nonce, ciphertext, associated_data=None)
     except InvalidTag as exc:
         raise ValueError("Unable to decrypt background check token") from exc
 
-    return decrypted.decode("utf-8")
+    return decrypted_bytes.decode("utf-8")
 
 
 def assert_encryption_ready() -> None:

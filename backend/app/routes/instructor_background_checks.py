@@ -26,7 +26,12 @@ from ..schemas.bgc import (
     BackgroundCheckStatusLiteral,
     BackgroundCheckStatusResponse,
 )
+from ..schemas.instructor_background_checks_responses import (
+    ConsentResponse,
+    MockStatusResponse,
+)
 from ..services.background_check_service import BackgroundCheckService
+from ..utils.strict import model_filter
 
 CONSENT_WINDOW = timedelta(hours=24)
 
@@ -39,19 +44,6 @@ class ConsentPayload(BaseModel):
     consent_version: str = Field(..., min_length=1, max_length=50)
     disclosure_version: str = Field(..., min_length=1, max_length=50)
     user_agent: str | None = Field(default=None, max_length=512)
-
-
-class ConsentResponse(BaseModel):
-    """Acknowledgement returned after recording consent."""
-
-    ok: bool = True
-
-
-class MockStatusResponse(BaseModel):
-    """Response returned by non-production mock status changers."""
-
-    ok: bool = True
-    status: BackgroundCheckStatusLiteral
 
 
 router = APIRouter(
@@ -302,7 +294,8 @@ async def record_background_check_consent(
         },
     )
 
-    return ConsentResponse()
+    response_payload = {"ok": True}
+    return ConsentResponse(**model_filter(ConsentResponse, response_payload))
 
 
 def _ensure_non_production() -> None:
@@ -330,7 +323,8 @@ async def mock_background_check_pass(
         timezone.utc
     )
 
-    return MockStatusResponse(status="passed")
+    response_payload = {"status": "passed"}
+    return MockStatusResponse(**model_filter(MockStatusResponse, response_payload))
 
 
 @router.post("/mock/review", response_model=MockStatusResponse)
@@ -349,7 +343,8 @@ async def mock_background_check_review(
     profile.bgc_status = "review"
     profile.bgc_completed_at = None
 
-    return MockStatusResponse(status="review")
+    response_payload = {"status": "review"}
+    return MockStatusResponse(**model_filter(MockStatusResponse, response_payload))
 
 
 @router.post("/mock/reset", response_model=MockStatusResponse)
@@ -369,4 +364,5 @@ async def mock_background_check_reset(
     profile.bgc_completed_at = None
     profile.bgc_report_id = None
 
-    return MockStatusResponse(status="failed")
+    response_payload = {"status": "failed"}
+    return MockStatusResponse(**model_filter(MockStatusResponse, response_payload))

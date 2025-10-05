@@ -22,12 +22,14 @@ from ..core.exceptions import ConflictException, NotFoundException, ValidationEx
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..schemas import (
-    Token,
     UserCreate,
     UserLogin,
-    UserResponse,
     UserUpdate,
-    UserWithPermissionsResponse,
+)
+from ..schemas.auth_responses import (
+    AuthTokenResponse,
+    AuthUserResponse,
+    AuthUserWithPermissionsResponse,
 )
 from ..schemas.security import LoginResponse, PasswordChangeRequest, PasswordChangeResponse
 from ..services.auth_service import AuthService
@@ -40,13 +42,14 @@ from ..utils.cookies import (
     set_session_cookie,
 )
 from ..utils.invite_cookie import invite_cookie_name
+from ..utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=AuthUserResponse, status_code=status.HTTP_201_CREATED)
 @rate_limit(
     f"{settings.rate_limit_register_per_hour}/hour",
     key_type=RateLimitKeyType.IP,
@@ -58,7 +61,7 @@ async def register(
     payload: UserCreate = Body(...),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
-) -> UserResponse:
+) -> AuthUserResponse:
     """
     Register a new user.
 
@@ -70,7 +73,7 @@ async def register(
         db: Database session
 
     Returns:
-        UserResponse: The created user
+        AuthUserResponse: The created user
 
     Raises:
         HTTPException: If email already registered or rate limit exceeded
@@ -122,18 +125,21 @@ async def register(
             # Log only; do not block registration if invite handling fails
             logger.error(f"Error consuming invite on register for {db_user.id}: {e}")
 
-        user_payload = UserResponse(
-            id=db_user.id,
-            email=db_user.email,
-            first_name=db_user.first_name,
-            last_name=db_user.last_name,
-            phone=db_user.phone,
-            zip_code=db_user.zip_code,
-            is_active=db_user.is_active,
-            timezone=db_user.timezone,
-            roles=[role.name for role in db_user.roles],
-            permissions=[],  # TODO: Add permissions if needed
-        )
+        response_data = {
+            "id": db_user.id,
+            "email": db_user.email,
+            "first_name": db_user.first_name,
+            "last_name": db_user.last_name,
+            "phone": getattr(db_user, "phone", None),
+            "zip_code": getattr(db_user, "zip_code", None),
+            "is_active": getattr(db_user, "is_active", True),
+            "timezone": getattr(db_user, "timezone", None),
+            "roles": [role.name for role in getattr(db_user, "roles", [])],
+            "permissions": [],
+            "profile_picture_version": getattr(db_user, "profile_picture_version", 0),
+            "has_profile_picture": getattr(db_user, "has_profile_picture", False),
+        }
+        user_payload = AuthUserResponse(**model_filter(AuthUserResponse, response_data))
 
         # Clear invite verification cookie after successful registration
         response.delete_cookie(
@@ -180,7 +186,7 @@ async def login(
         auth_service: Authentication service
 
     Returns:
-        Token: Access token and token type
+        AuthTokenResponse: Access token and token type
 
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
@@ -292,7 +298,7 @@ async def change_password(
     return PasswordChangeResponse(message="Password changed successfully")
 
 
-@router.post("/login-with-session", response_model=Token)
+@router.post("/login-with-session", response_model=AuthTokenResponse)
 @rate_limit(
     f"{settings.rate_limit_auth_per_minute}/minute",
     key_type=RateLimitKeyType.IP,
@@ -304,7 +310,7 @@ async def login_with_session(
     login_data: UserLogin,
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
-) -> Token:
+) -> AuthTokenResponse:
     """
     Login with email and password, optionally converting guest searches.
 
@@ -316,7 +322,7 @@ async def login_with_session(
         db: Database session
 
     Returns:
-        Token: Access token and token type
+        AuthTokenResponse: Access token and token type
 
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
@@ -366,15 +372,16 @@ async def login_with_session(
     if site_mode != "local":
         expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
 
-    return Token(access_token=access_token, token_type="bearer")
+    response_payload = {"access_token": access_token, "token_type": "bearer"}
+    return AuthTokenResponse(**model_filter(AuthTokenResponse, response_payload))
 
 
-@router.get("/me", response_model=UserWithPermissionsResponse)
+@router.get("/me", response_model=AuthUserWithPermissionsResponse)
 async def read_users_me(
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
-) -> UserWithPermissionsResponse:
+) -> AuthUserWithPermissionsResponse:
     """
     Get current user information with roles and permissions.
 
@@ -386,7 +393,7 @@ async def read_users_me(
         db: Database session
 
     Returns:
-        UserWithPermissionsResponse: Current user data with roles and permissions
+        AuthUserWithPermissionsResponse: Current user data with roles and permissions
 
     Raises:
         HTTPException: If user not found
@@ -406,30 +413,34 @@ async def read_users_me(
         beta = beta_repo.get_latest_for_user(user.id)
 
         # Create response with roles, permissions, and beta info (if any)
-        resp = UserWithPermissionsResponse(
-            id=user.id,
-            email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            phone=user.phone,
-            zip_code=user.zip_code,
-            is_active=user.is_active,
-            timezone=user.timezone,
-            # Include profile picture metadata so clients can react to updates
-            profile_picture_version=user.profile_picture_version or 0,
-            has_profile_picture=user.has_profile_picture,
-            roles=roles,
-            permissions=list(permissions),
-        )
+        response_data = {
+            "id": user.id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "phone": getattr(user, "phone", None),
+            "zip_code": getattr(user, "zip_code", None),
+            "is_active": getattr(user, "is_active", True),
+            "timezone": getattr(user, "timezone", None),
+            "profile_picture_version": getattr(user, "profile_picture_version", 0),
+            "has_profile_picture": getattr(user, "has_profile_picture", False),
+            "roles": roles,
+            "permissions": list(permissions),
+        }
 
-        # Attach beta fields dynamically (Pydantic will ignore extras if not defined)
         if beta:
-            setattr(resp, "beta_access", True)
-            setattr(resp, "beta_role", beta.role)
-            setattr(resp, "beta_phase", beta.phase)
-            setattr(resp, "beta_invited_by", beta.invited_by_code)
+            response_data.update(
+                {
+                    "beta_access": True,
+                    "beta_role": getattr(beta, "role", None),
+                    "beta_phase": getattr(beta, "phase", None),
+                    "beta_invited_by": getattr(beta, "invited_by_code", None),
+                }
+            )
 
-        return resp
+        return AuthUserWithPermissionsResponse(
+            **model_filter(AuthUserWithPermissionsResponse, response_data)
+        )
     except NotFoundException:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -437,13 +448,13 @@ async def read_users_me(
         )
 
 
-@router.patch("/me", response_model=UserWithPermissionsResponse)
+@router.patch("/me", response_model=AuthUserWithPermissionsResponse)
 async def update_current_user(
     user_update: UserUpdate = Body(...),
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
-) -> UserWithPermissionsResponse:
+) -> AuthUserWithPermissionsResponse:
     """
     Update current user's profile (including timezone).
 
@@ -454,7 +465,7 @@ async def update_current_user(
         db: Database session
 
     Returns:
-        UserWithPermissionsResponse: Updated user data
+        AuthUserWithPermissionsResponse: Updated user data
 
     Raises:
         HTTPException: If user not found or update fails
@@ -506,17 +517,23 @@ async def update_current_user(
         permissions = permission_service.get_user_permissions(updated_user.id)
         roles = permission_service.get_user_roles(updated_user.id)
 
-        return UserWithPermissionsResponse(
-            id=updated_user.id,
-            email=updated_user.email,
-            first_name=updated_user.first_name,
-            last_name=updated_user.last_name,
-            phone=updated_user.phone,
-            zip_code=updated_user.zip_code,
-            is_active=updated_user.is_active,
-            timezone=updated_user.timezone,
-            roles=roles,
-            permissions=list(permissions),
+        response_data = {
+            "id": updated_user.id,
+            "email": updated_user.email,
+            "first_name": updated_user.first_name,
+            "last_name": updated_user.last_name,
+            "phone": getattr(updated_user, "phone", None),
+            "zip_code": getattr(updated_user, "zip_code", None),
+            "is_active": getattr(updated_user, "is_active", True),
+            "timezone": getattr(updated_user, "timezone", None),
+            "roles": roles,
+            "permissions": list(permissions),
+            "profile_picture_version": getattr(updated_user, "profile_picture_version", 0),
+            "has_profile_picture": getattr(updated_user, "has_profile_picture", False),
+        }
+
+        return AuthUserWithPermissionsResponse(
+            **model_filter(AuthUserWithPermissionsResponse, response_data)
         )
     except NotFoundException:
         raise HTTPException(
