@@ -136,8 +136,30 @@ if [[ "${FAST_HOOKS:-0}" != "1" ]]; then
 
   echo "[pre-push] Frontend: ts-prune (warn)"
   (cd frontend && mkdir -p .artifacts && npx --yes ts-prune -p tsconfig.json | grep -v -f ts-prune-allowlist.txt | tee .artifacts/ts-prune.prepush.txt) || true
-  echo "[pre-push] Frontend warn-mode: audit:deadcode:ci"
-  (cd frontend && npm run --silent audit:deadcode:ci) || true
+
+  # ---- FRONTEND: Knip dead code (hard fail) ----
+  echo "[pre-push] Frontend hard gate: dead code (Knip)"
+  set -euo pipefail
+  pushd frontend >/dev/null
+
+  # Use JSON reporter against knip.json; tolerate Node versions
+  npx knip --config knip.json --reporter=json > .artifacts/knip.json || true
+
+  # Count exactly like CI
+  count=$(node -e 'const fs=require("fs");try{const d=JSON.parse(fs.readFileSync(".artifacts/knip.json","utf8"));console.log(Array.isArray(d)?d.length:(d.issues?d.issues.length:0));}catch{console.log(0)}')
+  echo "Knip count: ${count}"
+
+  if [ "${count}" -gt 0 ]; then
+    echo "❌ Dead code detected (${count}). Push aborted."
+    # show initial offenders for convenience
+    npx knip --config knip.json --reporter=compact | sed -n "1,200p" || true
+    popd >/dev/null
+    exit 1
+  fi
+
+  echo "✅ No dead code (pre-push)"
+  popd >/dev/null
+  # ---- END FRONTEND: Knip hard fail ----
 
   # Removed audit:lhci from pre-push (still runs in CI)
 
