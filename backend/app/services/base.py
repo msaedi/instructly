@@ -176,11 +176,10 @@ class BaseService:
                             self._record_metric(operation_name, elapsed, success)
 
                         # Only log if it's actually slow
-                        if elapsed > 1.0:
-                            if hasattr(self, "logger"):
-                                self.logger.warning(
-                                    f"Slow operation detected: {operation_name} took {elapsed:.2f}s"
-                                )
+                        if elapsed > 1.0 and hasattr(self, "logger"):
+                            self.logger.warning(
+                                f"{getattr(func, '__name__', operation_name)} took {elapsed:.2f}s"
+                            )
 
                         # Record Prometheus metrics (optimized)
                         if PROMETHEUS_AVAILABLE and prometheus_metrics:
@@ -225,11 +224,10 @@ class BaseService:
                     if hasattr(self, "_record_metric"):
                         self._record_metric(operation_name, elapsed, success)
 
-                    if elapsed > 1.0:
-                        if hasattr(self, "logger"):
-                            self.logger.warning(
-                                f"Slow operation detected: {operation_name} took {elapsed:.2f}s"
-                            )
+                    if elapsed > 1.0 and hasattr(self, "logger"):
+                        self.logger.warning(
+                            f"{getattr(func, '__name__', operation_name)} took {elapsed:.2f}s"
+                        )
 
                     if PROMETHEUS_AVAILABLE and prometheus_metrics:
                         try:
@@ -378,7 +376,14 @@ class BaseService:
         """
         self.logger.info(f"Operation: {operation}", extra={"operation": operation, **context})
 
-    def _record_metric(self, operation: str, elapsed: float, success: bool) -> None:
+    def _record_metric(
+        self,
+        operation: str,
+        elapsed: Optional[float] = None,
+        success: Optional[bool] = None,
+        *,
+        value: Optional[float | int] = None,
+    ) -> None:
         """
         Record performance metrics.
 
@@ -388,28 +393,35 @@ class BaseService:
             success: Whether operation succeeded
         """
         class_name = self.__class__.__name__
-        if class_name not in BaseService._class_metrics:
-            BaseService._class_metrics[class_name] = {}
+        metrics = BaseService._class_metrics.setdefault(class_name, {})
 
-        metrics = BaseService._class_metrics[class_name]
-
-        if operation not in metrics:
-            metrics[operation] = {
+        metric_data = metrics.setdefault(
+            operation,
+            {
                 "count": 0,
                 "total_time": 0.0,
                 "success_count": 0,
                 "failure_count": 0,
                 "min_time": float("inf"),
                 "max_time": 0.0,
-            }
+            },
+        )
 
-        metric_data = metrics[operation]
+        if value is not None:
+            elapsed_value = float(value)
+        elif elapsed is not None:
+            elapsed_value = float(elapsed)
+        else:
+            elapsed_value = 0.0
+
+        success_flag = True if success is None else bool(success)
+
         metric_data["count"] += 1
-        metric_data["total_time"] += elapsed
-        metric_data["min_time"] = min(metric_data["min_time"], elapsed)
-        metric_data["max_time"] = max(metric_data["max_time"], elapsed)
+        metric_data["total_time"] += elapsed_value
+        metric_data["min_time"] = min(metric_data["min_time"], elapsed_value)
+        metric_data["max_time"] = max(metric_data["max_time"], elapsed_value)
 
-        if success:
+        if success_flag:
             metric_data["success_count"] += 1
         else:
             metric_data["failure_count"] += 1
