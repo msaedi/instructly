@@ -15,13 +15,13 @@ from ._strict_base import StrictModel
 T = TypeVar("T")
 
 
-class EmptyResponse(BaseModel):
+class EmptyResponse(StrictModel):
     """Empty response body placeholder (use with 204 No Content)."""
 
     model_config = ConfigDict(json_schema_extra={"example": {}})
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse(StrictModel, Generic[T]):
     """
     Standard paginated response for all list endpoints.
 
@@ -50,7 +50,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     )
 
 
-class SuccessResponse(BaseModel):
+class SuccessResponse(StrictModel):
     """Standard success response for operations."""
 
     success: bool = Field(default=True, description="Operation success status")
@@ -68,7 +68,7 @@ class SuccessResponse(BaseModel):
     )
 
 
-class DeleteResponse(BaseModel):
+class DeleteResponse(StrictModel):
     """Standard response for delete operations."""
 
     success: bool = Field(default=True, description="Deletion success status")
@@ -106,7 +106,7 @@ class ErrorDetail(BaseModel):
     )
 
 
-class ErrorResponse(BaseModel):
+class ErrorResponse(StrictModel):
     """
     Standard error response structure.
 
@@ -189,7 +189,7 @@ class HealthCheckResponse(StrictModel):
     )
 
 
-class MetricsResponse(BaseModel):
+class MetricsResponse(StrictModel):
     """Standard metrics response."""
 
     metrics: Dict[str, float] = Field(description="Metric values")

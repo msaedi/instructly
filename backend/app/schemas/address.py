@@ -2,10 +2,9 @@
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
-from pydantic.config import ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 
 
 class AddressBase(BaseModel):
@@ -55,7 +54,8 @@ class AddressResponse(AddressBase):
     location_metadata: Optional[Dict[str, Any]] = None
 
 
-class AddressListResponse(BaseModel):
+class AddressListResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     items: List[AddressResponse]
     total: int
 
@@ -71,7 +71,8 @@ class ServiceAreaItem(BaseModel):
     borough: Optional[str] = None
 
 
-class ServiceAreasResponse(BaseModel):
+class ServiceAreasResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     items: List[ServiceAreaItem]
     total: int
 
@@ -97,7 +98,8 @@ class PlaceSuggestion(BaseModel):
     types: List[str] = []
 
 
-class AutocompleteResponse(BaseModel):
+class AutocompleteResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     items: List[PlaceSuggestion]
     total: int
 

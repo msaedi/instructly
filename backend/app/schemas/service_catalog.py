@@ -6,12 +6,12 @@ Schemas for service catalog endpoints.
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 
 
-class CategoryResponse(BaseModel):
+class CategoryResponse(StrictModel):
     """Service category response."""
 
     id: str
@@ -25,7 +25,7 @@ class CategoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 
 
-class CatalogServiceResponse(BaseModel):
+class CatalogServiceResponse(StrictModel):
     """Catalog service response."""
 
     id: str
@@ -45,7 +45,7 @@ class CatalogServiceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 
 
-class CatalogServiceMinimalResponse(BaseModel):
+class CatalogServiceMinimalResponse(StrictModel):
     """Minimal catalog service response for pills/lists."""
 
     id: str
@@ -79,7 +79,7 @@ class InstructorServiceCreate(StrictRequestModel):
     )
 
 
-class InstructorServiceResponse(BaseModel):
+class InstructorServiceResponse(StrictModel):
     """Instructor service response with catalog info."""
 
     id: str

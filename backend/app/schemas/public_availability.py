@@ -1,3 +1,5 @@
+from ._strict_base import StrictModel
+
 # backend/app/schemas/public_availability.py
 """
 Public availability schemas for student-facing API.
@@ -200,7 +202,7 @@ class PublicAvailabilitySummary(BaseModel):
     )
 
 
-class NextAvailableSlotResponse(BaseModel):
+class NextAvailableSlotResponse(StrictModel):
     """Response for next available slot endpoint."""
 
     found: bool

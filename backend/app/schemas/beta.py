@@ -1,12 +1,13 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 
 
-class InviteValidateResponse(BaseModel):
+class InviteValidateResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     valid: bool
     reason: Optional[str] = None
     code: Optional[str] = None
@@ -32,7 +33,8 @@ class InviteRecord(BaseModel):
     expires_at: datetime
 
 
-class InviteGenerateResponse(BaseModel):
+class InviteGenerateResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     invites: list[InviteRecord]
 
 
@@ -43,7 +45,8 @@ class InviteConsumeRequest(StrictRequestModel):
     phase: str = "instructor_only"
 
 
-class AccessGrantResponse(BaseModel):
+class AccessGrantResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     access_id: str
     user_id: str
     role: str
@@ -59,7 +62,8 @@ class InviteSendRequest(StrictRequestModel):
     base_url: Optional[str] = None
 
 
-class InviteSendResponse(BaseModel):
+class InviteSendResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     id: str
     code: str
     email: EmailStr
@@ -67,7 +71,8 @@ class InviteSendResponse(BaseModel):
     welcome_url: str
 
 
-class BetaMetricsSummaryResponse(BaseModel):
+class BetaMetricsSummaryResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     invites_sent_24h: int
     invites_errors_24h: int
     phase_counts_24h: dict[str, int]
@@ -86,16 +91,19 @@ class InviteBatchSendFailure(BaseModel):
     reason: str
 
 
-class InviteBatchSendResponse(BaseModel):
+class InviteBatchSendResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     sent: list[InviteSendResponse]
     failed: list[InviteBatchSendFailure]
 
 
-class InviteBatchAsyncStartResponse(BaseModel):
+class InviteBatchAsyncStartResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     task_id: str
 
 
-class InviteBatchProgressResponse(BaseModel):
+class InviteBatchProgressResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     task_id: str
     state: str
     current: int

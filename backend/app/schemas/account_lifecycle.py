@@ -1,3 +1,5 @@
+from ._strict_base import StrictModel
+
 # backend/app/schemas/account_lifecycle.py
 """
 Schemas for account lifecycle management.
@@ -7,10 +9,11 @@ Handles request/response models for instructor account status changes.
 
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
-class AccountStatusChangeResponse(BaseModel):
+class AccountStatusChangeResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for account status change operations."""
 
     success: bool
@@ -19,7 +22,8 @@ class AccountStatusChangeResponse(BaseModel):
     new_status: str
 
 
-class AccountStatusResponse(BaseModel):
+class AccountStatusResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for account status check endpoint."""
 
     user_id: str

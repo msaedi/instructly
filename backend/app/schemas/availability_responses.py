@@ -1,12 +1,15 @@
+from ._strict_base import StrictModel
+
 """Response models for availability endpoints."""
 
 from datetime import date
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
 
 
-class WeekAvailabilityUpdateResponse(BaseModel):
+class WeekAvailabilityUpdateResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for updating weekly availability."""
 
     message: str
@@ -17,7 +20,8 @@ class WeekAvailabilityUpdateResponse(BaseModel):
     windows_deleted: int
 
 
-class CopyWeekResponse(BaseModel):
+class CopyWeekResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for copying week availability."""
 
     message: str
@@ -26,7 +30,8 @@ class CopyWeekResponse(BaseModel):
     windows_copied: int
 
 
-class ApplyToDateRangeResponse(BaseModel):
+class ApplyToDateRangeResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for applying availability to date range."""
 
     message: str
@@ -36,14 +41,16 @@ class ApplyToDateRangeResponse(BaseModel):
     windows_created: int
 
 
-class DeleteWindowResponse(BaseModel):
+class DeleteWindowResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for deleting an availability window."""
 
     message: str = "Availability window deleted successfully"
     window_id: str
 
 
-class BookedSlotsResponse(BaseModel):
+class BookedSlotsResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for getting booked slots in a week."""
 
     week_start: date
@@ -53,7 +60,8 @@ class BookedSlotsResponse(BaseModel):
     )
 
 
-class DeleteBlackoutResponse(BaseModel):
+class DeleteBlackoutResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for deleting a blackout date."""
 
     message: str = "Blackout date removed successfully"

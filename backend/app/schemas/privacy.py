@@ -5,9 +5,9 @@ Pydantic schemas for privacy and GDPR compliance.
 
 from typing import Any, Dict
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
 
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 
 
 class UserDataDeletionRequest(StrictRequestModel):
@@ -20,7 +20,8 @@ class UserDataDeletionRequest(StrictRequestModel):
     )
 
 
-class UserDataDeletionResponse(BaseModel):
+class UserDataDeletionResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """
     Response schema for user data deletion.
     """
@@ -31,7 +32,8 @@ class UserDataDeletionResponse(BaseModel):
     account_deleted: bool = Field(description="Whether the account was deleted")
 
 
-class DataExportResponse(BaseModel):
+class DataExportResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """
     Response schema for data export requests.
     """
@@ -41,7 +43,8 @@ class DataExportResponse(BaseModel):
     data: Dict[str, Any] = Field(description="The exported user data")
 
 
-class PrivacyStatisticsResponse(BaseModel):
+class PrivacyStatisticsResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """
     Response schema for privacy statistics.
     """
@@ -50,7 +53,8 @@ class PrivacyStatisticsResponse(BaseModel):
     statistics: Dict[str, Any] = Field(description="Privacy and retention statistics")
 
 
-class RetentionPolicyResponse(BaseModel):
+class RetentionPolicyResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """
     Response schema for applying retention policies.
     """

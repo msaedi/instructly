@@ -1,3 +1,5 @@
+from ._strict_base import StrictModel
+
 """
 Response models for database monitoring endpoints.
 
@@ -7,10 +9,10 @@ and monitoring endpoints.
 
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 
-class DatabaseHealthResponse(BaseModel):
+class DatabaseHealthResponse(StrictModel):
     """Response for database health check endpoint."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -23,7 +25,8 @@ class DatabaseHealthResponse(BaseModel):
     error: Optional[str] = Field(default=None, description="Error message if unhealthy")
 
 
-class DatabasePoolStatusResponse(BaseModel):
+class DatabasePoolStatusResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for database pool status endpoint."""
 
     status: str
@@ -32,7 +35,8 @@ class DatabasePoolStatusResponse(BaseModel):
     recommendations: Dict[str, Any]
 
 
-class DatabaseStatsResponse(BaseModel):
+class DatabaseStatsResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for database statistics endpoint."""
 
     status: str

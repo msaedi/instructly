@@ -1,48 +1,57 @@
+from ._strict_base import StrictModel
+
 """Response models for monitoring and infrastructure endpoints."""
 
 from typing import Any, Dict, List
 
-from pydantic import BaseModel
+from pydantic import ConfigDict
 
 
-class RedisStatsResponse(BaseModel):
+class RedisStatsResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for Redis statistics."""
 
     stats: Dict[str, Any]
 
 
-class RedisCeleryQueuesResponse(BaseModel):
+class RedisCeleryQueuesResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for Redis Celery queues."""
 
     queues: Dict[str, Any]
 
 
-class RedisConnectionAuditResponse(BaseModel):
+class RedisConnectionAuditResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for Redis connection audit."""
 
     connections: List[Dict[str, Any]]
 
 
-class RedisFlushQueuesResponse(BaseModel):
+class RedisFlushQueuesResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for flushing Redis queues."""
 
     message: str
     queues_flushed: List[str]
 
 
-class DatabasePoolStatusResponse(BaseModel):
+class DatabasePoolStatusResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for database pool status."""
 
     pool_status: Dict[str, Any]
 
 
-class DatabaseStatsResponse(BaseModel):
+class DatabaseStatsResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for database statistics."""
 
     stats: Dict[str, Any]
 
 
-class HealthResponse(BaseModel):
+class HealthResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for health check."""
 
     status: str
@@ -50,20 +59,23 @@ class HealthResponse(BaseModel):
     checks: Dict[str, Any] = {}
 
 
-class HealthLiteResponse(BaseModel):
+class HealthLiteResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for lite health check."""
 
     status: str
 
 
-class RootResponse(BaseModel):
+class RootResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for root endpoint."""
 
     message: str
     version: str = "1.0.0"
 
 
-class PrivacyRetentionResponse(BaseModel):
+class PrivacyRetentionResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for privacy retention apply."""
 
     message: str

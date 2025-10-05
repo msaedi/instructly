@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
 from pydantic.functional_validators import field_validator
 
 from ._strict_base import StrictModel, StrictRequestModel
@@ -48,16 +48,19 @@ class ReviewResponseModel(StrictModel):
 
 
 class InstructorRatingsResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     overall: Dict[str, Any]
     by_service: List[Dict[str, Any]] = Field(default_factory=list)
     confidence_level: str = Field(..., pattern="^(new|establishing|established|trusted)$")
 
 
-class ReviewListResponse(BaseModel):
+class ReviewListResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     reviews: List[ReviewItem]
 
 
 class SearchRatingResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     primary_rating: Optional[float]
     review_count: int
     is_service_specific: bool
@@ -74,10 +77,12 @@ class RatingsBatchItem(StrictModel):
 
 
 class RatingsBatchResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     results: List[RatingsBatchItem]
 
 
 class ReviewListPageResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     reviews: List[ReviewItem]
     total: int
     page: int

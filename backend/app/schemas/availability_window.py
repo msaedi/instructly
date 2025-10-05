@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 from .base import StandardizedModel
 
 # Type aliases for clarity
@@ -329,7 +329,8 @@ class OperationResult(BaseModel):
     slot_id: Optional[str] = None  # For successful adds
 
 
-class BulkUpdateResponse(BaseModel):
+class BulkUpdateResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response schema for bulk availability update."""
 
     successful: int
@@ -367,7 +368,7 @@ class ValidationSummary(BaseModel):
     estimated_changes: Dict[str, int]  # e.g., {"slots_added": 3, "slots_removed": 2}
 
 
-class WeekValidationResponse(BaseModel):
+class WeekValidationResponse(StrictModel):
     """Response for week schedule validation"""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
