@@ -1,0 +1,22 @@
+{
+  "ci": {
+    "collect": {
+      "numberOfRuns": 1,
+      "startServerCommand": "npm run dev-lhci",
+      "url": [
+        "http://localhost:3100/",
+        "http://localhost:3100/login",
+        "http://localhost:3100/instructors/01J5TESTINSTR0000000000008"
+      ]
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.80 }],
+        "uses-http2": "warn",
+        "uses-long-cache-ttl": "warn"
+      },
+      "budgetsFile": "lhci.budgets.json"
+    },
+    "upload": { "target": "temporary-public-storage" }
+  }
+}

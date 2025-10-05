@@ -16,6 +16,7 @@
     "dev:test": "next dev -p 3100",
     "dev:http": "rm -rf .next && NEXT_PUBLIC_API_BASE=http://localhost:8000 next dev",
     "dev:https": "rm -rf .next && cross-env NEXT_PUBLIC_API_BASE=https://localhost:8001 NEXT_PUBLIC_APP_URL=https://localhost:3001 node server.js",
+    "dev-lhci": "next start -p 3100",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -62,7 +63,8 @@
     "audit:typecov:ci": "NODE_OPTIONS=--max-old-space-size=6144 type-coverage -p tsconfig.type-coverage.json --detail --strict --at-least 99 --ignore-as-assertion --ignore-type-assertion --ignore-non-null-assertion --ignore-files \".*/app/\\(auth\\)/student/dashboard/page\\.tsx\" --ignore-files \".*/lib/api/bookings\\.ts\"",
     "type:smoke": "tsd --files \"type-tests/**/*.test-d.ts\"",
     "type:smoke:ci": "npm run type:smoke",
-    "audit:lhci": "cross-env NEXT_PUBLIC_API_BASE=https://example.invalid next build && lhci autorun || true"
+    "audit:lhci": "cross-env NEXT_PUBLIC_API_BASE=https://example.invalid next build && lhci autorun || true",
+    "lhci": "lhci autorun --config=lhci.config.json || true"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
