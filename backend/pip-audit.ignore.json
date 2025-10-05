@@ -1,15 +1,12 @@
 {
   "ignore": [
-    "GHSA-wj6h-64fc-37mp",
-    "GHSA-f96h-pmfr-66vw",
-    "GHSA-2c2j-9gv5-cj73",
-    "GHSA-vqfr-h8mv-ghfj",
-    "PYSEC-2025-61",
-    "PYSEC-2024-232",
-    "PYSEC-2024-233",
-    "GHSA-59g5-xgcq-4qw3",
-    "GHSA-9hjg-9r4m-mvj7",
-    "GHSA-48p4-8xcf-vxj5",
-    "GHSA-pq67-6m6q-mj2v"
-  ]
+    "GHSA-wj6h-64fc-37mp"
+  ],
+  "notes": {
+    "GHSA-wj6h-64fc-37mp": {
+      "package": "ecdsa",
+      "reason": "Upstream has not released a fixed version; dependency pinned at latest 0.19.1 while monitoring for advisory mitigation.",
+      "review_after": "2025-11-04"
+    }
+  }
 }
