@@ -177,8 +177,9 @@ class BaseService:
 
                         # Only log if it's actually slow
                         if elapsed > 1.0 and hasattr(self, "logger"):
+                            func_name = getattr(func, "__name__", operation_name)
                             self.logger.warning(
-                                f"{getattr(func, '__name__', operation_name)} took {elapsed:.2f}s"
+                                f"Slow operation detected: {func_name} took {elapsed:.2f}s"
                             )
 
                         # Record Prometheus metrics (optimized)
@@ -225,8 +226,9 @@ class BaseService:
                         self._record_metric(operation_name, elapsed, success)
 
                     if elapsed > 1.0 and hasattr(self, "logger"):
+                        func_name = getattr(func, "__name__", operation_name)
                         self.logger.warning(
-                            f"{getattr(func, '__name__', operation_name)} took {elapsed:.2f}s"
+                            f"Slow operation detected: {func_name} took {elapsed:.2f}s"
                         )
 
                     if PROMETHEUS_AVAILABLE and prometheus_metrics:
