@@ -181,7 +181,8 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Pre-warm lightweight health endpoint to avoid first request cold start spikes
     if httpx is not None:
         with contextlib.suppress(Exception):
-            async with httpx.AsyncClient(app=app, base_url="http://test") as client:
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
                 await client.get("/health")
 
     # Log database selection (this will show which database is being used)
