@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional, cast
 from urllib.parse import ParseResult, parse_qsl, urlencode, urljoin, urlparse
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 import stripe
@@ -41,14 +40,19 @@ from ..schemas.payment_schemas import (
     DashboardLinkResponse,
     DeleteResponse,
     EarningsResponse,
+    IdentityRefreshResponse,
+    IdentitySessionResponse,
+    InstantPayoutResponse,
     OnboardingResponse,
     OnboardingStatusResponse,
     PaymentMethodResponse,
+    PayoutScheduleResponse,
     SavePaymentMethodRequest,
     TransactionHistoryItem,
     WebhookResponse,
 )
 from ..services.stripe_service import StripeService
+from ..utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
 
@@ -367,13 +371,6 @@ async def get_onboarding_status(
 # ========== Stripe Identity ==========
 
 
-class IdentitySessionResponse(BaseModel):
-    verification_session_id: str
-    client_secret: str
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
 @router.post(
     "/identity/session",
     response_model=IdentitySessionResponse,
@@ -421,10 +418,8 @@ async def create_identity_session(
                 return_url=return_url,
             ),
         )
-        return IdentitySessionResponse(
-            verification_session_id=result["verification_session_id"],
-            client_secret=result["client_secret"],
-        )
+        cleaned = model_filter(IdentitySessionResponse, result)
+        return IdentitySessionResponse(**cleaned)
     except HTTPException:
         raise
     except ServiceException as e:
@@ -436,13 +431,6 @@ async def create_identity_session(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create identity session",
         )
-
-
-class IdentityRefreshResponse(BaseModel):
-    status: str
-    verified: bool
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 @router.post(
@@ -483,9 +471,13 @@ async def refresh_identity_status(
                     f"Failed to persist identity verification for user {current_user.id}: {e}"
                 )
                 # Still return verified=true since Stripe says verified
-            return IdentityRefreshResponse(status=status_value, verified=True)
+            response_payload = {"status": status_value, "verified": True}
+            return IdentityRefreshResponse(
+                **model_filter(IdentityRefreshResponse, response_payload)
+            )
 
-        return IdentityRefreshResponse(status=status_value, verified=False)
+        response_payload = {"status": status_value, "verified": False}
+        return IdentityRefreshResponse(**model_filter(IdentityRefreshResponse, response_payload))
     except HTTPException:
         raise
     except Exception as e:
@@ -494,14 +486,6 @@ async def refresh_identity_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to refresh identity status",
         )
-
-
-class PayoutScheduleResponse(BaseModel):
-    ok: bool
-    account_id: str | None = None
-    settings: Dict[str, Any] | None = None
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 @router.post(
@@ -540,9 +524,12 @@ async def set_payout_schedule(
                 weekly_anchor,
             ),
         )
-        return PayoutScheduleResponse(
-            ok=True, account_id=result.get("account_id"), settings=result.get("settings")
-        )
+        response_payload = {
+            "ok": True,
+            "account_id": result.get("account_id"),
+            "settings": result.get("settings"),
+        }
+        return PayoutScheduleResponse(**model_filter(PayoutScheduleResponse, response_payload))
     except HTTPException:
         raise
     except ServiceException as e:
@@ -626,14 +613,6 @@ async def get_dashboard_link(
         )
 
 
-class InstantPayoutResponse(BaseModel):
-    ok: bool
-    payout_id: str | None = None
-    status: str | None = None
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
 @router.post("/connect/instant-payout", response_model=InstantPayoutResponse)
 async def request_instant_payout(
     db: Session = Depends(get_db),
@@ -678,7 +657,12 @@ async def request_instant_payout(
         )
 
         prometheus_metrics.inc_instant_payout_request("success")
-        return InstantPayoutResponse(ok=True, payout_id=payout.id, status=payout.status)
+        response_payload = {
+            "ok": True,
+            "payout_id": payout.id,
+            "status": payout.status,
+        }
+        return InstantPayoutResponse(**model_filter(InstantPayoutResponse, response_payload))
     except HTTPException:
         prometheus_metrics.inc_instant_payout_request("error")
         raise
@@ -883,7 +867,7 @@ async def create_checkout(
     cached = get_cached(raw_key)
     if cached:
         # Return cached success response
-        return CheckoutResponse(**cached)
+        return CheckoutResponse(**model_filter(CheckoutResponse, cast(Dict[str, Any], cached)))
 
     try:
         # Validate student role
@@ -947,16 +931,17 @@ async def create_checkout(
             else None
         )
 
-        response_payload = CheckoutResponse(
-            success=payment_result["success"],
-            payment_intent_id=payment_result["payment_intent_id"],
-            status=payment_result["status"],
-            amount=payment_result["amount"],
-            application_fee=payment_result["application_fee"],
-            client_secret=client_secret,
-            requires_action=payment_result["status"]
+        response_data = {
+            "success": payment_result["success"],
+            "payment_intent_id": payment_result["payment_intent_id"],
+            "status": payment_result["status"],
+            "amount": payment_result["amount"],
+            "application_fee": payment_result["application_fee"],
+            "client_secret": client_secret,
+            "requires_action": payment_result["status"]
             in ["requires_action", "requires_confirmation"],
-        )
+        }
+        response_payload = CheckoutResponse(**model_filter(CheckoutResponse, response_data))
         # Cache result for idempotency (success path)
         try:
             if payment_result["success"]:
@@ -1011,14 +996,16 @@ async def get_instructor_earnings(
         # Get earnings data (using instructor user ID for now)
         earnings = stripe_service.get_instructor_earnings(current_user.id)
 
-        return EarningsResponse(
-            total_earned=earnings.get("total_earned"),
-            total_fees=earnings.get("total_fees"),
-            booking_count=earnings.get("booking_count"),
-            average_earning=earnings.get("average_earning"),
-            period_start=earnings.get("period_start"),
-            period_end=earnings.get("period_end"),
-        )
+        response_payload = {
+            "total_earned": earnings.get("total_earned"),
+            "total_fees": earnings.get("total_fees"),
+            "booking_count": earnings.get("booking_count"),
+            "average_earning": earnings.get("average_earning"),
+            "period_start": earnings.get("period_start"),
+            "period_end": earnings.get("period_end"),
+        }
+
+        return EarningsResponse(**model_filter(EarningsResponse, response_payload))
 
     except HTTPException:
         raise
@@ -1171,11 +1158,13 @@ async def get_credit_balance(
         except Exception:
             earliest_exp = None
 
-        return CreditBalanceResponse(
-            available=float(total_cents) / 100.0,
-            expires_at=earliest_exp,
-            pending=0.0,
-        )
+        response_payload = {
+            "available": float(total_cents) / 100.0,
+            "expires_at": earliest_exp,
+            "pending": 0.0,
+        }
+
+        return CreditBalanceResponse(**model_filter(CreditBalanceResponse, response_payload))
 
     except Exception as e:
         logger.error(f"Error getting credit balance: {str(e)}")
@@ -1265,11 +1254,12 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
         _result = stripe_service.handle_webhook_event(event)  # Pass parsed event directly
 
         logger.info(f"Webhook processed successfully: {event['type']}")
-        return WebhookResponse(
-            status="success",
-            event_type=event.get("type", "unknown"),
-            message=f"Event processed with {secret_type} secret",
-        )
+        response_payload = {
+            "status": "success",
+            "event_type": event.get("type", "unknown"),
+            "message": f"Event processed with {secret_type} secret",
+        }
+        return WebhookResponse(**model_filter(WebhookResponse, response_payload))
 
     except HTTPException:
         # Re-raise HTTP exceptions (like missing signature)
@@ -1277,8 +1267,9 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
     except Exception as e:
         logger.error(f"Unexpected webhook error: {str(e)}")
         # Return 200 to prevent Stripe retries for non-recoverable errors
-        return WebhookResponse(
-            status="error",
-            event_type="unknown",
-            message="Error logged - returning 200 to prevent retries",
-        )
+        response_payload = {
+            "status": "error",
+            "event_type": "unknown",
+            "message": "Error logged - returning 200 to prevent retries",
+        }
+        return WebhookResponse(**model_filter(WebhookResponse, response_payload))
