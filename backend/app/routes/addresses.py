@@ -1,10 +1,9 @@
 """Routes for user addresses and instructor service areas."""
 
 import logging
-from typing import Any, Mapping, Sequence, cast
+from typing import Any, Dict, Mapping, Sequence, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user
@@ -22,9 +21,16 @@ from ..schemas.address import (
     ServiceAreasResponse,
     ServiceAreasUpdateRequest,
 )
-from ..schemas.address_responses import CoverageFeatureCollectionResponse
+from ..schemas.address_responses import (
+    CoverageFeatureCollectionResponse,
+    DeleteResponse,
+    NeighborhoodItem,
+    NeighborhoodsListResponse,
+    NYCZipCheckResponse,
+)
 from ..services.address_service import AddressService
 from ..services.geocoding.base import AutocompleteResult, GeocodedAddress
+from ..utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
 
@@ -77,12 +83,6 @@ def _nyc_zip_to_borough(zip5: str) -> str | None:
     return None
 
 
-class NYCZipCheckResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    is_nyc: bool
-    borough: str | None = None
-
-
 @router.get("/zip/is-nyc", response_model=NYCZipCheckResponse)
 def is_nyc_zip(zip: str) -> NYCZipCheckResponse:
     """Lightweight NYC ZIP check.
@@ -100,10 +100,12 @@ def is_nyc_zip(zip: str) -> NYCZipCheckResponse:
     """
     zip5 = (zip or "").strip()
     if len(zip5) != 5 or not zip5.isdigit():
-        return NYCZipCheckResponse(is_nyc=False, borough=None)
+        response_payload: Dict[str, object] = {"is_nyc": False, "borough": None}
+        return NYCZipCheckResponse(**model_filter(NYCZipCheckResponse, response_payload))
 
     borough = _nyc_zip_to_borough(zip5)
-    return NYCZipCheckResponse(is_nyc=bool(borough), borough=borough)
+    response_payload = cast(Dict[str, object], {"is_nyc": bool(borough), "borough": borough})
+    return NYCZipCheckResponse(**model_filter(NYCZipCheckResponse, response_payload))
 
 
 @router.get("/me", response_model=AddressListResponse)
@@ -145,12 +147,6 @@ def update_my_address(
     return AddressResponse(**updated)
 
 
-class DeleteResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    success: bool
-    message: str
-
-
 @router.delete("/me/{address_id}", response_model=DeleteResponse)
 def delete_my_address(
     address_id: str,
@@ -160,7 +156,8 @@ def delete_my_address(
     ok = service.delete_address(current_user.id, address_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
-    return DeleteResponse(success=True, message="Address deleted")
+    response_payload = {"success": True, "message": "Address deleted"}
+    return DeleteResponse(**model_filter(DeleteResponse, response_payload))
 
 
 # Instructor service areas
@@ -301,22 +298,6 @@ def get_bulk_coverage_geojson(
     )
 
 
-class NeighborhoodItem(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    id: str
-    name: str
-    borough: str | None = None
-    code: str | None = None
-
-
-class NeighborhoodsListResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    items: list[NeighborhoodItem]
-    total: int
-    page: int | None = None
-    per_page: int | None = None
-
-
 @router.get("/regions/neighborhoods", response_model=NeighborhoodsListResponse)
 def list_neighborhoods(
     region_type: str = "nyc",
@@ -334,5 +315,13 @@ def list_neighborhoods(
             region_type=region_type, borough=borough, limit=per_page, offset=offset
         ),
     )
-    items = [NeighborhoodItem(**record) for record in items_raw]
-    return NeighborhoodsListResponse(items=items, total=len(items), page=page, per_page=per_page)
+    items = [
+        NeighborhoodItem(**model_filter(NeighborhoodItem, dict(record))) for record in items_raw
+    ]
+    response_payload = {
+        "items": items,
+        "total": len(items),
+        "page": page,
+        "per_page": per_page,
+    }
+    return NeighborhoodsListResponse(**model_filter(NeighborhoodsListResponse, response_payload))

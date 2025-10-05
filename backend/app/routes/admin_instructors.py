@@ -7,32 +7,16 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 
 from ..api.dependencies.auth import require_admin
 from ..api.dependencies.repositories import get_instructor_repo
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
+from ..schemas.admin_instructor_responses import AdminInstructorDetailResponse
+from ..utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/instructors", tags=["admin-instructors"])
-
-
-class AdminInstructorDetailResponse(BaseModel):
-    id: str
-    name: str
-    email: str
-    is_live: bool
-    bgc_status: str | None
-    bgc_report_id: str | None
-    bgc_completed_at: datetime | None
-    consent_recent_at: datetime | None
-    created_at: datetime | None
-    updated_at: datetime | None
-    bgc_in_dispute: bool
-    bgc_dispute_note: str | None
-    bgc_dispute_opened_at: datetime | None
-    bgc_dispute_resolved_at: datetime | None
 
 
 @router.get("/{instructor_id}", response_model=AdminInstructorDetailResponse)
@@ -59,19 +43,23 @@ async def admin_instructor_detail(
     consent = repo.latest_consent(profile.id)
     consented_at: Optional[datetime] = getattr(consent, "consented_at", None)
 
+    response_payload = {
+        "id": profile.id,
+        "name": raw_full_name or "",
+        "email": email,
+        "is_live": bool(getattr(profile, "is_live", False)),
+        "bgc_status": getattr(profile, "bgc_status", None),
+        "bgc_report_id": getattr(profile, "bgc_report_id", None),
+        "bgc_completed_at": getattr(profile, "bgc_completed_at", None),
+        "consent_recent_at": consented_at,
+        "created_at": getattr(profile, "created_at", None),
+        "updated_at": getattr(profile, "updated_at", None),
+        "bgc_in_dispute": bool(getattr(profile, "bgc_in_dispute", False)),
+        "bgc_dispute_note": getattr(profile, "bgc_dispute_note", None),
+        "bgc_dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
+        "bgc_dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
+    }
+
     return AdminInstructorDetailResponse(
-        id=profile.id,
-        name=raw_full_name or "",
-        email=email,
-        is_live=bool(getattr(profile, "is_live", False)),
-        bgc_status=getattr(profile, "bgc_status", None),
-        bgc_report_id=getattr(profile, "bgc_report_id", None),
-        bgc_completed_at=getattr(profile, "bgc_completed_at", None),
-        consent_recent_at=consented_at,
-        created_at=getattr(profile, "created_at", None),
-        updated_at=getattr(profile, "updated_at", None),
-        bgc_in_dispute=bool(getattr(profile, "bgc_in_dispute", False)),
-        bgc_dispute_note=getattr(profile, "bgc_dispute_note", None),
-        bgc_dispute_opened_at=getattr(profile, "bgc_dispute_opened_at", None),
-        bgc_dispute_resolved_at=getattr(profile, "bgc_dispute_resolved_at", None),
+        **model_filter(AdminInstructorDetailResponse, response_payload)
     )

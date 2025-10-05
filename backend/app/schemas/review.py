@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, RootModel
 from pydantic.functional_validators import field_validator
 
 from ._strict_base import StrictModel, StrictRequestModel
@@ -89,3 +89,7 @@ class ReviewListPageResponse(StrictModel):
     per_page: int
     has_next: bool
     has_prev: bool
+
+
+class ExistingReviewIdsResponse(RootModel[List[str]]):
+    pass

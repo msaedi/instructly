@@ -3,7 +3,7 @@ import hashlib
 import hmac
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, ConfigDict, SecretStr
+from pydantic import SecretStr
 import requests
 from sqlalchemy.orm import Session
 
@@ -29,9 +29,14 @@ from ..schemas.beta import (
     InviteSendResponse,
     InviteValidateResponse,
 )
+from ..schemas.beta_responses import (
+    BetaSettingsResponse,
+    BetaSettingsUpdateRequest,
+)
 from ..services.beta_service import BetaService
 from ..tasks.celery_app import celery_app
 from ..utils.invite_cookie import invite_cookie_name
+from ..utils.strict import model_filter
 
 router = APIRouter(prefix="/api/beta", tags=["beta"])
 
@@ -358,43 +363,36 @@ def get_invite_batch_progress(
     )
 
 
-class BetaSettingsPayload(BaseModel):
-    beta_disabled: bool
-    beta_phase: str
-    allow_signup_without_invite: bool
-
-    # Enforce strictness: reject unexpected fields and validate assignment
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
-@router.get("/settings", response_model=BetaSettingsPayload)
+@router.get("/settings", response_model=BetaSettingsResponse)
 def get_beta_settings(
     db: Session = Depends(get_db),
     _admin: None = Depends(require_role("admin")),
-) -> BetaSettingsPayload:
+) -> BetaSettingsResponse:
     repo = BetaSettingsRepository(db)
     s = repo.get_singleton()
-    return BetaSettingsPayload(
-        beta_disabled=bool(s.beta_disabled),
-        beta_phase=str(s.beta_phase),
-        allow_signup_without_invite=bool(s.allow_signup_without_invite),
-    )
+    response_payload = {
+        "beta_disabled": bool(s.beta_disabled),
+        "beta_phase": str(s.beta_phase),
+        "allow_signup_without_invite": bool(s.allow_signup_without_invite),
+    }
+    return BetaSettingsResponse(**model_filter(BetaSettingsResponse, response_payload))
 
 
-@router.put("/settings", response_model=BetaSettingsPayload)
+@router.put("/settings", response_model=BetaSettingsResponse)
 def update_beta_settings(
-    payload: BetaSettingsPayload,
+    payload: BetaSettingsUpdateRequest,
     db: Session = Depends(get_db),
     _admin: None = Depends(require_role("admin")),
-) -> BetaSettingsPayload:
+) -> BetaSettingsResponse:
     repo = BetaSettingsRepository(db)
     rec = repo.update_settings(
         beta_disabled=payload.beta_disabled,
         beta_phase=payload.beta_phase,
         allow_signup_without_invite=payload.allow_signup_without_invite,
     )
-    return BetaSettingsPayload(
-        beta_disabled=bool(rec.beta_disabled),
-        beta_phase=str(rec.beta_phase),
-        allow_signup_without_invite=bool(rec.allow_signup_without_invite),
-    )
+    response_payload = {
+        "beta_disabled": bool(rec.beta_disabled),
+        "beta_phase": str(rec.beta_phase),
+        "allow_signup_without_invite": bool(rec.allow_signup_without_invite),
+    }
+    return BetaSettingsResponse(**model_filter(BetaSettingsResponse, response_payload))

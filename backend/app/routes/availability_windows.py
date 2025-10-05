@@ -65,6 +65,7 @@ from ..schemas.availability_responses import (
     CopyWeekResponse,
     DeleteBlackoutResponse,
     DeleteWindowResponse,
+    WeekAvailabilityResponse,
     WeekAvailabilityUpdateResponse,
 )
 from ..schemas.availability_window import (
@@ -107,7 +108,7 @@ def verify_instructor(current_user: User) -> User:
 
 @router.get(
     "/week",
-    response_model=Dict[str, List[TimeRange]],
+    response_model=WeekAvailabilityResponse,
     dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def get_week_availability(
@@ -115,7 +116,7 @@ async def get_week_availability(
     start_date: date = Query(..., description="Monday of the week"),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-) -> Dict[str, List[TimeRange]]:
+) -> WeekAvailabilityResponse:
     """
     Get availability for a specific week.
 
@@ -146,7 +147,7 @@ async def get_week_availability(
             )
         # Allow browsers to read ETag and Last-Modified via CORS
         response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
-        return week_map
+        return WeekAvailabilityResponse(week_map)
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:

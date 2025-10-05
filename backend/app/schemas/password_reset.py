@@ -1,9 +1,9 @@
 # backend/app/schemas/password_reset.py
 
 from datetime import datetime
-from typing import Union
+from typing import Any, Callable, Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_serializer
 
 from ._strict_base import StrictModel, StrictRequestModel
 
@@ -49,20 +49,17 @@ class PasswordResetToken(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class PasswordResetVerifyResponseValid(BaseModel):
-    """Response for valid password reset token"""
+class PasswordResetVerifyResponse(StrictModel):
+    """Response for password reset token verification."""
 
-    valid: bool = True
-    email: str
+    valid: bool
+    email: Optional[str] = None
 
-
-class PasswordResetVerifyResponseInvalid(BaseModel):
-    """Response for invalid password reset token"""
-
-    valid: bool = False
-
-
-# Union type for the actual response
-PasswordResetVerifyResponse = Union[
-    PasswordResetVerifyResponseValid, PasswordResetVerifyResponseInvalid
-]
+    @model_serializer(mode="wrap")
+    def _serialize(
+        self, handler: Callable[["PasswordResetVerifyResponse"], Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        data = handler(self)
+        if data.get("email") is None:
+            data.pop("email", None)
+        return data

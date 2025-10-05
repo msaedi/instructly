@@ -9,6 +9,7 @@ from ..database import get_db
 from ..models.user import User
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas.review import (
+    ExistingReviewIdsResponse,
     InstructorRatingsResponse,
     RatingsBatchRequest,
     RatingsBatchResponse,
@@ -234,12 +235,12 @@ def get_review_for_booking(
     )
 
 
-@router.post("/booking/existing", response_model=list[str])
+@router.post("/booking/existing", response_model=ExistingReviewIdsResponse)
 def get_existing_reviews_for_bookings(
     booking_ids: List[str],
     current_user: User = Depends(get_current_student),
     service: ReviewService = Depends(get_review_service),
-) -> List[str]:
+) -> ExistingReviewIdsResponse:
     # Enforce ownership: inject current_student_id into session for service-level guard,
     # and pre-filter ids by ownership using booking repository
     try:
@@ -251,9 +252,9 @@ def get_existing_reviews_for_bookings(
     owner_repo = BookingRepository(service.db)
     owned_ids = owner_repo.filter_owned_booking_ids(booking_ids, current_user.id)
     if not owned_ids:
-        return []
+        return ExistingReviewIdsResponse([])
     review_ids = service.get_existing_reviews_for_bookings(owned_ids)
-    return [str(rid) for rid in review_ids]
+    return ExistingReviewIdsResponse([str(rid) for rid in review_ids])
 
 
 @router.post("/reviews/{review_id}/respond", response_model=ReviewResponseModel)

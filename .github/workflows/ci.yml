@@ -2,19 +2,10 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'frontend/**'
-      - '.pre-commit-config.yaml'
-      - '.github/workflows/**'
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
-    paths:
-      - 'frontend/**'
-      - '.pre-commit-config.yaml'
-      - '.github/workflows/**'
+    branches: [ main ]
+  workflow_dispatch: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -101,9 +92,8 @@ jobs:
         working-directory: frontend
         run: npm run typecheck:strict
 
-      - name: Response-model strict audit (soft)
-        run: |
-          python tools/audit_response_model_strict.py || true
+      - name: Response-model strict audit (hard)
+        run: python tools/audit_response_model_strict.py
 
       - name: Knip dead code check (hard fail)
         working-directory: frontend

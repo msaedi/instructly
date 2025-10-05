@@ -23,7 +23,20 @@ from ..schemas.service_catalog import (
     InstructorServiceCreate,
     InstructorServiceResponse,
 )
+from ..schemas.service_catalog_responses import (
+    AllServicesMetadata,
+    AllServicesWithInstructorsResponse,
+    CategoryServiceDetail,
+    CategoryWithServices,
+    ServiceSearchMetadata,
+    ServiceSearchResponse,
+    TopCategoryItem,
+    TopCategoryServiceItem,
+    TopServicesMetadata,
+    TopServicesPerCategoryResponse,
+)
 from ..services.instructor_service import InstructorService
+from ..utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/services", tags=["services"])
@@ -94,11 +107,11 @@ async def add_service_to_profile(
         raise
 
 
-@router.get("/search", response_model=Dict[str, Any])
+@router.get("/search", response_model=ServiceSearchResponse)
 async def search_services(
     q: str = Query(..., min_length=2, description="Search query"),
     instructor_service: InstructorService = Depends(get_instructor_service),
-) -> Dict[str, Any]:
+) -> ServiceSearchResponse:
     """
     Search for instructors by service.
 
@@ -108,18 +121,24 @@ async def search_services(
     # Use the existing instructor search but with service-focused messaging
     result: Dict[str, Any] = instructor_service.get_instructors_filtered(search=q, skip=0, limit=50)
 
-    # Add service-specific metadata
-    result["search_type"] = "service"
-    result["query"] = q
+    metadata_raw = cast(Dict[str, Any], result.get("metadata", {}))
+    metadata = ServiceSearchMetadata(**model_filter(ServiceSearchMetadata, metadata_raw))
 
-    return result
+    response_payload = {
+        "instructors": result.get("instructors", []),
+        "metadata": metadata,
+        "search_type": "service",
+        "query": q,
+    }
+
+    return ServiceSearchResponse(**model_filter(ServiceSearchResponse, response_payload))
 
 
-@router.get("/catalog/top-per-category", response_model=Dict[str, Any])
+@router.get("/catalog/top-per-category", response_model=TopServicesPerCategoryResponse)
 async def get_top_services_per_category(
     limit: int = Query(7, ge=1, le=20, description="Number of top services per category"),
     instructor_service: InstructorService = Depends(get_instructor_service),
-) -> Dict[str, Any]:
+) -> TopServicesPerCategoryResponse:
     """
     Get top N services per category for homepage capsules.
 
@@ -134,13 +153,55 @@ async def get_top_services_per_category(
         Dictionary with categories and their top services
     """
     data: Dict[str, Any] = instructor_service.get_top_services_per_category(limit=limit)
-    return data
+
+    categories_clean: List[TopCategoryItem] = []
+    for category in cast(List[Dict[str, Any]], data.get("categories", [])):
+        services_raw = cast(List[Dict[str, Any]], category.get("services", []))
+        services_clean: List[TopCategoryServiceItem] = []
+        for service_raw in services_raw:
+            service_payload = {
+                "id": str(service_raw.get("id", "")),
+                "name": service_raw.get("name"),
+                "slug": service_raw.get("slug"),
+                "demand_score": service_raw.get("demand_score"),
+                "active_instructors": service_raw.get("active_instructors"),
+                "is_trending": service_raw.get("is_trending"),
+                "display_order": service_raw.get("display_order"),
+            }
+            services_clean.append(
+                TopCategoryServiceItem(**model_filter(TopCategoryServiceItem, service_payload))
+            )
+
+        category_payload = {
+            "id": str(category.get("id", "")),
+            "name": category.get("name"),
+            "slug": category.get("slug"),
+            "icon_name": category.get("icon_name"),
+            "services": services_clean,
+        }
+        categories_clean.append(TopCategoryItem(**model_filter(TopCategoryItem, category_payload)))
+
+    metadata = TopServicesMetadata(
+        **model_filter(TopServicesMetadata, cast(Dict[str, Any], data.get("metadata", {})))
+    )
+
+    response_payload = {
+        "categories": categories_clean,
+        "metadata": metadata,
+    }
+
+    return TopServicesPerCategoryResponse(
+        **model_filter(TopServicesPerCategoryResponse, response_payload)
+    )
 
 
-@router.get("/catalog/all-with-instructors", response_model=Dict[str, Any])
+@router.get(
+    "/catalog/all-with-instructors",
+    response_model=AllServicesWithInstructorsResponse,
+)
 async def get_all_services_with_instructors(
     instructor_service: InstructorService = Depends(get_instructor_service),
-) -> Dict[str, Any]:
+) -> AllServicesWithInstructorsResponse:
     """
     Get all catalog services organized by category with active instructor counts.
 
@@ -151,8 +212,61 @@ async def get_all_services_with_instructors(
     Returns:
         Dictionary with categories and their services, including active instructor counts
     """
-    payload: Any = instructor_service.get_all_services_with_instructors()
-    return cast(Dict[str, Any], payload)
+    payload: Dict[str, Any] = instructor_service.get_all_services_with_instructors()
+
+    categories_clean: List[CategoryWithServices] = []
+    for category in cast(List[Dict[str, Any]], payload.get("categories", [])):
+        services_raw = cast(List[Dict[str, Any]], category.get("services", []))
+        services_clean: List[CategoryServiceDetail] = []
+        for service_raw in services_raw:
+            service_payload = {
+                "id": str(service_raw.get("id", "")),
+                "category_id": str(service_raw.get("category_id", "")),
+                "name": service_raw.get("name"),
+                "slug": service_raw.get("slug"),
+                "description": service_raw.get("description"),
+                "search_terms": service_raw.get("search_terms"),
+                "display_order": service_raw.get("display_order"),
+                "online_capable": service_raw.get("online_capable"),
+                "requires_certification": service_raw.get("requires_certification"),
+                "is_active": service_raw.get("is_active"),
+                "active_instructors": service_raw.get("active_instructors"),
+                "instructor_count": service_raw.get("instructor_count"),
+                "demand_score": service_raw.get("demand_score"),
+                "is_trending": service_raw.get("is_trending"),
+                "actual_min_price": service_raw.get("actual_min_price"),
+                "actual_max_price": service_raw.get("actual_max_price"),
+            }
+            services_clean.append(
+                CategoryServiceDetail(**model_filter(CategoryServiceDetail, service_payload))
+            )
+
+        category_payload = {
+            "id": str(category.get("id", "")),
+            "name": category.get("name"),
+            "slug": category.get("slug"),
+            "subtitle": category.get("subtitle"),
+            "description": category.get("description"),
+            "icon_name": category.get("icon_name"),
+            "services": services_clean,
+        }
+
+        categories_clean.append(
+            CategoryWithServices(**model_filter(CategoryWithServices, category_payload))
+        )
+
+    metadata = AllServicesMetadata(
+        **model_filter(AllServicesMetadata, cast(Dict[str, Any], payload.get("metadata", {})))
+    )
+
+    response_payload = {
+        "categories": categories_clean,
+        "metadata": metadata,
+    }
+
+    return AllServicesWithInstructorsResponse(
+        **model_filter(AllServicesWithInstructorsResponse, response_payload)
+    )
 
 
 @router.get("/catalog/kids-available", response_model=List[CatalogServiceMinimalResponse])

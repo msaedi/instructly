@@ -22,8 +22,6 @@ from ..schemas.password_reset import (
     PasswordResetRequest,
     PasswordResetResponse,
     PasswordResetVerifyResponse,
-    PasswordResetVerifyResponseInvalid,
-    PasswordResetVerifyResponseValid,
 )
 from ..services.password_reset_service import PasswordResetService
 
@@ -155,7 +153,7 @@ async def verify_reset_token(
     """
     is_valid, masked_email = password_reset_service.verify_reset_token(token=token)
 
-    if is_valid:
-        return PasswordResetVerifyResponseValid(email=masked_email)
-    else:
-        return PasswordResetVerifyResponseInvalid()
+    return PasswordResetVerifyResponse(
+        valid=is_valid,
+        email=masked_email if is_valid else None,
+    )
