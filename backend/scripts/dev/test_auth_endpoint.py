@@ -57,7 +57,7 @@ if user:
     # The login endpoint creates token differently
     from datetime import datetime, timezone
 
-    from jose import jwt
+    import jwt
 
     to_encode = {"sub": user.email}
     expire = datetime.now(timezone.utc) + access_token_expires

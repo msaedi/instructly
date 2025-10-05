@@ -5,7 +5,8 @@ from typing import Any, Dict, Optional, cast
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError
 from passlib.context import CryptContext
 
 from .core.config import settings
@@ -216,7 +217,7 @@ async def get_current_user(
     except HTTPException as http_exc:
         # Preserve explicit HTTPExceptions (e.g., Not authenticated)
         raise http_exc
-    except JWTError as e:
+    except PyJWTError as e:
         logger.error(f"JWT validation error: {str(e)}")
         raise invalid_credentials
     except Exception as e:
@@ -272,7 +273,7 @@ async def get_current_user_optional(
         logger.debug(f"Successfully validated optional token for user: {email}")
         return email
 
-    except JWTError as e:
+    except PyJWTError as e:
         logger.debug(f"JWT validation error in optional auth: {str(e)}")
         return None
     except Exception as e:

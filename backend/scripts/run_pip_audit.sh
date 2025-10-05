@@ -24,4 +24,8 @@ PY
   IGNORE_FLAGS=($FLAGS)
 fi
 
-exec pip-audit -r requirements.txt -r requirements-dev.txt --strict "${IGNORE_FLAGS[@]}"
+if ((${#IGNORE_FLAGS[@]})); then
+  exec pip-audit -r requirements.txt -r requirements-dev.txt --strict "${IGNORE_FLAGS[@]}"
+else
+  exec pip-audit -r requirements.txt -r requirements-dev.txt --strict
+fi
