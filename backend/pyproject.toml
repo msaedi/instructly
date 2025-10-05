@@ -179,35 +179,9 @@ strict = true
 # --- Explicit, documented exceptions (SDK glue / base DI) ---
 [[tool.mypy.overrides]]
 module = [
-  "backend.app.services.stripe_service",  # Stripe SDK integration; typed wrappers TBD
-  "backend.app.services.base",            # dynamic/base service wiring
-]
-strict = false
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.services.base",
-]
-follow_imports = "normal"
-check_untyped_defs = true
-warn_unused_ignores = true
-no_implicit_optional = true
-
-[[tool.mypy.overrides]]
-module = [
   "backend.app.database",
 ]
 follow_imports = "normal"
-warn_unused_ignores = true
-
-[[tool.mypy.overrides]]
-module = [
-  "backend.app.services.stripe_service",
-]
-follow_imports = "normal"
-check_untyped_defs = true
-disallow_incomplete_defs = true
-no_implicit_optional = true
 warn_unused_ignores = true
 
 # --- Schema-wide flags (we enforce request DTO strict via scanner + StrictRequestModel) ---

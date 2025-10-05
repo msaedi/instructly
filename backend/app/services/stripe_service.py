@@ -1178,7 +1178,12 @@ class StripeService(BaseService):
 
             # Verify signature
             try:
-                stripe.Webhook.construct_event(payload, signature, webhook_secret)
+                secret_value = (
+                    webhook_secret.get_secret_value()
+                    if hasattr(webhook_secret, "get_secret_value")
+                    else str(webhook_secret)
+                )
+                stripe.Webhook.construct_event(payload, signature, secret_value)
                 return True
             except stripe.SignatureVerificationError:
                 self.logger.warning("Invalid webhook signature")
