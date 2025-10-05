@@ -4,13 +4,9 @@ from ._strict_base import StrictModel
 
 from typing import Optional
 
-from pydantic import ConfigDict
-
 
 class SendRemindersResponse(StrictModel):
     """Response for sending booking reminders."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     message: str
     reminders_sent: int
@@ -19,8 +15,6 @@ class SendRemindersResponse(StrictModel):
 
 class BookingPreviewResponse(StrictModel):
     """Response for booking preview with privacy protection."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     booking_id: str
     student_first_name: str

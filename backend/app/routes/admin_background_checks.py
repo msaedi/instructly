@@ -7,7 +7,7 @@ import logging
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.orm import selectinload
 
@@ -18,7 +18,19 @@ from ..core.exceptions import RepositoryException
 from ..models.instructor import InstructorProfile
 from ..models.user import User
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
-from ..schemas._strict_base import StrictModel
+from ..schemas.admin_background_checks import (
+    BGCCaseCountsResponse,
+    BGCCaseItemModel,
+    BGCCaseListResponse,
+    BGCDisputeResponse,
+    BGCExpiringItem,
+    BGCHistoryItem,
+    BGCHistoryResponse,
+    BGCLatestConsentResponse,
+    BGCOverrideResponse,
+    BGCReviewCountResponse,
+    BGCReviewListResponse,
+)
 from ..utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
@@ -39,131 +51,6 @@ def _build_checkr_report_url(report_id: str | None) -> str | None:
         # Use sandbox indicator for clarity when linking out of non-prod
         return f"{base_url}/sandbox/reports/{report_id}"
     return f"{base_url}/reports/{report_id}"
-
-
-class BGCReviewCountResponse(StrictModel):
-    count: int
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
-class BGCReviewItemModel(StrictModel):
-    instructor_id: str
-    name: str
-    email: str
-    bgc_status: str
-    bgc_report_id: str | None = None
-    bgc_completed_at: datetime | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    consented_at_recent: bool
-    checkr_report_url: str | None = None
-    consented_at_recent_at: datetime | None = None
-    is_live: bool
-    in_dispute: bool = False
-    dispute_note: str | None = None
-    dispute_opened_at: datetime | None = None
-    dispute_resolved_at: datetime | None = None
-
-
-class BGCReviewListResponse(StrictModel):
-    items: list[BGCReviewItemModel]
-    next_cursor: str | None = None
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
-class BGCCaseCountsResponse(StrictModel):
-    review: int
-    pending: int
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
-class BGCCaseItemModel(StrictModel):
-    instructor_id: str
-    name: str
-    email: str
-    is_live: bool
-    bgc_status: str
-    bgc_report_id: str | None = None
-    bgc_completed_at: datetime | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    checkr_report_url: str | None = None
-    consent_recent: bool
-    consent_recent_at: datetime | None = None
-    in_dispute: bool = False
-    dispute_note: str | None = None
-    dispute_opened_at: datetime | None = None
-    dispute_resolved_at: datetime | None = None
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    def to_review_model(self) -> BGCReviewItemModel:
-        payload = {
-            "instructor_id": self.instructor_id,
-            "name": self.name,
-            "email": self.email,
-            "bgc_status": self.bgc_status,
-            "bgc_report_id": self.bgc_report_id,
-            "bgc_completed_at": self.bgc_completed_at,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "consented_at_recent": self.consent_recent,
-            "consented_at_recent_at": self.consent_recent_at,
-            "checkr_report_url": self.checkr_report_url,
-            "is_live": self.is_live,
-            "in_dispute": self.in_dispute,
-            "dispute_note": self.dispute_note,
-            "dispute_opened_at": self.dispute_opened_at,
-            "dispute_resolved_at": self.dispute_resolved_at,
-        }
-        return BGCReviewItemModel(**model_filter(BGCReviewItemModel, payload))
-
-
-class BGCCaseListResponse(StrictModel):
-    items: list[BGCCaseItemModel]
-    next_cursor: str | None = None
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
-class BGCHistoryItem(StrictModel):
-    id: str
-    result: str
-    package: str | None = None
-    env: str
-    completed_at: datetime
-    created_at: datetime
-    report_id_present: bool
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
-class BGCHistoryResponse(StrictModel):
-    items: list[BGCHistoryItem]
-    next_cursor: str | None = None
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
-class BGCDisputeResponse(StrictModel):
-    ok: bool
-    in_dispute: bool
-    dispute_note: str | None = None
-    dispute_opened_at: datetime | None = None
-    dispute_resolved_at: datetime | None = None
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
-class BGCExpiringItem(StrictModel):
-    instructor_id: str
-    email: str | None = None
-    bgc_valid_until: datetime | None = None
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 def _build_case_item(
@@ -278,22 +165,6 @@ class OverridePayload(BaseModel):
     action: Literal["approve", "reject"]
 
 
-class BGCOverrideResponse(StrictModel):
-    ok: bool
-    new_status: Literal["passed", "failed"]
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
-class BGCLatestConsentResponse(StrictModel):
-    instructor_id: str
-    consented_at: datetime
-    consent_version: str
-    ip_address: str | None = None
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-
 @router.get("/review/count", response_model=BGCReviewCountResponse)
 async def bgc_review_count(
     repo: InstructorProfileRepository = Depends(get_instructor_repo),
@@ -396,17 +267,16 @@ async def bgc_history(
 
     items: list[BGCHistoryItem] = []
     for entry in entries[:fetch_limit]:
-        items.append(
-            BGCHistoryItem(
-                id=entry.id,
-                result=entry.result,
-                package=entry.package,
-                env=entry.env,
-                completed_at=entry.completed_at,
-                created_at=entry.created_at,
-                report_id_present=bool(entry.report_id_enc),
-            )
-        )
+        item_payload = {
+            "id": entry.id,
+            "result": entry.result,
+            "package": entry.package,
+            "env": entry.env,
+            "completed_at": entry.completed_at,
+            "created_at": entry.created_at,
+            "report_id_present": bool(entry.report_id_enc),
+        }
+        items.append(BGCHistoryItem(**model_filter(BGCHistoryItem, item_payload)))
 
     next_cursor = entries[fetch_limit].id if len(entries) > fetch_limit else None
 

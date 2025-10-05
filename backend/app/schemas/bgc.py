@@ -5,15 +5,11 @@ from ._strict_base import StrictModel
 from datetime import datetime
 from typing import Literal
 
-from pydantic import ConfigDict
-
 BackgroundCheckStatusLiteral = Literal["pending", "review", "passed", "failed"]
 
 
 class BackgroundCheckInviteResponse(StrictModel):
     """Response returned after invoking a background check invitation."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     ok: bool = True
     status: BackgroundCheckStatusLiteral
@@ -23,8 +19,6 @@ class BackgroundCheckInviteResponse(StrictModel):
 
 class BackgroundCheckStatusResponse(StrictModel):
     """Current background check status for an instructor."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     status: BackgroundCheckStatusLiteral
     report_id: str | None = None
