@@ -7,14 +7,15 @@ in prod/beta when the phase is not open or beta checks are enforced.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 from ..api.dependencies.auth import require_beta_phase_access
+from ..schemas._strict_base import StrictModel
 
 router = APIRouter(prefix="/v1/gated", tags=["gated"])
 
 
-class GatedPingResponse(BaseModel):
+class GatedPingResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     ok: bool
 

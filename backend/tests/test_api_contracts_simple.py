@@ -11,10 +11,12 @@ the FastAPI app instance.
 """
 
 import ast
+import importlib
 from pathlib import Path
 import re
 from typing import List
 
+from pydantic import BaseModel
 import pytest
 
 
@@ -43,7 +45,9 @@ class ContractViolation:
         self.details = details
 
     def __str__(self):
-        return f"{self.file} - {self.method} {self.endpoint}: {self.violation_type} - {self.details}"
+        return (
+            f"{self.file} - {self.method} {self.endpoint}: {self.violation_type} - {self.details}"
+        )
 
 
 def analyze_route_file(file_path: Path) -> List[ContractViolation]:
@@ -178,12 +182,15 @@ def test_response_models_exist():
 
     # Check that each file contains at least one response model
     for file in response_files:
-        with open(file) as f:
-            content = f.read()
+        module_path = file.relative_to(BACKEND_DIR).with_suffix("")
+        module_name = ".".join(module_path.parts)
+        module = importlib.import_module(module_name)
 
-        # Look for class definitions that inherit from BaseModel
-        class_pattern = r"class\s+\w+Response\s*\([^)]*BaseModel[^)]*\):"
-        matches = re.findall(class_pattern, content)
+        matches = [
+            (name, obj)
+            for name, obj in vars(module).items()
+            if isinstance(obj, type) and name.endswith("Response") and issubclass(obj, BaseModel)
+        ]
 
         assert len(matches) > 0, f"{file.name} contains no response model classes"
 
@@ -209,7 +216,9 @@ def test_consistent_field_naming():
                         if not re.match(r"^[a-z]+(_[a-z0-9]+)*$", field_name):
                             # Allow some exceptions like HTTP status codes
                             if not re.match(r"^[A-Z]+(_[0-9]+)?$", field_name):
-                                violations.append(f"{py_file.name}: {node.name}.{field_name} is not snake_case")
+                                violations.append(
+                                    f"{py_file.name}: {node.name}.{field_name} is not snake_case"
+                                )
 
     if violations:
         pytest.fail("Found field naming violations:\n" + "\n".join(violations))
@@ -279,7 +288,10 @@ def test_comprehensive_contract_violations():
     import sys
 
     result = subprocess.run(
-        [sys.executable, "-m", "tests.test_api_contracts"], cwd=BACKEND_DIR, capture_output=True, text=True
+        [sys.executable, "-m", "tests.test_api_contracts"],
+        cwd=BACKEND_DIR,
+        capture_output=True,
+        text=True,
     )
 
     # Check if violations were found

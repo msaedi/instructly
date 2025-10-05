@@ -10,6 +10,8 @@ from typing import Any, Dict, Generic, List, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._strict_base import StrictModel
+
 T = TypeVar("T")
 
 
@@ -159,7 +161,7 @@ class BatchOperationResult(BaseModel):
     )
 
 
-class HealthCheckResponse(BaseModel):
+class HealthCheckResponse(StrictModel):
     """Standard health check response."""
 
     status: str = Field(
@@ -173,6 +175,8 @@ class HealthCheckResponse(BaseModel):
     checks: Dict[str, bool] = Field(description="Individual component health checks")
 
     model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
         json_schema_extra={
             "example": {
                 "status": "healthy",
@@ -181,7 +185,7 @@ class HealthCheckResponse(BaseModel):
                 "timestamp": "2025-01-20T10:30:00Z",
                 "checks": {"database": True, "redis": True, "services": True},
             }
-        }
+        },
     )
 
 

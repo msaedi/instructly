@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._strict_base import StrictModel
+
 
 class DatabasePoolStatus(BaseModel):
     """Database connection pool status."""
@@ -324,7 +326,7 @@ class ServiceMetrics(BaseModel):
     )
 
 
-class PerformanceMetricsResponse(BaseModel):
+class PerformanceMetricsResponse(StrictModel):
     """Comprehensive performance metrics response."""
 
     availability_service: ServiceMetrics = Field(description="Availability service metrics")
@@ -335,6 +337,8 @@ class PerformanceMetricsResponse(BaseModel):
     database: Dict[str, Any] = Field(description="Database connection metrics")
 
     model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
         json_schema_extra={
             "example": {
                 "availability_service": {
@@ -362,11 +366,11 @@ class PerformanceMetricsResponse(BaseModel):
                     "pool_status": {"pool_size": 20, "usage_percent": 25.0},
                 },
             }
-        }
+        },
     )
 
 
-class CacheMetricsResponse(BaseModel):
+class CacheMetricsResponse(StrictModel):
     """Detailed cache metrics response."""
 
     hits: int = Field(description="Cache hits")
@@ -380,6 +384,8 @@ class CacheMetricsResponse(BaseModel):
     performance_insights: List[str] = Field(description="Cache performance insights")
 
     model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
         json_schema_extra={
             "example": {
                 "hits": 8500,
@@ -394,11 +400,11 @@ class CacheMetricsResponse(BaseModel):
                 "redis_info": {"used_memory_human": "12.5M", "keyspace_hits": 50000},
                 "performance_insights": ["Cache performance looks good"],
             }
-        }
+        },
     )
 
 
-class AvailabilityCacheMetricsResponse(BaseModel):
+class AvailabilityCacheMetricsResponse(StrictModel):
     """Availability-specific cache metrics response."""
 
     availability_cache_metrics: Dict[str, Any] = Field(description="Availability cache metrics")
@@ -407,6 +413,8 @@ class AvailabilityCacheMetricsResponse(BaseModel):
     cache_tiers_info: Dict[str, str] = Field(description="Cache tier configuration")
 
     model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
         json_schema_extra={
             "example": {
                 "availability_cache_metrics": {
@@ -428,11 +436,11 @@ class AvailabilityCacheMetricsResponse(BaseModel):
                     "cold": "24 hours (historical data)",
                 },
             }
-        }
+        },
     )
 
 
-class RateLimitStats(BaseModel):
+class RateLimitStats(StrictModel):
     """Rate limit statistics."""
 
     total_keys: int = Field(description="Total rate limit keys in Redis")
@@ -440,6 +448,8 @@ class RateLimitStats(BaseModel):
     top_limited_clients: List[Dict[str, Any]] = Field(description="Top rate-limited clients")
 
     model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
         json_schema_extra={
             "example": {
                 "total_keys": 42,
@@ -448,11 +458,11 @@ class RateLimitStats(BaseModel):
                     {"key": "ip_192.168.1.100", "count": 50, "endpoint": "/api/search"}
                 ],
             }
-        }
+        },
     )
 
 
-class RateLimitResetResponse(BaseModel):
+class RateLimitResetResponse(StrictModel):
     """Rate limit reset response."""
 
     status: str = Field(description="Operation status")
@@ -461,6 +471,8 @@ class RateLimitResetResponse(BaseModel):
     message: str = Field(description="Result message")
 
     model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
         json_schema_extra={
             "example": {
                 "status": "success",
@@ -468,11 +480,11 @@ class RateLimitResetResponse(BaseModel):
                 "limits_reset": 5,
                 "message": "Reset 5 rate limits matching pattern 'email_*'",
             }
-        }
+        },
     )
 
 
-class RateLimitTestResponse(BaseModel):
+class RateLimitTestResponse(StrictModel):
     """Rate limit test endpoint response."""
 
     message: str = Field(description="Test message")
@@ -480,13 +492,15 @@ class RateLimitTestResponse(BaseModel):
     note: str = Field(description="Rate limit information")
 
     model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
         json_schema_extra={
             "example": {
                 "message": "Rate limit test successful",
                 "timestamp": "2025-01-20T10:30:00.123456",
                 "note": "This endpoint is rate limited to 3 requests per minute",
             }
-        }
+        },
     )
 
 
