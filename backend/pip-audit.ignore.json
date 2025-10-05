@@ -1,12 +1,4 @@
 {
-  "ignore": [
-    "GHSA-wj6h-64fc-37mp"
-  ],
-  "notes": {
-    "GHSA-wj6h-64fc-37mp": {
-      "package": "ecdsa",
-      "reason": "Upstream has not released a fixed version; dependency pinned at latest 0.19.1 while monitoring for advisory mitigation.",
-      "review_after": "2025-11-04"
-    }
-  }
+  "ignore": [],
+  "notes": {}
 }

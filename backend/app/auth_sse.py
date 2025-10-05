@@ -27,7 +27,8 @@ from typing import Optional, cast
 
 from fastapi import Depends, HTTPException, Query, status
 from fastapi.params import Cookie
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError
 from sqlalchemy.orm import Session
 
 from .auth import oauth2_scheme_optional
@@ -92,7 +93,7 @@ async def get_current_user_sse(
         if not isinstance(user_email, str):
             raise credentials_exception
 
-    except JWTError as e:
+    except PyJWTError as e:
         logger.error(f"JWT decode error: {str(e)}")
         raise credentials_exception
 

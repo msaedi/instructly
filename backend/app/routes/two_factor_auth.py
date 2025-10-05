@@ -2,6 +2,7 @@ from datetime import timedelta
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+import jwt
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, get_current_user
@@ -149,8 +150,6 @@ def verify_login(
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFAVerifyLoginResponse:
     # temp_token is a normal JWT with sub=email and tfa_pending=true
-    from jose import jwt
-
     try:
         payload = jwt.decode(
             req.temp_token,
