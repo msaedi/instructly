@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from typing import Optional
 
@@ -43,6 +43,13 @@ async def admin_instructor_detail(
     consent = repo.latest_consent(profile.id)
     consented_at: Optional[datetime] = getattr(consent, "consented_at", None)
 
+    now = datetime.now(timezone.utc)
+    valid_until = getattr(profile, "bgc_valid_until", None)
+    expires_in_days = (
+        (valid_until - now).days if valid_until is not None and valid_until > now else None
+    )
+    is_expired = bool(valid_until is not None and valid_until <= now)
+
     response_payload = {
         "id": profile.id,
         "name": raw_full_name or "",
@@ -54,6 +61,9 @@ async def admin_instructor_detail(
         "consent_recent_at": consented_at,
         "created_at": getattr(profile, "created_at", None),
         "updated_at": getattr(profile, "updated_at", None),
+        "bgc_valid_until": valid_until,
+        "bgc_expires_in_days": expires_in_days,
+        "bgc_is_expired": is_expired,
         "bgc_in_dispute": bool(getattr(profile, "bgc_in_dispute", False)),
         "bgc_dispute_note": getattr(profile, "bgc_dispute_note", None),
         "bgc_dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),

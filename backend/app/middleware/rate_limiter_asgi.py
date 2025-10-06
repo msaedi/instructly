@@ -33,7 +33,7 @@ class RateLimitMiddlewareASGI:
         self.app = app
         self.rate_limiter = rate_limiter or RateLimiter()
         self.general_limit = getattr(settings, "rate_limit_general_per_minute", 100)
-        self._invite_path = re.compile(r"^/api/instructors/[^/]+/bgc/invite$")
+        self._invite_path = re.compile(r"^/api/instructors/[^/]+/bgc/(invite|recheck)$")
         self.invite_limit = 10
         self.invite_window_seconds = 3600
 

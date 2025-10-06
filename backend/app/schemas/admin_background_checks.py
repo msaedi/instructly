@@ -26,6 +26,9 @@ class BGCReviewItemModel(StrictModel):
     checkr_report_url: str | None = None
     consented_at_recent_at: datetime | None = None
     is_live: bool
+    bgc_valid_until: datetime | None = None
+    bgc_expires_in_days: int | None = None
+    bgc_is_expired: bool = False
     in_dispute: bool = False
     dispute_note: str | None = None
     dispute_opened_at: datetime | None = None
@@ -55,6 +58,9 @@ class BGCCaseItemModel(StrictModel):
     checkr_report_url: str | None = None
     consent_recent: bool
     consent_recent_at: datetime | None = None
+    bgc_valid_until: datetime | None = None
+    bgc_expires_in_days: int | None = None
+    bgc_is_expired: bool = False
     in_dispute: bool = False
     dispute_note: str | None = None
     dispute_opened_at: datetime | None = None
@@ -74,6 +80,9 @@ class BGCCaseItemModel(StrictModel):
             "consented_at_recent_at": self.consent_recent_at,
             "checkr_report_url": self.checkr_report_url,
             "is_live": self.is_live,
+            "bgc_valid_until": self.bgc_valid_until,
+            "bgc_expires_in_days": self.bgc_expires_in_days,
+            "bgc_is_expired": self.bgc_is_expired,
             "in_dispute": self.in_dispute,
             "dispute_note": self.dispute_note,
             "dispute_opened_at": self.dispute_opened_at,

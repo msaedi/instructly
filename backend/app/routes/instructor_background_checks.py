@@ -233,6 +233,167 @@ async def trigger_background_check_invite(
     )
 
 
+@router.post("/recheck", response_model=BackgroundCheckInviteResponse)
+async def trigger_background_check_recheck(
+    instructor_id: str = Path(..., description="Instructor profile ULID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    background_check_service: BackgroundCheckService = Depends(get_background_check_service),
+) -> BackgroundCheckInviteResponse:
+    repo = InstructorProfileRepository(db)
+    profile = _get_instructor_profile(instructor_id, repo)
+    _ensure_owner_or_admin(current_user, profile.user_id)
+
+    if background_check_service.config_error and settings.site_mode != "prod":
+        logger.error(
+            "Background check re-check blocked due to configuration error",
+            extra={
+                "evt": "bgc_recheck",
+                "instructor_id": instructor_id,
+                "outcome": "error",
+                "config_error": background_check_service.config_error,
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="error").inc()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": (
+                    "Background check configuration missing sandbox API key while CHECKR_FAKE=false. "
+                    "Set CHECKR_FAKE=true (default) or provide CHECKR_API_KEY."
+                ),
+                "config_error": background_check_service.config_error,
+            },
+        )
+
+    latest_consent = repo.latest_consent(instructor_id)
+    now = datetime.now(timezone.utc)
+    consent_recent = bool(
+        latest_consent
+        and latest_consent.consented_at
+        and latest_consent.consented_at >= now - CONSENT_WINDOW
+    )
+
+    if not consent_recent:
+        logger.info(
+            "Background check re-check blocked; consent required",
+            extra={
+                "evt": "bgc_recheck",
+                "instructor_id": instructor_id,
+                "outcome": "consent_required",
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="consent_required").inc()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "FCRA consent required",
+                "code": "bgc_consent_required",
+            },
+        )
+
+    invite_time = datetime.now(timezone.utc)
+    invited_at = getattr(profile, "bgc_invited_at", None)
+    if invited_at is not None and invite_time - invited_at < timedelta(hours=24):
+        retry_after_seconds = int(
+            (timedelta(hours=24) - (invite_time - invited_at)).total_seconds()
+        )
+        logger.info(
+            "Background check re-check rate limited",
+            extra={
+                "evt": "bgc_recheck",
+                "instructor_id": instructor_id,
+                "outcome": "rate_limited",
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="rate_limited").inc()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "bgc_recheck_rate_limited",
+                "message": "Re-check rate limited; try again later.",
+                "retry_after_seconds": retry_after_seconds,
+            },
+        )
+
+    current_status = _status_literal(getattr(profile, "bgc_status", None))
+    if current_status in {"pending", "review"}:
+        logger.info(
+            "Background check re-check skipped; already in progress",
+            extra={
+                "evt": "bgc_recheck",
+                "instructor_id": instructor_id,
+                "outcome": "recheck_ok",
+                "already_in_progress": True,
+                "status": current_status,
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="recheck_ok").inc()
+        return BackgroundCheckInviteResponse(
+            status=current_status,
+            report_id=getattr(profile, "bgc_report_id", None),
+            already_in_progress=True,
+        )
+
+    try:
+        invite_result = await background_check_service.invite(instructor_id)
+    except ServiceException as exc:
+        root_cause = exc.__cause__
+        if (
+            isinstance(root_cause, CheckrError)
+            and "api key must be provided" in str(root_cause).lower()
+            and settings.site_mode != "prod"
+        ):
+            logger.error(
+                "Background check re-check failed due to missing API key",
+                extra={
+                    "evt": "bgc_recheck",
+                    "instructor_id": instructor_id,
+                    "outcome": "error",
+                    "error": str(root_cause),
+                },
+            )
+            BGC_INVITES_TOTAL.labels(outcome="error").inc()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": (
+                        "Checkr API key must be provided to send background check re-checks. "
+                        "Use CHECKR_FAKE=true for non-production or supply CHECKR_API_KEY."
+                    ),
+                },
+            ) from exc
+
+        logger.error(
+            "Background check re-check failed",
+            extra={
+                "evt": "bgc_recheck",
+                "instructor_id": instructor_id,
+                "outcome": "error",
+                "error": str(exc),
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="error").inc()
+        raise
+
+    repo.set_bgc_invited_at(instructor_id, invite_time)
+
+    logger.info(
+        "Background check re-check started",
+        extra={
+            "evt": "bgc_recheck",
+            "instructor_id": instructor_id,
+            "outcome": "recheck_ok",
+        },
+    )
+    BGC_INVITES_TOTAL.labels(outcome="recheck_ok").inc()
+
+    return BackgroundCheckInviteResponse(
+        status=invite_result["status"],
+        report_id=invite_result.get("report_id"),
+    )
+
+
 @router.get("/status", response_model=BackgroundCheckStatusResponse)
 async def get_background_check_status(
     instructor_id: str = Path(..., description="Instructor profile ULID"),
@@ -249,6 +410,11 @@ async def get_background_check_status(
     consent_recent_at = getattr(latest_consent, "consented_at", None)
     now = datetime.now(timezone.utc)
     consent_recent = bool(consent_recent_at and consent_recent_at >= now - CONSENT_WINDOW)
+    valid_until = getattr(profile, "bgc_valid_until", None)
+    expires_in_days = (
+        (valid_until - now).days if valid_until is not None and valid_until > now else None
+    )
+    is_expired = bool(valid_until is not None and valid_until <= now)
 
     return BackgroundCheckStatusResponse(
         status=status_value,
@@ -257,6 +423,9 @@ async def get_background_check_status(
         env=getattr(profile, "bgc_env", "sandbox"),
         consent_recent=consent_recent,
         consent_recent_at=consent_recent_at,
+        valid_until=valid_until,
+        expires_in_days=expires_in_days,
+        is_expired=is_expired,
     )
 
 

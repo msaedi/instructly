@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { bgcInvite, bgcStatus, type BGCStatus } from '@/lib/api/bgc';
+import { bgcInvite, bgcRecheck, bgcStatus, type BGCStatus } from '@/lib/api/bgc';
 import { toast } from 'sonner';
 import { IS_NON_PROD } from '@/lib/env';
 import { ApiProblemError } from '@/lib/api/fetch';
@@ -61,15 +61,20 @@ const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(({ status,
 
 StatusChip.displayName = 'StatusChip';
 
+interface StatusSnapshot {
+  status: BGCStatus | null;
+  reportId: string | null;
+  completedAt: string | null;
+  consentRecent: boolean;
+  consentRecentAt: string | null;
+  validUntil: string | null;
+  expiresInDays: number | null;
+  isExpired: boolean;
+}
+
 interface BGCStepProps {
   instructorId: string;
-  onStatusUpdate?: (status: {
-    status: BGCStatus | null;
-    reportId: string | null;
-    completedAt: string | null;
-    consentRecent: boolean;
-    consentRecentAt: string | null;
-  }) => void;
+  onStatusUpdate?: (status: StatusSnapshot) => void;
   ensureConsent?: () => Promise<boolean>;
 }
 
@@ -79,8 +84,12 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   const [completedAt, setCompletedAt] = React.useState<string | null>(null);
   const [consentRecent, setConsentRecent] = React.useState(false);
   const [consentRecentAt, setConsentRecentAt] = React.useState<string | null>(null);
+  const [validUntil, setValidUntil] = React.useState<string | null>(null);
+  const [expiresInDays, setExpiresInDays] = React.useState<number | null>(null);
+  const [isExpired, setIsExpired] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [inviteLoading, setInviteLoading] = React.useState(false);
+  const [recheckLoading, setRecheckLoading] = React.useState(false);
   const [statusError, setStatusError] = React.useState(false);
   const [isForbidden, setIsForbidden] = React.useState(false);
   const [cooldownActive, setCooldownActive] = React.useState(false);
@@ -106,21 +115,33 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   }, [status]);
 
   const pushSnapshot = React.useCallback(
-    (snapshot: {
-      status: BGCStatus | null;
-      reportId: string | null;
-      completedAt: string | null;
-      consentRecent: boolean;
-      consentRecentAt: string | null;
-    }) => {
+    (snapshot: StatusSnapshot) => {
       setStatusSafe(snapshot.status);
       setReportId(snapshot.reportId);
       setCompletedAt(snapshot.completedAt);
       setConsentRecent(snapshot.consentRecent);
       setConsentRecentAt(snapshot.consentRecentAt);
+      setValidUntil(snapshot.validUntil);
+      setExpiresInDays(snapshot.expiresInDays);
+      setIsExpired(snapshot.isExpired);
       onStatusUpdate?.(snapshot);
     },
     [onStatusUpdate, setStatusSafe]
+  );
+
+  const snapshotFromResponse = React.useCallback(
+    (res: Awaited<ReturnType<typeof bgcStatus>>): StatusSnapshot => ({
+      status: res.status ?? 'failed',
+      reportId: res.report_id ?? null,
+      completedAt: res.completed_at ?? null,
+      consentRecent: Boolean(res.consent_recent),
+      consentRecentAt: res.consent_recent_at ?? null,
+      validUntil: res.valid_until ?? null,
+      expiresInDays:
+        typeof res.expires_in_days === 'number' ? res.expires_in_days : res.expires_in_days ?? null,
+      isExpired: Boolean(res.is_expired),
+    }),
+    []
   );
 
   const loadStatus = React.useCallback(async () => {
@@ -128,13 +149,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
     try {
       const res = await bgcStatus(instructorId);
       if (!isMountedRef.current) return;
-      pushSnapshot({
-        status: res.status,
-        reportId: res.report_id ?? null,
-        completedAt: res.completed_at ?? null,
-        consentRecent: Boolean(res.consent_recent),
-        consentRecentAt: res.consent_recent_at ?? null,
-      });
+      pushSnapshot(snapshotFromResponse(res));
       setStatusError(false);
     } catch (error) {
       if (!isMountedRef.current) return;
@@ -146,10 +161,13 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         completedAt: null,
         consentRecent: false,
         consentRecentAt: null,
+        validUntil: null,
+        expiresInDays: null,
+        isExpired: false,
       });
       setStatusError(true);
     }
-  }, [instructorId, pushSnapshot]);
+  }, [instructorId, pushSnapshot, snapshotFromResponse]);
 
   React.useEffect(() => {
     isMountedRef.current = true;
@@ -159,13 +177,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       try {
         const res = await bgcStatus(instructorId);
         if (!alive || !isMountedRef.current) return;
-        pushSnapshot({
-          status: res.status,
-          reportId: res.report_id ?? null,
-          completedAt: res.completed_at ?? null,
-          consentRecent: Boolean(res.consent_recent),
-          consentRecentAt: res.consent_recent_at ?? null,
-        });
+        pushSnapshot(snapshotFromResponse(res));
         setStatusError(false);
       } catch (error) {
         if (!alive || !isMountedRef.current) return;
@@ -177,6 +189,9 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           completedAt: null,
           consentRecent: false,
           consentRecentAt: null,
+          validUntil: null,
+          expiresInDays: null,
+          isExpired: false,
         });
         setStatusError(true);
       } finally {
@@ -196,7 +211,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         pollTimerRef.current = null;
       }
     };
-  }, [instructorId, pushSnapshot]);
+  }, [instructorId, pushSnapshot, snapshotFromResponse]);
 
   const scheduleNextPoll = React.useCallback(() => {
     if (backoffIdxRef.current >= POLL_BACKOFF_MS.length) {
@@ -270,6 +285,9 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         completedAt,
         consentRecent: true,
         consentRecentAt: ensuredAt ?? consentRecentAt,
+        validUntil: null,
+        expiresInDays: null,
+        isExpired: false,
       });
       setStatusError(false);
       await loadStatus();
@@ -325,6 +343,87 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
     }
   };
 
+  const handleRecheck = async (afterConsent = false): Promise<void> => {
+    setRecheckLoading(true);
+    let ensuredAt: string | null = null;
+    try {
+      if (ensureConsent && !consentRecent) {
+        const consentOk = await ensureConsent();
+        if (!consentOk) {
+          return;
+        }
+        ensuredAt = new Date().toISOString();
+        setConsentRecent(true);
+        setConsentRecentAt(ensuredAt);
+      }
+
+      const res = await bgcRecheck(instructorId);
+      if (res.already_in_progress) {
+        toast.success('Background check already in progress');
+      } else {
+        toast.success('Background check re-check started');
+      }
+      pushSnapshot({
+        status: res.status,
+        reportId: res.report_id ?? reportId,
+        completedAt,
+        consentRecent: true,
+        consentRecentAt: ensuredAt ?? consentRecentAt,
+        validUntil: null,
+        expiresInDays: null,
+        isExpired: false,
+      });
+      setStatusError(false);
+      await loadStatus();
+      statusChipRef.current?.focus();
+    } catch (error) {
+      if (error instanceof ApiProblemError) {
+        const statusCode = error.response.status;
+        const code = error.problem.code;
+        const detailMessage = error.problem.detail;
+        if (code === 'bgc_consent_required' && ensureConsent && !afterConsent) {
+          const consentOk = await ensureConsent();
+          if (consentOk) {
+            ensuredAt = new Date().toISOString();
+            setConsentRecent(true);
+            setConsentRecentAt(ensuredAt);
+            await handleRecheck(true);
+            return;
+          }
+        } else if (statusCode === 429) {
+          toast.info('You can try again later.');
+        } else {
+          const description = detailMessage && detailMessage.length > 0 ? detailMessage : 'Please try again in a moment.';
+          toast.error('Unable to re-check background', { description });
+        }
+      } else {
+        toast.error('Unable to re-check background', {
+          description: 'Please try again. If the problem persists, contact support.',
+        });
+      }
+    } finally {
+      setRecheckLoading(false);
+    }
+  };
+
+  const validUntilLabel = React.useMemo(() => {
+    if (!validUntil) return null;
+    try {
+      return new Date(validUntil).toLocaleDateString();
+    } catch {
+      return null;
+    }
+  }, [validUntil]);
+
+  const shouldShowRecheck =
+    isExpired || (typeof expiresInDays === 'number' && Number.isFinite(expiresInDays) && expiresInDays <= 30);
+  const recheckDisabled =
+    recheckLoading ||
+    inviteLoading ||
+    loading ||
+    status === 'pending' ||
+    status === 'review';
+
   return (
     <div className="space-y-4" data-testid="bgc-step">
       <div className="flex flex-wrap items-center gap-3" aria-live="polite">
@@ -334,6 +433,20 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         ) : null}
         {completedAt ? (
           <span className="text-xs text-muted-foreground">Completed {new Date(completedAt).toLocaleDateString()}</span>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        <span>Valid until: {validUntilLabel ?? '—'}</span>
+        {shouldShowRecheck ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void handleRecheck()}
+            disabled={recheckDisabled}
+            aria-disabled={recheckDisabled}
+          >
+            {recheckLoading ? 'Re-checking…' : 'Re-check'}
+          </Button>
         ) : null}
       </div>
       {statusError ? (

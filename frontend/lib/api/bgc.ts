@@ -17,6 +17,9 @@ export interface BGCStatusResponse {
   env: BGCEnv;
   consent_recent?: boolean;
   consent_recent_at?: string | null;
+  valid_until?: string | null;
+  expires_in_days?: number | null;
+  is_expired?: boolean;
 }
 
 export async function bgcInvite(instructorId: string): Promise<BGCInviteResponse> {
@@ -25,6 +28,10 @@ export async function bgcInvite(instructorId: string): Promise<BGCInviteResponse
 
 export async function bgcStatus(instructorId: string): Promise<BGCStatusResponse> {
   return httpGet<BGCStatusResponse>(`/api/instructors/${instructorId}/bgc/status`);
+}
+
+export async function bgcRecheck(instructorId: string): Promise<BGCInviteResponse> {
+  return httpPost<BGCInviteResponse>(`/api/instructors/${instructorId}/bgc/recheck`, {});
 }
 
 export interface BGCConsentPayload {

@@ -3,7 +3,7 @@ process.env.NEXT_PUBLIC_APP_ENV = 'preview';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BGCStep } from '@/components/instructor/BGCStep';
-import { bgcInvite, bgcStatus } from '@/lib/api/bgc';
+import { bgcInvite, bgcRecheck, bgcStatus } from '@/lib/api/bgc';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { toast } from 'sonner';
 
@@ -21,11 +21,13 @@ jest.mock('sonner', () => {
 describe('BGCStep', () => {
   const mockedBGCStatus = bgcStatus as jest.MockedFunction<typeof bgcStatus>;
   const mockedBGCInvite = bgcInvite as jest.MockedFunction<typeof bgcInvite>;
+  const mockedBGCRecheck = bgcRecheck as jest.MockedFunction<typeof bgcRecheck>;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockedBGCStatus.mockReset();
     mockedBGCInvite.mockReset();
+    mockedBGCRecheck.mockReset();
   });
 
   afterEach(() => {
@@ -41,6 +43,7 @@ describe('BGCStep', () => {
     render(<BGCStep instructorId="instructor-123" />);
 
     expect(await screen.findByText(/Verification pending/)).toBeInTheDocument();
+    expect(await screen.findByText('Valid until: —')).toBeInTheDocument();
 
     const button = screen.getByRole('button', { name: /start background check/i });
     expect(button).toBeDisabled();
@@ -209,5 +212,80 @@ describe('BGCStep', () => {
       jest.advanceTimersByTime(600000);
     });
     expect(mockedBGCStatus).toHaveBeenCalledTimes(4);
+  });
+
+  it('allows re-check when validity is expiring', async () => {
+    const soon = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+    mockedBGCStatus
+      .mockResolvedValueOnce({
+        status: 'passed',
+        env: 'sandbox',
+        consent_recent: true,
+        valid_until: soon,
+        expires_in_days: 5,
+        is_expired: false,
+      })
+      .mockResolvedValueOnce({ status: 'pending', env: 'sandbox', is_expired: false });
+
+    mockedBGCRecheck.mockResolvedValue({ ok: true, status: 'pending', report_id: 'RPT-R' });
+
+    render(<BGCStep instructorId="instructor-recheck" />);
+
+    const recheckButton = await screen.findByRole('button', { name: /^Re-check$/i });
+    await userEvent.click(recheckButton);
+
+    await waitFor(() => expect(mockedBGCRecheck).toHaveBeenCalledWith('instructor-recheck'));
+    expect(toast.success).toHaveBeenCalledWith('Background check re-check started');
+  });
+
+  it('requests consent before re-checking when needed', async () => {
+    mockedBGCStatus
+      .mockResolvedValueOnce({
+        status: 'passed',
+        env: 'sandbox',
+        consent_recent: false,
+        valid_until: null,
+        expires_in_days: 0,
+        is_expired: true,
+      })
+      .mockResolvedValueOnce({ status: 'pending', env: 'sandbox' });
+
+    const ensureConsent = jest.fn().mockResolvedValue(true);
+    mockedBGCRecheck.mockResolvedValue({ ok: true, status: 'pending', report_id: 'RPT-R2' });
+
+    render(<BGCStep instructorId="instructor-recheck-consent" ensureConsent={ensureConsent} />);
+
+    const recheckButton = await screen.findByRole('button', { name: /^Re-check$/i });
+    await userEvent.click(recheckButton);
+
+    await waitFor(() => expect(ensureConsent).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockedBGCRecheck).toHaveBeenCalledWith('instructor-recheck-consent'));
+  });
+
+  it('shows retry info when re-check is rate limited', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({
+      status: 'passed',
+      env: 'sandbox',
+      consent_recent: true,
+      valid_until: null,
+      expires_in_days: 0,
+      is_expired: true,
+    });
+
+    const response = { status: 429 } as Response;
+    const problem = {
+      type: 'about:blank',
+      title: 'Rate limited',
+      status: 429,
+      detail: 'Rate limited',
+    };
+    mockedBGCRecheck.mockRejectedValueOnce(new ApiProblemError(problem, response));
+
+    render(<BGCStep instructorId="instructor-recheck-limit" />);
+
+    const recheckButton = await screen.findByRole('button', { name: /^Re-check$/i });
+    await userEvent.click(recheckButton);
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('You can try again later.'));
   });
 });

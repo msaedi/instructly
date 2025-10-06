@@ -6,7 +6,42 @@ import type { ReactNode } from 'react';
 
 import AdminBGCReviewPage from '../page';
 import { toast } from 'sonner';
+import type { BGCInviteResponse } from '@/lib/api/bgc';
+import { ApiProblemError } from '@/lib/api/fetch';
+import type { UseMutationResult } from '@tanstack/react-query';
 import type { BGCCaseItem, AdminInstructorDetail } from '../hooks';
+import { useBGCRecheck } from '../hooks';
+
+jest.mock('../hooks', () => {
+  const actual = jest.requireActual('../hooks');
+  return {
+    ...actual,
+    useBGCRecheck: jest.fn(),
+  };
+});
+
+const mockedUseBGCRecheck = useBGCRecheck as jest.MockedFunction<typeof useBGCRecheck>;
+
+function makeRecheckMutation(
+  overrides: Partial<UseMutationResult<BGCInviteResponse, Error, { id: string }, unknown>> = {},
+): UseMutationResult<BGCInviteResponse, Error, { id: string }, unknown> {
+  const base = {
+    mutate: jest.fn(),
+    mutateAsync: jest.fn(),
+    isPending: false,
+    reset: jest.fn(),
+  } satisfies Partial<UseMutationResult<BGCInviteResponse, Error, { id: string }, unknown>>;
+  return { ...base, ...overrides } as unknown as UseMutationResult<
+    BGCInviteResponse,
+    Error,
+    { id: string },
+    unknown
+  >;
+}
+
+let reviewItems: BGCCaseItem[];
+let pendingItems: BGCCaseItem[];
+let reviewDetail: AdminInstructorDetail;
 
 jest.mock('@/hooks/useAdminAuth', () => ({
   useAdminAuth: () => ({ isAdmin: true, isLoading: false }),
@@ -22,6 +57,7 @@ jest.mock('sonner', () => ({
   toast: {
     success: jest.fn(),
     error: jest.fn(),
+    info: jest.fn(),
   },
 }));
 
@@ -32,11 +68,12 @@ jest.mock('next/navigation', () => ({
 const originalFetch = global.fetch;
 
 function createJsonResponse(body: unknown, status = 200): Response {
+  const contentType = status >= 400 ? 'application/problem+json' : 'application/json';
   return {
     ok: status >= 200 && status < 300,
     status,
     headers: {
-      get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+      get: (name: string) => (name.toLowerCase() === 'content-type' ? contentType : null),
     },
     json: async () => body,
   } as unknown as Response;
@@ -56,7 +93,17 @@ function renderWithClient(ui: ReactNode) {
 
 describe('AdminBGCReviewPage', () => {
   beforeEach(() => {
-    let reviewItems: BGCCaseItem[] = [
+    mockedUseBGCRecheck.mockReturnValue(
+      makeRecheckMutation({
+        mutateAsync: jest.fn(async ({ id }: { id: string }) => ({
+          ok: true,
+          status: 'pending',
+          report_id: `rpt_${id}`,
+          already_in_progress: false,
+        } as BGCInviteResponse)),
+      }),
+    );
+    reviewItems = [
       {
         instructor_id: '01TEST0INSTRUCTOR',
         name: 'Review Instructor',
@@ -74,10 +121,13 @@ describe('AdminBGCReviewPage', () => {
         dispute_note: null,
         dispute_opened_at: null,
         dispute_resolved_at: null,
+        bgc_valid_until: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+        bgc_expires_in_days: 45,
+        bgc_is_expired: false,
       },
     ];
 
-    const pendingItems: BGCCaseItem[] = [
+    pendingItems = [
       {
         instructor_id: '01TEST0PENDING',
         name: 'Pending Instructor',
@@ -95,10 +145,13 @@ describe('AdminBGCReviewPage', () => {
         dispute_note: null,
         dispute_opened_at: null,
         dispute_resolved_at: null,
+        bgc_valid_until: null,
+        bgc_expires_in_days: null,
+        bgc_is_expired: false,
       },
     ];
 
-    let reviewDetail: AdminInstructorDetail = {
+    reviewDetail = {
       id: '01TEST0INSTRUCTOR',
       name: 'Review Instructor',
       email: 'review@example.com',
@@ -109,6 +162,9 @@ describe('AdminBGCReviewPage', () => {
       consent_recent_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
       updated_at: null,
+      bgc_valid_until: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+      bgc_expires_in_days: 45,
+      bgc_is_expired: false,
       bgc_in_dispute: false,
       bgc_dispute_note: null,
       bgc_dispute_opened_at: null,
@@ -229,6 +285,38 @@ describe('AdminBGCReviewPage', () => {
         return createJsonResponse({ ok: true, new_status: 'passed' });
       }
 
+      if (url.match(/\/api\/instructors\/[^/]+\/bgc\/recheck/)) {
+        const match = url.match(/\/api\/instructors\/([^/]+)\/bgc\/recheck/);
+        const instructorId = match?.[1];
+        if (instructorId) {
+          const inviteTime = new Date().toISOString();
+          reviewItems = reviewItems.map((item) =>
+            item.instructor_id === instructorId
+              ? {
+                  ...item,
+                  bgc_status: 'pending',
+                  bgc_valid_until: null,
+                  bgc_expires_in_days: null,
+                  bgc_is_expired: false,
+                  consent_recent: true,
+                  consent_recent_at: inviteTime,
+                }
+              : item,
+          );
+          if (reviewDetail.id === instructorId) {
+            reviewDetail = {
+              ...reviewDetail,
+              bgc_status: 'pending',
+              bgc_valid_until: null,
+              bgc_expires_in_days: null,
+              bgc_is_expired: false,
+              consent_recent_at: inviteTime,
+            };
+          }
+        }
+        return createJsonResponse({ ok: true, status: 'pending', report_id: 'rpt_new' });
+      }
+
       return createJsonResponse({}, 404);
     }) as jest.Mock;
 
@@ -325,5 +413,170 @@ describe('AdminBGCReviewPage', () => {
     await waitFor(() => expect((toast.success as jest.Mock)).toHaveBeenCalledWith('Dispute resolved'));
     await waitFor(() => expect(screen.queryByText('In dispute')).not.toBeInTheDocument());
     await waitFor(() => expect(rejectButton).toBeEnabled());
+  });
+
+  it('surfaces validity info and allows triggering a re-check', async () => {
+    const expiredDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    reviewDetail = {
+      ...reviewDetail,
+      bgc_status: 'passed',
+      bgc_is_expired: true,
+      bgc_valid_until: expiredDate,
+      bgc_expires_in_days: null,
+      consent_recent_at: null,
+    };
+    if (reviewItems[0]) {
+      reviewItems[0] = {
+        ...reviewItems[0],
+        bgc_status: 'passed',
+        bgc_is_expired: true,
+        bgc_valid_until: expiredDate,
+        bgc_expires_in_days: null,
+        consent_recent: false,
+        consent_recent_at: null,
+      };
+    }
+
+    const mutateAsync = jest.fn(async ({ id }: { id: string }) => ({
+      ok: true,
+      status: 'pending',
+      report_id: `rpt_${id}`,
+      already_in_progress: false,
+    } as BGCInviteResponse));
+    mockedUseBGCRecheck.mockReturnValue(makeRecheckMutation({ mutateAsync }));
+
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+
+    const previewButton = screen.getByTitle(/profile not public/i);
+    await user.click(previewButton);
+
+    await screen.findByText(/Instructor Preview/i);
+    await screen.findByText(/Valid until/i);
+
+    const recheckButton = await screen.findByRole('button', { name: /^Re-check$/i });
+    expect(recheckButton).toBeEnabled();
+
+    await user.click(recheckButton);
+
+    await waitFor(() =>
+      expect((toast.success as jest.Mock)).toHaveBeenCalledWith('Background check re-check requested'),
+    );
+    expect(mutateAsync).toHaveBeenCalledWith({ id: '01TEST0INSTRUCTOR' });
+  });
+
+  it('disables re-check when consent is missing', async () => {
+    const expiredDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    reviewDetail = {
+      ...reviewDetail,
+      bgc_status: 'passed',
+      bgc_is_expired: true,
+      bgc_valid_until: expiredDate,
+      bgc_expires_in_days: null,
+      consent_recent_at: null,
+    };
+    if (reviewItems[0]) {
+      reviewItems[0] = {
+        ...reviewItems[0],
+        bgc_status: 'passed',
+        bgc_is_expired: true,
+        bgc_valid_until: expiredDate,
+        bgc_expires_in_days: null,
+        consent_recent: false,
+        consent_recent_at: null,
+      };
+    }
+
+    const consentError = new ApiProblemError(
+      {
+        type: 'about:blank',
+        title: 'Consent required',
+        status: 400,
+        detail: 'FCRA consent required',
+        code: 'bgc_consent_required',
+      },
+      { status: 400 } as Response,
+    );
+    const mutateAsync = jest.fn(async () => {
+      throw consentError;
+    });
+    mockedUseBGCRecheck.mockReturnValue(makeRecheckMutation({ mutateAsync }));
+
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+
+    const previewButton = screen.getByTitle(/profile not public/i);
+    await user.click(previewButton);
+    await screen.findByText(/Instructor Preview/i);
+
+    const recheckButton = await screen.findByRole('button', { name: /^Re-check$/i });
+    await user.click(recheckButton);
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    await waitFor(() =>
+      expect((toast.info as jest.Mock)).toHaveBeenCalledWith('Instructor must consent before re-check.'),
+    );
+    await waitFor(() => expect(recheckButton).toBeDisabled());
+  });
+
+  it('disables re-check on rate limit and shows tooltip copy', async () => {
+    const expiredDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    reviewDetail = {
+      ...reviewDetail,
+      bgc_status: 'passed',
+      bgc_is_expired: true,
+      bgc_valid_until: expiredDate,
+      bgc_expires_in_days: null,
+      consent_recent_at: new Date().toISOString(),
+    };
+    if (reviewItems[0]) {
+      reviewItems[0] = {
+        ...reviewItems[0],
+        bgc_status: 'passed',
+        bgc_is_expired: true,
+        bgc_valid_until: expiredDate,
+        bgc_expires_in_days: null,
+        consent_recent: true,
+        consent_recent_at: new Date().toISOString(),
+      };
+    }
+
+    const rateLimitError = new ApiProblemError(
+      {
+        type: 'about:blank',
+        title: 'Rate limited',
+        status: 429,
+        detail: 'Too many requests',
+        code: 'bgc_recheck_rate_limited',
+      },
+      { status: 429 } as Response,
+    );
+    const mutateAsync = jest.fn(async () => {
+      throw rateLimitError;
+    });
+    mockedUseBGCRecheck.mockReturnValue(makeRecheckMutation({ mutateAsync }));
+
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+
+    const previewButton = screen.getByTitle(/profile not public/i);
+    await user.click(previewButton);
+    await screen.findByText(/Instructor Preview/i);
+
+    const recheckButton = await screen.findByRole('button', { name: /^Re-check$/i });
+    await user.click(recheckButton);
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    await waitFor(() =>
+      expect((toast.info as jest.Mock)).toHaveBeenCalledWith('Too many re-checks. Try later.'),
+    );
+    await waitFor(() => expect(recheckButton).toBeDisabled());
+    await waitFor(() => expect(recheckButton).toHaveAttribute('title', 'Try later'));
   });
 });
