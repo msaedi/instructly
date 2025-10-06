@@ -26,6 +26,9 @@ class BackgroundCheckStatusResponse(StrictModel):
     env: Literal["sandbox", "production"]
     consent_recent: bool = False
     consent_recent_at: datetime | None = None
+    valid_until: datetime | None = None
+    expires_in_days: int | None = None
+    is_expired: bool = False
 
 
 __all__ = [

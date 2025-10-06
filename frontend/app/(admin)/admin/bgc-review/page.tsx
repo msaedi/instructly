@@ -12,6 +12,7 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { ApiProblemError } from '@/lib/api/fetch';
 
 import {
   useAdminInstructorDetail,
@@ -20,6 +21,7 @@ import {
   useBGCOverride,
   useBGCDisputeOpen,
   useBGCDisputeResolve,
+  useBGCRecheck,
   type AdminInstructorDetail,
   type BGCCaseItem,
 } from './hooks';
@@ -45,6 +47,8 @@ export default function AdminBGCReviewPage() {
   const [isPreviewOpen, setPreviewOpen] = useState(false);
   const [disputeNoteDraft, setDisputeNoteDraft] = useState('');
   const previewDetail = useAdminInstructorDetail(isPreviewOpen ? previewId : null);
+  const recheckMutation = useBGCRecheck();
+  const [recheckBlockedCode, setRecheckBlockedCode] = useState<'consent' | 'rate_limited' | null>(null);
 
   const countsQuery = useBGCCounts();
   const counts = countsQuery.data ?? { review: 0, pending: 0 };
@@ -68,6 +72,19 @@ export default function AdminBGCReviewPage() {
       setDisputeNoteDraft(previewDetail.data.bgc_dispute_note ?? '');
     }
   }, [isPreviewOpen, previewDetail.data]);
+
+  useEffect(() => {
+    if (!isPreviewOpen) {
+      setRecheckBlockedCode(null);
+    }
+  }, [isPreviewOpen]);
+
+  useEffect(() => {
+    if (!previewDetail.data) {
+      return;
+    }
+    setRecheckBlockedCode(null);
+  }, [previewDetail.data]);
 
   const filteredItems = useMemo<BGCCaseItem[]>(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -107,6 +124,35 @@ export default function AdminBGCReviewPage() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'bgc', 'cases'], exact: false }),
       queryClient.invalidateQueries({ queryKey: ['admin', 'bgc', 'counts'], exact: false }),
     ]);
+  };
+
+  const handleRecheck = async () => {
+    if (!previewId) return;
+    setRecheckBlockedCode(null);
+    try {
+      await recheckMutation.mutateAsync({ id: previewId });
+      toast.success('Background check re-check requested');
+    } catch (error) {
+      if (error instanceof ApiProblemError) {
+        const statusCode = error.response.status;
+        const code = error.problem.code;
+        const detailMessage = error.problem.detail;
+        if (code === 'bgc_consent_required' && statusCode === 400) {
+          setRecheckBlockedCode('consent');
+          toast.info('Instructor must consent before re-check.');
+          return;
+        }
+        if (statusCode === 429) {
+          setRecheckBlockedCode('rate_limited');
+          toast.info('Too many re-checks. Try later.');
+          return;
+        }
+        const message = detailMessage && detailMessage.length > 0 ? detailMessage : 'Please try again later.';
+        toast.error('Unable to request background check re-check', { description: message });
+        return;
+      }
+      toast.error('Unable to request background check re-check');
+    }
   };
 
   const handleOverride = async (item: BGCCaseItem, action: 'approve' | 'reject') => {
@@ -451,6 +497,9 @@ export default function AdminBGCReviewPage() {
                         onResolveDispute={handleResolveDispute}
                         openPending={openDisputeMutation.isPending}
                         resolvePending={resolveDisputeMutation.isPending}
+                        onRecheck={() => void handleRecheck()}
+                        recheckPending={recheckMutation.isPending}
+                        recheckBlockedCode={recheckBlockedCode}
                       />
                     ) : (
                       <div>No instructor selected.</div>
@@ -474,6 +523,9 @@ function PreviewContent({
   onResolveDispute,
   openPending,
   resolvePending,
+  onRecheck,
+  recheckPending,
+  recheckBlockedCode,
 }: {
   detail: AdminInstructorDetail;
   disputeNote: string;
@@ -482,6 +534,9 @@ function PreviewContent({
   onResolveDispute: () => void;
   openPending: boolean;
   resolvePending: boolean;
+  onRecheck: () => void;
+  recheckPending: boolean;
+  recheckBlockedCode: 'consent' | 'rate_limited' | null;
 }) {
   const openedLabel = detail.bgc_dispute_opened_at
     ? formatDistanceToNow(new Date(detail.bgc_dispute_opened_at), { addSuffix: true })
@@ -489,6 +544,23 @@ function PreviewContent({
   const resolvedLabel = detail.bgc_dispute_resolved_at
     ? formatDistanceToNow(new Date(detail.bgc_dispute_resolved_at), { addSuffix: true })
     : null;
+  const normalizedStatus = (detail.bgc_status || '').toLowerCase();
+  let validUntilLabel: string | null = null;
+  if (detail.bgc_valid_until) {
+    try {
+      validUntilLabel = new Date(detail.bgc_valid_until).toLocaleDateString();
+    } catch {
+      validUntilLabel = null;
+    }
+  }
+  const shouldShowRecheck =
+    detail.bgc_is_expired ||
+    (typeof detail.bgc_expires_in_days === 'number' && detail.bgc_expires_in_days <= 30);
+  const recheckDisabled =
+    recheckPending ||
+    recheckBlockedCode !== null ||
+    normalizedStatus === 'pending' ||
+    normalizedStatus === 'review';
 
   return (
     <dl className="space-y-3">
@@ -509,6 +581,31 @@ function PreviewContent({
           <dt className="text-xs uppercase text-gray-400">BGC status</dt>
           <dd>{detail.bgc_status || '—'}</dd>
         </div>
+      </div>
+      <div>
+        <dt className="text-xs uppercase text-gray-400">Valid until</dt>
+        <dd className="flex flex-wrap items-center gap-2">
+          <span>{validUntilLabel ?? '—'}</span>
+          {shouldShowRecheck ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onRecheck}
+              disabled={recheckDisabled}
+              title={recheckBlockedCode === 'rate_limited' ? 'Try later' : undefined}
+            >
+              {recheckPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Re-check
+            </Button>
+          ) : null}
+        </dd>
+        {recheckBlockedCode === 'consent' ? (
+          <p className="mt-1 text-xs text-amber-600">Instructor must consent (ask them to open Verification page).</p>
+        ) : null}
+        {recheckBlockedCode === 'rate_limited' ? (
+          <p className="mt-1 text-xs text-amber-600">Try later.</p>
+        ) : null}
       </div>
       <div>
         <dt className="text-xs uppercase text-gray-400">Consent recent at</dt>

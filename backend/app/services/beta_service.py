@@ -12,7 +12,7 @@ from ..core.config import settings
 from ..core.constants import BRAND_NAME
 from ..models.beta import BetaAccess, BetaInvite
 from ..repositories.beta_repository import BetaAccessRepository, BetaInviteRepository
-from ..services.base import BaseService
+from ..services.base import BaseService, CacheInvalidationProtocol
 from ..services.email import EmailService
 from ..services.email_subjects import EmailSubject
 from ..services.template_registry import TemplateRegistry
@@ -52,11 +52,11 @@ def generate_code(length: int = 8) -> str:
     return "".join(random.choice(ALPHABET) for _ in range(length))
 
 
-class BetaService:
-    def __init__(self, db: Session):
+class BetaService(BaseService):
+    def __init__(self, db: Session, cache: CacheInvalidationProtocol | None = None):
+        super().__init__(db, cache)
         self.invites = BetaInviteRepository(db)
         self.access = BetaAccessRepository(db)
-        self.db = db
 
     @BaseService.measure_operation("beta_invite_validated")
     def validate_invite(self, code: str) -> tuple[bool, Optional[str], Optional[BetaInvite]]:

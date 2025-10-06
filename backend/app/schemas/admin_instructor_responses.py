@@ -19,6 +19,9 @@ class AdminInstructorDetailResponse(StrictModel):
     consent_recent_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    bgc_valid_until: Optional[datetime] = None
+    bgc_expires_in_days: Optional[int] = None
+    bgc_is_expired: bool = False
     bgc_in_dispute: bool = False
     bgc_dispute_note: Optional[str] = None
     bgc_dispute_opened_at: Optional[datetime] = None

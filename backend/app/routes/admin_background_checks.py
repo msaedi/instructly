@@ -80,6 +80,11 @@ def _build_case_item(
             consent_recent = consent_recent_at >= now - CONSENT_WINDOW
 
     report_id = getattr(profile, "bgc_report_id", None)
+    valid_until = getattr(profile, "bgc_valid_until", None)
+    expires_in_days = (
+        (valid_until - now).days if valid_until is not None and valid_until > now else None
+    )
+    is_expired = bool(valid_until is not None and valid_until <= now)
 
     payload = {
         "instructor_id": profile.id,
@@ -94,6 +99,9 @@ def _build_case_item(
         "checkr_report_url": _build_checkr_report_url(report_id),
         "consent_recent": consent_recent,
         "consent_recent_at": consent_recent_at,
+        "bgc_valid_until": valid_until,
+        "bgc_expires_in_days": expires_in_days,
+        "bgc_is_expired": is_expired,
         "in_dispute": bool(getattr(profile, "bgc_in_dispute", False)),
         "dispute_note": getattr(profile, "bgc_dispute_note", None),
         "dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),

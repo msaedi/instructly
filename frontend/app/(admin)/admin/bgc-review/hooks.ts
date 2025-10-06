@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 
 import { httpGet, httpPost } from '@/features/shared/api/http';
+import type { BGCInviteResponse } from '@/lib/api/bgc';
 
 export interface BGCCaseItem {
   instructor_id: string;
@@ -21,6 +22,9 @@ export interface BGCCaseItem {
   dispute_note: string | null;
   dispute_opened_at: string | null;
   dispute_resolved_at: string | null;
+  bgc_valid_until: string | null;
+  bgc_expires_in_days: number | null;
+  bgc_is_expired: boolean;
 }
 
 export interface BGCCaseListResult {
@@ -44,6 +48,9 @@ export interface AdminInstructorDetail {
   consent_recent_at: string | null;
   created_at: string | null;
   updated_at: string | null;
+  bgc_valid_until: string | null;
+  bgc_expires_in_days: number | null;
+  bgc_is_expired: boolean;
   bgc_in_dispute: boolean;
   bgc_dispute_note: string | null;
   bgc_dispute_opened_at: string | null;
@@ -134,6 +141,17 @@ export function useBGCDisputeResolve() {
   return useMutation({
     mutationFn: ({ id, note }: DisputePayload) =>
       httpPost<DisputeResponse>(`/api/admin/bgc/${id}/dispute/resolve`, { note }),
+    onSuccess: (_, variables) => {
+      invalidateBackgroundCheckQueries(queryClient, variables.id);
+    },
+  });
+}
+
+export function useBGCRecheck() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      httpPost<BGCInviteResponse>(`/api/instructors/${id}/bgc/recheck`, {}),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },
