@@ -32,7 +32,11 @@ from .core.constants import (
     SSE_PATH_PREFIX,
 )
 from .core.exceptions import RepositoryException
-from .core.metrics import BACKGROUND_JOB_FAILURES_TOTAL, BGC_PENDING_7D
+from .core.metrics import (
+    BACKGROUND_JOB_FAILURES_TOTAL,
+    BACKGROUND_JOBS_FAILED,
+    BGC_PENDING_7D,
+)
 from .database import SessionLocal, get_db
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
@@ -97,7 +101,6 @@ from .services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
     FinalAdversePayload,
 )
-from .services.email import EmailService
 from .services.template_registry import TemplateRegistry
 from .services.template_service import TemplateService
 
@@ -299,6 +302,11 @@ def _next_expiry_run(now: datetime | None = None) -> datetime:
     return next_run
 
 
+def _expiry_recheck_url() -> str:
+    base_url = (settings.frontend_url or "").rstrip("/")
+    return f"{base_url}/instructor/onboarding/verification"
+
+
 async def _background_jobs_worker() -> None:
     """Process persisted background jobs with retry support."""
 
@@ -369,69 +377,57 @@ async def _background_jobs_worker() -> None:
                             )
                         elif job.type == "bgc.expiry_sweep":
                             days = int(payload.get("days", 30))
-                            suppress_emails = getattr(
-                                settings, "bgc_suppress_adverse_emails", False
-                            )
 
                             pending_over_7d = repo.count_pending_older_than(7)
                             BGC_PENDING_7D.set(pending_over_7d)
 
-                            email_service = EmailService(db)
+                            now_utc = datetime.now(timezone.utc)
+                            recheck_url = _expiry_recheck_url()
 
                             expiring = repo.list_expiring_within(days)
                             for expiring_profile in expiring:
-                                user = getattr(expiring_profile, "user", None)
-                                recipient = getattr(user, "email", None)
-                                if not recipient:
-                                    continue
-
-                                if suppress_emails:
-                                    logger.info(
-                                        "Expiry reminder suppressed",
-                                        extra={
-                                            "instructor_id": expiring_profile.id,
-                                            "valid_until": expiring_profile.bgc_valid_until,
-                                        },
+                                expiry_dt = getattr(expiring_profile, "bgc_valid_until", None)
+                                expiry_dt_utc = (
+                                    expiry_dt.astimezone(timezone.utc)
+                                    if expiry_dt and expiry_dt.tzinfo
+                                    else (
+                                        expiry_dt.replace(tzinfo=timezone.utc)
+                                        if expiry_dt
+                                        else None
                                     )
-                                else:
-                                    expires_on = (
-                                        expiring_profile.bgc_valid_until.isoformat()
-                                        if expiring_profile.bgc_valid_until
-                                        else "soon"
-                                    )
-                                    html_body = (
-                                        "<p>Your background check is nearing expiration. "
-                                        f"It will expire on {expires_on}. Please re-submit your background check to remain active on InstaInstru.</p>"
-                                    )
-                                    email_service.send_email(
-                                        recipient,
-                                        "Background check expiring soon",
-                                        html_body,
-                                    )
+                                )
+                                context: dict[str, object] = {
+                                    "candidate_name": workflow.candidate_name(expiring_profile)
+                                    or "",
+                                    "expiry_date": workflow.format_date(expiry_dt_utc or now_utc),
+                                    "is_past_due": False,
+                                    "recheck_url": recheck_url,
+                                    "support_email": settings.bgc_support_email,
+                                }
+                                workflow.send_expiry_recheck_email(expiring_profile, context)
 
                             expired_profiles = repo.list_expired()
                             for expired_profile in expired_profiles:
                                 repo.set_live(expired_profile.id, False)
-                                user = getattr(expired_profile, "user", None)
-                                recipient = getattr(user, "email", None)
-                                if not recipient:
-                                    continue
-
-                                if suppress_emails:
-                                    logger.info(
-                                        "Expired notification suppressed",
-                                        extra={"instructor_id": expired_profile.id},
+                                expiry_dt = getattr(expired_profile, "bgc_valid_until", None)
+                                expiry_dt_utc = (
+                                    expiry_dt.astimezone(timezone.utc)
+                                    if expiry_dt and expiry_dt.tzinfo
+                                    else (
+                                        expiry_dt.replace(tzinfo=timezone.utc)
+                                        if expiry_dt
+                                        else None
                                     )
-                                else:
-                                    html_body = (
-                                        "<p>Your background check has expired. "
-                                        "Please complete a new background check to restore your live status.</p>"
-                                    )
-                                    email_service.send_email(
-                                        recipient,
-                                        "Background check expired",
-                                        html_body,
-                                    )
+                                )
+                                context = {
+                                    "candidate_name": workflow.candidate_name(expired_profile)
+                                    or "",
+                                    "expiry_date": workflow.format_date(expiry_dt_utc or now_utc),
+                                    "is_past_due": True,
+                                    "recheck_url": recheck_url,
+                                    "support_email": settings.bgc_support_email,
+                                }
+                                workflow.send_expiry_recheck_email(expired_profile, context)
 
                             next_available = _next_expiry_run()
                             job_repo.enqueue(
@@ -447,6 +443,7 @@ async def _background_jobs_worker() -> None:
 
                         job_repo.mark_succeeded(job.id)
                         db.commit()
+                        BACKGROUND_JOBS_FAILED.set(job_repo.count_failed_jobs())
                     except asyncio.CancelledError:
                         db.rollback()
                         raise
@@ -464,8 +461,19 @@ async def _background_jobs_worker() -> None:
                             },
                         )
                         BACKGROUND_JOB_FAILURES_TOTAL.labels(type=job_type).inc()
-                        job_repo.mark_failed(job.id, error=str(exc))
+                        terminal = job_repo.mark_failed(job.id, error=str(exc))
+                        if terminal:
+                            logger.error(
+                                "Background job moved to dead-letter queue",
+                                extra={
+                                    "evt": "bgc_job_dead_letter",
+                                    "job_id": job.id,
+                                    "type": job_type,
+                                    "attempts": getattr(job, "attempts", 0),
+                                },
+                            )
                         db.commit()
+                        BACKGROUND_JOBS_FAILED.set(job_repo.count_failed_jobs())
             finally:
                 db.close()
         except asyncio.CancelledError:

@@ -33,6 +33,13 @@ BACKGROUND_JOB_FAILURES_TOTAL = Counter(
 )
 
 
+BACKGROUND_JOBS_FAILED = Gauge(
+    "background_jobs_failed",
+    "Background jobs currently in the dead-letter queue",
+    registry=REGISTRY,
+)
+
+
 # Adverse-action scheduling and execution metrics.
 BGC_FINAL_ADVERSE_SCHEDULED_TOTAL = Counter(
     "bgc_final_adverse_scheduled_total",
@@ -73,6 +80,7 @@ __all__ = [
     "BGC_INVITES_TOTAL",
     "CHECKR_WEBHOOK_TOTAL",
     "BACKGROUND_JOB_FAILURES_TOTAL",
+    "BACKGROUND_JOBS_FAILED",
     "BGC_FINAL_ADVERSE_SCHEDULED_TOTAL",
     "BGC_FINAL_ADVERSE_EXECUTED_TOTAL",
     "BGC_REPORT_ID_ENCRYPT_TOTAL",

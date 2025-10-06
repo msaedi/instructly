@@ -18,3 +18,8 @@ class TemplateRegistry(str, Enum):
 
     # Beta invites
     BETA_INVITE = "email/beta/invite.html"
+
+    # Background checks
+    BGC_PRE_ADVERSE = "email/bgc/pre_adverse.jinja"
+    BGC_FINAL_ADVERSE = "email/bgc/final_adverse.jinja"
+    BGC_EXPIRY_RECHECK = "email/bgc/expiry_recheck.jinja"

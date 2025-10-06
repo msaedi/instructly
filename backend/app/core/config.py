@@ -19,6 +19,8 @@ except Exception:  # pragma: no cover - optional on CI
 from pydantic import Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .constants import BRAND_NAME
+
 logger = logging.getLogger(__name__)
 
 # Load .env file only if not in CI
@@ -78,6 +80,14 @@ class Settings(BaseSettings):
     # Email settings
     resend_api_key: str = ""
     from_email: str = "InstaInstru <hello@instainstru.com>"
+    email_from_address: str | None = Field(
+        default=None,
+        description="Optional email address for transactional sends (overrides from_email when provided)",
+    )
+    email_from_name: str = Field(
+        default=BRAND_NAME,
+        description="Display name used for transactional email sends",
+    )
     admin_email: str = "admin@instainstru.com"  # Email for critical alerts
 
     # Frontend URL - will use production URL if not set
@@ -144,6 +154,10 @@ class Settings(BaseSettings):
         default=True,
         description="When true, suppress adverse-action email delivery (non-prod default)",
     )
+    bgc_suppress_expiry_emails: bool = Field(
+        default=True,
+        description="When true, suppress background-check expiry reminder emails",
+    )
     bgc_encryption_key: str | None = Field(
         default=None,
         description="Base64-encoded 32-byte key for encrypting background check data",
@@ -170,6 +184,11 @@ class Settings(BaseSettings):
     jobs_batch: int = Field(
         default=25,
         description="Maximum number of jobs processed per polling interval",
+        ge=1,
+    )
+    jobs_max_attempts: int = Field(
+        default=5,
+        description="Maximum retry attempts before moving a job to the dead-letter queue",
         ge=1,
     )
     connect_return_path: str = Field(

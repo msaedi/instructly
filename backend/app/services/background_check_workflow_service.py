@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 import logging
-from typing import Final, Optional, Tuple, TypedDict
+from typing import Final, Mapping, Optional, Tuple, TypedDict
 
 import ulid
 
 from ..core.config import settings
-from ..core.exceptions import RepositoryException
+from ..core.constants import BRAND_NAME
+from ..core.exceptions import RepositoryException, ServiceException
 from ..core.metrics import (
     BGC_FINAL_ADVERSE_EXECUTED_TOTAL,
     BGC_FINAL_ADVERSE_SCHEDULED_TOTAL,
@@ -18,11 +19,9 @@ from ..database import SessionLocal
 from ..models.instructor import InstructorProfile
 from ..repositories.background_job_repository import BackgroundJobRepository
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
-from ..services.adverse_action_email_templates import (
-    build_final_adverse_email,
-    build_pre_adverse_email,
-)
 from ..services.email import EmailService
+from ..services.template_registry import TemplateRegistry
+from ..services.template_service import TemplateService
 from ..utils.business_days import add_us_business_days, us_federal_holidays
 
 logger = logging.getLogger(__name__)
@@ -30,6 +29,11 @@ logger = logging.getLogger(__name__)
 FINAL_ADVERSE_BUSINESS_DAYS: Final[int] = 5
 FINAL_ADVERSE_JOB_TYPE: Final[str] = "background_check.final_adverse_action"
 ADVERSE_EVENT_FINAL: Final[str] = "final_adverse_sent"
+
+EMAIL_DATE_FORMAT: Final[str] = "%B %d, %Y"
+PRE_ADVERSE_SUBJECT: Final[str] = f"{BRAND_NAME}: Pre-adverse action notice"
+FINAL_ADVERSE_SUBJECT: Final[str] = f"{BRAND_NAME}: Final adverse action decision"
+EXPIRY_RECHECK_SUBJECT: Final[str] = f"{BRAND_NAME}: Background check update"
 
 
 class FinalAdversePayload(TypedDict):
@@ -61,6 +65,134 @@ class BackgroundCheckWorkflowService:
     def __init__(self, repo: InstructorProfileRepository):
         self.repo = repo
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    def candidate_name(self, profile: InstructorProfile) -> str | None:
+        user = getattr(profile, "user", None)
+        if user is None:
+            return None
+        full_name = getattr(user, "full_name", None)
+        if isinstance(full_name, str) and full_name.strip():
+            return full_name
+        first_raw = getattr(user, "first_name", "")
+        last_raw = getattr(user, "last_name", "")
+        first = first_raw.strip() if isinstance(first_raw, str) else ""
+        last = last_raw.strip() if isinstance(last_raw, str) else ""
+        combined = " ".join(part for part in [first, last] if part).strip()
+        return combined or None
+
+    def profile_email(self, profile: InstructorProfile) -> str | None:
+        user = getattr(profile, "user", None)
+        email = getattr(user, "email", None) if user is not None else None
+        return email if isinstance(email, str) and email else None
+
+    def format_date(self, value: datetime | None) -> str:
+        if not value:
+            value = datetime.now(timezone.utc)
+        value = _ensure_utc(value)
+        return value.strftime(EMAIL_DATE_FORMAT)
+
+    def _send_bgc_template_email(
+        self,
+        *,
+        template: TemplateRegistry,
+        subject: str,
+        recipient: str | None,
+        context: dict[str, object],
+        suppress: bool,
+        log_extra: Mapping[str, object] | None = None,
+    ) -> bool:
+        if not recipient:
+            logger.warning(
+                "Skipping BGC email; missing recipient",
+                extra={**dict(log_extra or {}), "subject": subject},
+            )
+            return False
+
+        if suppress:
+            logger.info(
+                "BGC email suppressed by configuration",
+                extra={**dict(log_extra or {}), "recipient": recipient, "subject": subject},
+            )
+            return False
+
+        session = SessionLocal()
+        try:
+            template_service = TemplateService(session)
+            email_service = EmailService(session)
+
+            merged_context: dict[str, object] = {**context, "subject": subject}
+            html_content = template_service.render_template(template, context=merged_context)
+
+            email_service.send_email(
+                to_email=recipient,
+                subject=subject,
+                html_content=html_content,
+                from_email=getattr(settings, "email_from_address", None),
+                from_name=getattr(settings, "email_from_name", None),
+            )
+            return True
+        except ServiceException as exc:
+            logger.error(
+                "Failed to send BGC email",
+                extra={
+                    **dict(log_extra or {}),
+                    "recipient": recipient,
+                    "subject": subject,
+                    "error": str(exc),
+                },
+            )
+            session.rollback()
+            return False
+        except Exception as exc:  # pragma: no cover - safety logging
+            logger.exception(
+                "Unexpected error sending BGC email",
+                extra={
+                    **dict(log_extra or {}),
+                    "recipient": recipient,
+                    "subject": subject,
+                    "error": str(exc),
+                },
+            )
+            session.rollback()
+            return False
+        finally:
+            session.close()
+
+    def send_pre_adverse_email(
+        self, profile: InstructorProfile, context: dict[str, object]
+    ) -> bool:
+        return self._send_bgc_template_email(
+            template=TemplateRegistry.BGC_PRE_ADVERSE,
+            subject=PRE_ADVERSE_SUBJECT,
+            recipient=self.profile_email(profile),
+            context=context,
+            suppress=settings.bgc_suppress_adverse_emails,
+            log_extra={"profile_id": getattr(profile, "id", None)},
+        )
+
+    def send_final_adverse_email(
+        self, profile: InstructorProfile, context: dict[str, object]
+    ) -> bool:
+        return self._send_bgc_template_email(
+            template=TemplateRegistry.BGC_FINAL_ADVERSE,
+            subject=FINAL_ADVERSE_SUBJECT,
+            recipient=self.profile_email(profile),
+            context=context,
+            suppress=settings.bgc_suppress_adverse_emails,
+            log_extra={"profile_id": getattr(profile, "id", None)},
+        )
+
+    def send_expiry_recheck_email(
+        self, profile: InstructorProfile, context: dict[str, object]
+    ) -> bool:
+        return self._send_bgc_template_email(
+            template=TemplateRegistry.BGC_EXPIRY_RECHECK,
+            subject=EXPIRY_RECHECK_SUBJECT,
+            recipient=self.profile_email(profile),
+            context=context,
+            suppress=getattr(settings, "bgc_suppress_expiry_emails", True),
+            log_extra={"profile_id": getattr(profile, "id", None)},
+        )
 
     def handle_report_completed(
         self,
@@ -109,7 +241,7 @@ class BackgroundCheckWorkflowService:
         else:
             self.repo.update_valid_until(profile.id, None)
             profile.bgc_valid_until = None
-            metadata = self._send_pre_adverse_email(profile)
+            metadata = self._send_pre_adverse_email(profile, completed_at)
             if metadata:
                 notice_id, sent_at = metadata
                 self._schedule_final_adverse_action(
@@ -149,16 +281,9 @@ class BackgroundCheckWorkflowService:
 
         return self._execute_final_adverse_action(profile_id, notice_id, scheduled_at)
 
-    def _send_pre_adverse_email(self, profile: InstructorProfile) -> tuple[str, datetime] | None:
-        user = getattr(profile, "user", None)
-        recipient = getattr(user, "email", None)
-        if not recipient:
-            logger.warning(
-                "Skipping pre-adverse email; missing recipient",
-                extra={"profile": profile.id},
-            )
-            return None
-
+    def _send_pre_adverse_email(
+        self, profile: InstructorProfile, report_completed_at: datetime
+    ) -> tuple[str, datetime] | None:
         notice_id = str(ulid.ULID())
         sent_at = _ensure_utc(datetime.now(timezone.utc))
         try:
@@ -170,42 +295,28 @@ class BackgroundCheckWorkflowService:
             )
             return None
 
-        template = build_pre_adverse_email(business_days=FINAL_ADVERSE_BUSINESS_DAYS)
-        self._send_email(template.subject, template.html, recipient, template.text)
+        context: dict[str, object] = {
+            "candidate_name": self.candidate_name(profile),
+            "report_date": self.format_date(report_completed_at),
+            "dispute_window_days": FINAL_ADVERSE_BUSINESS_DAYS,
+            "checkr_portal_url": settings.checkr_applicant_portal_url,
+            "checkr_dispute_url": settings.checkr_dispute_contact_url,
+            "ftc_rights_url": settings.ftc_summary_of_rights_url,
+            "support_email": settings.bgc_support_email,
+        }
+        self.send_pre_adverse_email(profile, context)
         return notice_id, sent_at
 
     def _send_final_adverse_email(self, profile: InstructorProfile) -> None:
-        user = getattr(profile, "user", None)
-        recipient = getattr(user, "email", None)
-        if not recipient:
-            logger.warning(
-                "Skipping final adverse email; missing recipient",
-                extra={"profile": profile.id},
-            )
-            return
-
-        template = build_final_adverse_email()
-        self._send_email(template.subject, template.html, recipient, template.text)
-
-    def _send_email(
-        self, subject: str, html_body: str, recipient: str, text_body: str | None = None
-    ) -> None:
-        if settings.bgc_suppress_adverse_emails:
-            logger.info(
-                "Adverse-action email suppressed by configuration",
-                extra={"recipient": recipient, "subject": subject},
-            )
-            return
-
-        session = SessionLocal()
-        try:
-            email_service = EmailService(session)
-            email_service.send_email(recipient, subject, html_body, text_content=text_body)
-        except Exception as exc:  # pragma: no cover - logging only
-            logger.error("Failed to send adverse-action email: %s", str(exc))
-            session.rollback()
-        finally:
-            session.close()
+        context: dict[str, object] = {
+            "candidate_name": self.candidate_name(profile),
+            "decision_date": self.format_date(datetime.now(timezone.utc)),
+            "checkr_portal_url": settings.checkr_applicant_portal_url,
+            "checkr_dispute_url": settings.checkr_dispute_contact_url,
+            "ftc_rights_url": settings.ftc_summary_of_rights_url,
+            "support_email": settings.bgc_support_email,
+        }
+        self.send_final_adverse_email(profile, context)
 
     def _schedule_final_adverse_action(
         self,

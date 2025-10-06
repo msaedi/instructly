@@ -1,0 +1,11 @@
+{% extends "email/base.html" %}
+
+{% block title %}Final adverse action decision{% endblock %}
+
+{% block content %}
+  <p style="margin:0 0 12px;">Hi{% if candidate_name %} {{ candidate_name }}{% endif %},</p>
+  <p style="margin:0 0 12px;">We completed our review of your background screening for {{ brand_name }} on {{ decision_date }} and have taken adverse action.</p>
+  <p style="margin:0 0 12px;">You have the right to dispute the accuracy of your report and request a reinvestigation. Visit <a href="{{ checkr_portal_url }}">{{ checkr_portal_url }}</a> or contact <a href="{{ checkr_dispute_url }}">Checkr Support</a> to begin that process. Please keep us informed at {{ support_email }} if you open a dispute so we can monitor the investigation.</p>
+  <p style="margin:0 0 12px;">You can review your rights under the Fair Credit Reporting Act here: <a href="{{ ftc_rights_url }}">Summary of Your Rights</a>.</p>
+  <p style="margin:24px 0 0;">Respectfully,<br/>The {{ brand_name }} team</p>
+{% endblock %}

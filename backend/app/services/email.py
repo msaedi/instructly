@@ -20,7 +20,7 @@ import resend
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..core.constants import BRAND_NAME
+from ..core.constants import BRAND_NAME, NOREPLY_EMAIL
 from ..core.exceptions import ServiceException
 from .base import BaseService
 from .email_subjects import EmailSubject
@@ -58,10 +58,28 @@ class EmailService(BaseService):
             raise ServiceException("Resend API key not configured")
 
         resend.api_key = api_key
-        self.from_email = settings.from_email
-        if not self.from_email or "noreply" in self.from_email.lower():
-            # Use better default with root domain
-            self.from_email = "InstaInstru <hello@instainstru.com>"
+
+        parsed_name, parsed_address = self._parse_sender(settings.from_email)
+        configured_name = getattr(settings, "email_from_name", None)
+        configured_address = getattr(settings, "email_from_address", None)
+
+        self.default_from_name = configured_name or parsed_name or BRAND_NAME
+        self.default_from_address = configured_address or parsed_address
+
+        if not self.default_from_address:
+            # Fall back to noreply constant
+            _, fallback_address = self._parse_sender(NOREPLY_EMAIL)
+            self.default_from_address = fallback_address or "hello@instainstru.com"
+
+        if configured_address:
+            self.default_sender = self._format_sender(configured_address, self.default_from_name)
+        elif settings.from_email:
+            # Respect legacy configuration that already encodes name/address
+            self.default_sender = settings.from_email
+        else:
+            self.default_sender = self._format_sender(
+                self.default_from_address, self.default_from_name
+            )
 
         self.logger.info("EmailService initialized successfully")
 
@@ -106,11 +124,7 @@ class EmailService(BaseService):
         """
         try:
             # Configure sender
-            sender_email = from_email or self.from_email
-            if from_name:
-                sender = f"{from_name} <{sender_email}>"
-            else:
-                sender = sender_email
+            sender = self._format_sender(from_email, from_name)
 
             # IMPORTANT: Always include text version for better deliverability
             if not text_content:
@@ -140,6 +154,29 @@ class EmailService(BaseService):
             self.logger.error(f"Exception details: {repr(e)}")
             self.log_operation("email_failed", to_email=to_email, subject=subject, error=error_msg)
             raise ServiceException(f"Email sending failed: {error_msg}")
+
+    @staticmethod
+    def _parse_sender(value: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+        if not value:
+            return None, None
+        if "<" in value and ">" in value:
+            name_part, _, rest = value.partition("<")
+            address = rest.rstrip(">").strip()
+            name = name_part.strip().strip('"')
+            return (name or None, address or None)
+        return None, value.strip()
+
+    def _format_sender(self, address: Optional[str], name: Optional[str]) -> str:
+        if address and "<" in address and ">" in address:
+            return address
+
+        sender_name = name or self.default_from_name
+        sender_address = address or self.default_from_address
+        if sender_address and sender_name:
+            return f"{sender_name} <{sender_address}>"
+        if sender_address:
+            return sender_address
+        return self.default_sender
 
     @BaseService.measure_operation("send_password_reset_email")
     def send_password_reset_email(
@@ -247,7 +284,7 @@ class EmailService(BaseService):
         if not settings.resend_api_key:
             raise ServiceException("Resend API key not configured")
 
-        if not self.from_email:
+        if not self.default_sender:
             raise ServiceException("From email address not configured")
 
         self.logger.info("Email configuration validated successfully")

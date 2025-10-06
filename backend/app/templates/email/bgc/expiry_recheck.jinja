@@ -1,0 +1,20 @@
+{% extends "email/base.html" %}
+
+{% block title %}Background check update{% endblock %}
+
+{% block content %}
+  <p style="margin:0 0 12px;">Hi{% if candidate_name %} {{ candidate_name }}{% endif %},</p>
+  {% if is_past_due %}
+    <p style="margin:0 0 12px;">Your background check for {{ brand_name }} expired on {{ expiry_date }}. To stay eligible for bookings, please submit a quick re-check.</p>
+  {% else %}
+    <p style="margin:0 0 12px;">Your background check for {{ brand_name }} will expire on {{ expiry_date }}. Submitting a quick re-check keeps your account active.</p>
+  {% endif %}
+  {% if recheck_url %}
+    <p style="margin:0 0 16px;">
+      <a href="{{ recheck_url }}" style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 14px;border-radius:999px;text-decoration:none;">Start background check re-check</a>
+    </p>
+    <p style="margin:0 0 12px;">If the button doesn’t work, copy this link: <a href="{{ recheck_url }}">{{ recheck_url }}</a></p>
+  {% endif %}
+  <p style="margin:0 0 12px;">Need help? Email us at {{ support_email }}.</p>
+  <p style="margin:24px 0 0;">Thank you,<br/>The {{ brand_name }} team</p>
+{% endblock %}
