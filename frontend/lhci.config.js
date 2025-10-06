@@ -11,7 +11,7 @@ module.exports = {
       url: [
         "http://localhost:3100/",
         "http://localhost:3100/login",
-        "http://localhost:3100/instructors/01J5TESTINSTR0000000000008"
+        "http://localhost:3100/lhci/instructor"
       ],
       settings: {
         // Budgets are enforced during collection
