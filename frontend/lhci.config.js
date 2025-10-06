@@ -30,7 +30,7 @@ module.exports = {
     assert: {
       // Start realistic, then ratchet up later as we optimize
       assertions: {
-        "categories:performance": ["error", { "minScore": 0.50 }],
+        "categories:performance": ["error", { "minScore": 0.60 }],
         // Keep as warnings to surface without failing the job
         "uses-long-cache-ttl": "warn",
         "uses-http2": "warn"

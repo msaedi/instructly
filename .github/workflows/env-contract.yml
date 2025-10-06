@@ -159,6 +159,67 @@ jobs:
             .artifacts/pw.log
           if-no-files-found: warn
           retention-days: 30
+      - name: Alert on missing/limited env-contract evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Evidence files created earlier in this workflow:
+          #   - .artifacts/pw.log
+          #   - .artifacts/env-contract-evidence.txt (also check root fallback)
+          LOG_FILES=(".artifacts/pw.log" ".artifacts/env-contract-evidence.txt" "env-contract-evidence.txt")
+
+          found_headers=""
+          found_cors=""
+          found_triage=""
+          triage_line=""
+
+          for f in "${LOG_FILES[@]}"; do
+            [ -f "$f" ] || continue
+            [ -n "$found_headers" ] || found_headers="$(grep -m1 '^\[headers\]' "$f" || true)"
+            [ -n "$found_cors" ]    || found_cors="$(grep -m1 '^\[cors\]' "$f" || true)"
+            [ -n "$found_triage" ]  || found_triage="$(grep -m1 '^\[429-triage\]' "$f" || true)"
+          done
+
+          warn=0
+          if [ -z "$found_headers" ] || [ -z "$found_cors" ] || [ -z "$found_triage" ]; then
+            warn=1
+            msg="env-contract evidence missing line(s): headers=${found_headers:+present} cors=${found_cors:+present} triage=${found_triage:+present}"
+          else
+            triage_line="$found_triage"
+            limited=$(echo "$triage_line" | sed -n 's/.*limited=\([0-9]\+\).*/\1/p')
+            limited=${limited:-0}
+            if [ "$limited" -eq 0 ]; then
+              warn=1
+              msg="env-contract triage limited==0 (no 429 observed)"
+            else
+              msg="env-contract OK"
+            fi
+          fi
+
+          echo "Summary: $msg"
+          echo "Headers: $found_headers"
+          echo "CORS:    $found_cors"
+          echo "429:     $found_triage"
+
+          if [ "$warn" -eq 1 ]; then
+            # Slack if configured
+            if [ -n "${{ secrets.SLACK_WEBHOOK_URL || '' }}" ]; then
+              payload=$(jq -n \
+                --arg text ":warning: env-contract ${{ github.workflow }} run needs attention for ${{ github.ref_name }} (${{ github.run_id }}). $msg" \
+                --arg headers "$found_headers" \
+                --arg cors "$found_cors" \
+                --arg triage "$found_triage" \
+                '{text: $text, attachments: [ { color: "#ffcc00", fields: [ { title: "headers", value: $headers, short: true }, { title: "cors", value: $cors, short: true }, { title: "429-triage", value: $triage, short: true } ] } ] }')
+              curl -sS -X POST -H 'Content-type: application/json' --data "$payload" "${{ secrets.SLACK_WEBHOOK_URL }}" >/dev/null || true
+            else
+              # Fallback: create an issue comment on the repo with a brief message
+              gh issue create --title "env-contract evidence warning" \
+                --body "Workflow: \`${GITHUB_WORKFLOW}\` Run: ${{ github.run_id }} Ref: \`${{ github.ref_name }}\`.\n\n$msg\n\nheaders: \`$found_headers\`\ncors: \`$found_cors\`\ntriage: \`$found_triage\`" \
+                || true
+            fi
+          fi
       - name: Skip (no base URL provided)
         if: ${{ env.PLAYWRIGHT_BASE_URL == '' }}
         run: echo "PLAYWRIGHT_BASE_URL not set; skipping"
@@ -264,6 +325,67 @@ jobs:
             .artifacts/pw.log
           if-no-files-found: warn
           retention-days: 30
+      - name: Alert on missing/limited env-contract evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Evidence files created earlier in this workflow:
+          #   - .artifacts/pw.log
+          #   - .artifacts/env-contract-evidence.txt (also check root fallback)
+          LOG_FILES=(".artifacts/pw.log" ".artifacts/env-contract-evidence.txt" "env-contract-evidence.txt")
+
+          found_headers=""
+          found_cors=""
+          found_triage=""
+          triage_line=""
+
+          for f in "${LOG_FILES[@]}"; do
+            [ -f "$f" ] || continue
+            [ -n "$found_headers" ] || found_headers="$(grep -m1 '^\[headers\]' "$f" || true)"
+            [ -n "$found_cors" ]    || found_cors="$(grep -m1 '^\[cors\]' "$f" || true)"
+            [ -n "$found_triage" ]  || found_triage="$(grep -m1 '^\[429-triage\]' "$f" || true)"
+          done
+
+          warn=0
+          if [ -z "$found_headers" ] || [ -z "$found_cors" ] || [ -z "$found_triage" ]; then
+            warn=1
+            msg="env-contract evidence missing line(s): headers=${found_headers:+present} cors=${found_cors:+present} triage=${found_triage:+present}"
+          else
+            triage_line="$found_triage"
+            limited=$(echo "$triage_line" | sed -n 's/.*limited=\([0-9]\+\).*/\1/p')
+            limited=${limited:-0}
+            if [ "$limited" -eq 0 ]; then
+              warn=1
+              msg="env-contract triage limited==0 (no 429 observed)"
+            else
+              msg="env-contract OK"
+            fi
+          fi
+
+          echo "Summary: $msg"
+          echo "Headers: $found_headers"
+          echo "CORS:    $found_cors"
+          echo "429:     $found_triage"
+
+          if [ "$warn" -eq 1 ]; then
+            # Slack if configured
+            if [ -n "${{ secrets.SLACK_WEBHOOK_URL || '' }}" ]; then
+              payload=$(jq -n \
+                --arg text ":warning: env-contract ${{ github.workflow }} run needs attention for ${{ github.ref_name }} (${{ github.run_id }}). $msg" \
+                --arg headers "$found_headers" \
+                --arg cors "$found_cors" \
+                --arg triage "$found_triage" \
+                '{text: $text, attachments: [ { color: "#ffcc00", fields: [ { title: "headers", value: $headers, short: true }, { title: "cors", value: $cors, short: true }, { title: "429-triage", value: $triage, short: true } ] } ] }')
+              curl -sS -X POST -H 'Content-type: application/json' --data "$payload" "${{ secrets.SLACK_WEBHOOK_URL }}" >/dev/null || true
+            else
+              # Fallback: create an issue comment on the repo with a brief message
+              gh issue create --title "env-contract evidence warning" \
+                --body "Workflow: \`${GITHUB_WORKFLOW}\` Run: ${{ github.run_id }} Ref: \`${{ github.ref_name }}\`.\n\n$msg\n\nheaders: \`$found_headers\`\ncors: \`$found_cors\`\ntriage: \`$found_triage\`" \
+                || true
+            fi
+          fi
       - name: Skip (no base URL provided)
         if: ${{ env.PLAYWRIGHT_BASE_URL == '' }}
         run: echo "PLAYWRIGHT_BASE_URL not set; skipping"
