@@ -16,17 +16,14 @@ FIXED IN THIS VERSION:
 from datetime import datetime, timezone
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import Any, Optional, cast
 
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..core.constants import BRAND_NAME
-from .base import BaseService
-
-if TYPE_CHECKING:
-    from .cache_service import CacheService
+from .base import BaseService, CacheInvalidationProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +60,7 @@ class TemplateService(BaseService):
     def __init__(
         self,
         db: Optional[Session] = None,
-        cache: Optional["CacheService"] = None,
+        cache: Optional[CacheInvalidationProtocol] = None,
     ) -> None:
         """
         Initialize the template service with Jinja2 environment.
@@ -207,7 +204,11 @@ class TemplateService(BaseService):
 
     @BaseService.measure_operation("render_template")
     def render_template(
-        self, template_name: str, context: Optional[dict[str, Any]] = None, **kwargs: Any
+        self,
+        /,
+        template_name: str,
+        context: Optional[dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> str:
         """
         Render a template with the given context.
@@ -283,7 +284,11 @@ class TemplateService(BaseService):
 
     @BaseService.measure_operation("render_string")
     def render_string(
-        self, template_string: str, context: Optional[dict[str, Any]] = None, **kwargs: Any
+        self,
+        /,
+        template_string: str,
+        context: Optional[dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> str:
         """
         Render a template from a string.

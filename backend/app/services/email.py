@@ -299,22 +299,28 @@ class EmailService(BaseService):
         metrics = self.get_metrics()
 
         # Extract email-specific metrics
+        send_metric = metrics.get("send_email")
+        reset_metric = metrics.get("send_password_reset_email")
+        confirmation_metric = metrics.get("send_password_reset_confirmation")
+
+        emails_sent = send_metric["success_count"] if send_metric else 0
+        emails_failed = send_metric["failure_count"] if send_metric else 0
+        avg_send_time = send_metric["avg_time"] if send_metric else 0.0
+
         email_stats = {
-            "emails_sent": metrics.get("send_email", {}).get("success_count", 0),
-            "emails_failed": metrics.get("send_email", {}).get("failure_count", 0),
-            "password_resets_sent": metrics.get("send_password_reset_email", {}).get(
-                "success_count", 0
-            ),
-            "confirmations_sent": metrics.get("send_password_reset_confirmation", {}).get(
-                "success_count", 0
-            ),
-            "avg_send_time": metrics.get("send_email", {}).get("avg_time", 0),
+            "emails_sent": emails_sent,
+            "emails_failed": emails_failed,
+            "password_resets_sent": reset_metric["success_count"] if reset_metric else 0,
+            "confirmations_sent": confirmation_metric["success_count"]
+            if confirmation_metric
+            else 0,
+            "avg_send_time": avg_send_time,
         }
 
         # Calculate success rate
-        total_attempts = email_stats["emails_sent"] + email_stats["emails_failed"]
+        total_attempts = emails_sent + emails_failed
         if total_attempts > 0:
-            email_stats["success_rate"] = email_stats["emails_sent"] / total_attempts
+            email_stats["success_rate"] = emails_sent / total_attempts
         else:
             email_stats["success_rate"] = 0.0
 

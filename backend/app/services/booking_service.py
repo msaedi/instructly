@@ -246,7 +246,7 @@ class BookingService(BaseService):
             # Ensure customer exists (uses mock customer in non-configured environments)
             stripe_customer = stripe_service.get_or_create_customer(student.id)
 
-            setup_intent = None
+            setup_intent: Any = None
             try:
                 # Attempt real Stripe call; tests patch this in CI
                 setup_intent = stripe.SetupIntent.create(
@@ -272,6 +272,7 @@ class BookingService(BaseService):
                 )
 
             # Store setup intent details
+            assert setup_intent is not None
             booking.payment_intent_id = setup_intent.id
             setattr(
                 booking,

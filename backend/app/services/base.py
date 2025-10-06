@@ -12,17 +12,23 @@ Provides common functionality for all service classes including:
 
 import asyncio
 from contextlib import asynccontextmanager, contextmanager
-from functools import wraps
+from functools import update_wrapper
 import logging
 import time
 from typing import (
     TYPE_CHECKING,
     Any,
+    AsyncIterator,
+    Awaitable,
     Callable,
+    ClassVar,
     Concatenate,
     Dict,
+    Iterator,
     Optional,
     ParamSpec,
+    Protocol,
+    TypedDict,
     TypeVar,
     cast,
 )
@@ -43,14 +49,59 @@ except ImportError:
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from .cache_service import CacheService
+    pass
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+FuncType = TypeVar("FuncType", bound=Callable[..., Any])
+
+
+class _MetricBucket(TypedDict):
+    count: int
+    total_time: float
+    success_count: int
+    failure_count: int
+    min_time: float
+    max_time: float
+
+
+class _AggregatedMetric(TypedDict):
+    count: int
+    avg_time: float
+    min_time: float
+    max_time: float
+    total_time: float
+    success_rate: float
+    success_count: int
+    failure_count: int
+
+
+class CacheInvalidationProtocol(Protocol):
+    def get(self, key: str) -> Optional[Any]:
+        """Retrieve an item from the cache."""
+
+    def set(
+        self,
+        key: str,
+        value: Any,
+        ttl: Optional[int] = ...,
+        tier: str = ...,
+    ) -> bool:
+        """Store an item in the cache with an optional TTL."""
+
+    def delete(self, key: str) -> bool:
+        """Remove an item from the cache."""
+
+    def delete_pattern(self, pattern: str) -> int:
+        """Remove all cache items matching a pattern."""
+
 
 logger = logging.getLogger(__name__)
 
 
 class BaseService:
-    """
-    Base class for all service layer components.
+    """Base class for all service layer components.
 
     Provides common patterns for:
     - Database session management
@@ -60,10 +111,13 @@ class BaseService:
     - Performance monitoring
     """
 
-    # Class-level metrics storage
-    _class_metrics = {}
+    _class_metrics: ClassVar[Dict[str, Dict[str, _MetricBucket]]] = {}
 
-    def __init__(self, db: Session, cache: Optional["CacheService"] = None):
+    def __init__(
+        self,
+        db: Session,
+        cache: Optional[CacheInvalidationProtocol] = None,
+    ) -> None:
         """
         Initialize base service.
 
@@ -71,12 +125,12 @@ class BaseService:
             db: Database session
             cache: Optional CacheService instance
         """
-        self.db = db
-        self.cache = cache
+        self.db: Session = db
+        self.cache: Optional[CacheInvalidationProtocol] = cache
         self.logger: logging.Logger = logging.getLogger(self.__class__.__name__)
 
     @contextmanager
-    def transaction(self):
+    def transaction(self) -> Iterator[Session]:
         """
         Context manager for database transactions.
 
@@ -99,7 +153,9 @@ class BaseService:
             self.db.rollback()
             raise
 
-    def with_transaction(self, func: Callable) -> Callable:
+    def with_transaction(
+        self, func: Callable[Concatenate["BaseService", P], R]
+    ) -> Callable[Concatenate["BaseService", P], R]:
         """
         Decorator for methods that need transaction management.
 
@@ -109,17 +165,17 @@ class BaseService:
                 # Method implementation
         """
 
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            with self.transaction():
-                return func(*args, **kwargs)
+        def wrapper(self_arg: "BaseService", /, *args: P.args, **kwargs: P.kwargs) -> R:
+            with self_arg.transaction():
+                return func(self_arg, *args, **kwargs)
 
+        update_wrapper(wrapper, func)
         return wrapper
 
     @staticmethod
     def measure_operation(
         operation_name: str,
-    ) -> Callable[[Callable[Concatenate["BaseService", ParamSpec("P")], TypeVar("R")]], Callable[Concatenate["BaseService", ParamSpec("P")], TypeVar("R")]]:  # type: ignore[valid-type]
+    ) -> Callable[[FuncType], FuncType]:
         """
         Decorator to measure operation performance.
 
@@ -135,122 +191,102 @@ class BaseService:
             Decorator function
         """
 
-        P = ParamSpec("P")
-        R = TypeVar("R")
+        def decorator(func: FuncType) -> FuncType:
+            setattr(func, "_operation_name", operation_name)
+            setattr(func, "_is_measured", True)
 
-        def decorator(
-            func: Callable[Concatenate["BaseService", P], R]
-        ) -> Callable[Concatenate["BaseService", P], R]:
-            # Store the operation name on the function for later use
-            func._operation_name = operation_name
-            func._is_measured = True
+            if not asyncio.iscoroutinefunction(func):
 
-            is_async = asyncio.iscoroutinefunction(func)
+                def wrapper(*args: Any, **kwargs: Any) -> Any:
+                    if not args:
+                        return func(*args, **kwargs)
 
-            if not is_async:
-
-                @wraps(func)
-                def wrapper(self: "BaseService", *args: P.args, **kwargs: P.kwargs) -> R:
-                    # Now we have access to self!
-                    if not hasattr(self, "_metrics"):
-                        # Initialize metrics if this is called on a non-BaseService instance
-                        self._metrics = {}
-
+                    service = cast(BaseService, args[0])
                     start_time = time.time()
                     success = False
-                    error_type = None
+                    error_type: Optional[str] = None
 
                     try:
-                        result = func(self, *args, **kwargs)
+                        result = func(*args, **kwargs)
                         success = True
                         return result
-                    except Exception as e:
+                    except Exception as exc:  # pragma: no cover - logging path
                         success = False
-                        error_type = type(e).__name__
+                        error_type = type(exc).__name__
                         raise
                     finally:
                         elapsed = time.time() - start_time
+                        service._record_metric(operation_name, elapsed, success)
 
-                        # Fast path: only do expensive work if needed
-                        if hasattr(self, "_record_metric"):
-                            self._record_metric(operation_name, elapsed, success)
-
-                        # Only log if it's actually slow
-                        if elapsed > 1.0 and hasattr(self, "logger"):
+                        if elapsed > 1.0 and hasattr(service, "logger"):
                             func_name = getattr(func, "__name__", operation_name)
-                            self.logger.warning(
+                            service.logger.warning(
                                 f"Slow operation detected: {func_name} took {elapsed:.2f}s"
                             )
 
-                        # Record Prometheus metrics (optimized)
                         if PROMETHEUS_AVAILABLE and prometheus_metrics:
                             try:
-                                # Cache service name to avoid repeated __class__ access
-                                service_name = self.__class__.__name__
-                                status = "success" if success else "error"
-
                                 prometheus_metrics.record_service_operation(
-                                    service=service_name,
+                                    service=service.__class__.__name__,
                                     operation=operation_name,
                                     duration=elapsed,
-                                    status=status,
+                                    status="success" if success else "error",
                                     error_type=error_type,
                                 )
-                            except Exception:
-                                # Don't let metrics collection break the operation
+                            except Exception:  # pragma: no cover - metrics failure
                                 pass
 
-                return cast(Callable[Concatenate["BaseService", P], R], wrapper)
+                update_wrapper(wrapper, func)
+                return cast(FuncType, wrapper)
 
-            @wraps(func)
-            async def async_wrapper(self: "BaseService", *args: P.args, **kwargs: P.kwargs) -> R:
-                if not hasattr(self, "_metrics"):
-                    self._metrics = {}
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                if not args:
+                    result_obj = func(*args, **kwargs)
+                    return await cast(Awaitable[Any], result_obj)
 
+                service = cast(BaseService, args[0])
                 start_time = time.time()
                 success = False
-                error_type = None
+                error_type: Optional[str] = None
 
                 try:
-                    result = await func(self, *args, **kwargs)  # type: ignore[misc]
+                    result_obj = func(*args, **kwargs)
+                    result = await cast(Awaitable[Any], result_obj)
                     success = True
                     return result
-                except Exception as e:
+                except Exception as exc:  # pragma: no cover - logging path
                     success = False
-                    error_type = type(e).__name__
+                    error_type = type(exc).__name__
                     raise
                 finally:
                     elapsed = time.time() - start_time
+                    service._record_metric(operation_name, elapsed, success)
 
-                    if hasattr(self, "_record_metric"):
-                        self._record_metric(operation_name, elapsed, success)
-
-                    if elapsed > 1.0 and hasattr(self, "logger"):
+                    if elapsed > 1.0 and hasattr(service, "logger"):
                         func_name = getattr(func, "__name__", operation_name)
-                        self.logger.warning(
+                        service.logger.warning(
                             f"Slow operation detected: {func_name} took {elapsed:.2f}s"
                         )
 
                     if PROMETHEUS_AVAILABLE and prometheus_metrics:
                         try:
-                            service_name = self.__class__.__name__
-                            status = "success" if success else "error"
                             prometheus_metrics.record_service_operation(
-                                service=service_name,
+                                service=service.__class__.__name__,
                                 operation=operation_name,
                                 duration=elapsed,
-                                status=status,
+                                status="success" if success else "error",
                                 error_type=error_type,
                             )
-                        except Exception:
+                        except Exception:  # pragma: no cover - metrics failure
                             pass
 
-            return cast(Callable[Concatenate["BaseService", P], R], async_wrapper)
+            update_wrapper(async_wrapper, func)
+            return cast(FuncType, async_wrapper)
 
         return decorator
 
     @contextmanager
-    def measure_operation_context(self, operation_name: str):
+    def measure_operation_context(self, operation_name: str) -> Iterator[None]:
         """
         Context manager to measure operation performance.
 
@@ -298,7 +334,7 @@ class BaseService:
                     pass
 
     @asynccontextmanager
-    async def async_measure_operation_context(self, operation_name: str):
+    async def async_measure_operation_context(self, operation_name: str) -> AsyncIterator[None]:
         """
         Async context manager to measure operation performance.
         """
@@ -365,7 +401,7 @@ class BaseService:
         except Exception as e:
             self.logger.warning(f"Failed to invalidate pattern {pattern}: {str(e)}")
 
-    def log_operation(self, operation: str, **context):
+    def log_operation(self, operation: str, **context: Any) -> None:
         """
         Log an operation with context.
 
@@ -378,14 +414,7 @@ class BaseService:
         """
         self.logger.info(f"Operation: {operation}", extra={"operation": operation, **context})
 
-    def _record_metric(
-        self,
-        operation: str,
-        elapsed: Optional[float] = None,
-        success: Optional[bool] = None,
-        *,
-        value: Optional[float | int] = None,
-    ) -> None:
+    def _record_metric(self, operation: str, elapsed: float, success: bool) -> None:
         """
         Record performance metrics.
 
@@ -396,7 +425,6 @@ class BaseService:
         """
         class_name = self.__class__.__name__
         metrics = BaseService._class_metrics.setdefault(class_name, {})
-
         metric_data = metrics.setdefault(
             operation,
             {
@@ -408,27 +436,19 @@ class BaseService:
                 "max_time": 0.0,
             },
         )
-
-        if value is not None:
-            elapsed_value = float(value)
-        elif elapsed is not None:
-            elapsed_value = float(elapsed)
-        else:
-            elapsed_value = 0.0
-
-        success_flag = True if success is None else bool(success)
-
+        elapsed_value = float(elapsed)
         metric_data["count"] += 1
         metric_data["total_time"] += elapsed_value
         metric_data["min_time"] = min(metric_data["min_time"], elapsed_value)
         metric_data["max_time"] = max(metric_data["max_time"], elapsed_value)
 
+        success_flag = bool(success)
         if success_flag:
             metric_data["success_count"] += 1
         else:
             metric_data["failure_count"] += 1
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> Dict[str, _AggregatedMetric]:
         """
         Get performance metrics for this service.
 
@@ -439,7 +459,7 @@ class BaseService:
         if class_name not in BaseService._class_metrics:
             return {}
 
-        result = {}
+        result: Dict[str, _AggregatedMetric] = {}
         metrics = BaseService._class_metrics[class_name]
 
         for operation, data in metrics.items():
