@@ -109,31 +109,57 @@ class BackgroundJobRepository:
             self.db.rollback()
             raise RepositoryException("Failed to mark job succeeded") from exc
 
-    def mark_failed(self, job_id: str, error: str) -> None:
-        """Increment attempt counters and reschedule a job after a failure."""
+    def mark_failed(self, job_id: str, error: str) -> bool:
+        """Increment attempt counters and reschedule a job after a failure.
+
+        Returns True when the job is terminal and moved to the dead-letter queue.
+        """
 
         try:
             job = self.db.get(BackgroundJob, job_id)
             if job is None:
                 self.logger.warning("Attempted to mark missing job %s failed", job_id)
-                return
+                return False
 
             attempts = (job.attempts or 0) + 1
+            max_attempts = max(1, int(getattr(settings, "jobs_max_attempts", 5)))
+            job.attempts = attempts
+            job.last_error = error
+            job.updated_at = _utcnow()
+
+            if attempts >= max_attempts:
+                job.status = "failed"
+                # Keep available_at populated to satisfy NOT NULL constraint while
+                # signalling the job is terminal. The scheduler ignores failed jobs
+                # so the exact timestamp is irrelevant.
+                job.available_at = job.updated_at
+                self.db.flush()
+                return True
+
             base = getattr(settings, "jobs_backoff_base", 30)
             cap = getattr(settings, "jobs_backoff_cap", 1800)
             backoff_seconds = min(cap, base * (2 ** (attempts - 1)))
 
             job.status = "queued"
-            job.attempts = attempts
             job.available_at = _utcnow() + timedelta(seconds=backoff_seconds)
-            job.last_error = error
-            job.updated_at = _utcnow()
 
             self.db.flush()
+            return False
         except SQLAlchemyError as exc:
             self.logger.error("Failed to reschedule job %s: %s", job_id, str(exc))
             self.db.rollback()
             raise RepositoryException("Failed to reschedule background job") from exc
+
+    def count_failed_jobs(self) -> int:
+        """Return the number of jobs in the dead-letter queue."""
+
+        try:
+            return int(
+                self.db.query(BackgroundJob).filter(BackgroundJob.status == "failed").count()
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error("Failed to count failed jobs: %s", str(exc))
+            raise RepositoryException("Failed to count failed jobs") from exc
 
     def get_next_scheduled(self, job_type: str) -> BackgroundJob | None:
         """Return the next scheduled job for a given type, if any."""

@@ -399,9 +399,11 @@ describe('AdminBGCReviewPage', () => {
 
     await waitFor(() => expect((toast.success as jest.Mock)).toHaveBeenCalledWith('Dispute opened'));
     await waitFor(() => expect(screen.getAllByText('In dispute').length).toBeGreaterThan(0));
+    await screen.findByText(/Final adverse actions are paused until the dispute is resolved/i);
 
     const rejectButton = screen.getByRole('button', { name: /reject/i });
     expect(rejectButton).toBeDisabled();
+    expect(rejectButton).toHaveAttribute('title', 'Paused while in dispute');
     await waitFor(() => expect(openButton).toBeDisabled());
     await waitFor(() => expect(resolveButton).toBeEnabled());
 

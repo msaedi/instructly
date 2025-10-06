@@ -18,3 +18,22 @@ groups:
     annotations:
       summary: "Background checks pending > 7 days present"
       description: "{{ $value }} checks pending >7d"
+
+  - record: job:bgc_dlq_failed:sum
+    expr: sum(background_jobs_failed)
+
+  - alert: BGCDLQNonEmpty
+    expr: job:bgc_dlq_failed:sum > 0
+    for: 15m
+    labels: { severity: page }
+    annotations:
+      summary: "BGC DLQ contains failed jobs"
+      description: "There are {{ $value }} background jobs in the dead-letter queue."
+
+  - alert: CheckrWebhookRepeatedFailures
+    expr: sum(rate(checkr_webhook_total{outcome="error"}[15m])) > 0
+    for: 15m
+    labels: { severity: page }
+    annotations:
+      summary: "Checkr webhook errors (sustained)"
+      description: "Errors processing Checkr webhooks have persisted for 15 minutes."

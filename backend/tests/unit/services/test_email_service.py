@@ -41,7 +41,10 @@ class TestEmailService:
 
             assert service.db == db
             assert service.cache == mock_cache
-            assert service.from_email is not None
+            assert isinstance(service.default_sender, str)
+            assert service.default_sender
+            assert isinstance(service.default_from_name, str)
+            assert service.default_from_name
 
     def test_email_service_no_api_key_raises_exception(self, db, mock_cache):
         """Test that missing API key raises ServiceException."""
