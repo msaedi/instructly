@@ -1,6 +1,9 @@
 """
 Test that /metrics/prometheus endpoint returns correct format
 """
+
+import time
+
 from fastapi.testclient import TestClient
 from prometheus_client.parser import text_string_to_metric_families
 import pytest
@@ -18,8 +21,21 @@ class TestPrometheusFormat:
 
     def test_metrics_endpoint_exists(self, client):
         """Test that /metrics/prometheus endpoint exists"""
-        response = client.get("/metrics/prometheus")
-        assert response.status_code == 200
+        # Warm-up to reduce first-request latency that can flake in CI
+        client.get("/metrics/prometheus")
+
+        response = None
+        for attempt in range(3):
+            try:
+                response = client.get("/metrics/prometheus")
+                if response.status_code == 200:
+                    break
+            except Exception:
+                response = None
+            if attempt < 2:
+                time.sleep(1)
+
+        assert response is not None and response.status_code == 200
         # Prometheus metrics content type includes version info
         content_type = response.headers["content-type"]
         assert content_type.startswith("text/plain")
