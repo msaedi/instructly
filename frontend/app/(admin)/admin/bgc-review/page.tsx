@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { RefreshCw, Loader2, CheckCircle2, XCircle, Copy } from 'lucide-react';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { formatDistanceToNow } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -180,6 +181,16 @@ export default function AdminBGCReviewPage() {
     }
   };
 
+  const handleCopyEmail = async (email: string) => {
+    try {
+      await navigator.clipboard.writeText(email);
+      toast.success('Email copied to clipboard');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to copy email address';
+      toast.error(message);
+    }
+  };
+
   const handleOpenDispute = async () => {
     if (!previewId) return;
     try {
@@ -221,52 +232,53 @@ export default function AdminBGCReviewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="border-b border-gray-200/70 dark:border-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-6">
-              <Link href="/" className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400">
-                iNSTAiNSTRU
-              </Link>
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Background Check Review Queue
-                </h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Approve or reject background checks currently awaiting admin review.
-                </p>
+    <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <header className="border-b border-gray-200/70 dark:border-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center gap-6">
+                <Link href="/" className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400">
+                  iNSTAiNSTRU
+                </Link>
+                <div>
+                  <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    Background Check Review Queue
+                  </h1>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Approve or reject background checks currently awaiting admin review.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || isLoading}
+                  aria-label="Refresh review queue"
+                >
+                  {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void logout()}
+                  className="rounded-full"
+                >
+                  Log out
+                </Button>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={handleRefresh}
-                disabled={isRefreshing || isLoading}
-                aria-label="Refresh review queue"
-              >
-                {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void logout()}
-                className="rounded-full"
-              >
-                Log out
-              </Button>
-            </div>
           </div>
-        </div>
-      </header>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-12 gap-6">
-          <aside className="col-span-12 md:col-span-3 lg:col-span-3">
-            <AdminSidebar />
-          </aside>
-          <section className="col-span-12 md:col-span-9 lg:col-span-9 space-y-6">
+        </header>
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-12 gap-6">
+            <aside className="col-span-12 md:col-span-3 lg:col-span-3">
+              <AdminSidebar />
+            </aside>
+            <section className="col-span-12 md:col-span-9 lg:col-span-9 space-y-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-4">
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
@@ -364,18 +376,30 @@ export default function AdminBGCReviewPage() {
                                   {item.name}
                                 </Link>
                               ) : (
-                                <button
-                                  type="button"
-                                  className="text-left font-medium text-indigo-600 hover:underline dark:text-indigo-300"
-                                  onClick={() => {
-                                    setPreviewId(item.instructor_id);
-                                    setPreviewOpen(true);
-                                  }}
-                                  title="Profile not public until verified & live"
-                                >
-                                  {item.name}
-                                  <span className="ml-1 text-xs text-gray-500">(preview)</span>
-                                </button>
+                                <Tooltip.Root>
+                                  <Tooltip.Trigger asChild>
+                                    <button
+                                      type="button"
+                                      className="text-left font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+                                      onClick={() => {
+                                        setPreviewId(item.instructor_id);
+                                        setPreviewOpen(true);
+                                      }}
+                                      aria-disabled="true"
+                                      title="Not public until verified & live."
+                                    >
+                                      {item.name}
+                                      <span className="ml-1 text-xs text-gray-500">(preview)</span>
+                                    </button>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Content
+                                    side="top"
+                                    className="rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow-lg"
+                                  >
+                                    Not public until verified & live.
+                                    <Tooltip.Arrow className="fill-gray-900" />
+                                  </Tooltip.Content>
+                                </Tooltip.Root>
                               )}
                               <span className="text-xs text-gray-400">{item.instructor_id}</span>
                               {inDispute ? (
@@ -470,16 +494,40 @@ export default function AdminBGCReviewPage() {
               <div className="fixed inset-0 z-40 flex items-stretch justify-end">
                 <div className="absolute inset-0 bg-black/30" onClick={closePreview} />
                 <div className="relative h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 p-6 overflow-y-auto">
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Instructor Preview</h2>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         View instructor details before approving a non-live profile.
                       </p>
                     </div>
-                    <Button type="button" variant="ghost" onClick={closePreview}>
-                      Close
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {previewDetail.data ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCopyId(previewDetail.data!.id)}
+                          >
+                            <Copy className="mr-1 h-4 w-4" /> Copy ID
+                          </Button>
+                          {previewDetail.data.email ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCopyEmail(previewDetail.data!.email)}
+                            >
+                              <Copy className="mr-1 h-4 w-4" /> Copy Email
+                            </Button>
+                          ) : null}
+                        </>
+                      ) : null}
+                      <Button type="button" variant="ghost" onClick={closePreview}>
+                        Close
+                      </Button>
+                    </div>
                   </div>
                   <div className="mt-4 space-y-3 text-sm text-gray-700 dark:text-gray-200">
                     {previewDetail.isLoading ? (
@@ -508,10 +556,11 @@ export default function AdminBGCReviewPage() {
                 </div>
               </div>
             )}
-          </section>
-        </div>
-      </main>
-    </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </Tooltip.Provider>
   );
 }
 

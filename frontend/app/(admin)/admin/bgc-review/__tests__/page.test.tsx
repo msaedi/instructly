@@ -66,6 +66,7 @@ jest.mock('next/navigation', () => ({
 }));
 
 const originalFetch = global.fetch;
+let clipboardWriteMock: jest.Mock;
 
 function createJsonResponse(body: unknown, status = 200): Response {
   const contentType = status >= 400 ? 'application/problem+json' : 'application/json';
@@ -322,10 +323,17 @@ describe('AdminBGCReviewPage', () => {
 
     (usePathname as jest.Mock).mockReturnValue('/admin/bgc-review');
 
+    clipboardWriteMock = jest.fn().mockResolvedValue(undefined);
     Object.defineProperty(window.navigator, 'clipboard', {
       configurable: true,
       value: {
-        writeText: jest.fn(),
+        writeText: clipboardWriteMock,
+      },
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteMock,
       },
     });
   });
@@ -335,6 +343,9 @@ describe('AdminBGCReviewPage', () => {
     global.fetch = originalFetch;
     if ('clipboard' in navigator) {
       Reflect.deleteProperty(navigator, 'clipboard');
+    }
+    if ('clipboard' in window.navigator) {
+      Reflect.deleteProperty(window.navigator, 'clipboard');
     }
   });
 
@@ -382,7 +393,7 @@ describe('AdminBGCReviewPage', () => {
 
     await screen.findByText('Review Instructor');
 
-    const previewButton = screen.getByTitle(/profile not public/i);
+    const previewButton = screen.getByRole('button', { name: /review instructor/i });
     await user.click(previewButton);
 
     await screen.findByText(/Instructor Preview/i);
@@ -415,6 +426,41 @@ describe('AdminBGCReviewPage', () => {
     await waitFor(() => expect((toast.success as jest.Mock)).toHaveBeenCalledWith('Dispute resolved'));
     await waitFor(() => expect(screen.queryByText('In dispute')).not.toBeInTheDocument());
     await waitFor(() => expect(rejectButton).toBeEnabled());
+  });
+
+  it('allows copying identifiers and email from preview', async () => {
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+
+    const writeSpy = jest
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockResolvedValue(undefined as unknown as void);
+
+    const previewButton = screen.getByRole('button', { name: /review instructor/i });
+    await user.click(previewButton);
+
+    await screen.findByText(/Instructor Preview/i);
+
+    const copyIdButton = await screen.findByRole('button', { name: /copy id/i });
+    await user.click(copyIdButton);
+
+    await waitFor(() => expect(writeSpy).toHaveBeenCalledWith('01TEST0INSTRUCTOR'));
+    await waitFor(() =>
+      expect((toast.success as jest.Mock)).toHaveBeenCalledWith('Instructor ID copied to clipboard'),
+    );
+
+    writeSpy.mockClear();
+    (toast.success as jest.Mock).mockClear();
+
+    const copyEmailButton = await screen.findByRole('button', { name: /copy email/i });
+    await user.click(copyEmailButton);
+
+    await waitFor(() => expect(writeSpy).toHaveBeenCalledWith('review@example.com'));
+    await waitFor(() =>
+      expect((toast.success as jest.Mock)).toHaveBeenCalledWith('Email copied to clipboard'),
+    );
   });
 
   it('surfaces validity info and allows triggering a re-check', async () => {
@@ -452,7 +498,7 @@ describe('AdminBGCReviewPage', () => {
 
     await screen.findByText('Review Instructor');
 
-    const previewButton = screen.getByTitle(/profile not public/i);
+    const previewButton = screen.getByRole('button', { name: /review instructor/i });
     await user.click(previewButton);
 
     await screen.findByText(/Instructor Preview/i);
@@ -511,7 +557,7 @@ describe('AdminBGCReviewPage', () => {
 
     await screen.findByText('Review Instructor');
 
-    const previewButton = screen.getByTitle(/profile not public/i);
+    const previewButton = screen.getByRole('button', { name: /review instructor/i });
     await user.click(previewButton);
     await screen.findByText(/Instructor Preview/i);
 
@@ -567,7 +613,7 @@ describe('AdminBGCReviewPage', () => {
 
     await screen.findByText('Review Instructor');
 
-    const previewButton = screen.getByTitle(/profile not public/i);
+    const previewButton = screen.getByRole('button', { name: /review instructor/i });
     await user.click(previewButton);
     await screen.findByText(/Instructor Preview/i);
 

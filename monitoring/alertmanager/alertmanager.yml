@@ -1,0 +1,17 @@
+route:
+  receiver: 'bgc-slack'
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 2h
+
+receivers:
+  - name: 'bgc-slack'
+    slack_configs:
+      - api_url: ${ALERT_SLACK_WEBHOOK}
+        channel: '#bgc-alerts'
+        title: '{{ .CommonLabels.alertname }}'
+        text: >-
+          *Alert:* {{ .CommonAnnotations.summary }}
+          *Desc:* {{ .CommonAnnotations.description }}
+          *Labels:* {{ .CommonLabels }}
