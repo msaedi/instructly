@@ -24,7 +24,8 @@ from ..core.constants import BRAND_NAME, NOREPLY_EMAIL
 from ..core.exceptions import ServiceException
 from .base import BaseService
 from .email_subjects import EmailSubject
-from .template_registry import TemplateRegistry
+from .sender_registry import get_sender
+from .template_registry import TemplateRegistry, get_default_sender_key
 from .template_service import TemplateService
 
 # Use TYPE_CHECKING to avoid circular imports
@@ -104,6 +105,8 @@ class EmailService(BaseService):
         text_content: Optional[str] = None,
         from_email: Optional[str] = None,
         from_name: Optional[str] = None,
+        sender_key: Optional[str] = None,
+        template: Optional[TemplateRegistry] = None,
     ) -> Dict[str, Any]:
         """
         Send a generic email using Resend.
@@ -113,8 +116,10 @@ class EmailService(BaseService):
             subject: Email subject
             html_content: HTML content of the email
             text_content: Optional plain text version
-            from_email: Optional sender email (defaults to settings)
-            from_name: Optional sender name
+            from_email: Optional sender email override
+            from_name: Optional sender name override
+            sender_key: Optional named sender profile to resolve headers
+            template: Optional template identifier used to infer default sender profile
 
         Returns:
             Dict containing the Resend API response
@@ -123,8 +128,14 @@ class EmailService(BaseService):
             ServiceException: If email sending fails
         """
         try:
+            template_sender_key = get_default_sender_key(template) if template else None
+            resolved_sender = get_sender(sender_key or template_sender_key)
+
+            effective_from_address = from_email or resolved_sender["from_address"]
+            effective_from_name = from_name or resolved_sender["from_name"]
+
             # Configure sender
-            sender = self._format_sender(from_email, from_name)
+            sender = self._format_sender(effective_from_address, effective_from_name)
 
             # IMPORTANT: Always include text version for better deliverability
             if not text_content:
@@ -138,6 +149,10 @@ class EmailService(BaseService):
                 "html": html_content,
                 "text": text_content,  # Critical for authentication
             }
+
+            reply_to = resolved_sender.get("reply_to")
+            if reply_to:
+                email_data["reply_to"] = reply_to
 
             # Send email
             response_data: Dict[str, Any] = resend.Emails.send(email_data)
@@ -211,6 +226,7 @@ class EmailService(BaseService):
                 subject=subject,
                 html_content=html_content,
                 text_content=text_content,
+                template=TemplateRegistry.AUTH_PASSWORD_RESET,
             )
 
             self.log_operation("password_reset_email_sent", to_email=to_email)
@@ -256,6 +272,7 @@ class EmailService(BaseService):
                 subject=subject,
                 html_content=html_content,
                 text_content=text_content,
+                template=TemplateRegistry.AUTH_PASSWORD_RESET_CONFIRMATION,
             )
 
             self.log_operation("password_reset_confirmation_sent", to_email=to_email)
@@ -323,6 +340,7 @@ class EmailService(BaseService):
             text_content=f"{inviter_name} invited you to {BRAND_NAME}. Claim your discount: {referral_link}",
             from_email="invites@instainstru.com",
             from_name=BRAND_NAME,
+            template=TemplateRegistry.REFERRALS_INVITE,
         )
 
     @BaseService.measure_operation("get_send_stats")
