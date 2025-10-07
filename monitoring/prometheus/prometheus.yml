@@ -8,11 +8,11 @@ global:
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: []
+        - targets: ["alertmanager:9093"]
 
 # Load rules once and periodically evaluate them according to the global 'evaluation_interval'
 rule_files:
-  - alerts.yml
+  - /etc/prometheus/alerts.yml
 
 # Scrape configurations
 scrape_configs:
@@ -28,10 +28,3 @@ scrape_configs:
       - targets: ['host.docker.internal:8000'] # Use host.docker.internal to access host machine
     metrics_path: '/metrics'
     scrape_interval: 15s
-
-  - job_name: 'instainstru-health'
-    # Scrape health check endpoint
-    static_configs:
-      - targets: ['host.docker.internal:8000']
-    metrics_path: '/health'
-    scrape_interval: 30s

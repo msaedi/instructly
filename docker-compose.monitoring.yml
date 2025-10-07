@@ -6,6 +6,7 @@ services:
     volumes:
       - ./monitoring/prometheus-data:/prometheus
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -13,6 +14,25 @@ services:
       - '--web.console.templates=/usr/share/prometheus/consoles'
     ports:
       - "9090:9090"
+    networks:
+      - monitoring
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: instainstru_alertmanager
+    restart: unless-stopped
+    env_file:
+      - .env.monitoring
+    environment:
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - set -e; awk '{gsub(/\$\{SLACK_WEBHOOK_URL\}/, ENVIRON["SLACK_WEBHOOK_URL"]); print}' /etc/alertmanager/alertmanager.yml > /etc/alertmanager/alertmanager.effective.yml; exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.effective.yml
+    ports:
+      - "9093:9093"
     networks:
       - monitoring
 

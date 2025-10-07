@@ -4,42 +4,47 @@ groups:
   - alert: PreviewBypassSpike
     expr: sum(rate(instainstru_preview_bypass_total{env="preview"}[5m])) > 20
     for: 10m
-    labels: { severity: warning }
+    labels:
+      severity: warning
     annotations:
-      summary: "Preview bypass spike"
-      description: "High rate of preview bypass events (>20/5m). Investigate misuse or miswired proxy."
-
+      summary: Preview bypass spike
+      description: High rate of preview bypass events (>20/5m). Investigate misuse
+        or miswired proxy.
   - alert: BypassSeenInProd
     expr: sum(rate(instainstru_preview_bypass_total{env="prod"}[5m])) > 0
     for: 1m
-    labels: { severity: critical }
+    labels:
+      severity: critical
     annotations:
-      summary: "Bypass observed in PROD"
-      description: "Preview bypass must never occur in PROD. Check SITE_MODE, headers, hosts, and CORS."
-
+      summary: Bypass observed in PROD
+      description: Preview bypass must never occur in PROD. Check SITE_MODE, headers,
+        hosts, and CORS.
 - name: rate-limiter
   rules:
   - alert: HighRateLimitBlocks
-    expr: sum by (bucket) (increase(instainstru_rl_decisions_total{action="block"}[5m])) /
-          clamp_min(sum by (bucket) (increase(instainstru_rl_decisions_total[5m])), 1) > 0.05
+    expr: sum by (bucket) (increase(instainstru_rl_decisions_total{action="block"}[5m]))
+      / clamp_min(sum by (bucket) (increase(instainstru_rl_decisions_total[5m])),
+      1) > 0.05
     for: 10m
-    labels: { severity: warning }
+    labels:
+      severity: warning
     annotations:
-      summary: "Rate limiter blocking >5% in {bucket}"
-      description: ">5% of requests blocked in bucket {bucket} over 5m"
-
+      summary: Rate limiter blocking >5% in {bucket}
+      description: '>5% of requests blocked in bucket {bucket} over 5m'
   - alert: Financial429ForVerifiedUsers
-    expr: increase(instainstru_rl_decisions_total{bucket="financial",action="block"}[5m]) > 0
+    expr: increase(instainstru_rl_decisions_total{bucket="financial",action="block"}[5m])
+      > 0
     for: 1m
-    labels: { severity: critical }
+    labels:
+      severity: critical
     annotations:
-      summary: "Financial 429 observed"
-      description: "At least one financial request blocked in last 5m"
-
+      summary: Financial 429 observed
+      description: At least one financial request blocked in last 5m
   - alert: RateLimiterEvalErrors
     expr: increase(instainstru_rl_eval_errors_total[5m]) > 0
     for: 5m
-    labels: { severity: warning }
+    labels:
+      severity: warning
     annotations:
-      summary: "Rate limiter evaluation errors"
-      description: "Errors occurred during rate-limit evaluation (Redis or script failures)"
+      summary: Rate limiter evaluation errors
+      description: Errors occurred during rate-limit evaluation (Redis or script failures)

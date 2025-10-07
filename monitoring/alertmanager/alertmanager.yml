@@ -8,7 +8,7 @@ route:
 receivers:
   - name: 'bgc-slack'
     slack_configs:
-      - api_url: ${ALERT_SLACK_WEBHOOK}
+      - api_url: ${SLACK_WEBHOOK_URL}
         channel: '#bgc-alerts'
         title: '{{ .CommonLabels.alertname }}'
         text: >-
