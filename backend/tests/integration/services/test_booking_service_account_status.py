@@ -6,7 +6,7 @@ Tests that suspended/deactivated instructors cannot receive new bookings
 and that past bookings remain visible regardless of instructor status.
 """
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
 from sqlalchemy.orm import Session
@@ -312,6 +312,9 @@ class TestBookingServiceAccountStatus:
             years_experience=5,
             min_advance_booking_hours=2,
             buffer_time_minutes=15,
+            bgc_status="passed",
+            is_live=True,
+            bgc_completed_at=datetime.now(timezone.utc),
         )
         db.add(profile)
         db.flush()
@@ -375,6 +378,9 @@ class TestBookingServiceAccountStatus:
             years_experience=3,
             min_advance_booking_hours=1,
             buffer_time_minutes=10,
+            bgc_status="passed",
+            is_live=True,
+            bgc_completed_at=datetime.now(timezone.utc),
         )
         db.add(profile)
         db.flush()

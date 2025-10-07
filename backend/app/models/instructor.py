@@ -215,6 +215,10 @@ class InstructorProfile(Base):
             "bgc_env IN ('sandbox','production')",
             name="ck_instructor_profiles_bgc_env",
         ),
+        CheckConstraint(
+            "(NOT is_live) OR (bgc_status = 'passed')",
+            name="ck_live_requires_bgc_passed",
+        ),
     )
 
     def __init__(self, **kwargs: Any) -> None:

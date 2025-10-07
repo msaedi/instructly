@@ -17,7 +17,6 @@ from sqlalchemy import desc, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, joinedload, selectinload
 
-from ..core.bgc_policy import must_be_verified_for_public
 from ..core.crypto import decrypt_report_token, encrypt_report_token, encrypt_str
 from ..core.exceptions import RepositoryException
 from ..core.metrics import BGC_REPORT_ID_DECRYPT_TOTAL, BGC_REPORT_ID_ENCRYPT_TOTAL
@@ -48,12 +47,39 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         super().__init__(db, InstructorProfile)
         self.logger = logging.getLogger(__name__)
 
-    def _apply_verified_filter(self, query: Query) -> Query:
-        """Restrict results to verified instructors when required."""
+    def _apply_public_visibility(self, query: Query) -> Query:
+        """Restrict results to instructors eligible for public display."""
 
-        if must_be_verified_for_public():
-            query = query.filter(InstructorProfile.bgc_status == "passed")
-        return query
+        return query.filter(
+            InstructorProfile.is_live.is_(True),
+            InstructorProfile.bgc_status == "passed",
+        )
+
+    def get_public_by_id(self, instructor_id: str) -> Optional[InstructorProfile]:
+        """Return a public-facing instructor profile when visible."""
+
+        try:
+            query = self._apply_public_visibility(
+                self.db.query(InstructorProfile)
+                .join(InstructorProfile.user)
+                .options(
+                    selectinload(InstructorProfile.user),
+                    selectinload(InstructorProfile.instructor_services).selectinload(
+                        Service.catalog_entry
+                    ),
+                )
+            )
+            return cast(
+                Optional[InstructorProfile],
+                query.filter(InstructorProfile.user_id == instructor_id).first(),
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to load public instructor profile %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to load public instructor profile") from exc
 
     def get_by_user_id(self, user_id: str) -> Optional[InstructorProfile]:
         """
@@ -100,7 +126,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             query = query.join(User.service_areas, isouter=True)
             query = query.join(InstructorServiceArea.neighborhood, isouter=True)
             query = query.filter(User.account_status == "active")
-            query = self._apply_verified_filter(query)
+            query = self._apply_public_visibility(query)
             query = query.options(
                 selectinload(InstructorProfile.user)
                 .selectinload(User.service_areas)
@@ -189,7 +215,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .join(InstructorProfile.user)
                 .filter(User.account_status == "active")
             )
-            base_query = self._apply_verified_filter(base_query)
+            base_query = self._apply_public_visibility(base_query)
 
             filtered_query = self._apply_area_filters(base_query, area)
 
@@ -919,10 +945,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                     like_pattern = f'%"{age_group}"%'
                     query = query.filter(Service.age_groups.like(like_pattern))
 
-            # Ensure we only get active services and active instructors
+            # Ensure we only surface public instructors with active services
             query = query.filter(Service.is_active == True)
             query = query.filter(User.account_status == "active")
-            query = self._apply_verified_filter(query)
+            query = self._apply_public_visibility(query)
 
             # Remove duplicates (since joins can create multiple rows per profile)
             # and apply pagination

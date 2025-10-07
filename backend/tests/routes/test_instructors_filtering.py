@@ -6,6 +6,8 @@ These tests verify the GET /instructors/ endpoint with query parameters,
 including validation, backward compatibility, and response format.
 """
 
+from datetime import datetime, timezone
+
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
@@ -112,6 +114,9 @@ class TestInstructorsFilteringAPI:
                 years_experience=5 + i,
                 min_advance_booking_hours=24,
                 buffer_time_minutes=15,
+                bgc_status="passed",
+                is_live=True,
+                bgc_completed_at=datetime.now(timezone.utc),
             )
             db.add(profile)
             db.flush()
@@ -409,6 +414,9 @@ class TestInstructorsFilteringAPI:
             user_id=user.id,
             bio="Instructor with mixed services",
             years_experience=20,
+            bgc_status="passed",
+            is_live=True,
+            bgc_completed_at=datetime.now(timezone.utc),
         )
         db.add(profile)
         db.flush()

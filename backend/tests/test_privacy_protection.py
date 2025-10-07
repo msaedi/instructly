@@ -5,7 +5,7 @@ This test suite ensures that student-facing endpoints and emails never expose
 instructor full last names, only showing last initials (e.g., "Michael R.").
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -148,6 +148,9 @@ class TestSchemaPrivacyProtection:
             years_experience=5,
             min_advance_booking_hours=2,
             buffer_time_minutes=15,
+            bgc_status="passed",
+            is_live=True,
+            bgc_completed_at=datetime.now(timezone.utc),
         )
         db.add(profile)
         db.flush()

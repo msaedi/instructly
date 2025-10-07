@@ -380,14 +380,15 @@ async def get_instructor_profile(
 ) -> InstructorProfileResponse:
     """Get a specific instructor's profile by user ID with privacy protection and favorite status."""
     try:
-        profile_data = instructor_service.get_instructor_profile(instructor_id)
+        profile_data = instructor_service.get_public_instructor_profile(instructor_id)
+        if profile_data is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Instructor profile not found",
+            )
 
         # Apply privacy protection using schema-owned construction
-        if hasattr(profile_data, "id"):  # It's an ORM object
-            response = InstructorProfileResponse.from_orm(profile_data)
-        else:
-            # If it's already a dict, convert to Pydantic model
-            response = InstructorProfileResponse(**profile_data)
+        response = InstructorProfileResponse(**profile_data)
 
         # Add favorite status and count
         if current_user:

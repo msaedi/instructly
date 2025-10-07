@@ -6,6 +6,8 @@ These tests verify that specific service queries return ONLY instructors
 who teach that specific service, not all instructors in the category.
 """
 
+from datetime import datetime, timezone
+
 from fastapi.testclient import TestClient
 import pytest
 from sentence_transformers import SentenceTransformer
@@ -171,9 +173,15 @@ class TestNLSSpecificServiceMatching:
         db.flush()
 
         # Create instructor profiles
-        piano_profile = InstructorProfile(user_id=piano_user.id, bio="Expert piano instructor")
-        guitar_profile = InstructorProfile(user_id=guitar_user.id, bio="Expert guitar instructor")
-        drums_profile = InstructorProfile(user_id=drums_user.id, bio="Expert drums instructor")
+        verified_kwargs = {
+            "bgc_status": "passed",
+            "is_live": True,
+            "bgc_completed_at": datetime.now(timezone.utc),
+        }
+
+        piano_profile = InstructorProfile(user_id=piano_user.id, bio="Expert piano instructor", **verified_kwargs)
+        guitar_profile = InstructorProfile(user_id=guitar_user.id, bio="Expert guitar instructor", **verified_kwargs)
+        drums_profile = InstructorProfile(user_id=drums_user.id, bio="Expert drums instructor", **verified_kwargs)
         db.add_all([piano_profile, guitar_profile, drums_profile])
         db.flush()
 
