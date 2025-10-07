@@ -6,6 +6,8 @@ Tests that all repository methods properly filter out suspended/deactivated inst
 from search results and listings.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy.orm import Session
 
@@ -52,6 +54,9 @@ class TestInstructorProfileRepositoryAccountStatus:
                 years_experience=5,
                 min_advance_booking_hours=24,
                 buffer_time_minutes=15,
+                bgc_status="passed",
+                is_live=True,
+                bgc_completed_at=datetime.now(timezone.utc),
             )
             db.add(profile)
             db.flush()

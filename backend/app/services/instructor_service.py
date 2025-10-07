@@ -331,6 +331,15 @@ class InstructorService(BaseService):
 
         return self._profile_to_dict(profile)
 
+    @BaseService.measure_operation("get_public_instructor_profile")
+    def get_public_instructor_profile(self, instructor_id: str) -> Optional[Dict[str, Any]]:
+        """Return a public-facing instructor profile when visible."""
+
+        profile = self.profile_repository.get_public_by_id(instructor_id)
+        if not profile:
+            return None
+        return self._profile_to_dict(profile)
+
     @BaseService.measure_operation("update_instructor_profile")
     def update_instructor_profile(
         self, user_id: str, update_data: InstructorProfileUpdate

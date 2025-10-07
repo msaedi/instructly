@@ -10,6 +10,7 @@ These tests verify:
 5. Integration with service layer
 """
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,6 +21,16 @@ from app.models.service_catalog import InstructorService as Service, ServiceCata
 from app.models.user import User
 from app.repositories import RepositoryFactory
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
+
+
+def _public_profile_kwargs(**kwargs):
+    defaults = {
+        "bgc_status": "passed",
+        "is_live": True,
+        "bgc_completed_at": datetime.now(timezone.utc),
+    }
+    defaults.update(kwargs)
+    return defaults
 
 
 @pytest.fixture(autouse=True)
@@ -117,7 +128,14 @@ class TestInstructorProfileRepositoryEagerLoading:
         db.add(user)
         db.flush()
 
-        profile = InstructorProfile(user_id=user.id, bio="Test filtering", years_experience=3)
+        profile = InstructorProfile(
+            user_id=user.id,
+            bio="Test filtering",
+            years_experience=3,
+            bgc_status="passed",
+            is_live=True,
+            bgc_completed_at=datetime.now(timezone.utc),
+        )
         db.add(profile)
         db.flush()
 
@@ -235,7 +253,10 @@ class TestInstructorProfileRepositoryMethods:
         db.add(new_user)
         db.flush()
 
-        new_profile = InstructorProfile(user_id=new_user.id, bio="New bio", years_experience=2)
+        new_profile = InstructorProfile(
+            user_id=new_user.id,
+            **_public_profile_kwargs(bio="New bio", years_experience=2),
+        )
         db.add(new_profile)
         db.flush()
 
@@ -260,7 +281,10 @@ class TestInstructorProfileRepositoryMethods:
             db.add(user)
             db.flush()
 
-            profile = InstructorProfile(user_id=user.id, bio=f"Bio {i}", years_experience=i)
+            profile = InstructorProfile(
+                user_id=user.id,
+                **_public_profile_kwargs(bio=f"Bio {i}", years_experience=i),
+            )
             db.add(profile)
         db.flush()
 
@@ -370,7 +394,10 @@ class TestPerformanceImprovement:
             db.add(user)
             db.flush()
 
-            profile = InstructorProfile(user_id=user.id, bio=f"Bio {i}", years_experience=i)
+            profile = InstructorProfile(
+                user_id=user.id,
+                **_public_profile_kwargs(bio=f"Bio {i}", years_experience=i),
+            )
             db.add(profile)
             db.flush()
 
@@ -508,7 +535,10 @@ class TestDiagnosticAndDebugging:
         db.add(user)
         db.flush()
 
-        profile = InstructorProfile(user_id=user.id, bio="Debug", years_experience=1)
+        profile = InstructorProfile(
+            user_id=user.id,
+            **_public_profile_kwargs(bio="Debug", years_experience=1),
+        )
         db.add(profile)
         db.flush()
 
@@ -638,7 +668,10 @@ class TestDiagnosticAndDebugging:
         db.add(user)
         db.flush()
 
-        profile = InstructorProfile(user_id=user.id, bio="Test", years_experience=1)
+        profile = InstructorProfile(
+            user_id=user.id,
+            **_public_profile_kwargs(bio="Test", years_experience=1),
+        )
         db.add(profile)
         db.flush()
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, datetime, time, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -14,7 +14,7 @@ from app.services.booking_service import BookingService
 from app.services.instructor_service import InstructorService
 
 
-def _create_instructor(db, *, email: str, status: str) -> InstructorProfile:
+def _create_instructor(db, *, email: str, status: str, is_live: bool | None = None) -> InstructorProfile:
     user = User(
         email=email,
         hashed_password="hashed",
@@ -25,8 +25,15 @@ def _create_instructor(db, *, email: str, status: str) -> InstructorProfile:
     db.add(user)
     db.flush()
 
+    if is_live is None:
+        is_live = status == "passed"
+
     profile = InstructorProfile(user_id=user.id)
     profile.bgc_status = status
+    profile.is_live = is_live
+    profile.bgc_completed_at = (
+        datetime.now(timezone.utc) if status == "passed" else None
+    )
     db.add(profile)
     db.flush()
 
@@ -46,18 +53,18 @@ def test_instructor_listing_filters_in_production(monkeypatch, db):
     list_result = service.get_all_instructors()
     assert all(entry["id"] == passed_profile.id for entry in list_result)
 
-def test_instructor_listing_allows_non_verified_in_non_production(monkeypatch, db):
+def test_instructor_listing_excludes_non_verified_in_all_modes(monkeypatch, db):
     monkeypatch.setenv("SITE_MODE", "local")
 
-    _create_instructor(db, email="passed@example.com", status="passed")
-    _create_instructor(db, email="pending@example.com", status="pending")
+    passed_profile = _create_instructor(db, email="passed@example.com", status="passed")
+    pending_profile = _create_instructor(db, email="pending@example.com", status="pending")
 
     service = InstructorService(db)
 
     list_result = service.get_all_instructors()
-    assert len(list_result) == 2
-
-    # No verified-only gating outside production
+    ids = {entry["id"] for entry in list_result}
+    assert ids == {passed_profile.id}
+    assert pending_profile.id not in ids
 
 
 @pytest.mark.asyncio

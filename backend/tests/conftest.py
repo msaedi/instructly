@@ -10,7 +10,7 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 All fixtures now create AvailabilitySlot objects directly with instructor_id and date.
 """
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 import os
 import sys
 from typing import Sequence
@@ -657,6 +657,18 @@ def test_student(db: Session, test_password: str) -> User:
     return student
 
 
+def _public_profile_kwargs(**profile_kwargs):
+    """Build InstructorProfile kwargs with verified/live defaults."""
+
+    defaults = {
+        "bgc_status": "passed",
+        "is_live": True,
+        "bgc_completed_at": datetime.now(timezone.utc),
+    }
+    defaults.update(profile_kwargs)
+    return defaults
+
+
 @pytest.fixture
 def test_instructor(db: Session, test_password: str) -> User:
     """Create a test instructor user with profile and services."""
@@ -690,10 +702,12 @@ def test_instructor(db: Session, test_password: str) -> User:
     # Create instructor profile
     profile = InstructorProfile(
         user_id=instructor.id,
-        bio="Test instructor bio",
-        years_experience=5,
-        min_advance_booking_hours=2,
-        buffer_time_minutes=15,
+        **_public_profile_kwargs(
+            bio="Test instructor bio",
+            years_experience=5,
+            min_advance_booking_hours=2,
+            buffer_time_minutes=15,
+        ),
     )
     db.add(profile)
     db.flush()
@@ -834,10 +848,12 @@ def test_instructor_2(db: Session, test_password: str) -> User:
     # Create instructor profile
     profile = InstructorProfile(
         user_id=instructor.id,
-        bio="Second test instructor bio",
-        years_experience=3,
-        min_advance_booking_hours=1,
-        buffer_time_minutes=10,
+        **_public_profile_kwargs(
+            bio="Second test instructor bio",
+            years_experience=3,
+            min_advance_booking_hours=1,
+            buffer_time_minutes=10,
+        ),
     )
     db.add(profile)
     db.flush()
@@ -1332,7 +1348,12 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
     db.commit()
 
     piano_profile = InstructorProfile(
-        user_id=piano_instructor.id, bio="Expert piano teacher", years_experience=10, min_advance_booking_hours=24
+        user_id=piano_instructor.id,
+        **_public_profile_kwargs(
+            bio="Expert piano teacher",
+            years_experience=10,
+            min_advance_booking_hours=24,
+        ),
     )
     db.add(piano_profile)
     db.commit()
@@ -1387,7 +1408,12 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
     db.commit()
 
     yoga_profile = InstructorProfile(
-        user_id=yoga_instructor.id, bio="Certified yoga instructor", years_experience=5, min_advance_booking_hours=24
+        user_id=yoga_instructor.id,
+        **_public_profile_kwargs(
+            bio="Certified yoga instructor",
+            years_experience=5,
+            min_advance_booking_hours=24,
+        ),
     )
     db.add(yoga_profile)
     db.commit()
@@ -1497,8 +1523,10 @@ def sample_instructor_for_privacy(db):
     # Add instructor profile
     instructor = InstructorProfile(
         user_id=user.id,
-        bio="Experienced math tutor",
-        years_experience=5,
+        **_public_profile_kwargs(
+            bio="Experienced math tutor",
+            years_experience=5,
+        ),
     )
     db.add(instructor)
     db.commit()

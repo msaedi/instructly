@@ -11,6 +11,8 @@ Tests all endpoints in the instructors router including:
 - Error handling and edge cases
 """
 
+from datetime import datetime, timezone
+
 from fastapi import status
 from fastapi.testclient import TestClient
 import pytest
@@ -66,8 +68,11 @@ class TestInstructorRoutes:
 
         inactive_profile = InstructorProfile(
             user_id=inactive_instructor.id,
-            bio="Inactive instructor bio with more text",  # Ensure minimum length
+            bio="Inactive instructor bio with more text",
             years_experience=2,
+            bgc_status="passed",
+            is_live=True,
+            bgc_completed_at=datetime.now(timezone.utc),
         )
         db.add(inactive_profile)
         db.flush()
@@ -178,8 +183,11 @@ class TestInstructorRoutes:
 
             profile = InstructorProfile(
                 user_id=user.id,
-                bio=f"Bio for instructor {i} with enough text",  # Ensure minimum length
+                bio=f"Bio for instructor {i} with enough text",
                 years_experience=i,
+                bgc_status="passed",
+                is_live=True,
+                bgc_completed_at=datetime.now(timezone.utc),
             )
             db.add(profile)
             db.flush()

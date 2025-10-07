@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from datetime import datetime, timezone
 from hashlib import sha256
 import hmac
 import json
 import logging
+from time import monotonic
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -24,6 +26,10 @@ from ..services.background_check_workflow_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks/checkr", tags=["webhooks"])
+
+_WEBHOOK_CACHE_TTL_SECONDS = 300
+_WEBHOOK_CACHE_MAX_SIZE = 1000
+_delivery_cache: OrderedDict[str, float] = OrderedDict()
 
 
 def _compute_signature(secret: str, payload: bytes) -> str:
@@ -63,6 +69,34 @@ def _verify_signature(payload: bytes, signature: str | None) -> None:
         )
 
 
+def _delivery_seen(delivery_key: str | None) -> bool:
+    """Return True when a delivery key has already been processed recently."""
+
+    if not delivery_key:
+        return False
+
+    now = monotonic()
+
+    expired = [
+        key
+        for key, timestamp in _delivery_cache.items()
+        if now - timestamp > _WEBHOOK_CACHE_TTL_SECONDS
+    ]
+    for key in expired:
+        _delivery_cache.pop(key, None)
+
+    return delivery_key in _delivery_cache
+
+
+def _mark_delivery(delivery_key: str | None) -> None:
+    if not delivery_key:
+        return
+
+    _delivery_cache[delivery_key] = monotonic()
+    while len(_delivery_cache) > _WEBHOOK_CACHE_MAX_SIZE:
+        _delivery_cache.popitem(last=False)
+
+
 @router.post("/", response_model=WebhookAckResponse)
 async def handle_checkr_webhook(
     request: Request,
@@ -90,7 +124,18 @@ async def handle_checkr_webhook(
     data_object = payload.get("data", {}).get("object", {}) or {}
     report_id = data_object.get("id")
 
+    delivery_key = request.headers.get("X-Checkr-Delivery-Id") or (
+        f"{event_type}:{report_id}" if event_type and report_id else None
+    )
+
     if not event_type:
+        return WebhookAckResponse(ok=True)
+
+    if _delivery_seen(delivery_key):
+        logger.info(
+            "Duplicate Checkr webhook delivery ignored",
+            extra={"evt": "webhook_dedup", "delivery_id": delivery_key},
+        )
         return WebhookAckResponse(ok=True)
 
     if event_type == "report.completed":
@@ -134,6 +179,7 @@ async def handle_checkr_webhook(
                     "outcome": "success",
                 },
             )
+            _mark_delivery(delivery_key)
         except RepositoryException as exc:
             CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="queued").inc()
             logger.warning(
@@ -197,6 +243,7 @@ async def handle_checkr_webhook(
                     "outcome": "success",
                 },
             )
+            _mark_delivery(delivery_key)
         except RepositoryException as exc:
             logger.warning(
                 "Unable to process report.suspended event: %s",

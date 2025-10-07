@@ -6,6 +6,8 @@ These tests verify the SQL query generation, eager loading, and complex
 filter combinations with a real database.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -132,6 +134,9 @@ class TestInstructorProfileRepositoryFiltering:
                 years_experience=data["years"],
                 min_advance_booking_hours=data["min_adv"],
                 buffer_time_minutes=data["buffer"],
+                bgc_status="passed",
+                is_live=True,
+                bgc_completed_at=datetime.now(timezone.utc),
             )
             test_db.add(profile)
             profiles.append(profile)
@@ -433,6 +438,9 @@ class TestInstructorProfileRepositoryFiltering:
             user_id=user.id,
             bio="Teaches rock & roll",
             years_experience=5,
+            bgc_status="passed",
+            is_live=True,
+            bgc_completed_at=datetime.now(timezone.utc),
         )
         repository.db.add(profile)
         repository.db.flush()

@@ -53,5 +53,13 @@
 - Alertmanager config: `monitoring/alertmanager/alertmanager.yml`.
   - Set `ALERT_SLACK_WEBHOOK` (Render/secret store) pointing to `#bgc-alerts`.
   - Deploy alongside Prometheus in your infra stack.
+- Prometheus must load the BGC-specific rule file; ensure `prometheus.yml` includes:
+
+  ```yaml
+  rule_files:
+    - /etc/prometheus/rules/bgc-rules.yml
+  ```
+
+  Confirm the `alerting:` block points at Alertmanager as configured in `monitoring/alertmanager/alertmanager.yml`.
 - Grafana dashboard: `monitoring/grafana/dashboards/bgc-overview.json` (import into Grafana, provide Prometheus datasource UID).
 - Example rules already exist under `infra/alerts/` — wire them into Prometheus Alertmanager for production.
