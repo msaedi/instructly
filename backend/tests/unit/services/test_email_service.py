@@ -5,12 +5,16 @@ Unit tests for the refactored EmailService.
 Tests the EmailService extends BaseService properly and uses dependency injection.
 """
 
+import copy
+import json
 from unittest.mock import patch
 
 import pytest
 
+from app.core.config import settings
 from app.core.exceptions import ServiceException
 from app.services.email import EmailService
+from app.services.template_registry import TemplateRegistry
 
 
 class TestEmailService:
@@ -23,6 +27,24 @@ class TestEmailService:
 
         BaseService._class_metrics.clear()
         yield
+
+    @pytest.fixture(autouse=True)
+    def reset_sender_profiles(self, monkeypatch):
+        original_profiles = copy.deepcopy(getattr(settings, "_sender_profiles", {}))
+        original_warning_flag = getattr(settings, "_sender_profiles_warning_logged", False)
+
+        monkeypatch.setattr(settings, "email_sender_profiles_file", None, raising=False)
+        monkeypatch.setattr(settings, "email_sender_profiles_json", None, raising=False)
+        monkeypatch.setattr(settings, "_sender_profiles_warning_logged", False, raising=False)
+
+        settings._sender_profiles = {}  # type: ignore[attr-defined]
+        settings.refresh_sender_profiles("")
+
+        yield
+
+        settings._sender_profiles = original_profiles  # type: ignore[attr-defined]
+        settings._sender_profiles_warning_logged = original_warning_flag  # type: ignore[attr-defined]
+        settings.refresh_sender_profiles()
 
     def test_email_service_extends_base_service(self, db, mock_cache):
         """Test that EmailService properly extends BaseService."""
@@ -82,6 +104,145 @@ class TestEmailService:
                 service.send_email(
                     to_email="test@example.com", subject="Test Subject", html_content="<p>Test content</p>"
                 )
+
+    @patch("resend.Emails.send")
+    def test_sends_with_sender_profile(self, mock_resend_send, db, mock_cache, monkeypatch):
+        """EmailService should apply sender headers from an explicit profile key."""
+
+        mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
+
+        monkeypatch.setattr(settings, "email_from_name", "Default Name", raising=False)
+        monkeypatch.setattr(settings, "email_from_address", "default@example.com", raising=False)
+        monkeypatch.setattr(settings, "email_reply_to", "reply-default@example.com", raising=False)
+        self._apply_sender_profiles(
+            monkeypatch,
+            {
+                "trust": {
+                    "from_name": "InstaInstru Trust & Safety",
+                    "from": "notifications@instainstru.com",
+                    "reply_to": "support@instainstru.com",
+                }
+            },
+        )
+
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+            service.send_email(
+                to_email="test@example.com",
+                subject="Subject",
+                html_content="<p>body</p>",
+                sender_key="trust",
+            )
+
+        mock_resend_send.assert_called_once()
+        email_payload = mock_resend_send.call_args[0][0]
+        assert (
+            email_payload["from"]
+            == "InstaInstru Trust & Safety <notifications@instainstru.com>"
+        )
+        assert email_payload["reply_to"] == "support@instainstru.com"
+
+    @patch("resend.Emails.send")
+    def test_template_default_sender(self, mock_resend_send, db, mock_cache, monkeypatch):
+        """Template defaults should determine the sender profile when none is provided."""
+
+        mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
+
+        monkeypatch.setattr(settings, "email_from_name", "Default Name", raising=False)
+        monkeypatch.setattr(settings, "email_from_address", "default@example.com", raising=False)
+        monkeypatch.setattr(settings, "email_reply_to", "reply-default@example.com", raising=False)
+        self._apply_sender_profiles(
+            monkeypatch,
+            {
+                "trust": {
+                    "from_name": "InstaInstru Trust",
+                    "from": "trust@example.com",
+                    "reply_to": "trust-support@example.com",
+                }
+            },
+        )
+
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+            service.send_email(
+                to_email="test@example.com",
+                subject="Subject",
+                html_content="<p>body</p>",
+                template=TemplateRegistry.BGC_PRE_ADVERSE,
+            )
+
+        mock_resend_send.assert_called_once()
+        email_payload = mock_resend_send.call_args[0][0]
+        assert email_payload["from"] == "InstaInstru Trust <trust@example.com>"
+        assert email_payload["reply_to"] == "trust-support@example.com"
+
+    @patch("resend.Emails.send")
+    def test_template_default_sender_bookings(self, mock_resend_send, db, mock_cache, monkeypatch):
+        """Bookings templates should resolve to the bookings sender profile by default."""
+
+        mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
+
+        monkeypatch.setattr(settings, "email_from_name", "Default Name", raising=False)
+        monkeypatch.setattr(settings, "email_from_address", "default@example.com", raising=False)
+        monkeypatch.setattr(settings, "email_reply_to", "reply-default@example.com", raising=False)
+        self._apply_sender_profiles(
+            monkeypatch,
+            {
+                "bookings": {
+                    "from_name": "InstaInstru Bookings",
+                    "from": "bookings@instainstru.com",
+                    "reply_to": "support@instainstru.com",
+                }
+            },
+        )
+
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+            service.send_email(
+                to_email="student@example.com",
+                subject="Subject",
+                html_content="<p>body</p>",
+                template=TemplateRegistry.BOOKING_CONFIRMATION_STUDENT,
+            )
+
+        mock_resend_send.assert_called_once()
+        email_payload = mock_resend_send.call_args[0][0]
+        assert email_payload["from"] == "InstaInstru Bookings <bookings@instainstru.com>"
+        assert email_payload["reply_to"] == "support@instainstru.com"
+
+    @patch("resend.Emails.send")
+    def test_template_default_sender_account(self, mock_resend_send, db, mock_cache, monkeypatch):
+        """Account/auth templates should resolve to the account sender profile."""
+
+        mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
+
+        monkeypatch.setattr(settings, "email_from_name", "Default Name", raising=False)
+        monkeypatch.setattr(settings, "email_from_address", "default@example.com", raising=False)
+        monkeypatch.setattr(settings, "email_reply_to", "reply-default@example.com", raising=False)
+        self._apply_sender_profiles(
+            monkeypatch,
+            {
+                "account": {
+                    "from_name": "InstaInstru",
+                    "from": "hello@instainstru.com",
+                    "reply_to": "support@instainstru.com",
+                }
+            },
+        )
+
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+            service.send_email(
+                to_email="user@example.com",
+                subject="Subject",
+                html_content="<p>body</p>",
+                template=TemplateRegistry.AUTH_PASSWORD_RESET,
+            )
+
+        mock_resend_send.assert_called_once()
+        email_payload = mock_resend_send.call_args[0][0]
+        assert email_payload["from"] == "InstaInstru <hello@instainstru.com>"
+        assert email_payload.get("reply_to") == "support@instainstru.com"
 
     @patch("resend.Emails.send")
     def test_send_password_reset_email(self, mock_resend_send, db, mock_cache):
@@ -169,3 +330,6 @@ class TestEmailService:
 
             call_args = mock_resend_send.call_args[0][0]
             assert call_args["from"] == "Custom Sender <custom@example.com>"
+    @staticmethod
+    def _apply_sender_profiles(_monkeypatch: pytest.MonkeyPatch, payload: dict[str, dict[str, str]]) -> None:
+        settings.refresh_sender_profiles(json.dumps(payload))

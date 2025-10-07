@@ -30,6 +30,7 @@ from ..models.booking import Booking
 from ..models.user import User
 from ..services.base import BaseService
 from ..services.email import EmailService
+from ..services.template_registry import TemplateRegistry
 from ..services.template_service import TemplateService
 
 logger = logging.getLogger(__name__)
@@ -422,7 +423,7 @@ class NotificationService(BaseService):
 
         # Render template
         html_content = self.template_service.render_template(
-            "email/booking/confirmation_student.html", context
+            TemplateRegistry.BOOKING_CONFIRMATION_STUDENT, context
         )
 
         # Send email - let exceptions propagate for retry
@@ -430,6 +431,7 @@ class NotificationService(BaseService):
             to_email=booking.student.email,
             subject=subject,
             html_content=html_content,
+            template=TemplateRegistry.BOOKING_CONFIRMATION_STUDENT,
         )
 
         self.logger.info(f"Student confirmation email sent for booking {booking.id}")
@@ -584,7 +586,7 @@ class NotificationService(BaseService):
 
         # Render template
         html_content = self.template_service.render_template(
-            "email/booking/confirmation_instructor.html", context
+            TemplateRegistry.BOOKING_CONFIRMATION_INSTRUCTOR, context
         )
 
         # Send email - let exceptions propagate for retry
@@ -592,6 +594,7 @@ class NotificationService(BaseService):
             to_email=booking.instructor.email,
             subject=subject,
             html_content=html_content,
+            template=TemplateRegistry.BOOKING_CONFIRMATION_INSTRUCTOR,
         )
 
         self.logger.info(f"Instructor notification email sent for booking {booking.id}")
@@ -622,13 +625,14 @@ class NotificationService(BaseService):
 
         # Render template
         html_content = self.template_service.render_template(
-            "email/booking/cancellation_student.html", context
+            TemplateRegistry.BOOKING_CANCELLATION_STUDENT, context
         )
 
         _response = self.email_service.send_email(
             to_email=booking.student.email,
             subject=subject,
             html_content=html_content,
+            template=TemplateRegistry.BOOKING_CANCELLATION_STUDENT,
         )
 
         return True
@@ -656,13 +660,14 @@ class NotificationService(BaseService):
 
         # Render template
         html_content = self.template_service.render_template(
-            "email/booking/cancellation_instructor.html", context
+            TemplateRegistry.BOOKING_CANCELLATION_INSTRUCTOR, context
         )
 
         _response = self.email_service.send_email(
             to_email=booking.instructor.email,
             subject=subject,
             html_content=html_content,
+            template=TemplateRegistry.BOOKING_CANCELLATION_INSTRUCTOR,
         )
 
         return True
@@ -687,13 +692,14 @@ class NotificationService(BaseService):
 
         # Render template
         html_content = self.template_service.render_template(
-            "email/booking/cancellation_confirmation_student.html", context
+            TemplateRegistry.BOOKING_CANCELLATION_CONFIRMATION_STUDENT, context
         )
 
         _response = self.email_service.send_email(
             to_email=booking.student.email,
             subject=subject,
             html_content=html_content,
+            template=TemplateRegistry.BOOKING_CANCELLATION_CONFIRMATION_STUDENT,
         )
 
         return True
@@ -718,13 +724,14 @@ class NotificationService(BaseService):
 
         # Render template
         html_content = self.template_service.render_template(
-            "email/booking/cancellation_confirmation_instructor.html", context
+            TemplateRegistry.BOOKING_CANCELLATION_CONFIRMATION_INSTRUCTOR, context
         )
 
         _response = self.email_service.send_email(
             to_email=booking.instructor.email,
             subject=subject,
             html_content=html_content,
+            template=TemplateRegistry.BOOKING_CANCELLATION_CONFIRMATION_INSTRUCTOR,
         )
 
         return True
@@ -746,7 +753,7 @@ class NotificationService(BaseService):
 
         # Render template
         html_content = self.template_service.render_template(
-            "email/booking/reminder_student.html", context
+            TemplateRegistry.BOOKING_REMINDER_STUDENT, context
         )
 
         # Send email - let exceptions propagate for retry
@@ -754,6 +761,7 @@ class NotificationService(BaseService):
             to_email=booking.student.email,
             subject=subject,
             html_content=html_content,
+            template=TemplateRegistry.BOOKING_REMINDER_STUDENT,
         )
 
         return True
@@ -775,7 +783,7 @@ class NotificationService(BaseService):
 
         # Render template
         html_content = self.template_service.render_template(
-            "email/booking/reminder_instructor.html", context
+            TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR, context
         )
 
         # Send email - let exceptions propagate for retry
@@ -783,6 +791,7 @@ class NotificationService(BaseService):
             to_email=booking.instructor.email,
             subject=subject,
             html_content=html_content,
+            template=TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR,
         )
 
         return True
@@ -839,7 +848,7 @@ class NotificationService(BaseService):
 
             # Render template using the template service
             html_content = self.template_service.render_template(
-                "email/booking/new_message.html", context
+                TemplateRegistry.BOOKING_NEW_MESSAGE, context
             )
 
             # Send email
@@ -847,6 +856,7 @@ class NotificationService(BaseService):
                 to_email=recipient.email,
                 subject=subject,
                 html_content=html_content,
+                template=TemplateRegistry.BOOKING_NEW_MESSAGE,
             )
 
             if _response:

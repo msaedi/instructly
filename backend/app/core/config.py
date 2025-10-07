@@ -1,8 +1,10 @@
 # backend/app/core/config.py
+from email.utils import parseaddr
+import json
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, NotRequired, Optional, TypedDict, cast
 
 if TYPE_CHECKING:
     load_dotenv: Callable[..., bool]
@@ -16,10 +18,13 @@ except Exception:  # pragma: no cover - optional on CI
         return False
 
 
-from pydantic import Field, SecretStr, ValidationInfo, field_validator, model_validator
+from pydantic import Field, PrivateAttr, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .constants import BRAND_NAME
+
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_SENDER_PROFILES_FILE = _BACKEND_ROOT / "config" / "email_senders.json"
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +38,18 @@ if not os.getenv("CI"):
 
 
 PRODUCTION_SITE_MODES = {"prod", "production", "live"}
+
+
+class SenderProfile(TypedDict):
+    from_name: str
+    from_: str
+    reply_to: NotRequired[str]
+
+
+class SenderProfileResolved(TypedDict):
+    from_name: str
+    from_address: str
+    reply_to: str | None
 
 
 class Settings(BaseSettings):
@@ -87,6 +104,18 @@ class Settings(BaseSettings):
     email_from_name: str = Field(
         default=BRAND_NAME,
         description="Display name used for transactional email sends",
+    )
+    email_reply_to: str | None = Field(
+        default=None,
+        description="Optional Reply-To address applied when sender profiles do not override it",
+    )
+    email_sender_profiles_file: str | None = Field(
+        default=str(DEFAULT_SENDER_PROFILES_FILE),
+        description="Filesystem path containing default sender profiles JSON",
+    )
+    email_sender_profiles_json: str | None = Field(
+        default=None,
+        description="JSON map of named sender profiles for transactional email",
     )
     admin_email: str = "admin@instainstru.com"  # Email for critical alerts
 
@@ -195,6 +224,9 @@ class Settings(BaseSettings):
         default="/instructor/onboarding/connect?connect_return=1",
         description="Frontend callback path after Stripe Connect onboarding",
     )
+
+    _sender_profiles: dict[str, SenderProfile] = PrivateAttr(default_factory=dict)
+    _sender_profiles_warning_logged: bool = PrivateAttr(default=False)
 
     @property
     def site_mode(self) -> Literal["local", "preview", "prod"]:
@@ -532,12 +564,187 @@ class Settings(BaseSettings):
         return self.stg_database_url_raw
 
     @model_validator(mode="after")
+    def _load_sender_profiles(self) -> "Settings":
+        self.refresh_sender_profiles(self.email_sender_profiles_json)
+        return self
+
+    @model_validator(mode="after")
     def _default_checkr_fake(self) -> "Settings":
         """Ensure FakeCheckr is enabled by default in non-production environments."""
 
         if self.checkr_fake is None:
             self.checkr_fake = self.site_mode != "prod"
         return self
+
+    def refresh_sender_profiles(self, raw_json: str | None = None) -> None:
+        """Re-parse sender profiles from configuration file and JSON overlay."""
+
+        if raw_json is not None:
+            self.email_sender_profiles_json = raw_json
+
+        file_profiles = self._load_sender_profiles_from_file(self.email_sender_profiles_file)
+        env_profiles = self._parse_sender_profiles(
+            self.email_sender_profiles_json,
+            allow_partial=True,
+        )
+
+        merged: dict[str, SenderProfile] = {}
+        for key in set(file_profiles) | set(env_profiles):
+            base_profile = file_profiles.get(key)
+            overrides = env_profiles.get(key, {})
+
+            from_name = overrides.get("from_name")
+            if not from_name and base_profile is not None:
+                from_name = base_profile.get("from_name", "")
+
+            from_address = overrides.get("from_")
+            if not from_address and base_profile is not None:
+                from_address = base_profile.get("from_", "")
+
+            reply_override = overrides.get("reply_to")
+            base_reply = base_profile.get("reply_to") if base_profile else None
+            reply_to = reply_override if reply_override else base_reply
+
+            if not from_name and not from_address and not reply_to:
+                continue
+
+            profile: SenderProfile = {
+                "from_name": from_name or "",
+                "from_": from_address or "",
+            }
+            if reply_to:
+                profile["reply_to"] = reply_to
+            merged[key] = profile
+
+        self._sender_profiles = merged
+
+    def resolve_sender_profile(self, key: str | None) -> SenderProfileResolved:
+        """Return a resolved sender profile for the given key with defaults applied."""
+
+        default_profile = self._default_sender_profile()
+        if key:
+            profile = self._sender_profiles.get(key)
+            if profile:
+                from_name = profile.get("from_name", "").strip() or default_profile["from_name"]
+                from_address = profile.get("from_", "").strip() or default_profile["from_address"]
+                reply_to_raw = profile.get("reply_to")
+                reply_to = reply_to_raw.strip() if isinstance(reply_to_raw, str) else None
+                if not reply_to:
+                    reply_to = default_profile["reply_to"]
+                return {
+                    "from_name": from_name,
+                    "from_address": from_address,
+                    "reply_to": reply_to,
+                }
+        return default_profile
+
+    def _load_sender_profiles_from_file(self, file_path: str | None) -> dict[str, SenderProfile]:
+        if not file_path:
+            return {}
+
+        resolved_path = Path(file_path)
+        if not resolved_path.is_absolute():
+            try:
+                repo_root = Path(__file__).resolve().parents[3]
+            except IndexError:  # pragma: no cover - defensive fallback
+                repo_root = Path.cwd()
+            resolved_path = (repo_root / resolved_path).resolve()
+
+        if not resolved_path.exists():
+            self._log_sender_profile_warning(f"Sender profiles file not found: {resolved_path}")
+            return {}
+
+        try:
+            raw = resolved_path.read_text(encoding="utf-8")
+        except OSError as exc:  # pragma: no cover - filesystem edge cases
+            self._log_sender_profile_warning(
+                f"Failed to read sender profiles file {resolved_path}: {exc}"
+            )
+            return {}
+
+        parsed = self._parse_sender_profiles(raw, allow_partial=False)
+        result: dict[str, SenderProfile] = {}
+        for key, value in parsed.items():
+            profile: SenderProfile = {
+                "from_name": value.get("from_name", ""),
+                "from_": value.get("from_", ""),
+            }
+            reply_to_value = value.get("reply_to")
+            if reply_to_value:
+                profile["reply_to"] = reply_to_value
+            result[key] = profile
+        return result
+
+    def _parse_sender_profiles(
+        self, raw: str | None, *, allow_partial: bool
+    ) -> dict[str, dict[str, str]]:
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:  # pragma: no cover - log and ignore invalid env
+            self._log_sender_profile_warning(f"Failed to parse EMAIL_SENDER_PROFILES_JSON: {exc}")
+            return {}
+        if not isinstance(data, dict):
+            self._log_sender_profile_warning(
+                "EMAIL_SENDER_PROFILES_JSON must decode to an object mapping"
+            )
+            return {}
+
+        parsed: dict[str, dict[str, str]] = {}
+        for key, value in data.items():
+            if not isinstance(key, str) or not isinstance(value, dict):
+                logger.debug("Skipping invalid sender profile entry: %s", key)
+                continue
+            from_name = value.get("from_name")
+            from_address = value.get("from") or value.get("from_")
+            reply_to_value = value.get("reply_to")
+
+            profile: dict[str, str] = {}
+            if isinstance(from_name, str) and from_name.strip():
+                profile["from_name"] = from_name.strip()
+            elif isinstance(from_name, str) and allow_partial:
+                profile["from_name"] = from_name.strip()
+
+            if isinstance(from_address, str) and from_address.strip():
+                profile["from_"] = from_address.strip()
+            elif isinstance(from_address, str) and allow_partial:
+                profile["from_"] = from_address.strip()
+
+            if isinstance(reply_to_value, str):
+                cleaned_reply = reply_to_value.strip()
+                if cleaned_reply or allow_partial:
+                    profile["reply_to"] = cleaned_reply
+
+            if not allow_partial and ("from_name" not in profile or "from_" not in profile):
+                logger.debug("Sender profile %s missing required fields", key)
+                continue
+
+            if profile:
+                parsed[key] = profile
+        return parsed
+
+    def _default_sender_profile(self) -> SenderProfileResolved:
+        name = (self.email_from_name or "").strip()
+        address = (self.email_from_address or "").strip()
+
+        parsed_name, parsed_address = parseaddr(self.from_email)
+        if not name:
+            name = parsed_name.strip() if parsed_name else BRAND_NAME
+        if not address:
+            address = parsed_address or "hello@instainstru.com"
+
+        reply_to = (self.email_reply_to or "").strip()
+        return {
+            "from_name": name,
+            "from_address": address,
+            "reply_to": reply_to or None,
+        }
+
+    def _log_sender_profile_warning(self, message: str) -> None:
+        if not self._sender_profiles_warning_logged:
+            logger.warning(message)
+            self._sender_profiles_warning_logged = True
 
 
 def assert_env(site_mode: str, checkr_env: str) -> None:

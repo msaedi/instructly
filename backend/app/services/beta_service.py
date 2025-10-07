@@ -144,6 +144,7 @@ class BetaService(BaseService):
             text_content=f"Use your invite code {invite.code}. Join: {join_url}",
             from_email="invites@instainstru.com",
             from_name=BRAND_NAME,
+            template=TemplateRegistry.BETA_INVITE,
         )
 
         return invite, join_url, welcome_url

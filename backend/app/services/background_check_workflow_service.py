@@ -127,8 +127,7 @@ class BackgroundCheckWorkflowService:
                 to_email=recipient,
                 subject=subject,
                 html_content=html_content,
-                from_email=getattr(settings, "email_from_address", None),
-                from_name=getattr(settings, "email_from_name", None),
+                template=template,
             )
             return True
         except ServiceException as exc:
