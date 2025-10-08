@@ -2,15 +2,15 @@ FROM prom/prometheus:v2.55.0
 
 COPY prometheus.yml.tmpl /etc/prometheus/prometheus.yml.tmpl
 
-ENTRYPOINT ["/bin/sh","-lc", "\
+# Minimal, POSIX-sh safe entrypoint (no functions; no secret logging).
+ENTRYPOINT ["/bin/sh","-c","\
   set -eu; \
-  # --- required envs --- \
+  # Required envs (no secrets in logs) \
   req='BACKEND_SCHEME BACKEND_TARGET CLUSTER_LABEL PROM_REMOTE_WRITE_URL PROM_REMOTE_WRITE_USERNAME PROM_REMOTE_WRITE_PASSWORD METRICS_BASIC_AUTH_USER METRICS_BASIC_AUTH_PASS'; \
-  for k in $req; do eval v=\$$k; if [ -z \"${v:-}\" ]; then echo \"prom-agent: missing env $k\" >&2; exit 1; fi; done; \
-  # --- mask/length so we know agent sees the vars --- \
-  len() { printf '%s' \"$1\" | wc -c | tr -d ' '; }; \
-  echo \"prom-agent starting; scheme=$BACKEND_SCHEME target=$BACKEND_TARGET cluster=$CLUSTER_LABEL user=$METRICS_BASIC_AUTH_USER pass_len=$(len \"$METRICS_BASIC_AUTH_PASS\")\"; \
-  # --- render effective config --- \
+  for k in $req; do eval v=\\$$k; if [ -z \"${v:-}\" ]; then echo \"prom-agent: missing env $k\" >&2; exit 1; fi; done; \
+  PASS_LEN=$(printf '%s' \"$METRICS_BASIC_AUTH_PASS\" | wc -c | tr -d ' '); \
+  echo prom-agent starting\\; scheme=$BACKEND_SCHEME target=$BACKEND_TARGET cluster=$CLUSTER_LABEL user=$METRICS_BASIC_AUTH_USER pass_len=$PASS_LEN; \
+  # Render effective config \
   awk -v A=\"$BACKEND_SCHEME\" \
       -v H=\"$BACKEND_TARGET\" \
       -v B=\"$CLUSTER_LABEL\" \
@@ -30,19 +30,18 @@ ENTRYPOINT ["/bin/sh","-lc", "\
         print }' \
       /etc/prometheus/prometheus.yml.tmpl > /etc/prometheus/prometheus.yml; \
   echo '==== effective /etc/prometheus/prometheus.yml (redacted) ===='; \
-  sed -n '1,200p' /etc/prometheus/prometheus.yml | sed 's/password: .*/password: \"***REDACTED***\"/'; \
-  # --- optional local auth smoke (set SMOKE_AUTH=1) --- \
+  sed -n '1,160p' /etc/prometheus/prometheus.yml | sed -E 's/(password:).*/\\1 \"***REDACTED***\"/'; \
+  # Optional auth smoke (set SMOKE_AUTH=1 on the agent) \
   if [ \"${SMOKE_AUTH:-0}\" = \"1\" ]; then \
     METRICS_URL=\"$BACKEND_SCHEME://$BACKEND_TARGET/metrics\"; \
-    echo \"smoke: GET $METRICS_URL without auth (expect 401)\"; \
-    wget -q --server-response --spider --no-check-certificate --timeout=10 --tries=1 \"$METRICS_URL\" 2>&1 | sed -n '1,3p' || true; \
+    echo \"smoke: GET $METRICS_URL (unauth, expect 401)\"; \
+    wget -qS --spider --no-check-certificate --timeout=10 --tries=1 \"$METRICS_URL\" 2>&1 | sed -n '1,3p' || true; \
     echo \"smoke: GET $METRICS_URL with basic auth (expect 200)\"; \
-    wget -q --server-response --no-check-certificate --timeout=10 --tries=1 \
+    wget -qS --no-check-certificate --timeout=10 --tries=1 \
          --http-user=\"$METRICS_BASIC_AUTH_USER\" \
          --http-password=\"$METRICS_BASIC_AUTH_PASS\" \
-         -O - \"$METRICS_URL\" 2>&1 | sed -n '1,10p' || true; \
+         -O - \"$METRICS_URL\" 2>&1 | sed -n '1,8p' || true; \
   fi; \
-  # --- start prometheus (debug log to see scrape auth results) --- \
   exec /bin/prometheus \
     --config.file=/etc/prometheus/prometheus.yml \
     --storage.tsdb.retention.time=1h \
