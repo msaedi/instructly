@@ -5,16 +5,19 @@ COPY prometheus.yml.tmpl /etc/prometheus/prometheus.yml.tmpl
 
 # Render the template with awk (no package installs needed), then run Prometheus
 ENTRYPOINT ["/bin/sh","-lc", "\
+  set -e; \
   awk -v A=\"$BACKEND_TARGET\" \
       -v B=\"$CLUSTER_LABEL\" \
       -v C=\"$PROM_REMOTE_WRITE_URL\" \
       -v D=\"$PROM_REMOTE_WRITE_USERNAME\" \
       -v E=\"$PROM_REMOTE_WRITE_PASSWORD\" \
+      -v F=\"$BACKEND_SCHEME\" \
     '{gsub(/\\$\\{BACKEND_TARGET\\}/,A); \
       gsub(/\\$\\{CLUSTER_LABEL\\}/,B); \
       gsub(/\\$\\{PROM_REMOTE_WRITE_URL\\}/,C); \
       gsub(/\\$\\{PROM_REMOTE_WRITE_USERNAME\\}/,D); \
       gsub(/\\$\\{PROM_REMOTE_WRITE_PASSWORD\\}/,E); \
+      gsub(/\\$\\{BACKEND_SCHEME\\}/,F); \
       print}' \
     /etc/prometheus/prometheus.yml.tmpl > /etc/prometheus/prometheus.yml && \
   exec /bin/prometheus \
