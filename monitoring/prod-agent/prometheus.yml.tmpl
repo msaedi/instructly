@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 60s
+  evaluation_interval: 60s
+  external_labels:
+    cluster: "${CLUSTER_LABEL}"
+
+scrape_configs:
+  - job_name: "backend"
+    static_configs:
+      - targets: ["${BACKEND_TARGET}"]
+    metrics_path: /metrics
+    scheme: http
+
+remote_write:
+  - url: "${PROM_REMOTE_WRITE_URL}"
+    basic_auth:
+      username: "${PROM_REMOTE_WRITE_USERNAME}"
+      password: "${PROM_REMOTE_WRITE_PASSWORD}"
+    # bearer_token: "${PROM_REMOTE_WRITE_BEARER}"

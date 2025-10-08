@@ -73,6 +73,7 @@ backend/dead_code_backup_*/
 monitoring/grafana-data/
 monitoring/prometheus-data/
 assets/
+data-alloy/
 frontend/types/generated/
 frontend/.lighthouseci/
 
