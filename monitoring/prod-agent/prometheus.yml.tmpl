@@ -9,7 +9,10 @@ scrape_configs:
     static_configs:
       - targets: ["${BACKEND_TARGET}"]
     metrics_path: /metrics
-    scheme: "${BACKEND_SCHEME}"
+    scheme: https
+    basic_auth:
+      username: "${METRICS_BASIC_AUTH_USER}"
+      password: "${METRICS_BASIC_AUTH_PASS}"
 
 remote_write:
   - url: "${PROM_REMOTE_WRITE_URL}"

@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from collections.abc import Awaitable, Callable
 import contextlib
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+import hmac
 import logging
 import os
 import threading
@@ -13,12 +15,13 @@ from time import monotonic
 from types import ModuleType
 from typing import TYPE_CHECKING, AsyncGenerator, Optional, Tuple, cast
 
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
+from starlette.status import HTTP_401_UNAUTHORIZED
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .core.config import assert_env, settings
@@ -132,6 +135,52 @@ except Exception:  # pragma: no cover
 _METRICS_CACHE_TTL_SECONDS = 1.0
 _metrics_cache: Optional[Tuple[float, bytes]] = None
 _metrics_cache_lock = threading.Lock()
+
+
+def _check_metrics_basic_auth(request: Request) -> None:
+    from app.core.config import settings as auth_settings
+
+    if not auth_settings.metrics_basic_auth_enabled:
+        return
+
+    auth_header = request.headers.get("authorization") or ""
+    if not auth_header.lower().startswith("basic "):
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": 'Basic realm="metrics"'},
+        )
+
+    try:
+        decoded = base64.b64decode(auth_header.split(" ", 1)[1]).decode("utf-8", "strict")
+    except Exception:
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": 'Basic realm="metrics"'},
+        )
+
+    username, _, password = decoded.partition(":")
+    expected_user = (
+        auth_settings.metrics_basic_auth_user.get_secret_value()
+        if auth_settings.metrics_basic_auth_user
+        else ""
+    )
+    expected_pass = (
+        auth_settings.metrics_basic_auth_pass.get_secret_value()
+        if auth_settings.metrics_basic_auth_pass
+        else ""
+    )
+
+    if not (
+        hmac.compare_digest(username, expected_user)
+        and hmac.compare_digest(password, expected_pass)
+    ):
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": 'Basic realm="metrics"'},
+        )
 
 
 def _validate_startup_config() -> None:
@@ -743,7 +792,7 @@ def health_check_lite() -> HealthLiteResponse:
 
 
 @app.get("/metrics")
-def metrics_endpoint() -> Response:
+def metrics_endpoint(_: None = Depends(_check_metrics_basic_auth)) -> Response:
     """Prometheus metrics endpoint (lightweight)."""
     global _metrics_cache
 

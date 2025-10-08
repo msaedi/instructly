@@ -225,6 +225,15 @@ class Settings(BaseSettings):
         description="Frontend callback path after Stripe Connect onboarding",
     )
 
+    metrics_basic_auth_user: SecretStr | None = Field(
+        default=None,
+        description="Optional username for protecting /metrics",
+    )
+    metrics_basic_auth_pass: SecretStr | None = Field(
+        default=None,
+        description="Optional password for protecting /metrics",
+    )
+
     _sender_profiles: dict[str, SenderProfile] = PrivateAttr(default_factory=dict)
     _sender_profiles_warning_logged: bool = PrivateAttr(default=False)
 
@@ -237,6 +246,14 @@ class Settings(BaseSettings):
         if raw_mode in {"prod", "production", "live"}:
             return "prod"
         return "local"
+
+    @property
+    def metrics_basic_auth_enabled(self) -> bool:
+        mode = (self.site_mode or "").lower()
+        raw_mode = (os.getenv("SITE_MODE", "") or "").strip().lower()
+        if mode not in {"preview", "prod"} and raw_mode != "beta":
+            return False
+        return self.metrics_basic_auth_user is not None and self.metrics_basic_auth_pass is not None
 
     # Cache settings
     redis_url: str = "redis://localhost:6379"

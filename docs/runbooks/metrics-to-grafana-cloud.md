@@ -9,6 +9,8 @@ This service scrapes our API’s `/metrics` endpoint and forwards samples to Gra
 - `PROM_REMOTE_WRITE_USERNAME`: Grafana Cloud instance ID (username from onboarding screen)
 - `PROM_REMOTE_WRITE_PASSWORD`: Grafana Cloud API token (glc_…)
 - `PROM_REMOTE_WRITE_BEARER`  : (optional) bearer token if Grafana switches authentication flows
+- `METRICS_BASIC_AUTH_USER`   : Username protecting the backend `/metrics` endpoint
+- `METRICS_BASIC_AUTH_PASS`   : Password protecting the backend `/metrics` endpoint
 
 ## Deploy (Render)
 1. Create a **Web Service** (Docker) and point the Dockerfile to `monitoring/prod-agent/Dockerfile`.
