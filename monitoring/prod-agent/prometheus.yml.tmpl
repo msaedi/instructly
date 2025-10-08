@@ -7,7 +7,7 @@ global:
 scrape_configs:
   - job_name: "backend"
     static_configs:
-      - targets: ["${BACKEND_TARGET}"]
+      - targets: ["${BACKEND_TARGET}"]  # <— host:port only; no scheme
     metrics_path: /metrics
     scheme: https
     basic_auth:
@@ -19,4 +19,3 @@ remote_write:
     basic_auth:
       username: "${PROM_REMOTE_WRITE_USERNAME}"
       password: "${PROM_REMOTE_WRITE_PASSWORD}"
-    # bearer_token: "${PROM_REMOTE_WRITE_BEARER}"
