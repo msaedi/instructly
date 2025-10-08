@@ -93,5 +93,3 @@ export function ProgressSteps(_: { currentStep: 1 | 2 | 3 | 4 }) {
     </div>
   );
 }
-
-export default ProgressSteps;
