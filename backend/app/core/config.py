@@ -224,6 +224,20 @@ class Settings(BaseSettings):
         default="/instructor/onboarding/connect?connect_return=1",
         description="Frontend callback path after Stripe Connect onboarding",
     )
+    metrics_ip_allowlist: list[str] = Field(
+        default_factory=list,
+        description="Comma-separated IPs/CIDRs allowed for /internal/metrics (when non-empty)",
+    )
+    metrics_max_bytes: int = Field(
+        default=8_000_000,
+        description="Cap response size for metrics",
+        ge=1,
+    )
+    metrics_rate_limit_per_min: int = Field(
+        default=6,
+        description="Per-IP requests/minute for /internal/metrics",
+        ge=1,
+    )
 
     metrics_basic_auth_user: SecretStr | None = Field(
         default=None,
@@ -254,6 +268,19 @@ class Settings(BaseSettings):
         if mode not in {"preview", "prod"} and raw_mode != "beta":
             return False
         return self.metrics_basic_auth_user is not None and self.metrics_basic_auth_pass is not None
+
+    @field_validator("metrics_ip_allowlist", mode="before")
+    @classmethod
+    def _parse_metrics_ip_allowlist(cls, value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            items = [token.strip() for token in value.split(",") if token.strip()]
+            return items
+        if isinstance(value, (list, tuple, set)):
+            items = [str(token).strip() for token in value if str(token).strip()]
+            return items
+        raise ValueError("metrics_ip_allowlist must be a comma-separated string or list")
 
     # Cache settings
     redis_url: str = "redis://localhost:6379"

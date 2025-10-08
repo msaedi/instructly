@@ -39,6 +39,13 @@ BACKGROUND_JOBS_FAILED = Gauge(
     registry=REGISTRY,
 )
 
+METRICS_AUTH_FAILURE_TOTAL = Counter(
+    "instainstru_metrics_auth_fail_total",
+    "Auth failures for protected metrics endpoint",
+    ["reason"],
+    registry=REGISTRY,
+)
+
 
 # Adverse-action scheduling and execution metrics.
 BGC_FINAL_ADVERSE_SCHEDULED_TOTAL = Counter(
@@ -86,4 +93,5 @@ __all__ = [
     "BGC_REPORT_ID_ENCRYPT_TOTAL",
     "BGC_REPORT_ID_DECRYPT_TOTAL",
     "BGC_PENDING_7D",
+    "METRICS_AUTH_FAILURE_TOTAL",
 ]

@@ -8,6 +8,7 @@ import contextlib
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import hmac
+from ipaddress import ip_address, ip_network
 import logging
 import os
 import threading
@@ -15,13 +16,18 @@ from time import monotonic
 from types import ModuleType
 from typing import TYPE_CHECKING, AsyncGenerator, Optional, Tuple, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
-from starlette.status import HTTP_401_UNAUTHORIZED
+from starlette.status import (
+    HTTP_401_UNAUTHORIZED,
+    HTTP_403_FORBIDDEN,
+    HTTP_405_METHOD_NOT_ALLOWED,
+    HTTP_503_SERVICE_UNAVAILABLE,
+)
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .core.config import assert_env, settings
@@ -39,6 +45,7 @@ from .core.metrics import (
     BACKGROUND_JOB_FAILURES_TOTAL,
     BACKGROUND_JOBS_FAILED,
     BGC_PENDING_7D,
+    METRICS_AUTH_FAILURE_TOTAL,
 )
 from .database import SessionLocal, get_db
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
@@ -136,6 +143,55 @@ _METRICS_CACHE_TTL_SECONDS = 1.0
 _metrics_cache: Optional[Tuple[float, bytes]] = None
 _metrics_cache_lock = threading.Lock()
 
+metrics_router = APIRouter()
+
+
+def _metrics_auth_failure(reason: str) -> None:
+    try:
+        METRICS_AUTH_FAILURE_TOTAL.labels(reason=reason).inc()
+    except Exception:
+        pass
+
+
+def _extract_metrics_client_ip(request: Request) -> str:
+    for header_name in ("cf-connecting-ip", "x-forwarded-for"):
+        value = request.headers.get(header_name)
+        if value:
+            candidate: str = value.split(",")[0].strip()
+            if candidate:
+                return candidate
+    client = request.client
+    if client and getattr(client, "host", None):
+        return str(client.host)
+    return ""
+
+
+def _ip_allowed(ip_str: str, allowlist: list[str]) -> bool:
+    if not ip_str:
+        return False
+    try:
+        ip_obj = ip_address(ip_str)
+    except ValueError:
+        return False
+    for entry in allowlist:
+        try:
+            network = ip_network(entry, strict=False)
+            if ip_obj in network:
+                return True
+        except ValueError:
+            if ip_str == entry:
+                return True
+    return False
+
+
+def _metrics_method_not_allowed() -> None:
+    _metrics_auth_failure("method")
+    raise HTTPException(
+        status_code=HTTP_405_METHOD_NOT_ALLOWED,
+        detail="Method not allowed",
+        headers={"Allow": "GET"},
+    )
+
 
 def _check_metrics_basic_auth(request: Request) -> None:
     from app.core.config import settings as auth_settings
@@ -145,6 +201,7 @@ def _check_metrics_basic_auth(request: Request) -> None:
 
     auth_header = request.headers.get("authorization") or ""
     if not auth_header.lower().startswith("basic "):
+        _metrics_auth_failure("unauthorized")
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
@@ -154,6 +211,7 @@ def _check_metrics_basic_auth(request: Request) -> None:
     try:
         decoded = base64.b64decode(auth_header.split(" ", 1)[1]).decode("utf-8", "strict")
     except Exception:
+        _metrics_auth_failure("unauthorized")
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
@@ -176,6 +234,7 @@ def _check_metrics_basic_auth(request: Request) -> None:
         hmac.compare_digest(username, expected_user)
         and hmac.compare_digest(password, expected_pass)
     ):
+        _metrics_auth_failure("unauthorized")
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
@@ -663,7 +722,10 @@ class SSEAwareGZipMiddleware(GZipMiddleware):
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         # Skip compression for SSE endpoints
-        if scope["type"] == "http" and scope.get("path", "").startswith(SSE_PATH_PREFIX):
+        path = scope.get("path", "")
+        if scope["type"] == "http" and (
+            path.startswith(SSE_PATH_PREFIX) or path == "/internal/metrics"
+        ):
             await self.app(scope, receive, send)
         else:
             await super().__call__(scope, receive, send)
@@ -672,6 +734,7 @@ class SSEAwareGZipMiddleware(GZipMiddleware):
 app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 
 # Include routers
+app.include_router(metrics_router)
 app.include_router(auth.router)
 app.include_router(two_factor_auth.router)
 app.include_router(instructors.router)
@@ -791,25 +854,87 @@ def health_check_lite() -> HealthLiteResponse:
     return HealthLiteResponse(status="ok")
 
 
-@app.get("/metrics")
-def metrics_endpoint(_: None = Depends(_check_metrics_basic_auth)) -> Response:
-    """Prometheus metrics endpoint (lightweight)."""
-    global _metrics_cache
+@metrics_router.get("/internal/metrics", include_in_schema=False)
+def internal_metrics_endpoint(
+    request: Request, _: None = Depends(_check_metrics_basic_auth)
+) -> Response:
+    from app.core.config import settings as metrics_settings
 
+    allowlist = metrics_settings.metrics_ip_allowlist
+    if allowlist:
+        client_ip = _extract_metrics_client_ip(request)
+        if not _ip_allowed(client_ip, allowlist):
+            _metrics_auth_failure("forbidden")
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    global _metrics_cache
     now = monotonic()
+    payload: Optional[bytes] = None
+
     with _metrics_cache_lock:
         if _metrics_cache is not None:
-            cached_at, payload = _metrics_cache
+            cached_at, cached_payload = _metrics_cache
             if now - cached_at <= _METRICS_CACHE_TTL_SECONDS:
-                return Response(payload, media_type=CONTENT_TYPE_LATEST)
+                payload = cached_payload
 
-    payload_raw = generate_latest(PROM_REGISTRY)
-    payload = cast(bytes, payload_raw)
+    if payload is None:
+        fresh = cast(bytes, generate_latest(PROM_REGISTRY))
+        if len(fresh) > metrics_settings.metrics_max_bytes:
+            return Response(
+                content=b"metrics payload exceeds configured limit",
+                status_code=HTTP_503_SERVICE_UNAVAILABLE,
+                media_type="text/plain; charset=utf-8",
+                headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+            )
+        with _metrics_cache_lock:
+            _metrics_cache = (now, fresh)
+        payload = fresh
 
-    with _metrics_cache_lock:
-        _metrics_cache = (now, payload)
+    return Response(
+        content=payload,
+        media_type=CONTENT_TYPE_LATEST,
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
 
-    return Response(payload, media_type=CONTENT_TYPE_LATEST)
+
+@metrics_router.head("/internal/metrics", include_in_schema=False)
+def internal_metrics_head() -> None:
+    _metrics_method_not_allowed()
+
+
+@metrics_router.post("/internal/metrics", include_in_schema=False)
+def internal_metrics_post() -> None:
+    _metrics_method_not_allowed()
+
+
+@metrics_router.put("/internal/metrics", include_in_schema=False)
+def internal_metrics_put() -> None:
+    _metrics_method_not_allowed()
+
+
+@metrics_router.patch("/internal/metrics", include_in_schema=False)
+def internal_metrics_patch() -> None:
+    _metrics_method_not_allowed()
+
+
+@metrics_router.delete("/internal/metrics", include_in_schema=False)
+def internal_metrics_delete() -> None:
+    _metrics_method_not_allowed()
+
+
+@metrics_router.options("/internal/metrics", include_in_schema=False)
+def internal_metrics_options() -> None:
+    _metrics_method_not_allowed()
+
+
+@metrics_router.get("/metrics", include_in_schema=False)
+def deprecated_metrics_endpoint() -> None:
+    raise HTTPException(status_code=404)
+
+
+@metrics_router.head("/metrics", include_in_schema=False)
+def deprecated_metrics_head() -> None:
+    raise HTTPException(status_code=404)
 
 
 # Keep the original FastAPI app for tools/tests that need access to routes

@@ -37,6 +37,22 @@ class RateLimitMiddlewareASGI:
         self.invite_limit = 10
         self.invite_window_seconds = 3600
 
+    @staticmethod
+    def _extract_client_ip(scope: Scope) -> str:
+        headers = scope.get("headers") or []
+        for header_name in ("cf-connecting-ip", "x-forwarded-for"):
+            for key, value in headers:
+                if key.decode().lower() == header_name:
+                    candidate: str = value.decode().split(",")[0].strip()
+                    if candidate:
+                        return candidate
+        client_info = scope.get("client")
+        if isinstance(client_info, (tuple, list)) and client_info:
+            host = client_info[0]
+            if isinstance(host, str) and host:
+                return host
+        return "unknown"
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI application entrypoint."""
 
@@ -71,12 +87,10 @@ class RateLimitMiddlewareASGI:
         path = scope.get("path", "")
         method = scope.get("method", "GET")
 
-        # Skip rate limiting for health checks, metrics (all), and SSE endpoints
+        # Skip rate limiting for health checks and SSE endpoints
         # SSE connections are long-lived and should never be rate-limited
-        if (
-            path in ["/health", "/metrics/health", "/metrics/performance"]
-            or path.startswith("/metrics")
-            or path.startswith(SSE_PATH_PREFIX)
+        if path in ["/health", "/metrics/health", "/metrics/performance"] or path.startswith(
+            SSE_PATH_PREFIX
         ):
             await self.app(scope, receive, send)
             return
@@ -91,8 +105,7 @@ class RateLimitMiddlewareASGI:
             return
 
         # Get client IP
-        client = scope.get("client")
-        client_ip = client[0] if client else "unknown"
+        client_ip = self._extract_client_ip(scope)
 
         if method == "POST" and self._invite_path.match(path):
             allowed_invite, _, retry_after_invite = self.rate_limiter.check_rate_limit(
@@ -116,9 +129,31 @@ class RateLimitMiddlewareASGI:
         # Light exemptions for local/preview on low-risk routes
         site_mode = getattr(settings, "site_mode", "local") or "local"
         if site_mode in {"local", "preview"}:
-            if path in {"/auth/me", "/api/public/session/guest"} or path.startswith("/metrics"):
+            if path in {"/auth/me", "/api/public/session/guest"}:
                 await self.app(scope, receive, send)
                 return
+
+        if path == "/internal/metrics":
+            metrics_limit = getattr(settings, "metrics_rate_limit_per_min", 6)
+            if metrics_limit > 0:
+                allowed_metrics, _, retry_after_metrics = self.rate_limiter.check_rate_limit(
+                    identifier=f"metrics:{client_ip}",
+                    limit=metrics_limit,
+                    window_seconds=60,
+                    window_name="metrics",
+                )
+                if not allowed_metrics:
+                    response = JSONResponse(
+                        status_code=429,
+                        content={
+                            "detail": "Rate limit exceeded. Try again later.",
+                            "code": "RATE_LIMIT_EXCEEDED",
+                            "retry_after": retry_after_metrics,
+                        },
+                        headers={"Retry-After": str(retry_after_metrics)},
+                    )
+                    await response(scope, receive, send)
+                    return
 
         # Apply general rate limit
         allowed, requests_made, retry_after = self.rate_limiter.check_rate_limit(
