@@ -1,11 +1,9 @@
 FROM prom/prometheus:v2.55.0
-
-# Copy templated config
 COPY prometheus.yml.tmpl /etc/prometheus/prometheus.yml.tmpl
 
-# Render the template with awk (no package installs needed), then run Prometheus
 ENTRYPOINT ["/bin/sh","-lc", "\
   set -e; \
+  # Render template
   awk -v A=\"$BACKEND_TARGET\" \
       -v B=\"$CLUSTER_LABEL\" \
       -v C=\"$PROM_REMOTE_WRITE_URL\" \
@@ -19,10 +17,12 @@ ENTRYPOINT ["/bin/sh","-lc", "\
       gsub(/\\$\\{PROM_REMOTE_WRITE_PASSWORD\\}/,E); \
       gsub(/\\$\\{BACKEND_SCHEME\\}/,F); \
       print}' \
-    /etc/prometheus/prometheus.yml.tmpl > /etc/prometheus/prometheus.yml && \
+    /etc/prometheus/prometheus.yml.tmpl > /etc/prometheus/prometheus.yml; \
+  echo \"prom-agent starting; target=$BACKEND_SCHEME://$BACKEND_TARGET cluster=$CLUSTER_LABEL\"; \
   exec /bin/prometheus \
     --config.file=/etc/prometheus/prometheus.yml \
     --storage.tsdb.retention.time=1h \
     --web.listen-address=:8080 \
+    --log.level=debug \
     --log.format=logfmt \
 "]
