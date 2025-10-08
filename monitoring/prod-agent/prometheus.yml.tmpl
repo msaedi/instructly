@@ -7,9 +7,9 @@ global:
 scrape_configs:
   - job_name: "backend"
     static_configs:
-      - targets: ["${BACKEND_TARGET}"]  # <— host:port only; no scheme
+      - targets: ["${BACKEND_TARGET}"]
     metrics_path: /metrics
-    scheme: https
+    scheme: ${BACKEND_SCHEME}
     basic_auth:
       username: "${METRICS_BASIC_AUTH_USER}"
       password: "${METRICS_BASIC_AUTH_PASS}"
