@@ -273,6 +273,106 @@ class BackgroundCheckWorkflowService:
 
         self._schedule_final_adverse_action(profile_id, notice_id=notice_id, sent_at=sent_at)
 
+    async def resolve_dispute_and_resume_final_adverse(
+        self, instructor_id: str, *, note: str | None = None
+    ) -> tuple[bool, datetime | None]:
+        """Resume the final adverse workflow once a dispute is resolved.
+
+        Returns a tuple ``(enqueued_now, scheduled_for)`` where:
+
+        * ``enqueued_now`` is ``True`` when a final adverse action job was
+          enqueued to execute immediately.
+        * ``scheduled_for`` contains the timestamp a job was scheduled for when
+          the dispute window has not elapsed yet; otherwise ``None``.
+        """
+
+        session = self.repo.db
+        profile = self.repo.get_by_id(instructor_id, load_relationships=False)
+        if profile is None:
+            raise RepositoryException("Instructor profile not found")
+
+        final_sent_at = getattr(profile, "bgc_final_adverse_sent_at", None)
+        in_dispute = bool(getattr(profile, "bgc_in_dispute", False))
+
+        if final_sent_at is not None:
+            self.repo.set_dispute_resolved(instructor_id, note)
+            return False, None
+
+        if not in_dispute:
+            self.repo.set_dispute_resolved(instructor_id, note)
+            return False, None
+
+        status = (getattr(profile, "bgc_status", "") or "").lower()
+        if status != "review":
+            self.repo.set_dispute_resolved(instructor_id, note)
+            return False, None
+
+        pre_sent_at_raw = getattr(profile, "bgc_pre_adverse_sent_at", None)
+        notice_id = getattr(profile, "bgc_pre_adverse_notice_id", None)
+        if pre_sent_at_raw is None or notice_id is None:
+            self.repo.set_dispute_resolved(instructor_id, note)
+            return False, None
+
+        pre_sent_at = _ensure_utc(pre_sent_at_raw)
+        holidays = _collect_holidays(pre_sent_at)
+        final_ready_at = add_us_business_days(pre_sent_at, FINAL_ADVERSE_BUSINESS_DAYS, holidays)
+
+        now = datetime.now(timezone.utc)
+
+        self.repo.set_dispute_resolved(instructor_id, note)
+
+        job_repo = BackgroundJobRepository(session)
+        existing = job_repo.get_pending_final_adverse_job(instructor_id, notice_id)
+
+        if now >= final_ready_at:
+            if existing:
+                existing.available_at = now
+                session.flush()
+            else:
+                immediate_payload: FinalAdversePayload = {
+                    "profile_id": instructor_id,
+                    "pre_adverse_notice_id": notice_id,
+                    "pre_adverse_sent_at": pre_sent_at.isoformat(),
+                }
+                job_repo.enqueue(
+                    type=FINAL_ADVERSE_JOB_TYPE,
+                    payload=dict(immediate_payload),
+                    available_at=now,
+                )
+            BGC_FINAL_ADVERSE_SCHEDULED_TOTAL.inc()
+            logger.info(
+                "Final adverse action immediately enqueued after dispute resolution",
+                extra={"profile_id": instructor_id, "notice_id": notice_id},
+            )
+            return True, None
+
+        if existing:
+            existing.available_at = final_ready_at
+            session.flush()
+            scheduled_for = final_ready_at
+        else:
+            scheduled_payload: FinalAdversePayload = {
+                "profile_id": instructor_id,
+                "pre_adverse_notice_id": notice_id,
+                "pre_adverse_sent_at": pre_sent_at.isoformat(),
+            }
+            job_repo.enqueue(
+                type=FINAL_ADVERSE_JOB_TYPE,
+                payload=dict(scheduled_payload),
+                available_at=final_ready_at,
+            )
+            scheduled_for = final_ready_at
+        BGC_FINAL_ADVERSE_SCHEDULED_TOTAL.inc()
+        logger.info(
+            "Final adverse action rescheduled after dispute resolution",
+            extra={
+                "profile_id": instructor_id,
+                "notice_id": notice_id,
+                "available_at": scheduled_for.isoformat(),
+            },
+        )
+        return False, scheduled_for
+
     def execute_final_adverse_action(
         self, profile_id: str, notice_id: str, scheduled_at: datetime
     ) -> bool:

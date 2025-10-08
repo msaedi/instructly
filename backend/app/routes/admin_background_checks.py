@@ -31,6 +31,9 @@ from ..schemas.admin_background_checks import (
     BGCReviewCountResponse,
     BGCReviewListResponse,
 )
+from ..services.background_check_workflow_service import (
+    BackgroundCheckWorkflowService,
+)
 from ..utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
@@ -399,6 +402,8 @@ async def open_bgc_dispute(
         "dispute_note": getattr(profile, "bgc_dispute_note", None),
         "dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
         "dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
+        "resumed": False,
+        "scheduled_for": None,
     }
     return BGCDisputeResponse(**model_filter(BGCDisputeResponse, response_payload))
 
@@ -411,8 +416,11 @@ async def resolve_bgc_dispute(
     _: None = Depends(require_admin),
 ) -> BGCDisputeResponse:
     note = payload.get("note") if isinstance(payload, dict) else None
+    workflow = BackgroundCheckWorkflowService(repo)
     try:
-        repo.set_dispute_resolved(instructor_id, note=note)
+        resumed, scheduled_for = await workflow.resolve_dispute_and_resume_final_adverse(
+            instructor_id, note=note
+        )
         repo.db.commit()
     except RepositoryException as exc:
         repo.db.rollback()
@@ -435,6 +443,8 @@ async def resolve_bgc_dispute(
         "dispute_note": getattr(profile, "bgc_dispute_note", None),
         "dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
         "dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
+        "resumed": resumed,
+        "scheduled_for": scheduled_for,
     }
     return BGCDisputeResponse(**model_filter(BGCDisputeResponse, response_payload))
 

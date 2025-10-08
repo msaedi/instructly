@@ -1,0 +1,53 @@
+name: Monitoring Lint
+
+on:
+  pull_request:
+    paths:
+      - "monitoring/**"
+      - ".github/workflows/monitoring-lint.yml"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate YAML in monitoring/**
+        run: |
+          python - <<'PY'
+          import yaml, pathlib, sys
+          ok = True
+          for path in pathlib.Path("monitoring").rglob("*.yml"):
+              try:
+                  yaml.safe_load(path.read_text())
+                  print("YAML OK:", path)
+              except Exception as exc:
+                  ok = False
+                  print("YAML ERR:", path, exc)
+          sys.exit(0 if ok else 1)
+          PY
+
+      - name: Validate JSON in monitoring/**
+        run: |
+          set -e
+          status=0
+          for file in $(find monitoring -name '*.json' -type f); do
+            jq '.' "$file" >/dev/null || status=1
+            echo "JSON OK: $file"
+          done
+          exit $status
+
+      - name: promtool check config
+        run: |
+          docker run --rm -v "$PWD:/work" prom/prometheus:latest \
+            promtool check config /work/monitoring/prometheus/prometheus.yml
+
+      - name: promtool check rules
+        run: |
+          docker run --rm -v "$PWD:/work" prom/prometheus:latest \
+            promtool check rules /work/monitoring/prometheus/alerts.yml
+
+      - name: amtool check-config
+        run: |
+          docker run --rm -v "$PWD:/work" prom/alertmanager:v0.27.0 \
+            amtool check-config /work/monitoring/alertmanager/alertmanager.yml

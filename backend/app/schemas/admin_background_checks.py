@@ -117,6 +117,8 @@ class BGCDisputeResponse(StrictModel):
     dispute_note: str | None = None
     dispute_opened_at: datetime | None = None
     dispute_resolved_at: datetime | None = None
+    resumed: bool = False
+    scheduled_for: datetime | None = None
 
 
 class BGCExpiringItem(StrictModel):
