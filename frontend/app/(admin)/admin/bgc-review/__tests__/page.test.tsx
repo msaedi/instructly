@@ -414,7 +414,7 @@ describe('AdminBGCReviewPage', () => {
 
     const rejectButton = screen.getByRole('button', { name: /reject/i });
     expect(rejectButton).toBeDisabled();
-    expect(rejectButton).toHaveAttribute('title', 'Paused while in dispute');
+    expect(rejectButton).toHaveAttribute('title', 'Final adverse actions cannot continue while a dispute is active');
     await waitFor(() => expect(openButton).toBeDisabled());
     await waitFor(() => expect(resolveButton).toBeEnabled());
 
