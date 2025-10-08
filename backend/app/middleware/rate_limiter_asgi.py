@@ -89,13 +89,7 @@ class RateLimitMiddlewareASGI:
 
         # Skip rate limiting for health checks and SSE endpoints
         # SSE connections are long-lived and should never be rate-limited
-        if path in ["/health", "/metrics/health", "/metrics/performance"] or path.startswith(
-            SSE_PATH_PREFIX
-        ):
-            await self.app(scope, receive, send)
-            return
-
-        if method == "GET" and path == "/health":
+        if path == "/health" or path.startswith(SSE_PATH_PREFIX):
             await self.app(scope, receive, send)
             return
 

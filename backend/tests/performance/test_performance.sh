@@ -10,7 +10,7 @@ echo "🔄 Warming up API..."
 curl -s "http://localhost:8000/health" -o /dev/null
 
 echo "📊 Resetting cache stats..."
-curl -X POST "http://localhost:8000/metrics/cache/reset-stats" \
+curl -X POST "http://localhost:8000/ops/cache/reset-stats" \
   -H "Authorization: Bearer $TOKEN" -s -o /dev/null
 
 echo -e "\n⚡ Performance Test Results:\n"
@@ -36,9 +36,9 @@ avg_time=$(echo "scale=3; $total_time / 10" | bc)
 echo "   Average: ${avg_time}s"
 
 echo -e "\n3️⃣ Cache Statistics:"
-curl -s "http://localhost:8000/metrics/cache" \
+curl -s "http://localhost:8000/ops/cache" \
   -H "Authorization: Bearer $TOKEN" | jq '.cache | {hit_rate, total_requests, hits, misses, circuit_breaker}'
 
 echo -e "\n4️⃣ Database Pool Status:"
-curl -s "http://localhost:8000/metrics/performance" \
+curl -s "http://localhost:8000/ops/performance" \
   -H "Authorization: Bearer $TOKEN" | jq '.database.pool_status'

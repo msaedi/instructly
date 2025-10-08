@@ -734,7 +734,6 @@ class SSEAwareGZipMiddleware(GZipMiddleware):
 app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 
 # Include routers
-app.include_router(metrics_router)
 app.include_router(auth.router)
 app.include_router(two_factor_auth.router)
 app.include_router(instructors.router)
@@ -935,6 +934,20 @@ def deprecated_metrics_endpoint() -> None:
 @metrics_router.head("/metrics", include_in_schema=False)
 def deprecated_metrics_head() -> None:
     raise HTTPException(status_code=404)
+
+
+def metrics_legacy_catch_all(rest: str) -> None:
+    raise HTTPException(status_code=404)
+
+
+# Mount metrics router after definitions so routes are registered
+metrics_router.add_api_route(
+    "/metrics/{rest:path}",
+    metrics_legacy_catch_all,
+    methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    include_in_schema=False,
+)
+app.include_router(metrics_router)
 
 
 # Keep the original FastAPI app for tools/tests that need access to routes

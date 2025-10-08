@@ -56,7 +56,7 @@
 ## Env-contract smoke: 429 UX (gated)
 - Location: `frontend/e2e/env-contract.spec.ts`.
 - How to run (gated): set `PLAYWRIGHT_BASE_URL` and `E2E_RATE_LIMIT_TEST=1`.
-- What it asserts: making quick requests to `/metrics/rate-limits/test` yields a small, bounded count of HTTP 429 responses (deduped-retry UX).
+- What it asserts: making quick requests to `/ops/rate-limits/test` yields a small, bounded count of HTTP 429 responses (deduped-retry UX).
 - Default runs keep it skipped to stay fast.
 - Note: 429 rate-limit assertion is strict (=1). Gate with `E2E_RATE_LIMIT_TEST=1`.
 

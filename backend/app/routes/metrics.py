@@ -6,6 +6,7 @@ This gives us immediate visibility without Prometheus complexity.
 """
 
 from datetime import datetime, timezone
+import os
 from typing import Any, Dict, List, Mapping, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -13,13 +14,14 @@ import psutil
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..api.dependencies.auth import get_current_active_user, get_current_user
 from ..api.dependencies.services import (
     get_availability_service,
     get_booking_service,
     get_cache_service_dep,
     get_conflict_checker,
 )
+from ..auth import get_current_user_optional as auth_get_current_user_optional
+from ..core.config import settings
 from ..database import get_db, get_db_pool_status
 from ..middleware import rate_limiter as rate_limiter_module
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
@@ -36,10 +38,37 @@ from ..schemas.monitoring_responses import (
 )
 from ..services.cache_service import CacheService
 
-router = APIRouter(prefix="/metrics", tags=["monitoring"])
+router = APIRouter(prefix="/ops", tags=["monitoring"])
 
 
 RateLimitAdmin = cast(Any, getattr(rate_limiter_module, "RateLimitAdmin"))
+
+
+def _ops_admin_required() -> bool:
+    mode = (settings.site_mode or "").lower()
+    raw_mode = (os.getenv("SITE_MODE", "") or "").strip().lower()
+    return mode in {"preview", "prod"} or raw_mode == "beta"
+
+
+async def _get_optional_user(
+    current_user_email: Optional[str] = Depends(auth_get_current_user_optional),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    if not current_user_email:
+        return None
+    user = db.query(User).filter(User.email == current_user_email).first()
+    return cast(Optional[User], user)
+
+
+async def _ensure_ops_access(
+    request: Request, current_user: Optional[User] = Depends(_get_optional_user)
+) -> Optional[User]:
+    if not _ops_admin_required():
+        return current_user
+    if current_user is None or not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
+
 
 JsonDict = Dict[str, Any]
 JsonList = List[JsonDict]
@@ -87,7 +116,9 @@ def _coerce_json_dict(value: Any, error_message: str) -> JsonDict:
     return {"error": error_message}
 
 
-@router.get("/health", response_model=HealthCheckResponse)
+@router.get(
+    "/health", response_model=HealthCheckResponse, dependencies=[Depends(_ensure_ops_access)]
+)
 async def health_check() -> HealthCheckResponse:
     """Basic health check endpoint."""
     return HealthCheckResponse(
@@ -99,9 +130,12 @@ async def health_check() -> HealthCheckResponse:
     )
 
 
-@router.get("/performance", response_model=PerformanceMetricsResponse)
+@router.get(
+    "/performance",
+    response_model=PerformanceMetricsResponse,
+    dependencies=[Depends(_ensure_ops_access)],
+)
 async def get_performance_metrics(
-    current_user: User = Depends(get_current_user),
     availability_service: Any = Depends(get_availability_service),
     booking_service: Any = Depends(get_booking_service),
     conflict_checker: Any = Depends(get_conflict_checker),
@@ -109,14 +143,6 @@ async def get_performance_metrics(
     db: Session = Depends(get_db),
 ) -> PerformanceMetricsResponse:
     """Get performance metrics from all services."""
-
-    # Only allow admin users or specific monitoring user
-    if current_user.email not in [
-        "admin@instainstru.com",
-        "profiling@instainstru.com",
-        "sarah.chen@example.com",
-    ]:
-        raise HTTPException(status_code=403, detail="Unauthorized")
 
     # Cache metrics
     if cache_service:
@@ -155,15 +181,15 @@ async def get_performance_metrics(
     )
 
 
-@router.get("/cache", response_model=CacheMetricsResponse)
+@router.get(
+    "/cache",
+    response_model=CacheMetricsResponse,
+    dependencies=[Depends(_ensure_ops_access)],
+)
 async def get_cache_metrics(
-    current_user: User = Depends(get_current_user),
     cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
 ) -> CacheMetricsResponse:
     """Get detailed cache metrics including availability-specific stats."""
-
-    if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
-        raise HTTPException(status_code=403, detail="Unauthorized")
 
     if not cache_service:
         raise HTTPException(status_code=503, detail="Cache service not available")
@@ -252,15 +278,15 @@ def _get_cache_performance_insights(stats: Mapping[str, Any]) -> List[str]:
     return insights
 
 
-@router.get("/cache/availability", response_model=AvailabilityCacheMetricsResponse)
+@router.get(
+    "/cache/availability",
+    response_model=AvailabilityCacheMetricsResponse,
+    dependencies=[Depends(_ensure_ops_access)],
+)
 async def get_availability_cache_metrics(
-    current_user: User = Depends(get_current_user),
     cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
 ) -> AvailabilityCacheMetricsResponse:
     """Get detailed availability-specific cache metrics and top cached keys."""
-
-    if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
-        raise HTTPException(status_code=403, detail="Unauthorized")
 
     if not cache_service:
         raise HTTPException(status_code=503, detail="Cache service not available")
@@ -324,15 +350,13 @@ async def get_availability_cache_metrics(
     )
 
 
-@router.get("/slow-queries", response_model=SlowQueriesResponse)
-async def get_slow_queries(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
-) -> SlowQueriesResponse:
+@router.get(
+    "/slow-queries",
+    response_model=SlowQueriesResponse,
+    dependencies=[Depends(_ensure_ops_access)],
+)
+async def get_slow_queries(db: Session = Depends(get_db)) -> SlowQueriesResponse:
     """Get recent slow queries."""
-
-    if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
-        raise HTTPException(status_code=403, detail="Unauthorized")
-
     # Get slow queries from PostgreSQL
     try:
         result = db.execute(
@@ -374,15 +398,15 @@ async def get_slow_queries(
         )
 
 
-@router.post("/cache/reset-stats", response_model=SuccessResponse)
+@router.post(
+    "/cache/reset-stats",
+    response_model=SuccessResponse,
+    dependencies=[Depends(_ensure_ops_access)],
+)
 async def reset_cache_stats(
-    current_user: User = Depends(get_current_user),
     cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
 ) -> SuccessResponse:
     """Reset cache statistics."""
-
-    if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
-        raise HTTPException(status_code=403, detail="Unauthorized")
 
     if cache_service:
         cache_service.reset_stats()
@@ -394,10 +418,12 @@ async def reset_cache_stats(
     raise HTTPException(status_code=503, detail="Cache service not available")
 
 
-@router.get("/rate-limits", response_model=RateLimitStats)
-def get_rate_limit_stats(
-    current_user: User = Depends(get_current_active_user),
-) -> RateLimitStats:
+@router.get(
+    "/rate-limits",
+    response_model=RateLimitStats,
+    dependencies=[Depends(_ensure_ops_access)],
+)
+def get_rate_limit_stats() -> RateLimitStats:
     """
     Get current rate limit statistics.
 
@@ -414,10 +440,13 @@ def get_rate_limit_stats(
     return RateLimitStats(**stats)
 
 
-@router.post("/rate-limits/reset", response_model=RateLimitResetResponse)
+@router.post(
+    "/rate-limits/reset",
+    response_model=RateLimitResetResponse,
+    dependencies=[Depends(_ensure_ops_access)],
+)
 def reset_rate_limits(
     pattern: str = Query(..., description="Pattern to match (e.g., 'email_*', 'ip_192.168.*')"),
-    current_user: User = Depends(get_current_active_user),
 ) -> RateLimitResetResponse:
     """
     Reset rate limits matching a pattern.
@@ -429,13 +458,6 @@ def reset_rate_limits(
 
     Requires admin privileges.
     """
-    # Simple admin check - improve in production
-    if current_user.email not in ["admin@instainstru.com", "support@instainstru.com"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can reset rate limits",
-        )
-
     count = RateLimitAdmin.reset_all_limits(pattern)
 
     return RateLimitResetResponse(
@@ -446,7 +468,11 @@ def reset_rate_limits(
     )
 
 
-@router.get("/rate-limits/test", response_model=RateLimitTestResponse)
+@router.get(
+    "/rate-limits/test",
+    response_model=RateLimitTestResponse,
+    dependencies=[Depends(_ensure_ops_access)],
+)
 @rate_limit("3/minute", key_type=RateLimitKeyType.IP)
 async def test_rate_limit(
     request: Request,  # Add this for rate limiting

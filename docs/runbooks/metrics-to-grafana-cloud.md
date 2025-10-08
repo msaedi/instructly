@@ -1,6 +1,6 @@
 # Metrics to Grafana Cloud (Prometheus remote_write agent)
 
-This service scrapes our API’s `/metrics` endpoint and forwards samples to Grafana Cloud via remote_write. We run a lightweight Prometheus agent per environment (preview and beta/prod) to keep deployments isolated.
+This service scrapes our API’s `/internal/metrics` endpoint and forwards samples to Grafana Cloud via remote_write. We run a lightweight Prometheus agent per environment (preview and beta/prod) to keep deployments isolated.
 
 ## Environment variables (Render)
 - `BACKEND_TARGET`            : `api.preview.instainstru.com:80` or `api.instainstru.com:80`
@@ -9,8 +9,8 @@ This service scrapes our API’s `/metrics` endpoint and forwards samples to Gra
 - `PROM_REMOTE_WRITE_USERNAME`: Grafana Cloud instance ID (username from onboarding screen)
 - `PROM_REMOTE_WRITE_PASSWORD`: Grafana Cloud API token (glc_…)
 - `PROM_REMOTE_WRITE_BEARER`  : (optional) bearer token if Grafana switches authentication flows
-- `METRICS_BASIC_AUTH_USER`   : Username protecting the backend `/metrics` endpoint
-- `METRICS_BASIC_AUTH_PASS`   : Password protecting the backend `/metrics` endpoint
+- `METRICS_BASIC_AUTH_USER`   : Username protecting the backend `/internal/metrics` endpoint
+- `METRICS_BASIC_AUTH_PASS`   : Password protecting the backend `/internal/metrics` endpoint
 
 ## Deploy (Render)
 1. Create a **Web Service** (Docker) and point the Dockerfile to `monitoring/prod-agent/Dockerfile`.
@@ -32,6 +32,10 @@ Define Grafana Cloud alert rules (or cloud-managed Grafana Alerting) using the B
 - `bgc_pending_over_7d > 0`
 
 Before enabling production alerts, create a temporary `vector(1)` rule and route it to Slack to confirm delivery, then remove the test rule.
+
+## Admin utilities
+- Legacy `/metrics/*` utility endpoints (health, cache, rate limits, etc.) now live under `/ops/*` and require admin access in preview/beta/prod.
+- Prometheus exposition remains at `/internal/metrics` (Basic Auth + optional IP allowlist).
 
 ## Local smoke (optional)
 ```
