@@ -270,7 +270,12 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     site_mode_raw = os.getenv("SITE_MODE", "")
-    assert_env(site_mode_raw, settings.checkr_env)
+    assert_env(
+        site_mode_raw,
+        settings.checkr_env,
+        fake=settings.checkr_fake,
+        allow_override=settings.allow_sandbox_checkr_in_prod,
+    )
 
     _validate_startup_config()
 
@@ -936,17 +941,15 @@ def deprecated_metrics_head() -> None:
     raise HTTPException(status_code=404)
 
 
+@metrics_router.api_route(
+    "/metrics/{rest:path}",
+    methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    include_in_schema=False,
+)
 def metrics_legacy_catch_all(rest: str) -> None:
     raise HTTPException(status_code=404)
 
 
-# Mount metrics router after definitions so routes are registered
-metrics_router.add_api_route(
-    "/metrics/{rest:path}",
-    metrics_legacy_catch_all,
-    methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    include_in_schema=False,
-)
 app.include_router(metrics_router)
 
 

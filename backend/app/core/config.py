@@ -4,7 +4,17 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal, NotRequired, Optional, TypedDict, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Literal,
+    NotRequired,
+    Optional,
+    Set,
+    TypedDict,
+    cast,
+)
 
 if TYPE_CHECKING:
     load_dotenv: Callable[..., bool]
@@ -37,7 +47,26 @@ if not os.getenv("CI"):
     load_dotenv(env_path)
 
 
-PRODUCTION_SITE_MODES = {"prod", "production", "live"}
+NON_PROD_SITE_MODES: Set[str] = {
+    "local",
+    "dev",
+    "development",
+    "int",
+    "stg",
+    "stage",
+    "staging",
+    "preview",
+}
+PROD_SITE_MODES: Set[str] = {"prod", "production", "beta", "live"}
+
+
+def _classify_site_mode(raw_site_mode: str | None) -> tuple[str, bool, bool]:
+    """Return normalized site mode with production/non-prod classification."""
+
+    normalized = (raw_site_mode or "").strip().lower()
+    is_prod = normalized in PROD_SITE_MODES
+    is_non_prod = normalized in NON_PROD_SITE_MODES
+    return normalized, is_prod, is_non_prod
 
 
 class SenderProfile(TypedDict):
@@ -133,9 +162,7 @@ class Settings(BaseSettings):
 
     # Environment (derived from SITE_MODE)
     environment: str = (
-        "production"
-        if os.getenv("SITE_MODE", "local").lower() in {"prod", "production", "live"}
-        else "development"
+        "production" if _classify_site_mode(os.getenv("SITE_MODE", "local"))[1] else "development"
     )
 
     # Checkr configuration
@@ -143,9 +170,15 @@ class Settings(BaseSettings):
         default="sandbox",
         description="Target Checkr environment (sandbox|production)",
     )
-    checkr_fake: bool | None = Field(
-        default=None,
+    checkr_fake: bool = Field(
+        default=False,
+        alias="CHECKR_FAKE",
         description="When true, use the FakeCheckr client. Defaults to true outside production.",
+    )
+    allow_sandbox_checkr_in_prod: bool = Field(
+        default=False,
+        alias="ALLOW_SANDBOX_CHECKR_IN_PROD",
+        description="Allow Checkr sandbox while in prod/beta without enabling FakeCheckr.",
     )
     checkr_api_key: SecretStr = Field(
         default=SecretStr(""),
@@ -254,10 +287,10 @@ class Settings(BaseSettings):
     @property
     def site_mode(self) -> Literal["local", "preview", "prod"]:
         """Return canonical site mode derived from SITE_MODE."""
-        raw_mode = os.getenv("SITE_MODE", "").strip().lower()
-        if raw_mode == "preview":
+        normalized, is_prod, _ = _classify_site_mode(os.getenv("SITE_MODE", ""))
+        if normalized == "preview":
             return "preview"
-        if raw_mode in {"prod", "production", "live"}:
+        if is_prod:
             return "prod"
         return "local"
 
@@ -616,8 +649,14 @@ class Settings(BaseSettings):
     def _default_checkr_fake(self) -> "Settings":
         """Ensure FakeCheckr is enabled by default in non-production environments."""
 
-        if self.checkr_fake is None:
-            self.checkr_fake = self.site_mode != "prod"
+        fields_set = cast(Set[str], getattr(self, "model_fields_set", set()))
+        has_env_flag = "CHECKR_FAKE" in os.environ
+        if "checkr_fake" not in fields_set and not has_env_flag:
+            _, is_prod, is_non_prod = _classify_site_mode(os.getenv("SITE_MODE", ""))
+            if is_non_prod and not is_prod:
+                self.checkr_fake = True
+            elif is_prod:
+                self.checkr_fake = False
         return self
 
     def refresh_sender_profiles(self, raw_json: str | None = None) -> None:
@@ -791,18 +830,45 @@ class Settings(BaseSettings):
             self._sender_profiles_warning_logged = True
 
 
-def assert_env(site_mode: str, checkr_env: str) -> None:
-    """Abort startup when Checkr configuration does not match the SITE_MODE."""
+def assert_env(
+    site_mode_raw: str,
+    checkr_env: str,
+    *,
+    fake: bool | None = None,
+    allow_override: bool | None = None,
+) -> None:
+    """Apply Checkr environment guardrails based on SITE_MODE and toggles."""
 
-    normalized_site_mode = (site_mode or "").strip().lower()
+    normalized_site_mode, is_prod, is_non_prod = _classify_site_mode(site_mode_raw)
     normalized_checkr_env = (checkr_env or "").strip().lower()
 
-    if normalized_site_mode in PRODUCTION_SITE_MODES:
-        if normalized_checkr_env != "production":
-            raise RuntimeError("Refusing to start: production requires CHECKR_ENV=production")
+    if fake is None:
+        effective_fake = settings.checkr_fake if not is_prod else False
     else:
-        if normalized_checkr_env != "sandbox":
-            raise RuntimeError("Refusing to start: non-prod requires CHECKR_ENV=sandbox")
+        effective_fake = fake
+
+    effective_override = (
+        settings.allow_sandbox_checkr_in_prod if allow_override is None else allow_override
+    )
+
+    if is_prod:
+        if normalized_checkr_env == "production":
+            return
+        if normalized_checkr_env == "sandbox" and (effective_fake or effective_override):
+            logger.warning("Permitting CHECKR_ENV=sandbox in production due to FakeCheckr/override")
+            return
+        raise RuntimeError("Refusing to start: production requires CHECKR_ENV=production")
+
+    if is_non_prod:
+        if normalized_checkr_env == "sandbox":
+            return
+        raise RuntimeError("Refusing to start: non-prod requires CHECKR_ENV=sandbox")
+
+    if normalized_checkr_env == "sandbox":
+        return
+
+    # Treat everything outside PROD bucket as non-prod for safety.
+    raise RuntimeError("Refusing to start: non-prod requires CHECKR_ENV=sandbox")
 
 
 settings = Settings()
