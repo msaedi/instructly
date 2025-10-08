@@ -4,7 +4,6 @@ FROM prom/prometheus:v2.55.0
 COPY prometheus.yml.tmpl /etc/prometheus/prometheus.yml.tmpl
 
 # Render the template with awk (no package installs needed), then run Prometheus
-# We replace the five placeholders used in the template.
 ENTRYPOINT ["/bin/sh","-lc", "\
   awk -v A=\"$BACKEND_TARGET\" \
       -v B=\"$CLUSTER_LABEL\" \
@@ -21,7 +20,6 @@ ENTRYPOINT ["/bin/sh","-lc", "\
   exec /bin/prometheus \
     --config.file=/etc/prometheus/prometheus.yml \
     --storage.tsdb.retention.time=1h \
-    --web.enable-lifecycle=false \
     --web.listen-address=:8080 \
     --log.format=logfmt \
 "]
