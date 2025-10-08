@@ -466,7 +466,7 @@ export default function AdminBGCReviewPage() {
                                     variant="destructive"
                                     onClick={() => handleOverride(item, 'reject')}
                                     disabled={isProcessing || inDispute}
-                                    title={inDispute ? 'Paused while in dispute' : undefined}
+                                    title={inDispute ? 'Final adverse actions cannot continue while a dispute is active' : undefined}
                                   >
                                     Reject
                                   </Button>
@@ -615,7 +615,7 @@ function PreviewContent({
     <dl className="space-y-3">
       {detail.bgc_in_dispute ? (
         <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          Background check is currently in dispute. Final adverse actions are paused until the dispute is resolved.
+          Background check is currently in dispute. Final adverse actions are paused until the dispute is resolved. Capture dispute updates in the note before resolving.
         </div>
       ) : null}
       <div>
@@ -709,7 +709,7 @@ function PreviewContent({
             value={disputeNote}
             onChange={(event) => onDisputeNoteChange(event.target.value)}
             rows={4}
-            placeholder="Document dispute context or resolution steps"
+            placeholder="Document dispute context, customer outreach, or resolution steps"
             className="mt-1 w-full rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/60 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100"
           />
         </dd>
