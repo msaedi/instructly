@@ -6,10 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { toast } from 'sonner';
 import { createStripeIdentitySession, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+import { Button } from '@/components/ui/button';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { BGCStep } from '@/components/instructor/BGCStep';
 import { ShieldCheck } from 'lucide-react';
+import { ProgressSteps } from '@/components/instructor/ProgressSteps';
 import { BackgroundCheckDisclosureModal } from '@/components/consent/BackgroundCheckDisclosureModal';
 import { bgcConsent, type BGCConsentPayload } from '@/lib/api/bgc';
 import { DISCLOSURE_VERSION } from '@/config/constants';
@@ -188,70 +190,22 @@ export default function Step4Verification() {
 
   return (
     <div className="min-h-screen">
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
 
-          <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
-            <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '284px' }}>
-              <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-                <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
-                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
-                <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
-                <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
-                <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
-                <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
-              </svg>
-            </div>
-
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => { window.location.href = '/instructor/profile'; }}
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
-                  title="Step 1: Account Setup"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
-              </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => { window.location.href = '/instructor/onboarding/skill-selection'; }}
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
-                  title="Step 2: Skills & Pricing"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
-              </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => {}}
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
-                  title="Step 3: Verification (Current)"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
-              </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => { window.location.href = '/instructor/onboarding/payment-setup'; }}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
-                  title="Step 4: Payment Setup"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Payment Setup</span>
-              </div>
-            </div>
+          <ProgressSteps currentStep={3} />
+          <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '284px' }}>
+            <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+              <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
+              <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
+              <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
+              <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
+              <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
+              <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
+            </svg>
           </div>
 
           <div className="pr-4">
@@ -261,12 +215,14 @@ export default function Step4Verification() {
       </header>
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        <div className="bg-white rounded-lg p-6 mb-8 border border-gray-200">
+        <div className="mb-4 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2">Build trust with students</h1>
             <p className="text-gray-600">Complete identity verification and your background check to finish onboarding.</p>
           </div>
         </div>
+        {/* Divider */}
+        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
         {refreshingIdentity && (
           <div className="mb-4 rounded-lg bg-purple-50 border border-purple-200 px-4 py-2 text-sm text-purple-700">
@@ -278,8 +234,8 @@ export default function Step4Verification() {
           <div className="mt-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 border border-red-200">{error}</div>
         )}
 
-        <div className="grid gap-6">
-          <section className="relative bg-white rounded-lg border border-gray-200 p-6 hover:shadow-sm transition-shadow">
+        <div className="grid gap-0 sm:gap-6">
+          <section className="relative bg-white rounded-none border-0 p-4 sm:bg-white sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
             <div className="grid grid-cols-[3rem_1fr] gap-4">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -289,7 +245,7 @@ export default function Step4Verification() {
               <h2 className="text-xl font-bold text-gray-900 self-center">Identity verification</h2>
               <p className="text-gray-600 mt-2 col-span-2">Verify your identity with a government-issued ID and a selfie.</p>
 
-              <div className="mt-4 col-span-2 grid grid-cols-[1fr_auto] gap-4 items-end">
+              <div className="mt-4 col-span-2 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 sm:items-end">
                 <div className="space-y-2 text-sm text-gray-500">
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -308,11 +264,11 @@ export default function Step4Verification() {
                   )}
                 </div>
 
-                <button
+                <Button
                   onClick={startIdentity}
                   disabled={identityLoading}
                   aria-label="Start verification"
-                  className="inline-flex items-center justify-center w-56 whitespace-nowrap px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm"
+                  className="w-full sm:w-auto mt-4 sm:mt-0 rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-[#7E22CE] hover:bg-[#7E22CE] text-white shadow-sm"
                 >
                   {identityLoading ? (
                     <>
@@ -325,12 +281,14 @@ export default function Step4Verification() {
                   ) : (
                     <>Start verification</>
                   )}
-                </button>
+                </Button>
               </div>
             </div>
           </section>
+          {/* Divider */}
+          <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
-          <section id="bgc-step-card" className="bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow p-6">
+          <section id="bgc-step-card" className="bg-white rounded-none border-0 p-4 sm:bg-white sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <ShieldCheck className="w-6 h-6 text-[#7E22CE]" />
@@ -354,12 +312,19 @@ export default function Step4Verification() {
           </section>
         </div>
 
-        <div className="mt-8 flex items-center justify-end">
+        <div className="mt-4 sm:mt-8 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => { router.push(fromStatus ? '/instructor/onboarding/status' : '/instructor/onboarding/payment-setup'); }}
+            className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
+          >
+            Skip for now
+          </button>
           <button
             onClick={handleContinue}
-            className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+            className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
           >
-            Continue
+            Save & Continue
           </button>
         </div>
       </div>

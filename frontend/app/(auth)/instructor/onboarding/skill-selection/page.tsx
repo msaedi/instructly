@@ -1,11 +1,11 @@
 'use client';
 
 import React, { Suspense, useEffect, useState } from 'react';
+import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import Link from 'next/link';
 import { BookOpen, CheckSquare, Lightbulb } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { publicApi } from '@/features/shared/api/client';
-import { fetchWithAuth, API_ENDPOINTS, getErrorMessage, isNetworkError } from '@/lib/api';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
@@ -74,6 +74,63 @@ function Step3SkillsPricingInner() {
       }
     };
     void load();
+  }, []);
+
+  // Evaluate Step 1 completion (profile) and paint state on mount
+  useEffect(() => {
+    const evaluate = async () => {
+      try {
+        const [meRes, profRes, areasRes, addrsRes] = await Promise.all([
+          fetchWithAuth(API_ENDPOINTS.ME),
+          fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE),
+          fetchWithAuth('/api/addresses/service-areas/me'),
+          fetchWithAuth('/api/addresses/me'),
+        ]);
+        const me = meRes.ok ? await meRes.json() : {};
+        const prof = profRes.ok ? await profRes.json() : {};
+        const areas = areasRes.ok ? await areasRes.json() : { items: [] };
+        // Resolve a postal/ZIP code from profile, user, or default address
+        let defaultZip = '';
+        try {
+          if (addrsRes && addrsRes.ok) {
+            const list = await addrsRes.json();
+            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
+            defaultZip = String((def as Record<string, unknown>)?.['postal_code'] || '').trim();
+          }
+        } catch {}
+        const zipFromUser = String((me?.zip_code || me?.postal_code || '') as string).trim();
+        const zipFromProfile = String((prof?.postal_code || '') as string).trim();
+        const resolvedPostal = zipFromProfile || zipFromUser || defaultZip;
+
+        const hasPic = Boolean(me?.has_profile_picture) || Number.isFinite(me?.profile_picture_version);
+        const personalInfoFilled = Boolean((me?.first_name || '').trim()) && Boolean((me?.last_name || '').trim()) && Boolean(resolvedPostal);
+        const bioOk = (String(prof?.bio || '').trim().length) >= 400;
+        const hasServiceArea = Array.isArray(areas?.items) && areas.items.length > 0;
+        const ok = hasPic && personalInfoFilled && bioOk && hasServiceArea;
+        const circle = document.getElementById('progress-step-1');
+        const line = document.getElementById('progress-line-1');
+        if (circle && line) {
+          const check = circle.querySelector('.icon-check') as HTMLElement | null;
+          const cross = circle.querySelector('.icon-cross') as HTMLElement | null;
+          if (ok) {
+            circle.classList.remove('border-gray-300');
+            circle.classList.add('border-[#7E22CE]', 'bg-[#7E22CE]');
+            if (check) check.classList.remove('hidden');
+            if (cross) cross.classList.add('hidden');
+            line.classList.remove('bg-gray-300');
+            line.classList.add('bg-[#7E22CE]');
+          } else {
+            circle.classList.remove('border-gray-300');
+            circle.classList.add('border-[#7E22CE]', 'bg-[#7E22CE]');
+            if (check) check.classList.add('hidden');
+            if (cross) cross.classList.remove('hidden');
+            line.classList.remove('bg-[#7E22CE]', 'bg-gray-300');
+            line.classList.add('bg-[repeating-linear-gradient(to_right,_#7E22CE_0,_#7E22CE_8px,_transparent_8px,_transparent_16px)]');
+          }
+        }
+      } catch {}
+    };
+    void evaluate();
   }, []);
 
   // Guarded prefill: only attempt when authenticated and user has instructor role
@@ -233,7 +290,7 @@ function Step3SkillsPricingInner() {
         // If profile not ready yet or any server error, proceed to verification and try later
         try {
           // Best effort to log error but keep user moving forward
-          const msg = await getErrorMessage(res);
+          const msg = await res.json();
           logger.warn('Save services failed, moving to verification', { msg });
         } catch {}
         window.location.href = nextUrl;
@@ -244,10 +301,31 @@ function Step3SkillsPricingInner() {
         sessionStorage.removeItem('skillsSkipped');
       }
       // Navigate to next step
+      // Determine completion: at least one selected with required info (price)
+      const hasComplete = selected.some((s) => (s.hourly_rate || '').trim().length > 0);
+      const circle = document.getElementById('progress-step-2');
+      const line = document.getElementById('progress-line-2');
+      if (circle && line) {
+        if (hasComplete) {
+          circle.classList.add('border-[#7E22CE]', 'bg-purple-100');
+          circle.setAttribute('data-status', 'done');
+          line.classList.remove('bg-gray-300');
+          line.classList.add('bg-[#7E22CE]');
+          line.setAttribute('data-status', 'filled');
+        } else {
+          circle.classList.remove('border-[#7E22CE]');
+          circle.classList.add('border-gray-300');
+          circle.setAttribute('data-status', 'failed');
+          line.classList.remove('bg-[#7E22CE]');
+          line.classList.add('bg-gray-300');
+          line.setAttribute('data-status', 'dashed');
+        }
+      }
+
       window.location.href = nextUrl;
     } catch (e) {
       logger.error('Save services failed', e);
-      if (isNetworkError(e)) {
+      if (e instanceof TypeError) {
         // Likely CORS/network hiccup; continue onboarding and retry later
         window.location.href = redirectParam || '/instructor/onboarding/verification';
         return;
@@ -281,10 +359,10 @@ function Step3SkillsPricingInner() {
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
@@ -307,21 +385,25 @@ function Step3SkillsPricingInner() {
               </svg>
             </div>
 
-            {/* Step 1 - Completed */}
+            {/* Step 1 - Account Setup (dynamic state) */}
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/profile'}
-                  className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-[#7E22CE] transition-colors cursor-pointer"
-                  title="Step 1: Account Created - Click to edit profile"
+                  id="progress-step-1"
+                  className="w-6 h-6 rounded-full border-2 border-[#7E22CE] bg-[#7E22CE] transition-colors cursor-pointer flex items-center justify-center"
+                  title="Step 1: Account Setup"
                 >
-                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="icon-check hidden w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <svg className="icon-cross hidden w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
               </div>
-              <div className="w-60 h-0.5 bg-purple-600"></div>
+              <div id="progress-line-1" className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
             {/* Step 2 - Current (Skills) */}
@@ -329,12 +411,13 @@ function Step3SkillsPricingInner() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => {/* Already on this page */}}
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                  id="progress-step-2"
+                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
                   title="Step 2: Skills & Pricing (Current)"
                 ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
               </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
+              <div id="progress-line-2" className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
             {/* Step 3 - Upcoming */}
@@ -342,7 +425,7 @@ function Step3SkillsPricingInner() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/onboarding/verification'}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
                   title="Step 3: Verification"
                 ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
@@ -355,7 +438,7 @@ function Step3SkillsPricingInner() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/onboarding/payment-setup'}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
                   title="Step 4: Payment Setup"
                 ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Payment Setup</span>
@@ -370,15 +453,17 @@ function Step3SkillsPricingInner() {
       </header>
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        {/* Page Header */}
-        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-          <h1 className="text-3xl font-bold text-gray-600 mb-2">What do you teach?</h1>
+        {/* Page Header - mobile sections (white) with dividers; desktop card */}
+        <div className="mb-4 sm:mb-6 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">What do you teach?</h1>
           <p className="text-gray-600">Choose your skills and set your rates</p>
         </div>
+        {/* Divider */}
+        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
       {error && <div className="mt-4 rounded-md bg-red-50 text-red-700 px-4 py-2">{error}</div>}
 
-      <div className="mt-6 bg-white rounded-lg border border-gray-200 p-6">
+      <div className="mt-0 sm:mt-6 bg-white rounded-none border-0 p-4 sm:bg-white sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
@@ -494,10 +579,12 @@ function Step3SkillsPricingInner() {
           );})}
         </div>
       </div>
+      {/* Divider */}
+      <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
       {/* Global age group selector removed; per-service selection is below */}
 
-      <div className="mt-8 bg-white rounded-lg p-6 border border-gray-200">
+      <div className="mt-0 sm:mt-8 bg-white rounded-none p-4 border-0 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
@@ -777,7 +864,7 @@ function Step3SkillsPricingInner() {
       </div>
 
       {/* Request a new service */}
-      <div className="mt-8 bg-white rounded-lg p-6 border border-gray-200">
+      <div className="mt-0 sm:mt-8 bg-white rounded-none p-4 border-0 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
         <div className="flex items-start justify-between mb-2">
           <div>
             <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
@@ -810,7 +897,28 @@ function Step3SkillsPricingInner() {
       <div className="mt-8 flex items-center justify-end gap-3">
         <button
           type="button"
-          onClick={() => { window.location.href = '/instructor/onboarding/verification'; }}
+          onClick={() => {
+            const hasComplete = selected.some((s) => (s.hourly_rate || '').trim().length > 0);
+            const circle = document.getElementById('progress-step-2');
+            const line = document.getElementById('progress-line-2');
+            if (circle && line) {
+              if (hasComplete) {
+                circle.classList.add('border-[#7E22CE]', 'bg-purple-100');
+                circle.setAttribute('data-status', 'done');
+                line.classList.remove('bg-gray-300');
+                line.classList.add('bg-[#7E22CE]');
+                line.setAttribute('data-status', 'filled');
+              } else {
+                circle.classList.remove('border-[#7E22CE]');
+                circle.classList.add('border-gray-300');
+                circle.setAttribute('data-status', 'failed');
+                line.classList.remove('bg-[#7E22CE]');
+                line.classList.add('bg-gray-300');
+                line.setAttribute('data-status', 'dashed');
+              }
+            }
+            window.location.href = '/instructor/onboarding/verification';
+          }}
           className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
         >
           Skip for now

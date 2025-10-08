@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, ExternalLink } from 'lucide-react';
+import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, ExternalLink, Info } from 'lucide-react';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -31,7 +32,7 @@ type Profile = {
   service_area_neighborhoods?: ServiceAreaNeighborhood[];
   years_experience: number;
   min_advance_booking_hours?: number;
-  buffer_time_minutes?: number;
+  buffer_time_hours?: number; // store in hours in UI, convert on save
   street_line1?: string;
   street_line2?: string;
   locality?: string;
@@ -58,7 +59,7 @@ function buildInstructorProfilePayload(profile: Profile): InstructorUpdatePayloa
     bio: profile.bio.trim(),
     years_experience: Number(profile.years_experience) || 0,
     min_advance_booking_hours: profile.min_advance_booking_hours ?? 2,
-    buffer_time_minutes: profile.buffer_time_minutes ?? 0,
+    buffer_time_minutes: Math.round(((profile.buffer_time_hours ?? 0.5) * 60)),
   };
 }
 
@@ -149,6 +150,60 @@ export default function InstructorProfileSettingsPage() {
   const [bioTouched, setBioTouched] = useState<boolean>(false);
   const inFlightServiceAreasRef = useRef(false);
   const [savingServiceAreas, setSavingServiceAreas] = useState(false);
+  const [hasProfilePicture, setHasProfilePicture] = useState<boolean>(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetchWithAuth(API_ENDPOINTS.ME);
+        if (res.ok) {
+          const me = await res.json();
+          const hasPic = Boolean(me?.has_profile_picture) || Number.isFinite(me?.profile_picture_version);
+          setHasProfilePicture(hasPic);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  // Paint step 1 circle/line on mount and whenever prerequisites change
+  useEffect(() => {
+    const circle = document.getElementById('progress-step-1');
+    const line = document.getElementById('progress-line-1');
+    if (!circle || !line) return;
+    const ok = (
+      (profile.bio?.trim()?.length || 0) >= 400 &&
+      Boolean(profile.first_name?.trim()) &&
+      Boolean(profile.last_name?.trim()) &&
+      Boolean(profile.postal_code?.trim()) &&
+      selectedNeighborhoods.size > 0 &&
+      (hasProfilePicture || false)
+    );
+    const check = circle.querySelector('.icon-check') as HTMLElement | null;
+    const cross = circle.querySelector('.icon-cross') as HTMLElement | null;
+    if (ok) {
+      circle.classList.remove('border-gray-300', 'bg-purple-100');
+      circle.classList.add('border-[#7E22CE]', 'bg-[#7E22CE]');
+      if (check) check.classList.remove('hidden');
+      if (cross) cross.classList.add('hidden');
+      line.classList.remove('bg-gray-300');
+      line.classList.add('bg-[#7E22CE]');
+    } else {
+      circle.classList.remove('border-gray-300', 'bg-purple-100');
+      circle.classList.add('border-[#7E22CE]', 'bg-[#7E22CE]');
+      if (check) check.classList.add('hidden');
+      if (cross) cross.classList.remove('hidden');
+      line.classList.remove('bg-[#7E22CE]');
+      line.classList.add('bg-gray-300');
+    }
+  }, [hasProfilePicture, profile.first_name, profile.last_name, profile.postal_code, profile.bio, selectedNeighborhoods.size]);
+  // Derived completion flag (reserved for future server-driven rendering)
+  // const isStep1Complete = useMemo(() => {
+  //   const hasProfilePic = Boolean(userId);
+  //   const personalInfoFilled = Boolean(profile.first_name?.trim()) && Boolean(profile.last_name?.trim()) && Boolean(profile.postal_code?.trim());
+  //   const bioOk = (profile.bio?.trim()?.length || 0) >= 400;
+  //   const hasServiceArea = selectedNeighborhoods.size > 0;
+  //   return hasProfilePic && personalInfoFilled && bioOk && hasServiceArea;
+  // }, [userId, profile.first_name, profile.last_name, profile.postal_code, profile.bio, selectedNeighborhoods.size]);
 
   useEffect(() => {
     const load = async () => {
@@ -242,7 +297,7 @@ export default function InstructorProfileSettingsPage() {
           service_area_neighborhoods: neighborhoods,
           years_experience: data['years_experience'] ?? 0,
           min_advance_booking_hours: data['min_advance_booking_hours'] ?? 2,
-          buffer_time_minutes: data['buffer_time_minutes'] ?? 0,
+          buffer_time_hours: Math.max(0.5, Math.min(24, Number(((data['buffer_time_minutes'] ?? 0) / 60) || 0.5))),
         });
 
         const teachingFromApi = Array.isArray(data?.['preferred_teaching_locations'])
@@ -579,6 +634,44 @@ export default function InstructorProfileSettingsPage() {
         }
       });
 
+      // Update visual progress indicators
+      const stepCircle = document.getElementById('progress-step-1');
+      const stepLine = document.getElementById('progress-line-1');
+      if (stepCircle && stepLine) {
+        const ok = (
+          (profile.bio?.trim()?.length || 0) >= 400 &&
+          Boolean(profile.first_name?.trim()) &&
+          Boolean(profile.last_name?.trim()) &&
+          Boolean(profile.postal_code?.trim()) &&
+          selectedNeighborhoods.size > 0 &&
+          (hasProfilePicture || false)
+        );
+        try { sessionStorage.setItem('onboarding_step1_complete', ok ? 'true' : 'false'); } catch {}
+        if (ok) {
+          stepCircle.classList.remove('border-gray-300', 'bg-purple-100');
+          stepCircle.classList.add('bg-[#7E22CE]', 'border-[#7E22CE]');
+          stepCircle.setAttribute('data-status', 'done');
+          // show check, hide cross
+          const check = stepCircle.querySelector('.icon-check') as HTMLElement | null;
+          const cross = stepCircle.querySelector('.icon-cross') as HTMLElement | null;
+          if (check) check.classList.remove('hidden');
+          if (cross) cross.classList.add('hidden');
+          stepLine.classList.remove('bg-gray-300');
+          stepLine.classList.add('bg-[#7E22CE]');
+          stepLine.setAttribute('data-status', 'filled');
+        } else {
+          stepCircle.classList.remove('border-gray-300', 'bg-purple-100');
+          stepCircle.classList.add('border-[#7E22CE]', 'bg-[#7E22CE]');
+          stepCircle.setAttribute('data-status', 'failed');
+          const check = stepCircle.querySelector('.icon-check') as HTMLElement | null;
+          const cross = stepCircle.querySelector('.icon-cross') as HTMLElement | null;
+          if (check) check.classList.add('hidden');
+          if (cross) cross.classList.remove('hidden');
+          stepLine.classList.remove('bg-[#7E22CE]', 'bg-gray-300');
+          stepLine.classList.add('bg-[repeating-linear-gradient(to_right,_#7E22CE_0,_#7E22CE_8px,_transparent_8px,_transparent_16px)]');
+        }
+      }
+
       if (redirectTo) {
         router.push(redirectTo);
       }
@@ -619,10 +712,10 @@ export default function InstructorProfileSettingsPage() {
   return (
     <div className="min-h-screen">
       {/* Header - matching onboarding pages */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
@@ -650,12 +743,20 @@ export default function InstructorProfileSettingsPage() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => {/* Already on this page */}}
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                  id="progress-step-1"
+                  className="w-6 h-6 rounded-full border-2 border-[#7E22CE] bg-[#7E22CE] transition-colors cursor-pointer flex items-center justify-center"
                   title="Step 1: Account Setup (Current)"
-                ></button>
+                >
+                  <svg className="icon-check hidden w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <svg className="icon-cross w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
               </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
+              <div id="progress-line-1" className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
             {/* Step 2 - Upcoming */}
@@ -663,7 +764,7 @@ export default function InstructorProfileSettingsPage() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/onboarding/skill-selection'}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
                   title="Step 2: Skills & Pricing"
                 ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
@@ -676,7 +777,7 @@ export default function InstructorProfileSettingsPage() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/onboarding/verification'}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
                   title="Step 3: Verification"
                 ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
@@ -689,7 +790,7 @@ export default function InstructorProfileSettingsPage() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => window.location.href = '/instructor/onboarding/payment-setup'}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
                   title="Step 4: Payment Setup"
                 ></button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Payment Setup</span>
@@ -707,40 +808,60 @@ export default function InstructorProfileSettingsPage() {
         {loading && (
           <div className="p-8 text-sm text-gray-500">Loading…</div>
         )}
-        {/* Page Header with subtle purple accent - matching verification page */}
-        <div className="bg-white rounded-lg p-6 mb-8 border border-gray-200">
+        {/* Page Header - mobile: no card chrome; desktop: card */}
+        <div className="mb-2 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div>
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">Set up your profile</h1>
-                <p className="text-gray-600">Complete your instructor profile to start teaching</p>
+                <h1 className="text-3xl font-bold text-gray-800 mb-1 sm:mb-2 whitespace-nowrap">Set up your profile</h1>
+                <p className="text-gray-600 hidden sm:block">Complete your instructor profile to start teaching</p>
               </div>
             </div>
+            {/* Desktop: keep upload in header */}
+            <div className="hidden sm:block">
+              <ProfilePictureUpload
+                ariaLabel="Upload profile photo"
+                trigger={
+                  <div className="flex flex-col items-center">
+                    <div className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
+                      <Camera className="w-6 h-6 text-[#7E22CE]" />
+                    </div>
+                    <span className="mt-1 text-[10px] text-[#7E22CE]">Upload photo</span>
+                  </div>
+                }
+              />
+            </div>
+          </div>
+        </div>
+        {/* Mobile: move upload below header */}
+        <div className="p-4 pt-0 sm:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-gray-600 text-base leading-snug flex-1">Complete your instructor profile to start teaching</p>
             <ProfilePictureUpload
               ariaLabel="Upload profile photo"
               trigger={
-                <div className="flex flex-col items-center">
-                  <div className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
-                    <Camera className="w-6 h-6 text-[#7E22CE]" />
-                  </div>
-                  <span className="mt-1 text-[10px] text-[#7E22CE]">Upload photo</span>
+                <div className="w-24 h-24 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
+                  <Camera className="w-6 h-6 text-[#7E22CE]" />
                 </div>
               }
             />
           </div>
         </div>
+        {/* Mobile divider before Personal Information */}
+        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
       {error && (
         <div className="mb-6 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3">{error}</div>
       )}
       {/* Success toast is shown as a floating element; banner removed for cleaner UI */}
 
-      <div className="mt-6 space-y-6">
+      {/* Mobile: stacked white sections with mobile-only dividers; Desktop: spaced cards */}
+      <div className="mt-0 sm:mt-6 sm:space-y-6">
         {/* Personal Information Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+                <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <UserIcon className="w-6 h-6 text-[#7E22CE]" />
                   </div>
@@ -754,7 +875,7 @@ export default function InstructorProfileSettingsPage() {
                   <input
                     id="first_name"
                     type="text"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 bg-white autofill-fix"
                     placeholder="John"
                     value={profile.first_name}
                     onChange={(e) => setProfile((p) => ({ ...p, first_name: e.target.value }))}
@@ -765,7 +886,7 @@ export default function InstructorProfileSettingsPage() {
                   <input
                     id="last_name"
                     type="text"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 bg-white autofill-fix"
                     placeholder="Smith"
                     value={profile.last_name}
                     onChange={(e) => setProfile((p) => ({ ...p, last_name: e.target.value }))}
@@ -779,7 +900,7 @@ export default function InstructorProfileSettingsPage() {
                     inputMode="numeric"
                     maxLength={5}
                     pattern="\\d{5}"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 bg-white autofill-fix"
                     placeholder="10001"
                     value={profile.postal_code}
                     onChange={(e) => {
@@ -794,12 +915,14 @@ export default function InstructorProfileSettingsPage() {
                 </div>
             </div>
         </div>
+        {/* Mobile divider before Profile Details */}
+        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
         {/* Professional Information Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <BookOpen className="w-6 h-6 text-[#7E22CE]" />
                 </div>
@@ -820,31 +943,76 @@ export default function InstructorProfileSettingsPage() {
             </div>
           </div>
           <div className="py-2">
-            <p className="text-gray-600 mt-1 mb-2">Introduce Yourself</p>
-            <div className="relative">
-              <textarea
+            <div className="mb-2">
+              <p className="text-gray-600 mt-1">Introduce Yourself</p>
+            </div>
+            <div>
+              <div className="relative">
+                <textarea
                 rows={4}
-                className={`w-full rounded-md border px-3 py-2 pr-16 pb-6 text-sm focus:outline-none ${bioTouched && bioTooShort ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-purple-500'}`}
+                className={`w-full rounded-md border px-3 py-2 pr-16 pb-8 text-sm focus:outline-none ${bioTouched && bioTooShort ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-purple-500'}`}
                 placeholder="Highlight your experience, favorite teaching methods, and the type of students you enjoy working with."
                 value={profile.bio}
                 onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))}
                 onBlur={() => setBioTouched(true)}
               />
-              <div className="pointer-events-none absolute bottom-3 right-3 text-[10px] text-gray-500">
-                Minimum 400 characters
+                <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-gray-500 z-10 bg-white/80 px-1">
+                  Minimum 400 characters
+                </div>
               </div>
               {bioTooShort && (
                 <div className="mt-1 text-xs text-red-600">Your bio is under 400 characters. You can still save and complete it later.</div>
               )}
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const base = (profile.bio || '').trim();
+                    const prefix = base.length > 0 ? base : 'I am a dedicated instructor who helps students learn efficiently and enjoy the process.';
+                    const pool = [
+                      'I focus on building strong fundamentals and lasting confidence.',
+                      'Each lesson is tailored to your goals, pace, and learning style.',
+                      'We combine technique drills with practical applications you can use right away.',
+                      'I provide clear takeaways, measurable milestones, and simple practice plans.',
+                      'My approach balances encouragement with constructive, actionable feedback.',
+                      'You will know what to improve next and how to practice effectively between sessions.',
+                      'I bring real-world examples, curated resources, and step‑by‑step guidance.',
+                      'Consistency matters—together we set realistic targets and celebrate progress.',
+                      'Whether you are a beginner or leveling up, I will meet you where you are.',
+                      'My goal is to make learning engaging, stress‑free, and genuinely rewarding.'
+                    ];
+                    let assembled = prefix.endsWith('.') ? prefix : `${prefix}.`;
+                    for (const sentence of pool) {
+                      if (assembled.length >= 400) break;
+                      assembled += ` ${sentence}`;
+                    }
+                    // If still short, repeat from the pool until we reach the floor, but cap length for readability
+                    let i = 0;
+                    while (assembled.length < 400 && i < pool.length * 2) {
+                      assembled += ` ${pool[i % pool.length]}`;
+                      i += 1;
+                    }
+                    // Soft cap to avoid overly long bios
+                    const next = assembled.slice(0, 560);
+                    setProfile((p) => ({ ...p, bio: next }));
+                    setBioTouched(true);
+                  }}
+                  className="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-sm sm:text-xs bg-[#7E22CE] text-white shadow-sm hover:bg-[#7E22CE]"
+                >
+                  Rewrite with AI
+                </button>
+              </div>
             </div>
           </div>
         </div>
+        {/* Mobile divider before Service Areas */}
+        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
         {/* Service Areas Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <MapPin className="w-6 h-6 text-[#7E22CE]" />
                 </div>
@@ -941,7 +1109,7 @@ export default function InstructorProfileSettingsPage() {
                         onKeyDown={async (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); await toggleMainBoroughOpen(borough); } }}
                       >
                         <div className="flex items-center gap-2 text-gray-800 dark:text-gray-100 font-medium">
-                          <span className="tracking-wide text-sm">{borough}</span>
+                          <span className="tracking-wide text-xs sm:text-sm whitespace-nowrap">{borough}</span>
                           <ChevronDown
                             className={`h-4 w-4 text-gray-600 dark:text-gray-300 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                             aria-hidden="true"
@@ -1018,7 +1186,7 @@ export default function InstructorProfileSettingsPage() {
           <div className="mt-6">
             <p className="text-gray-600 mt-1 mb-2">Preferred Teaching Location</p>
             <p className="text-xs text-gray-600 mb-2">Add a studio, gym, or home address if you teach from a fixed location.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start mt-3 sm:mt-0">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <PlacesAutocompleteInput
@@ -1046,16 +1214,16 @@ export default function InstructorProfileSettingsPage() {
                   </button>
                 </div>
               </div>
-              <div className="min-h-10 flex flex-nowrap items-end gap-4 w-full">
+              <div className="min-h-10 flex flex-wrap items-start gap-4 w-full mt-4 sm:mt-0">
                 {preferredLocations.map((loc, index) => (
-                  <div key={loc} className="relative w-1/2 min-w-0">
+                  <div key={loc} className="relative w-1/2 min-w-0 pt-4 sm:pt-0">
                     <input
                       type="text"
                       placeholder="..."
                       data-testid={`ptl-chip-label-${index}`}
                       value={preferredLocationTitles[loc] || ''}
                       onChange={(e) => setPreferredLocationTitles((prev) => ({ ...prev, [loc]: e.target.value }))}
-                      className="absolute -top-5 left-1 text-xs text-[#7E22CE] bg-gray-100 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-transparent focus-visible:border-transparent cursor-text"
+                      className="absolute -top-2 sm:-top-5 left-1 text-xs text-[#7E22CE] bg-gray-100 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-transparent focus-visible:border-transparent cursor-text"
                       style={{ outline: 'none', outlineOffset: 0, boxShadow: 'none' }}
                     />
                     <span
@@ -1110,7 +1278,7 @@ export default function InstructorProfileSettingsPage() {
                   </button>
                 </div>
               </div>
-              <div className="min-h-10 flex flex-nowrap items-end gap-4 w-full">
+              <div className="min-h-10 flex flex-col sm:flex-row items-start gap-4 w-full">
                 {neutralPlaces.map((place, index) => (
                   <div key={place} className="relative w-1/2 min-w-0">
                     <span
@@ -1133,12 +1301,14 @@ export default function InstructorProfileSettingsPage() {
             </div>
           </div>
         </div>
+        {/* Mobile divider before Booking Preferences */}
+        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
         {/* Experience Settings Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <SettingsIcon className="w-6 h-6 text-[#7E22CE]" />
                 </div>
@@ -1166,7 +1336,22 @@ export default function InstructorProfileSettingsPage() {
                 />
               </div>
               <div className="bg-white rounded-lg">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Advance Notice (business hours)</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Advance Notice (business hours)</label>
+                  <Tooltip.Provider delayDuration={2000} skipDelayDuration={100}>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-50 text-[#7E22CE]">
+                          <Info className="w-3.5 h-3.5" aria-hidden="true" />
+                        </span>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 shadow-sm pointer-events-none select-none max-w-xs">
+                        The minimum time required between booking and the start of a lesson. For example, if set to 2 hours, students can’t book a session that starts in less than 2 hours from now.
+                        <Tooltip.Arrow className="fill-gray-200" />
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  </Tooltip.Provider>
+                </div>
                 <input
                   type="number"
                   min={1}
@@ -1183,20 +1368,35 @@ export default function InstructorProfileSettingsPage() {
                 />
               </div>
               <div className="bg-white rounded-lg">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Buffer Time (minutes)</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Buffer Time (hours)</label>
+                  <Tooltip.Provider delayDuration={2000} skipDelayDuration={100}>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-50 text-[#7E22CE]">
+                          <Info className="w-3.5 h-3.5" aria-hidden="true" />
+                        </span>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 shadow-sm pointer-events-none select-none max-w-xs">
+                        The minimum gap between two sessions. For example, if set to 15 minutes, and someone books 9:00–10:00, the next session will be bookable starting at 10:15.
+                        <Tooltip.Arrow className="fill-gray-200" />
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  </Tooltip.Provider>
+                </div>
                 <input
                   type="number"
-                  min={1}
-                  max={300}
-                  step={1}
-                  inputMode="numeric"
-                  value={profile.buffer_time_minutes ?? 0}
-                  onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
+                  min={0.5}
+                  max={24}
+                  step={0.5}
+                  inputMode="decimal"
+                  value={profile.buffer_time_hours ?? 0.5}
                   onChange={(e) => {
-                    const n = Math.max(1, Math.min(300, parseInt(e.target.value || '0', 10)));
-                    setProfile((p) => ({ ...p, buffer_time_minutes: isNaN(n) ? 1 : n }));
+                    const raw = parseFloat(e.target.value || '0.5');
+                    const n = Math.max(0.5, Math.min(24, isNaN(raw) ? 0.5 : raw));
+                    setProfile((p) => ({ ...p, buffer_time_hours: n }));
                   }}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 no-spinner"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
                 />
               </div>
           </div>

@@ -150,7 +150,17 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
     }
   }, [pathname, setCtxActivity]);
 
-  if (!bgUrl) {
+  // On mobile for specific routes, suppress global background to avoid busy UI
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+  const isMobileNoBgRoute = isMobile && (
+    pathname?.startsWith('/signup') ||
+    pathname?.startsWith('/login') ||
+    pathname?.startsWith('/instructor/profile') ||
+    pathname?.startsWith('/instructor/onboarding/skill-selection') ||
+    pathname?.startsWith('/instructor/onboarding/verification') ||
+    pathname?.startsWith('/instructor/onboarding/payment-setup')
+  );
+  if (!bgUrl || isMobileNoBgRoute) {
     return null;
   }
 

@@ -141,9 +141,9 @@ body {
     --background-secondary: #1f2937; /* Gray 800 */
     --foreground-secondary: #9ca3af; /* Gray 400 */
 
-    /* Adjusted brand colors for dark mode */
-    --color-primary: #6366f1; /* Indigo 500 */
-    --color-primary-hover: #7c3aed; /* Purple 600 */
+    /* Adjusted brand colors for dark mode - match brand purple */
+    --color-primary: #7E22CE; /* Brand Purple */
+    --color-primary-hover: #7E22CE; /* Keep solid on hover */
     --color-primary-light: #312e81; /* Indigo 900 */
 
     /* Adjusted semantic colors for dark mode */
@@ -450,13 +450,12 @@ select,
 .clickable {
   cursor: pointer;
   transition: all 0.2s ease-in-out;
-  will-change: transform;
 }
 
 .clickable:hover {
   background-color: rgba(0, 0, 0, 0.04);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  transform: translateZ(0) scale(1.02);
+  transform: scale(1.02);
 }
 
 .clickable:active {
@@ -467,7 +466,7 @@ select,
 /* Generic hover treatment (applies to all buttons) */
 button:not(:disabled):hover,
 [role="button"]:not(:disabled):hover {
-  transform: translateZ(0) scale(1.02);
+  transform: scale(1.02);
 }
 
 /* Ensure text scales smoothly with interactive elements to avoid jitter on hover */
@@ -476,27 +475,24 @@ button:not(:disabled),
 .clickable,
 a[role="button"] {
   transform-origin: center center;
-  will-change: transform;
-  backface-visibility: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Neutralize Tailwind hover color utilities for buttons (no color change)
    Exclude brand purple backgrounds so they remain solid on hover */
 button[class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(:disabled):hover,
 [role="button"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(:disabled):hover {
-  background-color: revert !important;
+  /* keep original background (no color shift); only scale applies */
+  background-color: inherit !important;
 }
 
 button[class*="hover:text-"]:not([class*="text-white"]):not(:disabled):hover,
 [role="button"][class*="hover:text-"]:not([class*="text-white"]):not(:disabled):hover {
-  color: revert !important;
+  color: inherit !important;
 }
 
 button[class*="hover:border-"]:not([class*="border-transparent"]):not(:disabled):hover,
 [role="button"][class*="hover:border-"]:not([class*="border-transparent"]):not(:disabled):hover {
-  border-color: revert !important;
+  border-color: currentColor !important;
 }
 
 /* Anchor elements styled as buttons: keep base background/text/border on hover.
@@ -519,6 +515,7 @@ button.bg-\[\#7E22CE\]:not(:disabled):hover,
 a.bg-\[\#7E22CE\]:hover {
   background-color: #7E22CE !important;
   color: #ffffff !important;
+  filter: none !important; /* prevent color shift-induced blur */
 }
 
 /* Ensure crisp, bright white typography on brand purple buttons */
@@ -558,7 +555,6 @@ button.bg-white:not(:disabled):hover,
 [role="button"].bg-white:not(:disabled):hover,
 a.bg-white:hover {
   background-color: #ffffff !important;
-  /* Do not force border color; keep whatever base border-* utility set */
 }
 
 button.bg-purple-600:not(:disabled):hover,
@@ -581,6 +577,20 @@ a.bg-purple-600:hover {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Utility to remove iOS tap highlight for any element */
+.no-tap-highlight {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Hard-disable iOS tap highlight for common interactive elements */
+button,
+a,
+[role="button"],
+svg {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Disable only shadow/scale hover (keep background hovers intact) */
 .no-hover-shadow:hover {
   box-shadow: none !important;
@@ -592,9 +602,25 @@ button:not(:disabled):active,
   transform: scale(1.0);
 }
 
-/* Links: subtle color shift without scaling to avoid layout shift */
+/* Avoid text blurring on touch when pressing buttons by disabling transform on tap */
+@media (hover: none) {
+  button:not(:disabled):hover,
+  [role="button"]:not(:disabled):hover,
+  .clickable:hover {
+    transform: none !important;
+  }
+}
+
+/* Keep transform on active for micro-feedback, but preserve clarity */
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active,
+a[role="button"]:active {
+  transform: scale(1.01);
+}
+
+/* Links: avoid color/brightness filter that causes subpixel blurring */
 a:hover {
-  filter: brightness(0.96);
+  filter: none !important;
 }
 
 /* Do not dim anchor elements that are styled as buttons */

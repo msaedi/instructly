@@ -455,7 +455,12 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         </p>
       ) : null}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
-        <Button onClick={() => void handleStart()} disabled={disabled} aria-disabled={disabled}>
+        <Button
+          onClick={() => void handleStart()}
+          disabled={disabled}
+          aria-disabled={disabled}
+          className="w-full sm:w-auto rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-[#7E22CE] hover:bg-[#7E22CE] text-white shadow-sm"
+        >
           {inviteLoading ? 'Starting…' : 'Start background check'}
         </Button>
         <p className="text-sm text-muted-foreground max-w-xl">

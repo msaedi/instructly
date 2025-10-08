@@ -408,11 +408,11 @@ export default function InteractiveGrid({
                 onFocus={() => { setFocusDay(colIndex); setFocusRow(r); }}
                 onKeyDown={(e) => handleKeyDown(e, colIndex, r, date)}
                 data-cell={`${colIndex}-${r}`}
-                className={`relative ${isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8'} border-l ${isLastColumn ? 'border-r' : ''} ${isFirst ? 'border-t border-gray-200' : ''} ${bottomBorder} ${isSelected ? 'bg-[#EDE3FA]' : 'bg-white'} ${inDragRange ? 'ring-2 ring-[#D4B5F0] ring-inset' : ''} ${past ? 'opacity-70' : ''} cursor-pointer`}
+                className={`relative ${isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8'} border-l ${isLastColumn ? 'border-r' : ''} ${isFirst ? 'border-t border-gray-200' : ''} ${bottomBorder} ${isSelected ? 'bg-[#EDE3FA]' : (past ? 'bg-gray-50' : 'bg-white')} ${inDragRange ? 'ring-2 ring-[#D4B5F0] ring-inset' : ''} ${past ? 'opacity-70' : ''} cursor-pointer`}
               >
                 {/* booked overlay */}
                 {booked && (
-                  <div className="h-full w-full bg-[repeating-linear-gradient(45deg,rgba(106,13,173,0.15),rgba(106,13,173,0.15)_6px,rgba(106,13,173,0.08)_6px,rgba(106,13,173,0.08)_12px)]"></div>
+                  <div className="h-full w-full bg-[repeating-linear-gradient(45deg,rgba(156,163,175,0.35),rgba(156,163,175,0.35)_6px,rgba(156,163,175,0.2)_6px,rgba(156,163,175,0.2)_12px)]"></div>
                 )}
               </div>
             );
@@ -454,6 +454,7 @@ export default function InteractiveGrid({
           const dd = new Date(d.date);
           dd.setHours(0, 0, 0, 0);
           const isToday = dd.getTime() === today.getTime();
+          const isPastDate = dd.getTime() < today.getTime();
           return (
             <div
               key={`hdr-${d.fullDate}`}
@@ -467,9 +468,9 @@ export default function InteractiveGrid({
               {i === weekDates.length - 1 && (
                 <span className="absolute right-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
               )}
-              <div className="text-[10px] tracking-wide text-gray-500 uppercase">{d.date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+              <div className={`text-[10px] tracking-wide uppercase ${isPastDate ? 'text-gray-400' : 'text-gray-500'}`}>{d.date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
               <div className="flex items-center justify-center">
-                <span className={`inline-flex items-center justify-center text-2xl font-medium ${isToday ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827]' : 'text-gray-900'}`}>
+                <span className={`inline-flex items-center justify-center text-2xl font-medium ${isToday ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827]' : (isPastDate ? 'text-gray-400' : 'text-gray-900')}`}>
                   {d.date.getDate()}
                 </span>
               </div>

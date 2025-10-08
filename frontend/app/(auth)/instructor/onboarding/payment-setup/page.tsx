@@ -6,6 +6,7 @@ import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { ProgressSteps } from '@/components/instructor/ProgressSteps';
 
 export default function Step3PaymentSetup() {
   const [connectLoading, setConnectLoading] = useState(false);
@@ -102,82 +103,23 @@ export default function Step3PaymentSetup() {
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
 
-          {/* Progress Bar - 4 Steps - Absolutely centered */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
-            {/* Walking Stick Figure Animation - positioned on the line between step 3 and 4 */}
-            <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '544px' }}>
-              <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-                {/* Head */}
-                <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
-                {/* Body */}
-                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
-                {/* Left arm */}
-                <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
-                {/* Right arm */}
-                <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
-                {/* Left leg */}
-                <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
-                {/* Right leg */}
-                <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
-              </svg>
-            </div>
-
-            {/* Step 1 - Previous */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/profile'}
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
-                  title="Step 1: Account Setup"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
-              </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            {/* Step 2 - Previous */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/skill-selection'}
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
-                  title="Step 2: Skills & Pricing"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
-              </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            {/* Step 3 - Previous (Verification) */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/verification'}
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
-                  title="Step 3: Verification"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
-              </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            {/* Step 4 - Current (Payment Setup) */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => {/* Already on this page */}}
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
-                  title="Step 4: Payment Setup (Current)"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Payment Setup</span>
-              </div>
-            </div>
+          <ProgressSteps currentStep={4} />
+          {/* Walking Stick Figure Animation - positioned between step 3 and 4 */}
+          <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '544px' }}>
+            <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+              <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
+              <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
+              <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
+              <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
+              <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
+              <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
+            </svg>
           </div>
 
           <div className="pr-4">
@@ -187,13 +129,15 @@ export default function Step3PaymentSetup() {
       </header>
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        {/* Page Header - match verification */}
-        <div className="bg-white rounded-lg p-6 mb-8 border border-gray-200">
+        {/* Page Header - mobile sections with divider; desktop card */}
+        <div className="mb-4 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2">Get Paid for Your Lessons</h1>
             <p className="text-gray-600">Connect your bank securely through Stripe{skillsSkipped ? ' • You can add skills later' : ''}</p>
           </div>
         </div>
+        {/* Divider */}
+        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
       {error && <div className="mt-4 rounded-lg bg-red-50 text-red-700 px-4 py-3 border border-red-200">{error}</div>}
 
@@ -203,12 +147,12 @@ export default function Step3PaymentSetup() {
           <p className="mt-4 text-gray-600 font-medium">Loading payment setup...</p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-0 sm:space-y-6">
           {/* Main Card */}
           <div className="relative">
-            <div className="relative bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="relative bg-white rounded-none border-0 sm:rounded-lg sm:border sm:border-gray-200 overflow-hidden p-4 sm:p-0">
               {/* Card Header with Icon */}
-              <div className="bg-white p-6">
+              <div className="bg-white p-0 sm:p-6">
                 <div className="grid grid-cols-[3rem_1fr] gap-4">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -221,7 +165,7 @@ export default function Step3PaymentSetup() {
               </div>
 
               {/* Benefits Section */}
-              <div className="px-8 pt-4 pb-8">
+              <div className="px-0 sm:px-8 pt-4 pb-8">
                 <p className="text-gray-600 mb-2">What to expect</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
@@ -285,12 +229,12 @@ export default function Step3PaymentSetup() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-8 flex items-end justify-end">
+                  <div className="mt-6 sm:mt-8 flex items-end justify-end">
                     <div className="text-right">
                       <button
                         onClick={enrollStripeConnect}
                         disabled={connectLoading}
-                        className="inline-flex items-center justify-center w-56 px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] disabled:opacity-50 shadow-sm whitespace-nowrap"
+                        className="inline-flex items-center justify-center w-full sm:w-auto px-4 py-2 rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm whitespace-nowrap"
                       >
                         {connectLoading ? (
                           <>
@@ -311,12 +255,14 @@ export default function Step3PaymentSetup() {
               </div>
             </div>
           </div>
+          {/* Divider */}
+          <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
 
         </div>
       )}
 
-      <div className="mt-8 flex items-center justify-end gap-3">
+      <div className="mt-4 sm:mt-8 flex items-center justify-end gap-3">
         <button
           type="button"
           onClick={() => { window.location.href = '/instructor/onboarding/status'; }}

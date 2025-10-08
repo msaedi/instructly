@@ -141,8 +141,8 @@ export default function InstructorCoverageMap({
               const serving = getArray(feature?.properties, 'instructors');
               const highlighted = highlightInstructorId && Array.isArray(serving) && serving.includes(highlightInstructorId);
               return highlighted
-                ? { color: '#7c3aed', weight: 2, fillOpacity: 0.35 }
-                : { color: '#7c3aed', weight: 1, fillOpacity: 0.12 };
+                ? { color: '#7E22CE', weight: 2, fillOpacity: 0.35 }
+                : { color: '#7E22CE', weight: 1, fillOpacity: 0.12 };
             }}
             onEachFeature={(feature, layer) => {
               const props = feature.properties;
@@ -394,7 +394,7 @@ function CustomControls() {
             if (locationMarker) {
               locationMarker.remove();
             }
-            locationMarker = L.circleMarker(latlng, { radius: 4, color: '#7c3aed', fillOpacity: 0.9 });
+            locationMarker = L.circleMarker(latlng, { radius: 4, color: '#7E22CE', fillOpacity: 0.9 });
             locationMarker.addTo(map);
           },
           () => {},

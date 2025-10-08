@@ -42,6 +42,7 @@ export default function InstructorDashboardNew() {
   } | null>(null);
 
   const [isStartingStripeOnboarding, setIsStartingStripeOnboarding] = useState(false);
+  const [isRefreshingConnect, setIsRefreshingConnect] = useState(false);
   const [serviceAreaNames, setServiceAreaNames] = useState<string[] | null>(null);
   const [serviceAreaSelections, setServiceAreaSelections] = useState<NeighborhoodSelection[]>([]);
   const [preferredTeachingLocations, setPreferredTeachingLocations] = useState<PreferredTeachingLocation[]>([]);
@@ -363,12 +364,12 @@ export default function InstructorDashboardNew() {
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
-          <div className="pr-4">
+          <div className="pr-0 sm:pr-4">
             <UserProfileDropdown />
           </div>
         </div>
@@ -379,100 +380,43 @@ export default function InstructorDashboardNew() {
         <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-3 min-w-0">
-              <button
-                onClick={handleViewPublicProfile}
-                aria-label="View public profile"
-                title="View public profile"
-                className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] transition-colors"
+              <div
+                aria-hidden="true"
+                className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center select-none"
               >
                 <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-              </button>
+              </div>
               <div className="min-w-0">
                 <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
                 <p className="text-gray-600 text-sm">Your profile, schedule, and earnings at a glance</p>
               </div>
         </div>
-          <button
-            onClick={handleViewPublicProfile}
-              title="View your public instructor page"
-              className="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-purple-200 text-[#7E22CE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-1"
-          >
-              <Eye className="h-4 w-4" />
-              <span className="hidden sm:inline">Public profile</span>
-          </button>
+          {(() => {
+            const releaseTs = Date.UTC(2025, 11, 1, 0, 0, 0); // Dec 1, 2025 (UTC)
+            const isEnabled = Date.now() >= releaseTs;
+            return (
+              <button
+                onClick={handleViewPublicProfile}
+                disabled={!isEnabled}
+                aria-disabled={!isEnabled}
+                title={isEnabled ? 'View your public instructor page' : 'Public profile available Dec 1, 2025'}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium ${
+                  isEnabled
+                    ? 'bg-white border border-purple-200 text-[#7E22CE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-1'
+                    : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <Eye className="h-4 w-4" />
+                <span className="hidden sm:inline">Public profile</span>
+              </button>
+            );
+          })()}
           </div>
         </div>
 
-        {/* Action items - moved directly under welcome card, full width */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 shadow-sm ring-1 ring-purple-100">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <ListTodo className="w-6 h-6 text-[#7E22CE]" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-800">Action items</h3>
-              <p className="text-xs text-gray-600 mt-0.5">Complete these steps to go live</p>
-            </div>
-          </div>
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onClick={() => { const el = document.getElementById('profile-photo-upload'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const el = document.getElementById('profile-photo-upload'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } }}
-            >
-              <span className="text-gray-700">Upload a profile photo</span>
-            </li>
-            <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onClick={() => { setEditVariant('areas'); setShowEditModal(true); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEditVariant('areas'); setShowEditModal(true); } }}
-            >
-              <span className="text-gray-700">Set your service area (where you can teach)</span>
-            </li>
-            <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onClick={() => { setEditVariant('services'); setShowEditModal(true); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEditVariant('services'); setShowEditModal(true); } }}
-            >
-              <span className="text-gray-700">Set your skills</span>
-            </li>
-            <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onClick={() => setShowVerifyModal(true)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowVerifyModal(true); }}
-            >
-              <span className="text-gray-700">Verify your identity</span>
-            </li>
-            <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onClick={() => { const el = document.getElementById('payments-setup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const el = document.getElementById('payments-setup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } }}
-            >
-              <span className="text-gray-700">Set payment details (so you can get paid)</span>
-            </li>
-            <li
-              className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onClick={() => router.push('/instructor/availability')}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push('/instructor/availability'); }}
-            >
-              <span className="text-gray-700">Set your availability</span>
-            </li>
-          </ul>
-        </div>
+        {/* Action items card removed per request */}
 
         {/* Snapshot Cards directly under header */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -499,18 +443,41 @@ export default function InstructorDashboardNew() {
 
         <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Stripe Status Card */}
-          <div id="payments-setup" className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div id="payments-setup" className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 h-full flex flex-col relative">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-start gap-3">
-                <button
-                  type="button"
-                  onClick={async () => { try { const s = await getConnectStatus(); setConnectStatus(s); } catch {} }}
-                  title="Refresh status"
-                  aria-label="Refresh status"
-                  className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-300 transition shrink-0"
-                >
-                  <SquareArrowDownLeft className="w-6 h-6 text-[#7E22CE]" />
-                </button>
+                <div className="relative group">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (isRefreshingConnect) return;
+                      setIsRefreshingConnect(true);
+                      try {
+                        const s = await getConnectStatus();
+                        setConnectStatus(s);
+                        try { (await import('sonner')).toast?.info?.('Status refreshed'); } catch {}
+                      } catch {
+                        try { (await import('sonner')).toast?.error?.('Failed to refresh status'); } catch {}
+                      } finally {
+                        setIsRefreshingConnect(false);
+                      }
+                    }}
+                    aria-label="Refresh status"
+                    aria-busy={isRefreshingConnect}
+                    disabled={isRefreshingConnect}
+                    aria-describedby="refresh-status-tip"
+                  className={`w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-purple-300 transition shrink-0 ${isRefreshingConnect ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100'}`}
+                  >
+                    <SquareArrowDownLeft className={`w-6 h-6 text-[#7E22CE] ${isRefreshingConnect ? 'animate-spin' : 'transition-transform duration-150 ease-out group-hover:scale-110'}`} />
+                  </button>
+                  <div
+                    role="tooltip"
+                    id="refresh-status-tip"
+                    className="pointer-events-none absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap rounded-md bg-white text-gray-800 text-xs shadow-lg border border-gray-200 px-2 py-1 opacity-0 translate-y-1 group-hover:opacity-100 group-focus-within:opacity-100 group-hover:translate-y-0 group-focus-within:translate-y-0 transition-all duration-150"
+                  >
+                    Refresh status
+                  </div>
+                </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Payments Setup</h2>
                   <p className="text-gray-600 text-xs mt-0.5">Manage your payouts securely</p>
@@ -617,10 +584,10 @@ export default function InstructorDashboardNew() {
                 </button>
               )}
               {/* Payouts and Instant Payout */}
-              <div className="mt-6 border-t border-gray-200 pt-4">
+              <div className="mt-auto border-t border-gray-200 pt-4">
                 <h3 className="text-sm font-medium text-gray-700 mb-1">Stripe Payouts</h3>
                 <p className="text-gray-600 text-xs mb-2">Access your Stripe Express dashboard to view payouts and account settings.</p>
-                <div className="flex items-center gap-3 flex-wrap justify-end">
+                <div className="flex flex-wrap items-center gap-3 justify-end">
                   <button
                     onClick={async () => {
                       try {
@@ -642,7 +609,7 @@ export default function InstructorDashboardNew() {
                         alert('Unable to open Stripe dashboard right now.');
                       }
                     }}
-                    className="inline-flex items-center px-4 py-2 text-base rounded-lg border border-purple-200 bg-purple-50 text-[#7E22CE]"
+                    className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg border border-purple-200 bg-purple-50 text-[#7E22CE] w-full sm:w-auto"
                   >
                     View Payouts
                   </button>
@@ -661,7 +628,7 @@ export default function InstructorDashboardNew() {
                         alert('Instant payout request error');
                       }
                     }}
-                    className="inline-flex items-center px-4 py-2 text-base rounded-lg bg-[#7E22CE] text-white"
+                    className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg bg-[#7E22CE] text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
                   >
                     Request Instant Payout
                   </button>
@@ -671,15 +638,16 @@ export default function InstructorDashboardNew() {
           </div>
 
           {/* Manage Availability card (only icon is clickable) */}
-          <div className="p-6 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
+          <div className="p-6 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow h-full flex flex-col relative">
             <div className="flex items-start gap-4 w-full">
               <Link
                 href="/instructor/availability"
                 onClick={() => logger.debug('Navigating to availability management')}
                 aria-label="Manage Availability"
-                className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] shrink-0"
+                className="group relative w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] transition shrink-0 overflow-hidden"
               >
-                <Calendar className="w-6 h-6 text-[#7E22CE]" />
+                <span className="absolute inset-0 rounded-full bg-gray-100 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
+                <Calendar className="relative w-6 h-6 text-[#7E22CE] transition-transform duration-150 ease-out group-hover:scale-110" />
               </Link>
               <div>
                 <h3 className="text-lg font-semibold text-gray-700">Availability</h3>
@@ -699,6 +667,17 @@ export default function InstructorDashboardNew() {
                 </div>
                 <span className="mt-2 text-sm text-gray-600">Booked</span>
               </div>
+          </div>
+          <div className="mt-auto border-t border-gray-200 pt-4">
+            <div className="flex flex-wrap items-center gap-3 justify-end">
+              <Link
+                href="/instructor/availability"
+                className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg bg-[#7E22CE] text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
+                onClick={() => logger.debug('Open Calendar button clicked')}
+              >
+                Open Calendar
+              </Link>
+            </div>
           </div>
           </div>
         </div>

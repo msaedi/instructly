@@ -515,8 +515,9 @@ function SignUpForm() {
   const isLoading = requestStatus === RequestStatus.LOADING;
 
   return (
-    <div className="mt-4 sm:mx-auto sm:w-full sm:max-w-md">
-      <div className="bg-white dark:bg-gray-800 py-6 md:py-8 px-4 shadow sm:rounded-lg sm:px-10">
+    <div className="mt-0 sm:mt-4 sm:mx-auto sm:w-full sm:max-w-md">
+      {/* Mobile: no card chrome; Desktop: keep card with shadow */}
+      <div className="bg-transparent sm:bg-white dark:bg-transparent sm:dark:bg-gray-800 py-4 md:py-8 px-0 sm:px-10 sm:shadow sm:rounded-lg">
         <div className="text-center mb-1 md:mb-2">
           <Link href="/" onClick={() => logger.info('Navigating to home from signup inside box')}>
             <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors">{BRAND.name}</h1>
@@ -707,8 +708,9 @@ function SignUpForm() {
  */
 export default function SignUpPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+      {/* Mobile: full-width, no modal look; Desktop: centered card */}
+      <div className="w-full sm:max-w-md sm:mx-auto">
         <Suspense fallback={<div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE] dark:border-purple-400" /></div>}>
           <SignUpForm />
         </Suspense>
