@@ -2,7 +2,7 @@
 import { WeekSchedule, WeekValidationResponse } from '@/types/availability';
 import { BookingPreview, UpcomingBooking } from '@/types/booking';
 import { logger } from '@/lib/logger';
-import { API_BASE, withApiBase } from '@/lib/apiBase';
+import { getApiBase, withApiBase } from '@/lib/apiBase';
 
 /**
  * API Client for InstaInstru Platform
@@ -20,8 +20,10 @@ import { API_BASE, withApiBase } from '@/lib/apiBase';
  * @module api
  */
 
-/** @deprecated Use API_BASE from @/lib/apiBase instead */
-export const API_URL = API_BASE;
+/** @deprecated Use getApiUrl() or withApiBase() instead */
+export function getApiUrl(): string {
+  return getApiBase();
+}
 
 /**
  * Helper function for authenticated requests
@@ -145,7 +147,8 @@ export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
   logger.time(timerLabel);
 
   try {
-    const response = await fetch(`${API_URL}${endpoint}`, options);
+    const base = getApiUrl();
+    const response = await fetch(`${base}${endpoint}`, options);
 
     logger.timeEnd(timerLabel);
 

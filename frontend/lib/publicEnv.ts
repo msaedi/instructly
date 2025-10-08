@@ -7,13 +7,18 @@
  * DO NOT use dynamic access like process.env[key] or env.get(key) here!
  */
 
+const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? '';
+const RAW_APP_ENV = process.env.NEXT_PUBLIC_APP_ENV;
+const RAW_USE_PROXY = process.env.NEXT_PUBLIC_USE_PROXY ?? '';
+const RAW_APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+
 // Required environment variables
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+export const API_BASE = RAW_API_BASE || undefined;
 
 // Optional environment variables with defaults
-export const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV ?? 'local';
-export const USE_PROXY = process.env.NEXT_PUBLIC_USE_PROXY === 'true';
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+export const APP_ENV = RAW_APP_ENV ?? 'local';
+export const USE_PROXY = RAW_USE_PROXY === 'true';
+export const APP_URL = RAW_APP_URL;
 
 // Logging configuration
 export const ENABLE_LOGGING = process.env.NEXT_PUBLIC_ENABLE_LOGGING === 'true';
@@ -34,3 +39,10 @@ export const IS_PRODUCTION = NODE_ENV === 'production';
 export const IS_DEVELOPMENT = NODE_ENV === 'development';
 export const IS_TEST = NODE_ENV === 'test';
 export const IS_CI = process.env.CI === 'true';
+
+export const publicEnv = {
+  NEXT_PUBLIC_API_BASE: RAW_API_BASE,
+  NEXT_PUBLIC_APP_ENV: RAW_APP_ENV ?? '',
+  NEXT_PUBLIC_USE_PROXY: RAW_USE_PROXY,
+  NEXT_PUBLIC_APP_URL: RAW_APP_URL,
+} as const;

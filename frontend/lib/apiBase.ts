@@ -3,99 +3,114 @@
  */
 
 import { logger } from '@/lib/logger';
-import { APP_ENV, APP_URL, IS_DEVELOPMENT, USE_PROXY } from '@/lib/publicEnv';
+import { publicEnv, APP_ENV, APP_URL, IS_DEVELOPMENT, USE_PROXY } from '@/lib/publicEnv';
 
-const DEPRECATED_API_URL_KEY = 'NEXT_PUBLIC_API_URL';
-const API_BASE_KEY = 'NEXT_PUBLIC_API_BASE';
 const LOCAL_DEFAULT_API = 'http://localhost:8000';
 const LOCAL_BETA_FE_HOST = 'beta-local.instainstru.com';
 const LOCAL_BETA_API_BASE = 'http://api.beta-local.instainstru.com:8000';
+const PREVIEW_API_BASE = 'https://preview-api.instainstru.com';
+const PROD_API_BASE = 'https://api.instainstru.com';
 
-function sanitize(base: string): string {
+const ABSOLUTE_URL_REGEX = /^https?:\/\//i;
+
+let memoizedBase: string | undefined;
+
+function sanitize(base?: string | null): string {
+  if (!base) return '';
   return base.replace(/\/+$/, '');
-}
-
-function readEnvBase(): string | undefined {
-  const value = process.env[API_BASE_KEY];
-  return value ? sanitize(value.trim()) : undefined;
 }
 
 function shouldUseProxy(): boolean {
   return USE_PROXY && (APP_ENV === 'local' || IS_DEVELOPMENT);
 }
 
-// Guard against deprecated NEXT_PUBLIC_API_URL usage
-if (typeof process !== 'undefined' && process.env[DEPRECATED_API_URL_KEY]) {
-  if (IS_DEVELOPMENT) {
-    throw new Error('[apiBase] NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.');
+function resolveFromAppEnv(appEnv: string): string | undefined {
+  switch (appEnv) {
+    case 'preview':
+      return PREVIEW_API_BASE;
+    case 'beta':
+    case 'prod':
+    case 'production':
+      return PROD_API_BASE;
+    default:
+      return undefined;
   }
-  logger.error('[apiBase] WARNING: NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.');
 }
 
-type ResolveOpts = {
+function resolveFromHost(host?: string | null): string | undefined {
+  if (!host) return undefined;
+  const normalized = host.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized === LOCAL_BETA_FE_HOST) return LOCAL_BETA_API_BASE;
+  if (normalized === 'localhost' || normalized === '127.0.0.1') return LOCAL_DEFAULT_API;
+  return undefined;
+}
+
+function formatResolutionError(host: string | null | undefined, appEnv: string): Error {
+  const hostLabel = host ?? '(server)';
+  const envLabel = appEnv || 'unset';
+  return new Error(`NEXT_PUBLIC_API_BASE must be set or resolvable (host=${hostLabel}, appEnv=${envLabel})`);
+}
+
+export type ResolveApiBaseOptions = {
+  envBase?: string;
+  appEnv?: string;
   host?: string | null;
-  envBase?: string | undefined;
-  isServer?: boolean;
 };
 
-export function resolveApiBase({ host, envBase, isServer }: ResolveOpts): string {
-  if (isServer) {
-    return envBase ?? LOCAL_DEFAULT_API;
+export function resolveApiBase({ envBase, appEnv, host }: ResolveApiBaseOptions): string {
+  const sanitizedEnv = sanitize(envBase);
+  if (sanitizedEnv) {
+    return sanitizedEnv;
   }
 
-  if (!host) {
-    if (envBase) {
-      return envBase;
-    }
-    throw new Error('Host missing and NEXT_PUBLIC_API_BASE not set');
+  const normalizedAppEnv = (appEnv ?? '').trim().toLowerCase();
+  const appEnvBase = resolveFromAppEnv(normalizedAppEnv);
+  if (appEnvBase) {
+    return appEnvBase;
   }
 
-  if (host === LOCAL_BETA_FE_HOST) {
-    // Same-site API so SameSite=Lax cookies flow between beta-local hosts
-    return LOCAL_BETA_API_BASE;
+  const hostBase = resolveFromHost(host);
+  if (hostBase) {
+    return hostBase;
   }
 
-  if (host === 'localhost' || host === '127.0.0.1') {
-    return LOCAL_DEFAULT_API;
-  }
-
-  if (envBase) {
-    return envBase;
-  }
-
-  throw new Error('NEXT_PUBLIC_API_BASE must be set for this host');
+  throw formatResolutionError(host, normalizedAppEnv);
 }
 
-/**
- * Resolve the API base URL for the current execution environment.
- */
 export function getApiBase(): string {
-  if (shouldUseProxy()) {
-    return '/api/proxy';
+  if (memoizedBase) {
+    return memoizedBase;
   }
 
-  const envBase = readEnvBase();
-  const isServer = typeof window === 'undefined';
-  const host = isServer ? null : window.location.hostname;
+  const envOverride = sanitize(publicEnv.NEXT_PUBLIC_API_BASE);
+  if (envOverride) {
+    memoizedBase = envOverride;
+    return memoizedBase;
+  }
 
-  return resolveApiBase({ host, envBase, isServer });
+  if (shouldUseProxy()) {
+    memoizedBase = '/api/proxy';
+    return memoizedBase;
+  }
+
+  const appEnv = (publicEnv.NEXT_PUBLIC_APP_ENV || '').trim().toLowerCase();
+  const host = typeof window !== 'undefined' ? window.location.hostname : null;
+
+  memoizedBase = resolveApiBase({
+    envBase: envOverride,
+    appEnv,
+    host: typeof window !== 'undefined' ? host : null,
+  });
+  return memoizedBase;
 }
 
-/**
- * Legacy constant export for modules that expect a string.
- * Note: resolves once per environment – prefer calling getApiBase directly.
- */
-export const API_BASE = getApiBase();
-
-/**
- * Prefix a relative path with the resolved API base, avoiding duplicate slashes.
- */
-const ABSOLUTE_URL_REGEX = /^https?:\/\//i;
-
-const isAbsolute = (u: string): boolean => ABSOLUTE_URL_REGEX.test(u);
+export function resetApiBaseMemoForTests(): void {
+  memoizedBase = undefined;
+}
 
 export function withApiBase(path: string): string {
-  if (isAbsolute(path)) {
+  if (ABSOLUTE_URL_REGEX.test(path)) {
     return path;
   }
 
@@ -103,6 +118,14 @@ export function withApiBase(path: string): string {
   const cleanPath = path.replace(/^\/+/, '');
   const normalizedBase = base.replace(/\/+$/, '');
   return `${normalizedBase}/${cleanPath}`;
+}
+
+// Guard against deprecated NEXT_PUBLIC_API_URL usage
+if (typeof process !== 'undefined' && process.env['NEXT_PUBLIC_API_URL']) {
+  if (IS_DEVELOPMENT) {
+    throw new Error('[apiBase] NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.');
+  }
+  logger.error('[apiBase] WARNING: NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.');
 }
 
 // Dev ergonomics: surface resolved base + proxy mode in console

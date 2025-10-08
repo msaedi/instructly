@@ -6,7 +6,8 @@
  * Following the service-first pattern established in the codebase.
  */
 
-import { fetchWithAuth, API_URL } from '@/lib/api';
+import { fetchWithAuth } from '@/lib/api';
+import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
 
 // Types
@@ -289,9 +290,9 @@ class MessageService {
    *
    * Note: This returns an EventSource object that must be managed
    * by the calling component/hook for proper cleanup
-   */
+  */
   createMessageStream(bookingId: string): EventSource {
-    const url = `${API_URL}${this.baseUrl}/stream/${bookingId}`;
+    const url = withApiBase(`${this.baseUrl}/stream/${bookingId}`);
     // Use cookie-based session for SSE; include credentials
     logger.info('Creating SSE connection', { booking_id: bookingId });
     return new EventSource(url, { withCredentials: true } as EventSourceInit);
