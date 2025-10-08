@@ -42,7 +42,7 @@ for service in data:
 }
 
 # Resolve service name for a given logical type and target env
-# Types: backend|redis|worker|beat|flower
+# Types: backend|redis|prom_agent|worker|beat|flower
 get_service_name() {
     local typ=$1
     local env=$2  # preview|prod
@@ -52,19 +52,21 @@ get_service_name() {
     # Defaults if env vars not set
     if [ "$env" = "preview" ]; then
         case "$typ" in
-            backend) echo "instainstru-api-preview" ;;
-            redis)   echo "redis-preview" ;;
-            worker)  echo "celery-worker-preview" ;;
-            beat)    echo "celery-beat-preview" ;;
-            flower)  echo "flower-preview" ;;
+            backend)    echo "instainstru-api-preview" ;;
+            redis)      echo "redis-preview" ;;
+            prom_agent) echo "prom-agent-preview" ;;
+            worker)     echo "celery-worker-preview" ;;
+            beat)       echo "celery-beat-preview" ;;
+            flower)     echo "flower-preview" ;;
         esac
     else
         case "$typ" in
-            backend) echo "instainstru-api" ;;
-            redis)   echo "redis" ;;
-            worker)  echo "celery-worker" ;;
-            beat)    echo "celery-beat" ;;
-            flower)  echo "flower" ;;
+            backend)    echo "instainstru-api" ;;
+            redis)      echo "redis" ;;
+            prom_agent) echo "prom-agent" ;;
+            worker)     echo "celery-worker" ;;
+            beat)       echo "celery-beat" ;;
+            flower)     echo "flower" ;;
         esac
     fi
 }
@@ -131,15 +133,16 @@ echo ""
 echo "What would you like to deploy? ($TARGET_ENV)"
 echo "1) Backend API"
 echo "2) Redis"
-echo "3) Celery Worker"
-echo "4) Celery Beat"
-echo "5) Flower"
-echo "6) Celery Stack (Worker + Beat + Flower)"
-echo "7) All services (including Backend API)"
-echo "8) Full Stack (Redis + All services)"
+echo "3) Prometheus Agent"
+echo "4) Celery Worker"
+echo "5) Celery Beat"
+echo "6) Flower"
+echo "7) Celery Stack (Worker + Beat + Flower)"
+echo "8) All services (including Backend API)"
+echo "9) Full Stack (Redis/Prometheus + All services)"
 echo "0) Exit"
 echo ""
-read -p "Enter your choice (0-8): " choice
+read -p "Enter your choice (0-9): " choice
 
 case $choice in
     1)
@@ -149,34 +152,38 @@ case $choice in
         deploy_service "$(get_service_name redis "$TARGET_ENV")"
         ;;
     3)
-        deploy_service "$(get_service_name worker "$TARGET_ENV")"
+        deploy_service "$(get_service_name prom_agent "$TARGET_ENV")"
         ;;
     4)
-        deploy_service "$(get_service_name beat "$TARGET_ENV")"
+        deploy_service "$(get_service_name worker "$TARGET_ENV")"
         ;;
     5)
-        deploy_service "$(get_service_name flower "$TARGET_ENV")"
+        deploy_service "$(get_service_name beat "$TARGET_ENV")"
         ;;
     6)
+        deploy_service "$(get_service_name flower "$TARGET_ENV")"
+        ;;
+    7)
         echo "Deploying Celery Stack..."
         deploy_service "$(get_service_name worker "$TARGET_ENV")"
         deploy_service "$(get_service_name beat "$TARGET_ENV")"
         deploy_service "$(get_service_name flower "$TARGET_ENV")"
         ;;
-    7)
-        echo "Deploying all services (except Redis)..."
+    8)
+        echo "Deploying all services (except Redis/Prometheus Agent)..."
         deploy_service "$(get_service_name backend "$TARGET_ENV")"
         deploy_service "$(get_service_name worker "$TARGET_ENV")"
         deploy_service "$(get_service_name beat "$TARGET_ENV")"
         deploy_service "$(get_service_name flower "$TARGET_ENV")"
         ;;
-    8)
+    9)
         echo "Deploying full stack (including Redis)..."
         echo "⚠️  Note: Redis should be deployed first and allowed to start before other services"
         deploy_service "$(get_service_name redis "$TARGET_ENV")"
         echo ""
         echo "Waiting 10 seconds for Redis to initialize..."
         sleep 10
+        deploy_service "$(get_service_name prom_agent "$TARGET_ENV")"
         deploy_service "$(get_service_name worker "$TARGET_ENV")"
         deploy_service "$(get_service_name beat "$TARGET_ENV")"
         deploy_service "$(get_service_name flower "$TARGET_ENV")"
