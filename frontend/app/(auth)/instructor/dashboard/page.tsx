@@ -378,7 +378,7 @@ export default function InstructorDashboardNew() {
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header with subtle purple accent */}
         <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
             <div className="flex items-center gap-3 min-w-0">
               <div
                 aria-hidden="true"
@@ -392,45 +392,47 @@ export default function InstructorDashboardNew() {
                 <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
                 <p className="text-gray-600 text-sm">Your profile, schedule, and earnings at a glance</p>
               </div>
-        </div>
-          {(() => {
-            const releaseTs = Date.UTC(2025, 11, 1, 0, 0, 0); // Dec 1, 2025 (UTC)
-            const isEnabled = Date.now() >= releaseTs;
-            return (
-              <button
-                onClick={handleViewPublicProfile}
-                disabled={!isEnabled}
-                aria-disabled={!isEnabled}
-                title={isEnabled ? 'View your public instructor page' : 'Public profile available Dec 1, 2025'}
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium ${
-                  isEnabled
-                    ? 'bg-white border border-purple-200 text-[#7E22CE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-1'
-                    : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                <Eye className="h-4 w-4" />
-                <span className="hidden sm:inline">Public profile</span>
-              </button>
-            );
-          })()}
+            </div>
+            <div className="sm:ml-auto">
+              {(() => {
+                const releaseTs = Date.UTC(2025, 11, 1, 0, 0, 0); // Dec 1, 2025 (UTC)
+                const isEnabled = Date.now() >= releaseTs;
+                return (
+                  <button
+                    onClick={handleViewPublicProfile}
+                    disabled={!isEnabled}
+                    aria-disabled={!isEnabled}
+                    title={isEnabled ? 'View your public instructor page' : 'Public profile available Dec 1, 2025'}
+                    className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
+                      isEnabled
+                        ? 'bg-white border border-purple-200 text-[#7E22CE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-1'
+                        : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <Eye className="h-4 w-4" />
+                    <span>Public profile</span>
+                  </button>
+                );
+              })()}
+            </div>
           </div>
         </div>
 
         {/* Action items card removed per request */}
 
         {/* Snapshot Cards directly under header */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
+          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Bookings</h3>
             <p className="text-3xl font-bold text-[#7E22CE]">0</p>
             <p className="text-sm text-gray-500 mt-1">Coming soon</p>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Rating</h3>
             <p className="text-3xl font-bold text-[#7E22CE]">-</p>
             <p className="text-sm text-gray-500 mt-1">Not yet available</p>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Earnings</h3>
             <p className="text-3xl font-bold text-[#7E22CE]">$0</p>
             <p className="text-sm text-gray-500 mt-1">Payment integration pending</p>
@@ -441,9 +443,9 @@ export default function InstructorDashboardNew() {
 
         {/* Quick Actions (removed; Delete Profile moved into Profile card) */}
 
-        <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* Stripe Status Card */}
-          <div id="payments-setup" className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 h-full flex flex-col relative">
+          <div id="payments-setup" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 sm:p-6 h-full flex flex-col relative">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-start gap-3">
                 <div className="relative group">
@@ -558,7 +560,7 @@ export default function InstructorDashboardNew() {
                 </div>
               </div>
             )}
-            <div className="mt-5 flex gap-3">
+            <div className="mt-5 flex flex-col sm:flex-row gap-3">
               {connectStatus && !(Boolean(connectStatus?.charges_enabled) && Boolean(connectStatus?.details_submitted)) && (
                 <button
                   onClick={async () => {
@@ -587,7 +589,7 @@ export default function InstructorDashboardNew() {
               <div className="mt-auto border-t border-gray-200 pt-4">
                 <h3 className="text-sm font-medium text-gray-700 mb-1">Stripe Payouts</h3>
                 <p className="text-gray-600 text-xs mb-2">Access your Stripe Express dashboard to view payouts and account settings.</p>
-                <div className="flex flex-wrap items-center gap-3 justify-end">
+                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:justify-end">
                   <button
                     onClick={async () => {
                       try {
@@ -638,7 +640,7 @@ export default function InstructorDashboardNew() {
           </div>
 
           {/* Manage Availability card (only icon is clickable) */}
-          <div className="p-6 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow h-full flex flex-col relative">
+          <div className="p-5 sm:p-6 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow h-full flex flex-col relative">
             <div className="flex items-start gap-4 w-full">
               <Link
                 href="/instructor/availability"
@@ -654,7 +656,7 @@ export default function InstructorDashboardNew() {
                 <p className="text-gray-600 text-sm">Set your weekly schedule and available hours</p>
               </div>
             </div>
-            <div className="mt-10 flex items-center gap-12 justify-center">
+            <div className="mt-8 sm:mt-10 flex items-center gap-8 sm:gap-12 justify-center">
               <div className="flex flex-col items-center">
                 <div className="w-28 h-28 rounded-full bg-purple-50 border border-purple-200 text-[#7E22CE] flex items-center justify-center text-2xl font-bold" title="Available hours this week">
                   {availableHours}h
@@ -668,8 +670,8 @@ export default function InstructorDashboardNew() {
                 <span className="mt-2 text-sm text-gray-600">Booked</span>
               </div>
           </div>
-          <div className="mt-auto border-t border-gray-200 pt-4">
-            <div className="flex flex-wrap items-center gap-3 justify-end">
+            <div className="mt-auto border-t border-gray-200 pt-4">
+            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:justify-end">
               <Link
                 href="/instructor/availability"
                 className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg bg-[#7E22CE] text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
@@ -685,7 +687,7 @@ export default function InstructorDashboardNew() {
 
 
         {/* Tasks & Upcoming */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8">
           {/* Tasks checklist */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm ring-1 ring-purple-100">
             <div className="flex items-center gap-3 mb-3">
@@ -756,7 +758,7 @@ export default function InstructorDashboardNew() {
             </ul>
           </div>
           {/* Upcoming lessons list (placeholder) */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 h-full flex flex-col min-h-[26rem]">
+          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6 h-full flex flex-col min-h-[24rem] sm:min-h-[26rem]">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -768,7 +770,7 @@ export default function InstructorDashboardNew() {
             </div>
             {/* Removed small header loader */}
             {(FORCE_UPCOMING_MOCK || hasAnyBookings === false) ? (
-              <div className="flex-1 flex items-center justify-center">
+              <div className="flex-1 flex items-center justify-center py-6">
                 <div className="flex items-center gap-3">
                   <span className="w-3 h-3 rounded-full bg-gray-300 animate-pulse" style={{ animationDelay: '0ms' }} />
                   <span className="w-3 h-3 rounded-full bg-gray-300 animate-pulse" style={{ animationDelay: '200ms' }} />
