@@ -5,7 +5,9 @@
 
 import { withApiBase } from '@/lib/apiBase';
 
-const API_BASE_URL = withApiBase('/').replace(/\/$/, '');
+function apiBaseUrl(): string {
+  return withApiBase('/').replace(/\/$/, '');
+}
 
 export interface DatabasePool {
   size: number;
@@ -36,7 +38,7 @@ export interface DatabaseStats {
  * Fetch with authentication
  */
 async function fetchWithAuth<T>(endpoint: string, _token: string | null): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(`${apiBaseUrl()}${endpoint}`, {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -57,7 +59,7 @@ async function fetchWithAuth<T>(endpoint: string, _token: string | null): Promis
  * Fetch without authentication (for health endpoint)
  */
 async function fetchPublic<T>(endpoint: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(`${apiBaseUrl()}${endpoint}`, {
     headers: {
       'Content-Type': 'application/json',
     },

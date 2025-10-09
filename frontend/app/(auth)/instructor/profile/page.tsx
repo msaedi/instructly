@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, ExternalLink, Info } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
@@ -367,7 +368,9 @@ export default function InstructorProfileSettingsPage() {
             const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
             const zip = def?.['postal_code'];
             if (zip) {
-              const nycRes = await fetch(`${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`);
+              const nycRes = await fetch(withApiBase(`${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`), {
+                credentials: 'include',
+              });
               logger.debug('Prefill: NYC zip check status', { status: nycRes.status, zip });
               if (nycRes.ok) {
                 const nyc: NYCZipCheck = await nycRes.json();
@@ -400,8 +403,8 @@ export default function InstructorProfileSettingsPage() {
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
-      const url = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
-      const r = await fetch(url);
+      const url = withApiBase(`/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
+      const r = await fetch(url, { credentials: 'include' });
       if (r.ok) {
         const data = await r.json();
         const list = (data.items || []) as ServiceAreaItem[];

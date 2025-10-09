@@ -17,11 +17,11 @@ Restart any running Next.js dev servers after updating hosts.
 
 ## Environment files
 
-- Frontend: use `frontend/.env.local` for both preview and beta. The build reads
-  `NEXT_PUBLIC_APP_URL` and `NEXT_PUBLIC_API_BASE` for routing. When running multiple
-  origins, set `NEXTAUTH_URL` per host (e.g. `http://localhost:3000` vs `http://beta-local.instainstru.com:3000`), enable
-  `trustHost: true`, and keep cookies `secure=false` / `sameSite=Lax` for local HTTP. (We
-  use a custom FastAPI session system, but these settings keep Auth.js experiments aligned.)
+- Frontend: use `frontend/.env.local` for local development. Leave `NEXT_PUBLIC_API_BASE`
+  unset so the client resolver can derive the correct backend per host (localhost,
+  beta-local, LAN IPs, etc.). Set `NEXT_PUBLIC_APP_ENV=development` and adjust
+  `NEXT_PUBLIC_APP_URL` as needed. If you temporarily set `NEXT_PUBLIC_API_BASE`, it will
+  override the resolver, matching remote preview/beta behaviour.
 - Backend: set `ALLOWED_ORIGINS` in `backend/.env` (comma-separated). Example values:
   - Local dev (fallback if unset): `ALLOWED_ORIGINS=http://localhost:3000,http://beta-local.instainstru.com:3000`
   - Preview: `ALLOWED_ORIGINS=https://preview.instainstru.com`
@@ -48,8 +48,8 @@ Restart any running Next.js dev servers after updating hosts.
 - Local development keeps the original cookie names (no prefix, `Secure=false`) while still
   omitting the `Domain` attribute so localhost and beta-local remain isolated.
 - Frontend code never proxies auth in hosted environments; `fetchWithAuth` / `http` resolve
-  requests to `NEXT_PUBLIC_API_BASE`, and `/api/proxy` is gated behind
-  `NEXT_PUBLIC_USE_PROXY=true` with `APP_ENV=local`.
+  requests to the configured API base. The optional `/api/proxy` route is gated behind
+  `NEXT_PUBLIC_USE_PROXY=true` with `NEXT_PUBLIC_APP_ENV=development`.
 - CORS middleware is registered before router includes so 401/403 responses expose
   `Access-Control-Allow-Origin` / `Access-Control-Allow-Credentials`, avoiding opaque
   “network error” messages during auth debugging.

@@ -16,6 +16,7 @@ import { getString, getNumber, getArray, isRecord, isFeatureCollection } from '@
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { recordSearch } from '@/lib/searchTracking';
+import { withApiBase } from '@/lib/apiBase';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
@@ -288,8 +289,8 @@ function SearchPageContent() {
           return;
         }
         const params = new URLSearchParams({ ids: ids.join(',') });
-        const apiUrl = process.env['NEXT_PUBLIC_API_BASE'] || '';
-        const res = await fetch(`${apiUrl}/api/addresses/coverage/bulk?${params.toString()}`);
+        const coverageUrl = withApiBase(`/api/addresses/coverage/bulk?${params.toString()}`);
+        const res = await fetch(coverageUrl, { credentials: 'include' });
         if (!res.ok) {
           setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
           return;

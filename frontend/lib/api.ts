@@ -148,7 +148,11 @@ export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
 
   try {
     const base = getApiUrl();
-    const response = await fetch(`${base}${endpoint}`, options);
+    const requestInit: RequestInit = {
+      ...options,
+      credentials: options.credentials ?? 'include',
+    };
+    const response = await fetch(`${base}${endpoint}`, requestInit);
 
     logger.timeEnd(timerLabel);
 

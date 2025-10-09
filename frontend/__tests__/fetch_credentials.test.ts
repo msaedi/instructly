@@ -16,3 +16,29 @@ describe('cleanFetch', () => {
     spy.mockRestore();
   });
 });
+
+describe('fetchAPI', () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    jest.resetModules();
+    Object.assign(process.env, originalEnv);
+  });
+
+  it('includes credentials on absolute backend fetches', async () => {
+    process.env.NEXT_PUBLIC_API_BASE = 'http://localhost:8000';
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => ({}),
+    } as Response;
+    const spy = jest.spyOn(global, 'fetch').mockResolvedValue(mockResponse);
+    const { fetchAPI } = await import('../lib/api');
+    await fetchAPI('/auth/ping');
+    expect(spy).toHaveBeenCalled();
+    const init = spy.mock.calls[0]?.[1] || {};
+    expect(init.credentials).toBe('include');
+    spy.mockRestore();
+  });
+});

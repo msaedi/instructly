@@ -22,10 +22,13 @@ type PaginatedBookingResponse = components['schemas']['PaginatedResponse_Booking
 type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 
 // Browser calls go through Next.js proxy to avoid CORS and middleware redirects
-// Ensure an absolute base URL for URL construction in the browser
-const API_BASE_URL = typeof window !== 'undefined'
-  ? window.location.origin
-  : (APP_URL || 'http://localhost:3000');
+// Ensure an absolute base URL for URL construction
+function getRequestOrigin(): string {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return APP_URL || 'http://localhost:3000';
+}
 
 /**
  * API response type for consistent error handling
@@ -148,7 +151,7 @@ export async function cleanFetch<T>(
     const adjustedPath = endpoint.startsWith('/api/proxy') ? endpoint : withApiBase(endpoint);
     url = new URL(adjustedPath, window.location.origin);
   } else {
-    const base = API_BASE_URL || 'http://localhost:3000';
+    const base = getRequestOrigin();
     url = new URL(endpoint, base);
   }
   if (params) {

@@ -5,7 +5,9 @@
 import { logger } from '@/lib/logger';
 import { withApiBase } from '@/lib/apiBase';
 
-const API_BASE_URL = withApiBase('/').replace(/\/$/, '');
+function apiBaseUrl(): string {
+  return withApiBase('/').replace(/\/$/, '');
+}
 
 // Codebase metrics types
 export interface CodebaseCategoryStats {
@@ -228,8 +230,9 @@ export interface CandidateTopService {
 
 // Shared fetch helper
 async function fetchWithAuth<T>(endpoint: string, _token: string | null | undefined): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  logger.info(`Analytics API GET ${endpoint}`, { base: API_BASE_URL });
+  const base = apiBaseUrl();
+  const url = `${base}${endpoint}`;
+  logger.info(`Analytics API GET ${endpoint}`, { base });
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',

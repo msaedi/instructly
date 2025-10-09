@@ -375,7 +375,7 @@ export default function Login() {
   // Background handled globally
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative bg-white">
+    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
       <div className="relative z-10">
       <Suspense
         fallback={

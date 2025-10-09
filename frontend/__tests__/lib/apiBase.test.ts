@@ -1,117 +1,181 @@
-import type { ResolveApiBaseOptions } from '@/lib/apiBase';
+import { resolveBaseForTest, resetApiBaseTestState } from '@/lib/apiBase';
 
-const ENV_KEYS = [
-  'NEXT_PUBLIC_API_BASE',
-  'NEXT_PUBLIC_APP_ENV',
-  'NEXT_PUBLIC_USE_PROXY',
-] as const;
-
-type EnvKey = typeof ENV_KEYS[number];
-
-type EnvSnapshot = Record<EnvKey, string | undefined>;
-
-const originalEnv: EnvSnapshot = {
-  NEXT_PUBLIC_API_BASE: process.env.NEXT_PUBLIC_API_BASE,
-  NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV,
-  NEXT_PUBLIC_USE_PROXY: process.env.NEXT_PUBLIC_USE_PROXY,
+type LayerWithSpy = {
+  layer: {
+    get(host: string): string | undefined;
+    set(host: string, base: string): void;
+  };
+  getSpy: jest.SpyInstance<string | undefined, [host: string]>;
+  setSpy: jest.SpyInstance<void, [host: string, base: string]>;
+  backing: Map<string, string>;
 };
 
-const clearTestEnv = () => {
-  for (const key of ENV_KEYS) {
-    delete process.env[key];
-  }
-};
+const DEV_APP_ENV = 'development';
 
-const restoreEnv = () => {
-  clearTestEnv();
-  for (const key of ENV_KEYS) {
-    const value = originalEnv[key];
-    if (value !== undefined) {
-      (process.env as Record<string, string>)[key] = value;
-    }
-  }
-};
+function createStorageLayer(): LayerWithSpy {
+  const backing = new Map<string, string>();
+  const layer = {
+    get(host: string) {
+      return backing.get(host);
+    },
+    set(host: string, base: string) {
+      backing.set(host, base);
+    },
+  };
+  return {
+    layer,
+    backing,
+    getSpy: jest.spyOn(layer, 'get'),
+    setSpy: jest.spyOn(layer, 'set'),
+  };
+}
 
-describe('getApiBase resolver', () => {
-  beforeEach(() => {
-    jest.resetModules();
-    clearTestEnv();
-    process.env.NEXT_PUBLIC_USE_PROXY = 'false';
-  });
-
+describe('api base resolver (pure)', () => {
   afterEach(() => {
-    restoreEnv();
-    jest.resetModules();
+    jest.restoreAllMocks();
+    resetApiBaseTestState();
   });
 
-  afterAll(() => {
-    restoreEnv();
-  });
-
-  const loadApiBase = async () => {
-    const mod = await import('@/lib/apiBase');
-    return mod;
-  };
-
-  it('returns the explicit env override when set (sanitized)', async () => {
-    process.env.NEXT_PUBLIC_API_BASE = 'https://api.example.com/';
-    const { getApiBase, resetApiBaseMemoForTests } = await loadApiBase();
-    try {
-      expect(getApiBase()).toBe('https://api.example.com');
-    } finally {
-      resetApiBaseMemoForTests();
-    }
-  });
-
-  it('falls back to preview mapping when env unset and app env = preview', async () => {
-    process.env.NEXT_PUBLIC_APP_ENV = 'preview';
-    const { getApiBase, resetApiBaseMemoForTests } = await loadApiBase();
-    try {
-      expect(getApiBase()).toBe('https://preview-api.instainstru.com');
-    } finally {
-      resetApiBaseMemoForTests();
-    }
-  });
-
-  it('falls back to production API for beta/prod app env', async () => {
-    process.env.NEXT_PUBLIC_APP_ENV = 'beta';
-    const { getApiBase, resetApiBaseMemoForTests } = await loadApiBase();
-    try {
-      expect(getApiBase()).toBe('https://api.instainstru.com');
-    } finally {
-      resetApiBaseMemoForTests();
-    }
-  });
-
-});
-
-describe('resolveApiBase', () => {
-  const loadResolver = async () => {
-    const mod = await import('@/lib/apiBase');
-    return mod.resolveApiBase as (options: ResolveApiBaseOptions) => string;
-  };
-
-  it('prefers envBase over other fallbacks', async () => {
-    const resolve = await loadResolver();
-    expect(resolve({ envBase: 'https://example.com/api/', appEnv: 'beta', host: 'beta-local.instainstru.com' }))
-      .toBe('https://example.com/api');
-  });
-
-  it('maps beta-local host to the beta-local API', async () => {
-    const resolve = await loadResolver();
-    expect(resolve({ appEnv: '', host: 'beta-local.instainstru.com' }))
-      .toBe('http://api.beta-local.instainstru.com:8000');
-  });
-
-  it('maps localhost host to the local API', async () => {
-    const resolve = await loadResolver();
-    expect(resolve({ host: 'localhost' })).toBe('http://localhost:8000');
-  });
-
-  it('throws with context when host cannot be resolved', async () => {
-    const resolve = await loadResolver();
-    expect(() => resolve({ host: 'unknown.example.com' })).toThrow(
-      'NEXT_PUBLIC_API_BASE must be set or resolvable (host=unknown.example.com, appEnv=unset)',
+  it('derives and caches per host on the client in development', () => {
+    const storage = createStorageLayer();
+    const betaBase = resolveBaseForTest({
+      envBase: '',
+      appEnv: DEV_APP_ENV,
+      host: 'beta-local.instainstru.com:3000',
+      platform: 'csr',
+      storage: storage.layer,
+    });
+    expect(betaBase).toBe('http://api.beta-local.instainstru.com:8000');
+    expect(storage.setSpy).toHaveBeenCalledWith(
+      'beta-local.instainstru.com:3000',
+      'http://api.beta-local.instainstru.com:8000',
     );
+
+    const cached = resolveBaseForTest({
+      envBase: '',
+      appEnv: DEV_APP_ENV,
+      host: 'beta-local.instainstru.com:3000',
+      platform: 'csr',
+      storage: storage.layer,
+    });
+    expect(cached).toBe('http://api.beta-local.instainstru.com:8000');
+    expect(storage.getSpy).toHaveBeenCalledWith('beta-local.instainstru.com:3000');
+  });
+
+  it('shares cached values between simulated bundles for the same host', () => {
+    const storage = createStorageLayer();
+    const first = resolveBaseForTest({
+      envBase: '',
+      appEnv: DEV_APP_ENV,
+      host: 'beta-local.instainstru.com:3000',
+      platform: 'csr',
+      storage: storage.layer,
+    });
+    expect(first).toBe('http://api.beta-local.instainstru.com:8000');
+
+    const secondBundle = resolveBaseForTest({
+      envBase: '',
+      appEnv: DEV_APP_ENV,
+      host: 'beta-local.instainstru.com:3000',
+      platform: 'csr',
+      storage: storage.layer,
+    });
+    expect(secondBundle).toBe('http://api.beta-local.instainstru.com:8000');
+  });
+
+  it('derives a new base when the host changes while reusing session storage', () => {
+    const storage = createStorageLayer();
+    resolveBaseForTest({
+      envBase: '',
+      appEnv: DEV_APP_ENV,
+      host: 'beta-local.instainstru.com:3000',
+      platform: 'csr',
+      storage: storage.layer,
+    });
+    const localhostBase = resolveBaseForTest({
+      envBase: '',
+      appEnv: DEV_APP_ENV,
+      host: 'localhost:3000',
+      platform: 'csr',
+      storage: storage.layer,
+    });
+    expect(localhostBase).toBe('http://localhost:8000');
+    expect(storage.backing.get('localhost:3000')).toBe('http://localhost:8000');
+  });
+
+  it('maps LAN IPv4 hosts to port 8000', () => {
+    const lanBase = resolveBaseForTest({
+      envBase: '',
+      appEnv: DEV_APP_ENV,
+      host: '10.0.0.23:3000',
+      platform: 'csr',
+    });
+    expect(lanBase).toBe('http://10.0.0.23:8000');
+  });
+
+  it('falls back to appEnv mapping on SSR and does not access caches', () => {
+    const previewBase = resolveBaseForTest({
+      envBase: '',
+      appEnv: 'preview',
+      host: null,
+      platform: 'ssr',
+    });
+    expect(previewBase).toBe('https://preview-api.instainstru.com');
+
+    const prodBase = resolveBaseForTest({
+      envBase: '',
+      appEnv: 'beta',
+      host: null,
+      platform: 'ssr',
+    });
+    expect(prodBase).toBe('https://api.instainstru.com');
+
+    const unknown = resolveBaseForTest({
+      envBase: '',
+      appEnv: 'staging',
+      host: null,
+      platform: 'ssr',
+    });
+    expect(unknown).toBe('');
+  });
+
+  it('prefers explicit env overrides and avoids cache writes', () => {
+    const storage = createStorageLayer();
+    const base = resolveBaseForTest({
+      envBase: 'https://override.example.com',
+      appEnv: DEV_APP_ENV,
+      host: 'beta-local.instainstru.com:3000',
+      platform: 'csr',
+      storage: storage.layer,
+    });
+    expect(base).toBe('https://override.example.com');
+    expect(storage.backing.size).toBe(0);
+  });
+
+  it('rejects mismatched cached bases via integrity checks', () => {
+    const storage = createStorageLayer();
+    storage.layer.set('beta-local.instainstru.com:3000', 'http://localhost:8000');
+    const base = resolveBaseForTest({
+      envBase: '',
+      appEnv: DEV_APP_ENV,
+      host: 'beta-local.instainstru.com:3000',
+      platform: 'csr',
+      storage: storage.layer,
+    });
+    expect(base).toBe('http://api.beta-local.instainstru.com:8000');
+    expect(storage.backing.get('beta-local.instainstru.com:3000')).toBe('http://api.beta-local.instainstru.com:8000');
+  });
+
+  it('leaves development cache untouched when returning remote bases', () => {
+    const storage = createStorageLayer();
+    const base = resolveBaseForTest({
+      envBase: '',
+      appEnv: 'beta',
+      host: 'beta-local.instainstru.com:3000',
+      platform: 'csr',
+      storage: storage.layer,
+    });
+    expect(base).toBe('https://api.instainstru.com');
+    expect(storage.backing.size).toBe(0);
   });
 });
