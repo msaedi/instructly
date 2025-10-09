@@ -21,6 +21,16 @@ function sanitize(base?: string | null): string {
 }
 
 function shouldUseProxy(): boolean {
+  // For local beta domain over HTTP, always use the proxy to avoid cross-site cookie issues
+  try {
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      const protocol = window.location.protocol;
+      if (host === LOCAL_BETA_FE_HOST && protocol !== 'https:') {
+        return true;
+      }
+    }
+  } catch {}
   return USE_PROXY && (APP_ENV === 'local' || IS_DEVELOPMENT);
 }
 
