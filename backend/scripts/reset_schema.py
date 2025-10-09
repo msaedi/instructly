@@ -19,6 +19,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine, text
 
+from app.utils.env_logging import log_error, log_info, log_warn
+
 ALLOWED_ENVS = {"int", "stg", "preview", "prod"}
 
 
@@ -86,34 +88,34 @@ if not db_url:
         "preview": "preview_database_url",
         "prod": "prod_database_url",
     }.get(env, "database_url")
-    print(f"❌ Missing database URL for env '{env}'. Set {missing} in your environment or settings.")
+    log_error(env, f"Missing database URL for env '{env}'. Set {missing} in your environment or settings.")
     sys.exit(3)
 
 print("\n" + "=" * 60)
 print("⚠️  SCHEMA RESET - This will DROP ALL TABLES!")
 print("=" * 60)
-print(f"Environment: {env}")
-print(f"Target database: {mask_url(db_url)}")
+log_info(env, "Environment confirmed")
+log_info(env, f"Target database: {mask_url(db_url)}")
 
 if env != "int":
     if not force:
-        print(f"❌ Refusing to drop '{env}' without --force.")
+        log_error(env, f"Refusing to drop '{env}' without --force.")
         sys.exit(2)
     if not assume_yes:
         if not sys.stdin.isatty():
-            print("❌ Non-interactive drops require --yes.")
+            log_error(env, "Non-interactive drops require --yes.")
             sys.exit(2)
         confirmation = input(f"Type '{env}' to confirm: ").strip().lower()
         if confirmation != env:
-            print("Operation cancelled.")
+            log_warn(env, "Operation cancelled before drop.")
             sys.exit(2)
 
 if dry_run:
-    print("Dry run complete; no changes made.")
+    log_info(env, "Dry run complete; no changes made.")
     sys.exit(0)
 
 engine = create_engine(db_url)
 with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
     conn.execute(text("DROP SCHEMA public CASCADE"))
     conn.execute(text("CREATE SCHEMA public"))
-print("Schema reset complete!")
+log_info(env, "Schema reset complete!")

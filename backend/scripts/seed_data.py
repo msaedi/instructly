@@ -17,13 +17,105 @@ Notes:
 """
 
 import argparse
+from datetime import datetime, timezone
 from pathlib import Path
 import sys
+from typing import Tuple
 
 # Ensure backend/ is importable when called directly
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from sqlalchemy import create_engine, select  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
+
+from app.auth import get_password_hash  # noqa: E402
 from app.core.config import settings  # noqa: E402
+from app.core.enums import RoleName  # noqa: E402
+from app.models.rbac import Role  # noqa: E402
+from app.models.user import User  # noqa: E402
+
+DEFAULT_ADMIN_PASSWORD = "Test1234!"
+DEFAULT_ADMIN_ZIP = "10001"
+
+
+def _get_admin_seed_credentials() -> Tuple[str, str, str]:
+    site_mode = (settings.site_mode or "").strip().lower()
+    email = (settings.admin_email or "admin@instainstru.com").strip().lower()
+    name = settings.admin_name or "Instainstru Admin"
+    password = settings.admin_password or ""
+    if site_mode == "prod" and not password:
+        raise RuntimeError("ADMIN_PASSWORD is required when seeding in production")
+    if not password:
+        password = DEFAULT_ADMIN_PASSWORD
+    return email, password, name
+
+
+def _split_name(full_name: str) -> tuple[str, str]:
+    parts = [p for p in (full_name or '').strip().split() if p]
+    if not parts:
+        return "Admin", "User"
+    if len(parts) == 1:
+        return parts[0], "Admin"
+    return parts[0], " ".join(parts[1:])
+
+
+def seed_admin_user(
+    session: Session,
+    *,
+    email: str,
+    password_plain: str,
+    name: str | None,
+    now: datetime,
+    verbose: bool = True,
+) -> None:
+    """Create or refresh the baseline admin/superuser account."""
+
+    normalized_email = (email or "").strip().lower()
+    if not normalized_email:
+        raise ValueError("ADMIN_EMAIL must be provided for admin seeding")
+
+    first_name, last_name = _split_name(name or "")
+    hashed_password = get_password_hash(password_plain)
+
+    admin_role = session.execute(select(Role).where(Role.name == RoleName.ADMIN.value)).scalar_one_or_none()
+    if admin_role is None:
+        if verbose:
+            print("⚠️  Admin role not found; skipping admin user seed")
+        return
+
+    user = session.execute(select(User).where(User.email == normalized_email)).scalar_one_or_none()
+    created = False
+    if user is None:
+        user = User(
+            email=normalized_email,
+            hashed_password=hashed_password,
+            first_name=first_name,
+            last_name=last_name,
+            zip_code=DEFAULT_ADMIN_ZIP,
+            is_active=True,
+            account_status="active",
+        )
+        session.add(user)
+        created = True
+    else:
+        if user.first_name != first_name:
+            user.first_name = first_name
+        if user.last_name != last_name:
+            user.last_name = last_name
+        if not user.is_active:
+            user.is_active = True
+        if user.account_status != "active":
+            user.account_status = "active"
+        user.hashed_password = hashed_password
+
+    # Ensure admin role assignment
+    if admin_role not in user.roles:
+        user.roles.append(admin_role)
+
+    session.commit()
+    if verbose:
+        action = "Created" if created else "Updated"
+        print(f"✅ {action} baseline admin user '{normalized_email}' at {now.isoformat()}")
 
 
 def _print_banner():
@@ -74,6 +166,20 @@ def seed_system_data(verbose: bool = True) -> None:
     except Exception as e:
         print(f"  ⚠ Skipping region boundaries load: {e}")
 
+    # Seed baseline admin account
+    admin_email, admin_password, admin_name = _get_admin_seed_credentials()
+
+    engine = create_engine(settings.get_database_url())
+    with Session(engine) as session:
+        seed_admin_user(
+            session,
+            email=admin_email,
+            password_plain=admin_password,
+            name=admin_name,
+            now=datetime.now(timezone.utc),
+            verbose=verbose,
+        )
+
 
 def seed_mock_data(verbose: bool = True) -> None:
     """Seed mock users, instructors, availability, bookings, reviews."""
@@ -110,6 +216,18 @@ def seed_mock_data(verbose: bool = True) -> None:
     seeder.create_sample_platform_credits()
     seeder.create_reviews()
     seeder.print_summary()
+
+    engine = create_engine(settings.get_database_url())
+    admin_email, admin_password, admin_name = _get_admin_seed_credentials()
+    with Session(engine) as session:
+        seed_admin_user(
+            session,
+            email=admin_email,
+            password_plain=admin_password,
+            name=admin_name,
+            now=datetime.now(timezone.utc),
+            verbose=verbose,
+        )
 
 
 def main() -> int:

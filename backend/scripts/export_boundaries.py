@@ -15,6 +15,7 @@ from sqlalchemy import create_engine, text
 # Import settings
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.core.config import settings
+from app.utils.env_logging import log_info
 
 CACHE_DIR = Path(__file__).parent / "data"
 CACHE_FILE = CACHE_DIR / "nyc_boundaries.geojson"
@@ -87,13 +88,13 @@ def export_boundaries():
 
 
 if __name__ == "__main__":
-    # Check which database we're using
-    if os.getenv("SITE_MODE", "").lower() in {"local", "stg", "staging"}:
-        print("[STG] Exporting from Staging database")
+    site_mode = os.getenv("SITE_MODE", "").lower()
+    if site_mode in {"local", "stg", "staging"}:
+        log_info("stg", "Exporting from Staging database")
     elif "instainstru_test" in str(settings.database_url):
-        print("[INT] Exporting from Integration Test database")
+        log_info("int", "Exporting from Integration Test database")
     else:
-        print("[PROD?] Exporting from production database - be careful!")
+        log_info("prod", "Exporting from production database - be careful!")
 
     success = export_boundaries()
     sys.exit(0 if success else 1)

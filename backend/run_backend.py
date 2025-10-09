@@ -18,8 +18,19 @@ os.environ.setdefault("SITE_MODE", "local")
 
 import uvicorn
 
+from app.utils.env_logging import log_info
+
 if __name__ == "__main__":
-    print("🚀 Starting development server (SITE_MODE=" + os.getenv("SITE_MODE", "local") + ")…")
+    site_mode = os.getenv("SITE_MODE", "local").lower()
+    if site_mode in {"prod", "production", "live"}:
+        env_tag = "prod"
+    elif site_mode in {"preview", "pre"}:
+        env_tag = "preview"
+    elif site_mode in {"stg", "local", "stage", "staging"}:
+        env_tag = "stg"
+    else:
+        env_tag = "int"
+    log_info(env_tag, f"Starting development server (SITE_MODE={site_mode})…")
     print("📊 This preserves your local development data between test runs")
     print("🌐 Access at: http://localhost:8000")
     print("📚 API Docs: http://localhost:8000/docs")

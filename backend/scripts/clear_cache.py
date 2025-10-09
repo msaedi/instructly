@@ -10,6 +10,7 @@ This script respects REDIS_URL and other backend settings via app.core.config.
 """
 
 import argparse
+import os
 from pathlib import Path
 import sys
 
@@ -19,17 +20,34 @@ sys.path.insert(0, str(backend_dir))
 
 from app.database import get_db
 from app.services.cache_service import CacheService
+from app.utils.env_logging import log_info, log_warn
+
+_ENV_ALIASES = {
+    "prod": {"prod", "production", "live"},
+    "preview": {"preview", "pre"},
+    "stg": {"stg", "stage", "staging", "local"},
+    "int": {"int", "dev", "development", "ci", "test"},
+}
 
 
-def clear_patterns(cache_service: CacheService, patterns: list[str]) -> int:
+def _resolve_env() -> str:
+    site_mode = (os.getenv("SITE_MODE") or "").strip().lower()
+    if site_mode:
+        for canon, aliases in _ENV_ALIASES.items():
+            if site_mode in aliases:
+                return canon
+    return "int"
+
+
+def clear_patterns(cache_service: CacheService, patterns: list[str], env: str) -> int:
     total = 0
     for pattern in patterns:
         try:
-            count = cache_service.delete_pattern(pattern)
+            count = cache_service.delete_pattern(pattern) or 0
             total += count
-            print(f"✓ Cleared {count} keys matching '{pattern}'")
+            log_info(env, f"Cleared {count} keys matching '{pattern}'")
         except Exception as e:
-            print(f"⚠ Could not clear pattern '{pattern}': {e}")
+            log_warn(env, f"Could not clear pattern '{pattern}': {e}")
     return total
 
 
@@ -41,7 +59,15 @@ def main():
         default="all",
         help="Limit which patterns to clear",
     )
+    parser.add_argument(
+        "--echo-sentinel",
+        action="store_true",
+        help="Print CACHE_CLEAR_OK when clearing completes",
+    )
     args = parser.parse_args()
+
+    env = _resolve_env()
+    log_info(env, f"Clearing cache (scope={args.scope})…")
 
     # Acquire DB session and initialize cache service
     db = next(get_db())
@@ -63,9 +89,10 @@ def main():
                 "public_availability:*",
             ]
 
-        print(f"Clearing cache (scope={args.scope})...")
-        total = clear_patterns(cache_service, patterns)
-        print(f"Total cache keys cleared: {total}")
+        total = clear_patterns(cache_service, patterns, env)
+        log_info(env, f"Total cache keys cleared: {total}")
+        if args.echo_sentinel:
+            print("CACHE_CLEAR_OK")
     finally:
         try:
             db.close()

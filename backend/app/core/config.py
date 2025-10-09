@@ -109,9 +109,15 @@ class Settings(BaseSettings):
     prod_database_url_raw: Optional[str] = Field(
         default=None, alias="prod_database_url"
     )  # From env PROD_DATABASE_URL
+    prod_service_database_url_raw: Optional[str] = Field(
+        default=None, alias="prod_service_database_url"
+    )
     preview_database_url_raw: str = Field(
         default="", alias="preview_database_url"
     )  # From env PREVIEW_DATABASE_URL
+    preview_service_database_url_raw: Optional[str] = Field(
+        default=None, alias="preview_service_database_url"
+    )
     int_database_url_raw: str = Field(
         default="postgresql://postgres:postgres@localhost:5432/instainstru_test"
         if os.getenv("CI")
@@ -146,7 +152,9 @@ class Settings(BaseSettings):
         default=None,
         description="JSON map of named sender profiles for transactional email",
     )
-    admin_email: str = "admin@instainstru.com"  # Email for critical alerts
+    admin_email: str = Field(default="admin@instainstru.com", alias="ADMIN_EMAIL")
+    admin_name: str = Field(default="Instainstru Admin", alias="ADMIN_NAME")
+    admin_password: str | None = Field(default=None, alias="ADMIN_PASSWORD")
 
     # Frontend URL - will use production URL if not set
     frontend_url: str = "https://beta.instainstru.com"

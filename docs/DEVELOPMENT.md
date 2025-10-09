@@ -119,3 +119,44 @@ CI_LOCAL_E2E=1 npx --yes playwright test frontend/e2e/invites.invite-redemption.
 The test logs in as `admin@instainstru.com / Test1234`, issues a beta invite from the
 preview host, and redeems it on `beta-local.instainstru.com` to ensure CORS and cookies
 behave correctly.
+
+## Database prep cheatsheet
+
+```
+# Integration / Mock data
+python backend/scripts/reset_schema.py int --force --yes
+python backend/scripts/prep_db.py int --migrate --seed-all --force --yes
+
+# Production system data only (roles, catalog, baseline admin)
+python backend/scripts/prep_db.py prod --migrate --seed-system-only --force --yes
+
+# Production with demo/mock users (pre-launch only)
+python backend/scripts/prep_db.py prod --migrate --seed-all-prod --force --yes
+```
+
+Baseline admin credentials seeded by the scripts default to `admin@instainstru.com`
+with the password `Test1234!` outside production. Override (and require in prod):
+
+```
+ADMIN_EMAIL="admin@instainstru.com"
+ADMIN_NAME="Instainstru Admin"
+ADMIN_PASSWORD="<strong unique password>"
+```
+
+When working against Supabase-hosted preview/prod data with row-level security,
+optionally provide service-role DSNs for seeding without changing runtime configs:
+
+```
+PROD_SERVICE_DATABASE_URL="postgresql://service_role:...@db.supabase.co:5432/postgres"
+PREVIEW_SERVICE_DATABASE_URL="postgresql://service_role:...@db.supabase.co:5432/postgres"
+```
+
+### Cache clears per environment
+
+- `int`: cache clear is skipped (no remote state).
+- `stg`: runs `python backend/scripts/clear_cache.py --scope all` locally after seeding/migrations.
+- `preview` / `prod`: prep_db triggers a Render one-off job on the backend service followed by a redis redeploy. Service names are fixed:
+  - Backend: `instainstru-api-preview` / `instainstru-api`
+  - Redis: `redis-preview` / `redis`
+
+Set `RENDER_API_KEY` in your shell or via `backend/.env.render` (the helper scripts load this file automatically) so preview/prod cache clears succeed.

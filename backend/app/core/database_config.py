@@ -29,6 +29,14 @@ from typing import Any, Literal, Optional
 
 from .config import settings
 
+try:
+    from app.utils.env_logging import log_info as scripts_log_info
+except ImportError:
+
+    def scripts_log_info(env: str, message: str) -> None:
+        print(f"[{env.upper()}] {message}")
+
+
 logger = logging.getLogger(__name__)
 
 DatabaseEnvironment = Literal["int", "stg", "prod"]
@@ -114,7 +122,7 @@ class DatabaseConfig:
                 logger.info(
                     f"CI environment using provided DATABASE_URL: {self._mask_url(ci_database_url)}"
                 )
-                print("\033[94m[CI]\033[0m Using CI-provided database")
+                scripts_log_info("int", "Using CI-provided database")
                 self._audit_log_operation(
                     "ci_database_selection",
                     {
@@ -226,7 +234,7 @@ class DatabaseConfig:
                 "Please set test_database_url in your .env file."
             )
         if not os.getenv("SUPPRESS_DB_MESSAGES"):
-            print("\033[92m[INT]\033[0m Using Integration Test database (safe for drops/resets)")
+            scripts_log_info("int", "Using Integration Test database (safe for drops/resets)")
         self._audit_log_operation(
             "database_selection", {"environment": "int", "url": self._mask_url(self.int_url)}
         )
@@ -238,7 +246,7 @@ class DatabaseConfig:
             raise ValueError(
                 "STG database URL not configured. " "Please set stg_database_url in your .env file."
             )
-        print("\033[93m[STG]\033[0m Using Staging/Local Dev database (preserves data)")
+        scripts_log_info("stg", "Using Staging/Local Dev database (preserves data)")
         self._audit_log_operation(
             "database_selection", {"environment": "stg", "url": self._mask_url(self.stg_url)}
         )
@@ -250,7 +258,7 @@ class DatabaseConfig:
             raise ValueError(
                 "Preview database URL not configured. Please set preview_database_url in your environment."
             )
-        print("\033[96m[PREVIEW]\033[0m Using Preview database")
+        scripts_log_info("preview", "Using Preview database")
         self._audit_log_operation(
             "database_selection",
             {"environment": "preview", "url": self._mask_url(self.preview_url)},
@@ -273,7 +281,7 @@ class DatabaseConfig:
         if is_production_server:
             # Production servers can access without confirmation
             logger.info("Production server mode detected - allowing production database access")
-            print("\033[91m[PROD SERVER]\033[0m Production server accessing production database")
+            scripts_log_info("prod", "Production server accessing production database")
             self._audit_log_operation(
                 "production_server_access",
                 {
@@ -314,7 +322,7 @@ class DatabaseConfig:
         # Future: Call post-approval hooks
         self._post_production_approval()
 
-        print("\033[91m[PROD]\033[0m Using Production database - BE CAREFUL!")
+        scripts_log_info("prod", "Using Production database - BE CAREFUL!")
         self._audit_log_operation(
             "production_access_granted", {"url": self._mask_url(self.prod_url)}
         )
