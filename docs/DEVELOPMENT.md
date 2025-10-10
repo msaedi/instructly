@@ -134,6 +134,10 @@ python backend/scripts/prep_db.py prod --migrate --seed-system-only --force --ye
 python backend/scripts/prep_db.py prod --migrate --seed-all-prod --force --yes
 ```
 
+While beta is invite-only, running `--seed-all-prod` also grants `beta_access`
+rows to every mock instructor so gated instructor endpoints succeed on the
+beta environment.
+
 Baseline admin credentials seeded by the scripts default to `admin@instainstru.com`
 with the password `Test1234!` outside production. Override (and require in prod):
 

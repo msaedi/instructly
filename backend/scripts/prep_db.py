@@ -499,6 +499,24 @@ Examples:
         if perform_mock_seed:
             seed_mock_users(db_url, args.dry_run, mode, seed_db_url=seed_db_url)
 
+        if (
+            not args.dry_run
+            and mode == "prod"
+            and args.seed_all_prod
+            and perform_mock_seed
+        ):
+            from importlib import import_module
+
+            db_module = import_module("app.database")
+            seed_module = import_module("scripts.seed_data")
+
+            with db_module.SessionLocal() as session:
+                created, existing = seed_module.seed_beta_access_for_instructors(session)
+            info(
+                mode,
+                f"Ensured beta access for instructors (created={created}, existing={existing})",
+            )
+
         # Post-seed ops (always run after any seeding or migration when not dry-run)
         if args.migrate or perform_system_seed or perform_mock_seed:
             generate_embeddings(db_url, args.dry_run, mode)

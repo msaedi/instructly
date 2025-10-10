@@ -31,8 +31,13 @@ from sqlalchemy.orm import Session  # noqa: E402
 from app.auth import get_password_hash  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.enums import RoleName  # noqa: E402
+from app.models.beta import BetaAccess  # noqa: E402
 from app.models.rbac import Role  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.repositories.beta_repository import (  # noqa: E402
+    BetaAccessRepository,
+    BetaSettingsRepository,
+)
 
 DEFAULT_ADMIN_PASSWORD = "Test1234!"
 DEFAULT_ADMIN_ZIP = "10001"
@@ -228,6 +233,59 @@ def seed_mock_data(verbose: bool = True) -> None:
             now=datetime.now(timezone.utc),
             verbose=verbose,
         )
+
+
+def seed_beta_access_for_instructors(session: Session) -> tuple[int, int]:
+    """Grant beta access rows for all instructor-role users lacking one.
+
+    Returns a tuple ``(created_count, existing_count)`` where
+    ``existing_count`` reflects instructors that already had a matching grant
+    before this helper ran.
+    """
+
+    instructor_role = session.execute(
+        select(Role).where(Role.name == RoleName.INSTRUCTOR.value)
+    ).scalar_one_or_none()
+    if instructor_role is None:
+        return 0, 0
+
+    instructor_ids = session.execute(
+        select(User.id)
+        .join(User.roles)
+        .where(Role.id == instructor_role.id)
+    ).scalars().all()
+    if not instructor_ids:
+        return 0, 0
+
+    existing_user_ids = set(
+        session.execute(
+            select(BetaAccess.user_id).where(
+                BetaAccess.role == "instructor",
+                BetaAccess.user_id.in_(instructor_ids),
+            )
+        ).scalars()
+    )
+
+    beta_repo = BetaAccessRepository(session)
+    settings_repo = BetaSettingsRepository(session)
+    # Ensure beta settings row exists (repository creates default if missing)
+    settings_repo.get_singleton()
+
+    created = 0
+    for user_id in instructor_ids:
+        if user_id in existing_user_ids:
+            continue
+        beta_repo.grant_access(
+            user_id=user_id,
+            role="instructor",
+            phase="instructor_only",
+            invited_by_code=None,
+        )
+        created += 1
+
+    session.commit()
+    existing_count = len(existing_user_ids)
+    return created, existing_count
 
 
 def main() -> int:
