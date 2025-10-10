@@ -117,9 +117,25 @@ class DatabaseConfig:
         """
         # Special handling for CI environments
         if self._is_ci_environment():
-            # Check if CI has provided a custom DATABASE_URL
             ci_database_url = os.getenv("DATABASE_URL")
             if ci_database_url:
+                parsed = urlparse(ci_database_url)
+                db_name = (parsed.path or "").lstrip("/")
+                if self._is_test_db_name(db_name):
+                    logger.info(
+                        "CI environment using provided test database",
+                        extra={"url": self._mask_url(ci_database_url)},
+                    )
+                    scripts_log_info("int", "Using CI-provided test database")
+                    self._audit_log_operation(
+                        "ci_database_selection",
+                        {
+                            "url": self._mask_url(ci_database_url),
+                            "ci_environment": os.getenv("CI", "unknown"),
+                        },
+                    )
+                    return ci_database_url
+
                 safe_url = self._coerce_safe_ci_db_url(ci_database_url)
                 logger.warning(
                     "CI environment forcing safe database name",
@@ -137,6 +153,10 @@ class DatabaseConfig:
                         "ci_environment": os.getenv("CI", "unknown"),
                     },
                 )
+                try:
+                    self._ensure_ci_database_exists(safe_url)
+                except Exception as exc:
+                    logger.warning("Unable to ensure CI database exists: %s", exc)
                 os.environ["DATABASE_URL"] = safe_url
                 return safe_url
 
@@ -233,6 +253,31 @@ class DatabaseConfig:
             return urlunparse(coerced)
         except Exception:
             return url
+
+    @staticmethod
+    def _is_test_db_name(db_name: str | None) -> bool:
+        if not db_name:
+            return False
+        return "test" in db_name.lower()
+
+    def _ensure_ci_database_exists(self, url: str, safe_db: str = "instainstru_test") -> None:
+        try:
+            from sqlalchemy import create_engine
+
+            parsed = urlparse(url)
+            current_db = (parsed.path or "").lstrip("/") or safe_db
+            admin_db = "postgres" if current_db != "postgres" else current_db
+            admin_url = urlunparse(parsed._replace(path=f"/{admin_db}"))
+
+            engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+            with engine.connect() as conn:
+                exists = conn.execute(
+                    "SELECT 1 FROM pg_database WHERE datname = %s", (safe_db,)
+                ).scalar()
+                if not exists:
+                    conn.execute(f"CREATE DATABASE {safe_db}")
+        except Exception as exc:
+            logger.warning("CI database creation skipped: %s", exc)
 
     def _is_local_development(self) -> bool:
         """Check if running in local development mode."""

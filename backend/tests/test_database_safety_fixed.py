@@ -27,9 +27,24 @@ def test_default_is_int_database():
             os.environ["DATABASE_URL"] = db_url
 
 
-def test_ci_environment_forces_safe_db(caplog):
-    """CI should coerce database name to instainstru_test regardless of provided URL."""
+def test_ci_environment_preserves_test_db(caplog):
+    os.environ["CI"] = "true"
+    os.environ["DATABASE_URL"] = "postgresql://user:pass@host/ci_test_db"
 
+    try:
+        caplog.set_level(logging.INFO)
+        from app.core.database_config import DatabaseConfig
+
+        config = DatabaseConfig()
+        url = config.get_database_url()
+        assert url.endswith("/ci_test_db"), url
+        assert any("using provided test database" in record.message for record in caplog.records)
+    finally:
+        os.environ.pop("CI", None)
+        os.environ.pop("DATABASE_URL", None)
+
+
+def test_ci_environment_forces_safe_db(caplog):
     os.environ["CI"] = "true"
     os.environ["DATABASE_URL"] = "postgresql://user:pass@host/prod_db"
 
@@ -42,7 +57,7 @@ def test_ci_environment_forces_safe_db(caplog):
         assert url.endswith("/instainstru_test"), url
         assert any(
             "forcing safe database name" in record.message for record in caplog.records
-        ), caplog.records
+        )
     finally:
         os.environ.pop("CI", None)
         os.environ.pop("DATABASE_URL", None)
