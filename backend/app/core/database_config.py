@@ -26,6 +26,7 @@ import os
 from pathlib import Path
 import sys
 from typing import Any, Literal, Optional
+from urllib.parse import urlparse, urlunparse
 
 from .config import settings
 
@@ -119,18 +120,25 @@ class DatabaseConfig:
             # Check if CI has provided a custom DATABASE_URL
             ci_database_url = os.getenv("DATABASE_URL")
             if ci_database_url:
-                logger.info(
-                    f"CI environment using provided DATABASE_URL: {self._mask_url(ci_database_url)}"
+                safe_url = self._coerce_safe_ci_db_url(ci_database_url)
+                logger.warning(
+                    "CI environment forcing safe database name",
+                    extra={
+                        "original": self._mask_url(ci_database_url),
+                        "forced": self._mask_url(safe_url),
+                    },
                 )
-                scripts_log_info("int", "Using CI-provided database")
+                scripts_log_info("int", "Using CI-safe database URL")
                 self._audit_log_operation(
                     "ci_database_selection",
                     {
-                        "url": self._mask_url(ci_database_url),
+                        "original_url": self._mask_url(ci_database_url),
+                        "forced_url": self._mask_url(safe_url),
                         "ci_environment": os.getenv("CI", "unknown"),
                     },
                 )
-                return ci_database_url
+                os.environ["DATABASE_URL"] = safe_url
+                return safe_url
 
         # First, honor SITE_MODE (authoritative explicit selection)
         site_mode = os.getenv("SITE_MODE", "").lower().strip()
@@ -213,6 +221,18 @@ class DatabaseConfig:
                 return True
 
         return False
+
+    @staticmethod
+    def _coerce_safe_ci_db_url(url: str, *, safe_db: str = "instainstru_test") -> str:
+        try:
+            parsed = urlparse(url)
+            if not parsed.scheme or not parsed.netloc:
+                return url
+            new_path = f"/{safe_db}"
+            coerced = parsed._replace(path=new_path)
+            return urlunparse(coerced)
+        except Exception:
+            return url
 
     def _is_local_development(self) -> bool:
         """Check if running in local development mode."""
