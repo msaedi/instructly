@@ -50,10 +50,12 @@ def test_ci_environment_forces_safe_db(caplog):
 
     try:
         caplog.set_level(logging.WARNING)
-        from app.core.database_config import DatabaseConfig
+        with patch("app.core.database_config.DatabaseConfig._ensure_ci_database_exists") as ensure_mock:
+            from app.core.database_config import DatabaseConfig
 
-        config = DatabaseConfig()
-        url = config.get_database_url()
+            config = DatabaseConfig()
+            url = config.get_database_url()
+            ensure_mock.assert_called_once()
         assert url.endswith("/instainstru_test"), url
         assert any(
             "forcing safe database name" in record.message for record in caplog.records
@@ -61,6 +63,55 @@ def test_ci_environment_forces_safe_db(caplog):
     finally:
         os.environ.pop("CI", None)
         os.environ.pop("DATABASE_URL", None)
+
+
+def test_ensure_ci_database_exists_uses_autocommit(monkeypatch):
+    executed = []
+    engine_kwargs = {}
+
+    class DummyConnection:
+        def execute(self, statement, params=None):
+            executed.append((str(statement), params))
+            if str(statement).startswith("SELECT"):
+                class Result:
+                    def scalar(self_inner):
+                        return None
+
+                return Result()
+            return None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class DummyEngine:
+        def __init__(self, url, **kwargs):
+            engine_kwargs.update(kwargs)
+
+        def connect(self):
+            return DummyConnection()
+
+        def dispose(self):
+            pass
+
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/sample")
+
+    monkeypatch.setattr("sqlalchemy.create_engine", lambda url, **kw: DummyEngine(url, **kw))
+
+    from app.core.database_config import DatabaseConfig
+
+    config = DatabaseConfig()
+    _ = config.get_database_url()
+
+    assert engine_kwargs.get("isolation_level") == "AUTOCOMMIT"
+    assert any("SELECT 1 FROM pg_database" in stmt for stmt, _ in executed)
+    assert any("CREATE DATABASE" in stmt for stmt, _ in executed)
+
+    os.environ.pop("CI", None)
+    os.environ.pop("DATABASE_URL", None)
 
 
 def test_cannot_access_prod_without_confirmation():

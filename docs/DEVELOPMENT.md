@@ -120,10 +120,11 @@ The test logs in as `admin@instainstru.com / Test1234`, issues a beta invite fro
 preview host, and redeems it on `beta-local.instainstru.com` to ensure CORS and cookies
 behave correctly.
 
-> **CI safety**: When `CI=true` (e.g., GitHub Actions), the backend forcibly rewrites
-> any provided `DATABASE_URL` to use the safe name `instainstru_test` before migrations
-> or tests execute. The database safety test suite asserts this behavior so production
-> data can’t be touched during automation.
+> **CI safety**: When `CI=true` (e.g., GitHub Actions), the backend enforces the use of
+> a test database. If the provided `DATABASE_URL` already points to a DB whose name
+> contains `test`, that name is preserved; otherwise it is rewritten to `instainstru_test`
+> (created automatically if missing). The database safety test suite asserts this behavior so
+> production data can’t be touched during automation.
 
 ## Database prep cheatsheet
 

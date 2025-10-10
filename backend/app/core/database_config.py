@@ -24,6 +24,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import sys
 from typing import Any, Literal, Optional
 from urllib.parse import urlparse, urlunparse
@@ -262,20 +263,30 @@ class DatabaseConfig:
 
     def _ensure_ci_database_exists(self, url: str, safe_db: str = "instainstru_test") -> None:
         try:
-            from sqlalchemy import create_engine
+            from sqlalchemy import create_engine, text
 
             parsed = urlparse(url)
             current_db = (parsed.path or "").lstrip("/") or safe_db
+            if not re.fullmatch(r"[A-Za-z0-9_]+", safe_db):
+                logger.warning("CI database creation skipped: unsafe db name %r", safe_db)
+                return
+
             admin_db = "postgres" if current_db != "postgres" else current_db
             admin_url = urlunparse(parsed._replace(path=f"/{admin_db}"))
 
-            engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+            engine = create_engine(admin_url, isolation_level="AUTOCOMMIT", pool_pre_ping=True)
             with engine.connect() as conn:
-                exists = conn.execute(
-                    "SELECT 1 FROM pg_database WHERE datname = %s", (safe_db,)
-                ).scalar()
+                exists = (
+                    conn.execute(
+                        text("SELECT 1 FROM pg_database WHERE datname = :d"),
+                        {"d": safe_db},
+                    ).scalar()
+                    is not None
+                )
                 if not exists:
-                    conn.execute(f"CREATE DATABASE {safe_db}")
+                    conn.execute(text(f'CREATE DATABASE "{safe_db}"'))
+                    logger.info("CI created database %s", safe_db)
+            engine.dispose()
         except Exception as exc:
             logger.warning("CI database creation skipped: %s", exc)
 
