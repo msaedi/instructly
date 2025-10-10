@@ -138,6 +138,24 @@ While beta is invite-only, running `--seed-all-prod` also grants `beta_access`
 rows to every mock instructor so gated instructor endpoints succeed on the
 beta environment.
 
+### Checkr webhook simulator
+
+```
+python backend/scripts/simulate_checkr_webhook.py --env beta --email "instructor@example.com" --result clear --force-prod --yes
+```
+
+- `--env beta|prod` now targets the production database and posts to
+  `https://api.instainstru.com/webhooks/checkr/`.
+- `--env preview` uses the preview database and posts to
+  `https://preview-api.instainstru.com/webhooks/checkr/`.
+- `--env stg|int` (or default/local) continues to use the local/staging database
+  and `http://localhost:8000/webhooks/checkr/`.
+- Use `--url` to override the webhook destination and `--yes` to skip the live
+  confirmation prompt. If the email is not present in the chosen database, the
+  tool exits with `User not found`.
+- Signatures are sent using the Checkr format (`X-Checkr-Signature: sha256=<digest>`); use
+  `--debug-sign` for byte-level diagnostics or `--sig-format raw` for testing.
+
 Baseline admin credentials seeded by the scripts default to `admin@instainstru.com`
 with the password `Test1234!` outside production. Override (and require in prod):
 

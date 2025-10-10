@@ -41,7 +41,7 @@ from sqlalchemy import func
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-ENV_CHOICES: Sequence[str] = ("local", "int", "stg", "beta", "prod")
+ENV_CHOICES: Sequence[str] = ("local", "int", "stg", "preview", "beta", "prod")
 DEFAULT_ENV = "stg"
 WEBHOOK_PATH = "/webhooks/checkr/"
 REQUEST_HOST_FALLBACK = "localhost:8000"
@@ -72,11 +72,18 @@ def _bootstrap_env(env: Optional[str], env_file: Optional[str]) -> str:
         loaded_from = str(backend_env)
 
     key_map = {
-        "stg": "stg_database_url",
-        "beta": "preview_database_url",
         "int": "test_database_url",
+        "stg": "stg_database_url",
+        "preview": "preview_database_url",
+        "beta": "prod_database_url",
         "prod": "prod_database_url",
     }
+    service_key_map = {
+        "preview": "preview_service_database_url",
+        "beta": "prod_service_database_url",
+        "prod": "prod_service_database_url",
+    }
+
     db_key = key_map.get(env_name, "stg_database_url")
     db_url = (env_map.get(db_key) or "").strip()
     if not db_url:
@@ -87,16 +94,49 @@ def _bootstrap_env(env: Optional[str], env_file: Optional[str]) -> str:
         print("Refusing to use test database outside --env int", file=sys.stderr)
         sys.exit(2)
 
+    service_key = service_key_map.get(env_name)
+    service_url = (env_map.get(service_key) or "").strip() if service_key else ""
+    if service_url:
+        db_url = service_url
+
     os.environ["DATABASE_URL"] = db_url
     if env_name == "stg" and "SITE_MODE" not in os.environ:
         os.environ["SITE_MODE"] = "stg"
+    elif env_name == "int" and "SITE_MODE" not in os.environ:
+        os.environ["SITE_MODE"] = "int"
+    elif env_name in {"beta", "prod"}:
+        os.environ["SITE_MODE"] = "prod"
+    elif env_name == "preview":
+        os.environ["SITE_MODE"] = "preview"
+    elif env_name == "local" and "SITE_MODE" not in os.environ:
+        os.environ["SITE_MODE"] = "local"
+
     os.environ.setdefault("CHECKR_ENV", "sandbox")
     os.environ.setdefault("CHECKR_FAKE", "true")
+
+    secret_from_env = None
+    for key in ("CHECKR_WEBHOOK_SECRET", "checkr_webhook_secret"):
+        value = env_map.get(key)
+        if value:
+            secret_from_env = value.strip()
+            break
+    if secret_from_env:
+        os.environ["CHECKR_WEBHOOK_SECRET"] = secret_from_env
     os.environ.setdefault("CHECKR_WEBHOOK_SECRET", "whsec_test")
-    os.environ.setdefault("CHECKR_WEBHOOK_URL", "http://localhost:8000/webhooks/checkr/")
+    if env_name in {"local", "stg", "int"}:
+        os.environ.setdefault("CHECKR_WEBHOOK_URL", "http://localhost:8000/webhooks/checkr/")
+    else:
+        if os.environ.get("CHECKR_WEBHOOK_URL", "").startswith("http://localhost"):
+            os.environ.pop("CHECKR_WEBHOOK_URL", None)
     os.environ.setdefault("SUPPRESS_DB_MESSAGES", "1")
     os.environ["SIM_ENV_FILE"] = loaded_from
     os.environ["SIM_ENV_NAME"] = env_name
+
+    if "@anon" in db_url or ":anon@" in db_url:
+        print(
+            "⚠️  WARNING: Using anon-level database credentials; queries may be restricted.",
+            file=sys.stderr,
+        )
     return env_name
 
 
@@ -146,23 +186,12 @@ def _resolve_webhook_url(
     if env_override:
         return env_override
 
-    base_url = getattr(current_settings, "api_base_url", None) or getattr(current_settings, "api_url", None)
-    if base_url:
-        return f"{str(base_url).rstrip('/')}{WEBHOOK_PATH}"
-
-    site_mode = getattr(current_settings, "site_mode", "local")
-    host_candidates = [
-        getattr(current_settings, "api_host", None),
-        getattr(current_settings, "api_domain", None),
-    ]
-    if site_mode == "prod":
-        host_candidates.append(getattr(current_settings, "prod_api_domain", None))
-    elif environment in {"stg", "beta"} or site_mode in {"preview", "stg"}:
-        host_candidates.append(getattr(current_settings, "preview_api_domain", None))
-
-    host = next((str(candidate) for candidate in host_candidates if candidate), REQUEST_HOST_FALLBACK)
-    origin = _resolve_origin_from_host(host, site_mode=site_mode if isinstance(site_mode, str) else "local")
-    return f"{origin}{WEBHOOK_PATH}"
+    canonical = environment.strip().lower()
+    if canonical in {"beta", "prod"}:
+        return "https://api.instainstru.com/webhooks/checkr/"
+    if canonical == "preview":
+        return "https://preview-api.instainstru.com/webhooks/checkr/"
+    return "http://localhost:8000/webhooks/checkr/"
 
 
 def _secret_value(secret: object | None) -> str:
@@ -192,6 +221,42 @@ def _post_webhook_via_asgi(target_url: str, body: bytes, headers: dict[str, str]
             return response.status_code, response.text
 
     return asyncio.run(_send())
+
+
+def _dispatch_webhook(webhook_url: str, raw_body: bytes, signature: str) -> tuple[int, str]:
+    request = urllib.request.Request(
+        webhook_url,
+        data=raw_body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "X-Checkr-Signature": signature,
+        },
+    )
+
+    def _invoke_internal() -> tuple[int, str]:
+        return _post_webhook_via_asgi(
+            webhook_url,
+            raw_body,
+            {
+                "Content-Type": "application/json",
+                "X-Checkr-Signature": signature,
+            },
+        )
+
+    try:
+        with urllib.request.urlopen(request) as response:  # noqa: S310
+            response_body = response.read().decode("utf-8")
+            return response.status, response_body
+    except urllib.error.HTTPError as exc:  # pragma: no cover
+        if exc.code >= 500:
+            status_code, response_body = _invoke_internal()
+            return status_code, response_body
+        detail = exc.read().decode("utf-8", errors="ignore")
+        raise SystemExit(f"Webhook failed -> {exc.code}: {detail}")
+    except urllib.error.URLError:
+        status_code, response_body = _invoke_internal()
+        return status_code, response_body
 
 
 def _get_bgc_client(current_settings):
@@ -281,6 +346,22 @@ def main() -> None:
         action="store_true",
         help="Reset the instructor's background check status to failed (non-prod only)",
     )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Skip confirmation prompt when targeting live environments",
+    )
+    parser.add_argument(
+        "--debug-sign",
+        action="store_true",
+        help="Print request body/signature diagnostics",
+    )
+    parser.add_argument(
+        "--sig-format",
+        choices=["raw", "sha256"],
+        default="raw",
+        help="Format for X-Checkr-Signature header (default: raw)",
+    )
 
     args = parser.parse_args(remaining_args, namespace=pre_args)
 
@@ -300,6 +381,19 @@ def main() -> None:
     print(
         f"Using ENV={environment_name} DB={display_db} WEBHOOK_URL={webhook_url} ENV_FILE={env_file}"
     )
+
+    is_live_target = environment_name in {"beta", "prod"} and webhook_url.startswith("https://")
+    if is_live_target and not args.yes:
+        try:
+            confirmation = input(
+                "This will POST a simulated Checkr webhook to LIVE. Type 'yes' to continue: "
+            )
+        except KeyboardInterrupt:
+            print("\nAborted by user.")
+            sys.exit(1)
+        if confirmation.strip().lower() != "yes":
+            print("Aborted.")
+            sys.exit(0)
 
     db = SessionLocal()
     try:
@@ -370,63 +464,50 @@ def main() -> None:
                 "object": {
                     "id": report_id,
                     "status": "completed",
-                    "result": args.result,
-                }
-            },
+                "result": args.result,
+            }
+        },
         }
 
-        body = json.dumps(payload).encode("utf-8")
+        raw_body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         secret_value = (
             args.secret
             or os.getenv("CHECKR_WEBHOOK_SECRET")
             or _secret_value(getattr(settings, "checkr_webhook_secret", None))
             or "whsec_test"
         )
-        signature = hmac.new(str(secret_value).encode("utf-8"), body, hashlib.sha256).hexdigest()
+        secret_bytes = str(secret_value).encode("utf-8")
+        signature = hmac.new(secret_bytes, raw_body, hashlib.sha256).hexdigest()
+        header_signature = signature if args.sig_format == "raw" else f"sha256={signature}"
 
-        request = urllib.request.Request(
-            webhook_url,
-            data=body,
-            method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "X-Checkr-Signature": signature,
-            },
-        )
-
-        def _invoke_internal() -> tuple[int, str]:
-            return _post_webhook_via_asgi(
-                webhook_url,
-                body,
-                {
-                    "Content-Type": "application/json",
-                    "X-Checkr-Signature": signature,
-                },
+        if args.debug_sign:
+            preview_prefix = raw_body[:80]
+            preview_suffix = raw_body[-80:] if len(raw_body) > 80 else b""
+            warning = ""
+            if secret_value.strip() != secret_value:
+                warning = " (warning: secret has leading/trailing whitespace)"
+            elif '"' in secret_value:
+                warning = " (warning: secret contains quote characters)"
+            print(
+                "-- Debug Sign --",
+                f"length={len(raw_body)}",
+                f"head={preview_prefix!r}",
+                f"tail={preview_suffix!r}",
+                f"secret_len={len(secret_value)}",
+                f"signature={signature}",
+                f"header_signature={header_signature}",
+                f"lowercase_hex={signature == signature.lower()}" + warning,
+                sep="\n",
             )
 
-        try:
-            with urllib.request.urlopen(request) as response:  # noqa: S310
-                response_body = response.read().decode("utf-8")
-                print(f"Webhook dispatched -> {response.status}: {response_body}")
-        except urllib.error.HTTPError as exc:  # pragma: no cover
-            if exc.code >= 500:
-                status_code, response_body = _invoke_internal()
-                if status_code >= 200 and status_code < 300:
-                    print(f"Webhook dispatched -> {status_code}: {response_body}")
-                else:
-                    print(f"Webhook failed -> {status_code}: {response_body}", file=sys.stderr)
-                    sys.exit(1)
-            else:
-                detail = exc.read().decode("utf-8", errors="ignore")
-                print(f"Webhook failed -> {exc.code}: {detail}", file=sys.stderr)
-                sys.exit(1)
-        except urllib.error.URLError:
-            status_code, response_body = _invoke_internal()
-            if status_code >= 200 and status_code < 300:
-                print(f"Webhook dispatched -> {status_code}: {response_body}")
-            else:
-                print(f"Webhook failed -> {status_code}: {response_body}", file=sys.stderr)
-                sys.exit(1)
+        status_code, response_body = _dispatch_webhook(
+            webhook_url, raw_body, header_signature
+        )
+        if 200 <= status_code < 300:
+            print(f"Webhook dispatched -> {status_code}: {response_body}")
+        else:
+            print(f"Webhook failed -> {status_code}: {response_body}", file=sys.stderr)
+            sys.exit(1)
 
         # Refresh profile to reflect webhook update; fallback to direct service update if needed
         db.expire_all()
