@@ -9656,5 +9656,107 @@
         }
       }
     }
+  },
+  {
+    "timestamp": "2025-10-13T03:30:02.323458",
+    "total_lines": 211955,
+    "total_files": 1126,
+    "backend_lines": 138953,
+    "frontend_lines": 73002,
+    "git_commits": 951,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 168,
+          "lines": 21647
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 5159
+        },
+        "Tasks/Celery": {
+          "files": 19,
+          "lines": 3755
+        },
+        "Core/Config": {
+          "files": 16,
+          "lines": 3087
+        },
+        "Repositories": {
+          "files": 40,
+          "lines": 13545
+        },
+        "Models": {
+          "files": 24,
+          "lines": 3684
+        },
+        "Schemas": {
+          "files": 54,
+          "lines": 5577
+        },
+        "Routes/APIs": {
+          "files": 94,
+          "lines": 19828
+        },
+        "Services": {
+          "files": 118,
+          "lines": 32817
+        },
+        "Unit Tests": {
+          "files": 45,
+          "lines": 8038
+        },
+        "Integration Tests": {
+          "files": 90,
+          "lines": 21680
+        },
+        "Route Tests": {
+          "files": 34,
+          "lines": 6952
+        }
+      },
+      "frontend": {
+        "Pages": {
+          "files": 85,
+          "lines": 22947
+        },
+        "Components": {
+          "files": 115,
+          "lines": 23457
+        },
+        "Hooks": {
+          "files": 39,
+          "lines": 6229
+        },
+        "Unit Tests": {
+          "files": 45,
+          "lines": 6896
+        },
+        "Features": {
+          "files": 73,
+          "lines": 10604
+        },
+        "Public": {
+          "files": 1,
+          "lines": 7
+        },
+        "API/Lib": {
+          "files": 43,
+          "lines": 7096
+        },
+        "Types": {
+          "files": 12,
+          "lines": 2743
+        },
+        "Utils": {
+          "files": 8,
+          "lines": 404
+        },
+        "E2E Tests": {
+          "files": 25,
+          "lines": 4916
+        }
+      }
+    }
   }
 ]

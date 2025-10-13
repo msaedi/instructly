@@ -31,6 +31,7 @@ from ...services.instructor_service import InstructorService
 from ...services.notification_service import NotificationService
 from ...services.password_reset_service import PasswordResetService
 from ...services.presentation_service import PresentationService
+from ...services.pricing_service import PricingService
 from ...services.referral_checkout_service import ReferralCheckoutService
 from ...services.referral_service import ReferralService
 from ...services.slot_manager import SlotManager
@@ -108,6 +109,12 @@ def get_booking_service(
         conflict_checker_repository=None,
         cache_service=cache_service,
     )
+
+
+def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:
+    """Provide pricing service instance for dependency injection."""
+
+    return PricingService(db)
 
 
 def get_instructor_service(

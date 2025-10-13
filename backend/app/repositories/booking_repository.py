@@ -18,7 +18,7 @@ This repository handles:
 - Caching for performance optimization
 """
 
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
 
@@ -29,6 +29,7 @@ from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
 from ..core.timezone_utils import get_user_now_by_id, get_user_today_by_id
 from ..models.booking import Booking, BookingStatus
+from ..models.user import User
 from .base_repository import BaseRepository
 from .cached_repository_mixin import CachedRepositoryMixin, cached_method
 
@@ -246,6 +247,63 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error getting bookings for week: {str(e)}")
             raise RepositoryException(f"Failed to get weekly bookings: {str(e)}")
+
+    def count_instructor_completed_last_30d(self, instructor_id: str) -> int:
+        """Return the number of completed bookings for an instructor in the last 30 days."""
+
+        try:
+            now = datetime.now(timezone.utc)
+            window_start = now - timedelta(days=30)
+            query = (
+                self.db.query(func.count(Booking.id))
+                .filter(Booking.instructor_id == instructor_id)
+                .filter(Booking.status == BookingStatus.COMPLETED)
+                .filter(Booking.completed_at.isnot(None))
+                .filter(Booking.completed_at >= window_start)
+            )
+            result = query.scalar()
+            return int(result or 0)
+        except Exception as exc:
+            self.logger.error("Error counting instructor completed bookings last 30d: %s", str(exc))
+            raise RepositoryException("Failed to count instructor completions")
+
+    def get_instructor_last_completed_at(self, instructor_id: str) -> Optional[datetime]:
+        """Return the timestamp of the most recent completed booking for an instructor."""
+
+        try:
+            query = (
+                self.db.query(func.max(Booking.completed_at))
+                .filter(Booking.instructor_id == instructor_id)
+                .filter(Booking.status == BookingStatus.COMPLETED)
+            )
+            result = cast(Optional[datetime], query.scalar())
+            return result
+        except Exception as exc:
+            self.logger.error(
+                "Error fetching instructor last completed booking timestamp: %s", str(exc)
+            )
+            raise RepositoryException("Failed to fetch last completion timestamp")
+
+    def get_with_pricing_context(self, booking_id: str) -> Optional[Booking]:
+        """Return booking hydrated with relationships required for pricing calculations."""
+
+        try:
+            return cast(
+                Optional[Booking],
+                self.db.query(Booking)
+                .options(
+                    joinedload(Booking.student),
+                    joinedload(Booking.instructor).joinedload(User.instructor_profile),
+                    joinedload(Booking.instructor_service),
+                )
+                .filter(Booking.id == booking_id)
+                .first(),
+            )
+        except Exception as exc:
+            self.logger.error(
+                "Error fetching booking %s with pricing context: %s", booking_id, str(exc)
+            )
+            raise RepositoryException("Failed to load booking pricing context")
 
     # Opportunity Finding (MOVED from SlotManagerRepository)
 

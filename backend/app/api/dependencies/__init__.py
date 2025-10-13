@@ -12,6 +12,7 @@ from .services import (  # Future services will be added here; get_availability_
     get_account_lifecycle_service,
     get_booking_service,
     get_notification_service,
+    get_pricing_service,
 )
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "get_account_lifecycle_service",
     "get_notification_service",
     "get_booking_service",
+    "get_pricing_service",
 ]
