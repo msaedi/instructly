@@ -4,6 +4,7 @@ Tests for payment processing Celery tasks.
 
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+import types
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -11,8 +12,12 @@ import stripe
 import ulid
 
 from app.models.booking import Booking, BookingStatus
+from app.models.instructor import InstructorProfile
+from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.user import User
 from app.services.stripe_service import ChargeContext, StripeService
 from app.tasks.payment_tasks import (
+    attempt_authorization_retry,
     attempt_payment_capture,
     capture_completed_lessons,
     check_authorization_health,
@@ -442,9 +447,10 @@ class TestPaymentTasks:
         mock_stripe_service_instance = mock_stripe_service.return_value
         mock_captured_intent = MagicMock()
         mock_captured_intent.amount_received = 10000
-        mock_stripe_service_instance.capture_booking_payment_intent.return_value = (
-            mock_captured_intent
-        )
+        mock_stripe_service_instance.capture_booking_payment_intent.return_value = {
+            "payment_intent": mock_captured_intent,
+            "amount_received": 10000,
+        }
 
         # Mock repositories
         mock_payment_repo = MagicMock()
@@ -499,7 +505,11 @@ class TestPaymentTasks:
                     event_type="top_up_transfer_created",
                     event_data={"transfer_id": "tr_topup", "amount_cents": 840},
                 )
-            return MagicMock(amount_received=5960)
+            payment_intent = MagicMock(amount_received=5960)
+            return {
+                "payment_intent": payment_intent,
+                "amount_received": 5960,
+            }
 
         stripe_service.capture_booking_payment_intent.side_effect = capture_side_effect
 
@@ -517,6 +527,142 @@ class TestPaymentTasks:
         )
         assert result_second["success"] is True
         assert sum(1 for e in events if e.get("event_type") == "top_up_transfer_created") == 1
+
+    @patch("stripe.PaymentIntent.create")
+    def test_retry_authorization_reuses_locked_credit_metadata(
+        self,
+        mock_create,
+        db: Any,
+    ) -> None:
+        """Retry flow should pass requested_credit_cents=None and persist applied credit metadata."""
+
+        stripe_service = StripeService(db)
+        payment_repo = stripe_service.payment_repository
+
+        student = User(
+            id=str(ulid.ULID()),
+            email="student_retry@example.com",
+            hashed_password="hashed",
+            first_name="Retry",
+            last_name="Student",
+            zip_code="10001",
+        )
+        instructor_user = User(
+            id=str(ulid.ULID()),
+            email="instructor_retry@example.com",
+            hashed_password="hashed",
+            first_name="Retry",
+            last_name="Instructor",
+            zip_code="10001",
+        )
+        db.add_all([student, instructor_user])
+        db.flush()
+
+        profile = InstructorProfile(
+            id=str(ulid.ULID()),
+            user_id=instructor_user.id,
+            bio="Retry instructor",
+            years_experience=5,
+        )
+        db.add(profile)
+
+        category = ServiceCategory(
+            id=str(ulid.ULID()),
+            name="Retry Category",
+            slug=f"retry-category-{str(ulid.ULID()).lower()}",
+            description="Retry category",
+        )
+        catalog = ServiceCatalog(
+            id=str(ulid.ULID()),
+            category_id=category.id,
+            name="Retry Service",
+            slug=f"retry-service-{str(ulid.ULID()).lower()}",
+            description="Retry service",
+        )
+        instructor_service = InstructorService(
+            id=str(ulid.ULID()),
+            instructor_profile_id=profile.id,
+            service_catalog_id=catalog.id,
+            hourly_rate=75.0,
+            is_active=True,
+        )
+        db.add_all([category, catalog, instructor_service])
+
+        booking_datetime = datetime.now(timezone.utc) + timedelta(hours=20)
+        booking = Booking(
+            id=str(ulid.ULID()),
+            student_id=student.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=booking_datetime.date(),
+            start_time=booking_datetime.time(),
+            end_time=(booking_datetime + timedelta(hours=1)).time(),
+            service_name="Retry Service",
+            hourly_rate=75.0,
+            total_price=75.0,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            payment_status="auth_failed",
+            payment_method_id="pm_retry",
+            payment_intent_id="pi_retry_old",
+        )
+        db.add(booking)
+        db.flush()
+
+        payment_repo.create_customer_record(student.id, "cus_retry")
+        payment_repo.create_connected_account_record(
+            profile.id, "acct_retry", onboarding_completed=True
+        )
+
+        locked_context = ChargeContext(
+            booking_id=booking.id,
+            applied_credit_cents=1200,
+            base_price_cents=9000,
+            student_fee_cents=1080,
+            instructor_commission_cents=900,
+            target_instructor_payout_cents=8100,
+            student_pay_cents=8880,
+            application_fee_cents=2880,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0.12"),
+        )
+
+        stripe_service.build_charge_context = MagicMock(return_value=locked_context)
+
+        mock_create.return_value = MagicMock(id="pi_retry_new", status="requires_capture")
+
+        recorded_requested: list[Any] = []
+        original_method = stripe_service.create_or_retry_booking_payment_intent
+
+        def _wrapper(self, *, booking_id, payment_method_id=None, requested_credit_cents=None):
+            recorded_requested.append(requested_credit_cents)
+            return original_method(
+                booking_id=booking_id,
+                payment_method_id=payment_method_id,
+                requested_credit_cents=requested_credit_cents,
+            )
+
+        stripe_service.create_or_retry_booking_payment_intent = types.MethodType(
+            _wrapper, stripe_service
+        )
+
+        result = attempt_authorization_retry(
+            booking,
+            payment_repo,
+            db,
+            hours_until_lesson=20,
+            stripe_service=stripe_service,
+        )
+
+        assert result is True
+        assert recorded_requested == [None]
+        assert booking.payment_status == "authorized"
+
+        create_kwargs = mock_create.call_args[1]
+        assert create_kwargs["metadata"]["applied_credit_cents"] == str(
+            locked_context.applied_credit_cents
+        )
+        assert create_kwargs["amount"] == locked_context.student_pay_cents
 
     @patch("app.tasks.payment_tasks.get_db")
     def test_check_authorization_health_healthy(self, mock_get_db):

@@ -869,23 +869,45 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         """Return total cents of credits applied to the booking so far."""
 
         try:
-            events = (
+            credit_use_events = (
                 self.db.query(PaymentEvent)
                 .filter(
                     PaymentEvent.booking_id == booking_id,
-                    PaymentEvent.event_type.in_(["credit_used", "credits_applied"]),
+                    PaymentEvent.event_type == "credit_used",
                 )
                 .all()
             )
 
-            total = 0
-            for event in events:
+            total_used = 0
+            for event in credit_use_events:
                 data = event.event_data or {}
-                if event.event_type == "credit_used":
-                    total += int(data.get("used_cents") or 0)
-                elif event.event_type == "credits_applied":
-                    total += int(data.get("applied_cents") or 0)
-            return total
+                try:
+                    total_used += max(0, int(data.get("used_cents") or 0))
+                except (TypeError, ValueError):
+                    continue
+
+            if total_used > 0:
+                return total_used
+
+            # Legacy fallback: aggregated credits_applied events (pre "credit_used" granularity)
+            legacy_events = (
+                self.db.query(PaymentEvent)
+                .filter(
+                    PaymentEvent.booking_id == booking_id,
+                    PaymentEvent.event_type == "credits_applied",
+                )
+                .all()
+            )
+
+            legacy_total = 0
+            for event in legacy_events:
+                data = event.event_data or {}
+                try:
+                    legacy_total += max(0, int(data.get("applied_cents") or 0))
+                except (TypeError, ValueError):
+                    continue
+
+            return legacy_total
         except Exception as exc:
             self.logger.error(
                 "Failed to load applied credits for booking %s: %s", booking_id, str(exc)

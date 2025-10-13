@@ -756,14 +756,28 @@ def attempt_payment_capture(
             logger.info(f"Skipping cancelled booking {booking.id} - already captured")
             return {"success": True, "skipped": True}
 
-        captured_intent = stripe_service.capture_booking_payment_intent(
+        capture_payload = stripe_service.capture_booking_payment_intent(
             booking_id=booking.id,
             payment_intent_id=booking.payment_intent_id,
         )
 
         booking.payment_status = "captured"
 
-        amount_received = getattr(captured_intent, "amount_received", None)
+        payment_intent = None
+        amount_received = None
+
+        if isinstance(capture_payload, dict):
+            payment_intent = capture_payload.get("payment_intent")
+            amount_received = capture_payload.get("amount_received")
+        else:
+            payment_intent = capture_payload
+
+        if amount_received is None and payment_intent is not None:
+            amount_received = getattr(payment_intent, "amount_received", None)
+
+        if amount_received is None and payment_intent is not None:
+            amount_received = getattr(payment_intent, "amount", None)
+
         payment_repo.create_payment_event(
             booking_id=booking.id,
             event_type="payment_captured",

@@ -135,7 +135,7 @@ class StripeService(BaseService):
                 ) == int(amount_cents):
                     return None
 
-            transfer = stripe.Transfer.create(
+            transfer = stripe.Transfer.create(  # type: ignore[attr-defined]
                 amount=amount_cents,
                 currency="usd",
                 destination=destination_account_id,
@@ -284,9 +284,144 @@ class StripeService(BaseService):
         *,
         booking_id: str,
         payment_intent_id: str,
-    ) -> Any:
+    ) -> Dict[str, Any]:
+        """Capture a booking PI and return capture details with top-up metadata.
+
+        Returns a dict containing:
+            payment_intent: stripe.PaymentIntent (refreshed when possible)
+            amount_received: int | None (cents captured from the charge)
+            top_up_transfer_cents: int (derived from PI metadata or fallback pricing)
+        """
         capture_result = self.capture_payment_intent(payment_intent_id)
-        return capture_result.get("payment_intent")
+
+        payment_intent = capture_result.get("payment_intent")
+        refreshed_pi = payment_intent
+
+        if self.stripe_configured:
+            try:
+                refreshed_pi = stripe.PaymentIntent.retrieve(payment_intent_id)
+            except Exception as exc:
+                self.logger.warning(
+                    "failed_to_refresh_payment_intent_after_capture",
+                    extra={
+                        "booking_id": booking_id,
+                        "payment_intent_id": payment_intent_id,
+                        "error": str(exc),
+                    },
+                )
+
+        if refreshed_pi is None:
+            refreshed_pi = payment_intent
+
+        top_up_amount: Optional[int] = None
+        if refreshed_pi is not None:
+            top_up_amount = self._top_up_from_pi_metadata(refreshed_pi)
+
+        if top_up_amount is None:
+            self.logger.info(
+                "top_up_metadata_missing_falling_back",
+                extra={
+                    "booking_id": booking_id,
+                    "payment_intent_id": payment_intent_id,
+                },
+            )
+            try:
+                ctx = self.build_charge_context(booking_id, requested_credit_cents=None)
+
+                amount_value: Optional[Any] = None
+                if refreshed_pi is not None:
+                    amount_value = getattr(refreshed_pi, "amount", None)
+                    if amount_value is None and hasattr(refreshed_pi, "get"):
+                        amount_value = refreshed_pi.get("amount")
+
+                charged_amount = (
+                    int(str(amount_value))
+                    if amount_value is not None
+                    else int(ctx.student_pay_cents)
+                )
+
+                target_payout = int(ctx.target_instructor_payout_cents)
+                top_up_amount = max(0, target_payout - charged_amount)
+            except Exception as exc:
+                self.logger.warning(
+                    "fallback_top_up_computation_failed",
+                    extra={
+                        "booking_id": booking_id,
+                        "payment_intent_id": payment_intent_id,
+                        "error": str(exc),
+                    },
+                )
+                top_up_amount = 0
+
+        if top_up_amount is None:
+            top_up_amount = 0
+
+        destination_account_id: Optional[str] = None
+        try:
+            booking = self.booking_repository.get_by_id(booking_id)
+        except Exception as exc:
+            self.logger.warning(
+                "booking_lookup_failed_for_top_up",
+                extra={"booking_id": booking_id, "error": str(exc)},
+            )
+            booking = None
+
+        if booking:
+            try:
+                instructor_profile = self.instructor_repository.get_by_user_id(
+                    booking.instructor_id
+                )
+            except Exception as exc:
+                self.logger.warning(
+                    "instructor_profile_lookup_failed_for_top_up",
+                    extra={
+                        "booking_id": booking_id,
+                        "instructor_id": booking.instructor_id,
+                        "error": str(exc),
+                    },
+                )
+                instructor_profile = None
+
+            if instructor_profile:
+                try:
+                    connected_account = (
+                        self.payment_repository.get_connected_account_by_instructor_id(
+                            instructor_profile.id
+                        )
+                    )
+                    destination_account_id = getattr(connected_account, "stripe_account_id", None)
+                except Exception as exc:
+                    self.logger.warning(
+                        "connected_account_lookup_failed_for_top_up",
+                        extra={
+                            "booking_id": booking_id,
+                            "instructor_profile_id": instructor_profile.id,
+                            "error": str(exc),
+                        },
+                    )
+
+        if top_up_amount > 0 and destination_account_id:
+            try:
+                self.ensure_top_up_transfer(
+                    booking_id=booking_id,
+                    payment_intent_id=payment_intent_id,
+                    destination_account_id=destination_account_id,
+                    amount_cents=top_up_amount,
+                )
+            except Exception as exc:
+                self.logger.error(
+                    "ensure_top_up_transfer_failed",
+                    extra={
+                        "booking_id": booking_id,
+                        "payment_intent_id": payment_intent_id,
+                        "amount_cents": top_up_amount,
+                        "error": str(exc),
+                    },
+                )
+
+        capture_result["payment_intent"] = refreshed_pi
+        capture_result["top_up_transfer_cents"] = top_up_amount
+        return capture_result
 
     @BaseService.measure_operation("stripe_build_charge_context")
     def build_charge_context(
@@ -300,18 +435,30 @@ class StripeService(BaseService):
                 if not booking:
                     raise ServiceException("Booking not found for charge context")
 
-                applied_credit_cents: int
+                existing_applied = self.payment_repository.get_applied_credit_cents_for_booking(
+                    booking_id
+                )
+
                 if requested_credit_cents is not None and requested_credit_cents > 0:
-                    credit_result = self.payment_repository.apply_credits_for_booking(
-                        user_id=booking.student_id,
-                        booking_id=booking_id,
-                        amount_cents=int(requested_credit_cents),
-                    )
-                    applied_credit_cents = int(credit_result.get("applied_cents") or 0)
+                    if existing_applied > 0:
+                        applied_credit_cents = existing_applied
+                        self.logger.warning(
+                            "requested_credit_ignored_due_to_existing_usage",
+                            extra={
+                                "booking_id": booking_id,
+                                "requested_credit_cents": requested_credit_cents,
+                                "existing_applied_cents": existing_applied,
+                            },
+                        )
+                    else:
+                        credit_result = self.payment_repository.apply_credits_for_booking(
+                            user_id=booking.student_id,
+                            booking_id=booking_id,
+                            amount_cents=int(requested_credit_cents),
+                        )
+                        applied_credit_cents = int(credit_result.get("applied_cents") or 0)
                 else:
-                    applied_credit_cents = (
-                        self.payment_repository.get_applied_credit_cents_for_booking(booking_id)
-                    )
+                    applied_credit_cents = existing_applied
 
                 pricing_service = PricingService(self.db)
                 pricing = pricing_service.compute_booking_pricing(
@@ -851,7 +998,11 @@ class StripeService(BaseService):
                         )
                     amount = int(amount_cents)
                     application_fee_cents = int(amount * self.platform_fee_percentage)
-                    metadata = {"booking_id": booking_id, "platform": "instainstru"}
+                    metadata = {
+                        "booking_id": booking_id,
+                        "platform": "instainstru",
+                        "applied_credit_cents": "0",
+                    }
 
                 try:
                     stripe_kwargs = {
@@ -929,7 +1080,11 @@ class StripeService(BaseService):
                 off_session=True,
                 transfer_data={"destination": destination_account_id},
                 application_fee_amount=application_fee_cents,
-                metadata={"booking_id": booking_id, "platform": "instainstru"},
+                metadata={
+                    "booking_id": booking_id,
+                    "platform": "instainstru",
+                    "applied_credit_cents": "0",
+                },
                 idempotency_key=idempotency_key,
             )
 
@@ -1056,51 +1211,19 @@ class StripeService(BaseService):
             except Exception:
                 pass
 
-            try:
-                payment_record = self.payment_repository.get_payment_by_intent_id(payment_intent_id)
-            except Exception:
-                payment_record = None
-
-            if payment_record:
-                booking_id = payment_record.booking_id
-                try:
-                    booking = self.booking_repository.get_by_id(booking_id)
-                except Exception:
-                    booking = None
-
-                if booking:
+            if amount_received is None:
+                amount_received = getattr(pi, "amount_received", None)
+                if amount_received is None and hasattr(pi, "get"):
+                    amount_received = pi.get("amount_received")
+            if amount_received is None:
+                fallback_amount = getattr(pi, "amount", None)
+                if fallback_amount is None and hasattr(pi, "get"):
+                    fallback_amount = pi.get("amount")
+                if fallback_amount is not None:
                     try:
-                        instructor_profile = self.instructor_repository.get_by_user_id(
-                            booking.instructor_id
-                        )
-                    except Exception:
-                        instructor_profile = None
-
-                    if instructor_profile:
-                        connected_account = (
-                            self.payment_repository.get_connected_account_by_instructor_id(
-                                instructor_profile.id
-                            )
-                        )
-                    else:
-                        connected_account = None
-
-                    if connected_account and connected_account.stripe_account_id:
-                        try:
-                            ctx = self.build_charge_context(
-                                booking_id=booking_id, requested_credit_cents=None
-                            )
-                            top_up_amount = int(ctx.top_up_transfer_cents)
-                        except Exception:
-                            top_up_amount = 0
-
-                        if top_up_amount > 0:
-                            self.ensure_top_up_transfer(
-                                booking_id=booking_id,
-                                payment_intent_id=payment_intent_id,
-                                destination_account_id=connected_account.stripe_account_id,
-                                amount_cents=top_up_amount,
-                            )
+                        amount_received = int(fallback_amount)
+                    except (TypeError, ValueError):
+                        amount_received = fallback_amount
 
             return {
                 "payment_intent": pi,
@@ -1994,3 +2117,56 @@ class StripeService(BaseService):
         except Exception as e:
             self.logger.error(f"Error getting instructor earnings: {str(e)}")
             raise ServiceException(f"Failed to get instructor earnings: {str(e)}")
+
+    @staticmethod
+    def _top_up_from_pi_metadata(pi: Any) -> Optional[int]:
+        """Compute top-up from PaymentIntent metadata when available.
+
+        If PI metadata contains: base_price_cents, commission_cents, student_fee_cents,
+        applied_credit_cents, compute deterministic top-up using the creation-time values:
+
+            A = int(pi.amount)
+            B = int(meta["base_price_cents"])
+            c = int(meta["commission_cents"])
+            s = int(meta["student_fee_cents"])
+            C = int(meta["applied_credit_cents"])
+            P = B - c
+            top_up = max(0, P - A)
+
+        Return top_up; return None if any value is missing/non-int.
+        """
+
+        metadata = getattr(pi, "metadata", None)
+        if not metadata and hasattr(pi, "get"):
+            metadata = pi.get("metadata")
+        if not metadata:
+            return None
+
+        try:
+            base_price_cents = int(str(metadata["base_price_cents"]))
+            commission_cents = int(str(metadata["commission_cents"]))
+            # student_fee_cents currently unused but validated for completeness
+            _ = int(str(metadata["student_fee_cents"]))
+            applied_credit_cents = int(str(metadata["applied_credit_cents"]))
+        except (KeyError, TypeError, ValueError):
+            return None
+
+        if applied_credit_cents < 0:
+            return None
+
+        amount_value: Optional[Any] = getattr(pi, "amount", None)
+        if amount_value is None and hasattr(pi, "get"):
+            amount_value = pi.get("amount")
+        if amount_value is None:
+            return None
+
+        try:
+            student_pay_cents = int(str(amount_value))
+        except (TypeError, ValueError):
+            return None
+
+        target_instructor_payout = base_price_cents - commission_cents
+        top_up = target_instructor_payout - student_pay_cents
+        if top_up <= 0:
+            return 0
+        return top_up

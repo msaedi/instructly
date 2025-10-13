@@ -8,6 +8,7 @@ and webhook handling.
 
 from datetime import datetime, time
 from decimal import Decimal
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -357,7 +358,9 @@ class TestStripeService:
 
         apply_mock = MagicMock(return_value={"applied_cents": 700})
         stripe_service.payment_repository.apply_credits_for_booking = apply_mock
-        stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock()
+        stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
+            return_value=0
+        )
 
         context = stripe_service.build_charge_context(
             booking_id=test_booking.id, requested_credit_cents=900
@@ -368,7 +371,9 @@ class TestStripeService:
             booking_id=test_booking.id,
             amount_cents=900,
         )
-        stripe_service.payment_repository.get_applied_credit_cents_for_booking.assert_not_called()
+        stripe_service.payment_repository.get_applied_credit_cents_for_booking.assert_called_once_with(
+            test_booking.id
+        )
         mock_pricing.assert_called_once_with(
             booking_id=test_booking.id,
             applied_credit_cents=700,
@@ -424,6 +429,78 @@ class TestStripeService:
         assert context.applied_credit_cents == 500
         assert context.top_up_transfer_cents == 250
         assert context.instructor_tier_pct == Decimal("0.1")
+
+    @patch("app.services.pricing_service.PricingService.compute_booking_pricing")
+    def test_build_charge_context_ignores_new_requested_credit_after_lock(
+        self,
+        mock_pricing,
+        stripe_service: StripeService,
+        test_booking: Booking,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Retries should reuse previously locked credits and log the guardrail."""
+
+        mock_pricing.return_value = {
+            "base_price_cents": 9000,
+            "student_fee_cents": 1080,
+            "instructor_commission_cents": 1200,
+            "target_instructor_payout_cents": 7800,
+            "credit_applied_cents": 1200,
+            "student_pay_cents": 8880,
+            "application_fee_cents": 2880,
+            "top_up_transfer_cents": 0,
+            "instructor_tier_pct": 0.1,
+        }
+
+        stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
+            return_value=1200
+        )
+        stripe_service.payment_repository.apply_credits_for_booking = MagicMock()
+
+        with caplog.at_level(logging.WARNING):
+            context = stripe_service.build_charge_context(
+                booking_id=test_booking.id, requested_credit_cents=5000
+            )
+
+        stripe_service.payment_repository.apply_credits_for_booking.assert_not_called()
+        assert context.applied_credit_cents == 1200
+        assert any(
+            record.message == "requested_credit_ignored_due_to_existing_usage"
+            for record in caplog.records
+        )
+
+    def test_get_applied_credit_cents_prefers_used_events(
+        self, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """Repository should count only credit_used amounts when available."""
+
+        repo = stripe_service.payment_repository
+        repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credit_used",
+            event_data={"used_cents": 800},
+        )
+        repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credits_applied",
+            event_data={"applied_cents": 800},
+        )
+
+        assert repo.get_applied_credit_cents_for_booking(test_booking.id) == 800
+
+    def test_get_applied_credit_cents_falls_back_to_aggregate(
+        self, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """Legacy bookings without credit_used events should still return applied total."""
+
+        repo = stripe_service.payment_repository
+        repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credits_applied",
+            event_data={"applied_cents": 500},
+        )
+
+        assert repo.get_applied_credit_cents_for_booking(test_booking.id) == 500
 
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_success(self, mock_create, stripe_service: StripeService, test_booking: Booking):
@@ -542,8 +619,10 @@ class TestStripeService:
 
     @patch("stripe.Transfer.create")
     @patch("stripe.PaymentIntent.capture")
+    @patch("stripe.PaymentIntent.retrieve")
     def test_capture_booking_payment_intent_wrapper(
         self,
+        mock_retrieve,
         mock_capture,
         mock_transfer,
         stripe_service: StripeService,
@@ -590,6 +669,7 @@ class TestStripeService:
             "amount_received": context.student_pay_cents,
         }
         mock_capture.return_value = capture_response
+        mock_retrieve.return_value = capture_response
         mock_transfer.return_value = {"id": "tr_topup123"}
 
         result = stripe_service.capture_booking_payment_intent(
@@ -597,7 +677,9 @@ class TestStripeService:
             payment_intent_id="pi_capture123",
         )
 
-        assert result == capture_response
+        assert result["payment_intent"] == capture_response
+        assert result["amount_received"] == context.student_pay_cents
+        assert result["top_up_transfer_cents"] == context.top_up_transfer_cents
         mock_transfer.assert_called_once()
         transfer_kwargs = mock_transfer.call_args[1]
         assert transfer_kwargs["amount"] == context.top_up_transfer_cents
@@ -605,6 +687,102 @@ class TestStripeService:
 
         events = stripe_service.payment_repository.get_payment_events_for_booking(test_booking.id)
         assert any(evt.event_type == "top_up_transfer_created" for evt in events)
+
+    @patch("stripe.Transfer.create")
+    @patch("stripe.PaymentIntent.capture")
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_capture_top_up_prefers_metadata_over_config_drift(
+        self,
+        mock_retrieve,
+        mock_capture,
+        mock_transfer,
+        stripe_service: StripeService,
+        test_booking: Booking,
+        test_instructor: tuple,
+    ) -> None:
+        """Top-up computation should prefer metadata and remain idempotent across retries."""
+
+        instructor_user, profile, _ = test_instructor
+        stripe_service.payment_repository.create_customer_record(
+            test_booking.student_id, "cus_student123"
+        )
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_instructor123", onboarding_completed=True
+        )
+
+        pi_metadata = {
+            "booking_id": test_booking.id,
+            "base_price_cents": "8000",
+            "student_fee_cents": "960",
+            "commission_cents": "800",
+            "applied_credit_cents": "2000",
+            "student_pay_cents": "6960",
+            "application_fee_cents": "0",
+            "target_instructor_payout_cents": "7200",
+            "instructor_tier_pct": "0.15",
+        }
+
+        capture_template = {
+            "id": "pi_topup_meta",
+            "status": "succeeded",
+            "amount": 6960,
+            "amount_received": 6960,
+            "metadata": pi_metadata,
+            "charges": {"data": []},
+        }
+
+        def _capture_side_effect(*_, **__):
+            return {**capture_template, "metadata": dict(pi_metadata)}
+
+        mock_capture.side_effect = _capture_side_effect
+        mock_retrieve.side_effect = _capture_side_effect
+
+        drift_context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=2000,
+            base_price_cents=8000,
+            student_fee_cents=1120,
+            instructor_commission_cents=800,
+            target_instructor_payout_cents=7200,
+            student_pay_cents=7120,
+            application_fee_cents=80,
+            top_up_transfer_cents=80,
+            instructor_tier_pct=Decimal("0.15"),
+        )
+
+        stripe_service.build_charge_context = MagicMock(return_value=drift_context)
+
+        stripe_service.payment_repository.create_payment_record(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_topup_meta",
+            amount=drift_context.student_pay_cents,
+            application_fee=drift_context.application_fee_cents,
+            status="requires_capture",
+        )
+
+        mock_transfer.return_value = {"id": "tr_topup_meta"}
+
+        first_capture = stripe_service.capture_booking_payment_intent(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_topup_meta",
+        )
+
+        expected_top_up = 240  # Metadata-derived: (8000 - 800) - 6960
+        assert first_capture["top_up_transfer_cents"] == expected_top_up
+        assert first_capture["amount_received"] == 6960
+        mock_transfer.assert_called_once()
+        transfer_kwargs = mock_transfer.call_args[1]
+        assert transfer_kwargs["amount"] == expected_top_up
+
+        mock_transfer.reset_mock()
+
+        second_capture = stripe_service.capture_booking_payment_intent(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_topup_meta",
+        )
+
+        assert second_capture["top_up_transfer_cents"] == expected_top_up
+        mock_transfer.assert_not_called()
 
     @patch("stripe.PaymentIntent.confirm")
     def test_confirm_payment_intent_success(self, mock_confirm, stripe_service: StripeService, test_booking: Booking):
@@ -693,78 +871,37 @@ class TestStripeService:
 
     @patch("stripe.Transfer.create")
     @patch("stripe.PaymentIntent.capture")
-    def test_capture_payment_intent_creates_top_up_transfer(
+    def test_capture_payment_intent_returns_capture_details_without_top_up(
         self,
         mock_capture,
         mock_transfer,
         stripe_service: StripeService,
         test_booking: Booking,
-        test_instructor: tuple,
     ) -> None:
-        """Top-up transfer is issued exactly once when credits exceed platform share."""
+        """Direct capture should return capture data but defer top-up to booking wrapper."""
 
-        instructor_user, profile, _ = test_instructor
-
-        # Ensure connected account exists
-        stripe_service.payment_repository.create_connected_account_record(
-            profile.id, "acct_instructor123", onboarding_completed=True
-        )
-
-        # Build a charge context representing a large credit scenario
-        top_up_context = ChargeContext(
-            booking_id=test_booking.id,
-            applied_credit_cents=3000,
-            base_price_cents=8000,
-            student_fee_cents=960,
-            instructor_commission_cents=1200,
-            target_instructor_payout_cents=6800,
-            student_pay_cents=5960,
-            application_fee_cents=0,
-            top_up_transfer_cents=840,
-            instructor_tier_pct=Decimal("0.15"),
-        )
-
-        stripe_service.build_charge_context = MagicMock(return_value=top_up_context)
-
-        # Persist payment record prior to capture
-        stripe_service.payment_repository.create_payment_record(
-            booking_id=test_booking.id,
-            payment_intent_id="pi_topup123",
-            amount=top_up_context.student_pay_cents,
-            application_fee=top_up_context.application_fee_cents,
-            status="requires_capture",
-        )
-
-        # Stripe capture response mock
-        capture_response = {
+        capture_payload = {
+            "id": "pi_direct123",
             "status": "succeeded",
-            "charges": {"data": []},
-            "amount_received": top_up_context.student_pay_cents,
+            "charges": {
+                "data": [
+                    {
+                        "id": "ch_123",
+                        "amount": 5960,
+                        "transfer": "tr_primary",
+                    }
+                ]
+            },
+            "amount_received": 5960,
         }
-        mock_capture.return_value = capture_response
-        mock_transfer.return_value = {"id": "tr_topup123"}
 
-        stripe_service.capture_payment_intent("pi_topup123")
+        mock_capture.return_value = capture_payload
 
-        mock_transfer.assert_called_once()
-        transfer_kwargs = mock_transfer.call_args[1]
-        assert transfer_kwargs["amount"] == top_up_context.top_up_transfer_cents
-        assert transfer_kwargs["destination"] == "acct_instructor123"
-        assert transfer_kwargs["transfer_group"] == f"booking:{test_booking.id}"
-        assert transfer_kwargs["metadata"]["payment_intent_id"] == "pi_topup123"
+        result = stripe_service.capture_payment_intent("pi_direct123")
 
-        # Payment event recorded
-        events = stripe_service.payment_repository.get_payment_events_for_booking(test_booking.id)
-        assert any(evt.event_type == "top_up_transfer_created" for evt in events)
-
-        # Subsequent ensure call should no-op
-        mock_transfer.reset_mock()
-        stripe_service.ensure_top_up_transfer(
-            booking_id=test_booking.id,
-            payment_intent_id="pi_topup123",
-            destination_account_id="acct_instructor123",
-            amount_cents=top_up_context.top_up_transfer_cents,
-        )
+        assert result["payment_intent"] == capture_payload
+        assert result["amount_received"] == 5960
+        assert result["transfer_id"] == "tr_primary"
         mock_transfer.assert_not_called()
 
     def test_process_booking_payment_booking_not_found(self, stripe_service: StripeService):
