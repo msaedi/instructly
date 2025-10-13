@@ -4,14 +4,16 @@ Tests for payment processing Celery tasks.
 
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import stripe
 import ulid
 
 from app.models.booking import Booking, BookingStatus
-from app.services.stripe_service import ChargeContext
+from app.services.stripe_service import ChargeContext, StripeService
 from app.tasks.payment_tasks import (
+    attempt_payment_capture,
     capture_completed_lessons,
     check_authorization_health,
     create_new_authorization_and_capture,
@@ -416,10 +418,9 @@ class TestPaymentTasks:
 
         assert kwargs["application_fee_amount"] == 1800  # 15% of $120.00
 
-    @patch("app.tasks.payment_tasks.stripe")
     @patch("app.tasks.payment_tasks.StripeService")
     @patch("app.database.SessionLocal")
-    def test_capture_completed_lessons(self, mock_session_local, mock_stripe_service, mock_stripe):
+    def test_capture_completed_lessons(self, mock_session_local, mock_stripe_service):
         """Test capturing payments for completed lessons."""
         # Setup mock database
         mock_db = MagicMock()
@@ -438,12 +439,12 @@ class TestPaymentTasks:
         mock_db.query.return_value = mock_query
 
         # Mock Stripe service (not used in the actual code)
-        _mock_stripe_service_instance = mock_stripe_service.return_value
-
-        # Mock stripe module PaymentIntent.capture
+        mock_stripe_service_instance = mock_stripe_service.return_value
         mock_captured_intent = MagicMock()
-        mock_captured_intent.amount_received = 10000  # $100 in cents
-        mock_stripe.PaymentIntent.capture.return_value = mock_captured_intent
+        mock_captured_intent.amount_received = 10000
+        mock_stripe_service_instance.capture_booking_payment_intent.return_value = (
+            mock_captured_intent
+        )
 
         # Mock repositories
         mock_payment_repo = MagicMock()
@@ -463,15 +464,59 @@ class TestPaymentTasks:
         assert result["failed"] == 0
         assert booking.payment_status == "captured"
 
-        # Verify capture was called
-        # Our implementation adds idempotency_key; assert first arg matches
-        args, kwargs = mock_stripe.PaymentIntent.capture.call_args
-        assert args[0] == "pi_test123"
+        mock_stripe_service_instance.capture_booking_payment_intent.assert_called_once_with(
+            booking_id=booking.id,
+            payment_intent_id="pi_test123",
+        )
 
         # Verify capture event was created
         mock_payment_repo.create_payment_event.assert_called_once()
         event_call = mock_payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "payment_captured"
+
+    def test_capture_payment_top_up_idempotent(self):
+        """Capture wrapper is used and top-up transfer records once across retries."""
+
+        booking = MagicMock(spec=Booking)
+        booking.id = str(ulid.ULID())
+        booking.payment_status = "authorized"
+        booking.payment_intent_id = "pi_topup123"
+
+        events: list[dict[str, Any]] = []
+
+        def record_event(*_, **kwargs):
+            events.append(kwargs)
+
+        mock_payment_repo = MagicMock()
+        mock_payment_repo.create_payment_event.side_effect = record_event
+
+        stripe_service = MagicMock(spec=StripeService)
+
+        def capture_side_effect(*_, **__):
+            has_top_up = any(e.get("event_type") == "top_up_transfer_created" for e in events)
+            if not has_top_up:
+                record_event(
+                    event_type="top_up_transfer_created",
+                    event_data={"transfer_id": "tr_topup", "amount_cents": 840},
+                )
+            return MagicMock(amount_received=5960)
+
+        stripe_service.capture_booking_payment_intent.side_effect = capture_side_effect
+
+        # First capture attempt
+        result_first = attempt_payment_capture(
+            booking, mock_payment_repo, "instructor_completed", stripe_service
+        )
+        assert result_first["success"] is True
+        assert sum(1 for e in events if e.get("event_type") == "top_up_transfer_created") == 1
+
+        # Reset booking status and retry to confirm idempotency
+        booking.payment_status = "authorized"
+        result_second = attempt_payment_capture(
+            booking, mock_payment_repo, "instructor_completed_retry", stripe_service
+        )
+        assert result_second["success"] is True
+        assert sum(1 for e in events if e.get("event_type") == "top_up_transfer_created") == 1
 
     @patch("app.tasks.payment_tasks.get_db")
     def test_check_authorization_health_healthy(self, mock_get_db):

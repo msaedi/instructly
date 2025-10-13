@@ -118,7 +118,6 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
         stripe_service = StripeService(db)
-        stripe_service = StripeService(db)
         notification_service = NotificationService(db)
 
         # Find bookings that need authorization (T-24 hours)
@@ -309,9 +308,8 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
+        stripe_service = StripeService(db)
         notification_service = NotificationService(db)
-        stripe_service = StripeService(db)
-        stripe_service = StripeService(db)
 
         now = datetime.now(timezone.utc)
 
@@ -585,6 +583,7 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
+        stripe_service = StripeService(db)
         now = datetime.now(timezone.utc)
 
         results: CaptureJobResults = {
@@ -607,7 +606,9 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
         ]
 
         for booking in bookings_to_capture:
-            capture_result = attempt_payment_capture(booking, _payment_repo, "instructor_completed")
+            capture_result = attempt_payment_capture(
+                booking, _payment_repo, "instructor_completed", stripe_service
+            )
             if capture_result["success"]:
                 results["captured"] += 1
             else:
@@ -647,7 +648,9 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
             )
 
             # Attempt capture
-            capture_result = attempt_payment_capture(booking, _payment_repo, "auto_completed")
+            capture_result = attempt_payment_capture(
+                booking, _payment_repo, "auto_completed", stripe_service
+            )
             if capture_result["success"]:
                 results["captured"] += 1
             else:
@@ -681,7 +684,9 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                 # Authorization is expired, need to handle it
                 if booking.status == BookingStatus.COMPLETED:
                     # Try to capture anyway (might fail)
-                    capture_result = attempt_payment_capture(booking, _payment_repo, "expired_auth")
+                    capture_result = attempt_payment_capture(
+                        booking, _payment_repo, "expired_auth", stripe_service
+                    )
                     if not capture_result["success"]:
                         # Create new authorization and capture
                         new_auth_result = create_new_authorization_and_capture(
@@ -723,7 +728,10 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
 
 
 def attempt_payment_capture(
-    booking: Booking, payment_repo: Any, capture_reason: str
+    booking: Booking,
+    payment_repo: Any,
+    capture_reason: str,
+    stripe_service: StripeService,
 ) -> Dict[str, Any]:
     """
     Attempt to capture a payment for a booking.
@@ -748,19 +756,20 @@ def attempt_payment_capture(
             logger.info(f"Skipping cancelled booking {booking.id} - already captured")
             return {"success": True, "skipped": True}
 
-        # Attempt capture
-        captured_intent = stripe.PaymentIntent.capture(
-            booking.payment_intent_id, idempotency_key=f"capture_{booking.id}_{capture_reason}"
+        captured_intent = stripe_service.capture_booking_payment_intent(
+            booking_id=booking.id,
+            payment_intent_id=booking.payment_intent_id,
         )
 
         booking.payment_status = "captured"
 
+        amount_received = getattr(captured_intent, "amount_received", None)
         payment_repo.create_payment_event(
             booking_id=booking.id,
             event_type="payment_captured",
             event_data={
                 "payment_intent_id": booking.payment_intent_id,
-                "amount_captured_cents": captured_intent.amount_received,
+                "amount_captured_cents": amount_received,
                 "capture_reason": capture_reason,
                 "captured_at": datetime.now(timezone.utc).isoformat(),
             },
@@ -943,6 +952,7 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
     try:
         db = cast(Session, next(get_db()))
         _payment_repo = RepositoryFactory.get_payment_repository(db)
+        stripe_service = StripeService(db)
 
         # Get the booking
         booking_repo = RepositoryFactory.get_booking_repository(db)
@@ -976,18 +986,20 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
 
         # Attempt immediate capture
         try:
-            captured_intent = stripe.PaymentIntent.capture(
-                booking.payment_intent_id, idempotency_key=f"capture_late_cancel_{booking.id}"
+            captured_intent = stripe_service.capture_booking_payment_intent(
+                booking_id=booking.id,
+                payment_intent_id=booking.payment_intent_id,
             )
 
             booking.payment_status = "captured"
 
+            amount_received = getattr(captured_intent, "amount_received", None)
             _payment_repo.create_payment_event(
                 booking_id=booking.id,
                 event_type="late_cancellation_captured",
                 event_data={
                     "payment_intent_id": booking.payment_intent_id,
-                    "amount_captured_cents": captured_intent.amount_received,
+                    "amount_captured_cents": amount_received,
                     "hours_before_lesson": round(hours_until_lesson, 1),
                     "captured_at": now.isoformat(),
                     "cancellation_policy": "Full charge for <12hr cancellation",
@@ -1002,7 +1014,7 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
             )
             return {
                 "success": True,
-                "amount_captured": captured_intent.amount_received,
+                "amount_captured": amount_received,
                 "hours_before_lesson": round(hours_until_lesson, 1),
             }
 
