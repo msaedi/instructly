@@ -217,15 +217,15 @@ class TestPaymentIntegration:
         assert payment_result["success"] is True
         assert payment_result["payment_intent_id"] == "pi_test123"
         assert payment_result["status"] == "succeeded"
-        assert payment_result["amount"] == 8000  # $80.00 in cents
-        assert payment_result["application_fee"] == 1200  # 15% of $80.00
+        assert payment_result["amount"] == 8960  # $80 base + 12% student fee
+        assert payment_result["application_fee"] == 2160  # 12% fee + 15% commission
 
         # Step 6: Verify database records
         payment_record = stripe_service.payment_repository.get_payment_by_booking_id(test_booking.id)
         assert payment_record is not None
         assert payment_record.stripe_payment_intent_id == "pi_test123"
-        assert payment_record.amount == 8000
-        assert payment_record.application_fee == 1200
+        assert payment_record.amount == 8960
+        assert payment_record.application_fee == 2160
         assert payment_record.status == "succeeded"
 
         # Verify all Stripe calls were made

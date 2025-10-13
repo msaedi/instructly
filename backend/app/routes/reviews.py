@@ -84,6 +84,7 @@ async def submit_review(
                     customer_id=customer.stripe_customer_id,
                     destination_account_id=connected.stripe_account_id,
                     amount_cents=int(payload.tip_amount_cents),
+                    charge_context=None,
                 )
 
                 # Try auto-confirm with student's default payment method

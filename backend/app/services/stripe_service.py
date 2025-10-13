@@ -621,7 +621,10 @@ class StripeService(BaseService):
         booking_id: str,
         customer_id: str,
         destination_account_id: str,
-        amount_cents: int,
+        *,
+        charge_context: Optional[ChargeContext] = None,
+        requested_credit_cents: Optional[int] = None,
+        amount_cents: Optional[int] = None,
         currency: str = "usd",
     ) -> PaymentIntent:
         """
@@ -631,7 +634,9 @@ class StripeService(BaseService):
             booking_id: Booking ID
             customer_id: Stripe customer ID
             destination_account_id: Stripe connected account ID
-            amount_cents: Amount in cents
+            charge_context: Pre-computed ChargeContext (optional)
+            requested_credit_cents: Optional wallet credit amount to lock via ChargeContext
+            amount_cents: Fallback amount when not using ChargeContext (e.g., tips)
 
         Returns:
             PaymentIntent record
@@ -641,25 +646,52 @@ class StripeService(BaseService):
         """
         try:
             with self.transaction():
-                application_fee_cents = int(amount_cents * self.platform_fee_percentage)
+                ctx = charge_context
+                if ctx is None and requested_credit_cents is not None:
+                    ctx = self.build_charge_context(booking_id, requested_credit_cents)
+
+                if ctx is not None:
+                    amount = int(ctx.student_pay_cents)
+                    application_fee_cents = int(ctx.application_fee_cents)
+                    metadata = {
+                        "booking_id": booking_id,
+                        "platform": "instainstru",
+                        "instructor_tier_pct": str(ctx.instructor_tier_pct),
+                        "base_price_cents": str(ctx.base_price_cents),
+                        "student_fee_cents": str(ctx.student_fee_cents),
+                        "commission_cents": str(ctx.instructor_commission_cents),
+                        "applied_credit_cents": str(ctx.applied_credit_cents),
+                        "student_pay_cents": str(ctx.student_pay_cents),
+                        "application_fee_cents": str(ctx.application_fee_cents),
+                        "target_instructor_payout_cents": str(ctx.target_instructor_payout_cents),
+                    }
+                else:
+                    if amount_cents is None:
+                        raise ServiceException(
+                            "amount_cents is required when charge context is not provided"
+                        )
+                    amount = int(amount_cents)
+                    application_fee_cents = int(amount * self.platform_fee_percentage)
+                    metadata = {"booking_id": booking_id, "platform": "instainstru"}
 
                 try:
-                    # Try real Stripe path first (allows tests to @patch)
-                    stripe_intent = stripe.PaymentIntent.create(
-                        amount=amount_cents,
-                        currency=currency,
-                        customer=customer_id,
-                        transfer_data={
-                            "destination": destination_account_id,
-                        },
-                        application_fee_amount=application_fee_cents,
-                        metadata={"booking_id": booking_id, "platform": "instainstru"},
-                    )
+                    stripe_kwargs = {
+                        "amount": amount,
+                        "currency": currency,
+                        "customer": customer_id,
+                        "transfer_data": {"destination": destination_account_id},
+                        "application_fee_amount": application_fee_cents,
+                        "metadata": metadata,
+                    }
+                    if ctx is not None:
+                        stripe_kwargs["transfer_group"] = f"booking:{booking_id}"
+
+                    stripe_intent = stripe.PaymentIntent.create(**stripe_kwargs)
 
                     payment_record = self.payment_repository.create_payment_record(
                         booking_id=booking_id,
                         payment_intent_id=stripe_intent.id,
-                        amount=amount_cents,
+                        amount=amount,
                         application_fee=application_fee_cents,
                         status=stripe_intent.status,
                     )
@@ -675,7 +707,7 @@ class StripeService(BaseService):
                         return self.payment_repository.create_payment_record(
                             booking_id=booking_id,
                             payment_intent_id=f"mock_pi_{booking_id}",
-                            amount=amount_cents,
+                            amount=amount,
                             application_fee=application_fee_cents,
                             status="requires_payment_method",
                         )
@@ -944,13 +976,19 @@ class StripeService(BaseService):
             raise ServiceException(f"Failed to cancel payment intent: {str(e)}")
 
     @BaseService.measure_operation("stripe_process_booking_payment")
-    def process_booking_payment(self, booking_id: str, payment_method_id: str) -> Dict[str, Any]:
+    def process_booking_payment(
+        self,
+        booking_id: str,
+        payment_method_id: str,
+        requested_credit_cents: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """
         Process payment for a booking end-to-end.
 
         Args:
             booking_id: Booking ID
             payment_method_id: Stripe payment method ID
+            requested_credit_cents: Optional wallet credit amount (in cents) requested by student
 
         Returns:
             Dictionary with payment result
@@ -983,34 +1021,18 @@ class StripeService(BaseService):
                 if not connected_account or not connected_account.onboarding_completed:
                     raise ServiceException("Instructor payment account not set up")
 
-                # Calculate amount in cents and apply any available platform credits up-front
-                original_amount_cents = int(booking.total_price * 100)
-                credits_applied = 0
-                try:
-                    if hasattr(self.payment_repository, "apply_credits_for_booking"):
-                        credit_result = self.payment_repository.apply_credits_for_booking(
-                            user_id=booking.student_id,
-                            booking_id=booking.id,
-                            amount_cents=original_amount_cents,
-                        )
-                        if isinstance(credit_result, dict):
-                            credits_applied = int(credit_result.get("applied_cents", 0) or 0)
-                except Exception as credit_err:
-                    self.logger.warning(
-                        f"Failed to apply credits for booking {booking.id}: {credit_err}. Proceeding without credits."
-                    )
+                charge_context = self.build_charge_context(
+                    booking_id=booking.id, requested_credit_cents=requested_credit_cents
+                )
 
-                amount_cents = max(original_amount_cents - credits_applied, 0)
-
-                # If credits fully cover the cost, record success and return without creating a PI
-                if amount_cents <= 0:
+                if charge_context.student_pay_cents <= 0:
                     try:
                         self.payment_repository.create_payment_event(
                             booking_id=booking.id,
                             event_type="auth_succeeded_credits_only",
                             event_data={
-                                "original_amount_cents": original_amount_cents,
-                                "credits_applied_cents": credits_applied,
+                                "base_price_cents": charge_context.base_price_cents,
+                                "credits_applied_cents": charge_context.applied_credit_cents,
                                 "authorized_at": datetime.now(timezone.utc).isoformat(),
                             },
                         )
@@ -1034,7 +1056,7 @@ class StripeService(BaseService):
                     booking_id=booking_id,
                     customer_id=customer.stripe_customer_id,
                     destination_account_id=connected_account.stripe_account_id,
-                    amount_cents=amount_cents,
+                    charge_context=charge_context,
                 )
 
                 # Confirm payment
@@ -1068,7 +1090,7 @@ class StripeService(BaseService):
                     "success": True,
                     "payment_intent_id": payment_record.stripe_payment_intent_id,
                     "status": stripe_intent.status,
-                    "amount": amount_cents,
+                    "amount": payment_record.amount,
                     "application_fee": payment_record.application_fee,
                     "client_secret": client_secret,
                 }

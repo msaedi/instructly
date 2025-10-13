@@ -911,6 +911,7 @@ async def create_checkout(
             stripe_service.process_booking_payment,
             payload.booking_id,
             payload.payment_method_id,
+            payload.applied_credit_cents,
         )
 
         # Update booking status if payment succeeded

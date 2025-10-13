@@ -20,7 +20,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
-from app.services.stripe_service import StripeService
+from app.services.stripe_service import ChargeContext, StripeService
 
 
 class TestStripeService:
@@ -428,6 +428,19 @@ class TestStripeService:
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_success(self, mock_create, stripe_service: StripeService, test_booking: Booking):
         """Test successful payment intent creation."""
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=2000,
+            base_price_cents=10000,
+            student_fee_cents=1200,
+            instructor_commission_cents=1200,
+            target_instructor_payout_cents=8800,
+            student_pay_cents=9200,
+            application_fee_cents=400,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0.12"),
+        )
+
         # Mock Stripe response
         mock_intent = MagicMock()
         mock_intent.id = "pi_test123"
@@ -439,23 +452,34 @@ class TestStripeService:
             booking_id=test_booking.id,
             customer_id="cus_test123",
             destination_account_id="acct_instructor123",
-            amount_cents=5000,
+            charge_context=context,
         )
 
         # Verify Stripe API call
         mock_create.assert_called_once()
         call_args = mock_create.call_args[1]
-        assert call_args["amount"] == 5000
+        assert call_args["amount"] == 9200
         assert call_args["currency"] == "usd"
         assert call_args["customer"] == "cus_test123"
         assert call_args["transfer_data"]["destination"] == "acct_instructor123"
-        assert call_args["application_fee_amount"] == 750  # 15% of 5000
+        assert call_args["application_fee_amount"] == 400
+        assert call_args["transfer_group"] == f"booking:{test_booking.id}"
+
+        metadata = call_args["metadata"]
+        assert metadata["instructor_tier_pct"] == "0.12"
+        assert metadata["base_price_cents"] == "10000"
+        assert metadata["student_fee_cents"] == "1200"
+        assert metadata["commission_cents"] == "1200"
+        assert metadata["applied_credit_cents"] == "2000"
+        assert metadata["student_pay_cents"] == "9200"
+        assert metadata["application_fee_cents"] == "400"
+        assert metadata["target_instructor_payout_cents"] == "8800"
 
         # Verify database record
         assert payment.booking_id == test_booking.id
         assert payment.stripe_payment_intent_id == "pi_test123"
-        assert payment.amount == 5000
-        assert payment.application_fee == 750
+        assert payment.amount == 9200
+        assert payment.application_fee == 400
 
     @patch("stripe.PaymentIntent.confirm")
     def test_confirm_payment_intent_success(self, mock_confirm, stripe_service: StripeService, test_booking: Booking):
@@ -499,6 +523,21 @@ class TestStripeService:
             profile.id, "acct_instructor123", onboarding_completed=True
         )
 
+        charge_context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=0,
+            base_price_cents=5000,
+            student_fee_cents=0,
+            instructor_commission_cents=0,
+            target_instructor_payout_cents=5000,
+            student_pay_cents=5000,
+            application_fee_cents=750,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0.15"),
+        )
+
+        stripe_service.build_charge_context = MagicMock(return_value=charge_context)
+
         # Mock Stripe responses
         mock_intent = MagicMock()
         mock_intent.id = "pi_test123"
@@ -511,6 +550,14 @@ class TestStripeService:
 
         # Process payment
         result = stripe_service.process_booking_payment(test_booking.id, "pm_card123")
+
+        stripe_service.build_charge_context.assert_called_once_with(
+            booking_id=test_booking.id, requested_credit_cents=None
+        )
+        create_kwargs = mock_create.call_args[1]
+        assert create_kwargs["amount"] == 5000
+        assert create_kwargs["application_fee_amount"] == 750
+        assert create_kwargs["transfer_group"] == f"booking:{test_booking.id}"
 
         # Verify result
         assert result["success"] is True
