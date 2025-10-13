@@ -296,23 +296,26 @@ class TestPaymentTasks:
                             instructor_tier_pct=Decimal("0.12"),
                         )
 
-                        with patch(
-                            "app.services.stripe_service.StripeService.build_charge_context",
-                            return_value=context,
-                        ):
-                            with patch("app.tasks.payment_tasks.stripe") as mock_stripe:
-                                mock_stripe.error.CardError = stripe.error.CardError
-                                mock_payment_intent = MagicMock()
-                                mock_payment_intent.id = "pi_retry123"
-                                mock_stripe.PaymentIntent.create.return_value = mock_payment_intent
+                        with patch("app.tasks.payment_tasks.StripeService") as mock_stripe_service_class:
+                            stripe_service_instance = MagicMock()
+                            stripe_service_instance.build_charge_context.return_value = context
+                            mock_payment_intent = MagicMock()
+                            mock_payment_intent.id = "pi_retry123"
+                            stripe_service_instance.create_or_retry_booking_payment_intent.return_value = (
+                                mock_payment_intent
+                            )
+                            mock_stripe_service_class.return_value = stripe_service_instance
 
-                                # Execute task
-                                result = retry_failed_authorizations()
+                            # Execute task
+                            result = retry_failed_authorizations()
 
         # Verify results
-        mock_stripe.PaymentIntent.create.assert_called_once()
-        _, kwargs = mock_stripe.PaymentIntent.create.call_args
-        assert kwargs["application_fee_amount"] == 2700
+        stripe_service_instance = mock_stripe_service_class.return_value
+        stripe_service_instance.create_or_retry_booking_payment_intent.assert_called_once_with(
+            booking_id=booking.id,
+            payment_method_id=booking.payment_method_id,
+            requested_credit_cents=None,
+        )
         assert result["retried"] == 1
         assert result["success"] == 1
         assert result["failed"] == 0

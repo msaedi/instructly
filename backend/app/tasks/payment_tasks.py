@@ -311,6 +311,7 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
         booking_repo = RepositoryFactory.get_booking_repository(db)
         notification_service = NotificationService(db)
         stripe_service = StripeService(db)
+        stripe_service = StripeService(db)
 
         now = datetime.now(timezone.utc)
 
@@ -512,37 +513,13 @@ def attempt_authorization_retry(
             )
             return True
 
-        metadata = {
-            "booking_id": booking.id,
-            "retry": "true",
-            "previous_intent": booking.payment_intent_id,
-            "hours_until_lesson": str(round(hours_until_lesson, 1)),
-            "instructor_tier_pct": str(ctx.instructor_tier_pct),
-            "base_price_cents": str(ctx.base_price_cents),
-            "student_fee_cents": str(ctx.student_fee_cents),
-            "commission_cents": str(ctx.instructor_commission_cents),
-            "applied_credit_cents": str(ctx.applied_credit_cents),
-            "student_pay_cents": str(ctx.student_pay_cents),
-            "application_fee_cents": str(ctx.application_fee_cents),
-            "target_instructor_payout_cents": str(ctx.target_instructor_payout_cents),
-        }
-
-        payment_intent = stripe.PaymentIntent.create(
-            amount=ctx.student_pay_cents,
-            currency=STRIPE_CURRENCY,
-            customer=student_customer.stripe_customer_id,
-            payment_method=booking.payment_method_id,
-            capture_method="manual",
-            confirm=True,
-            off_session=True,
-            transfer_data={"destination": instructor_account.stripe_account_id},
-            application_fee_amount=ctx.application_fee_cents,
-            metadata=metadata,
-            transfer_group=f"booking:{booking.id}",
-            idempotency_key=f"retry_{booking.id}_{int(round(hours_until_lesson))}",
+        payment_intent = stripe_service.create_or_retry_booking_payment_intent(
+            booking_id=booking.id,
+            payment_method_id=booking.payment_method_id,
+            requested_credit_cents=None,
         )
 
-        booking.payment_intent_id = payment_intent.id
+        booking.payment_intent_id = getattr(payment_intent, "id", None)
         booking.payment_status = "authorized"
 
         payment_repo.create_payment_event(
