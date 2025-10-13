@@ -158,7 +158,6 @@ export default function BookingModal({
       // Prepare booking data for after login
       const bookingDate = new Date(selectedDate + 'T' + selectedTime);
       const basePrice = totalPrice;
-      // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
       const serviceFee = 0;
       const totalAmount = basePrice;
       const bookingType = determineBookingType(bookingDate);
@@ -246,7 +245,6 @@ export default function BookingModal({
     // Prepare booking data for confirmation page
     const bookingDate = new Date(selectedDate + 'T' + selectedTime);
     const basePrice = totalPrice;
-    // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
     const serviceFee = 0;
     const totalAmount = basePrice;
     const bookingType = determineBookingType(bookingDate);

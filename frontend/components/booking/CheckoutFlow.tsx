@@ -21,6 +21,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
+import { ApiProblemError } from '@/lib/api/fetch';
+import {
+  fetchPricingPreview,
+  type PricingPreviewResponse,
+  formatCentsToDisplay,
+} from '@/lib/api/pricing';
 
 const stripePromise = loadStripe(
   process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || ''
@@ -58,7 +64,8 @@ const PaymentForm: React.FC<{
   savedMethods: PaymentMethod[];
   onSuccess: (paymentIntentId: string) => void;
   onError: (error: string) => void;
-}> = ({ booking, savedMethods, onSuccess, onError }) => {
+  studentPayAmount?: number;
+}> = ({ booking, savedMethods, onSuccess, onError, studentPayAmount }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [selectedMethod, setSelectedMethod] = useState<string | 'new'>('new');
@@ -67,7 +74,7 @@ const PaymentForm: React.FC<{
   const [cvv, setCvv] = useState('');
   const [requiresCvv, setRequiresCvv] = useState(false);
 
-  const payAmount = (() => {
+  const deriveBookingAmount = () => {
     const raw = (booking as unknown as { total_price?: unknown }).total_price;
     if (typeof raw === 'number' && Number.isFinite(raw)) {
       return Number(raw.toFixed(2));
@@ -79,7 +86,11 @@ const PaymentForm: React.FC<{
       }
     }
     return 0;
-  })();
+  };
+
+  const payAmount = typeof studentPayAmount === 'number'
+    ? Number(studentPayAmount.toFixed(2))
+    : deriveBookingAmount();
 
   useEffect(() => {
     // Select default method if available
@@ -319,6 +330,9 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
+  const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
+  const [pricingPreviewError, setPricingPreviewError] = useState<string | null>(null);
 
   const normalizeAmount = (value: unknown, fallback = 0): number => {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -339,6 +353,43 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
     ? Number(((hourlyRate * durationMinutes) / 60).toFixed(2))
     : normalizeAmount(booking.total_price, 0);
   const totalAmount = normalizeAmount(booking.total_price, baseLessonAmount);
+  const fallbackBaseCents = Math.round(baseLessonAmount * 100);
+  const fallbackTotalCents = Math.round(totalAmount * 100);
+  const previewBaseCents = pricingPreview ? pricingPreview.base_price_cents : fallbackBaseCents;
+  const previewStudentPayCents = pricingPreview ? pricingPreview.student_pay_cents : fallbackTotalCents;
+  const previewLineItems = pricingPreview?.line_items ?? [];
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setIsPricingPreviewLoading(true);
+      setPricingPreviewError(null);
+      try {
+        const preview = await fetchPricingPreview(booking.id, 0);
+        if (!cancelled) {
+          setPricingPreview(preview);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof ApiProblemError && err.response.status === 422) {
+          setPricingPreviewError(err.problem.detail ?? 'Price is below the minimum.');
+        } else {
+          setPricingPreviewError('Unable to load pricing preview.');
+        }
+        setPricingPreview(null);
+      } finally {
+        if (!cancelled) {
+          setIsPricingPreviewLoading(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [booking.id]);
 
   // Load saved payment methods
   useEffect(() => {
@@ -448,19 +499,42 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
           </div>
 
           <div className="pt-3 border-t">
-            {/* TODO(pricing-v1): render server Booking Protection & Credit line items. */}
             <div className="space-y-2">
               <div className="flex justify-between text-gray-600">
-                <span>Lesson ({booking.duration_minutes} min)</span>
-                <span>${baseLessonAmount.toFixed(2)}</span>
+                <span>Lesson ({durationMinutes} min)</span>
+                <span>{formatCentsToDisplay(previewBaseCents)}</span>
               </div>
-              {Math.abs(totalAmount - baseLessonAmount) > 0.009 && (
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span>Total</span>
-                  <span>${totalAmount.toFixed(2)}</span>
-                </div>
+              {previewLineItems.length > 0 ? (
+                previewLineItems.map((item) => {
+                  const isCredit = item.amount_cents < 0;
+                  return (
+                    <div
+                      key={`${item.label}-${item.amount_cents}`}
+                      className={`flex justify-between text-sm ${
+                        isCredit ? 'text-green-600 dark:text-green-400' : 'text-gray-600'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      <span>{formatCentsToDisplay(item.amount_cents)}</span>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Booking Protection (12%) and credits apply at checkout.
+                </p>
               )}
+              <div className="flex justify-between text-sm font-semibold text-gray-800">
+                <span>Total</span>
+                <span>{formatCentsToDisplay(previewStudentPayCents)}</span>
+              </div>
             </div>
+            {isPricingPreviewLoading && (
+              <p className="mt-2 text-xs text-gray-500">Updating pricing…</p>
+            )}
+            {pricingPreviewError && (
+              <p className="mt-2 text-xs text-red-600">{pricingPreviewError}</p>
+            )}
           </div>
         </div>
       </Card>
@@ -493,6 +567,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
             savedMethods={savedMethods}
             onSuccess={handlePaymentSuccess}
             onError={handlePaymentError}
+            studentPayAmount={previewStudentPayCents / 100}
           />
         </Elements>
       </Card>

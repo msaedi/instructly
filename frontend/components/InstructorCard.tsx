@@ -5,9 +5,15 @@ import { useRouter } from 'next/navigation';
 import { Star, MapPin, Heart } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { publicApi } from '@/features/shared/api/client';
+import { ApiProblemError } from '@/lib/api/fetch';
+import {
+  fetchPricingPreview,
+  type PricingPreviewResponse,
+  formatCentsToDisplay,
+} from '@/lib/api/pricing';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
 import { reviewsApi } from '@/services/api/reviews';
@@ -33,6 +39,8 @@ interface InstructorCardProps {
   onViewProfile?: () => void;
   onBookNow?: (e?: React.MouseEvent) => void;
   compact?: boolean;
+  bookingDraftId?: string;
+  appliedCreditCents?: number;
 }
 export default function InstructorCard({
   instructor,
@@ -40,6 +48,8 @@ export default function InstructorCard({
   onViewProfile,
   onBookNow,
   compact = false,
+  bookingDraftId,
+  appliedCreditCents,
 }: InstructorCardProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -48,6 +58,13 @@ export default function InstructorCard({
   const [isFavorited, setIsFavorited] = useState(false);
   const [isLoadingFavorite, setIsLoadingFavorite] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
+  const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
+  const [pricingPreviewError, setPricingPreviewError] = useState<string | null>(null);
+  const effectiveAppliedCreditCents = useMemo(
+    () => Math.max(0, Math.round(appliedCreditCents ?? 0)),
+    [appliedCreditCents]
+  );
   const primaryServiceId = instructor?.services?.[0]?.id;
   const { data: searchRating } = useSearchRatingQuery(instructor.user_id, primaryServiceId);
   const rating = typeof searchRating?.primary_rating === 'number' ? searchRating?.primary_rating : null;
@@ -115,6 +132,44 @@ export default function InstructorCard({
     })();
     return () => { mounted = false; };
   }, [instructor.user_id]);
+
+  useEffect(() => {
+    if (!bookingDraftId) {
+      setPricingPreview(null);
+      setPricingPreviewError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      setIsPricingPreviewLoading(true);
+      setPricingPreviewError(null);
+      try {
+        const preview = await fetchPricingPreview(bookingDraftId, effectiveAppliedCreditCents);
+        if (!cancelled) {
+          setPricingPreview(preview);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof ApiProblemError && error.response.status === 422) {
+          setPricingPreviewError(error.problem.detail ?? 'Price is below the minimum.');
+        } else {
+          setPricingPreviewError('Unable to load pricing preview.');
+        }
+        setPricingPreview(null);
+      } finally {
+        if (!cancelled) {
+          setIsPricingPreviewLoading(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingDraftId, effectiveAppliedCreditCents]);
 
   // Helper function to get service name from catalog
   const getServiceName = (serviceId: string): string => {
@@ -361,6 +416,45 @@ export default function InstructorCard({
             </div>
           )}
 
+          {bookingDraftId ? (
+            <div className={`${compact ? 'mb-3' : 'mb-4'}`}>
+              {isPricingPreviewLoading ? (
+                <p className="text-xs text-gray-500">Updating pricing…</p>
+              ) : pricingPreview ? (
+                <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm space-y-2">
+                  <div className="flex justify-between">
+                    <span>Lesson</span>
+                    <span>{formatCentsToDisplay(pricingPreview.base_price_cents)}</span>
+                  </div>
+                  {pricingPreview.line_items.map((item) => {
+                    const isCreditLine = item.amount_cents < 0;
+                    return (
+                      <div
+                        key={`${item.label}-${item.amount_cents}`}
+                        className={`flex justify-between text-gray-700 ${
+                          isCreditLine ? 'text-green-600 dark:text-green-400' : ''
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        <span>{formatCentsToDisplay(item.amount_cents)}</span>
+                      </div>
+                    );
+                  })}
+                  <div className="flex justify-between font-semibold text-base border-t border-gray-200 pt-2">
+                    <span>Total</span>
+                    <span>{formatCentsToDisplay(pricingPreview.student_pay_cents)}</span>
+                  </div>
+                </div>
+              ) : pricingPreviewError ? (
+                <p className="text-xs text-red-600">{pricingPreviewError}</p>
+              ) : null}
+            </div>
+          ) : (
+            <p className={`${compact ? 'mb-2' : 'mb-4'} text-xs text-gray-500`}>
+              Booking Protection (12%) and credits apply at checkout.
+            </p>
+          )}
+
           {/* Action Buttons - Stack vertically in compact mode */}
           <div className={`${compact ? 'flex flex-col gap-2' : 'flex gap-3'}`}>
             <button
@@ -384,7 +478,6 @@ export default function InstructorCard({
                       const durationMinutes = instructor.services[0]?.duration_options?.[0] || 60;
                       return Number(((safeRate * durationMinutes) / 60).toFixed(2));
                     })(),
-                    // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
                     serviceFee: 0,
                     totalAmount: (() => {
                       const rawRate = instructor.services[0]?.hourly_rate as unknown;

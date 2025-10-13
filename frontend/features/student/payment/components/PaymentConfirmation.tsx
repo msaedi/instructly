@@ -21,6 +21,10 @@ import {
   formatCents,
   type NormalizedModality,
 } from '@/lib/pricing/priceFloors';
+import {
+  formatCentsToDisplay,
+  type PricingPreviewResponse,
+} from '@/lib/api/pricing';
 
 interface PaymentConfirmationProps {
   booking: BookingPayment;
@@ -42,6 +46,8 @@ interface PaymentConfirmationProps {
   referralActive?: boolean;
   floorViolationMessage?: string | null;
   onClearFloorViolation?: () => void;
+  pricingPreview?: PricingPreviewResponse | null;
+  isPricingPreviewLoading?: boolean;
 }
 
 export default function PaymentConfirmation({
@@ -64,6 +70,8 @@ export default function PaymentConfirmation({
   referralActive: referralActiveFromParent = false,
   floorViolationMessage = null,
   onClearFloorViolation,
+  pricingPreview = null,
+  isPricingPreviewLoading = false,
 }: PaymentConfirmationProps) {
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
@@ -92,10 +100,33 @@ export default function PaymentConfirmation({
   const hasSavedLocation = booking.location && booking.location !== '';
   const [isLocationExpanded, setIsLocationExpanded] = useState(!hasSavedLocation && !isOnlineLesson);
   const isLastMinute = booking.bookingType === BookingType.LAST_MINUTE;
-  const referralCreditAmount = referralAppliedCents / 100;
+  const creditsUsedCents = Math.max(0, Math.round(creditsUsed * 100));
+  const appliedCreditCents = pricingPreview
+    ? Math.max(0, pricingPreview.credit_applied_cents)
+    : creditsUsedCents;
+  const appliedCreditDollars = appliedCreditCents / 100;
+
+  const totalBeforeCreditsCents = pricingPreview
+    ? pricingPreview.student_pay_cents + Math.max(0, pricingPreview.credit_applied_cents)
+    : Math.max(0, Math.round(booking.totalAmount * 100));
+  const totalBeforeCreditsDollars = totalBeforeCreditsCents / 100;
+
+  const studentPayCents = pricingPreview
+    ? pricingPreview.student_pay_cents
+    : Math.max(0, totalBeforeCreditsCents - appliedCreditCents);
+
+  const referralCreditCents = Math.max(0, referralAppliedCents);
+  const referralCreditAmount = referralCreditCents / 100;
   const referralActive = referralActiveFromParent || referralCreditAmount > 0;
-  const cardCharge = Math.max(0, booking.totalAmount - creditsUsed - referralCreditAmount);
-  const totalAfterCredits = Math.max(0, booking.totalAmount - creditsUsed - referralCreditAmount);
+
+  const totalAfterCreditsCents = Math.max(0, studentPayCents - referralCreditCents);
+  const totalAfterCredits = totalAfterCreditsCents / 100;
+
+  const cardChargeCents = totalAfterCreditsCents;
+  const cardCharge = cardChargeCents / 100;
+
+  const remainingBalanceCents = Math.max(0, totalBeforeCreditsCents - appliedCreditCents);
+  const remainingBalanceDollars = remainingBalanceCents / 100;
   const promoApplyDisabled = referralActive || (!promoActive && promoCode.trim().length === 0);
 
   const selectedModality = useMemo<NormalizedModality>(() => (isOnlineLesson ? 'remote' : 'in_person'), [isOnlineLesson]);
@@ -563,10 +594,8 @@ export default function PaymentConfirmation({
               <p className="text-sm mt-3">Using platform credits</p>
             ) : paymentMethod === PaymentMethod.MIXED ? (
               <div className="text-sm space-y-1 mt-3">
-                <p>Credits: ${creditsUsed.toFixed(2)}</p>
-                <p>
-                  Card amount: ${cardCharge.toFixed(2)}
-                </p>
+                <p>Credits: ${appliedCreditDollars.toFixed(2)}</p>
+                <p>Card amount: ${cardCharge.toFixed(2)}</p>
               </div>
             ) : null}
             </>
@@ -597,14 +626,14 @@ export default function PaymentConfirmation({
               <div className="mt-3 p-3 bg-white rounded-lg">
                 <div className="flex items-center justify-between text-sm mb-2">
                   <span>Credits to apply:</span>
-                  <span className="font-medium">${creditsUsed.toFixed(2)}</span>
+                  <span className="font-medium">${appliedCreditDollars.toFixed(2)}</span>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max={Math.min(availableCredits, booking.totalAmount)}
+                  max={Math.min(availableCredits, totalBeforeCreditsDollars)}
                   step="1"
-                  value={creditsUsed}
+                  value={appliedCreditDollars}
                   onChange={(e) => {
                     const newValue = Number(e.target.value);
                     onCreditAmountChange?.(newValue);
@@ -612,9 +641,9 @@ export default function PaymentConfirmation({
                   className="w-full accent-purple-700"
                 />
                 <p className="text-xs text-gray-500 mt-2">
-                  {creditsUsed >= booking.totalAmount
+                  {appliedCreditCents >= totalBeforeCreditsCents
                     ? 'Entire lesson covered by credits!'
-                    : `Remaining balance: $${(booking.totalAmount - creditsUsed).toFixed(2)}`}
+                    : `Remaining balance: $${remainingBalanceDollars.toFixed(2)}`}
                 </p>
               </div>
             )}
@@ -759,14 +788,16 @@ export default function PaymentConfirmation({
         <div className="mt-6">
           <button
             onClick={onConfirm}
-            disabled={hasConflict || isCheckingConflict || isFloorBlocking}
+            disabled={hasConflict || isCheckingConflict || isFloorBlocking || isPricingPreviewLoading}
             className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
-              hasConflict || isCheckingConflict || isFloorBlocking
+              hasConflict || isCheckingConflict || isFloorBlocking || isPricingPreviewLoading
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]'
             }`}
           >
-            {isCheckingConflict
+            {isPricingPreviewLoading
+              ? 'Updating total...'
+              : isCheckingConflict
               ? 'Checking availability...'
               : hasConflict
               ? 'You have a conflict at this time'
@@ -856,34 +887,60 @@ export default function PaymentConfirmation({
           {/* Payment Details Section */}
           <div className="border-t border-gray-300 pt-4">
             <h4 className="font-semibold mb-3">Payment details</h4>
-            {/* TODO(pricing-v1): render server Booking Protection & Credit line items. */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Lesson ({booking.duration} min)</span>
-                <span>${booking.basePrice.toFixed(2)}</span>
+                <span>
+                  {pricingPreview
+                    ? formatCentsToDisplay(pricingPreview.base_price_cents)
+                    : `$${booking.basePrice.toFixed(2)}`}
+                </span>
               </div>
-              {booking.serviceFee > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span>Service fee</span>
-                  <span>${booking.serviceFee.toFixed(2)}</span>
-                </div>
-              )}
-              {creditsUsed > 0 && (
-                <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
-                  <span>Credits applied</span>
-                  <span>-${creditsUsed.toFixed(2)}</span>
-                </div>
-              )}
+              {pricingPreview
+                ? pricingPreview.line_items.map((item) => {
+                    const isCreditLine = item.amount_cents < 0;
+                    return (
+                      <div
+                        key={`${item.label}-${item.amount_cents}`}
+                        className={`flex justify-between text-sm ${
+                          isCreditLine ? 'text-green-600 dark:text-green-400' : ''
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        <span>{formatCentsToDisplay(item.amount_cents)}</span>
+                      </div>
+                    );
+                  })
+                : (
+                    <>
+                      {booking.serviceFee > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span>Service fee</span>
+                          <span>${booking.serviceFee.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {appliedCreditDollars > 0 && (
+                        <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
+                          <span>Credits applied</span>
+                          <span>{formatCentsToDisplay(-appliedCreditCents)}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
               {referralCreditAmount > 0 && (
                 <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                   <span>Referral credit</span>
-                  <span>- ${referralCreditAmount.toFixed(2)}</span>
+                  <span>{formatCentsToDisplay(-referralCreditCents)}</span>
                 </div>
               )}
               <div className="border-t border-gray-300 pt-2 mt-2">
                 <div className="flex justify-between font-bold text-base">
-                  <span>Total Rate</span>
-                  <span>${totalAfterCredits.toFixed(2)}</span>
+                  <span>Total</span>
+                  <span>
+                    {pricingPreview
+                      ? formatCentsToDisplay(totalAfterCreditsCents)
+                      : `$${totalAfterCredits.toFixed(2)}`}
+                  </span>
                 </div>
               </div>
             </div>
@@ -937,12 +994,13 @@ export default function PaymentConfirmation({
           }}
           // Don't pre-select date/time when editing - let modal default to first available
           {...(sessionStorage.getItem('serviceId') && { serviceId: sessionStorage.getItem('serviceId')! })}
+          bookingDraftId={booking.bookingId}
+          appliedCreditCents={appliedCreditCents}
           onTimeSelected={(selection) => {
             // Update booking data with new selection
             const newBookingDate = new Date(selection.date + 'T' + selection.time);
             const hourlyRate = booking.duration > 0 ? booking.basePrice / (booking.duration / 60) : 0;
             const basePrice = Number(((hourlyRate || 0) * selection.duration) / 60);
-            // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
             const serviceFee = 0;
             const totalAmount = basePrice;
             const bookingType = determineBookingType(newBookingDate);

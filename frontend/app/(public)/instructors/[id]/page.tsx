@@ -135,7 +135,6 @@ function InstructorProfileContent() {
       const hourlyRate = getNumber(selectedService, 'hourly_rate', 0);
       const totalPrice = hourlyRate * (duration / 60);
       const basePrice = totalPrice;
-      // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
       const serviceFee = 0;
       const totalAmount = basePrice;
       const bookingType = determineBookingType(bookingDate);
@@ -588,7 +587,6 @@ function InstructorProfileContent() {
               const hourlyRate = selectedService.hourly_rate;
               const totalPrice = hourlyRate * (newSlot.duration / 60);
               const basePrice = totalPrice;
-              // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
               const serviceFee = 0;
               const totalAmount = basePrice;
               const bookingType = determineBookingType(bookingDate);

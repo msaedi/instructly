@@ -178,7 +178,6 @@ export default function QuickBookingPage() {
     const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
     const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
     const basePrice = safeRate * (duration / 60);
-    // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
     const serviceFee = 0;
     const totalAmount = basePrice;
     const bookingType = determineBookingType(bookingDate);

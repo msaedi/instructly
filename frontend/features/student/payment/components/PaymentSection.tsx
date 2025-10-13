@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { BookingPayment, PaymentCard, CreditBalance, PaymentMethod } from '../types';
 import { usePaymentFlow, PaymentStep } from '../hooks/usePaymentFlow';
@@ -14,6 +14,11 @@ import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBooking';
 import { paymentService } from '@/services/api/payments';
 import { protectedApi, type Booking } from '@/features/shared/api/client';
+import { ApiProblemError } from '@/lib/api/fetch';
+import {
+  fetchPricingPreview,
+  type PricingPreviewResponse,
+} from '@/lib/api/pricing';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
 
 // Custom error for payment actions that require user interaction
@@ -104,6 +109,13 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const [floorViolationMessage, setFloorViolationMessage] = useState<string | null>(null);
   const [referralAppliedCents, setReferralAppliedCents] = useState(0);
   const [promoApplied, setPromoApplied] = useState(false);
+  const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
+  const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
+  const [creditSliderCents, setCreditSliderCents] = useState(0);
+  const [lastSuccessfulCreditCents, setLastSuccessfulCreditCents] = useState(0);
+  const previewRequestIdRef = useRef(0);
+  const pendingPreviewCreditsRef = useRef<number | null>(null);
+  const lastPreviewCreditsRef = useRef<number | null>(null);
 
   // Real payment data from backend
   const [userCards, setUserCards] = useState<PaymentCard[]>([]);
@@ -146,6 +158,37 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     selectPaymentMethodOriginal(method, cardId, credits);
   }, [selectPaymentMethodOriginal]);
 
+  const updateCreditSelection = useCallback((creditCents: number, totalDueCents: number) => {
+    const normalizedCreditCents = Math.max(0, Math.round(creditCents));
+    const creditDollars = Number((normalizedCreditCents / 100).toFixed(2));
+    const currentCreditCents = Math.max(0, Math.round(creditsToUse * 100));
+    const coversFullAmount = normalizedCreditCents >= totalDueCents;
+
+    if (normalizedCreditCents === 0) {
+      if (paymentMethod !== PaymentMethod.CREDIT_CARD || currentCreditCents !== 0) {
+        const effectiveCardId = selectedCardId
+          ?? userCards.find((card) => card.isDefault)?.id
+          ?? userCards[0]?.id;
+        selectPaymentMethod(PaymentMethod.CREDIT_CARD, effectiveCardId, 0);
+      }
+      return;
+    }
+
+    if (coversFullAmount) {
+      if (paymentMethod !== PaymentMethod.CREDITS || currentCreditCents !== normalizedCreditCents) {
+        selectPaymentMethod(PaymentMethod.CREDITS, undefined, creditDollars);
+      }
+      return;
+    }
+
+    const effectiveCardId = selectedCardId
+      ?? userCards.find((card) => card.isDefault)?.id
+      ?? userCards[0]?.id;
+    if (paymentMethod !== PaymentMethod.MIXED || currentCreditCents !== normalizedCreditCents) {
+      selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, creditDollars);
+    }
+  }, [creditsToUse, paymentMethod, selectPaymentMethod, selectedCardId, userCards]);
+
   const subtotalCents = useMemo(() => Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100)), [updatedBookingData.totalAmount]);
   const effectiveOrderId = updatedBookingData.bookingId || bookingData.bookingId;
 
@@ -156,6 +199,11 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   useEffect(() => {
     setFloorViolationMessage(null);
   }, [updatedBookingData.duration, updatedBookingData.basePrice, updatedBookingData.totalAmount]);
+
+  useEffect(() => {
+    const nextCreditCents = Math.max(0, Math.round(creditsToUse * 100));
+    setCreditSliderCents(nextCreditCents);
+  }, [creditsToUse]);
 
   const refreshOrderSummary = useCallback(async (orderIdentifier: string) => {
     try {
@@ -194,6 +242,156 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       onRefreshOrderSummary={refreshCurrentOrderSummary}
     />
   );
+
+  const getTotalDueCents = useCallback(() => {
+    if (pricingPreview) {
+      return pricingPreview.student_pay_cents + Math.max(0, pricingPreview.credit_applied_cents);
+    }
+    return Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100));
+  }, [pricingPreview, updatedBookingData.totalAmount]);
+
+  const handleCreditToggle = useCallback(() => {
+    const totalDueCents = getTotalDueCents();
+    if (creditSliderCents > 0) {
+      setCreditSliderCents(0);
+      updateCreditSelection(0, totalDueCents);
+      if (floorViolationMessage) {
+        setFloorViolationMessage(null);
+      }
+      return;
+    }
+
+    const availableCreditCents = Math.max(0, Math.round((userCredits.totalAmount || 0) * 100));
+    if (availableCreditCents === 0) return;
+
+    const targetCents = Math.min(availableCreditCents, totalDueCents);
+    setCreditSliderCents(targetCents);
+    updateCreditSelection(targetCents, totalDueCents);
+  }, [creditSliderCents, getTotalDueCents, updateCreditSelection, userCredits.totalAmount, floorViolationMessage]);
+
+  const handleCreditAmountChange = useCallback((amountDollars: number) => {
+    const totalDueCents = getTotalDueCents();
+    const requestedCents = Math.max(0, Math.round(amountDollars * 100));
+    const clampedCents = Math.min(requestedCents, totalDueCents);
+    if (floorViolationMessage && clampedCents <= lastSuccessfulCreditCents) {
+      setFloorViolationMessage(null);
+    }
+    setCreditSliderCents(clampedCents);
+    updateCreditSelection(clampedCents, totalDueCents);
+  }, [getTotalDueCents, updateCreditSelection, floorViolationMessage, lastSuccessfulCreditCents]);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const loadPricingPreview = useCallback(async (creditCents: number) => {
+    const bookingDraftId = updatedBookingData.bookingId || bookingData.bookingId;
+    if (!bookingDraftId) {
+      logger.warn('Skipping pricing preview fetch: missing booking id');
+      return;
+    }
+
+    const normalizedCreditCents = Math.max(0, Math.round(creditCents));
+    pendingPreviewCreditsRef.current = normalizedCreditCents;
+    const requestId = (previewRequestIdRef.current += 1);
+    setIsPricingPreviewLoading(true);
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const preview = await fetchPricingPreview(bookingDraftId, normalizedCreditCents, { signal: controller.signal });
+      if (previewRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      pendingPreviewCreditsRef.current = null;
+      lastPreviewCreditsRef.current = preview.credit_applied_cents;
+      setPricingPreview(preview);
+      setCreditSliderCents(preview.credit_applied_cents);
+      setLastSuccessfulCreditCents(preview.credit_applied_cents);
+
+      setUpdatedBookingData((prev) => ({
+        ...prev,
+        basePrice: preview.base_price_cents / 100,
+        serviceFee: preview.student_fee_cents / 100,
+        totalAmount: (preview.student_pay_cents + Math.max(0, preview.credit_applied_cents)) / 100,
+      }));
+
+      const totalDueCents = preview.student_pay_cents + Math.max(0, preview.credit_applied_cents);
+      updateCreditSelection(preview.credit_applied_cents, totalDueCents);
+    } catch (error) {
+      if (previewRequestIdRef.current !== requestId) {
+        return;
+      }
+      pendingPreviewCreditsRef.current = null;
+
+      if (controller.signal.aborted) {
+        logger.debug('pricing-preview-aborted', {
+          bookingId: bookingDraftId,
+          requestedCreditCents: normalizedCreditCents,
+        });
+        return;
+      }
+
+      const maybeProblemError = error as ApiProblemError;
+      const status = maybeProblemError?.response?.status;
+      if (status === 422) {
+        const detail = maybeProblemError?.problem?.detail ?? 'Price must meet minimum requirements.';
+        setFloorViolationMessage(detail);
+        logger.info('pricing-floor-violation', {
+          bookingId: bookingDraftId,
+          requestedCreditCents: normalizedCreditCents,
+        });
+        setCreditSliderCents(lastSuccessfulCreditCents);
+        const totalDueCents = getTotalDueCents();
+        updateCreditSelection(lastSuccessfulCreditCents, totalDueCents);
+        lastPreviewCreditsRef.current = lastSuccessfulCreditCents;
+        return;
+      }
+
+      if (status !== undefined) {
+        logger.warn('Pricing preview error with unexpected status', {
+          bookingId: bookingDraftId,
+          requestedCreditCents: normalizedCreditCents,
+          status,
+        });
+      }
+
+      logger.error('Failed to fetch pricing preview', error as Error, {
+        bookingId: bookingDraftId,
+        requestedCreditCents: normalizedCreditCents,
+      });
+      setLocalErrorMessage('Unable to refresh pricing preview. Please try again.');
+      setCreditSliderCents(lastSuccessfulCreditCents);
+      updateCreditSelection(lastSuccessfulCreditCents, getTotalDueCents());
+    } finally {
+      if (previewRequestIdRef.current === requestId) {
+        setIsPricingPreviewLoading(false);
+      }
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+    }
+  }, [updatedBookingData.bookingId, bookingData.bookingId, updateCreditSelection, lastSuccessfulCreditCents, getTotalDueCents]);
+
+  useEffect(() => {
+    const bookingDraftId = updatedBookingData.bookingId || bookingData.bookingId;
+    if (!bookingDraftId) return;
+    const desiredCreditCents = Math.max(0, Math.round(creditsToUse * 100));
+    if (
+      pendingPreviewCreditsRef.current === desiredCreditCents ||
+      (pricingPreview && lastPreviewCreditsRef.current === desiredCreditCents)
+    ) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      void loadPricingPreview(desiredCreditCents);
+    }, 200);
+
+    return () => {
+      clearTimeout(timeoutId);
+      abortControllerRef.current?.abort();
+    };
+  }, [updatedBookingData.bookingId, bookingData.bookingId, creditsToUse, pricingPreview, loadPricingPreview]);
 
   // Fetch real payment methods and credits from backend
   useEffect(() => {
@@ -269,12 +467,13 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
     if (!effectiveCardId) return; // No card yet
 
-    const amountToApply = Math.min(userCredits.totalAmount || 0, updatedBookingData.totalAmount);
+    const totalDueDollars = getTotalDueCents() / 100;
+    const amountToApply = Math.min(userCredits.totalAmount || 0, totalDueDollars);
     if (amountToApply <= 0) return;
 
     selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, amountToApply);
     setAutoAppliedCredits(true);
-  }, [userCredits, userCards, selectedCardId, updatedBookingData.totalAmount, autoAppliedCredits, selectPaymentMethod]);
+  }, [userCredits, userCards, selectedCardId, autoAppliedCredits, selectPaymentMethod, getTotalDueCents]);
 
   // Track if user manually went back to change payment method
   const [userChangingPayment, setUserChangingPayment] = useState(false);
@@ -588,7 +787,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
               {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
               {...(selectedCard?.isDefault !== undefined && { isDefaultCard: selectedCard.isDefault })}
-              creditsUsed={creditsToUse}
+              creditsUsed={creditSliderCents / 100}
               availableCredits={userCredits.totalAmount}
               {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
               promoApplied={promoApplied}
@@ -603,25 +802,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
                 setUserChangingPayment(true);
                 // Don't change step, just let user select a different method above
               }}
-              onCreditToggle={() => {
-                if (creditsToUse > 0) {
-                  // Turn off credits completely
-                  selectPaymentMethod(PaymentMethod.CREDIT_CARD, selectedCardId);
-                } else {
-                  // Turn on credits - apply max available
-                  const maxApplicable = Math.min(userCredits.totalAmount, updatedBookingData.totalAmount);
-                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, maxApplicable);
-                }
-              }}
-              onCreditAmountChange={(amount) => {
-                // Keep credits "on" even at zero - just change the amount
-                if (amount >= updatedBookingData.totalAmount) {
-                  selectPaymentMethod(PaymentMethod.CREDITS, undefined, amount);
-                } else {
-                  // Always use MIXED mode when slider is visible, even at 0
-                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, amount);
-                }
-              }}
+              pricingPreview={pricingPreview}
+              isPricingPreviewLoading={isPricingPreviewLoading}
+              onCreditToggle={handleCreditToggle}
+              onCreditAmountChange={handleCreditAmountChange}
             />
           )}
         </div>
@@ -655,7 +839,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
               {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
               {...(selectedCard?.isDefault !== undefined && { isDefaultCard: selectedCard.isDefault })}
-              creditsUsed={creditsToUse}
+              creditsUsed={creditSliderCents / 100}
               availableCredits={userCredits.totalAmount}
               {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
               promoApplied={promoApplied}
@@ -670,25 +854,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
                 setUserChangingPayment(true);
                 goToStep(PaymentStep.METHOD_SELECTION);
               }}
-              onCreditToggle={() => {
-                if (creditsToUse > 0) {
-                  // Turn off credits completely
-                  selectPaymentMethod(PaymentMethod.CREDIT_CARD, selectedCardId);
-                } else {
-                  // Turn on credits - apply max available
-                  const maxApplicable = Math.min(userCredits.totalAmount, updatedBookingData.totalAmount);
-                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, maxApplicable);
-                }
-              }}
-              onCreditAmountChange={(amount) => {
-                // Keep credits "on" even at zero - just change the amount
-                if (amount >= updatedBookingData.totalAmount) {
-                  selectPaymentMethod(PaymentMethod.CREDITS, undefined, amount);
-                } else {
-                  // Always use MIXED mode when slider is visible, even at 0
-                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, amount);
-                }
-              }}
+              pricingPreview={pricingPreview}
+              isPricingPreviewLoading={isPricingPreviewLoading}
+              onCreditToggle={handleCreditToggle}
+              onCreditAmountChange={handleCreditAmountChange}
             />
           )}
         </>

@@ -5,6 +5,11 @@ import { X, ArrowLeft } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
+import { ApiProblemError } from '@/lib/api/fetch';
+import {
+  fetchPricingPreview,
+  type PricingPreviewResponse,
+} from '@/lib/api/pricing';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
 import Calendar from './TimeSelectionModal/Calendar';
 import TimeDropdown from './TimeSelectionModal/TimeDropdown';
@@ -73,6 +78,8 @@ interface TimeSelectionModalProps {
   preSelectedTime?: string; // Pre-selected time slot
   onTimeSelected?: (selection: { date: string; time: string; duration: number }) => void;
   serviceId?: string; // Optional service ID from search context
+  bookingDraftId?: string;
+  appliedCreditCents?: number;
 }
 
 export default function TimeSelectionModal({
@@ -83,6 +90,8 @@ export default function TimeSelectionModal({
   preSelectedTime,
   onTimeSelected,
   serviceId,
+  bookingDraftId,
+  appliedCreditCents,
 }: TimeSelectionModalProps) {
   const { isAuthenticated, redirectToLogin, user } = useAuth();
   const { floors: pricingFloors } = usePricingFloors();
@@ -163,6 +172,11 @@ export default function TimeSelectionModal({
     selectedServiceId: selectedService?.id,
   });
 
+  const effectiveAppliedCreditCents = useMemo(
+    () => Math.max(0, Math.round(appliedCreditCents ?? 0)),
+    [appliedCreditCents]
+  );
+
   // Component state
   const [selectedDate, setSelectedDate] = useState<string | null>(preSelectedDate || null);
   const [selectedTime, setSelectedTime] = useState<string | null>(preSelectedTime || null);
@@ -183,6 +197,9 @@ export default function TimeSelectionModal({
   } | null>(null);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
   const lastChangeWasDurationRef = useRef<boolean>(false);
+  const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
+  const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
+  const [pricingPreviewError, setPricingPreviewError] = useState<string | null>(null);
 
   useEffect(() => {
     if (durationOptions.length === 0) return;
@@ -194,6 +211,44 @@ export default function TimeSelectionModal({
       }
     }
   }, [durationOptions, selectedDuration]);
+
+  useEffect(() => {
+    if (!bookingDraftId || !isOpen) {
+      setPricingPreview(null);
+      setPricingPreviewError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      setIsPricingPreviewLoading(true);
+      setPricingPreviewError(null);
+      try {
+        const preview = await fetchPricingPreview(bookingDraftId, effectiveAppliedCreditCents);
+        if (!cancelled) {
+          setPricingPreview(preview);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof ApiProblemError && error.response.status === 422) {
+          setPricingPreviewError(error.problem.detail ?? 'Price is below the minimum.');
+        } else {
+          setPricingPreviewError('Unable to load pricing preview.');
+        }
+        setPricingPreview(null);
+      } finally {
+        if (!cancelled) {
+          setIsPricingPreviewLoading(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingDraftId, effectiveAppliedCreditCents, isOpen]);
 
   const priceFloorViolation = useMemo(() => {
     if (!pricingFloors) return null;
@@ -494,7 +549,6 @@ export default function TimeSelectionModal({
         .padStart(2, '0')}:00`;
 
       const basePrice = price;
-      // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
       const serviceFee = 0;
       const totalAmount = basePrice;
 
@@ -1227,6 +1281,10 @@ export default function TimeSelectionModal({
               onContinue={handleContinue}
               isComplete={isSelectionComplete}
               floorWarning={priceFloorWarning}
+              pricingPreview={pricingPreview}
+              isPricingPreviewLoading={isPricingPreviewLoading}
+              pricingError={pricingPreviewError}
+              hasBookingDraft={Boolean(bookingDraftId)}
             />
           </div>
 
@@ -1240,6 +1298,10 @@ export default function TimeSelectionModal({
               onContinue={handleContinue}
               isComplete={isSelectionComplete}
               floorWarning={priceFloorWarning}
+              pricingPreview={pricingPreview}
+              isPricingPreviewLoading={isPricingPreviewLoading}
+              pricingError={pricingPreviewError}
+              hasBookingDraft={Boolean(bookingDraftId)}
             />
           </div>
         </div>
@@ -1343,6 +1405,10 @@ export default function TimeSelectionModal({
                     onContinue={handleContinue}
                     isComplete={isSelectionComplete}
                     floorWarning={priceFloorWarning}
+                    pricingPreview={pricingPreview}
+                    isPricingPreviewLoading={isPricingPreviewLoading}
+                    pricingError={pricingPreviewError}
+                    hasBookingDraft={Boolean(bookingDraftId)}
                   />
                 </div>
               </div>
