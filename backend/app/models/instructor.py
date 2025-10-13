@@ -21,6 +21,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     SmallInteger,
     String,
     Text,
@@ -87,6 +88,8 @@ class InstructorProfile(Base):
     # Booking preferences
     min_advance_booking_hours = Column(Integer, nullable=False, default=24)
     buffer_time_minutes = Column(Integer, nullable=False, default=0)
+    current_tier_pct = Column(Numeric(5, 2), nullable=False, default=15.00, server_default="15.00")
+    last_tier_eval_at = Column(DateTime(timezone=True), nullable=True)
 
     # Onboarding status fields
     skills_configured = Column(Boolean, nullable=False, default=False)

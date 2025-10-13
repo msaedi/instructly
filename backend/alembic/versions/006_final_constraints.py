@@ -13,6 +13,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 def _get_public_tables(exclude: list[str]) -> list[str]:
@@ -136,6 +137,20 @@ def upgrade() -> None:
                     "Install PostGIS (e.g., 'brew install postgis' on macOS, or use a PostGIS-enabled Docker image) "
                     "and re-run migrations. Original error: %s" % str(e)
                 )
+
+    print("Creating platform_config table...")
+    json_type = JSONB(astext_type=sa.Text()) if is_postgres else sa.JSON()
+    op.create_table(
+        "platform_config",
+        sa.Column("key", sa.Text(), primary_key=True, nullable=False),
+        sa.Column("value_json", json_type, nullable=False),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+    )
 
     # Add alert history table for monitoring
     print("Creating alert_history table...")
@@ -883,6 +898,9 @@ def downgrade() -> None:
         for table_name in tables:
             _drop_permissive_policy_and_disable_rls(table_name)
         print(f"RLS disabled on {len(tables)} tables (policies dropped if existed)")
+
+    print("Dropping platform_config table...")
+    op.drop_table("platform_config")
 
     print("Dropping instructor_preferred_places table...")
     if is_postgres:

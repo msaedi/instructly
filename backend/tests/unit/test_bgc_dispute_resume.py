@@ -12,6 +12,7 @@ from app.models.instructor import BackgroundJob, InstructorProfile
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.background_check_workflow_service import (
+    FINAL_ADVERSE_BUSINESS_DAYS,
     FINAL_ADVERSE_JOB_TYPE,
     BackgroundCheckWorkflowService,
 )
@@ -71,7 +72,13 @@ async def test_resume_final_adverse_enqueues_immediately(db: Session) -> None:
     try:
         _clear_jobs(db)
         now = datetime.now(timezone.utc)
-        pre_sent = now - timedelta(days=7)
+        holidays = _holidays_for(now)
+        target_days = FINAL_ADVERSE_BUSINESS_DAYS + 1
+        pre_sent = now
+        while target_days > 0:
+            pre_sent -= timedelta(days=1)
+            if pre_sent.weekday() < 5 and pre_sent.date() not in holidays:
+                target_days -= 1
         profile = _create_profile(
             db,
             in_dispute=True,

@@ -22,6 +22,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -261,3 +262,21 @@ class Booking(Base):
             "cancelled_by_id": self.cancelled_by_id,
             "cancellation_reason": self.cancellation_reason,
         }
+
+
+Index(
+    "ix_booking_instructor_completed",
+    Booking.instructor_id,
+    Booking.status,
+    Booking.completed_at,
+    postgresql_where=(Booking.status == BookingStatus.COMPLETED),
+)
+
+
+Index(
+    "ix_booking_student_completed",
+    Booking.student_id,
+    Booking.status,
+    Booking.completed_at,
+    postgresql_where=(Booking.status == BookingStatus.COMPLETED),
+)
