@@ -1,6 +1,8 @@
 """Shared helpers for colored environment tags in CLI/log output."""
 from __future__ import annotations
 
+from typing import cast
+
 import click
 
 _ENV_COLOR_MAP = {
@@ -18,7 +20,7 @@ def format_env_tag(env: str) -> str:
     tag = f"[{(env or '').strip().upper()}]"
     color = _ENV_COLOR_MAP.get(normalized)
     if color:
-        return click.style(tag, fg=color)
+        return cast(str, click.style(tag, fg=color))
     return tag
 
 

@@ -66,6 +66,7 @@ from .routes import (
     account_management,
     addresses,
     admin_background_checks,
+    admin_config,
     admin_instructors,
     alerts,
     analytics,
@@ -766,6 +767,7 @@ app.include_router(search_history.router, prefix="/api/search-history", tags=["s
 app.include_router(addresses.router)
 app.include_router(redis_monitor.router)
 app.include_router(database_monitor.router)
+app.include_router(admin_config.router)
 app.include_router(privacy.router, prefix="/api", tags=["privacy"])
 app.include_router(stripe_webhooks.router)
 app.include_router(webhooks_checkr.router)

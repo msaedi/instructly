@@ -18,13 +18,13 @@ Note: The Service model has been replaced with a three-table catalog system:
 from .address import InstructorServiceArea, NYCNeighborhood, UserAddress
 from .availability import AvailabilitySlot, BlackoutDate
 from .booking import Booking, BookingStatus
-from .config import PlatformConfig
 from .favorite import UserFavorite
 from .instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
 from .message import Message, MessageNotification
 from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
 from .payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
+from .platform_config import PlatformConfig
 from .rbac import Permission, Role, RolePermission, UserPermission, UserRole
 from .referrals import (
     ReferralAttribution,

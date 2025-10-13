@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from app.routes import (
     account_management,
     addresses,
+    admin_config,
     alerts,
     analytics,
     auth,
@@ -82,6 +83,7 @@ def build_openapi_app() -> FastAPI:
     app.include_router(addresses.router)
     app.include_router(redis_monitor.router)
     app.include_router(database_monitor.router)
+    app.include_router(admin_config.router)
     app.include_router(privacy.router, prefix="/api", tags=["privacy"])
     app.include_router(stripe_webhooks.router)
     app.include_router(prometheus.router)

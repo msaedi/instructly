@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from .instructor_profile_repository import InstructorProfileRepository
     from .message_repository import MessageRepository
     from .payment_repository import PaymentRepository
+    from .platform_config_repository import PlatformConfigRepository
     from .rbac_repository import RBACRepository
     from .referral_repository import (
         ReferralAttributionRepository,
@@ -207,6 +208,13 @@ class RepositoryFactory:
         from .payment_repository import PaymentRepository
 
         return PaymentRepository(db)
+
+    @staticmethod
+    def create_platform_config_repository(db: Session) -> "PlatformConfigRepository":
+        """Create repository for platform configuration access."""
+        from .platform_config_repository import PlatformConfigRepository
+
+        return PlatformConfigRepository(db)
 
     @staticmethod
     def get_payment_repository(db: Session) -> "PaymentRepository":

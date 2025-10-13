@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { Search, Server, Code, FlaskConical, Gift, ShieldCheck } from 'lucide-react';
+import { Search, Server, Code, FlaskConical, Gift, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useBGCCounts } from './bgc-review/hooks';
@@ -96,6 +96,15 @@ function AdminSidebar() {
         { name: 'Settings', href: '/admin/beta/settings' },
         { name: 'Metrics', href: '/admin/beta/metrics' },
         { name: 'UI Preview', href: '/admin/beta/ui-preview' },
+      ],
+    },
+    {
+      key: 'settings',
+      label: 'Settings',
+      href: '/admin/settings/pricing',
+      icon: SlidersHorizontal,
+      items: [
+        { name: 'Pricing', href: '/admin/settings/pricing' },
       ],
     },
   ] as const;
