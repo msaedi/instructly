@@ -20,6 +20,22 @@ from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
 
 
+@pytest.fixture(autouse=True)
+def _disable_price_floors_for_conflict_tests(disable_price_floors):
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _mock_pricing_service(monkeypatch):
+    pricing_mock = MagicMock()
+    pricing_mock.compute_booking_pricing.return_value = None
+    monkeypatch.setattr(
+        "app.services.booking_service.PricingService",
+        MagicMock(return_value=pricing_mock),
+    )
+    return pricing_mock
+
+
 class TestStudentConflictValidation:
     """Test student conflict validation in BookingService."""
 

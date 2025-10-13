@@ -352,6 +352,42 @@ class TestBookingPaymentRoutes:
         response = client.post("/bookings/", json=booking_data)
         assert response.status_code == 401
 
+    def test_create_booking_rejects_price_below_floor(
+        self,
+        authenticated_client: TestClient,
+        instructor_setup,
+        db: Session,
+        enable_price_floors,
+    ):
+        """Ensure booking creation is blocked when rate falls below the configured floor."""
+
+        instructor, profile, service = instructor_setup
+        service.hourly_rate = 75.00
+        db.add(service)
+        db.commit()
+
+        tomorrow = date.today() + timedelta(days=1)
+        booking_data = {
+            "instructor_id": instructor.id,
+            "instructor_service_id": service.id,
+            "booking_date": tomorrow.isoformat(),
+            "start_time": "14:00",
+            "selected_duration": 60,
+            "student_note": "Test booking",
+            "meeting_location": "Central Park",
+            "location_type": "neutral",
+        }
+
+        response = authenticated_client.post("/bookings/", json=booking_data)
+
+        assert response.status_code == 422
+        detail = response.json()
+        message = detail.get("detail")
+        if isinstance(message, dict):
+            message = message.get("message")
+        assert message is not None
+        assert "Minimum price for a in-person 60-minute private session" in str(message)
+
     # ========== POST /bookings/{id}/confirm-payment Tests ==========
 
     def test_confirm_booking_payment_immediate(

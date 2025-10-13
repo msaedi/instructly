@@ -223,6 +223,7 @@ class TestBookingServiceUnit:
         mock_service,
         mock_instructor_profile,
         mock_booking,
+        disable_price_floors,
     ):
         """Test successful booking creation."""
         # Setup booking data with time-based fields
@@ -253,13 +254,19 @@ class TestBookingServiceUnit:
 
         # Mock repository create and get_booking_with_details
         created_booking = Mock(spec=Booking, id=generate_ulid(), status=BookingStatus.CONFIRMED)
+        created_booking.hourly_rate = Decimal("50.00")
+        created_booking.duration_minutes = 60
+        created_booking.total_price = Decimal("50.00")
+        created_booking.location_type = "online"
         booking_service.repository.create.return_value = created_booking
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
         with patch.object(booking_service, "_invalidate_booking_caches"):
-            result = await booking_service.create_booking(
-                mock_student, booking_data, selected_duration=booking_data.selected_duration
-            )
+            with patch("app.services.booking_service.PricingService") as pricing_service_mock:
+                pricing_service_mock.return_value.compute_booking_pricing.return_value = None
+                result = await booking_service.create_booking(
+                    mock_student, booking_data, selected_duration=booking_data.selected_duration
+                )
 
         # Assertions
         assert result == mock_booking

@@ -22,6 +22,12 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 
+@pytest.fixture(autouse=True)
+def _no_price_floors(disable_price_floors):
+    """New API format tests assert legacy 201 flows without floors."""
+    yield
+
+
 class TestBookingRoutesNewFormat:
     """Test booking endpoints with new time-based format."""
 

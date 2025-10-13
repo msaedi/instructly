@@ -38,6 +38,7 @@ from ..repositories.factory import RepositoryFactory
 from ..schemas.booking import BookingCreate, BookingUpdate
 from .base import BaseService
 from .notification_service import NotificationService
+from .pricing_service import PricingService
 from .student_credit_service import StudentCreditService
 
 if TYPE_CHECKING:
@@ -1214,6 +1215,9 @@ class BookingService(BaseService):
 
         # Load relationships for response
         detailed_booking = self.repository.get_booking_with_details(booking.id)
+
+        pricing_service = PricingService(self.db)
+        pricing_service.compute_booking_pricing(booking.id, applied_credit_cents=0, persist=False)
 
         if detailed_booking is not None:
             return detailed_booking

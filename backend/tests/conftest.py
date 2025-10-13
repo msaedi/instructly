@@ -10,6 +10,7 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 All fixtures now create AvailabilitySlot objects directly with instructor_id and date.
 """
 
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 import os
 import sys
@@ -76,6 +77,7 @@ from app.models.referrals import (  # noqa: F401 ensures tables are registered
 from app.models.region_boundary import RegionBoundary  # noqa: F401
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
+from app.services.config_service import ConfigService
 from app.services.permission_service import PermissionService
 from app.services.template_service import TemplateService
 
@@ -337,6 +339,25 @@ except Exception as e:
 # Create test session factory
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
+
+def _prepare_database() -> None:
+    """Ensure extensions, tables, and constraints exist for tests."""
+    with test_engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
+
+    Base.metadata.create_all(bind=test_engine)
+
+    with test_engine.connect() as conn:
+        conn.execute(text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS ck_bookings_location_type"))
+        conn.execute(
+            text(
+                "ALTER TABLE bookings ADD CONSTRAINT ck_bookings_location_type "
+                "CHECK (location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online'))"
+            )
+        )
+        conn.commit()
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -540,8 +561,7 @@ def db():
     if settings.is_production_database(TEST_DATABASE_URL):
         raise RuntimeError("CRITICAL: Refusing to create tables in what appears to be a production database!")
 
-    # Create tables
-    Base.metadata.create_all(bind=test_engine)
+    _prepare_database()
 
     # Do not run direct DDL here; importing models above ensures tables are created
 
@@ -601,6 +621,54 @@ def db():
         cleanup_db.rollback()
     finally:
         cleanup_db.close()
+
+
+@pytest.fixture
+def enable_price_floors():
+    """Enable production-like price floors for the duration of a test."""
+    _prepare_database()
+    session = TestSessionLocal()
+    config_service = ConfigService(session)
+    original_config, _ = config_service.get_pricing_config()
+    original_config_copy = deepcopy(original_config)
+
+    updated_config = deepcopy(original_config)
+    updated_config.setdefault("price_floor_cents", {})
+    updated_config["price_floor_cents"]["private_in_person"] = 8000
+    updated_config["price_floor_cents"]["private_remote"] = 6000
+    config_service.set_pricing_config(updated_config)
+    session.commit()
+
+    try:
+        yield
+    finally:
+        config_service.set_pricing_config(original_config_copy)
+        session.commit()
+        session.close()
+
+
+@pytest.fixture
+def disable_price_floors():
+    """Disable price floors for tests that assume low-price bookings."""
+    _prepare_database()
+    session = TestSessionLocal()
+    config_service = ConfigService(session)
+    original_config, _ = config_service.get_pricing_config()
+    original_config_copy = deepcopy(original_config)
+
+    updated_config = deepcopy(original_config)
+    updated_config.setdefault("price_floor_cents", {})
+    updated_config["price_floor_cents"]["private_in_person"] = 0
+    updated_config["price_floor_cents"]["private_remote"] = 0
+    config_service.set_pricing_config(updated_config)
+    session.commit()
+
+    try:
+        yield
+    finally:
+        config_service.set_pricing_config(original_config_copy)
+        session.commit()
+        session.close()
 
 
 # ============================================================================

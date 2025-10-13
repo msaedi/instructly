@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown } from 'lucide-react';
 import { BookingPayment, PaymentMethod } from '../types';
 import { BookingType } from '@/features/shared/types/booking';
@@ -14,6 +14,13 @@ import TimeSelectionModal from '@/features/student/booking/components/TimeSelect
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { logger } from '@/lib/logger';
+import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import {
+  computeBasePriceCents,
+  computePriceFloorCents,
+  formatCents,
+  type NormalizedModality,
+} from '@/lib/pricing/priceFloors';
 
 interface PaymentConfirmationProps {
   booking: BookingPayment;
@@ -33,6 +40,8 @@ interface PaymentConfirmationProps {
   onPromoStatusChange?: (applied: boolean) => void;
   referralAppliedCents?: number;
   referralActive?: boolean;
+  floorViolationMessage?: string | null;
+  onClearFloorViolation?: () => void;
 }
 
 export default function PaymentConfirmation({
@@ -53,6 +62,8 @@ export default function PaymentConfirmation({
   onPromoStatusChange,
   referralAppliedCents = 0,
   referralActive: referralActiveFromParent = false,
+  floorViolationMessage = null,
+  onClearFloorViolation,
 }: PaymentConfirmationProps) {
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
@@ -64,6 +75,7 @@ export default function PaymentConfirmation({
   const [promoCode, setPromoCode] = useState('');
   const [promoActive, setPromoActive] = useState(promoApplied);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const { floors: pricingFloors } = usePricingFloors();
 
   // Track if credits are enabled (slider is shown) separately from amount
   const creditsEnabled = paymentMethod === PaymentMethod.MIXED || paymentMethod === PaymentMethod.CREDITS;
@@ -86,12 +98,54 @@ export default function PaymentConfirmation({
   const totalAfterCredits = Math.max(0, booking.totalAmount - creditsUsed - referralCreditAmount);
   const promoApplyDisabled = referralActive || (!promoActive && promoCode.trim().length === 0);
 
+  const selectedModality = useMemo<NormalizedModality>(() => (isOnlineLesson ? 'remote' : 'in_person'), [isOnlineLesson]);
+  const hourlyRate = useMemo(() => {
+    if (!Number.isFinite(booking.duration) || booking.duration <= 0) return 0;
+    return Number(((booking.basePrice || 0) * 60) / booking.duration);
+  }, [booking.basePrice, booking.duration]);
+
+  const clientFloorViolation = useMemo(() => {
+    if (!pricingFloors) return null;
+    if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) return null;
+    if (!Number.isFinite(booking.duration) || booking.duration <= 0) return null;
+    const floorCents = computePriceFloorCents(pricingFloors, selectedModality, booking.duration);
+    const baseCents = computeBasePriceCents(hourlyRate, booking.duration);
+    if (baseCents < floorCents) {
+      return { floorCents, baseCents };
+    }
+    return null;
+  }, [pricingFloors, hourlyRate, booking.duration, selectedModality]);
+
+  const clientFloorWarning = useMemo(() => {
+    if (!clientFloorViolation) return null;
+    const modalityLabel = selectedModality === 'in_person' ? 'in-person' : 'remote';
+    return `Minimum for ${modalityLabel} ${booking.duration}-minute private session is $${formatCents(clientFloorViolation.floorCents)} (current $${formatCents(clientFloorViolation.baseCents)}).`;
+  }, [clientFloorViolation, booking.duration, selectedModality]);
+
+  const activeFloorMessage = clientFloorWarning ?? floorViolationMessage ?? null;
+  const isFloorBlocking = Boolean(activeFloorMessage);
+
   useEffect(() => {
     setPromoActive(promoApplied);
     if (!promoApplied) {
       setPromoError(null);
     }
   }, [promoApplied]);
+
+  useEffect(() => {
+    const modalityFromMetadata = (booking as unknown as { metadata?: Record<string, unknown> }).metadata?.['modality'];
+    if (modalityFromMetadata === 'remote') {
+      setIsOnlineLesson(true);
+      return;
+    }
+    if (modalityFromMetadata === 'in_person') {
+      setIsOnlineLesson(false);
+      return;
+    }
+    if (typeof booking.location === 'string' && booking.location) {
+      setIsOnlineLesson(/online|remote/i.test(booking.location));
+    }
+  }, [booking]);
 
   useEffect(() => {
     if (!referralActive) {
@@ -614,7 +668,10 @@ export default function PaymentConfirmation({
               type="checkbox"
               id="online-lesson"
               checked={isOnlineLesson}
-              onChange={(e) => setIsOnlineLesson(e.target.checked)}
+              onChange={(e) => {
+                setIsOnlineLesson(e.target.checked);
+                onClearFloorViolation?.();
+              }}
               className="w-4 h-4 text-[#7E22CE] border-gray-300 rounded focus:ring-[#7E22CE]"
             />
             <label htmlFor="online-lesson" className="ml-2 text-sm font-medium text-gray-700">
@@ -672,6 +729,18 @@ export default function PaymentConfirmation({
           )}
         </div>
 
+        {activeFloorMessage && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-red-700">
+                <p>{activeFloorMessage}</p>
+                <p className="mt-1">Adjust the lesson duration or choose a different modality to continue.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Conflict Warning */}
         {hasConflict && !isCheckingConflict && (
           <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -690,14 +759,20 @@ export default function PaymentConfirmation({
         <div className="mt-6">
           <button
             onClick={onConfirm}
-            disabled={hasConflict || isCheckingConflict}
+            disabled={hasConflict || isCheckingConflict || isFloorBlocking}
             className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
-              hasConflict || isCheckingConflict
+              hasConflict || isCheckingConflict || isFloorBlocking
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]'
             }`}
           >
-            {isCheckingConflict ? 'Checking availability...' : hasConflict ? 'You have a conflict at this time' : 'Book now!'}
+            {isCheckingConflict
+              ? 'Checking availability...'
+              : hasConflict
+              ? 'You have a conflict at this time'
+              : isFloorBlocking
+              ? 'Price must meet minimum'
+              : 'Book now!'}
           </button>
         </div>
 
@@ -843,17 +918,21 @@ export default function PaymentConfirmation({
               last_initial: booking.instructorName.split(' ')[1]?.charAt(0) || ''
             },
             services: instructorServices.length > 0
-              ? instructorServices.map(service => ({
+              ? instructorServices.map((service) => ({
                   id: service.id,
                   skill: service.skill || '',
                   hourly_rate: service.hourly_rate,
-                  duration_options: service.duration_options || [30, 60, 90]
+                  duration_options: service.duration_options || [30, 60, 90],
+                  ...(Array.isArray(service.location_types)
+                    ? { location_types: service.location_types }
+                    : {}),
                 }))
               : [{
                   id: sessionStorage.getItem('serviceId') || '',
                   skill: booking.lessonType,
                   hourly_rate: booking.basePrice / (booking.duration / 60),
-                  duration_options: [30, 60, 90] // fallback to standard durations
+                  duration_options: [30, 60, 90], // fallback to standard durations
+                  location_types: ['online'],
                 }]
           }}
           // Don't pre-select date/time when editing - let modal default to first available
@@ -888,6 +967,7 @@ export default function PaymentConfirmation({
 
             // Close modal and refresh the page with new data
             setIsModalOpen(false);
+            onClearFloorViolation?.();
             window.location.reload();
           }}
         />

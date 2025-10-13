@@ -196,8 +196,15 @@ export async function cleanFetch<T>(
         } as ApiResponse<T> & { retryAfterSeconds?: number };
       }
 
+      const detailValue = (data as Record<string, unknown>)?.['detail'];
+      const errorValue =
+        detailValue !== undefined && detailValue !== null
+          ? typeof detailValue === 'string'
+            ? detailValue
+            : JSON.stringify(detailValue)
+          : `Error: ${response.status}`;
       return {
-        error: (data as Record<string, unknown>)?.['detail'] as string || `Error: ${response.status}`,
+        error: errorValue,
         status: response.status,
       };
     }

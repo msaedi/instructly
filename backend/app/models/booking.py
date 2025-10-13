@@ -144,7 +144,7 @@ class Booking(Base):
             name="ck_bookings_status",
         ),
         CheckConstraint(
-            "location_type IN ('student_home', 'instructor_location', 'neutral')",
+            "location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online')",
             name="ck_bookings_location_type",
         ),
         CheckConstraint("duration_minutes > 0", name="check_duration_positive"),

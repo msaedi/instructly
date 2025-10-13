@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
@@ -9,6 +10,7 @@ import pytest
 
 from app.core.exceptions import BusinessRuleException
 from app.models.booking import Booking, BookingStatus
+from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 from app.services.pricing_service import PricingService
 
 
@@ -88,6 +90,7 @@ def test_pricing_service_enforces_price_floor(db, pricing_service, test_instruct
         pricing_service.compute_booking_pricing(low_rate_booking.id)
 
     assert exc.value.code == "PRICE_BELOW_FLOOR"
+    assert "Minimum price for a in-person 60-minute private session" in exc.value.message
 
     valid_booking = _create_booking(
         db=db,
@@ -99,6 +102,123 @@ def test_pricing_service_enforces_price_floor(db, pricing_service, test_instruct
 
     result = pricing_service.compute_booking_pricing(valid_booking.id)
     assert result["base_price_cents"] == 8000
+
+
+def test_pricing_service_enforces_prorated_in_person_floor(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+):
+    low_rate_booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("79.99"),
+        duration_minutes=45,
+    )
+
+    with pytest.raises(BusinessRuleException) as exc:
+        pricing_service.compute_booking_pricing(low_rate_booking.id)
+
+    assert exc.value.code == "PRICE_BELOW_FLOOR"
+    assert "45-minute" in exc.value.message
+
+    valid_booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("80.00"),
+        duration_minutes=45,
+    )
+
+    result = pricing_service.compute_booking_pricing(valid_booking.id)
+    assert result["base_price_cents"] == 6000
+
+
+def test_pricing_service_enforces_remote_floor(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+):
+    remote_booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("59.98"),
+        duration_minutes=30,
+        location_type="online",
+    )
+
+    with pytest.raises(BusinessRuleException) as exc:
+        pricing_service.compute_booking_pricing(remote_booking.id)
+
+    assert exc.value.code == "PRICE_BELOW_FLOOR"
+    assert "remote 30-minute" in exc.value.message
+
+    valid_remote = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("60.00"),
+        duration_minutes=30,
+        location_type="online",
+    )
+
+    result = pricing_service.compute_booking_pricing(valid_remote.id)
+    assert result["base_price_cents"] == 3000
+
+
+def test_pricing_service_respects_config_overrides(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+):
+    config_service = ConfigService(db)
+    original_config, _ = config_service.get_pricing_config()
+    updated_config = deepcopy(original_config)
+    updated_config["price_floor_cents"]["private_remote"] = 6500
+    config_service.set_pricing_config(updated_config)
+    db.commit()
+
+    below_new_floor = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("64.99"),
+        location_type="online",
+    )
+
+    with pytest.raises(BusinessRuleException) as exc:
+        pricing_service.compute_booking_pricing(below_new_floor.id)
+
+    assert exc.value.code == "PRICE_BELOW_FLOOR"
+    assert "$65.00" in exc.value.message
+
+    meets_new_floor = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("65.00"),
+        location_type="online",
+    )
+
+    result = pricing_service.compute_booking_pricing(meets_new_floor.id)
+    assert result["base_price_cents"] == 6500
+
+    config_service.set_pricing_config(original_config)
+    db.commit()
 
 
 def test_pricing_service_promotes_to_lower_tier(db, pricing_service, test_instructor, test_student, instructor_service):
@@ -216,3 +336,9 @@ def test_pricing_service_outputs_integer_cents(db, pricing_service, test_instruc
 
     assert isinstance(result["line_items"], list)
     assert all(isinstance(item["amount_cents"], int) for item in result["line_items"])
+@pytest.fixture(autouse=True)
+def _restore_default_price_floors(db):
+    config_service = ConfigService(db)
+    config_service.set_pricing_config(deepcopy(DEFAULT_PRICING_CONFIG))
+    db.commit()
+    yield

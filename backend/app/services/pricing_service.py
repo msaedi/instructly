@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -70,10 +70,13 @@ class PricingService(BaseService):
 
         if is_private and floor_cents is not None and base_price_cents < floor_cents:
             required_dollars = self._format_cents(floor_cents)
+            current_dollars = self._format_cents(base_price_cents)
+            modality_label = "in-person" if modality == "in_person" else "remote"
             raise BusinessRuleException(
                 message=(
-                    "Price must be at least "
-                    f"${required_dollars} for a {booking.duration_minutes}-minute {modality.replace('_', ' ')} session"
+                    "Minimum price for a "
+                    f"{modality_label} {booking.duration_minutes}-minute private session is ${required_dollars} "
+                    f"(current ${current_dollars})."
                 ),
                 code="PRICE_BELOW_FLOOR",
                 details={
@@ -148,8 +151,23 @@ class PricingService(BaseService):
         return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
     def _compute_base_price_cents(self, booking: Booking) -> int:
-        hourly_rate = Decimal(str(booking.hourly_rate))
-        duration_minutes = int(booking.duration_minutes)
+        try:
+            hourly_rate = Decimal(str(booking.hourly_rate))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValidationException(
+                "Booking hourly rate is invalid",
+                code="INVALID_HOURLY_RATE",
+                details={"hourly_rate": getattr(booking, "hourly_rate", None)},
+            ) from exc
+
+        try:
+            duration_minutes = int(booking.duration_minutes)
+        except (TypeError, ValueError) as exc:
+            raise ValidationException(
+                "Booking duration is invalid",
+                code="INVALID_DURATION",
+                details={"duration_minutes": getattr(booking, "duration_minutes", None)},
+            ) from exc
         cents_value = hourly_rate * Decimal(duration_minutes) * Decimal(100) / Decimal(60)
         return self._round_to_int(cents_value)
 
@@ -192,8 +210,13 @@ class PricingService(BaseService):
         if base_floor is None:
             return None
         base_floor_int = int(base_floor)
-        total = base_floor_int * duration_minutes
-        return (total + 59) // 60  # Ceiling division to keep floor binding
+        if duration_minutes <= 0:
+            return 0
+
+        prorated = (Decimal(base_floor_int) * Decimal(duration_minutes) / Decimal(60)).quantize(
+            Decimal("1"), rounding=ROUND_HALF_UP
+        )
+        return int(prorated)
 
     def _resolve_instructor_tier_pct(
         self,
@@ -286,7 +309,7 @@ class PricingService(BaseService):
     @staticmethod
     def _format_cents(amount_cents: int) -> str:
         dollars = Decimal(amount_cents) / Decimal(100)
-        return format(dollars.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), "0.00")
+        return f"{dollars.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}"
 
 
 __all__ = ["PricingService"]

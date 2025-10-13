@@ -7,6 +7,7 @@ interface SummarySectionProps {
   price: number;
   onContinue: () => void;
   isComplete: boolean;
+  floorWarning?: string | null;
 }
 
 export default function SummarySection({
@@ -16,6 +17,7 @@ export default function SummarySection({
   price,
   onContinue,
   isComplete,
+  floorWarning = null,
 }: SummarySectionProps) {
   // Format date to human-readable format
   const formatDate = (dateStr: string, timeStr: string) => {
@@ -103,6 +105,12 @@ export default function SummarySection({
         >
           Select and continue
         </button>
+
+        {floorWarning && (
+          <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {floorWarning}
+          </div>
+        )}
 
         {/* Helper Text */}
         <p

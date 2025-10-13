@@ -5,6 +5,12 @@ from datetime import date, timedelta
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _no_price_floors(disable_price_floors):
+    """Privacy scenarios create $50 bookings intentionally."""
+    yield
+
+
 @pytest.mark.asyncio
 async def test_student_sees_instructor_last_initial_only(
     client,

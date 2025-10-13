@@ -29,6 +29,12 @@ from app.main import fastapi_app as app
 from app.models.booking import BookingStatus
 
 
+@pytest.fixture(autouse=True)
+def _no_price_floors(disable_price_floors):
+    """Booking route tests mock pricing; keep legacy fixture values."""
+    yield
+
+
 class TestBookingRoutes:
     """Test booking API endpoints with time-based pattern."""
 

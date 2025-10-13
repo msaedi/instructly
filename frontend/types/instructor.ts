@@ -164,6 +164,9 @@ export interface InstructorService {
   /** Available duration options in minutes */
   duration_options?: number[];
 
+  /** Modalities / delivery methods supported (e.g., 'in-person', 'online') */
+  location_types?: string[];
+
   /** Whether this service is currently active */
   is_active?: boolean;
 

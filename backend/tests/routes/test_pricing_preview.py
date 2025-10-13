@@ -132,6 +132,7 @@ def test_pricing_preview_propagates_floor_validation(
     test_instructor,
     instructor_service,
     auth_headers_student,
+    enable_price_floors,
 ):
     booking = _create_booking(
         db=db,
@@ -149,4 +150,8 @@ def test_pricing_preview_propagates_floor_validation(
     assert response.status_code == 422
     detail = response.json()
     assert detail.get("code") == "PRICE_BELOW_FLOOR"
-    assert "Price must be at least" in str(detail.get("detail"))
+    message = detail.get("detail")
+    if isinstance(message, dict):
+        message = message.get("message")
+    assert message is not None
+    assert "Minimum price for a in-person" in str(message)

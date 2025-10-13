@@ -136,7 +136,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_bookings_location_type",
         "bookings",
-        "location_type IN ('student_home', 'instructor_location', 'neutral')",
+        "location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online')",
     )
 
     # Create password_reset_tokens table

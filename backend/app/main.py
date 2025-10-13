@@ -87,6 +87,7 @@ from .routes import (
     monitoring,
     password_reset,
     payments,
+    pricing_config_public,
     pricing_preview,
     privacy,
     prometheus,
@@ -752,6 +753,7 @@ app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
 app.include_router(bookings.router)
 app.include_router(pricing_preview.router)
+app.include_router(pricing_config_public.router)
 app.include_router(favorites.router)
 app.include_router(payments.router)
 app.include_router(messages.router)

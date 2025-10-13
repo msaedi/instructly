@@ -563,7 +563,8 @@ function InstructorProfileContent() {
               id: s.id,
               skill: s.skill || '',
               hourly_rate: s.hourly_rate,
-              duration_options: s.duration_options || [60]
+              duration_options: s.duration_options || [60],
+              location_types: s.location_types || []
             }))
           }}
           preSelectedDate={bookingModal.selectedDate || ''}

@@ -101,6 +101,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const [confirmationNumber, setConfirmationNumber] = useState<string>('');
   const [updatedBookingData, setUpdatedBookingData] = useState<BookingPayment>(bookingData);
   const [localErrorMessage, setLocalErrorMessage] = useState<string>('');
+  const [floorViolationMessage, setFloorViolationMessage] = useState<string | null>(null);
   const [referralAppliedCents, setReferralAppliedCents] = useState(0);
   const [promoApplied, setPromoApplied] = useState(false);
 
@@ -151,6 +152,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   useEffect(() => {
     setReferralAppliedCents(0);
   }, [effectiveOrderId]);
+
+  useEffect(() => {
+    setFloorViolationMessage(null);
+  }, [updatedBookingData.duration, updatedBookingData.basePrice, updatedBookingData.totalAmount]);
 
   const refreshOrderSummary = useCallback(async (orderIdentifier: string) => {
     try {
@@ -285,6 +290,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
   // Override processPayment to create booking and process payment
   const processPayment = async () => {
+    setFloorViolationMessage(null);
     // Set to processing state
     goToStep(PaymentStep.PROCESSING);
 
@@ -395,12 +401,16 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       } as unknown as import('@/features/shared/api/client').CreateBookingRequest);
 
       if (!booking) {
-        // Use the specific error message from the booking hook
         const errorMsg = (bookingError as string) || 'Failed to create booking';
-        logger.error('Booking creation prevented', new Error(errorMsg), {
-          bookingError,
-          bookingData
-        });
+        const context = { bookingError, bookingData };
+        if (/minimum price/i.test(errorMsg)) {
+          logger.warn('Booking creation blocked by price floor validation', context);
+          setFloorViolationMessage(errorMsg);
+          resetBookingError();
+          goToStep(PaymentStep.CONFIRMATION);
+          return;
+        }
+        logger.error('Booking creation prevented', new Error(errorMsg), context);
         throw new Error(errorMsg);
       }
 
@@ -521,6 +531,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     resetPayment();
     resetBookingError();
     setLocalErrorMessage('');
+    setFloorViolationMessage(null);
     goToStep(PaymentStep.METHOD_SELECTION);
   };
 
@@ -584,6 +595,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               onPromoStatusChange={setPromoApplied}
               referralAppliedCents={referralAppliedCents}
               referralActive={referralAppliedCents > 0}
+              floorViolationMessage={floorViolationMessage}
+              onClearFloorViolation={() => setFloorViolationMessage(null)}
               onConfirm={processPayment}
               onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
               onChangePaymentMethod={() => {
@@ -649,6 +662,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               onPromoStatusChange={setPromoApplied}
               referralAppliedCents={referralAppliedCents}
               referralActive={referralAppliedCents > 0}
+              floorViolationMessage={floorViolationMessage}
+              onClearFloorViolation={() => setFloorViolationMessage(null)}
               onConfirm={processPayment}
               onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
               onChangePaymentMethod={() => {
