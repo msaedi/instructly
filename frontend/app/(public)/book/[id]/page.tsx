@@ -178,7 +178,6 @@ export default function QuickBookingPage() {
     const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
     const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
     const basePrice = safeRate * (duration / 60);
-    const serviceFee = 0;
     const totalAmount = basePrice;
     const bookingType = determineBookingType(bookingDate);
 
@@ -193,7 +192,6 @@ export default function QuickBookingPage() {
       duration,
       location: serviceAreaDisplay,
       basePrice,
-      serviceFee,
       totalAmount,
       bookingType,
       paymentStatus: PaymentStatus.PENDING,

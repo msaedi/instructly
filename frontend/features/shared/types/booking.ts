@@ -32,7 +32,6 @@ export interface BookingPayment {
   location: string;
 
   basePrice: number;
-  serviceFee: number;
   totalAmount: number;
 
   bookingType: BookingType;

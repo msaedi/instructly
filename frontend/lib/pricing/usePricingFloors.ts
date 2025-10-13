@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { fetchPricingConfig } from '@/lib/api/pricing';
+import { fetchPricingConfig, type PricingConfig } from '@/lib/api/pricing';
 import type { PriceFloorConfig } from '@/lib/pricing/priceFloors';
 import { logger } from '@/lib/logger';
 
-export function usePricingFloors() {
-  const [floors, setFloors] = useState<PriceFloorConfig | null>(null);
+export function usePricingConfig() {
+  const [config, setConfig] = useState<PricingConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,13 +15,13 @@ export function usePricingFloors() {
         setIsLoading(true);
         const response = await fetchPricingConfig();
         if (!cancelled) {
-          setFloors(response.config.price_floor_cents);
+          setConfig(response.config);
           setError(null);
         }
       } catch (err) {
-        logger.error('Failed to fetch pricing floors', err as Error);
+        logger.error('Failed to fetch pricing config', err as Error);
         if (!cancelled) {
-          setError('Unable to load minimum pricing rules.');
+          setError('Unable to load pricing configuration.');
         }
       } finally {
         if (!cancelled) {
@@ -36,5 +36,11 @@ export function usePricingFloors() {
     };
   }, []);
 
+  return { config, isLoading, error };
+}
+
+export function usePricingFloors() {
+  const { config, isLoading, error } = usePricingConfig();
+  const floors: PriceFloorConfig | null = config?.price_floor_cents ?? null;
   return { floors, isLoading, error };
 }

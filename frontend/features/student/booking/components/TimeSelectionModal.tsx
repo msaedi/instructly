@@ -549,7 +549,6 @@ export default function TimeSelectionModal({
         .padStart(2, '0')}:00`;
 
       const basePrice = price;
-      const serviceFee = 0;
       const totalAmount = basePrice;
 
       // Log parsed values for debugging
@@ -627,7 +626,6 @@ export default function TimeSelectionModal({
         endTime: endTime,
         duration: selectedDuration,
         basePrice: basePrice,
-        serviceFee,
         totalAmount: totalAmount,
         hourlyRate: selectedHourlyRate,
         location: locationLabel,

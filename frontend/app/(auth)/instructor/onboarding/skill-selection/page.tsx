@@ -10,7 +10,7 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import { usePricingConfig, usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
@@ -42,6 +42,11 @@ function Step3SkillsPricingInner() {
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
   const { floors: pricingFloors } = usePricingFloors();
+  const { config: pricingConfig } = usePricingConfig();
+  const defaultInstructorTierPct = useMemo(() => {
+    const pct = pricingConfig?.instructor_tiers?.[0]?.pct;
+    return typeof pct === 'number' ? pct : null;
+  }, [pricingConfig]);
 
   const floorViolationsByService = useMemo(() => {
     const map = new Map<string, FloorViolation[]>();
@@ -695,9 +700,13 @@ function Step3SkillsPricingInner() {
                       <span className="text-gray-500">/hr</span>
                     </div>
                   </div>
-                  {s.hourly_rate && Number(s.hourly_rate) > 0 && (
+                  {s.hourly_rate && Number(s.hourly_rate) > 0 && defaultInstructorTierPct !== null && (
                     <div className="mt-2 text-xs text-gray-600">
-                      You&apos;ll earn <span className="font-semibold text-[#7E22CE]">${(Number(s.hourly_rate) * 0.85).toFixed(2)}</span> after the 15% platform fee
+                      You&apos;ll earn{' '}
+                      <span className="font-semibold text-[#7E22CE]">
+                        ${Number(Number(s.hourly_rate) * (1 - defaultInstructorTierPct)).toFixed(2)}
+                      </span>{' '}
+                      after the {(defaultInstructorTierPct * 100).toFixed(1).replace(/\.0$/, '')}% platform fee
                     </div>
                   )}
                   {violations.length > 0 && (

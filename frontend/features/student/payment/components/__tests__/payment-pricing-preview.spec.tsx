@@ -61,7 +61,6 @@ const baseBookingData = {
   duration: 60,
   location: 'Online',
   basePrice: 100,
-  serviceFee: 12,
   totalAmount: 112,
   bookingType: BookingType.STANDARD,
   paymentStatus: PaymentStatus.PENDING,

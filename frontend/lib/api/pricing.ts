@@ -7,6 +7,22 @@ export type PricingLineItem = {
   amount_cents: number;
 };
 
+export type PricingTierConfig = {
+  min: number;
+  max: number | null;
+  pct: number;
+};
+
+export type PricingConfig = {
+  student_fee_pct: number;
+  instructor_tiers: PricingTierConfig[];
+  price_floor_cents: PriceFloorConfig;
+  tier_activity_window_days?: number;
+  tier_stepdown_max?: number;
+  tier_inactivity_reset_days?: number;
+  student_credit_cycle?: Record<string, number>;
+};
+
 export type PricingPreviewResponse = {
   base_price_cents: number;
   student_fee_cents: number;
@@ -20,9 +36,7 @@ export type PricingPreviewResponse = {
 };
 
 type PricingConfigResponse = {
-  config: {
-    price_floor_cents: PriceFloorConfig;
-  };
+  config: PricingConfig;
   updated_at: string | null;
 };
 

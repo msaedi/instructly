@@ -9,12 +9,14 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import stripe
+from tests.helpers.pricing import cents_from_pct
 import ulid
 
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
+from app.services.config_service import DEFAULT_PRICING_CONFIG
 from app.services.stripe_service import ChargeContext, StripeService
 from app.tasks.payment_tasks import (
     attempt_authorization_retry,
@@ -25,6 +27,39 @@ from app.tasks.payment_tasks import (
     process_scheduled_authorizations,
     retry_failed_authorizations,
 )
+
+
+def _charge_context_from_config(
+    *,
+    booking_id: str,
+    base_price_cents: int,
+    credit_cents: int = 0,
+    tier_index: int = 0,
+) -> ChargeContext:
+    tiers = DEFAULT_PRICING_CONFIG.get("instructor_tiers", [])
+    tier = tiers[min(tier_index, len(tiers) - 1)] if tiers else {"pct": 0}
+    tier_pct = Decimal(str(tier["pct"]))
+    student_fee_pct = DEFAULT_PRICING_CONFIG.get("student_fee_pct", 0)
+    student_fee_cents = cents_from_pct(base_price_cents, student_fee_pct)
+    instructor_commission_cents = cents_from_pct(base_price_cents, tier_pct)
+    target_payout = base_price_cents - instructor_commission_cents
+    student_pay = max(0, base_price_cents + student_fee_cents - credit_cents)
+    application_fee_cents = max(
+        0, student_fee_cents + instructor_commission_cents - credit_cents
+    )
+    top_up_transfer_cents = max(0, target_payout - student_pay)
+    return ChargeContext(
+        booking_id=booking_id,
+        applied_credit_cents=credit_cents,
+        base_price_cents=base_price_cents,
+        student_fee_cents=student_fee_cents,
+        instructor_commission_cents=instructor_commission_cents,
+        target_instructor_payout_cents=target_payout,
+        student_pay_cents=student_pay,
+        application_fee_cents=application_fee_cents,
+        top_up_transfer_cents=top_up_transfer_cents,
+        instructor_tier_pct=tier_pct,
+    )
 
 
 class TestPaymentTasks:
@@ -64,17 +99,10 @@ class TestPaymentTasks:
         mock_stripe_service_instance.create_or_retry_booking_payment_intent.return_value = (
             mock_payment_intent
         )
-        mock_stripe_service_instance.build_charge_context.return_value = ChargeContext(
+        mock_stripe_service_instance.build_charge_context.return_value = _charge_context_from_config(
             booking_id=booking.id,
-            applied_credit_cents=0,
             base_price_cents=10000,
-            student_fee_cents=1200,
-            instructor_commission_cents=1500,
-            target_instructor_payout_cents=8500,
-            student_pay_cents=9700,
-            application_fee_cents=2700,
-            top_up_transfer_cents=0,
-            instructor_tier_pct=Decimal("0.12"),
+            tier_index=1,
         )
 
         # Mock repositories
@@ -155,17 +183,9 @@ class TestPaymentTasks:
 
         # Mock Stripe service (not used in the actual code)
         mock_stripe_service_instance = mock_stripe_service.return_value
-        mock_stripe_service_instance.build_charge_context.return_value = ChargeContext(
+        mock_stripe_service_instance.build_charge_context.return_value = _charge_context_from_config(
             booking_id=booking.id,
-            applied_credit_cents=0,
             base_price_cents=10000,
-            student_fee_cents=1200,
-            instructor_commission_cents=1500,
-            target_instructor_payout_cents=8500,
-            student_pay_cents=10000,
-            application_fee_cents=1500,
-            top_up_transfer_cents=0,
-            instructor_tier_pct=Decimal("0.15"),
         )
         mock_stripe_service_instance.create_or_retry_booking_payment_intent.side_effect = stripe.error.CardError(
             message="Card declined",
@@ -290,22 +310,15 @@ class TestPaymentTasks:
                     with patch("app.tasks.payment_tasks.NotificationService") as mock_notification_service:
                         mock_notification_service.return_value = MagicMock()
 
-                        context = ChargeContext(
-                            booking_id=booking.id,
-                            applied_credit_cents=0,
-                            base_price_cents=10000,
-                            student_fee_cents=1200,
-                            instructor_commission_cents=1500,
-                            target_instructor_payout_cents=8500,
-                            student_pay_cents=9700,
-                            application_fee_cents=2700,
-                            top_up_transfer_cents=0,
-                            instructor_tier_pct=Decimal("0.12"),
-                        )
-
                         with patch("app.tasks.payment_tasks.StripeService") as mock_stripe_service_class:
                             stripe_service_instance = MagicMock()
-                            stripe_service_instance.build_charge_context.return_value = context
+                            stripe_service_instance.build_charge_context.return_value = (
+                                _charge_context_from_config(
+                                    booking_id=booking.id,
+                                    base_price_cents=10000,
+                                    tier_index=1,
+                                )
+                            )
                             mock_payment_intent = MagicMock()
                             mock_payment_intent.id = "pi_retry123"
                             stripe_service_instance.create_or_retry_booking_payment_intent.return_value = (
@@ -421,7 +434,12 @@ class TestPaymentTasks:
                 assert result["success"] is True
                 _, kwargs = mock_stripe.PaymentIntent.create.call_args
 
-        assert kwargs["application_fee_amount"] == 1800  # 15% of $120.00
+        base_price_cents = int(booking.total_price * 100)
+        expected_fee = _charge_context_from_config(
+            booking_id=booking.id,
+            base_price_cents=base_price_cents,
+        ).application_fee_cents
+        assert kwargs["application_fee_amount"] == expected_fee
 
     @patch("app.tasks.payment_tasks.StripeService")
     @patch("app.database.SessionLocal")
@@ -614,17 +632,11 @@ class TestPaymentTasks:
             profile.id, "acct_retry", onboarding_completed=True
         )
 
-        locked_context = ChargeContext(
+        locked_context = _charge_context_from_config(
             booking_id=booking.id,
-            applied_credit_cents=1200,
             base_price_cents=9000,
-            student_fee_cents=1080,
-            instructor_commission_cents=900,
-            target_instructor_payout_cents=8100,
-            student_pay_cents=8880,
-            application_fee_cents=2880,
-            top_up_transfer_cents=0,
-            instructor_tier_pct=Decimal("0.12"),
+            credit_cents=12 * 100,
+            tier_index=1,
         )
 
         stripe_service.build_charge_context = MagicMock(return_value=locked_context)

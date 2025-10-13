@@ -896,37 +896,27 @@ export default function PaymentConfirmation({
                     : `$${booking.basePrice.toFixed(2)}`}
                 </span>
               </div>
-              {pricingPreview
-                ? pricingPreview.line_items.map((item) => {
-                    const isCreditLine = item.amount_cents < 0;
-                    return (
-                      <div
-                        key={`${item.label}-${item.amount_cents}`}
-                        className={`flex justify-between text-sm ${
-                          isCreditLine ? 'text-green-600 dark:text-green-400' : ''
-                        }`}
-                      >
-                        <span>{item.label}</span>
-                        <span>{formatCentsToDisplay(item.amount_cents)}</span>
-                      </div>
-                    );
-                  })
-                : (
-                    <>
-                      {booking.serviceFee > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span>Service fee</span>
-                          <span>${booking.serviceFee.toFixed(2)}</span>
-                        </div>
-                      )}
-                      {appliedCreditDollars > 0 && (
-                        <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
-                          <span>Credits applied</span>
-                          <span>{formatCentsToDisplay(-appliedCreditCents)}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
+              {pricingPreview &&
+                pricingPreview.line_items.map((item) => {
+                  const isCreditLine = item.amount_cents < 0;
+                  return (
+                    <div
+                      key={`${item.label}-${item.amount_cents}`}
+                      className={`flex justify-between text-sm ${
+                        isCreditLine ? 'text-green-600 dark:text-green-400' : ''
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      <span>{formatCentsToDisplay(item.amount_cents)}</span>
+                    </div>
+                  );
+                })}
+              {!pricingPreview && appliedCreditDollars > 0 && (
+                <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
+                  <span>Credits applied</span>
+                  <span>{formatCentsToDisplay(-appliedCreditCents)}</span>
+                </div>
+              )}
               {referralCreditAmount > 0 && (
                 <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                   <span>Referral credit</span>
@@ -1001,7 +991,6 @@ export default function PaymentConfirmation({
             const newBookingDate = new Date(selection.date + 'T' + selection.time);
             const hourlyRate = booking.duration > 0 ? booking.basePrice / (booking.duration / 60) : 0;
             const basePrice = Number(((hourlyRate || 0) * selection.duration) / 60);
-            const serviceFee = 0;
             const totalAmount = basePrice;
             const bookingType = determineBookingType(newBookingDate);
 
@@ -1012,7 +1001,6 @@ export default function PaymentConfirmation({
               endTime: calculateEndTime(selection.time, selection.duration),
               duration: selection.duration,
               basePrice,
-              serviceFee,
               totalAmount,
               bookingType,
               ...(bookingType === BookingType.STANDARD && {

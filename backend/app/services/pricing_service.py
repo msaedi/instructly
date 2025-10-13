@@ -19,7 +19,7 @@ from app.models.instructor import InstructorProfile
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.factory import RepositoryFactory
 from app.services.base import BaseService
-from app.services.config_service import ConfigService
+from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 
 
 @dataclass(frozen=True)
@@ -68,6 +68,8 @@ class PricingService(BaseService):
             modality, booking.duration_minutes, inputs.pricing_config
         )
 
+        # Floor thresholds live under pricing_config["price_floor_cents"] for
+        # "private_in_person" and "private_remote" overrides.
         if is_private and floor_cents is not None and base_price_cents < floor_cents:
             required_dollars = self._format_cents(floor_cents)
             current_dollars = self._format_cents(base_price_cents)
@@ -229,7 +231,10 @@ class PricingService(BaseService):
             pricing_config.get("instructor_tiers", []), key=lambda tier: tier.get("min", 0)
         )
         if not tiers:
-            return Decimal("0.15")
+            default_tiers = DEFAULT_PRICING_CONFIG.get("instructor_tiers", [])
+            tiers = sorted(default_tiers, key=lambda tier: tier.get("min", 0))
+        if not tiers:
+            return Decimal("0")
 
         tier_pcts = [Decimal(str(tier["pct"])).quantize(Decimal("0.0001")) for tier in tiers]
         fallback_pct = max(tier_pcts)

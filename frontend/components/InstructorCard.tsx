@@ -478,7 +478,6 @@ export default function InstructorCard({
                       const durationMinutes = instructor.services[0]?.duration_options?.[0] || 60;
                       return Number(((safeRate * durationMinutes) / 60).toFixed(2));
                     })(),
-                    serviceFee: 0,
                     totalAmount: (() => {
                       const rawRate = instructor.services[0]?.hourly_rate as unknown;
                       const rate = typeof rawRate === 'number' ? rawRate : parseFloat(String(rawRate ?? '0'));

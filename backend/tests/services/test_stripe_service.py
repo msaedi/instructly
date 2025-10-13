@@ -7,7 +7,7 @@ and webhook handling.
 """
 
 from datetime import datetime, time
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -22,6 +22,22 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.services.stripe_service import ChargeContext, StripeService
+
+
+def _round_cents(value: Decimal) -> int:
+    return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def _default_instructor_pct(stripe_service: StripeService) -> Decimal:
+    config, _ = stripe_service.config_service.get_pricing_config()
+    pct = config.get("instructor_tiers", [{}])[0].get("pct", 0)
+    return Decimal(str(pct)).quantize(Decimal("0.0001"))
+
+
+def _student_fee_pct(stripe_service: StripeService) -> Decimal:
+    config, _ = stripe_service.config_service.get_pricing_config()
+    pct = config.get("student_fee_pct", 0)
+    return Decimal(str(pct)).quantize(Decimal("0.0001"))
 
 
 class TestStripeService:
@@ -344,16 +360,23 @@ class TestStripeService:
     ) -> None:
         """Requested credits should be locked and reflected in the charge context."""
 
+        base_price_cents = 10000
+        config, _ = stripe_service.config_service.get_pricing_config()
+        tier_pct = Decimal(str(config["instructor_tiers"][1]["pct"]))
+        student_fee_pct = Decimal(str(config["student_fee_pct"]))
+        credit_locked = 7 * 100
+        student_fee_cents = int(Decimal(base_price_cents) * student_fee_pct)
+        instructor_commission_cents = int(Decimal(base_price_cents) * tier_pct)
         mock_pricing.return_value = {
-            "base_price_cents": 10000,
-            "student_fee_cents": 1200,
-            "instructor_commission_cents": 1500,
-            "target_instructor_payout_cents": 8500,
-            "credit_applied_cents": 700,
-            "student_pay_cents": 8500,
-            "application_fee_cents": 2000,
+            "base_price_cents": base_price_cents,
+            "student_fee_cents": student_fee_cents,
+            "instructor_commission_cents": instructor_commission_cents,
+            "target_instructor_payout_cents": base_price_cents - instructor_commission_cents,
+            "credit_applied_cents": credit_locked,
+            "student_pay_cents": base_price_cents + student_fee_cents - credit_locked,
+            "application_fee_cents": student_fee_cents + instructor_commission_cents - credit_locked,
             "top_up_transfer_cents": 0,
-            "instructor_tier_pct": 0.12,
+            "instructor_tier_pct": float(tier_pct),
         }
 
         apply_mock = MagicMock(return_value={"applied_cents": 700})
@@ -380,10 +403,14 @@ class TestStripeService:
             persist=True,
         )
 
-        assert context.applied_credit_cents == 700
-        assert context.application_fee_cents == 2000
-        assert context.student_pay_cents == 8500
-        assert context.instructor_tier_pct == Decimal("0.12")
+        assert context.applied_credit_cents == credit_locked
+        assert context.application_fee_cents == (
+            student_fee_cents + instructor_commission_cents - credit_locked
+        )
+        assert context.student_pay_cents == (
+            base_price_cents + student_fee_cents - credit_locked
+        )
+        assert context.instructor_tier_pct == tier_pct
 
     @patch("app.services.pricing_service.PricingService.compute_booking_pricing")
     def test_build_charge_context_without_requested_credit(
@@ -394,22 +421,29 @@ class TestStripeService:
     ) -> None:
         """When credits were already locked, reuse the stored amount."""
 
+        base_price_cents = 9000
+        config, _ = stripe_service.config_service.get_pricing_config()
+        tier_pct = Decimal(str(config["instructor_tiers"][-1]["pct"]))
+        student_fee_pct = Decimal(str(config["student_fee_pct"]))
+        locked_credit = 5 * 100
+        student_fee_cents = int(Decimal(base_price_cents) * student_fee_pct)
+        instructor_commission_cents = int(Decimal(base_price_cents) * tier_pct)
         mock_pricing.return_value = {
-            "base_price_cents": 9000,
-            "student_fee_cents": 1080,
-            "instructor_commission_cents": 1200,
-            "target_instructor_payout_cents": 7800,
-            "credit_applied_cents": 500,
-            "student_pay_cents": 9580,
-            "application_fee_cents": 1780,
-            "top_up_transfer_cents": 250,
-            "instructor_tier_pct": 0.1,
+            "base_price_cents": base_price_cents,
+            "student_fee_cents": student_fee_cents,
+            "instructor_commission_cents": instructor_commission_cents,
+            "target_instructor_payout_cents": base_price_cents - instructor_commission_cents,
+            "credit_applied_cents": locked_credit,
+            "student_pay_cents": base_price_cents + student_fee_cents - locked_credit,
+            "application_fee_cents": student_fee_cents + instructor_commission_cents - locked_credit,
+            "top_up_transfer_cents": 0,
+            "instructor_tier_pct": float(tier_pct),
         }
 
         apply_mock = MagicMock()
         stripe_service.payment_repository.apply_credits_for_booking = apply_mock
         stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
-            return_value=500
+            return_value=locked_credit
         )
 
         context = stripe_service.build_charge_context(
@@ -426,9 +460,9 @@ class TestStripeService:
             persist=True,
         )
 
-        assert context.applied_credit_cents == 500
-        assert context.top_up_transfer_cents == 250
-        assert context.instructor_tier_pct == Decimal("0.1")
+        assert context.applied_credit_cents == locked_credit
+        assert context.top_up_transfer_cents == 0
+        assert context.instructor_tier_pct == tier_pct
 
     @patch("app.services.pricing_service.PricingService.compute_booking_pricing")
     def test_build_charge_context_ignores_new_requested_credit_after_lock(
@@ -440,20 +474,27 @@ class TestStripeService:
     ) -> None:
         """Retries should reuse previously locked credits and log the guardrail."""
 
+        base_price_cents = 9000
+        config, _ = stripe_service.config_service.get_pricing_config()
+        student_fee_pct = Decimal(str(config["student_fee_pct"]))
+        tier_pct = Decimal(str(config["instructor_tiers"][-1]["pct"]))
+        student_fee_cents = int(Decimal(base_price_cents) * student_fee_pct)
+        instructor_commission_cents = int(Decimal(base_price_cents) * tier_pct)
+        locked_credit_cents = 12 * 100
         mock_pricing.return_value = {
-            "base_price_cents": 9000,
-            "student_fee_cents": 1080,
-            "instructor_commission_cents": 1200,
-            "target_instructor_payout_cents": 7800,
-            "credit_applied_cents": 1200,
-            "student_pay_cents": 8880,
-            "application_fee_cents": 2880,
+            "base_price_cents": base_price_cents,
+            "student_fee_cents": student_fee_cents,
+            "instructor_commission_cents": instructor_commission_cents,
+            "target_instructor_payout_cents": base_price_cents - instructor_commission_cents,
+            "credit_applied_cents": locked_credit_cents,
+            "student_pay_cents": base_price_cents + student_fee_cents - locked_credit_cents,
+            "application_fee_cents": student_fee_cents + instructor_commission_cents - locked_credit_cents,
             "top_up_transfer_cents": 0,
-            "instructor_tier_pct": 0.1,
+            "instructor_tier_pct": float(tier_pct),
         }
 
         stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
-            return_value=1200
+            return_value=locked_credit_cents
         )
         stripe_service.payment_repository.apply_credits_for_booking = MagicMock()
 
@@ -463,7 +504,7 @@ class TestStripeService:
             )
 
         stripe_service.payment_repository.apply_credits_for_booking.assert_not_called()
-        assert context.applied_credit_cents == 1200
+        assert context.applied_credit_cents == locked_credit_cents
         assert any(
             record.message == "requested_credit_ignored_due_to_existing_usage"
             for record in caplog.records
@@ -505,17 +546,27 @@ class TestStripeService:
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_success(self, mock_create, stripe_service: StripeService, test_booking: Booking):
         """Test successful payment intent creation."""
+        config, _ = stripe_service.config_service.get_pricing_config()
+        tier_pct = Decimal(str(config["instructor_tiers"][1]["pct"]))
+        student_fee_pct = Decimal(str(config["student_fee_pct"]))
+        base_price_cents = 10000
+        credit_applied = 20 * 100
+        student_fee_cents = int(Decimal(base_price_cents) * student_fee_pct)
+        instructor_commission_cents = int(Decimal(base_price_cents) * tier_pct)
+        target_payout_cents = base_price_cents - instructor_commission_cents
+        student_pay_cents = base_price_cents + student_fee_cents - credit_applied
+        application_fee_cents = student_fee_cents + instructor_commission_cents - credit_applied
         context = ChargeContext(
             booking_id=test_booking.id,
-            applied_credit_cents=2000,
-            base_price_cents=10000,
-            student_fee_cents=1200,
-            instructor_commission_cents=1200,
-            target_instructor_payout_cents=8800,
-            student_pay_cents=9200,
-            application_fee_cents=400,
-            top_up_transfer_cents=0,
-            instructor_tier_pct=Decimal("0.12"),
+            applied_credit_cents=credit_applied,
+            base_price_cents=base_price_cents,
+            student_fee_cents=student_fee_cents,
+            instructor_commission_cents=instructor_commission_cents,
+            target_instructor_payout_cents=target_payout_cents,
+            student_pay_cents=student_pay_cents,
+            application_fee_cents=application_fee_cents,
+            top_up_transfer_cents=max(0, target_payout_cents - student_pay_cents),
+            instructor_tier_pct=tier_pct,
         )
 
         # Mock Stripe response
@@ -535,28 +586,28 @@ class TestStripeService:
         # Verify Stripe API call
         mock_create.assert_called_once()
         call_args = mock_create.call_args[1]
-        assert call_args["amount"] == 9200
+        assert call_args["amount"] == student_pay_cents
         assert call_args["currency"] == "usd"
         assert call_args["customer"] == "cus_test123"
         assert call_args["transfer_data"]["destination"] == "acct_instructor123"
-        assert call_args["application_fee_amount"] == 400
+        assert call_args["application_fee_amount"] == application_fee_cents
         assert call_args["transfer_group"] == f"booking:{test_booking.id}"
 
         metadata = call_args["metadata"]
-        assert metadata["instructor_tier_pct"] == "0.12"
-        assert metadata["base_price_cents"] == "10000"
-        assert metadata["student_fee_cents"] == "1200"
-        assert metadata["commission_cents"] == "1200"
-        assert metadata["applied_credit_cents"] == "2000"
-        assert metadata["student_pay_cents"] == "9200"
-        assert metadata["application_fee_cents"] == "400"
-        assert metadata["target_instructor_payout_cents"] == "8800"
+        assert metadata["instructor_tier_pct"] == str(tier_pct)
+        assert metadata["base_price_cents"] == str(base_price_cents)
+        assert metadata["student_fee_cents"] == str(student_fee_cents)
+        assert metadata["commission_cents"] == str(instructor_commission_cents)
+        assert metadata["applied_credit_cents"] == str(credit_applied)
+        assert metadata["student_pay_cents"] == str(student_pay_cents)
+        assert metadata["application_fee_cents"] == str(application_fee_cents)
+        assert metadata["target_instructor_payout_cents"] == str(target_payout_cents)
 
         # Verify database record
         assert payment.booking_id == test_booking.id
         assert payment.stripe_payment_intent_id == "pi_test123"
-        assert payment.amount == 9200
-        assert payment.application_fee == 400
+        assert payment.amount == student_pay_cents
+        assert payment.application_fee == application_fee_cents
 
     @patch("stripe.PaymentIntent.create")
     def test_create_or_retry_booking_payment_intent(
@@ -576,17 +627,27 @@ class TestStripeService:
             profile.id, "acct_instructor123", onboarding_completed=True
         )
 
+        config, _ = stripe_service.config_service.get_pricing_config()
+        tier_pct = Decimal(str(config["instructor_tiers"][1]["pct"]))
+        student_fee_pct = Decimal(str(config["student_fee_pct"]))
+        base_price_cents = 10000
+        credit_applied = 15 * 100
+        student_fee_cents = int(Decimal(base_price_cents) * student_fee_pct)
+        instructor_commission_cents = int(Decimal(base_price_cents) * tier_pct)
+        target_payout_cents = base_price_cents - instructor_commission_cents
+        student_pay_cents = base_price_cents + student_fee_cents - credit_applied
+        application_fee_cents = student_fee_cents + instructor_commission_cents - credit_applied
         context = ChargeContext(
             booking_id=test_booking.id,
-            applied_credit_cents=1500,
-            base_price_cents=10000,
-            student_fee_cents=1200,
-            instructor_commission_cents=1500,
-            target_instructor_payout_cents=8500,
-            student_pay_cents=9700,
-            application_fee_cents=2700,
-            top_up_transfer_cents=0,
-            instructor_tier_pct=Decimal("0.12"),
+            applied_credit_cents=credit_applied,
+            base_price_cents=base_price_cents,
+            student_fee_cents=student_fee_cents,
+            instructor_commission_cents=instructor_commission_cents,
+            target_instructor_payout_cents=target_payout_cents,
+            student_pay_cents=student_pay_cents,
+            application_fee_cents=application_fee_cents,
+            top_up_transfer_cents=max(0, target_payout_cents - student_pay_cents),
+            instructor_tier_pct=tier_pct,
         )
 
         stripe_service.build_charge_context = MagicMock(return_value=context)
@@ -639,17 +700,33 @@ class TestStripeService:
             profile.id, "acct_instructor123", onboarding_completed=True
         )
 
+        base_price_cents = 8000
+        applied_credit_cents = 3000
+        instructor_pct = _default_instructor_pct(stripe_service)
+        student_fee_pct = _student_fee_pct(stripe_service)
+        student_fee_cents = _round_cents(Decimal(base_price_cents) * student_fee_pct)
+        instructor_commission_cents = _round_cents(Decimal(base_price_cents) * instructor_pct)
+        target_instructor_payout_cents = base_price_cents - instructor_commission_cents
+        subtotal_cents = base_price_cents + student_fee_cents
+        student_pay_cents = max(0, subtotal_cents - applied_credit_cents)
+        application_fee_cents = max(0, student_fee_cents + instructor_commission_cents - applied_credit_cents)
+        top_up_transfer_cents = (
+            target_instructor_payout_cents - student_pay_cents
+            if application_fee_cents == 0 and student_pay_cents < target_instructor_payout_cents
+            else 0
+        )
+
         context = ChargeContext(
             booking_id=test_booking.id,
-            applied_credit_cents=3000,
-            base_price_cents=8000,
-            student_fee_cents=960,
-            instructor_commission_cents=1200,
-            target_instructor_payout_cents=6800,
-            student_pay_cents=5960,
-            application_fee_cents=0,
-            top_up_transfer_cents=840,
-            instructor_tier_pct=Decimal("0.15"),
+            applied_credit_cents=applied_credit_cents,
+            base_price_cents=base_price_cents,
+            student_fee_cents=student_fee_cents,
+            instructor_commission_cents=instructor_commission_cents,
+            target_instructor_payout_cents=target_instructor_payout_cents,
+            student_pay_cents=student_pay_cents,
+            application_fee_cents=application_fee_cents,
+            top_up_transfer_cents=top_up_transfer_cents,
+            instructor_tier_pct=instructor_pct,
         )
 
         stripe_service.build_charge_context = MagicMock(return_value=context)
@@ -710,6 +787,7 @@ class TestStripeService:
             profile.id, "acct_instructor123", onboarding_completed=True
         )
 
+        instructor_pct = _default_instructor_pct(stripe_service)
         pi_metadata = {
             "booking_id": test_booking.id,
             "base_price_cents": "8000",
@@ -719,7 +797,7 @@ class TestStripeService:
             "student_pay_cents": "6960",
             "application_fee_cents": "0",
             "target_instructor_payout_cents": "7200",
-            "instructor_tier_pct": "0.15",
+            "instructor_tier_pct": str(instructor_pct),
         }
 
         capture_template = {
@@ -747,7 +825,7 @@ class TestStripeService:
             student_pay_cents=7120,
             application_fee_cents=80,
             top_up_transfer_cents=80,
-            instructor_tier_pct=Decimal("0.15"),
+            instructor_tier_pct=instructor_pct,
         )
 
         stripe_service.build_charge_context = MagicMock(return_value=drift_context)
@@ -767,7 +845,9 @@ class TestStripeService:
             payment_intent_id="pi_topup_meta",
         )
 
-        expected_top_up = 240  # Metadata-derived: (8000 - 800) - 6960
+        expected_top_up = int(pi_metadata["target_instructor_payout_cents"]) - int(
+            pi_metadata["student_pay_cents"]
+        )
         assert first_capture["top_up_transfer_cents"] == expected_top_up
         assert first_capture["amount_received"] == 6960
         mock_transfer.assert_called_once()
@@ -788,8 +868,13 @@ class TestStripeService:
     def test_confirm_payment_intent_success(self, mock_confirm, stripe_service: StripeService, test_booking: Booking):
         """Test successful payment intent confirmation."""
         # Create payment record
+        context = stripe_service.build_charge_context(test_booking.id)
         _payment = stripe_service.payment_repository.create_payment_record(
-            test_booking.id, "pi_test123", 5000, 750, "requires_payment_method"
+            test_booking.id,
+            "pi_test123",
+            context.student_pay_cents,
+            context.application_fee_cents,
+            "requires_payment_method",
         )
 
         # Mock Stripe response
@@ -826,17 +911,25 @@ class TestStripeService:
             profile.id, "acct_instructor123", onboarding_completed=True
         )
 
+        base_price_cents = 5000
+        applied_credit_cents = 0
+        instructor_pct = _default_instructor_pct(stripe_service)
+        student_fee_cents = 0
+        instructor_commission_cents = _round_cents(Decimal(base_price_cents) * instructor_pct)
+        target_instructor_payout_cents = base_price_cents - instructor_commission_cents
+        student_pay_cents = base_price_cents
+        application_fee_cents = instructor_commission_cents
         charge_context = ChargeContext(
             booking_id=test_booking.id,
-            applied_credit_cents=0,
-            base_price_cents=5000,
-            student_fee_cents=0,
-            instructor_commission_cents=0,
-            target_instructor_payout_cents=5000,
-            student_pay_cents=5000,
-            application_fee_cents=750,
+            applied_credit_cents=applied_credit_cents,
+            base_price_cents=base_price_cents,
+            student_fee_cents=student_fee_cents,
+            instructor_commission_cents=instructor_commission_cents,
+            target_instructor_payout_cents=target_instructor_payout_cents,
+            student_pay_cents=student_pay_cents,
+            application_fee_cents=application_fee_cents,
             top_up_transfer_cents=0,
-            instructor_tier_pct=Decimal("0.15"),
+            instructor_tier_pct=instructor_pct,
         )
 
         stripe_service.build_charge_context = MagicMock(return_value=charge_context)
@@ -859,7 +952,7 @@ class TestStripeService:
         )
         create_kwargs = mock_create.call_args[1]
         assert create_kwargs["amount"] == 5000
-        assert create_kwargs["application_fee_amount"] == 750
+        assert create_kwargs["application_fee_amount"] == application_fee_cents
         assert create_kwargs["transfer_group"] == f"booking:{test_booking.id}"
 
         # Verify result
@@ -867,7 +960,7 @@ class TestStripeService:
         assert result["payment_intent_id"] == "pi_test123"
         assert result["status"] == "succeeded"
         assert result["amount"] == 5000  # $50.00 in cents
-        assert result["application_fee"] == 750  # 15% fee
+        assert result["application_fee"] == application_fee_cents
 
     @patch("stripe.Transfer.create")
     @patch("stripe.PaymentIntent.capture")
@@ -1058,13 +1151,20 @@ class TestStripeService:
 
     def test_get_platform_revenue_stats(self, stripe_service: StripeService, test_booking: Booking):
         """Test getting platform revenue statistics."""
+        context = stripe_service.build_charge_context(test_booking.id)
         # Create successful payment
-        stripe_service.payment_repository.create_payment_record(test_booking.id, "pi_test123", 5000, 750, "succeeded")
+        stripe_service.payment_repository.create_payment_record(
+            test_booking.id,
+            "pi_test123",
+            context.student_pay_cents,
+            context.application_fee_cents,
+            "succeeded",
+        )
 
         stats = stripe_service.get_platform_revenue_stats()
 
-        assert stats["total_amount"] == 5000
-        assert stats["total_fees"] == 750
+        assert stats["total_amount"] == context.student_pay_cents
+        assert stats["total_fees"] == context.application_fee_cents
         assert stats["payment_count"] == 1
 
     def test_get_instructor_earnings(
@@ -1073,13 +1173,22 @@ class TestStripeService:
         """Test getting instructor earnings."""
         instructor_user, profile, _ = test_instructor
 
+        context = stripe_service.build_charge_context(test_booking.id)
         # Create successful payment
-        stripe_service.payment_repository.create_payment_record(test_booking.id, "pi_test123", 5000, 750, "succeeded")
+        stripe_service.payment_repository.create_payment_record(
+            test_booking.id,
+            "pi_test123",
+            context.student_pay_cents,
+            context.application_fee_cents,
+            "succeeded",
+        )
 
         earnings = stripe_service.get_instructor_earnings(test_booking.instructor_id)
 
-        assert earnings["total_earned"] == 4250  # 5000 - 750 fee
-        assert earnings["total_fees"] == 750
+        assert earnings["total_earned"] == (
+            context.student_pay_cents - context.application_fee_cents
+        )
+        assert earnings["total_fees"] == context.application_fee_cents
         assert earnings["booking_count"] == 1
 
     # ========== Error Handling Tests ==========

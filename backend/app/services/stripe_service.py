@@ -8,7 +8,7 @@ accounts for instructors, payment processing, and webhook handling.
 Key Features:
 - Marketplace payments with destination charges
 - Express accounts for instructor onboarding
-- Application fees (15% default) for platform revenue
+- Application fees calculated from pricing configuration for platform revenue
 - Webhook signature validation
 - Comprehensive error handling and logging
 
@@ -288,10 +288,12 @@ class StripeService(BaseService):
     ) -> Dict[str, Any]:
         """Capture a booking PI and return capture details with top-up metadata.
 
-        Returns a dict containing:
-            payment_intent: stripe.PaymentIntent (refreshed when possible)
-            amount_received: int | None (cents captured from the charge)
-            top_up_transfer_cents: int (derived from PI metadata or fallback pricing)
+        Returns dict: {
+          "payment_intent": stripe.PaymentIntent,
+          "amount_received": int,
+          "top_up_transfer_cents": int
+        }
+        Capture prefers PI metadata to compute top-up; falls back to recompute when metadata is absent.
         """
         capture_result = self.capture_payment_intent(payment_intent_id)
 

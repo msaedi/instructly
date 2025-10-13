@@ -92,8 +92,7 @@ export default function BookingConfirmationPage() {
           const endTime = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}:00`;
 
           const basePrice = Math.round(((rd.hourlyRate || 0) * duration) / 60);
-          const serviceFee = Math.round(basePrice * 0.1);
-          const totalAmount = basePrice + serviceFee;
+          const totalAmount = basePrice;
 
           const freeCancel = new Date(`${rd.date}T${startTime}`);
           if (!isNaN(freeCancel.getTime())) {
@@ -116,7 +115,6 @@ export default function BookingConfirmationPage() {
             duration,
             location: 'Online',
             basePrice,
-            serviceFee,
             totalAmount,
             bookingType: BookingType.STANDARD,
             paymentStatus: PaymentStatus.PENDING,

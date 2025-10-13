@@ -7,7 +7,7 @@ all pieces are integrated together.
 """
 
 from datetime import date, time
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,6 +21,7 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
+from app.services.config_service import ConfigService
 from app.services.permission_service import PermissionService
 from app.services.stripe_service import StripeService
 
@@ -580,9 +581,16 @@ class TestPaymentAnalytics:
         stripe_service = StripeService(db)
         instructor_user, instructor_profile, instructor_service = instructor_setup
 
+        config_service = ConfigService(db)
+        pricing_config, _ = config_service.get_pricing_config()
+        student_fee_pct = Decimal(str(pricing_config["student_fee_pct"]))
+        default_tier_pct = Decimal(str(pricing_config["instructor_tiers"][0]["pct"]))
+        fee_ratio = (student_fee_pct + default_tier_pct) / (Decimal(1) + student_fee_pct)
+
         # Create test bookings and payments using repository
         booking_repo = RepositoryFactory.create_booking_repository(db)
         booking_ids = []
+        recorded_fees: list[int] = []
         for i in range(3):
             # Create actual booking first using repository
             booking = booking_repo.create(
@@ -604,7 +612,10 @@ class TestPaymentAnalytics:
 
             # Create payment records with different amounts
             amount = (i + 1) * 2000  # $20, $40, $60
-            fee = int(amount * 0.15)  # 15% platform fee
+            fee = int(
+                (Decimal(amount) * fee_ratio).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            )
+            recorded_fees.append(fee)
 
             stripe_service.payment_repository.create_payment_record(
                 booking_id=booking.id,
@@ -618,8 +629,8 @@ class TestPaymentAnalytics:
         stats = stripe_service.get_platform_revenue_stats()
 
         # Verify calculations
-        expected_total = 2000 + 4000 + 6000  # $120 total
-        expected_fees = 300 + 600 + 900  # $18 total fees
+        expected_total = sum((i + 1) * 2000 for i in range(3))
+        expected_fees = sum(recorded_fees)
 
         assert stats["total_amount"] == expected_total
         assert stats["total_fees"] == expected_fees
@@ -631,9 +642,16 @@ class TestPaymentAnalytics:
         instructor_user, instructor_profile, instructor_service = instructor_setup
         stripe_service = StripeService(db)
 
+        config_service = ConfigService(db)
+        pricing_config, _ = config_service.get_pricing_config()
+        student_fee_pct = Decimal(str(pricing_config["student_fee_pct"]))
+        default_tier_pct = Decimal(str(pricing_config["instructor_tiers"][0]["pct"]))
+        fee_ratio = (student_fee_pct + default_tier_pct) / (Decimal(1) + student_fee_pct)
+
         # Create test payments for this instructor using repository
         booking_repo = RepositoryFactory.create_booking_repository(db)
 
+        recorded_fees: list[int] = []
         for i in range(2):
             # Create actual booking first using repository
             booking = booking_repo.create(
@@ -653,7 +671,10 @@ class TestPaymentAnalytics:
             )
 
             amount = (i + 1) * 3000  # $30, $60
-            fee = int(amount * 0.15)
+            fee = int(
+                (Decimal(amount) * fee_ratio).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            )
+            recorded_fees.append(fee)
 
             stripe_service.payment_repository.create_payment_record(
                 booking_id=booking.id,
@@ -667,9 +688,9 @@ class TestPaymentAnalytics:
         earnings = stripe_service.get_instructor_earnings(instructor_user.id)
 
         # Verify calculations
-        expected_gross = 3000 + 6000  # $90 total
-        expected_fees = 450 + 900  # $13.50 total fees
-        expected_net = expected_gross - expected_fees  # $76.50
+        expected_gross = sum((i + 1) * 3000 for i in range(2))
+        expected_fees = sum(recorded_fees)
+        expected_net = expected_gross - expected_fees
 
         assert earnings["total_earned"] == expected_net
         assert earnings["total_fees"] == expected_fees

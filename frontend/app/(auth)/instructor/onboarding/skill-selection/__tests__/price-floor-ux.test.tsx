@@ -9,6 +9,15 @@ jest.mock('@/lib/pricing/usePricingFloors', () => ({
     isLoading: false,
     error: null,
   }),
+  usePricingConfig: () => ({
+    config: {
+      student_fee_pct: 0.12,
+      instructor_tiers: [{ min: 1, max: 4, pct: 0.15 }],
+      price_floor_cents: { private_in_person: 8000, private_remote: 6500 },
+    },
+    isLoading: false,
+    error: null,
+  }),
 }));
 
 function PricingSectionHarness() {

@@ -39,7 +39,6 @@ export interface BookingPayment {
   location: string;
 
   basePrice: number;
-  serviceFee: number;
   totalAmount: number;
 
   bookingType: import('@/features/shared/types/booking').BookingType;

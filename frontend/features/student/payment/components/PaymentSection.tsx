@@ -54,12 +54,6 @@ const mergeBookingIntoPayment = (booking: Booking, fallback: BookingPayment): Bo
     : fallback.basePrice;
   const totalAmount = normalizeCurrency(booking.total_price, fallback.totalAmount);
 
-  const rawServiceFee = (booking as unknown as { service_fee?: unknown; booking_protection_fee?: unknown; platform_fee?: unknown })?.service_fee
-    ?? (booking as unknown as { booking_protection_fee?: unknown }).booking_protection_fee
-    ?? (booking as unknown as { platform_fee?: unknown }).platform_fee
-    ?? fallback.serviceFee;
-  const serviceFee = normalizeCurrency(rawServiceFee, fallback.serviceFee);
-
   const bookingDate = booking.booking_date
     ? new Date(`${booking.booking_date}T00:00:00`)
     : fallback.date;
@@ -80,7 +74,6 @@ const mergeBookingIntoPayment = (booking: Booking, fallback: BookingPayment): Bo
     duration: durationMinutes ?? fallback.duration,
     location: booking.meeting_location || fallback.location,
     basePrice: computedBase,
-    serviceFee,
     totalAmount,
   };
 };
@@ -311,7 +304,6 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       setUpdatedBookingData((prev) => ({
         ...prev,
         basePrice: preview.base_price_cents / 100,
-        serviceFee: preview.student_fee_cents / 100,
         totalAmount: (preview.student_pay_cents + Math.max(0, preview.credit_applied_cents)) / 100,
       }));
 

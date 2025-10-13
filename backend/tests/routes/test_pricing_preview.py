@@ -8,6 +8,11 @@ from decimal import Decimal
 import pytest
 
 from app.models.booking import Booking, BookingStatus
+from tests.helpers.pricing import (
+    instructor_commission_cents,
+    instructor_tier_pct,
+    student_fee_cents,
+)
 
 
 def _create_booking(
@@ -90,14 +95,22 @@ def test_pricing_preview_returns_expected_totals(
     assert response.status_code == 200
     payload = response.json()
 
-    assert payload["base_price_cents"] == 10000
-    assert payload["student_fee_cents"] == 1200
-    assert payload["instructor_commission_cents"] == 1500
+    base_price_cents = 10000
+    expected_student_fee = student_fee_cents(db, base_price_cents)
+    expected_instructor_commission = instructor_commission_cents(db, base_price_cents)
+    assert payload["base_price_cents"] == base_price_cents
+    assert payload["student_fee_cents"] == expected_student_fee
+    assert payload["instructor_commission_cents"] == expected_instructor_commission
     assert payload["credit_applied_cents"] == 500
-    assert payload["student_pay_cents"] == 10700
-    assert payload["application_fee_cents"] == 2200
+    expected_student_pay = max(0, base_price_cents + expected_student_fee - 500)
+    expected_application_fee = max(
+        0, expected_student_fee + expected_instructor_commission - 500
+    )
+    assert payload["student_pay_cents"] == expected_student_pay
+    assert payload["application_fee_cents"] == expected_application_fee
     assert payload["top_up_transfer_cents"] == 0
-    assert pytest.approx(payload["instructor_tier_pct"], rel=0, abs=1e-6) == 0.15
+    tier_pct = instructor_tier_pct(db)
+    assert pytest.approx(payload["instructor_tier_pct"], rel=0, abs=1e-6) == float(tier_pct)
     assert any(item["label"].startswith("Booking Protection") for item in payload["line_items"])
 
 

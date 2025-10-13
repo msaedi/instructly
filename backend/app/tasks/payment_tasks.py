@@ -90,13 +90,6 @@ stripe.api_key = (
     settings.stripe_secret_key.get_secret_value() if settings.stripe_secret_key else None
 )
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
-PLATFORM_FEE_PERCENTAGE = 15  # 15% platform fee
-PLATFORM_FEE_RATE = PLATFORM_FEE_PERCENTAGE / 100
-
-
-def calculate_platform_fee(amount_cents: int) -> int:
-    """Return platform fee in cents for the given amount."""
-    return int(amount_cents * PLATFORM_FEE_RATE)
 
 
 @typed_task(
@@ -887,55 +880,38 @@ def create_new_authorization_and_capture(
         Dict with success status
     """
     try:
-        # Get student's Stripe customer
-        student_customer = payment_repo.get_customer_by_user_id(booking.student_id)
-        if not student_customer:
-            raise Exception(f"No Stripe customer for student {booking.student_id}")
+        stripe_service = StripeService(db)
+        original_intent_id = booking.payment_intent_id
 
-        # Get instructor's Stripe account
-        from app.repositories.instructor_profile_repository import InstructorProfileRepository
+        # Recreate authorization via service so pricing comes from pricing_service
+        new_intent = stripe_service.create_or_retry_booking_payment_intent(
+            booking_id=booking.id,
+            payment_method_id=booking.payment_method_id,
+        )
+        intent_id = getattr(new_intent, "id", None)
+        if intent_id is None and isinstance(new_intent, dict):
+            intent_id = new_intent.get("id")
 
-        instructor_repo = InstructorProfileRepository(db)
-        instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
-        instructor_account = payment_repo.get_connected_account_by_instructor_id(
-            instructor_profile.id if instructor_profile else None
+        resolved_intent_id = intent_id or booking.payment_intent_id
+        if not resolved_intent_id:
+            raise Exception(f"No payment intent id after reauthorization for booking {booking.id}")
+
+        capture_result = stripe_service.capture_booking_payment_intent(
+            booking_id=booking.id,
+            payment_intent_id=str(resolved_intent_id),
         )
 
-        if not instructor_account:
-            raise Exception(f"No Stripe account for instructor {booking.instructor_id}")
-
-        # Create new PaymentIntent with immediate capture
-        amount_cents = int(booking.total_price * 100)
-        application_fee = calculate_platform_fee(amount_cents)
-
-        payment_intent = stripe.PaymentIntent.create(
-            amount=amount_cents,
-            currency=STRIPE_CURRENCY,
-            customer=student_customer.stripe_customer_id,
-            payment_method=booking.payment_method_id,
-            capture_method="automatic",  # Immediate capture
-            confirm=True,
-            transfer_data={"destination": instructor_account.stripe_account_id},
-            application_fee_amount=application_fee,
-            metadata={
-                "booking_id": booking.id,
-                "type": "expired_reauth",
-                "original_intent": booking.payment_intent_id,
-            },
-            idempotency_key=f"reauth_{booking.id}",
-        )
-
-        # Update booking
-        booking.payment_intent_id = payment_intent.id
         booking.payment_status = "captured"
+        new_payment_intent_id = booking.payment_intent_id or resolved_intent_id
 
         payment_repo.create_payment_event(
             booking_id=booking.id,
             event_type="reauth_and_capture_success",
             event_data={
-                "new_payment_intent_id": payment_intent.id,
-                "original_payment_intent_id": booking.payment_intent_id,
-                "amount_captured_cents": amount_cents,
+                "new_payment_intent_id": new_payment_intent_id,
+                "original_payment_intent_id": original_intent_id,
+                "amount_captured_cents": capture_result.get("amount_received"),
+                "top_up_transfer_cents": capture_result.get("top_up_transfer_cents"),
                 "captured_at": datetime.now(timezone.utc).isoformat(),
             },
         )
@@ -949,7 +925,9 @@ def create_new_authorization_and_capture(
             event_type="reauth_and_capture_failed",
             event_data={
                 "error": str(e),
-                "original_payment_intent_id": booking.payment_intent_id,
+                "original_payment_intent_id": original_intent_id
+                if "original_intent_id" in locals()
+                else booking.payment_intent_id,
             },
         )
         logger.error(f"Failed to reauth and capture for booking {booking.id}: {e}")

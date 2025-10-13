@@ -135,7 +135,6 @@ function InstructorProfileContent() {
       const hourlyRate = getNumber(selectedService, 'hourly_rate', 0);
       const totalPrice = hourlyRate * (duration / 60);
       const basePrice = totalPrice;
-      const serviceFee = 0;
       const totalAmount = basePrice;
       const bookingType = determineBookingType(bookingDate);
 
@@ -150,7 +149,6 @@ function InstructorProfileContent() {
         duration,
         location: '', // Let user enter their address on confirmation page
         basePrice,
-        serviceFee,
         totalAmount,
         bookingType,
         paymentStatus: PaymentStatus.PENDING,
@@ -587,7 +585,6 @@ function InstructorProfileContent() {
               const hourlyRate = selectedService.hourly_rate;
               const totalPrice = hourlyRate * (newSlot.duration / 60);
               const basePrice = totalPrice;
-              const serviceFee = 0;
               const totalAmount = basePrice;
               const bookingType = determineBookingType(bookingDate);
 
@@ -602,7 +599,6 @@ function InstructorProfileContent() {
                 duration: newSlot.duration,
                 location: '', // Let user enter their address on confirmation page
                 basePrice,
-                serviceFee,
                 totalAmount,
                 bookingType,
                 paymentStatus: PaymentStatus.PENDING,

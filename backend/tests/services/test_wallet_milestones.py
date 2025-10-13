@@ -197,23 +197,24 @@ def test_reinstate_used_credits(db, student, instructor_setup):
     db.add(refund_booking)
     db.flush()
 
+    credit_amount = 12 * 100
     payment_repo.apply_credits_for_booking(
         user_id=student.id,
         booking_id=refund_booking.id,
-        amount_cents=1200,
+        amount_cents=credit_amount,
     )
     db.commit()
 
     reinstated = service.reinstate_used_credits(refunded_booking_id=refund_booking.id)
     db.commit()
 
-    assert reinstated == 1200
+    assert reinstated == credit_amount
     refund_credits = [
         c for c in payment_repo.get_credits_issued_for_source(refund_booking.id)
         if c.reason == "refund_reinstate"
     ]
     assert len(refund_credits) == 1
-    assert refund_credits[0].amount_cents == 1200
+    assert refund_credits[0].amount_cents == credit_amount
     assert refund_credits[0].used_at is None
 
     # Idempotent
