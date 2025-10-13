@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 import logging
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy.orm import Session
@@ -177,13 +178,115 @@ class StripeService(BaseService):
                 str(exc),
             )
             raise ServiceException("Failed to create top-up transfer") from exc
+
+    @BaseService.measure_operation("stripe_create_or_retry_booking_pi")
+    def create_or_retry_booking_payment_intent(
+        self,
+        *,
+        booking_id: str,
+        payment_method_id: Optional[str] = None,
+        requested_credit_cents: Optional[int] = None,
+    ) -> Any:
+        booking = self.booking_repository.get_by_id(booking_id)
+        if not booking:
+            raise ServiceException(f"Booking {booking_id} not found")
+
+        customer = self.payment_repository.get_customer_by_user_id(booking.student_id)
+        if not customer:
+            raise ServiceException(f"No Stripe customer for student {booking.student_id}")
+
+        instructor_profile = self.instructor_repository.get_by_user_id(booking.instructor_id)
+        if not instructor_profile:
+            raise ServiceException(f"Instructor profile not found for user {booking.instructor_id}")
+
+        connected_account = self.payment_repository.get_connected_account_by_instructor_id(
+            instructor_profile.id
+        )
+        if not connected_account or not connected_account.stripe_account_id:
+            raise ServiceException("Instructor payment account not set up")
+
+        context = self.build_charge_context(
+            booking_id=booking_id, requested_credit_cents=requested_credit_cents
+        )
+
+        if context.student_pay_cents <= 0:
+            raise ServiceException("Charge amount is zero after applied credits")
+
+        metadata = {
+            "booking_id": booking_id,
+            "student_id": booking.student_id,
+            "instructor_id": booking.instructor_id,
+            "instructor_tier_pct": str(context.instructor_tier_pct),
+            "base_price_cents": str(context.base_price_cents),
+            "student_fee_cents": str(context.student_fee_cents),
+            "commission_cents": str(context.instructor_commission_cents),
+            "applied_credit_cents": str(context.applied_credit_cents),
+            "student_pay_cents": str(context.student_pay_cents),
+            "application_fee_cents": str(context.application_fee_cents),
+            "target_instructor_payout_cents": str(context.target_instructor_payout_cents),
+        }
+
+        stripe_kwargs: Dict[str, Any] = {
+            "amount": context.student_pay_cents,
+            "currency": settings.stripe_currency or "usd",
+            "customer": customer.stripe_customer_id,
+            "transfer_data": {"destination": connected_account.stripe_account_id},
+            "application_fee_amount": context.application_fee_cents,
+            "metadata": metadata,
+            "transfer_group": f"booking:{booking_id}",
+            "capture_method": "manual",
+        }
+
+        if payment_method_id:
+            stripe_kwargs["payment_method"] = payment_method_id
+            stripe_kwargs["confirm"] = True
+            stripe_kwargs["off_session"] = True
+
+        try:
+            stripe_intent = stripe.PaymentIntent.create(**stripe_kwargs)
         except Exception as exc:
-            self.logger.error(
-                "Error creating top-up transfer for booking %s: %s",
-                booking_id,
-                str(exc),
-            )
-            raise ServiceException("Failed to create top-up transfer") from exc
+            if not self.stripe_configured:
+                self.logger.warning(
+                    "Stripe call failed (%s); storing local record for booking %s",
+                    exc,
+                    booking_id,
+                )
+                mock_id = f"mock_pi_{booking_id}"
+                self.payment_repository.create_payment_record(
+                    booking_id=booking_id,
+                    payment_intent_id=mock_id,
+                    amount=context.student_pay_cents,
+                    application_fee=context.application_fee_cents,
+                    status="requires_payment_method",
+                )
+                booking.payment_intent_id = mock_id
+                booking.payment_status = "authorized"
+                return SimpleNamespace(id=mock_id, status="requires_payment_method")
+            raise
+
+        self.payment_repository.create_payment_record(
+            booking_id=booking_id,
+            payment_intent_id=stripe_intent.id,
+            amount=context.student_pay_cents,
+            application_fee=context.application_fee_cents,
+            status=stripe_intent.status,
+        )
+
+        booking.payment_intent_id = stripe_intent.id
+        if stripe_intent.status in {"requires_capture", "requires_confirmation", "succeeded"}:
+            booking.payment_status = "authorized"
+
+        return stripe_intent
+
+    @BaseService.measure_operation("stripe_capture_booking_pi")
+    def capture_booking_payment_intent(
+        self,
+        *,
+        booking_id: str,
+        payment_intent_id: str,
+    ) -> Any:
+        capture_result = self.capture_payment_intent(payment_intent_id)
+        return capture_result.get("payment_intent")
 
     @BaseService.measure_operation("stripe_build_charge_context")
     def build_charge_context(

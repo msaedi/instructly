@@ -481,6 +481,131 @@ class TestStripeService:
         assert payment.amount == 9200
         assert payment.application_fee == 400
 
+    @patch("stripe.PaymentIntent.create")
+    def test_create_or_retry_booking_payment_intent(
+        self,
+        mock_create,
+        stripe_service: StripeService,
+        test_booking: Booking,
+        test_instructor: tuple,
+    ) -> None:
+        """Adapter should build context and create manual capture PI."""
+
+        instructor_user, profile, _ = test_instructor
+        stripe_service.payment_repository.create_customer_record(
+            test_booking.student_id, "cus_student123"
+        )
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_instructor123", onboarding_completed=True
+        )
+
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=1500,
+            base_price_cents=10000,
+            student_fee_cents=1200,
+            instructor_commission_cents=1500,
+            target_instructor_payout_cents=8500,
+            student_pay_cents=9700,
+            application_fee_cents=2700,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0.12"),
+        )
+
+        stripe_service.build_charge_context = MagicMock(return_value=context)
+
+        mock_intent = MagicMock()
+        mock_intent.id = "pi_ctx123"
+        mock_intent.status = "requires_capture"
+        mock_create.return_value = mock_intent
+
+        result = stripe_service.create_or_retry_booking_payment_intent(
+            booking_id=test_booking.id,
+            payment_method_id="pm_card123",
+        )
+
+        assert result is mock_intent
+
+        mock_create.assert_called_once()
+        kwargs = mock_create.call_args[1]
+        assert kwargs["amount"] == context.student_pay_cents
+        assert kwargs["application_fee_amount"] == context.application_fee_cents
+        assert kwargs["transfer_group"] == f"booking:{test_booking.id}"
+        assert kwargs["capture_method"] == "manual"
+        assert kwargs["payment_method"] == "pm_card123"
+        assert kwargs["confirm"] is True
+        assert kwargs["off_session"] is True
+
+        metadata = kwargs["metadata"]
+        assert metadata["applied_credit_cents"] == str(context.applied_credit_cents)
+        assert metadata["base_price_cents"] == str(context.base_price_cents)
+
+    @patch("stripe.Transfer.create")
+    @patch("stripe.PaymentIntent.capture")
+    def test_capture_booking_payment_intent_wrapper(
+        self,
+        mock_capture,
+        mock_transfer,
+        stripe_service: StripeService,
+        test_booking: Booking,
+        test_instructor: tuple,
+    ) -> None:
+        """Wrapper should pass through capture and trigger top-up once."""
+
+        instructor_user, profile, _ = test_instructor
+        stripe_service.payment_repository.create_customer_record(
+            test_booking.student_id, "cus_student123"
+        )
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_instructor123", onboarding_completed=True
+        )
+
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=3000,
+            base_price_cents=8000,
+            student_fee_cents=960,
+            instructor_commission_cents=1200,
+            target_instructor_payout_cents=6800,
+            student_pay_cents=5960,
+            application_fee_cents=0,
+            top_up_transfer_cents=840,
+            instructor_tier_pct=Decimal("0.15"),
+        )
+
+        stripe_service.build_charge_context = MagicMock(return_value=context)
+
+        stripe_service.payment_repository.create_payment_record(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_capture123",
+            amount=context.student_pay_cents,
+            application_fee=context.application_fee_cents,
+            status="requires_capture",
+        )
+
+        capture_response = {
+            "id": "pi_capture123",
+            "status": "succeeded",
+            "charges": {"data": []},
+            "amount_received": context.student_pay_cents,
+        }
+        mock_capture.return_value = capture_response
+        mock_transfer.return_value = {"id": "tr_topup123"}
+
+        result = stripe_service.capture_booking_payment_intent(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_capture123",
+        )
+
+        assert result == capture_response
+        mock_transfer.assert_called_once()
+        transfer_kwargs = mock_transfer.call_args[1]
+        assert transfer_kwargs["amount"] == context.top_up_transfer_cents
+        assert transfer_kwargs["destination"] == "acct_instructor123"
+
+        events = stripe_service.payment_repository.get_payment_events_for_booking(test_booking.id)
+        assert any(evt.event_type == "top_up_transfer_created" for evt in events)
+
     @patch("stripe.PaymentIntent.confirm")
     def test_confirm_payment_intent_success(self, mock_confirm, stripe_service: StripeService, test_booking: Booking):
         """Test successful payment intent confirmation."""
