@@ -16,7 +16,8 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
-from app.services.config_service import DEFAULT_PRICING_CONFIG
+from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
+from app.services.pricing_service import PricingService
 from app.services.stripe_service import ChargeContext, StripeService
 from app.tasks.payment_tasks import (
     attempt_authorization_retry,
@@ -410,6 +411,10 @@ class TestPaymentTasks:
         booking.payment_method_id = "pm_test789"
         booking.payment_intent_id = "pi_original"
         booking.total_price = 120.00
+        booking.hourly_rate = Decimal("120.00")
+        booking.duration_minutes = 60
+        booking.location_type = "student_home"
+        booking.instructor_service = MagicMock(location_types=None)
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = MagicMock(stripe_customer_id="cus_789")
@@ -426,7 +431,22 @@ class TestPaymentTasks:
         ) as mock_instructor_repo:
             mock_instructor_repo.return_value.get_by_user_id.return_value = mock_instructor_profile
 
-            with patch("app.tasks.payment_tasks.stripe") as mock_stripe:
+            context = _charge_context_from_config(
+                booking_id=booking.id,
+                base_price_cents=int(booking.total_price * 100),
+            )
+
+            with patch("app.services.stripe_service.stripe") as mock_stripe, \
+                patch.object(StripeService, "build_charge_context", return_value=context), \
+                patch.object(
+                    StripeService,
+                    "capture_booking_payment_intent",
+                    return_value={
+                        "payment_intent": MagicMock(),
+                        "amount_received": context.student_pay_cents,
+                        "top_up_transfer_cents": context.top_up_transfer_cents,
+                    },
+                ):
                 mock_stripe.PaymentIntent.create.return_value = MagicMock(id="pi_new")
 
                 result = create_new_authorization_and_capture(booking, mock_payment_repo, MagicMock())
@@ -434,11 +454,13 @@ class TestPaymentTasks:
                 assert result["success"] is True
                 _, kwargs = mock_stripe.PaymentIntent.create.call_args
 
-        base_price_cents = int(booking.total_price * 100)
-        expected_fee = _charge_context_from_config(
-            booking_id=booking.id,
-            base_price_cents=base_price_cents,
-        ).application_fee_cents
+        metadata = kwargs.get("metadata", {})
+        base_price_cents = int(metadata.get("base_price_cents", kwargs.get("amount", 0)))
+        student_fee_pct = DEFAULT_PRICING_CONFIG["student_fee_pct"]
+        student_fee_cents = cents_from_pct(base_price_cents, student_fee_pct)
+        commission_cents = int(metadata.get("commission_cents", 0))
+        applied_credit_cents = int(metadata.get("applied_credit_cents", "0"))
+        expected_fee = max(0, student_fee_cents + commission_cents - applied_credit_cents)
         assert kwargs["application_fee_amount"] == expected_fee
 
     @patch("app.tasks.payment_tasks.StripeService")
@@ -554,7 +576,11 @@ class TestPaymentTasks:
     ) -> None:
         """Retry flow should pass requested_credit_cents=None and persist applied credit metadata."""
 
-        stripe_service = StripeService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=ConfigService(db),
+            pricing_service=PricingService(db),
+        )
         payment_repo = stripe_service.payment_repository
 
         student = User(

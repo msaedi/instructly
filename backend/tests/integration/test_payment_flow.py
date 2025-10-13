@@ -23,7 +23,23 @@ from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.services.config_service import ConfigService
 from app.services.permission_service import PermissionService
+from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
+
+
+@pytest.fixture(autouse=True)
+def _no_floors_for_payment_flow(disable_price_floors):
+    """Disable price floors for payment flow integration tests."""
+    yield
+
+
+def _build_stripe_service(db_session: Session) -> StripeService:
+    """Construct StripeService with explicit configuration dependencies."""
+    return StripeService(
+        db_session,
+        config_service=ConfigService(db_session),
+        pricing_service=PricingService(db_session),
+    )
 
 
 class TestPaymentIntegration:
@@ -178,7 +194,7 @@ class TestPaymentIntegration:
         mock_confirmed_intent.status = "succeeded"
         mock_confirm.return_value = mock_confirmed_intent
 
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Step 1: Create Stripe customer for student
         customer = stripe_service.create_customer(
@@ -271,7 +287,7 @@ class TestPaymentIntegration:
         mock_refund.amount = 8000
         mock_refund_create.return_value = mock_refund
 
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Step 1: Create customer and payment (simulate completed payment)
         _customer = stripe_service.create_customer(
@@ -307,7 +323,7 @@ class TestPaymentIntegration:
     @patch("stripe.Webhook.construct_event")
     def test_webhook_payment_confirmation_flow(self, mock_construct_event, db: Session, test_booking: Booking):
         """Test webhook updating payment status and booking confirmation."""
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Create initial payment record in pending state
         _payment_record = stripe_service.payment_repository.create_payment_record(
@@ -348,7 +364,7 @@ class TestPaymentIntegration:
         mock_customer.id = "cus_test123"
         mock_customer_create.return_value = mock_customer
 
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Step 1: Create customer
         _customer = stripe_service.create_customer(
@@ -431,7 +447,7 @@ class TestPaymentIntegration:
 
     def test_error_handling_in_payment_flow(self, db: Session, student_user: User, test_booking: Booking):
         """Test error handling throughout payment flow."""
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Test 1: Payment for non-existent booking
         with pytest.raises(ServiceException, match="not found"):
@@ -470,7 +486,7 @@ class TestPaymentIntegration:
         mock_customer.id = "cus_test123"
         mock_customer_create.return_value = mock_customer
 
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Test concurrent customer creation (should handle duplicates gracefully)
         customer1 = stripe_service.create_customer(
@@ -578,7 +594,7 @@ class TestPaymentAnalytics:
 
     def test_platform_revenue_calculations(self, db: Session, student_user: User, instructor_setup: tuple):
         """Test platform revenue analytics across multiple payments."""
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
         instructor_user, instructor_profile, instructor_service = instructor_setup
 
         config_service = ConfigService(db)
@@ -640,7 +656,7 @@ class TestPaymentAnalytics:
     def test_instructor_earnings_calculations(self, db: Session, student_user: User, instructor_setup: tuple):
         """Test instructor earnings analytics."""
         instructor_user, instructor_profile, instructor_service = instructor_setup
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         config_service = ConfigService(db)
         pricing_config, _ = config_service.get_pricing_config()

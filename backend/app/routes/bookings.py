@@ -739,9 +739,17 @@ async def reschedule_booking(
 
         # Auto-confirm payment if student has a default payment method
         try:
+            from ..services.config_service import ConfigService as _ConfigService
+            from ..services.pricing_service import PricingService as _PricingService
             from ..services.stripe_service import StripeService as _StripeService
 
-            stripe_service = _StripeService(booking_service.db)
+            config_service = _ConfigService(booking_service.db)
+            pricing_service = _PricingService(booking_service.db)
+            stripe_service = _StripeService(
+                booking_service.db,
+                config_service=config_service,
+                pricing_service=pricing_service,
+            )
             default_pm = stripe_service.payment_repository.get_default_payment_method(
                 current_user.id
             )

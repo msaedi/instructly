@@ -21,7 +21,15 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
+from app.services.config_service import ConfigService
+from app.services.pricing_service import PricingService
 from app.services.stripe_service import ChargeContext, StripeService
+
+
+@pytest.fixture(autouse=True)
+def _no_floors_for_service_tests(disable_price_floors):
+    """Disable price floors for StripeService unit tests."""
+    yield
 
 
 def _round_cents(value: Decimal) -> int:
@@ -46,7 +54,13 @@ class TestStripeService:
     @pytest.fixture
     def stripe_service(self, db: Session) -> StripeService:
         """Create StripeService instance."""
-        return StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        return StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
 
     @pytest.fixture
     def test_user(self, db: Session) -> User:

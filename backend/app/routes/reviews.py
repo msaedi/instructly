@@ -20,6 +20,8 @@ from ..schemas.review import (
     ReviewSubmitResponse,
     SearchRatingResponse,
 )
+from ..services.config_service import ConfigService
+from ..services.pricing_service import PricingService
 from ..services.review_service import ReviewService
 from ..services.stripe_service import StripeService
 
@@ -60,7 +62,13 @@ async def submit_review(
         # If tip provided, create a standalone PaymentIntent for the tip
         if payload.tip_amount_cents and payload.tip_amount_cents > 0:
             try:
-                stripe_service = StripeService(db)
+                config_service = ConfigService(db)
+                pricing_service = PricingService(db)
+                stripe_service = StripeService(
+                    db,
+                    config_service=config_service,
+                    pricing_service=pricing_service,
+                )
                 customer = stripe_service.get_or_create_customer(current_user.id)
                 instr_repo = InstructorProfileRepository(db)
                 instructor_profile = instr_repo.get_by_user_id(review.instructor_id)

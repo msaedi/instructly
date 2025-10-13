@@ -37,6 +37,7 @@ from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..schemas.booking import BookingCreate, BookingUpdate
 from .base import BaseService
+from .config_service import ConfigService
 from .notification_service import NotificationService
 from .pricing_service import PricingService
 from .student_credit_service import StudentCreditService
@@ -243,7 +244,11 @@ class BookingService(BaseService):
             booking.payment_status = "pending_payment_method"
 
             # 6. Create Stripe SetupIntent (with safe fallback for CI/mock environments)
-            stripe_service = StripeService(self.db)
+            stripe_service = StripeService(
+                self.db,
+                config_service=ConfigService(self.db),
+                pricing_service=PricingService(self.db),
+            )
 
             # Ensure customer exists (uses mock customer in non-configured environments)
             stripe_customer = stripe_service.get_or_create_customer(student.id)
@@ -353,7 +358,11 @@ class BookingService(BaseService):
             if save_payment_method:
                 from ..services.stripe_service import StripeService
 
-                stripe_service = StripeService(self.db)
+                stripe_service = StripeService(
+                    self.db,
+                    config_service=ConfigService(self.db),
+                    pricing_service=PricingService(self.db),
+                )
                 stripe_service.save_payment_method(
                     user_id=student.id, payment_method_id=payment_method_id, set_as_default=False
                 )
@@ -515,7 +524,11 @@ class BookingService(BaseService):
             from ..services.stripe_service import StripeService
 
             payment_repo = PaymentRepository(self.db)
-            stripe_service = StripeService(self.db)
+            stripe_service = StripeService(
+                self.db,
+                config_service=ConfigService(self.db),
+                pricing_service=PricingService(self.db),
+            )
 
             # >24h: release authorization (cancel PI), no charge
             if hours_until > 24:

@@ -31,7 +31,9 @@ from app.database import get_db
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import PaymentEvent
 from app.repositories.factory import RepositoryFactory
+from app.services.config_service import ConfigService
 from app.services.notification_service import NotificationService
+from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
 from app.services.student_credit_service import StudentCreditService
 from app.tasks.celery_app import celery_app
@@ -111,7 +113,13 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
-        stripe_service = StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
         notification_service = NotificationService(db)
 
         # Find bookings that need authorization (T-24 hours)
@@ -302,7 +310,13 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
-        stripe_service = StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
         notification_service = NotificationService(db)
 
         now = datetime.now(timezone.utc)
@@ -577,7 +591,13 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
-        stripe_service = StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
         credit_service = StudentCreditService(db)
         now = datetime.now(timezone.utc)
 
@@ -880,7 +900,13 @@ def create_new_authorization_and_capture(
         Dict with success status
     """
     try:
-        stripe_service = StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
         original_intent_id = booking.payment_intent_id
 
         # Recreate authorization via service so pricing comes from pricing_service
@@ -951,7 +977,13 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
     try:
         db = cast(Session, next(get_db()))
         _payment_repo = RepositoryFactory.get_payment_repository(db)
-        stripe_service = StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
 
         # Get the booking
         booking_repo = RepositoryFactory.get_booking_repository(db)
@@ -1162,7 +1194,13 @@ def audit_and_fix_payout_schedules(self: Any) -> Dict[str, Any]:
     db: Session = SessionLocal()
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
-        stripe_service = StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
 
         # repo-pattern-ignore: Simple scan over connected accounts table
         from app.models.payment import StripeConnectedAccount

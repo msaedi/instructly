@@ -35,6 +35,7 @@ from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccoun
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
+from .config_service import ConfigService
 from .pricing_service import PricingService
 from .student_credit_service import StudentCreditService
 
@@ -64,9 +65,17 @@ class StripeService(BaseService):
     destination charges, express accounts, and application fees.
     """
 
-    def __init__(self, db: Session):
-        """Initialize with database session and configure Stripe."""
+    def __init__(
+        self,
+        db: Session,
+        *,
+        config_service: ConfigService,
+        pricing_service: PricingService,
+    ):
+        """Initialize with explicit configuration dependencies and configure Stripe."""
         super().__init__(db)
+        self.config_service = config_service
+        self.pricing_service = pricing_service
         self.payment_repository = RepositoryFactory.create_payment_repository(db)
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
         self.user_repository = RepositoryFactory.create_user_repository(db)
@@ -463,8 +472,7 @@ class StripeService(BaseService):
                 else:
                     applied_credit_cents = existing_applied
 
-                pricing_service = PricingService(self.db)
-                pricing = pricing_service.compute_booking_pricing(
+                pricing = self.pricing_service.compute_booking_pricing(
                     booking_id=booking_id,
                     applied_credit_cents=applied_credit_cents,
                     persist=True,

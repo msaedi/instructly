@@ -9,12 +9,20 @@ import ulid
 from app.models.instructor import InstructorProfile
 from app.models.payment import InstructorPayoutEvent
 from app.models.user import User
+from app.services.config_service import ConfigService
+from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
 
 
 def test_payout_persistence_created_paid_failed(db):
     # Seed a connected account mapping
-    service = StripeService(db)
+    config_service = ConfigService(db)
+    pricing_service = PricingService(db)
+    service = StripeService(
+        db,
+        config_service=config_service,
+        pricing_service=pricing_service,
+    )
 
     # Create instructor/profile and mock connected account repo response
     user = User(

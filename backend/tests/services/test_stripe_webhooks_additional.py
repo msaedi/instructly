@@ -4,11 +4,17 @@ Additional webhook tests: charge.refunded, transfer.reversed, payout.* dispatch.
 
 from unittest.mock import patch
 
+from app.services.config_service import ConfigService
+from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
 
 
 def test_charge_refunded_updates_status(db):
-    service = StripeService(db)
+    service = StripeService(
+        db,
+        config_service=ConfigService(db),
+        pricing_service=PricingService(db),
+    )
     event = {
         "type": "charge.refunded",
         "data": {"object": {"id": "ch_x", "payment_intent": "pi_123"}},
@@ -20,14 +26,22 @@ def test_charge_refunded_updates_status(db):
 
 
 def test_transfer_reversed_logs(db, caplog):
-    service = StripeService(db)
+    service = StripeService(
+        db,
+        config_service=ConfigService(db),
+        pricing_service=PricingService(db),
+    )
     event = {"type": "transfer.reversed", "data": {"object": {"id": "tr_123", "amount": 100}}}
 
     assert service._handle_transfer_webhook(event) is True
 
 
 def test_payout_events_dispatch(db):
-    service = StripeService(db)
+    service = StripeService(
+        db,
+        config_service=ConfigService(db),
+        pricing_service=PricingService(db),
+    )
     created = {"type": "payout.created", "data": {"object": {"id": "po_1", "amount": 100}}}
     paid = {"type": "payout.paid", "data": {"object": {"id": "po_2", "amount": 200}}}
     failed = {
