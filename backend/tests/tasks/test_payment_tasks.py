@@ -3,12 +3,14 @@ Tests for payment processing Celery tasks.
 """
 
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import stripe
 import ulid
 
 from app.models.booking import Booking, BookingStatus
+from app.services.stripe_service import ChargeContext
 from app.tasks.payment_tasks import (
     capture_completed_lessons,
     check_authorization_health,
@@ -21,10 +23,9 @@ from app.tasks.payment_tasks import (
 class TestPaymentTasks:
     """Test suite for payment Celery tasks."""
 
-    @patch("app.tasks.payment_tasks.stripe")
     @patch("app.tasks.payment_tasks.StripeService")
     @patch("app.database.SessionLocal")
-    def test_process_scheduled_authorizations_success(self, mock_session_local, mock_stripe_service, mock_stripe):
+    def test_process_scheduled_authorizations_success(self, mock_session_local, mock_stripe_service):
         """Test successful processing of scheduled authorizations."""
         # Setup mock database
         mock_db = MagicMock()
@@ -50,13 +51,24 @@ class TestPaymentTasks:
         mock_query.filter.return_value.all.return_value = [booking]
         mock_db.query.return_value = mock_query
 
-        # Mock Stripe service (not used in the actual code)
-        _mock_stripe_service_instance = mock_stripe_service.return_value
-
-        # Mock stripe module PaymentIntent.create
+        mock_stripe_service_instance = mock_stripe_service.return_value
         mock_payment_intent = MagicMock()
         mock_payment_intent.id = "pi_test123"
-        mock_stripe.PaymentIntent.create.return_value = mock_payment_intent
+        mock_stripe_service_instance.create_or_retry_booking_payment_intent.return_value = (
+            mock_payment_intent
+        )
+        mock_stripe_service_instance.build_charge_context.return_value = ChargeContext(
+            booking_id=booking.id,
+            applied_credit_cents=0,
+            base_price_cents=10000,
+            student_fee_cents=1200,
+            instructor_commission_cents=1500,
+            target_instructor_payout_cents=8500,
+            student_pay_cents=9700,
+            application_fee_cents=2700,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0.12"),
+        )
 
         # Mock repositories
         mock_payment_repo = MagicMock()
@@ -100,13 +112,16 @@ class TestPaymentTasks:
         event_call = mock_payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "auth_succeeded"
 
-        # Verify database commit
         mock_db.commit.assert_called_once()
+        mock_stripe_service_instance.create_or_retry_booking_payment_intent.assert_called_once_with(
+            booking_id=booking.id,
+            payment_method_id=booking.payment_method_id,
+            requested_credit_cents=None,
+        )
 
-    @patch("app.tasks.payment_tasks.stripe")
     @patch("app.tasks.payment_tasks.StripeService")
     @patch("app.database.SessionLocal")
-    def test_process_scheduled_authorizations_failure(self, mock_session_local, mock_stripe_service, mock_stripe):
+    def test_process_scheduled_authorizations_failure(self, mock_session_local, mock_stripe_service):
         """Test handling of authorization failures."""
         # Setup mock database
         mock_db = MagicMock()
@@ -132,12 +147,20 @@ class TestPaymentTasks:
         mock_db.query.return_value = mock_query
 
         # Mock Stripe service (not used in the actual code)
-        _mock_stripe_service_instance = mock_stripe_service.return_value
-
-        # Mock stripe module PaymentIntent.create to raise card error
-        # We need to use the real stripe.error.CardError class for proper exception handling
-        mock_stripe.error.CardError = stripe.error.CardError
-        mock_stripe.PaymentIntent.create.side_effect = stripe.error.CardError(
+        mock_stripe_service_instance = mock_stripe_service.return_value
+        mock_stripe_service_instance.build_charge_context.return_value = ChargeContext(
+            booking_id=booking.id,
+            applied_credit_cents=0,
+            base_price_cents=10000,
+            student_fee_cents=1200,
+            instructor_commission_cents=1500,
+            target_instructor_payout_cents=8500,
+            student_pay_cents=10000,
+            application_fee_cents=1500,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0.15"),
+        )
+        mock_stripe_service_instance.create_or_retry_booking_payment_intent.side_effect = stripe.error.CardError(
             message="Card declined",
             param="payment_method",
             code="card_declined",
@@ -225,7 +248,9 @@ class TestPaymentTasks:
         mock_payment_repo = MagicMock()
         mock_event = MagicMock()
         mock_event.event_type = "auth_failed"
+        mock_event.event_data = {"used_cents": 0}
         mock_payment_repo.get_payment_events_for_booking.return_value = [mock_event]
+        mock_payment_repo.get_applied_credit_cents_for_booking.return_value = 0
 
         # Mock booking repository
         mock_booking_repo = MagicMock()
@@ -258,19 +283,36 @@ class TestPaymentTasks:
                     with patch("app.tasks.payment_tasks.NotificationService") as mock_notification_service:
                         mock_notification_service.return_value = MagicMock()
 
-                        with patch("app.tasks.payment_tasks.stripe") as mock_stripe:
-                            mock_stripe.error.CardError = stripe.error.CardError
-                            mock_payment_intent = MagicMock()
-                            mock_payment_intent.id = "pi_retry123"
-                            mock_stripe.PaymentIntent.create.return_value = mock_payment_intent
+                        context = ChargeContext(
+                            booking_id=booking.id,
+                            applied_credit_cents=0,
+                            base_price_cents=10000,
+                            student_fee_cents=1200,
+                            instructor_commission_cents=1500,
+                            target_instructor_payout_cents=8500,
+                            student_pay_cents=9700,
+                            application_fee_cents=2700,
+                            top_up_transfer_cents=0,
+                            instructor_tier_pct=Decimal("0.12"),
+                        )
 
-                            # Execute task
-                            result = retry_failed_authorizations()
+                        with patch(
+                            "app.services.stripe_service.StripeService.build_charge_context",
+                            return_value=context,
+                        ):
+                            with patch("app.tasks.payment_tasks.stripe") as mock_stripe:
+                                mock_stripe.error.CardError = stripe.error.CardError
+                                mock_payment_intent = MagicMock()
+                                mock_payment_intent.id = "pi_retry123"
+                                mock_stripe.PaymentIntent.create.return_value = mock_payment_intent
+
+                                # Execute task
+                                result = retry_failed_authorizations()
 
         # Verify results
         mock_stripe.PaymentIntent.create.assert_called_once()
         _, kwargs = mock_stripe.PaymentIntent.create.call_args
-        assert kwargs["application_fee_amount"] == 1500
+        assert kwargs["application_fee_amount"] == 2700
         assert result["retried"] == 1
         assert result["success"] == 1
         assert result["failed"] == 0
