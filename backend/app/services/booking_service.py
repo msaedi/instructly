@@ -38,6 +38,7 @@ from ..repositories.factory import RepositoryFactory
 from ..schemas.booking import BookingCreate, BookingUpdate
 from .base import BaseService
 from .notification_service import NotificationService
+from .student_credit_service import StudentCreditService
 
 if TYPE_CHECKING:
     from ..models.availability_slot import AvailabilitySlot
@@ -629,6 +630,16 @@ class BookingService(BaseService):
         # Invalidate caches
         self._invalidate_booking_caches(booking)
 
+        try:
+            credit_service = StudentCreditService(self.db)
+            credit_service.process_refund_hooks(booking=booking)
+        except Exception as exc:
+            logger.error(
+                "Failed to adjust student credits for cancelled booking %s: %s",
+                booking.id,
+                exc,
+            )
+
         return booking
 
     @BaseService.measure_operation("get_bookings_for_user")
@@ -865,6 +876,19 @@ class BookingService(BaseService):
         if refreshed_booking is None:
             raise NotFoundException("Booking not found")
         self._invalidate_booking_caches(refreshed_booking)
+
+        try:
+            credit_service = StudentCreditService(self.db)
+            credit_service.maybe_issue_milestone_credit(
+                student_id=refreshed_booking.student_id,
+                booking_id=refreshed_booking.id,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed issuing milestone credit for booking completion %s: %s",
+                booking_id,
+                exc,
+            )
 
         return refreshed_booking
 

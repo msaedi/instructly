@@ -36,6 +36,7 @@ from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 from .pricing_service import PricingService
+from .student_credit_service import StudentCreditService
 
 
 @dataclass
@@ -1917,6 +1918,15 @@ class StripeService(BaseService):
                                 self.logger.info(
                                     f"Marked booking {booking.id} payment as refunded for PI {payment_intent_id}"
                                 )
+                                try:
+                                    credit_service = StudentCreditService(self.db)
+                                    credit_service.process_refund_hooks(booking=booking)
+                                except Exception as hook_exc:
+                                    self.logger.error(
+                                        "Failed adjusting student credits on refund for booking %s: %s",
+                                        booking.id,
+                                        hook_exc,
+                                    )
                 except Exception as e:
                     self.logger.error(f"Failed to process charge.refunded: {e}")
                 return True

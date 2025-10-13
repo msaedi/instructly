@@ -1256,6 +1256,54 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             raise RepositoryException(f"Failed to count completed lessons: {exc}")
 
+    def count_student_completed_lifetime(self, student_id: str) -> int:
+        """Return the lifetime completed session count for a student."""
+
+        try:
+            result = (
+                self.db.query(func.count(Booking.id))
+                .filter(
+                    Booking.student_id == student_id,
+                    Booking.status == BookingStatus.COMPLETED,
+                    Booking.completed_at.isnot(None),
+                )
+                .scalar()
+            )
+            return int(result or 0)
+        except Exception as exc:
+            self.logger.error(
+                "Failed counting completed bookings for student %s: %s",
+                student_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to count student completed lessons")
+
+    def get_student_most_recent_completed_at(self, student_id: str) -> Optional[datetime]:
+        """Return the most recent completion timestamp for a student, if any."""
+
+        try:
+            record = (
+                self.db.query(Booking.completed_at)
+                .filter(
+                    Booking.student_id == student_id,
+                    Booking.status == BookingStatus.COMPLETED,
+                    Booking.completed_at.isnot(None),
+                )
+                .order_by(Booking.completed_at.desc())
+                .first()
+            )
+            if not record:
+                return None
+            completed_at = record[0] if isinstance(record, tuple) else record
+            return cast(Optional[datetime], completed_at)
+        except Exception as exc:
+            self.logger.error(
+                "Failed getting latest completion for student %s: %s",
+                student_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to fetch student completion timestamp")
+
     # Additional Repository Methods (from BaseRepository)
     # The following are inherited from BaseRepository:
     # - create(**kwargs) -> Booking

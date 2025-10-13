@@ -33,6 +33,7 @@ from app.models.payment import PaymentEvent
 from app.repositories.factory import RepositoryFactory
 from app.services.notification_service import NotificationService
 from app.services.stripe_service import StripeService
+from app.services.student_credit_service import StudentCreditService
 from app.tasks.celery_app import celery_app
 
 P = ParamSpec("P")
@@ -584,6 +585,7 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
         stripe_service = StripeService(db)
+        credit_service = StudentCreditService(db)
         now = datetime.now(timezone.utc)
 
         results: CaptureJobResults = {
@@ -634,6 +636,11 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
             # Auto-complete the booking
             booking.status = BookingStatus.COMPLETED
             booking.completed_at = now
+
+            credit_service.maybe_issue_milestone_credit(
+                student_id=booking.student_id,
+                booking_id=booking.id,
+            )
 
             _payment_repo.create_payment_event(
                 booking_id=booking.id,
