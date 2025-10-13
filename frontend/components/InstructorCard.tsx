@@ -377,9 +377,22 @@ export default function InstructorCard({
                     endTime: calculateEndTime(nextAvailableSlot.time, instructor.services[0]?.duration_options?.[0] || 60),
                     duration: instructor.services[0]?.duration_options?.[0] || 60,
                     location: '', // Leave empty to let user enter their address
-                    basePrice: (() => { const r = instructor.services[0]?.hourly_rate as unknown; const n = typeof r === 'number' ? r : parseFloat(String(r ?? '0')); return Number.isNaN(n) ? 0 : n; })(),
-                    serviceFee: (() => { const r = instructor.services[0]?.hourly_rate as unknown; const n = typeof r === 'number' ? r : parseFloat(String(r ?? '0')); const v = Number.isNaN(n) ? 0 : n; return Math.round(v * 0.1); })(), // 10% service fee
-                    totalAmount: (() => { const r = instructor.services[0]?.hourly_rate as unknown; const n = typeof r === 'number' ? r : parseFloat(String(r ?? '0')); const v = Number.isNaN(n) ? 0 : n; return Math.round(v * 1.1); })(),
+                    basePrice: (() => {
+                      const rawRate = instructor.services[0]?.hourly_rate as unknown;
+                      const rate = typeof rawRate === 'number' ? rawRate : parseFloat(String(rawRate ?? '0'));
+                      const safeRate = Number.isNaN(rate) ? 0 : rate;
+                      const durationMinutes = instructor.services[0]?.duration_options?.[0] || 60;
+                      return Number(((safeRate * durationMinutes) / 60).toFixed(2));
+                    })(),
+                    // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
+                    serviceFee: 0,
+                    totalAmount: (() => {
+                      const rawRate = instructor.services[0]?.hourly_rate as unknown;
+                      const rate = typeof rawRate === 'number' ? rawRate : parseFloat(String(rawRate ?? '0'));
+                      const safeRate = Number.isNaN(rate) ? 0 : rate;
+                      const durationMinutes = instructor.services[0]?.duration_options?.[0] || 60;
+                      return Number(((safeRate * durationMinutes) / 60).toFixed(2));
+                    })(),
                     freeCancellationUntil: new Date(nextAvailableSlot.date),
                   };
 

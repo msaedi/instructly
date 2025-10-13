@@ -90,6 +90,12 @@ stripe.api_key = (
 )
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
 PLATFORM_FEE_PERCENTAGE = 15  # 15% platform fee
+PLATFORM_FEE_RATE = PLATFORM_FEE_PERCENTAGE / 100
+
+
+def calculate_platform_fee(amount_cents: int) -> int:
+    """Return platform fee in cents for the given amount."""
+    return int(amount_cents * PLATFORM_FEE_RATE)
 
 
 @typed_task(
@@ -206,7 +212,7 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
                     )
                     continue
 
-                application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE / 100)
+                application_fee = calculate_platform_fee(amount_cents)
 
                 # Create PaymentIntent with manual capture (authorization only) for the remainder
                 payment_intent = stripe.PaymentIntent.create(
@@ -518,7 +524,7 @@ def attempt_authorization_retry(
 
         # Create new PaymentIntent
         amount_cents = int(booking.total_price * 100)
-        application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE)
+        application_fee = calculate_platform_fee(amount_cents)
 
         payment_intent = stripe.PaymentIntent.create(
             amount=amount_cents,
@@ -893,7 +899,7 @@ def create_new_authorization_and_capture(
 
         # Create new PaymentIntent with immediate capture
         amount_cents = int(booking.total_price * 100)
-        application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE)
+        application_fee = calculate_platform_fee(amount_cents)
 
         payment_intent = stripe.PaymentIntent.create(
             amount=amount_cents,

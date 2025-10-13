@@ -12,7 +12,7 @@ import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instr
 import type { InstructorService } from '@/types/instructor';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
-import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
+import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { logger } from '@/lib/logger';
 
 interface PaymentConfirmationProps {
@@ -781,15 +781,18 @@ export default function PaymentConfirmation({
           {/* Payment Details Section */}
           <div className="border-t border-gray-300 pt-4">
             <h4 className="font-semibold mb-3">Payment details</h4>
+            {/* TODO(pricing-v1): render server Booking Protection & Credit line items. */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Lesson ({booking.duration} min)</span>
                 <span>${booking.basePrice.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span>Service fee</span>
-                <span>${booking.serviceFee.toFixed(2)}</span>
-              </div>
+              {booking.serviceFee > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Service fee</span>
+                  <span>${booking.serviceFee.toFixed(2)}</span>
+                </div>
+              )}
               {creditsUsed > 0 && (
                 <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                   <span>Credits applied</span>
@@ -858,11 +861,11 @@ export default function PaymentConfirmation({
           onTimeSelected={(selection) => {
             // Update booking data with new selection
             const newBookingDate = new Date(selection.date + 'T' + selection.time);
-            const hourlyRate = booking.basePrice / (booking.duration / 60);
-            const totalPrice = hourlyRate * (selection.duration / 60);
-            const basePrice = totalPrice;
-            const serviceFee = calculateServiceFee(basePrice);
-            const totalAmount = calculateTotalAmount(basePrice);
+            const hourlyRate = booking.duration > 0 ? booking.basePrice / (booking.duration / 60) : 0;
+            const basePrice = Number(((hourlyRate || 0) * selection.duration) / 60);
+            // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
+            const serviceFee = 0;
+            const totalAmount = basePrice;
             const bookingType = determineBookingType(newBookingDate);
 
             const updatedBookingData: BookingPayment = {

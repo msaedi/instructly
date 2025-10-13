@@ -12,6 +12,7 @@ from app.models.booking import Booking, BookingStatus
 from app.tasks.payment_tasks import (
     capture_completed_lessons,
     check_authorization_health,
+    create_new_authorization_and_capture,
     process_scheduled_authorizations,
     retry_failed_authorizations,
 )
@@ -267,6 +268,9 @@ class TestPaymentTasks:
                             result = retry_failed_authorizations()
 
         # Verify results
+        mock_stripe.PaymentIntent.create.assert_called_once()
+        _, kwargs = mock_stripe.PaymentIntent.create.call_args
+        assert kwargs["application_fee_amount"] == 1500
         assert result["retried"] == 1
         assert result["success"] == 1
         assert result["failed"] == 0
@@ -330,6 +334,42 @@ class TestPaymentTasks:
 
         # Verify notification of cancellation due to payment failure was sent (email mocked)
         notification_instance.send_booking_cancelled_payment_failed.assert_called_once_with(booking)
+
+    def test_create_new_authorization_and_capture_application_fee(self):
+        """New authorization + capture uses correct application fee scaling."""
+
+        booking = MagicMock(spec=Booking)
+        booking.id = str(ulid.ULID())
+        booking.student_id = "student_789"
+        booking.instructor_id = "instructor_789"
+        booking.payment_method_id = "pm_test789"
+        booking.payment_intent_id = "pi_original"
+        booking.total_price = 120.00
+
+        mock_payment_repo = MagicMock()
+        mock_payment_repo.get_customer_by_user_id.return_value = MagicMock(stripe_customer_id="cus_789")
+        mock_payment_repo.get_connected_account_by_instructor_id.return_value = MagicMock(
+            stripe_account_id="acct_789"
+        )
+        mock_payment_repo.create_payment_event.return_value = None
+
+        mock_instructor_profile = MagicMock()
+        mock_instructor_profile.id = "instructor_profile_789"
+
+        with patch(
+            "app.repositories.instructor_profile_repository.InstructorProfileRepository"
+        ) as mock_instructor_repo:
+            mock_instructor_repo.return_value.get_by_user_id.return_value = mock_instructor_profile
+
+            with patch("app.tasks.payment_tasks.stripe") as mock_stripe:
+                mock_stripe.PaymentIntent.create.return_value = MagicMock(id="pi_new")
+
+                result = create_new_authorization_and_capture(booking, mock_payment_repo, MagicMock())
+
+                assert result["success"] is True
+                _, kwargs = mock_stripe.PaymentIntent.create.call_args
+
+        assert kwargs["application_fee_amount"] == 1800  # 15% of $120.00
 
     @patch("app.tasks.payment_tasks.stripe")
     @patch("app.tasks.payment_tasks.StripeService")

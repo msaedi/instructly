@@ -13,7 +13,7 @@ import { at } from '@/lib/ts/safe';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
 import { BookingType } from '@/features/shared/types/booking';
-import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
+import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 
 export default function BookingModal({
   isOpen,
@@ -158,8 +158,9 @@ export default function BookingModal({
       // Prepare booking data for after login
       const bookingDate = new Date(selectedDate + 'T' + selectedTime);
       const basePrice = totalPrice;
-      const serviceFee = calculateServiceFee(basePrice);
-      const totalAmount = calculateTotalAmount(basePrice);
+      // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
+      const serviceFee = 0;
+      const totalAmount = basePrice;
       const bookingType = determineBookingType(bookingDate);
 
       const paymentBookingData: BookingPayment = {
@@ -245,8 +246,9 @@ export default function BookingModal({
     // Prepare booking data for confirmation page
     const bookingDate = new Date(selectedDate + 'T' + selectedTime);
     const basePrice = totalPrice;
-    const serviceFee = calculateServiceFee(basePrice);
-    const totalAmount = calculateTotalAmount(basePrice);
+    // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
+    const serviceFee = 0;
+    const totalAmount = basePrice;
     const bookingType = determineBookingType(bookingDate);
 
     const paymentBookingData: BookingPayment = {

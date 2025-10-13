@@ -418,10 +418,10 @@ export default function TimeSelectionModal({
         .toString()
         .padStart(2, '0')}:00`;
 
-      // Calculate fees
       const basePrice = price;
-      const serviceFee = Math.round(basePrice * 0.1); // 10% service fee
-      const totalAmount = basePrice + serviceFee;
+      // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
+      const serviceFee = 0;
+      const totalAmount = basePrice;
 
       // Log parsed values for debugging
       logger.debug('Time parsing results', {
@@ -501,7 +501,7 @@ export default function TimeSelectionModal({
         endTime: endTime,
         duration: selectedDuration,
         basePrice: basePrice,
-        serviceFee: serviceFee,
+        serviceFee,
         totalAmount: totalAmount,
         hourlyRate: selectedHourlyRate,
         location: 'Online', // Default to online, could be enhanced later

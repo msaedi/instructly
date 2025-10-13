@@ -9,7 +9,6 @@ export enum BookingType {
 export const TRANSACTION_LIMITS = {
   MAX_TRANSACTION: 1000, // $1,000 max per transaction
   CREDIT_EXPIRY_MONTHS: 12,
-  SERVICE_FEE_PERCENTAGE: 20,
 };
 
 export enum PaymentStatus {

@@ -48,7 +48,12 @@ const mergeBookingIntoPayment = (booking: Booking, fallback: BookingPayment): Bo
     ? Number(((hourlyRate * durationMinutes) / 60).toFixed(2))
     : fallback.basePrice;
   const totalAmount = normalizeCurrency(booking.total_price, fallback.totalAmount);
-  const serviceFee = Number(Math.max(0, totalAmount - computedBase).toFixed(2));
+
+  const rawServiceFee = (booking as unknown as { service_fee?: unknown; booking_protection_fee?: unknown; platform_fee?: unknown })?.service_fee
+    ?? (booking as unknown as { booking_protection_fee?: unknown }).booking_protection_fee
+    ?? (booking as unknown as { platform_fee?: unknown }).platform_fee
+    ?? fallback.serviceFee;
+  const serviceFee = normalizeCurrency(rawServiceFee, fallback.serviceFee);
 
   const bookingDate = booking.booking_date
     ? new Date(`${booking.booking_date}T00:00:00`)

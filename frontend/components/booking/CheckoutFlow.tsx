@@ -67,6 +67,20 @@ const PaymentForm: React.FC<{
   const [cvv, setCvv] = useState('');
   const [requiresCvv, setRequiresCvv] = useState(false);
 
+  const payAmount = (() => {
+    const raw = (booking as unknown as { total_price?: unknown }).total_price;
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      return Number(raw.toFixed(2));
+    }
+    if (typeof raw === 'string') {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) {
+        return Number(parsed.toFixed(2));
+      }
+    }
+    return 0;
+  })();
+
   useEffect(() => {
     // Select default method if available
     const defaultMethod = savedMethods.find(m => m.is_default);
@@ -292,7 +306,7 @@ const PaymentForm: React.FC<{
             Processing...
           </>
         ) : (
-          `Pay $${booking.total_price.toFixed(2)}`
+          `Pay $${payAmount.toFixed(2)}`
         )}
       </Button>
     </div>
@@ -306,10 +320,25 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
   const [error, setError] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
 
-  // Calculate fees
-  const platformFeePercentage = 0.15; // 15%
-  const platformFee = booking.total_price * platformFeePercentage;
-  // Instructor earnings calculation available if needed: booking.total_price - platformFee
+  const normalizeAmount = (value: unknown, fallback = 0): number => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Number(value.toFixed(2));
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return Number(parsed.toFixed(2));
+      }
+    }
+    return Number(fallback.toFixed(2));
+  };
+
+  const durationMinutes = booking.duration_minutes ?? 60;
+  const hourlyRate = normalizeAmount((booking as unknown as { hourly_rate?: unknown }).hourly_rate, 0);
+  const baseLessonAmount = durationMinutes
+    ? Number(((hourlyRate * durationMinutes) / 60).toFixed(2))
+    : normalizeAmount(booking.total_price, 0);
+  const totalAmount = normalizeAmount(booking.total_price, baseLessonAmount);
 
   // Load saved payment methods
   useEffect(() => {
@@ -419,19 +448,18 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
           </div>
 
           <div className="pt-3 border-t">
+            {/* TODO(pricing-v1): render server Booking Protection & Credit line items. */}
             <div className="space-y-2">
               <div className="flex justify-between text-gray-600">
-                <span>Service Fee</span>
-                <span>${booking.total_price.toFixed(2)}</span>
+                <span>Lesson ({booking.duration_minutes} min)</span>
+                <span>${baseLessonAmount.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>Platform Fee (15%)</span>
-                <span>${platformFee.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between font-semibold text-lg pt-2 border-t">
-                <span>Total</span>
-                <span>${booking.total_price.toFixed(2)}</span>
-              </div>
+              {Math.abs(totalAmount - baseLessonAmount) > 0.009 && (
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>Total</span>
+                  <span>${totalAmount.toFixed(2)}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

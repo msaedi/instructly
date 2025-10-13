@@ -19,7 +19,7 @@ import { useRouter as useNextRouter } from 'next/navigation';
 import { calculateEndTime } from '@/features/shared/utils/booking';
 import { BookingPayment, PaymentStatus } from '@/features/student/payment';
 import { BookingType } from '@/features/shared/types/booking';
-import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
+import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { format } from 'date-fns';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
@@ -135,8 +135,9 @@ function InstructorProfileContent() {
       const hourlyRate = getNumber(selectedService, 'hourly_rate', 0);
       const totalPrice = hourlyRate * (duration / 60);
       const basePrice = totalPrice;
-      const serviceFee = calculateServiceFee(basePrice);
-      const totalAmount = calculateTotalAmount(basePrice);
+      // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
+      const serviceFee = 0;
+      const totalAmount = basePrice;
       const bookingType = determineBookingType(bookingDate);
 
       const paymentBookingData: BookingPayment = {
@@ -586,8 +587,9 @@ function InstructorProfileContent() {
               const hourlyRate = selectedService.hourly_rate;
               const totalPrice = hourlyRate * (newSlot.duration / 60);
               const basePrice = totalPrice;
-              const serviceFee = calculateServiceFee(basePrice);
-              const totalAmount = calculateTotalAmount(basePrice);
+              // TODO(pricing-v1): replace base-only fallback with server-calculated totals.
+              const serviceFee = 0;
+              const totalAmount = basePrice;
               const bookingType = determineBookingType(bookingDate);
 
               const paymentBookingData: BookingPayment = {
