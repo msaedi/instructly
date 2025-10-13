@@ -566,6 +566,82 @@ class TestStripeService:
         assert result["amount"] == 5000  # $50.00 in cents
         assert result["application_fee"] == 750  # 15% fee
 
+    @patch("stripe.Transfer.create")
+    @patch("stripe.PaymentIntent.capture")
+    def test_capture_payment_intent_creates_top_up_transfer(
+        self,
+        mock_capture,
+        mock_transfer,
+        stripe_service: StripeService,
+        test_booking: Booking,
+        test_instructor: tuple,
+    ) -> None:
+        """Top-up transfer is issued exactly once when credits exceed platform share."""
+
+        instructor_user, profile, _ = test_instructor
+
+        # Ensure connected account exists
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_instructor123", onboarding_completed=True
+        )
+
+        # Build a charge context representing a large credit scenario
+        top_up_context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=3000,
+            base_price_cents=8000,
+            student_fee_cents=960,
+            instructor_commission_cents=1200,
+            target_instructor_payout_cents=6800,
+            student_pay_cents=5960,
+            application_fee_cents=0,
+            top_up_transfer_cents=840,
+            instructor_tier_pct=Decimal("0.15"),
+        )
+
+        stripe_service.build_charge_context = MagicMock(return_value=top_up_context)
+
+        # Persist payment record prior to capture
+        stripe_service.payment_repository.create_payment_record(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_topup123",
+            amount=top_up_context.student_pay_cents,
+            application_fee=top_up_context.application_fee_cents,
+            status="requires_capture",
+        )
+
+        # Stripe capture response mock
+        capture_response = {
+            "status": "succeeded",
+            "charges": {"data": []},
+            "amount_received": top_up_context.student_pay_cents,
+        }
+        mock_capture.return_value = capture_response
+        mock_transfer.return_value = {"id": "tr_topup123"}
+
+        stripe_service.capture_payment_intent("pi_topup123")
+
+        mock_transfer.assert_called_once()
+        transfer_kwargs = mock_transfer.call_args[1]
+        assert transfer_kwargs["amount"] == top_up_context.top_up_transfer_cents
+        assert transfer_kwargs["destination"] == "acct_instructor123"
+        assert transfer_kwargs["transfer_group"] == f"booking:{test_booking.id}"
+        assert transfer_kwargs["metadata"]["payment_intent_id"] == "pi_topup123"
+
+        # Payment event recorded
+        events = stripe_service.payment_repository.get_payment_events_for_booking(test_booking.id)
+        assert any(evt.event_type == "top_up_transfer_created" for evt in events)
+
+        # Subsequent ensure call should no-op
+        mock_transfer.reset_mock()
+        stripe_service.ensure_top_up_transfer(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_topup123",
+            destination_account_id="acct_instructor123",
+            amount_cents=top_up_context.top_up_transfer_cents,
+        )
+        mock_transfer.assert_not_called()
+
     def test_process_booking_payment_booking_not_found(self, stripe_service: StripeService):
         """Test payment processing with non-existent booking."""
         with pytest.raises(ServiceException, match="Booking .* not found"):

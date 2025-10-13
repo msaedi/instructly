@@ -109,6 +109,82 @@ class StripeService(BaseService):
                 "Stripe service not configured. Please check STRIPE_SECRET_KEY environment variable."
             )
 
+    @BaseService.measure_operation("stripe_ensure_top_up_transfer")
+    def ensure_top_up_transfer(
+        self,
+        *,
+        booking_id: str,
+        payment_intent_id: str,
+        destination_account_id: str,
+        amount_cents: int,
+    ) -> Optional[Dict[str, Any]]:
+        """Create a one-time top-up transfer when credits exceed platform share."""
+
+        if amount_cents <= 0:
+            return None
+
+        try:
+            existing_event = self.payment_repository.get_latest_payment_event(
+                booking_id, "top_up_transfer_created"
+            )
+            if existing_event:
+                data = existing_event.event_data or {}
+                if data.get("payment_intent_id") == payment_intent_id and int(
+                    data.get("amount_cents") or 0
+                ) == int(amount_cents):
+                    return None
+
+            transfer = stripe.Transfer.create(
+                amount=amount_cents,
+                currency="usd",
+                destination=destination_account_id,
+                transfer_group=f"booking:{booking_id}",
+                metadata={
+                    "booking_id": booking_id,
+                    "payment_intent_id": payment_intent_id,
+                },
+                idempotency_key=f"topup:{payment_intent_id}",
+            )
+
+            try:
+                self.payment_repository.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="top_up_transfer_created",
+                    event_data={
+                        "payment_intent_id": payment_intent_id,
+                        "transfer_id": getattr(transfer, "id", None),
+                        "amount_cents": int(amount_cents),
+                    },
+                )
+            except Exception:
+                pass
+
+            self.logger.info(
+                "Issued top-up transfer",
+                extra={
+                    "booking_id": booking_id,
+                    "payment_intent_id": payment_intent_id,
+                    "amount_cents": amount_cents,
+                    "destination_account_id": destination_account_id,
+                },
+            )
+
+            return cast(Optional[Dict[str, Any]], transfer)
+        except stripe.StripeError as exc:  # pragma: no cover - network path
+            self.logger.error(
+                "Stripe error creating top-up transfer for booking %s: %s",
+                booking_id,
+                str(exc),
+            )
+            raise ServiceException("Failed to create top-up transfer") from exc
+        except Exception as exc:
+            self.logger.error(
+                "Error creating top-up transfer for booking %s: %s",
+                booking_id,
+                str(exc),
+            )
+            raise ServiceException("Failed to create top-up transfer") from exc
+
     @BaseService.measure_operation("stripe_build_charge_context")
     def build_charge_context(
         self, booking_id: str, requested_credit_cents: Optional[int] = None
@@ -876,6 +952,52 @@ class StripeService(BaseService):
                 self.payment_repository.update_payment_status(payment_intent_id, pi.status)
             except Exception:
                 pass
+
+            try:
+                payment_record = self.payment_repository.get_payment_by_intent_id(payment_intent_id)
+            except Exception:
+                payment_record = None
+
+            if payment_record:
+                booking_id = payment_record.booking_id
+                try:
+                    booking = self.booking_repository.get_by_id(booking_id)
+                except Exception:
+                    booking = None
+
+                if booking:
+                    try:
+                        instructor_profile = self.instructor_repository.get_by_user_id(
+                            booking.instructor_id
+                        )
+                    except Exception:
+                        instructor_profile = None
+
+                    if instructor_profile:
+                        connected_account = (
+                            self.payment_repository.get_connected_account_by_instructor_id(
+                                instructor_profile.id
+                            )
+                        )
+                    else:
+                        connected_account = None
+
+                    if connected_account and connected_account.stripe_account_id:
+                        try:
+                            ctx = self.build_charge_context(
+                                booking_id=booking_id, requested_credit_cents=None
+                            )
+                            top_up_amount = int(ctx.top_up_transfer_cents)
+                        except Exception:
+                            top_up_amount = 0
+
+                        if top_up_amount > 0:
+                            self.ensure_top_up_transfer(
+                                booking_id=booking_id,
+                                payment_intent_id=payment_intent_id,
+                                destination_account_id=connected_account.stripe_account_id,
+                                amount_cents=top_up_amount,
+                            )
 
             return {
                 "payment_intent": pi,
