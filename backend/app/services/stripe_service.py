@@ -19,7 +19,9 @@ Architecture:
 - Follows established service patterns
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 import logging
 from typing import Any, Dict, List, Optional, cast
 
@@ -32,6 +34,22 @@ from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccoun
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
+from .pricing_service import PricingService
+
+
+@dataclass
+class ChargeContext:
+    booking_id: str
+    applied_credit_cents: int
+    base_price_cents: int
+    student_fee_cents: int
+    instructor_commission_cents: int
+    target_instructor_payout_cents: int
+    student_pay_cents: int
+    application_fee_cents: int
+    top_up_transfer_cents: int
+    instructor_tier_pct: Decimal
+
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -90,6 +108,73 @@ class StripeService(BaseService):
             raise ServiceException(
                 "Stripe service not configured. Please check STRIPE_SECRET_KEY environment variable."
             )
+
+    @BaseService.measure_operation("stripe_build_charge_context")
+    def build_charge_context(
+        self, booking_id: str, requested_credit_cents: Optional[int] = None
+    ) -> ChargeContext:
+        """Return pricing and credit details for a booking without hitting Stripe."""
+
+        try:
+            with self.transaction():
+                booking = self.booking_repository.get_by_id(booking_id)
+                if not booking:
+                    raise ServiceException("Booking not found for charge context")
+
+                applied_credit_cents: int
+                if requested_credit_cents is not None and requested_credit_cents > 0:
+                    credit_result = self.payment_repository.apply_credits_for_booking(
+                        user_id=booking.student_id,
+                        booking_id=booking_id,
+                        amount_cents=int(requested_credit_cents),
+                    )
+                    applied_credit_cents = int(credit_result.get("applied_cents") or 0)
+                else:
+                    applied_credit_cents = (
+                        self.payment_repository.get_applied_credit_cents_for_booking(booking_id)
+                    )
+
+                pricing_service = PricingService(self.db)
+                pricing = pricing_service.compute_booking_pricing(
+                    booking_id=booking_id,
+                    applied_credit_cents=applied_credit_cents,
+                    persist=True,
+                )
+
+            tier_pct = Decimal(str(pricing.get("instructor_tier_pct", 0)))
+            context = ChargeContext(
+                booking_id=booking_id,
+                applied_credit_cents=applied_credit_cents,
+                base_price_cents=int(pricing.get("base_price_cents", 0)),
+                student_fee_cents=int(pricing.get("student_fee_cents", 0)),
+                instructor_commission_cents=int(pricing.get("instructor_commission_cents", 0)),
+                target_instructor_payout_cents=int(
+                    pricing.get("target_instructor_payout_cents", 0)
+                ),
+                student_pay_cents=int(pricing.get("student_pay_cents", 0)),
+                application_fee_cents=int(pricing.get("application_fee_cents", 0)),
+                top_up_transfer_cents=int(pricing.get("top_up_transfer_cents", 0)),
+                instructor_tier_pct=tier_pct,
+            )
+
+            if context.top_up_transfer_cents > 0:
+                self.logger.info(
+                    "Charge context requires top-up transfer",
+                    extra={
+                        "booking_id": booking_id,
+                        "top_up_transfer_cents": context.top_up_transfer_cents,
+                        "student_pay_cents": context.student_pay_cents,
+                    },
+                )
+
+            return context
+        except Exception as exc:
+            if isinstance(exc, ServiceException):
+                raise
+            self.logger.error(
+                "Failed to build charge context for booking %s: %s", booking_id, str(exc)
+            )
+            raise ServiceException("Failed to build charge context") from exc
 
     # ========== Identity Verification ==========
     @BaseService.measure_operation("stripe_create_identity_session")

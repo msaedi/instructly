@@ -7,6 +7,7 @@ and webhook handling.
 """
 
 from datetime import datetime, time
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -332,6 +333,97 @@ class TestStripeService:
         assert status["can_accept_payments"] is False
 
     # ========== Payment Processing Tests ==========
+
+    @patch("app.services.pricing_service.PricingService.compute_booking_pricing")
+    def test_build_charge_context_with_requested_credit(
+        self,
+        mock_pricing,
+        stripe_service: StripeService,
+        test_booking: Booking,
+    ) -> None:
+        """Requested credits should be locked and reflected in the charge context."""
+
+        mock_pricing.return_value = {
+            "base_price_cents": 10000,
+            "student_fee_cents": 1200,
+            "instructor_commission_cents": 1500,
+            "target_instructor_payout_cents": 8500,
+            "credit_applied_cents": 700,
+            "student_pay_cents": 8500,
+            "application_fee_cents": 2000,
+            "top_up_transfer_cents": 0,
+            "instructor_tier_pct": 0.12,
+        }
+
+        apply_mock = MagicMock(return_value={"applied_cents": 700})
+        stripe_service.payment_repository.apply_credits_for_booking = apply_mock
+        stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock()
+
+        context = stripe_service.build_charge_context(
+            booking_id=test_booking.id, requested_credit_cents=900
+        )
+
+        apply_mock.assert_called_once_with(
+            user_id=test_booking.student_id,
+            booking_id=test_booking.id,
+            amount_cents=900,
+        )
+        stripe_service.payment_repository.get_applied_credit_cents_for_booking.assert_not_called()
+        mock_pricing.assert_called_once_with(
+            booking_id=test_booking.id,
+            applied_credit_cents=700,
+            persist=True,
+        )
+
+        assert context.applied_credit_cents == 700
+        assert context.application_fee_cents == 2000
+        assert context.student_pay_cents == 8500
+        assert context.instructor_tier_pct == Decimal("0.12")
+
+    @patch("app.services.pricing_service.PricingService.compute_booking_pricing")
+    def test_build_charge_context_without_requested_credit(
+        self,
+        mock_pricing,
+        stripe_service: StripeService,
+        test_booking: Booking,
+    ) -> None:
+        """When credits were already locked, reuse the stored amount."""
+
+        mock_pricing.return_value = {
+            "base_price_cents": 9000,
+            "student_fee_cents": 1080,
+            "instructor_commission_cents": 1200,
+            "target_instructor_payout_cents": 7800,
+            "credit_applied_cents": 500,
+            "student_pay_cents": 9580,
+            "application_fee_cents": 1780,
+            "top_up_transfer_cents": 250,
+            "instructor_tier_pct": 0.1,
+        }
+
+        apply_mock = MagicMock()
+        stripe_service.payment_repository.apply_credits_for_booking = apply_mock
+        stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
+            return_value=500
+        )
+
+        context = stripe_service.build_charge_context(
+            booking_id=test_booking.id, requested_credit_cents=None
+        )
+
+        apply_mock.assert_not_called()
+        stripe_service.payment_repository.get_applied_credit_cents_for_booking.assert_called_once_with(
+            test_booking.id
+        )
+        mock_pricing.assert_called_once_with(
+            booking_id=test_booking.id,
+            applied_credit_cents=500,
+            persist=True,
+        )
+
+        assert context.applied_credit_cents == 500
+        assert context.top_up_transfer_cents == 250
+        assert context.instructor_tier_pct == Decimal("0.1")
 
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_success(self, mock_create, stripe_service: StripeService, test_booking: Booking):

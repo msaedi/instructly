@@ -865,6 +865,33 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
 
     # ========== Platform Credits (Phase 1.3) ==========
 
+    def get_applied_credit_cents_for_booking(self, booking_id: str) -> int:
+        """Return total cents of credits applied to the booking so far."""
+
+        try:
+            events = (
+                self.db.query(PaymentEvent)
+                .filter(
+                    PaymentEvent.booking_id == booking_id,
+                    PaymentEvent.event_type.in_(["credit_used", "credits_applied"]),
+                )
+                .all()
+            )
+
+            total = 0
+            for event in events:
+                data = event.event_data or {}
+                if event.event_type == "credit_used":
+                    total += int(data.get("used_cents") or 0)
+                elif event.event_type == "credits_applied":
+                    total += int(data.get("applied_cents") or 0)
+            return total
+        except Exception as exc:
+            self.logger.error(
+                "Failed to load applied credits for booking %s: %s", booking_id, str(exc)
+            )
+            raise RepositoryException("Failed to compute applied credits")
+
     def create_platform_credit(
         self,
         user_id: str,
