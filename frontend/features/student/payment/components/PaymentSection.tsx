@@ -20,6 +20,7 @@ import {
   type PricingPreviewResponse,
 } from '@/lib/api/pricing';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
+import { buildCreateBookingPayload } from '../utils/buildCreateBookingPayload';
 
 // Custom error for payment actions that require user interaction
 class PaymentActionError extends Error {
@@ -46,7 +47,9 @@ const normalizeCurrency = (value: unknown, fallback: number): number => {
   return Number(fallback.toFixed(2));
 };
 
-const mergeBookingIntoPayment = (booking: Booking, fallback: BookingPayment): BookingPayment => {
+type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
+
+const mergeBookingIntoPayment = (booking: Booking, fallback: BookingWithMetadata): BookingWithMetadata => {
   const durationMinutes = booking.duration_minutes ?? fallback.duration;
   const hourlyRate = normalizeCurrency(booking.hourly_rate, fallback.basePrice);
   const computedBase = durationMinutes
@@ -75,6 +78,10 @@ const mergeBookingIntoPayment = (booking: Booking, fallback: BookingPayment): Bo
     location: booking.meeting_location || fallback.location,
     basePrice: computedBase,
     totalAmount,
+    metadata: {
+      ...(fallback.metadata ?? {}),
+      ...(booking as unknown as { metadata?: Record<string, unknown> }).metadata,
+    },
   };
 };
 
@@ -97,7 +104,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   } = useCreateBooking();
 
   const [confirmationNumber, setConfirmationNumber] = useState<string>('');
-  const [updatedBookingData, setUpdatedBookingData] = useState<BookingPayment>(bookingData);
+  const [updatedBookingData, setUpdatedBookingData] = useState<BookingWithMetadata>(bookingData);
   const [localErrorMessage, setLocalErrorMessage] = useState<string>('');
   const [floorViolationMessage, setFloorViolationMessage] = useState<string | null>(null);
   const [referralAppliedCents, setReferralAppliedCents] = useState(0);
@@ -181,6 +188,16 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, creditDollars);
     }
   }, [creditsToUse, paymentMethod, selectPaymentMethod, selectedCardId, userCards]);
+
+  const handleBookingUpdate = useCallback(
+    (updater: (prev: BookingWithMetadata) => BookingWithMetadata) => {
+      setUpdatedBookingData((prev) => updater({
+        ...prev,
+        metadata: { ...(prev.metadata ?? {}) },
+      }));
+    },
+    []
+  );
 
   const subtotalCents = useMemo(() => Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100)), [updatedBookingData.totalAmount]);
   const effectiveOrderId = updatedBookingData.bookingId || bookingData.bookingId;
@@ -486,43 +503,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     goToStep(PaymentStep.PROCESSING);
 
     try {
-      // Helper: convert display times like "6:00am" or "12:30pm" to 24h "HH:MM"
-      const toHHMM = (display: string): string => {
-        const lower = String(display ?? '').trim().toLowerCase();
-        if (!lower) throw new Error('Invalid time format: empty');
-        // If already in HH:MM or HH:MM:SS (24h), normalize to HH:MM
-        const basicMatch = lower.match(/^\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*$/) as RegExpMatchArray | null;
-        const ampmMatch = lower.match(/^\s*(\d{1,2}):(\d{2})\s*(am|pm)\s*$/) as RegExpMatchArray | null;
-        if (ampmMatch) {
-          const [, hStr = '', mStr = '', ampm = ''] = ampmMatch as RegExpMatchArray;
-          let hour = parseInt(hStr, 10);
-          const minute = parseInt(mStr, 10);
-          if (ampm === 'pm' && hour !== 12) hour += 12;
-          if (ampm === 'am' && hour === 12) hour = 0;
-          return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-        }
-        if (basicMatch) {
-          const [, hStr = '', mStr = ''] = basicMatch as RegExpMatchArray;
-          const hour = parseInt(hStr, 10);
-          const minute = parseInt(mStr, 10);
-          return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-        }
-        // Fallback: attempt Date parse
-        const parsed = new Date(`1970-01-01T${display}`);
-        if (!Number.isNaN(parsed.getTime())) {
-          return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
-        }
-        throw new Error(`Invalid time format: ${display}`);
-      };
-
       // Get instructor ID and service ID from booking data (now strings/ULIDs)
       const instructorId = String(bookingData.instructorId || '');
       // Prefer explicit serviceId (ULID) from metadata; as a fallback, try bookingData.serviceId
       const serviceId = String((bookingData.metadata?.['serviceId'] || bookingData.serviceId) ?? '');
-
-      // Normalize times and date
-      const formattedStartTime = toHHMM(String(bookingData.startTime ?? ''));
-      const endTime = toHHMM(String(bookingData.endTime ?? ''));
 
       // If date is missing (null/undefined), try to recover from selectedSlot in sessionStorage
       let bookingDate: string;
@@ -554,8 +538,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         instructorId,
         serviceId,
         bookingDate,
-        startTime: formattedStartTime,
-        endTime,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime,
         duration: bookingData.duration,
         metadata: bookingData.metadata,
         lessonType: bookingData.lessonType,
@@ -566,30 +550,23 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       requireString(bookingDate, 'bookingDate');
       requireString(instructorId, 'instructorId');
       requireString(serviceId, 'serviceId');
-      // Build a payload compatible with CreateBookingRequest used by protectedApi
-      const selectedDuration = (() => {
-        try {
-          const startParts = formattedStartTime.split(':');
-          const endParts = endTime.split(':');
-          const sh = parseInt(startParts[0] ?? '0', 10);
-          const sm = parseInt(startParts[1] ?? '0', 10);
-          const eh = parseInt(endParts[0] ?? '0', 10);
-          const em = parseInt(endParts[1] ?? '0', 10);
-          const mins = (eh * 60 + em) - (sh * 60 + sm);
-          return Number.isFinite(mins) && mins > 0 ? mins : undefined;
-        } catch {
-          return undefined;
-        }
-      })();
+      const bookingPayload = buildCreateBookingPayload({
+        instructorId,
+        serviceId,
+        bookingDate,
+        booking: {
+          ...bookingData,
+          ...updatedBookingData,
+          metadata: {
+            ...(bookingData.metadata ?? {}),
+            ...(updatedBookingData.metadata ?? {}),
+          },
+        },
+      });
 
-      const booking = await createBooking({
-        instructor_id: instructorId,
-        instructor_service_id: serviceId,
-        booking_date: bookingDate,
-        start_time: formattedStartTime,
-        end_time: endTime,
-        selected_duration: selectedDuration,
-      } as unknown as import('@/features/shared/api/client').CreateBookingRequest);
+      logger.info('Submitting booking payload', bookingPayload);
+
+      const booking = await createBooking(bookingPayload);
 
       if (!booking) {
         const errorMsg = (bookingError as string) || 'Failed to create booking';
@@ -798,6 +775,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               isPricingPreviewLoading={isPricingPreviewLoading}
               onCreditToggle={handleCreditToggle}
               onCreditAmountChange={handleCreditAmountChange}
+              onBookingUpdate={handleBookingUpdate}
             />
           )}
         </div>
@@ -850,6 +828,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               isPricingPreviewLoading={isPricingPreviewLoading}
               onCreditToggle={handleCreditToggle}
               onCreditAmountChange={handleCreditAmountChange}
+              onBookingUpdate={handleBookingUpdate}
             />
           )}
         </>

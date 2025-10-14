@@ -1781,7 +1781,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
     place_id: '',
   });
   const [query, setQuery] = useState('');
-  type PlaceSuggestion = { place_id: string; description?: string; text?: string };
+  type PlaceSuggestion = { place_id: string; provider?: string; description?: string; text?: string };
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -1891,7 +1891,10 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
                     onClick={async () => {
                       try {
                         // Fetch normalized place details and auto-fill fields
-                        const res = await fetchWithAuth(`/api/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}`);
+                        const providerQuery = s.provider ? `&provider=${encodeURIComponent(s.provider)}` : '';
+                        const res = await fetchWithAuth(
+                          `/api/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}${providerQuery}`,
+                        );
                         if (res.ok) {
                           const d = (await res.json()) as Record<string, unknown>;
                           const street = [d['street_number'], d['street_name']].filter(Boolean).join(' ');

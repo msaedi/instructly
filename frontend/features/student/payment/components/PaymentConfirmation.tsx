@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown } from 'lucide-react';
 import { BookingPayment, PaymentMethod } from '../types';
 import { BookingType } from '@/features/shared/types/booking';
 import { format } from 'date-fns';
-import { protectedApi } from '@/features/shared/api/client';
+import { protectedApi, getPlaceDetails } from '@/features/shared/api/client';
 import { httpJson } from '@/features/shared/api/http';
 import { withApiBase } from '@/lib/apiBase';
 import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instructorProfile';
@@ -15,6 +15,12 @@ import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBook
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { logger } from '@/lib/logger';
 import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import { formatMeetingLocation, toStateCode } from '@/utils/address/format';
+import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
+import type { PlaceSuggestion } from '@/components/forms/PlacesAutocompleteInput';
+import { to24HourTime } from '@/lib/time';
+import { overlapsHHMM, minutesSinceHHMM } from '@/lib/time/overlap';
+import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import {
   computeBasePriceCents,
   computePriceFloorCents,
@@ -25,6 +31,48 @@ import {
   formatCentsToDisplay,
   type PricingPreviewResponse,
 } from '@/lib/api/pricing';
+
+type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
+
+type ConflictKey = {
+  studentId: string;
+  instructorId: string;
+  bookingDate: string;
+  startHHMM24: string;
+  durationMinutes: number;
+};
+
+type ConflictListItem = {
+  booking_date?: string;
+  start_time?: string;
+  end_time?: string | null;
+  duration_minutes?: number | null;
+  status?: string;
+};
+
+const CONFLICT_CACHE_TTL_MS = 60_000;
+const CONFLICT_RELEVANT_STATUSES = new Set(['pending', 'confirmed', 'completed']);
+
+type AddressFields = {
+  line1: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+};
+
+const EMPTY_ADDRESS: AddressFields = {
+  line1: '',
+  city: '',
+  state: '',
+  postalCode: '',
+  country: '',
+};
+
+const ADDRESS_PLACEHOLDER = 'Student provided address';
+
+const formatFullAddress = ({ line1, city, state, postalCode }: AddressFields): string =>
+  formatMeetingLocation(line1, city, state, postalCode);
 
 interface PaymentConfirmationProps {
   booking: BookingPayment;
@@ -48,6 +96,7 @@ interface PaymentConfirmationProps {
   onClearFloorViolation?: () => void;
   pricingPreview?: PricingPreviewResponse | null;
   isPricingPreviewLoading?: boolean;
+  onBookingUpdate?: (updater: (prev: BookingWithMetadata) => BookingWithMetadata) => void;
 }
 
 export default function PaymentConfirmation({
@@ -72,8 +121,10 @@ export default function PaymentConfirmation({
   onClearFloorViolation,
   pricingPreview = null,
   isPricingPreviewLoading = false,
+  onBookingUpdate,
 }: PaymentConfirmationProps) {
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
+  const [hasLocationInitialized, setHasLocationInitialized] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
   const [conflictMessage, setConflictMessage] = useState<string>('');
   const [isCheckingConflict, setIsCheckingConflict] = useState(true);
@@ -85,8 +136,291 @@ export default function PaymentConfirmation({
   const [promoError, setPromoError] = useState<string | null>(null);
   const { floors: pricingFloors } = usePricingFloors();
 
-  // Track if credits are enabled (slider is shown) separately from amount
-  const creditsEnabled = paymentMethod === PaymentMethod.MIXED || paymentMethod === PaymentMethod.CREDITS;
+  const hasSavedLocation = Boolean(
+    booking.location && booking.location !== '' && !/online|remote/i.test(String(booking.location))
+  );
+  const [isEditingLocation, setIsEditingLocation] = useState(() => !hasSavedLocation);
+  const [addressFields, setAddressFields] = useState<AddressFields>(EMPTY_ADDRESS);
+  const [addressDetailsError, setAddressDetailsError] = useState<string | null>(null);
+  const addressLine1Ref = useRef<HTMLInputElement>(null);
+  const conflictAbortRef = useRef<AbortController | null>(null);
+  const conflictCacheRef = useRef<Map<string, { fetchedAt: number; items: ConflictListItem[] }>>(new Map());
+  const addressDetailsAbortRef = useRef<AbortController | null>(null);
+  const addressDetailsCacheRef = useRef<Map<string, { fields: AddressFields; formatted?: string }>>(new Map());
+  const setAddressField = useCallback((updates: Partial<AddressFields>) => {
+    setAddressFields((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  useEffect(() => () => {
+    addressDetailsAbortRef.current?.abort();
+  }, []);
+
+  const parseAddressComponents = useCallback(
+    (details: unknown): { fields: Partial<AddressFields>; formatted?: string } => {
+      const root = (details as Record<string, unknown>) ?? {};
+      const result = (root['result'] as Record<string, unknown>) ?? root;
+      const address = (result['address'] as Record<string, unknown>) ?? result;
+      const sources = [address, result, root].filter(
+        (candidate): candidate is Record<string, unknown> => Boolean(candidate) && typeof candidate === 'object',
+      );
+
+      const getValue = (...keys: string[]) => {
+        for (const source of sources) {
+          for (const key of keys) {
+            const raw = source[key];
+            if (typeof raw === 'string' && raw.trim().length > 0) {
+              return raw.trim();
+            }
+          }
+        }
+        return '';
+      };
+
+      const streetNumber = getValue('line1', 'street_line1') ? '' : getValue('street_number', 'house_number');
+      const streetName = getValue('street_name', 'route', 'street');
+      const explicitLine1 = getValue(
+        'line1',
+        'line_1',
+        'street_line1',
+        'address_line1',
+        'address1',
+        'street_address',
+      );
+      const derivedLine1 = [streetNumber, streetName].filter((part) => part && part.length > 0).join(' ').trim();
+      const cityCandidate = getValue('city', 'locality', 'postal_town', 'town', 'administrative_area_level_2');
+      const stateCandidate = getValue(
+        'state',
+        'state_code',
+        'region',
+        'administrative_area',
+        'administrative_area_level_1',
+      );
+      const postalCandidate = getValue('postal', 'postal_code', 'postalCode', 'zip', 'zip_code');
+      const countryCandidate = getValue('country', 'country_code', 'countryCode');
+      const formatted = getValue('formatted_address', 'formattedAddress');
+
+      const fields: Partial<AddressFields> = {};
+      const resolvedLine1 = (explicitLine1 || derivedLine1).trim();
+      if (resolvedLine1) fields.line1 = resolvedLine1;
+      if (cityCandidate) fields.city = cityCandidate;
+      if (stateCandidate) fields.state = toStateCode(stateCandidate);
+      if (postalCandidate) fields.postalCode = postalCandidate;
+      if (countryCandidate) fields.country = countryCandidate;
+
+      const response: { fields: Partial<AddressFields>; formatted?: string } = { fields };
+      if (formatted) {
+        response.formatted = formatted;
+      }
+
+      return response;
+    },
+    [],
+  );
+
+  const parseDescriptionFallback = useCallback((description: string): Partial<AddressFields> => {
+    const segments = description
+      .split(',')
+      .map((segment) => segment.trim())
+      .filter((segment) => segment.length > 0);
+
+    const [line1Candidate, cityCandidate, statePostalCandidate, countryCandidate] = segments;
+    const fallback: Partial<AddressFields> = {};
+
+    if (line1Candidate) fallback.line1 = line1Candidate;
+    if (cityCandidate) fallback.city = cityCandidate;
+    if (statePostalCandidate) {
+      const parts = statePostalCandidate.split(/\s+/).filter((part) => part.length > 0);
+      const postal = parts.pop();
+      if (postal) {
+        fallback.postalCode = postal;
+      }
+      if (parts.length > 0) {
+        fallback.state = toStateCode(parts.join(' '));
+      }
+    }
+    if (countryCandidate) fallback.country = countryCandidate;
+
+    return fallback;
+  }, []);
+
+  const fetchPlaceDetails = useCallback(async (
+    placeId: string,
+    signal: AbortSignal,
+    provider?: string,
+  ) => {
+    try {
+      const response = await getPlaceDetails({
+        place_id: placeId,
+        ...(provider ? { provider } : {}),
+        signal,
+      });
+
+      if (signal.aborted) {
+        return null;
+      }
+
+      if (response.error || !response.data) {
+        logger.warn('Place details request failed', {
+          placeId,
+          status: response.status,
+          error: response.error,
+        });
+        return null;
+      }
+
+      return response.data;
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        return null;
+      }
+      logger.warn('Failed to fetch place details', { placeId, error });
+      return null;
+    }
+  }, []);
+
+  const handleAddressSuggestionSelect = useCallback(async (suggestion: PlaceSuggestion) => {
+    if (!suggestion || isOnlineLesson) {
+      return;
+    }
+
+    setIsEditingLocation(true);
+    setAddressDetailsError(null);
+
+    const description = (suggestion.description ?? suggestion.text ?? '').trim();
+    const fallbackFromDescription = parseDescriptionFallback(description);
+
+    const normalizedPlaceIdRaw =
+      typeof suggestion.place_id === 'string' && suggestion.place_id.trim().length > 0
+        ? suggestion.place_id.trim()
+        : (suggestion as { id?: string }).id && typeof (suggestion as { id?: string }).id === 'string'
+          ? ((suggestion as { id?: string }).id as string).trim()
+          : '';
+    const normalizedPlaceId = normalizedPlaceIdRaw || null;
+    const suggestionProvider =
+      typeof suggestion.provider === 'string' && suggestion.provider.trim().length > 0
+        ? suggestion.provider.trim().toLowerCase()
+        : undefined;
+
+    addressDetailsAbortRef.current?.abort();
+
+    if (!normalizedPlaceId) {
+      const fallbackFields: AddressFields = {
+        line1: fallbackFromDescription.line1 ?? '',
+        city: fallbackFromDescription.city ?? '',
+        state: toStateCode(fallbackFromDescription.state),
+        postalCode: fallbackFromDescription.postalCode ?? '',
+        country: fallbackFromDescription.country ?? '',
+      };
+
+      setAddressFields(fallbackFields);
+      setIsEditingLocation(false);
+      lastLocationRef.current = '';
+      addressDetailsAbortRef.current = null;
+      return;
+    }
+
+    const cacheKey = `${suggestionProvider ?? 'default'}:${normalizedPlaceId}`;
+    const cached = addressDetailsCacheRef.current.get(cacheKey);
+    if (cached) {
+      setAddressFields(cached.fields);
+      setIsEditingLocation(false);
+      lastLocationRef.current = '';
+      addressDetailsAbortRef.current = null;
+      return;
+    }
+
+    const controller = new AbortController();
+    addressDetailsAbortRef.current = controller;
+
+    const details = await fetchPlaceDetails(normalizedPlaceId, controller.signal, suggestionProvider);
+    if (controller.signal.aborted) {
+      return;
+    }
+
+    let parsedDetails = details ? parseAddressComponents(details) : null;
+
+    if (!parsedDetails && suggestionProvider) {
+      // Provider rejected; attempt a one-time retry using provider inferred from id prefix.
+      const prefixMatch = normalizedPlaceIdRaw.match(/^(google|mapbox|mock):(.+)$/i);
+      if (prefixMatch) {
+        const [, providerFragment, idFragment] = prefixMatch;
+        if (providerFragment && idFragment) {
+          const inferredProvider = providerFragment.toLowerCase();
+          const inferredId = idFragment;
+          const retryKey = `${inferredProvider}:${inferredId}`;
+          const retryCacheHit = addressDetailsCacheRef.current.get(retryKey);
+          if (retryCacheHit) {
+            parsedDetails = {
+              fields: retryCacheHit.fields,
+              ...(retryCacheHit.formatted ? { formatted: retryCacheHit.formatted } : {}),
+            };
+          } else {
+            const retryController = new AbortController();
+            addressDetailsAbortRef.current = retryController;
+            const retryDetails = await fetchPlaceDetails(
+              inferredId,
+              retryController.signal,
+              inferredProvider,
+            );
+            if (!retryController.signal.aborted && retryDetails) {
+              const parsedRetry = parseAddressComponents(retryDetails);
+              parsedDetails = parsedRetry;
+              const normalizedRetryFields: AddressFields = {
+                line1: parsedRetry.fields.line1 ?? '',
+                city: parsedRetry.fields.city ?? '',
+                state: toStateCode(parsedRetry.fields.state),
+                postalCode: parsedRetry.fields.postalCode ?? '',
+                country: parsedRetry.fields.country ?? '',
+              };
+              addressDetailsCacheRef.current.set(retryKey, {
+                fields: normalizedRetryFields,
+                ...(parsedRetry.formatted
+                  ? { formatted: parsedRetry.formatted }
+                  : { formatted: formatFullAddress(normalizedRetryFields) }),
+              });
+            }
+          }
+        }
+      }
+    }
+
+    const fields = parsedDetails?.fields ?? {};
+    const formatted = parsedDetails?.formatted;
+
+    const appliedFields: AddressFields = {
+      line1: fields.line1 ?? fallbackFromDescription.line1 ?? description,
+      city: fields.city ?? fallbackFromDescription.city ?? '',
+      state: toStateCode(fields.state ?? fallbackFromDescription.state),
+      postalCode: fields.postalCode ?? fallbackFromDescription.postalCode ?? '',
+      country: fields.country ?? fallbackFromDescription.country ?? '',
+    };
+
+    const mergedFields: AddressFields = appliedFields;
+    const normalizedMergedFields: AddressFields = {
+      ...mergedFields,
+      state: toStateCode(mergedFields.state),
+    };
+
+    addressDetailsCacheRef.current.set(cacheKey, {
+      fields: normalizedMergedFields,
+      formatted: formatted ?? formatFullAddress(normalizedMergedFields),
+    });
+
+    setAddressFields(normalizedMergedFields);
+    const hasStructuredAddress =
+      normalizedMergedFields.city &&
+      normalizedMergedFields.state &&
+      normalizedMergedFields.postalCode;
+
+    if (hasStructuredAddress) {
+      setAddressDetailsError(null);
+    } else {
+      setAddressDetailsError("Couldn't fetch address details");
+    }
+    setIsEditingLocation(false);
+    lastLocationRef.current = '';
+    addressDetailsAbortRef.current = null;
+  }, [fetchPlaceDetails, isOnlineLesson, parseAddressComponents, parseDescriptionFallback]);
 
   logger.info('PaymentConfirmation component rendered', {
     booking,
@@ -97,14 +431,17 @@ export default function PaymentConfirmation({
   const hasSavedCard = !!cardLast4;
   const [isPaymentExpanded, setIsPaymentExpanded] = useState(!hasSavedCard);
   // Auto-collapse location if they have a saved address or it's online
-  const hasSavedLocation = booking.location && booking.location !== '';
   const [isLocationExpanded, setIsLocationExpanded] = useState(!hasSavedLocation && !isOnlineLesson);
   const isLastMinute = booking.bookingType === BookingType.LAST_MINUTE;
   const creditsUsedCents = Math.max(0, Math.round(creditsUsed * 100));
-  const appliedCreditCents = pricingPreview
+  const derivedAppliedCreditCents = pricingPreview
     ? Math.max(0, pricingPreview.credit_applied_cents)
     : creditsUsedCents;
-  const appliedCreditDollars = appliedCreditCents / 100;
+  const [displayAppliedCreditCents, setDisplayAppliedCreditCents] = useState(derivedAppliedCreditCents);
+  useEffect(() => {
+    setDisplayAppliedCreditCents(derivedAppliedCreditCents);
+  }, [derivedAppliedCreditCents]);
+  const appliedCreditDollars = displayAppliedCreditCents / 100;
 
   const totalBeforeCreditsCents = pricingPreview
     ? pricingPreview.student_pay_cents + Math.max(0, pricingPreview.credit_applied_cents)
@@ -113,7 +450,7 @@ export default function PaymentConfirmation({
 
   const studentPayCents = pricingPreview
     ? pricingPreview.student_pay_cents
-    : Math.max(0, totalBeforeCreditsCents - appliedCreditCents);
+    : Math.max(0, totalBeforeCreditsCents - derivedAppliedCreditCents);
 
   const referralCreditCents = Math.max(0, referralAppliedCents);
   const referralCreditAmount = referralCreditCents / 100;
@@ -125,11 +462,246 @@ export default function PaymentConfirmation({
   const cardChargeCents = totalAfterCreditsCents;
   const cardCharge = cardChargeCents / 100;
 
-  const remainingBalanceCents = Math.max(0, totalBeforeCreditsCents - appliedCreditCents);
+  const remainingBalanceCents = Math.max(0, totalBeforeCreditsCents - displayAppliedCreditCents);
   const remainingBalanceDollars = remainingBalanceCents / 100;
   const promoApplyDisabled = referralActive || (!promoActive && promoCode.trim().length === 0);
 
+  const studentId = useMemo(() => {
+    const fromBooking = (booking as unknown as { studentId?: string | null }).studentId;
+    if (typeof fromBooking === 'string' && fromBooking.trim().length > 0) {
+      return fromBooking;
+    }
+    return 'current_student';
+  }, [booking]);
+
+  const bookingDateLocal = useMemo(() => {
+    if (!booking.date) {
+      return null;
+    }
+    try {
+      if (booking.date instanceof Date) {
+        return toDateOnlyString(booking.date, 'booking.date');
+      }
+      return toDateOnlyString(String(booking.date), 'booking.date');
+    } catch (error) {
+      logger.warn('Unable to normalize booking date for conflict key', {
+        bookingDate: booking.date,
+        error,
+      });
+      return null;
+    }
+  }, [booking.date]);
+
+  const startHHMM24 = useMemo(() => {
+    if (!booking.startTime) {
+      return null;
+    }
+    try {
+      return to24HourTime(String(booking.startTime));
+    } catch (error) {
+      logger.warn('Unable to normalize start time for conflict key', {
+        startTime: booking.startTime,
+        error,
+      });
+      return null;
+    }
+  }, [booking.startTime]);
+
+  const durationMinutes = useMemo(() => {
+    if (Number.isFinite(booking.duration) && booking.duration > 0) {
+      return Math.round(booking.duration);
+    }
+    if (booking.startTime && booking.endTime) {
+      try {
+        const start = minutesSinceHHMM(to24HourTime(String(booking.startTime)));
+        const end = minutesSinceHHMM(to24HourTime(String(booking.endTime)));
+        const diff = end - start;
+        return diff > 0 ? diff : null;
+      } catch (error) {
+        logger.warn('Unable to derive duration for conflict key', {
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          error,
+        });
+      }
+    }
+    return null;
+  }, [booking.duration, booking.startTime, booking.endTime]);
+
+  const conflictKey = useMemo<ConflictKey | null>(() => {
+    if (
+      !booking.instructorId ||
+      !bookingDateLocal ||
+      !startHHMM24 ||
+      !durationMinutes ||
+      durationMinutes <= 0
+    ) {
+      return null;
+    }
+
+    return {
+      studentId,
+      instructorId: String(booking.instructorId),
+      bookingDate: bookingDateLocal,
+      startHHMM24,
+      durationMinutes,
+    };
+  }, [booking.instructorId, bookingDateLocal, startHHMM24, durationMinutes, studentId]);
+
+  const computeHasConflict = useCallback((key: ConflictKey, items: ConflictListItem[]): boolean => {
+    return items.some((existing) => {
+      if (!existing) return false;
+      if (existing.booking_date && existing.booking_date !== key.bookingDate) {
+        return false;
+      }
+      if (existing.status && !CONFLICT_RELEVANT_STATUSES.has(existing.status.toLowerCase())) {
+        return false;
+      }
+      if (!existing.start_time) {
+        return false;
+      }
+
+      let existingStart: string;
+      try {
+        existingStart = to24HourTime(String(existing.start_time));
+      } catch {
+        return false;
+      }
+
+      let existingDuration = Number.isFinite(existing.duration_minutes)
+        ? Math.round(Number(existing.duration_minutes))
+        : null;
+
+      if (!existingDuration || existingDuration <= 0) {
+        if (existing.end_time) {
+          try {
+            const startMinutes = minutesSinceHHMM(existingStart);
+            const endMinutes = minutesSinceHHMM(to24HourTime(String(existing.end_time)));
+            const diff = endMinutes - startMinutes;
+            existingDuration = diff > 0 ? diff : null;
+          } catch {
+            existingDuration = null;
+          }
+        }
+      }
+
+      if (!existingDuration || existingDuration <= 0) {
+        return false;
+      }
+
+      return overlapsHHMM(key.startHHMM24, key.durationMinutes, existingStart, existingDuration);
+    });
+  }, []);
+
   const selectedModality = useMemo<NormalizedModality>(() => (isOnlineLesson ? 'remote' : 'in_person'), [isOnlineLesson]);
+  const inputsDisabled = isOnlineLesson || (hasSavedLocation && !isEditingLocation);
+
+  const formattedAddress = useMemo(() => formatFullAddress(addressFields), [addressFields]);
+
+  const fallbackNonOnlineLocation = useMemo(() => {
+    if (typeof booking.location === 'string' && booking.location && !/online|remote/i.test(booking.location)) {
+      return booking.location;
+    }
+    return '';
+  }, [booking.location]);
+
+  const resolvedMeetingLocation = useMemo(() => {
+    if (isOnlineLesson) {
+      return 'Online';
+    }
+    if (formattedAddress) {
+      return formattedAddress;
+    }
+    if (fallbackNonOnlineLocation) {
+      return fallbackNonOnlineLocation;
+    }
+    return ADDRESS_PLACEHOLDER;
+  }, [isOnlineLesson, formattedAddress, fallbackNonOnlineLocation]);
+  const lastLocationRef = useRef('');
+
+  const handleOnlineToggleChange = (checked: boolean) => {
+    addressDetailsAbortRef.current?.abort();
+    addressDetailsAbortRef.current = null;
+    setIsOnlineLesson(checked);
+    setIsLocationExpanded(true);
+    setAddressDetailsError(null);
+    if (checked) {
+      setIsEditingLocation(false);
+    } else if (!hasSavedLocation) {
+      setIsEditingLocation(true);
+    }
+    onClearFloorViolation?.();
+  };
+
+  const handleChangeLocationClick = () => {
+    setIsLocationExpanded(true);
+    setIsOnlineLesson(false);
+    setIsEditingLocation(true);
+    setAddressDetailsError(null);
+    onClearFloorViolation?.();
+    requestAnimationFrame(() => {
+      addressLine1Ref.current?.focus();
+    });
+  };
+
+  useEffect(() => {
+    if (!onBookingUpdate || !hasLocationInitialized) {
+      return;
+    }
+
+    const modalityValue = isOnlineLesson ? 'remote' : 'in_person';
+
+    if (!isOnlineLesson && isEditingLocation) {
+      const cacheKey = `${modalityValue}|editing`;
+      if (lastLocationRef.current === cacheKey) {
+        return;
+      }
+      lastLocationRef.current = cacheKey;
+      onBookingUpdate((prev) => ({
+        ...prev,
+        metadata: {
+          ...(prev.metadata ?? {}),
+          modality: modalityValue,
+        },
+      }));
+      return;
+    }
+
+    const candidateLocation = modalityValue === 'remote'
+      ? 'Online'
+      : formattedAddress || fallbackNonOnlineLocation || '';
+    const cacheKey = `${modalityValue}|${candidateLocation || 'unset'}`;
+
+    if (lastLocationRef.current === cacheKey) {
+      return;
+    }
+    lastLocationRef.current = cacheKey;
+
+    onBookingUpdate((prev) => {
+      const prevFallback = typeof prev.location === 'string' && prev.location && !/online|remote/i.test(prev.location)
+        ? prev.location
+        : '';
+      const nextLocation = modalityValue === 'remote'
+        ? 'Online'
+        : formattedAddress || prevFallback;
+
+      return {
+        ...prev,
+        location: nextLocation,
+        metadata: {
+          ...(prev.metadata ?? {}),
+          modality: modalityValue,
+        },
+      };
+    });
+  }, [
+    isOnlineLesson,
+    formattedAddress,
+    fallbackNonOnlineLocation,
+    onBookingUpdate,
+    hasLocationInitialized,
+    isEditingLocation,
+  ]);
   const hourlyRate = useMemo(() => {
     if (!Number.isFinite(booking.duration) || booking.duration <= 0) return 0;
     return Number(((booking.basePrice || 0) * 60) / booking.duration);
@@ -155,6 +727,17 @@ export default function PaymentConfirmation({
 
   const activeFloorMessage = clientFloorWarning ?? floorViolationMessage ?? null;
   const isFloorBlocking = Boolean(activeFloorMessage);
+  const ctaDisabled = isCheckingConflict || hasConflict || isFloorBlocking || isPricingPreviewLoading;
+  const ctaLabel = useMemo(() => {
+    if (isCheckingConflict) return 'Checking availability...';
+    if (hasConflict) return 'You have a conflict at this time';
+    if (isFloorBlocking) return 'Price must meet minimum';
+    if (isPricingPreviewLoading) return 'Updating total...';
+    return 'Book now!';
+  }, [isCheckingConflict, hasConflict, isFloorBlocking, isPricingPreviewLoading]);
+
+  const [isCreditsExpanded, setIsCreditsExpanded] = useState(() => derivedAppliedCreditCents > 0);
+  const creditsAppliedLabel = useMemo(() => `Using $${appliedCreditDollars.toFixed(2)}`, [appliedCreditDollars]);
 
   useEffect(() => {
     setPromoActive(promoApplied);
@@ -165,18 +748,45 @@ export default function PaymentConfirmation({
 
   useEffect(() => {
     const modalityFromMetadata = (booking as unknown as { metadata?: Record<string, unknown> }).metadata?.['modality'];
+
     if (modalityFromMetadata === 'remote') {
       setIsOnlineLesson(true);
-      return;
-    }
-    if (modalityFromMetadata === 'in_person') {
+    } else if (modalityFromMetadata === 'in_person') {
       setIsOnlineLesson(false);
-      return;
-    }
-    if (typeof booking.location === 'string' && booking.location) {
+    } else if (typeof booking.location === 'string' && booking.location) {
       setIsOnlineLesson(/online|remote/i.test(booking.location));
     }
-  }, [booking]);
+
+    if (typeof booking.location === 'string' && booking.location && !/online|remote/i.test(booking.location)) {
+      setAddressFields((prev) => {
+        if (prev.line1 || prev.city || prev.state || prev.postalCode) {
+          return prev;
+        }
+        return {
+          ...prev,
+          line1: booking.location,
+        };
+      });
+    }
+
+    setHasLocationInitialized(true);
+  }, [booking, setAddressFields]);
+
+  useEffect(() => {
+    if (isEditingLocation && !isOnlineLesson) {
+      const raf = requestAnimationFrame(() => {
+        addressLine1Ref.current?.focus();
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+    return undefined;
+  }, [isEditingLocation, isOnlineLesson]);
+
+  useEffect(() => {
+    if (isOnlineLesson) {
+      setIsEditingLocation(false);
+    }
+  }, [isOnlineLesson]);
 
   useEffect(() => {
     if (!referralActive) {
@@ -196,61 +806,76 @@ export default function PaymentConfirmation({
 
   // Check for booking conflicts when component mounts
   useEffect(() => {
-    const checkForConflicts = async () => {
-      try {
-        setIsCheckingConflict(true);
-        logger.info('Checking for booking conflicts...', {
-          bookingDate: booking.date,
-          bookingTime: `${booking.startTime}-${booking.endTime}`
-        });
-
-        // Get the student's existing bookings
-        const response = await protectedApi.getBookings({ upcoming: true });
-        logger.info('Fetched existing bookings', { response });
-        if (response.data) {
-          // Backend returns PaginatedResponse with items array
-          const existingBookings = response.data.items || [];
-
-          // Check if any existing booking conflicts with the new one
-          const conflict = existingBookings.find((existing: { booking_date: string; start_time: string; end_time: string; status: string }) => {
-            // Same date
-            const bookingDateStr = typeof booking.date === 'string' ? booking.date : format(booking.date, 'yyyy-MM-dd');
-            if (existing.booking_date !== bookingDateStr) return false;
-
-            // Check time overlap
-            const existingStart = existing.start_time;
-            const existingEnd = existing.end_time;
-            const newStart = booking.startTime;
-            const newEnd = booking.endTime;
-
-            // Check for overlap
-            return (newStart < existingEnd && newEnd > existingStart);
-          });
-
-          if (conflict) {
-            setHasConflict(true);
-            setConflictMessage('You already have a booking scheduled at this time.');
-            logger.warn('Booking conflict detected', {
-              existingBooking: conflict,
-              newBooking: booking
-            });
-          } else {
-            logger.info('No booking conflicts found', {
-              existingBookings: existingBookings.length,
-              newBookingTime: `${booking.date} ${booking.startTime}-${booking.endTime}`
-            });
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to check for booking conflicts', error as Error);
-        // Don't block booking if we can't check conflicts
-      } finally {
-        setIsCheckingConflict(false);
+    if (!conflictKey) {
+      if (conflictAbortRef.current) {
+        conflictAbortRef.current.abort();
+        conflictAbortRef.current = null;
       }
-    };
+      setHasConflict(false);
+      setConflictMessage('');
+      setIsCheckingConflict(false);
+      return;
+    }
 
-    void checkForConflicts();
-  }, [booking]); // Re-run when booking changes
+    if (conflictAbortRef.current) {
+      conflictAbortRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    conflictAbortRef.current = controller;
+    setIsCheckingConflict(true);
+
+    logger.info('Checking for booking conflicts...', conflictKey);
+
+    const timeoutId = window.setTimeout(async () => {
+      const cacheKey = `${conflictKey.studentId}|${conflictKey.bookingDate}`;
+      const cached = conflictCacheRef.current.get(cacheKey);
+      let items: ConflictListItem[] | undefined;
+
+      if (cached && Date.now() - cached.fetchedAt < CONFLICT_CACHE_TTL_MS) {
+        items = cached.items;
+      } else {
+        try {
+          const response = await protectedApi.getBookings({ upcoming: true, signal: controller.signal });
+          if (response.error) {
+            const errMessage =
+              typeof response.error === 'string'
+                ? response.error
+                : (response.error as { message?: string })?.message ?? 'Failed to load bookings';
+            throw new Error(errMessage);
+          }
+          items = (response.data?.items as ConflictListItem[]) ?? [];
+          conflictCacheRef.current.set(cacheKey, {
+            fetchedAt: Date.now(),
+            items,
+          });
+        } catch (error) {
+          if ((error as Error).name === 'AbortError') {
+            return;
+          }
+          logger.error('Failed to check for booking conflicts', error as Error);
+          setHasConflict(false);
+          setConflictMessage('');
+          setIsCheckingConflict(false);
+          return;
+        }
+      }
+
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      const has = computeHasConflict(conflictKey, items ?? []);
+      setHasConflict(has);
+      setConflictMessage(has ? 'You already have a booking scheduled at this time.' : '');
+      setIsCheckingConflict(false);
+    }, 250);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [conflictKey, computeHasConflict]);
 
   const handlePromoAction = () => {
     if (referralActive) {
@@ -607,24 +1232,25 @@ export default function PaymentConfirmation({
           <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
             <div
               className="flex items-center justify-between cursor-pointer"
-              onClick={() => onCreditToggle?.()}
+              onClick={() => setIsCreditsExpanded((prev) => !prev)}
             >
               <div className="flex-1">
                 <h4 className="font-bold text-xl">Available Credits</h4>
                 <p className="text-sm text-gray-600">
                   Balance: ${availableCredits.toFixed(2)}
                 </p>
+                <p className="text-xs text-gray-500 mt-1">{creditsAppliedLabel}</p>
               </div>
               <ChevronDown
                 className={`h-5 w-5 text-gray-500 transition-transform ${
-                  creditsEnabled ? 'rotate-180' : ''
+                  isCreditsExpanded ? 'rotate-180' : ''
                 }`}
               />
             </div>
 
-            {creditsEnabled && (
-              <div className="mt-3 p-3 bg-white rounded-lg">
-                <div className="flex items-center justify-between text-sm mb-2">
+            {isCreditsExpanded && (
+              <div className="mt-3 p-3 bg-white rounded-lg space-y-3">
+                <div className="flex items-center justify-between text-sm">
                   <span>Credits to apply:</span>
                   <span className="font-medium">${appliedCreditDollars.toFixed(2)}</span>
                 </div>
@@ -636,15 +1262,29 @@ export default function PaymentConfirmation({
                   value={appliedCreditDollars}
                   onChange={(e) => {
                     const newValue = Number(e.target.value);
+                    if (Number.isFinite(newValue)) {
+                      setDisplayAppliedCreditCents(Math.max(0, Math.round(newValue * 100)));
+                    }
                     onCreditAmountChange?.(newValue);
                   }}
                   className="w-full accent-purple-700"
                 />
-                <p className="text-xs text-gray-500 mt-2">
-                  {appliedCreditCents >= totalBeforeCreditsCents
-                    ? 'Entire lesson covered by credits!'
-                    : `Remaining balance: $${remainingBalanceDollars.toFixed(2)}`}
-                </p>
+                <div className="flex items-start justify-between text-xs text-gray-500">
+                  <span>
+                    {displayAppliedCreditCents >= totalBeforeCreditsCents
+                      ? 'Entire lesson covered by credits!'
+                      : `Remaining balance: $${remainingBalanceDollars.toFixed(2)}`}
+                  </span>
+                  {onCreditToggle && (
+                    <button
+                      type="button"
+                      onClick={onCreditToggle}
+                      className="text-[#7E22CE] font-medium"
+                    >
+                      {displayAppliedCreditCents > 0 ? 'Remove credits' : 'Apply full balance'}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -665,9 +1305,7 @@ export default function PaymentConfirmation({
             <div className="flex items-center gap-3 flex-1">
               <h4 className="font-bold text-xl">Lesson Location</h4>
               {!isLocationExpanded && (
-                <span className="text-sm text-gray-600">
-                  {isOnlineLesson ? 'Online' : hasSavedLocation ? booking.location : ''}
-                </span>
+                <span className="text-sm text-gray-600">{resolvedMeetingLocation}</span>
               )}
             </div>
             <ChevronDown
@@ -677,84 +1315,124 @@ export default function PaymentConfirmation({
             />
           </div>
 
-          {/* Online Checkbox */}
           {isLocationExpanded && (
-          <div className="mt-3">
-          {hasSavedLocation && !isOnlineLesson ? (
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-medium">{booking.location}</span>
-                  <p className="text-xs text-gray-500 mt-1">Saved address</p>
+            <div className="mt-3 space-y-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="online-lesson"
+                  checked={isOnlineLesson}
+                  onChange={(e) => handleOnlineToggleChange(e.target.checked)}
+                  className="w-4 h-4 text-[#7E22CE] border-gray-300 rounded focus:ring-[#7E22CE]"
+                />
+                <label htmlFor="online-lesson" className="ml-2 text-sm font-medium text-gray-700">
+                  Online
+                </label>
+              </div>
+
+              {hasSavedLocation && !isOnlineLesson && !isEditingLocation && (
+                <div className="bg-white p-3 rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm font-medium">{resolvedMeetingLocation}</span>
+                      <p className="text-xs text-gray-500 mt-1">Saved address</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-sm text-[#7E22CE] hover:text-[#7E22CE]"
+                      onClick={handleChangeLocationClick}
+                    >
+                      Change
+                    </button>
+                  </div>
                 </div>
-                <button className="text-sm text-[#7E22CE] hover:text-[#7E22CE]">Change</button>
+              )}
+
+              <div className={`space-y-3 ${inputsDisabled ? 'opacity-50' : ''}`}>
+                <PlacesAutocompleteInput
+                  ref={addressLine1Ref}
+                  value={addressFields.line1}
+                  onValueChange={(next) => {
+                    setAddressField({ line1: next });
+                    setIsEditingLocation(true);
+                    setAddressDetailsError(null);
+                  }}
+                  onSelectSuggestion={(suggestion: PlaceSuggestion) => {
+                    void handleAddressSuggestionSelect(suggestion);
+                  }}
+                  placeholder={ADDRESS_PLACEHOLDER}
+                  disabled={inputsDisabled}
+                  autoComplete="off"
+                  containerClassName="w-full"
+                  inputClassName={`rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder-gray-400 transition-colors ${
+                    inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                  }`}
+                  style={{ outline: 'none' }}
+                  inputProps={{ 'data-testid': 'addr-street', 'aria-label': 'Street address' }}
+                />
+                {addressDetailsError && (
+                  <p className="text-xs text-red-600" role="alert">
+                    {addressDetailsError}
+                  </p>
+                )}
+
+                <div className="grid grid-cols-6 gap-3">
+                  <input
+                    type="text"
+                    placeholder="City"
+                    aria-label="City"
+                    data-testid="addr-city"
+                    disabled={inputsDisabled}
+                    value={addressFields.city}
+                    onChange={(e) => {
+                      setAddressField({ city: e.target.value });
+                      setIsEditingLocation(true);
+                      setAddressDetailsError(null);
+                    }}
+                    className={`col-span-3 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                      inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                    }`}
+                    style={{ outline: 'none' }}
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="State"
+                    aria-label="State"
+                    data-testid="addr-state"
+                    disabled={inputsDisabled}
+                    value={addressFields.state}
+                    onChange={(e) => {
+                      setAddressField({ state: e.target.value });
+                      setIsEditingLocation(true);
+                      setAddressDetailsError(null);
+                    }}
+                    className={`col-span-1 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                      inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                    }`}
+                    style={{ outline: 'none' }}
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="ZIP Code"
+                    aria-label="ZIP code"
+                    data-testid="addr-zip"
+                    disabled={inputsDisabled}
+                    value={addressFields.postalCode}
+                    onChange={(e) => {
+                      setAddressField({ postalCode: e.target.value });
+                      setIsEditingLocation(true);
+                      setAddressDetailsError(null);
+                    }}
+                    className={`col-span-2 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                      inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                    }`}
+                    style={{ outline: 'none' }}
+                  />
+                </div>
               </div>
             </div>
-          ) : (
-            <>
-          <div className="flex items-center mb-4">
-            <input
-              type="checkbox"
-              id="online-lesson"
-              checked={isOnlineLesson}
-              onChange={(e) => {
-                setIsOnlineLesson(e.target.checked);
-                onClearFloorViolation?.();
-              }}
-              className="w-4 h-4 text-[#7E22CE] border-gray-300 rounded focus:ring-[#7E22CE]"
-            />
-            <label htmlFor="online-lesson" className="ml-2 text-sm font-medium text-gray-700">
-              Online
-            </label>
-          </div>
-
-          {/* Address Fields */}
-          <div className={`space-y-3 ${isOnlineLesson ? 'opacity-50' : ''}`}>
-            <input
-              type="text"
-              placeholder="Street Address"
-              disabled={isOnlineLesson}
-              className={`w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                isOnlineLesson ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-              }`}
-              style={{ outline: 'none' }}
-            />
-
-            <div className="grid grid-cols-6 gap-3">
-              <input
-                type="text"
-                placeholder="City"
-                disabled={isOnlineLesson}
-                className={`col-span-3 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                  isOnlineLesson ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                }`}
-                style={{ outline: 'none' }}
-              />
-
-              <input
-                type="text"
-                placeholder="State"
-                disabled={isOnlineLesson}
-                className={`col-span-1 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                  isOnlineLesson ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                }`}
-                style={{ outline: 'none' }}
-              />
-
-              <input
-                type="text"
-                placeholder="ZIP Code"
-                disabled={isOnlineLesson}
-                className={`col-span-2 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                  isOnlineLesson ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                }`}
-                style={{ outline: 'none' }}
-              />
-            </div>
-          </div>
-          </>
-          )}
-          </div>
           )}
         </div>
 
@@ -788,22 +1466,14 @@ export default function PaymentConfirmation({
         <div className="mt-6">
           <button
             onClick={onConfirm}
-            disabled={hasConflict || isCheckingConflict || isFloorBlocking || isPricingPreviewLoading}
+            disabled={ctaDisabled}
             className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
-              hasConflict || isCheckingConflict || isFloorBlocking || isPricingPreviewLoading
+              ctaDisabled
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]'
             }`}
           >
-            {isPricingPreviewLoading
-              ? 'Updating total...'
-              : isCheckingConflict
-              ? 'Checking availability...'
-              : hasConflict
-              ? 'You have a conflict at this time'
-              : isFloorBlocking
-              ? 'Price must meet minimum'
-              : 'Book now!'}
+            {ctaLabel}
           </button>
         </div>
 
@@ -914,7 +1584,7 @@ export default function PaymentConfirmation({
               {!pricingPreview && appliedCreditDollars > 0 && (
                 <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                   <span>Credits applied</span>
-                  <span>{formatCentsToDisplay(-appliedCreditCents)}</span>
+                  <span>{formatCentsToDisplay(-displayAppliedCreditCents)}</span>
                 </div>
               )}
               {referralCreditAmount > 0 && (
@@ -985,7 +1655,7 @@ export default function PaymentConfirmation({
           // Don't pre-select date/time when editing - let modal default to first available
           {...(sessionStorage.getItem('serviceId') && { serviceId: sessionStorage.getItem('serviceId')! })}
           bookingDraftId={booking.bookingId}
-          appliedCreditCents={appliedCreditCents}
+          appliedCreditCents={derivedAppliedCreditCents}
           onTimeSelected={(selection) => {
             // Update booking data with new selection
             const newBookingDate = new Date(selection.date + 'T' + selection.time);

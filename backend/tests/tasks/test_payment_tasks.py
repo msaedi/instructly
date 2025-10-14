@@ -632,7 +632,8 @@ class TestPaymentTasks:
         )
         db.add_all([category, catalog, instructor_service])
 
-        booking_datetime = datetime.now(timezone.utc) + timedelta(hours=20)
+        booking_datetime = datetime.now(timezone.utc) + timedelta(days=1)
+        booking_datetime = booking_datetime.replace(hour=15, minute=0, second=0, microsecond=0)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student.id,

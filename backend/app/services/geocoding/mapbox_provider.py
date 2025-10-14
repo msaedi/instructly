@@ -1,5 +1,6 @@
 """Mapbox geocoding provider."""
 
+import re
 from typing import Any, List, Optional
 from urllib.parse import quote
 
@@ -61,16 +62,16 @@ class MapboxProvider(GeocodingProvider):
             if resp.status_code != 200:
                 return []
             data = resp.json()
-            results: List[AutocompleteResult] = []
-            for f in data.get("features", []):
-                results.append(
-                    AutocompleteResult(
-                        text=f.get("text", ""),
-                        place_id=self._add_prefix(f.get("id", "")),
-                        description=f.get("place_name", ""),
-                        types=[t for t in (f.get("place_type") or [])],
-                    )
+        results: List[AutocompleteResult] = []
+        for f in data.get("features", []):
+            results.append(
+                AutocompleteResult(
+                    text=f.get("text", ""),
+                    place_id=(f.get("id", "") or ""),
+                    description=f.get("place_name", ""),
+                    types=[t for t in (f.get("place_type") or [])],
                 )
+            )
             return results
 
     async def get_place_details(self, place_id: str) -> Optional[GeocodedAddress]:
@@ -93,30 +94,101 @@ class MapboxProvider(GeocodingProvider):
     def _parse_feature(self, feature: dict[str, Any]) -> GeocodedAddress:
         center = feature.get("center") or [None, None]
         lng, lat = (center[0], center[1]) if len(center) >= 2 else (None, None)
-        context = {
-            (c.get("id", "").split(".")[0]): c.get("text") for c in feature.get("context", [])
-        }
-        # Some fields may be directly on the feature
-        city = context.get("place") or context.get("locality") or feature.get("place_name")
-        state = context.get("region")
-        postal = context.get("postcode")
-        country = context.get("country")
-        neighborhood = context.get("neighborhood")
-        # Normalize country to ISO alpha-2 if Mapbox returned full name
-        raw_country = country
-        if raw_country and len(raw_country) != 2:
+
+        raw_context = feature.get("context", []) or []
+        context_entries: list[dict[str, Any]] = [
+            entry for entry in raw_context if isinstance(entry, dict)
+        ]
+
+        def _find_context(pref: str) -> dict[str, Any] | None:
+            for entry in context_entries:
+                ctx_id = entry.get("id", "")
+                if isinstance(ctx_id, str) and ctx_id.startswith(pref):
+                    return entry
+            return None
+
+        def _context_text(pref: str) -> str | None:
+            entry = _find_context(pref)
+            value = entry.get("text") if entry else None
+            return value if isinstance(value, str) else None
+
+        def _context_code(pref: str) -> str | None:
+            entry = _find_context(pref)
+            value = entry.get("short_code") if entry else None
+            return value if isinstance(value, str) else None
+
+        properties = feature.get("properties") or {}
+
+        house_number = properties.get("address") or feature.get("address")
+        street_name = properties.get("street") or feature.get("text")
+
+        house_number = (
+            str(house_number).strip() if isinstance(house_number, (str, int, float)) else None
+        )
+        street_name = (
+            str(street_name).strip() if isinstance(street_name, (str, int, float)) else None
+        )
+        house_number = house_number or None
+        street_name = street_name or None
+
+        place_name = feature.get("place_name") or ""
+        leading_segment = place_name.split(",", 1)[0].strip()
+
+        if (not house_number or not isinstance(house_number, str)) and leading_segment:
+            house_number = properties.get("address") or feature.get("address")
+
+        if (not street_name or not isinstance(street_name, str)) and leading_segment:
+            # Attempt to split "320 East 46th Street" into number + street name
+            match = re.match(r"^(\d+[A-Za-z]?\b)\s+(.*)$", leading_segment)
+            if match:
+                number_candidate, street_candidate = match.groups()
+                if not house_number:
+                    house_number = number_candidate.strip()
+                if not street_name:
+                    street_name = street_candidate.strip()
+            elif not street_name:
+                street_name = leading_segment
+
+        city_candidate = _context_text("place.") or _context_text("locality.")
+        state_code = _context_code("region.") or _context_text("region.")
+        postal_code = _context_text("postcode.")
+        country_code = _context_code("country.") or _context_text("country.")
+        neighborhood = _context_text("neighborhood.")
+
+        city = city_candidate.strip() if city_candidate else (leading_segment or None)
+
+        state = state_code.strip() if state_code else None
+        if state:
+            if "-" in state:
+                state = state.split("-")[-1]
+            state = state.upper()
+
+        postal = postal_code.strip() if postal_code else None
+
+        country = country_code.strip() if country_code else None
+        if country:
+            if "-" in country:
+                country = country.split("-")[-1]
+            country = country.upper()
+        # Normalize common country names when code missing
+        if country and len(country) != 2:
             country = (
                 "US"
-                if raw_country.lower() in {"united states", "united states of america", "usa"}
-                else raw_country[:2].upper()
+                if country.lower() in {"united states", "united states of america", "usa"}
+                else country[:2].upper()
             )
-        provider_id = self._add_prefix(feature.get("id", ""))
+
+        provider_id = self._format_provider_id(feature.get("id", ""))
+
+        latitude = float(lat) if isinstance(lat, (int, float)) else 0.0
+        longitude = float(lng) if isinstance(lng, (int, float)) else 0.0
+
         return GeocodedAddress(
-            latitude=lat,
-            longitude=lng,
-            formatted_address=feature.get("place_name", ""),
-            street_number=feature.get("address"),
-            street_name=feature.get("text"),
+            latitude=latitude,
+            longitude=longitude,
+            formatted_address=place_name,
+            street_number=house_number,
+            street_name=street_name,
             city=city,
             state=state,
             postal_code=postal,
@@ -128,7 +200,7 @@ class MapboxProvider(GeocodingProvider):
         )
 
     @staticmethod
-    def _add_prefix(place_id: str) -> str:
+    def _format_provider_id(place_id: str) -> str:
         if not place_id:
             return ""
         return place_id if place_id.startswith("mapbox:") else f"mapbox:{place_id}"

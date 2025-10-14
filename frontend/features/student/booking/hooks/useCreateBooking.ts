@@ -39,15 +39,18 @@ export function useCreateBooking(): UseCreateBookingReturn {
     });
 
     try {
-      const payload = {
+      type LocationType = Exclude<CreateBookingRequest['location_type'], undefined>;
+      const locationType: LocationType = (data.location_type ?? 'neutral') as LocationType;
+
+      const payload: CreateBookingRequest = {
         ...data,
         instructor_service_id:
-          (data as unknown as { instructor_service_id?: string }).instructor_service_id ||
-          (data as unknown as { service_id?: string }).service_id,
+          (data as { instructor_service_id?: string }).instructor_service_id ||
+          (data as { service_id?: string }).service_id ||
+          data.instructor_service_id,
         selected_duration:
-          (data as unknown as { selected_duration?: number }).selected_duration ||
+          data.selected_duration ??
           (() => {
-            // If not provided, infer from start/end when possible
             try {
               const [shStr, smStr] = String(data.start_time).split(':');
               const [ehStr, emStr] = String(data.end_time).split(':');
@@ -56,12 +59,17 @@ export function useCreateBooking(): UseCreateBookingReturn {
               const eh = parseInt(ehStr ?? '0', 10);
               const em = parseInt(emStr ?? '0', 10);
               const mins = eh * 60 + em - (sh * 60 + sm);
-              return Number.isFinite(mins) && mins > 0 ? mins : undefined;
+              return Number.isFinite(mins) && mins > 0 ? mins : 0;
             } catch {
-              return undefined;
+              return 0;
             }
           })(),
-      } as CreateBookingRequest;
+        location_type: locationType,
+      };
+
+      if (!payload.selected_duration || payload.selected_duration <= 0) {
+        throw new Error('selected_duration is required to create a booking');
+      }
 
       const response = await protectedApi.createBooking(payload);
 

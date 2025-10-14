@@ -8,6 +8,7 @@ from app.auth import create_access_token
 from app.core.config import settings
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
 from app.repositories.user_repository import UserRepository
+from app.services.geocoding.base import AutocompleteResult, GeocodedAddress
 from app.services.geocoding.factory import create_geocoding_provider
 
 
@@ -218,7 +219,140 @@ def test_places_autocomplete_with_mock_provider(db, client, monkeypatch):
     assert r.status_code == 200
     data = r.json()
     assert data["total"] >= 1
-    assert any("place_id" in item and item["place_id"].startswith("mock:") for item in data["items"])
+    assert any(
+        "place_id" in item
+        and item["place_id"].startswith("mock")
+        and item.get("provider") == "mock"
+        for item in data["items"]
+    )
+
+
+def test_places_autocomplete_google_no_mapbox_ids(db, client, monkeypatch):
+    monkeypatch.setenv("GEOCODING_PROVIDER", "google")
+    monkeypatch.setattr(settings, "geocoding_provider", "google", raising=False)
+
+    class StubGoogleProvider:
+        async def autocomplete(self, query: str, session_token=None):
+            return [
+                AutocompleteResult(
+                    text="320 East 46th Street",
+                    place_id="ChIJN1t_tDeuEmsRUsoyG83frY4",
+                    description="320 East 46th Street, New York, NY 10017, USA",
+                    types=["street_address"],
+                )
+            ]
+
+    stub_google = StubGoogleProvider()
+
+    def fake_factory(provider_override=None):
+        name = (provider_override or settings.geocoding_provider or "google").lower()
+        if name == "google":
+            return stub_google
+        raise AssertionError(f"Unexpected provider {name}")
+
+    monkeypatch.setattr("app.services.geocoding.factory.create_geocoding_provider", fake_factory)
+
+    r = client.get("/api/addresses/places/autocomplete", params={"q": "Main St", "provider": "google"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] >= 0
+    for item in data["items"]:
+        assert item.get("provider") == "google"
+        assert not item.get("place_id", "").startswith("address.")
+
+
+def test_places_details_invalid_provider_returns_422(db, client, monkeypatch):
+    monkeypatch.setenv("GEOCODING_PROVIDER", "google")
+    monkeypatch.setattr(settings, "geocoding_provider", "google", raising=False)
+
+    class StubGoogle:
+        async def get_place_details(self, place_id: str):
+            return None
+
+    class StubMapbox:
+        async def get_place_details(self, place_id: str):
+            return GeocodedAddress(
+                latitude=40.7527,
+                longitude=-73.9733,
+                formatted_address="225 Cherry St, Brooklyn, NY 11201, USA",
+                street_number="225",
+                street_name="Cherry St",
+                city="Brooklyn",
+                state="NY",
+                postal_code="11201",
+                country="US",
+                neighborhood="",
+                provider_id="mapbox:address.123",
+                provider_data={},
+                confidence_score=1.0,
+            )
+
+    stub_google = StubGoogle()
+    stub_mapbox = StubMapbox()
+
+    def fake_factory(provider_override=None):
+        name = (provider_override or settings.geocoding_provider or "google").lower()
+        if name == "google":
+            return stub_google
+        if name == "mapbox":
+            return stub_mapbox
+        return stub_google
+
+    monkeypatch.setattr("app.services.geocoding.factory.create_geocoding_provider", fake_factory)
+
+    r = client.get(
+        "/api/addresses/places/details",
+        params={"place_id": "address.fake", "provider": "google"},
+    )
+    assert r.status_code == 422
+    detail = r.json()
+    assert detail["code"] == "invalid_place_id_for_provider"
+
+
+def test_places_details_fallback_when_provider_unspecified(db, client, monkeypatch):
+    monkeypatch.setenv("GEOCODING_PROVIDER", "google")
+    monkeypatch.setattr(settings, "geocoding_provider", "google", raising=False)
+
+    class StubGoogle:
+        async def get_place_details(self, place_id: str):
+            return None
+
+    class StubMapbox:
+        async def get_place_details(self, place_id: str):
+            return GeocodedAddress(
+                latitude=40.7527,
+                longitude=-73.9733,
+                formatted_address="225 Cherry St, Brooklyn, NY 11201, USA",
+                street_number="225",
+                street_name="Cherry St",
+                city="Brooklyn",
+                state="NY",
+                postal_code="11201",
+                country="US",
+                neighborhood="",
+                provider_id="mapbox:address.123",
+                provider_data={},
+                confidence_score=1.0,
+            )
+
+    stub_google = StubGoogle()
+    stub_mapbox = StubMapbox()
+
+    def fake_factory(provider_override=None):
+        name = (provider_override or settings.geocoding_provider or "google").lower()
+        if name == "google":
+            return stub_google
+        if name == "mapbox":
+            return stub_mapbox
+        return stub_google
+
+    monkeypatch.setattr("app.services.geocoding.factory.create_geocoding_provider", fake_factory)
+
+    r = client.get("/api/addresses/places/details", params={"place_id": "address.fake"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["provider_id"].startswith("mapbox:")
+    assert data["street_number"] == "225"
 
 
 def test_enrichment_uses_region_boundaries(db, client, monkeypatch):
