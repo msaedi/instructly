@@ -83,10 +83,26 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => {
     value?: string;
     onValueChange?: (value: string) => void;
     inputClassName?: string;
+    onSelectSuggestion?: (value: string) => void;
+    containerClassName?: string;
+    inputProps?: unknown;
   };
 
   const MockPlacesAutocompleteInput = React.forwardRef<HTMLInputElement, MockProps>(
-    ({ onValueChange, value, inputClassName, className, onChange, ...rest }, ref) => (
+    (
+      {
+        onValueChange,
+        value,
+        inputClassName,
+        className,
+        onChange,
+        onSelectSuggestion: _ignored,
+        containerClassName: _containerClassName,
+        inputProps: _inputProps,
+        ...rest
+      },
+      ref,
+    ) => (
       <input
         ref={ref}
         {...rest}
@@ -290,6 +306,7 @@ function PaymentSummaryHarness() {
     loading: false,
     error: null,
     lastAppliedCreditCents: preview?.credit_applied_cents ?? 0,
+    requestPricingPreview: async () => preview,
     applyCredit: async (creditCents: number) => {
       const normalized = Math.max(0, Math.round(creditCents));
       const next: PricingPreviewResponse = PREVIEW_BY_CREDIT[normalized] ?? PREVIEW_WITH_CREDIT;
@@ -341,6 +358,7 @@ describe('Payment summary preview', () => {
 
     const slider = screen.getByRole('slider');
     fireEvent.change(slider, { target: { value: '0' } });
+    fireEvent.mouseUp(slider);
 
     await waitFor(() => {
       expect(screen.getByText('$252.00')).toBeInTheDocument();

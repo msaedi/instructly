@@ -251,10 +251,12 @@ describe('PaymentSection pricing preview integration', () => {
     });
     const creditSlider = document.querySelector('input[type="range"]') as HTMLInputElement;
     fireEvent.change(creditSlider, { target: { value: '20' } });
+    fireEvent.mouseUp(creditSlider);
     await new Promise((resolve) => setTimeout(resolve, 250));
     await screen.findByText('-$20.00');
 
     fireEvent.change(creditSlider, { target: { value: '112' } });
+    fireEvent.mouseUp(creditSlider);
     await new Promise((resolve) => setTimeout(resolve, 250));
 
     const messages = await screen.findAllByText((content) => /Test floor error|Price must meet minimum/i.test(content));

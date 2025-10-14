@@ -20,10 +20,8 @@ import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral'
 import { buildCreateBookingPayload } from '../utils/buildCreateBookingPayload';
 import {
   buildPricingPreviewQuotePayload,
-  buildPricingPreviewQuotePayloadBase,
   type PricingPreviewSelection,
 } from '../utils/buildPricingPreviewQuotePayload';
-import type { PricingPreviewQuotePayload, PricingPreviewQuotePayloadBase } from '@/lib/api/pricing';
 import { to24HourTime } from '@/lib/time';
 import { minutesSinceHHMM } from '@/lib/time/overlap';
 
@@ -59,26 +57,6 @@ const normalizeCurrency = (value: unknown, fallback: number): number => {
 };
 
 type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
-
-const hashQuotePayload = (
-  payload: PricingPreviewQuotePayload | PricingPreviewQuotePayloadBase | null,
-): string | null => {
-  if (!payload) {
-    return null;
-  }
-
-  const basePayload: PricingPreviewQuotePayloadBase = {
-    instructor_id: payload.instructor_id,
-    instructor_service_id: payload.instructor_service_id,
-    booking_date: payload.booking_date,
-    start_time: payload.start_time,
-    selected_duration: payload.selected_duration,
-    location_type: payload.location_type,
-    meeting_location: payload.meeting_location,
-  };
-
-  return JSON.stringify(basePayload);
-};
 
 const mergeBookingIntoPayment = (booking: Booking, fallback: BookingWithMetadata): BookingWithMetadata => {
   const durationMinutes = booking.duration_minutes ?? fallback.duration;
@@ -142,7 +120,6 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const [promoApplied, setPromoApplied] = useState(false);
   const [creditSliderCents, setCreditSliderCents] = useState(0);
   const [lastSuccessfulCreditCents, setLastSuccessfulCreditCents] = useState(0);
-  const lastInitKeyRef = useRef<string | null>(null);
   const resolvedInstructorId = useMemo(() => {
     const candidate =
       (updatedBookingData.instructorId ?? bookingData.instructorId ?? null);
@@ -343,19 +320,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     updatedBookingData.bookingId,
   ]);
 
-  const quotePayloadBase = useMemo(
-    () => (quoteSelection ? buildPricingPreviewQuotePayloadBase(quoteSelection) : null),
-    [quoteSelection],
-  );
-
   const quotePayload = useMemo(
     () => (quoteSelection ? buildPricingPreviewQuotePayload(quoteSelection) : null),
     [quoteSelection],
-  );
-
-  const previewPayloadHash = useMemo(
-    () => hashQuotePayload(quotePayloadBase),
-    [quotePayloadBase],
   );
 
   const previewController = usePricingPreviewController({
@@ -364,7 +331,6 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   });
   const {
     preview: pricingPreview,
-    requestPricingPreview: requestInitialPreview,
     applyCredit: applyCreditPreview,
     lastAppliedCreditCents,
   } = previewController;
@@ -372,26 +338,11 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     () => updatedBookingData.bookingId || bookingData.bookingId || null,
     [updatedBookingData.bookingId, bookingData.bookingId],
   );
-  const initKey = useMemo(
-    () => (bookingDraftId ?? previewPayloadHash) ?? '',
-    [bookingDraftId, previewPayloadHash],
-  );
   const lastCommittedCreditRef = useRef<number>(lastAppliedCreditCents);
 
   useEffect(() => {
     lastCommittedCreditRef.current = lastAppliedCreditCents;
   }, [lastAppliedCreditCents]);
-
-  useEffect(() => {
-    if (!initKey) {
-      return;
-    }
-    if (lastInitKeyRef.current === initKey) {
-      return;
-    }
-    lastInitKeyRef.current = initKey;
-    void requestInitialPreview({ key: initKey });
-  }, [initKey, requestInitialPreview]);
 
   // Real payment data from backend
   const [userCards, setUserCards] = useState<PaymentCard[]>([]);

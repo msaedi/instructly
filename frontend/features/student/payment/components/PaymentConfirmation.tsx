@@ -118,8 +118,8 @@ export default function PaymentConfirmation({
   onBookingUpdate,
 }: PaymentConfirmationProps) {
   if (process.env.NODE_ENV !== 'production') {
-    const summaryConsole = (globalThis as Record<string, Console | undefined>)['console'];
-    summaryConsole?.['info']?.('[summary] client render');
+    const summaryConsole = (globalThis as unknown as { console?: Console }).console;
+    summaryConsole?.info?.('[summary] client render');
   }
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
   const [hasLocationInitialized, setHasLocationInitialized] = useState(false);
