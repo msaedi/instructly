@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
     BusinessRuleException,
+    DomainException,
     NotFoundException,
     ValidationException,
 )
@@ -18,6 +19,15 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.factory import RepositoryFactory
+from app.schemas.pricing_preview import (
+    LineItemData,
+    PricingPreviewData,
+    PricingPreviewIn,
+)
+
+if TYPE_CHECKING:
+    from app.repositories.conflict_checker_repository import ConflictCheckerRepository
+    from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.base import BaseService
 from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 
@@ -39,7 +49,13 @@ class PricingService(BaseService):
         self.booking_repository: BookingRepository = RepositoryFactory.create_booking_repository(
             db_session
         )
-        self.config_service = ConfigService(db_session)
+        self.config_service: ConfigService = ConfigService(db_session)
+        self._conflict_checker_repository: ConflictCheckerRepository = (
+            RepositoryFactory.create_conflict_checker_repository(db_session)
+        )
+        self._instructor_profile_repository: InstructorProfileRepository = (
+            RepositoryFactory.create_instructor_profile_repository(db_session)
+        )
 
     @BaseService.measure_operation("pricing.compute_booking")
     def compute_booking_pricing(
@@ -47,7 +63,7 @@ class PricingService(BaseService):
         booking_id: str,
         applied_credit_cents: int = 0,
         persist: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> PricingPreviewData:
         if applied_credit_cents < 0:
             raise ValidationException(
                 "applied_credit_cents must be non-negative",
@@ -56,10 +72,126 @@ class PricingService(BaseService):
             )
 
         inputs = self._load_inputs(booking_id)
-        booking = inputs.booking
-
         # Future steps will persist tier updates/Stripe wiring; preview never persists.
         _ = persist  # pragma: no cover - placeholder until Step 5 implementation
+
+        return self._compute_pricing_from_inputs(
+            inputs=inputs,
+            applied_credit_cents=applied_credit_cents,
+        )
+
+    @BaseService.measure_operation("pricing.compute_quote")
+    def compute_quote_pricing(
+        self, payload: PricingPreviewIn, *, student_id: str
+    ) -> PricingPreviewData:
+        if payload.applied_credit_cents < 0:
+            raise ValidationException(
+                "applied_credit_cents must be non-negative",
+                code="NEGATIVE_CREDIT",
+                details={"applied_credit_cents": payload.applied_credit_cents},
+            )
+
+        service = self._conflict_checker_repository.get_active_service(
+            payload.instructor_service_id
+        )
+        if service is None:
+            raise NotFoundException(
+                "Instructor service not found",
+                code="INSTRUCTOR_SERVICE_NOT_FOUND",
+                details={"instructor_service_id": payload.instructor_service_id},
+            )
+
+        instructor_profile = service.instructor_profile
+        if instructor_profile is None:
+            instructor_profile = self._instructor_profile_repository.get_by_user_id(
+                payload.instructor_id
+            )
+
+        if instructor_profile is None:
+            raise NotFoundException(
+                "Instructor profile not found",
+                code="INSTRUCTOR_PROFILE_NOT_FOUND",
+                details={"instructor_id": payload.instructor_id},
+            )
+
+        if str(instructor_profile.user_id) != str(payload.instructor_id):
+            raise ValidationException(
+                "Service does not belong to instructor",
+                code="SERVICE_INSTRUCTOR_MISMATCH",
+                details={
+                    "instructor_id": payload.instructor_id,
+                    "service_instructor_id": instructor_profile.user_id,
+                },
+            )
+
+        try:
+            booking_date_obj = datetime.strptime(payload.booking_date, "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise ValidationException(
+                "Invalid booking_date format. Expected YYYY-MM-DD",
+                code="INVALID_BOOKING_DATE",
+                details={"booking_date": payload.booking_date},
+            ) from exc
+
+        try:
+            start_time_obj = datetime.strptime(payload.start_time, "%H:%M").time()
+        except ValueError as exc:
+            raise ValidationException(
+                "Invalid start_time format. Expected HH:MM",
+                code="INVALID_START_TIME",
+                details={"start_time": payload.start_time},
+            ) from exc
+
+        duration_minutes = int(payload.selected_duration)
+        end_time_obj = (
+            datetime.combine(date(2000, 1, 1), start_time_obj) + timedelta(minutes=duration_minutes)
+        ).time()
+
+        hourly_rate = Decimal(str(service.hourly_rate))
+
+        booking = Booking(
+            student_id=student_id,
+            instructor_id=payload.instructor_id,
+            instructor_service_id=payload.instructor_service_id,
+            booking_date=booking_date_obj,
+            start_time=start_time_obj,
+            end_time=end_time_obj,
+            service_name=service.name,
+            hourly_rate=hourly_rate,
+            total_price=Decimal("0.00"),
+            duration_minutes=duration_minutes,
+            status=BookingStatus.CONFIRMED,
+            location_type=payload.location_type,
+            meeting_location=payload.meeting_location,
+        )
+
+        # Attach related objects for downstream access (pricing floors, tiers)
+        booking.instructor_service = service
+
+        pricing_config, _ = self.config_service.get_pricing_config()
+
+        # Build lightweight PricingInputs replica to reuse existing helpers
+        inputs = PricingInputs(
+            booking=booking,
+            instructor_profile=instructor_profile,
+            pricing_config=pricing_config,
+        )
+
+        try:
+            return self._compute_pricing_from_inputs(
+                inputs=inputs,
+                applied_credit_cents=payload.applied_credit_cents,
+            )
+        except DomainException as exc:
+            raise exc
+
+    def _compute_pricing_from_inputs(
+        self,
+        *,
+        inputs: PricingInputs,
+        applied_credit_cents: int,
+    ) -> PricingPreviewData:
+        booking = inputs.booking
 
         base_price_cents = self._compute_base_price_cents(booking)
         modality = self._resolve_modality(booking)
@@ -68,8 +200,6 @@ class PricingService(BaseService):
             modality, booking.duration_minutes, inputs.pricing_config
         )
 
-        # Floor thresholds live under pricing_config["price_floor_cents"] for
-        # "private_in_person" and "private_remote" overrides.
         if is_private and floor_cents is not None and base_price_cents < floor_cents:
             required_dollars = self._format_cents(floor_cents)
             current_dollars = self._format_cents(base_price_cents)
@@ -95,9 +225,13 @@ class PricingService(BaseService):
             instructor_profile=inputs.instructor_profile,
             pricing_config=inputs.pricing_config,
         )
+        fallback_tier_pct = self._default_instructor_tier_pct(inputs.pricing_config)
+        tier_pct_decimal = tier_pct if tier_pct is not None else fallback_tier_pct
 
         student_fee_cents = self._round_to_int(Decimal(base_price_cents) * student_fee_pct)
-        instructor_commission_cents = self._round_to_int(Decimal(base_price_cents) * tier_pct)
+        instructor_commission_cents = self._round_to_int(
+            Decimal(base_price_cents) * tier_pct_decimal
+        )
         target_payout_cents = base_price_cents - instructor_commission_cents
 
         credit_cents = int(applied_credit_cents)
@@ -117,7 +251,7 @@ class PricingService(BaseService):
             student_fee_pct=student_fee_pct,
         )
 
-        return {
+        pricing_data: PricingPreviewData = {
             "base_price_cents": base_price_cents,
             "student_fee_cents": student_fee_cents,
             "instructor_commission_cents": instructor_commission_cents,
@@ -126,9 +260,11 @@ class PricingService(BaseService):
             "student_pay_cents": student_pay_cents,
             "application_fee_cents": application_fee_cents,
             "top_up_transfer_cents": top_up_transfer_cents,
-            "instructor_tier_pct": float(tier_pct),
+            "instructor_tier_pct": float(tier_pct_decimal),
             "line_items": line_items,
         }
+
+        return pricing_data
 
     def _load_inputs(self, booking_id: str) -> PricingInputs:
         booking = self.booking_repository.get_with_pricing_context(booking_id)
@@ -295,16 +431,28 @@ class PricingService(BaseService):
         return ordered[new_index].quantize(Decimal("0.0001"))
 
     @staticmethod
+    def _default_instructor_tier_pct(pricing_config: Dict[str, Any]) -> Decimal:
+        tiers = pricing_config.get("instructor_tiers")
+        if not tiers:
+            tiers = DEFAULT_PRICING_CONFIG.get("instructor_tiers", [])
+        if tiers:
+            entry_tier = min(tiers, key=lambda tier: tier.get("min", 0))
+            pct = entry_tier.get("pct", 0)
+            return Decimal(str(pct)).quantize(Decimal("0.0001"))
+        # Fallback to 15% if no tier data is available
+        return Decimal("0.15").quantize(Decimal("0.0001"))
+
+    @staticmethod
     def _build_line_items(
         *,
         student_fee_cents: int,
         credit_cents: int,
         student_fee_pct: Decimal,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[LineItemData]:
         label_pct = int(
             (student_fee_pct * Decimal(100)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         )
-        items: List[Dict[str, Any]] = [
+        items: List[LineItemData] = [
             {"label": f"Booking Protection ({label_pct}%)", "amount_cents": student_fee_cents}
         ]
         if credit_cents > 0:

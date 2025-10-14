@@ -10,15 +10,15 @@ from ..api.dependencies import get_current_active_user
 from ..api.dependencies.services import get_pricing_service
 from ..core.exceptions import DomainException
 from ..models.user import User
-from ..schemas.pricing_preview import PricingPreviewOut
+from ..schemas.pricing_preview import PricingPreviewData, PricingPreviewIn, PricingPreviewOut
 from ..services.pricing_service import PricingService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/bookings", tags=["pricing"])
+router = APIRouter(tags=["pricing"])
 
 
-@router.get("/{booking_id}/pricing", response_model=PricingPreviewOut)
+@router.get("/api/bookings/{booking_id}/pricing", response_model=PricingPreviewOut)
 def preview_booking_pricing(
     booking_id: str,
     applied_credit_cents: int = Query(0, ge=0),
@@ -43,10 +43,29 @@ def preview_booking_pricing(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     try:
-        pricing_data = pricing_service.compute_booking_pricing(
+        pricing_data: PricingPreviewData = pricing_service.compute_booking_pricing(
             booking_id=booking_id,
             applied_credit_cents=applied_credit_cents,
             persist=False,
+        )
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+
+    return PricingPreviewOut(**pricing_data)
+
+
+@router.post("/api/pricing/preview", response_model=PricingPreviewOut)
+def preview_selection_pricing(
+    payload: PricingPreviewIn,
+    current_user: User = Depends(get_current_active_user),
+    pricing_service: PricingService = Depends(get_pricing_service),
+) -> PricingPreviewOut:
+    """Return pricing preview for a booking selection without a persisted draft."""
+
+    try:
+        pricing_data: PricingPreviewData = pricing_service.compute_quote_pricing(
+            payload=payload,
+            student_id=current_user.id,
         )
     except DomainException as exc:
         raise exc.to_http_exception() from exc

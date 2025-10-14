@@ -18,7 +18,7 @@ import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { formatMeetingLocation, toStateCode } from '@/utils/address/format';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 import type { PlaceSuggestion } from '@/components/forms/PlacesAutocompleteInput';
-import { to24HourTime } from '@/lib/time';
+import { addMinutesHHMM, to24HourTime } from '@/lib/time';
 import { overlapsHHMM, minutesSinceHHMM } from '@/lib/time/overlap';
 import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import {
@@ -27,10 +27,8 @@ import {
   formatCents,
   type NormalizedModality,
 } from '@/lib/pricing/priceFloors';
-import {
-  formatCentsToDisplay,
-  type PricingPreviewResponse,
-} from '@/lib/api/pricing';
+import { formatCentsToDisplay } from '@/lib/api/pricing';
+import { usePricingPreview } from '../hooks/usePricingPreview';
 
 type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
 
@@ -94,8 +92,6 @@ interface PaymentConfirmationProps {
   referralActive?: boolean;
   floorViolationMessage?: string | null;
   onClearFloorViolation?: () => void;
-  pricingPreview?: PricingPreviewResponse | null;
-  isPricingPreviewLoading?: boolean;
   onBookingUpdate?: (updater: (prev: BookingWithMetadata) => BookingWithMetadata) => void;
 }
 
@@ -119,10 +115,12 @@ export default function PaymentConfirmation({
   referralActive: referralActiveFromParent = false,
   floorViolationMessage = null,
   onClearFloorViolation,
-  pricingPreview = null,
-  isPricingPreviewLoading = false,
   onBookingUpdate,
 }: PaymentConfirmationProps) {
+  if (process.env.NODE_ENV !== 'production') {
+    const summaryConsole = (globalThis as Record<string, Console | undefined>)['console'];
+    summaryConsole?.['info']?.('[summary] client render');
+  }
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
   const [hasLocationInitialized, setHasLocationInitialized] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
@@ -135,6 +133,10 @@ export default function PaymentConfirmation({
   const [promoActive, setPromoActive] = useState(promoApplied);
   const [promoError, setPromoError] = useState<string | null>(null);
   const { floors: pricingFloors } = usePricingFloors();
+  const pricingPreviewContext = usePricingPreview(true);
+  const pricingPreview = pricingPreviewContext?.preview ?? null;
+  const isPricingPreviewLoading = pricingPreviewContext?.loading ?? false;
+  const pricingPreviewError = pricingPreviewContext?.error ?? null;
 
   const hasSavedLocation = Boolean(
     booking.location && booking.location !== '' && !/online|remote/i.test(String(booking.location))
@@ -434,13 +436,29 @@ export default function PaymentConfirmation({
   const [isLocationExpanded, setIsLocationExpanded] = useState(!hasSavedLocation && !isOnlineLesson);
   const isLastMinute = booking.bookingType === BookingType.LAST_MINUTE;
   const creditsUsedCents = Math.max(0, Math.round(creditsUsed * 100));
+
+  // Keep derivedAppliedCreditCents for other parts of the component
   const derivedAppliedCreditCents = pricingPreview
     ? Math.max(0, pricingPreview.credit_applied_cents)
     : creditsUsedCents;
-  const [displayAppliedCreditCents, setDisplayAppliedCreditCents] = useState(derivedAppliedCreditCents);
+
+  // Use local state for the slider, independent from pricingPreview
+  const [displayAppliedCreditCents, setDisplayAppliedCreditCents] = useState(creditsUsedCents);
+
+  const serverCreditCents = pricingPreview?.credit_applied_cents;
+
   useEffect(() => {
-    setDisplayAppliedCreditCents(derivedAppliedCreditCents);
-  }, [derivedAppliedCreditCents]);
+    if (serverCreditCents == null) {
+      return;
+    }
+    const serverCents = Math.max(0, serverCreditCents);
+    setDisplayAppliedCreditCents((prev) => {
+      if (Math.abs(serverCents - prev) > 1) {
+        return serverCents;
+      }
+      return prev;
+    });
+  }, [serverCreditCents]);
   const appliedCreditDollars = displayAppliedCreditCents / 100;
 
   const totalBeforeCreditsCents = pricingPreview
@@ -465,6 +483,47 @@ export default function PaymentConfirmation({
   const remainingBalanceCents = Math.max(0, totalBeforeCreditsCents - displayAppliedCreditCents);
   const remainingBalanceDollars = remainingBalanceCents / 100;
   const promoApplyDisabled = referralActive || (!promoActive && promoCode.trim().length === 0);
+
+  const previewAdditionalLineItems = useMemo(() => {
+    if (!pricingPreview) {
+      return [] as { label: string; amount_cents: number }[];
+    }
+    return pricingPreview.line_items.filter((item) => {
+      const label = item.label.toLowerCase();
+      if (label.includes('booking protection')) {
+        return false;
+      }
+      if (label.includes('credit')) {
+        return false;
+      }
+      return true;
+    });
+  }, [pricingPreview]);
+
+  const renderSummarySkeleton = (widthClass = 'w-16') => (
+    <span
+      data-testid="pricing-preview-skeleton"
+      className={`inline-block h-3 ${widthClass} rounded bg-gray-200 animate-pulse`}
+      aria-hidden="true"
+    />
+  );
+
+  const fallbackBasePrice = Number.isFinite(booking.basePrice) ? Number(booking.basePrice) : 0;
+  const lessonAmountDisplay = pricingPreview
+    ? formatCentsToDisplay(pricingPreview.base_price_cents)
+    : `$${fallbackBasePrice.toFixed(2)}`;
+  const bookingProtectionAmountDisplay = pricingPreview
+    ? formatCentsToDisplay(pricingPreview.student_fee_cents)
+    : null;
+  const creditsLineCents = pricingPreview
+    ? Math.max(0, pricingPreview.credit_applied_cents)
+    : displayAppliedCreditCents;
+  const hasCreditsApplied = creditsLineCents > 0;
+  const creditsAmountDisplay = formatCentsToDisplay(-creditsLineCents);
+  const totalAmountDisplay = pricingPreview
+    ? formatCentsToDisplay(pricingPreview.student_pay_cents)
+    : null;
+  const showFeesPlaceholder = Boolean(pricingPreviewError);
 
   const studentId = useMemo(() => {
     const fromBooking = (booking as unknown as { studentId?: string | null }).studentId;
@@ -507,6 +566,35 @@ export default function PaymentConfirmation({
     }
   }, [booking.startTime]);
 
+  const summaryDateLabel = useMemo(() => {
+    const buildDisplayDate = (value: string | Date | null | undefined): Date | null => {
+      if (!value) {
+        return null;
+      }
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value;
+      }
+      const isoCandidate = typeof value === 'string' ? value : String(value);
+      if (!isoCandidate) {
+        return null;
+      }
+      const parsed = new Date(`${isoCandidate}T00:00:00`);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const displayDate = buildDisplayDate(bookingDateLocal) ?? buildDisplayDate(booking.date);
+    if (!displayDate) {
+      return 'Date to be confirmed';
+    }
+
+    try {
+      return format(displayDate, 'EEEE, MMMM d, yyyy');
+    } catch (error) {
+      logger.debug('pricing-preview:date-parse-warning', error);
+      return 'Date to be confirmed';
+    }
+  }, [booking.date, bookingDateLocal]);
+
   const durationMinutes = useMemo(() => {
     if (Number.isFinite(booking.duration) && booking.duration > 0) {
       return Math.round(booking.duration);
@@ -527,6 +615,50 @@ export default function PaymentConfirmation({
     }
     return null;
   }, [booking.duration, booking.startTime, booking.endTime]);
+
+  const normalizedLessonDuration = useMemo(() => {
+    if (Number.isFinite(durationMinutes) && durationMinutes) {
+      return durationMinutes;
+    }
+    if (Number.isFinite(booking.duration) && booking.duration > 0) {
+      return Math.round(booking.duration);
+    }
+    return null;
+  }, [booking.duration, durationMinutes]);
+
+  const lessonSummaryLabel = useMemo(() => {
+    const minutes = normalizedLessonDuration ?? 0;
+    return `Lesson (${minutes} min)`;
+  }, [normalizedLessonDuration]);
+
+  const computedEndHHMM24 = useMemo(() => {
+    if (booking.endTime) {
+      try {
+        return to24HourTime(String(booking.endTime));
+      } catch (error) {
+        logger.debug('pricing-preview:end-time-parse', error);
+      }
+    }
+    if (startHHMM24 && Number.isFinite(durationMinutes) && durationMinutes) {
+      try {
+        return addMinutesHHMM(startHHMM24, durationMinutes);
+      } catch (error) {
+        logger.debug('pricing-preview:end-time-derive', error);
+      }
+    }
+    return null;
+  }, [booking.endTime, durationMinutes, startHHMM24]);
+
+  const summaryTimeLabel = useMemo(() => {
+    if (!startHHMM24) {
+      return booking.startTime ? String(booking.startTime) : 'Time to be confirmed';
+    }
+    const endHHMM24 = computedEndHHMM24 || (durationMinutes ? addMinutesHHMM(startHHMM24, durationMinutes) : null);
+    if (!endHHMM24) {
+      return startHHMM24;
+    }
+    return `${startHHMM24} - ${endHHMM24}`;
+  }, [booking.startTime, computedEndHHMM24, durationMinutes, startHHMM24]);
 
   const conflictKey = useMemo<ConflictKey | null>(() => {
     if (
@@ -1264,8 +1396,22 @@ export default function PaymentConfirmation({
                     const newValue = Number(e.target.value);
                     if (Number.isFinite(newValue)) {
                       setDisplayAppliedCreditCents(Math.max(0, Math.round(newValue * 100)));
+                      // Don't call onCreditAmountChange on every change - too frequent
                     }
-                    onCreditAmountChange?.(newValue);
+                  }}
+                  onMouseUp={(e) => {
+                    // Call onCreditAmountChange when user releases the slider
+                    const newValue = Number((e.target as HTMLInputElement).value);
+                    if (Number.isFinite(newValue)) {
+                      onCreditAmountChange?.(newValue);
+                    }
+                  }}
+                  onTouchEnd={(e) => {
+                    // Also handle touch events for mobile
+                    const newValue = Number((e.target as HTMLInputElement).value);
+                    if (Number.isFinite(newValue)) {
+                      onCreditAmountChange?.(newValue);
+                    }
                   }}
                   className="w-full accent-purple-700"
                 />
@@ -1505,13 +1651,11 @@ export default function PaymentConfirmation({
             </div>
             <div className="flex items-center text-sm">
               <Calendar size={16} className="mr-2 text-gray-500" />
-              <span>{format(booking.date, 'EEEE, MMMM d, yyyy')}</span>
+              <span>{summaryDateLabel}</span>
             </div>
             <div className="flex items-center text-sm">
               <Clock size={16} className="mr-2 text-gray-500" />
-              <span>
-                {booking.startTime} - {booking.endTime}
-              </span>
+              <span>{summaryTimeLabel}</span>
             </div>
             <div className="flex items-start text-sm">
               <MapPin size={16} className="mr-2 text-gray-500 mt-0.5" />
@@ -1559,32 +1703,52 @@ export default function PaymentConfirmation({
             <h4 className="font-semibold mb-3">Payment details</h4>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span>Lesson ({booking.duration} min)</span>
+                <span>{lessonSummaryLabel}</span>
                 <span>
-                  {pricingPreview
-                    ? formatCentsToDisplay(pricingPreview.base_price_cents)
-                    : `$${booking.basePrice.toFixed(2)}`}
+                  {isPricingPreviewLoading && !pricingPreview ? (
+                    <span className="inline-block h-3 w-16 rounded bg-gray-200 animate-pulse" aria-hidden="true" />
+                  ) : (
+                    lessonAmountDisplay
+                  )}
                 </span>
               </div>
-              {pricingPreview &&
-                pricingPreview.line_items.map((item) => {
-                  const isCreditLine = item.amount_cents < 0;
-                  return (
-                    <div
-                      key={`${item.label}-${item.amount_cents}`}
-                      className={`flex justify-between text-sm ${
-                        isCreditLine ? 'text-green-600 dark:text-green-400' : ''
-                      }`}
-                    >
-                      <span>{item.label}</span>
-                      <span>{formatCentsToDisplay(item.amount_cents)}</span>
-                    </div>
-                  );
-                })}
-              {!pricingPreview && appliedCreditDollars > 0 && (
+              <div className="flex justify-between text-sm">
+                <span>Booking Protection (12%)</span>
+                <span>
+                  {pricingPreview
+                    ? bookingProtectionAmountDisplay
+                    : pricingPreviewError
+                      ? 'Unavailable'
+                      : renderSummarySkeleton()}
+                </span>
+              </div>
+              {previewAdditionalLineItems.map((item) => (
+                <div
+                  key={`${item.label}-${item.amount_cents}`}
+                  className={`flex justify-between text-sm ${
+                    item.amount_cents < 0 ? 'text-green-600 dark:text-green-400' : ''
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  <span>
+                    {isPricingPreviewLoading && !pricingPreview ? (
+                      <span className="inline-block h-3 w-16 rounded bg-gray-200 animate-pulse" aria-hidden="true" />
+                    ) : (
+                      formatCentsToDisplay(item.amount_cents)
+                    )}
+                  </span>
+                </div>
+              ))}
+              {hasCreditsApplied && (
                 <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                   <span>Credits applied</span>
-                  <span>{formatCentsToDisplay(-displayAppliedCreditCents)}</span>
+                  <span>
+                    {isPricingPreviewLoading && !pricingPreview ? (
+                      <span className="inline-block h-3 w-16 rounded bg-gray-200 animate-pulse" aria-hidden="true" />
+                    ) : (
+                      creditsAmountDisplay
+                    )}
+                  </span>
                 </div>
               )}
               {referralCreditAmount > 0 && (
@@ -1598,10 +1762,15 @@ export default function PaymentConfirmation({
                   <span>Total</span>
                   <span>
                     {pricingPreview
-                      ? formatCentsToDisplay(totalAfterCreditsCents)
-                      : `$${totalAfterCredits.toFixed(2)}`}
+                      ? totalAmountDisplay
+                      : pricingPreviewError
+                        ? `$${totalAfterCredits.toFixed(2)}`
+                        : renderSummarySkeleton('w-20')}
                   </span>
                 </div>
+                {showFeesPlaceholder && (
+                  <p className="text-xs text-red-600 mt-1">{pricingPreviewError}</p>
+                )}
               </div>
             </div>
           </div>

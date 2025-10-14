@@ -35,6 +35,19 @@ export type PricingPreviewResponse = {
   line_items: PricingLineItem[];
 };
 
+export type PricingPreviewQuotePayload = {
+  instructor_id: string;
+  instructor_service_id: string;
+  booking_date: string;
+  start_time: string;
+  selected_duration: number;
+  location_type: string;
+  meeting_location: string;
+  applied_credit_cents: number;
+};
+
+export type PricingPreviewQuotePayloadBase = Omit<PricingPreviewQuotePayload, 'applied_credit_cents'>;
+
 type PricingConfigResponse = {
   config: PricingConfig;
   updated_at: string | null;
@@ -59,10 +72,42 @@ export async function fetchPricingPreview(
   try {
     return await fetchJson<PricingPreviewResponse>(endpoint, { signal: options.signal ?? null });
   } catch (error) {
+    if ((error as { name?: string } | null)?.name === 'AbortError') {
+      return undefined as unknown as PricingPreviewResponse;
+    }
     if (error instanceof ApiProblemError) {
       throw error;
     }
     logger.error('Failed to fetch pricing preview', error as Error, { bookingId, appliedCreditCents });
+    throw error;
+  }
+}
+
+export async function fetchPricingPreviewQuote(
+  payload: PricingPreviewQuotePayload,
+  options: { signal?: AbortSignal | null } = {}
+): Promise<PricingPreviewResponse> {
+  const endpoint = '/api/pricing/preview';
+  try {
+    return await fetchJson<PricingPreviewResponse>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: options.signal ?? null,
+    });
+  } catch (error) {
+    if ((error as { name?: string } | null)?.name === 'AbortError') {
+      return undefined as unknown as PricingPreviewResponse;
+    }
+    if (error instanceof ApiProblemError) {
+      throw error;
+    }
+    logger.error('Failed to fetch pricing quote preview', error as Error, {
+      instructor_id: payload.instructor_id,
+      instructor_service_id: payload.instructor_service_id,
+    });
     throw error;
   }
 }

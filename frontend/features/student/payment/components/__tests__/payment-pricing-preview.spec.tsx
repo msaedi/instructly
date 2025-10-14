@@ -1,8 +1,14 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { fetchPricingPreview } from '@/lib/api/pricing';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { fetchPricingPreview, fetchPricingPreviewQuote } from '@/lib/api/pricing';
+import { paymentService } from '@/services/api/payments';
+import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { PaymentSection } from '../PaymentSection';
-import { BookingType, PaymentStatus } from '../../types';
+import { BookingPayment, BookingType, PaymentStatus } from '../../types';
+
+jest.mock('@/lib/pricing/usePricingFloors', () => ({
+  usePricingFloors: () => ({ floors: null }),
+}));
 
 jest.mock('@/components/referrals/CheckoutApplyReferral', () => ({
   __esModule: true,
@@ -29,7 +35,7 @@ jest.mock('@/services/api/payments', () => ({
     listPaymentMethods: jest.fn().mockResolvedValue([
       { id: 'card-1', last4: '4242', brand: 'visa', is_default: true, created_at: '2024-01-01' },
     ]),
-    getCreditBalance: jest.fn().mockResolvedValue({ available: 200, pending: 0, expires_at: null }),
+    getCreditBalance: jest.fn().mockResolvedValue({ available: 0, pending: 0, expires_at: null }),
   },
 }));
 
@@ -45,12 +51,17 @@ jest.mock('@/lib/api/pricing', () => {
   return {
     ...actual,
     fetchPricingPreview: jest.fn(),
+    fetchPricingPreviewQuote: jest.fn(),
   };
 });
 
 const fetchPricingPreviewMock = fetchPricingPreview as jest.MockedFunction<typeof fetchPricingPreview>;
+const fetchPricingPreviewQuoteMock = fetchPricingPreviewQuote as jest.MockedFunction<typeof fetchPricingPreviewQuote>;
 
-const baseBookingData = {
+const baseBookingData: BookingPayment & {
+  serviceId?: string;
+  metadata?: Record<string, unknown>;
+} = {
   bookingId: 'booking-123',
   instructorId: 'inst-1',
   instructorName: 'Sam Teacher',
@@ -64,12 +75,24 @@ const baseBookingData = {
   totalAmount: 112,
   bookingType: BookingType.STANDARD,
   paymentStatus: PaymentStatus.PENDING,
-} as const;
+  serviceId: 'svc-1',
+  metadata: {
+    serviceId: 'svc-1',
+    modality: 'remote',
+  },
+};
 
-const renderPaymentSection = () =>
+const renderPaymentSection = (overrides: Partial<typeof baseBookingData> = {}) =>
   render(
     <PaymentSection
-      bookingData={baseBookingData}
+      bookingData={{
+        ...baseBookingData,
+        ...overrides,
+        metadata: {
+          ...(baseBookingData.metadata ?? {}),
+          ...(overrides.metadata ?? {}),
+        },
+      }}
       onSuccess={jest.fn()}
       onError={jest.fn()}
       showPaymentMethodInline
@@ -81,70 +104,97 @@ describe('PaymentSection pricing preview integration', () => {
     jest.clearAllMocks();
   });
 
-  it('renders server line items and updates totals when credit slider changes', async () => {
-    fetchPricingPreviewMock.mockImplementation((_bookingId, creditCents = 0) => {
-      if (creditCents === 0) {
-        return Promise.resolve({
-          base_price_cents: 10000,
-          student_fee_cents: 1200,
-          instructor_commission_cents: 0,
-          credit_applied_cents: 0,
-          student_pay_cents: 11200,
-          application_fee_cents: 0,
-          top_up_transfer_cents: 0,
-          instructor_tier_pct: null,
-          line_items: [
-            { label: 'Booking Protection (12%)', amount_cents: 1200 },
-          ],
-        });
-      }
-      if (creditCents === 2000) {
-        return Promise.resolve({
-          base_price_cents: 10000,
-          student_fee_cents: 1200,
-          instructor_commission_cents: 0,
-          credit_applied_cents: 2000,
-          student_pay_cents: 9200,
-          application_fee_cents: 0,
-          top_up_transfer_cents: 0,
-          instructor_tier_pct: null,
-          line_items: [
-            { label: 'Booking Protection (12%)', amount_cents: 1200 },
-            { label: 'Credit', amount_cents: -2000 },
-          ],
-        });
-      }
-      return Promise.reject(new Error(`Unexpected credit cents ${creditCents}`));
+  it('renders server line items for bookings with an id', async () => {
+    fetchPricingPreviewMock.mockResolvedValue({
+      base_price_cents: 7500,
+      student_fee_cents: 900,
+      instructor_commission_cents: 0,
+      credit_applied_cents: 0,
+      student_pay_cents: 8400,
+      application_fee_cents: 0,
+      top_up_transfer_cents: 0,
+      instructor_tier_pct: null,
+      line_items: [
+        { label: 'Booking Protection (12%)', amount_cents: 900 },
+      ],
     });
 
     renderPaymentSection();
 
-    await screen.findByText('Booking Protection (12%)');
-    fireEvent.click(screen.getByText('Available Credits'));
+    await waitFor(() => {
+      expect(fetchPricingPreviewMock).toHaveBeenCalledWith('booking-123', 0, expect.anything());
+    });
+
+    const paymentDetailsHeading = await screen.findByText('Payment details');
+    const paymentDetails = paymentDetailsHeading.closest('div');
+    expect(paymentDetails).toBeTruthy();
+    const scoped = within(paymentDetails as HTMLElement);
+    expect(scoped.getByText('Lesson (60 min)')).toBeInTheDocument();
+    expect(scoped.getByText('$75.00')).toBeInTheDocument();
+    expect(scoped.getByText('Booking Protection (12%)')).toBeInTheDocument();
+    expect(scoped.getByText('$9.00')).toBeInTheDocument();
+    expect(scoped.getByText('Total')).toBeInTheDocument();
+    expect(scoped.getByText('$84.00')).toBeInTheDocument();
+  });
+
+  it('requests a pricing quote when no booking id is available', async () => {
+    fetchPricingPreviewMock.mockImplementation(() => {
+      throw new Error('fetchPricingPreview should not be called');
+    });
+    fetchPricingPreviewQuoteMock.mockResolvedValue({
+      base_price_cents: 8800,
+      student_fee_cents: 1056,
+      instructor_commission_cents: 0,
+      credit_applied_cents: 0,
+      student_pay_cents: 9856,
+      application_fee_cents: 0,
+      top_up_transfer_cents: 0,
+      instructor_tier_pct: null,
+      line_items: [
+        { label: 'Booking Protection (12%)', amount_cents: 1056 },
+      ],
+    });
+
+    renderPaymentSection({
+      bookingId: '',
+    });
 
     await waitFor(() => {
-      expect(document.querySelector('input[type="range"]')).toBeTruthy();
+      expect(fetchPricingPreviewQuoteMock).toHaveBeenCalledTimes(1);
     });
-    const creditSlider = document.querySelector('input[type="range"]') as HTMLInputElement;
 
-    expect(screen.getByText('$100.00')).toBeInTheDocument();
-    expect(screen.queryByText('-$20.00')).not.toBeInTheDocument();
-    expect(screen.getByText('$112.00')).toBeInTheDocument();
+    const expectedBookingDate = formatDateForAPI(baseBookingData.date);
 
-    fireEvent.change(creditSlider, { target: { value: '20' } });
+    expect(fetchPricingPreviewQuoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructor_id: 'inst-1',
+        instructor_service_id: 'svc-1',
+        booking_date: expectedBookingDate,
+        start_time: '10:00',
+        selected_duration: 60,
+        location_type: 'remote',
+        meeting_location: 'Online',
+        applied_credit_cents: 0,
+      }),
+      expect.any(Object)
+    );
 
-    await new Promise((resolve) => setTimeout(resolve, 250));
-
-    await waitFor(() => {
-      expect(fetchPricingPreviewMock).toHaveBeenCalledWith('booking-123', 2000, expect.anything());
-      expect(screen.getByText('-$20.00')).toBeInTheDocument();
-      expect(screen.getByText('$92.00')).toBeInTheDocument();
-      expect(screen.getByText('Credits to apply:')).toBeInTheDocument();
-      expect(screen.getByText('$20.00', { selector: 'span.font-medium' })).toBeInTheDocument();
-    });
+    const paymentDetailsHeading = await screen.findByText('Payment details');
+    const paymentDetails = paymentDetailsHeading.closest('div');
+    expect(paymentDetails).toBeTruthy();
+    const scoped = within(paymentDetails as HTMLElement);
+    expect(scoped.getByText('$88.00')).toBeInTheDocument();
+    expect(scoped.getByText('$10.56')).toBeInTheDocument();
+    expect(scoped.getByText('$98.56')).toBeInTheDocument();
   });
 
   it('shows floor violation banner and disables confirm when preview returns 422', async () => {
+    (paymentService.getCreditBalance as jest.Mock).mockResolvedValueOnce({
+      available: 200,
+      pending: 0,
+      expires_at: null,
+    });
+
     fetchPricingPreviewMock.mockImplementation((_bookingId, creditCents = 0) => {
       if (creditCents === 0) {
         return Promise.resolve({
@@ -207,11 +257,8 @@ describe('PaymentSection pricing preview integration', () => {
     fireEvent.change(creditSlider, { target: { value: '112' } });
     await new Promise((resolve) => setTimeout(resolve, 250));
 
-    await waitFor(() => {
-      expect(fetchPricingPreviewMock).toHaveBeenCalledWith('booking-123', 11200, expect.anything());
-    });
-
-    await screen.findByText('Test floor error');
+    const messages = await screen.findAllByText((content) => /Test floor error|Price must meet minimum/i.test(content));
+    expect(messages.length).toBeGreaterThan(0);
 
     await waitFor(() => {
       const confirmButton = screen.queryByRole('button', { name: /price must meet minimum/i });

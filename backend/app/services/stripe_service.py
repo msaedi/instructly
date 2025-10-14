@@ -1002,6 +1002,47 @@ class StripeService(BaseService):
                         "application_fee_cents": str(ctx.application_fee_cents),
                         "target_instructor_payout_cents": str(ctx.target_instructor_payout_cents),
                     }
+
+                    if settings.environment != "production":
+                        try:
+                            metadata_student_pay_cents = int(metadata["student_pay_cents"])
+                            metadata_base_price_cents = int(metadata["base_price_cents"])
+                            metadata_student_fee_cents = int(metadata["student_fee_cents"])
+                            metadata_applied_credit_cents = int(metadata["applied_credit_cents"])
+                        except (KeyError, ValueError) as parse_error:
+                            self.logger.warning(
+                                "stripe.pi.preview_parity_parse_error",
+                                {
+                                    "booking_id": booking_id,
+                                    "error": str(parse_error),
+                                    "metadata": metadata,
+                                },
+                            )
+                        else:
+                            parity_snapshot = {
+                                "booking_id": booking_id,
+                                "student_pay_cents": ctx.student_pay_cents,
+                                "metadata_student_pay_cents": metadata_student_pay_cents,
+                                "base_price_cents": ctx.base_price_cents,
+                                "metadata_base_price_cents": metadata_base_price_cents,
+                                "student_fee_cents": ctx.student_fee_cents,
+                                "metadata_student_fee_cents": metadata_student_fee_cents,
+                                "applied_credit_cents": ctx.applied_credit_cents,
+                                "metadata_applied_credit_cents": metadata_applied_credit_cents,
+                            }
+                            self.logger.debug("stripe.pi.preview_parity", parity_snapshot)
+                            assert (
+                                metadata_student_pay_cents == ctx.student_pay_cents
+                            ), "PaymentIntent amount mismatch preview student pay"
+                            assert (
+                                metadata_base_price_cents == ctx.base_price_cents
+                            ), "PaymentIntent base price mismatch preview"
+                            assert (
+                                metadata_student_fee_cents == ctx.student_fee_cents
+                            ), "PaymentIntent student fee mismatch preview"
+                            assert (
+                                metadata_applied_credit_cents == ctx.applied_credit_cents
+                            ), "PaymentIntent credit mismatch preview"
                 else:
                     if amount_cents is None:
                         raise ServiceException(

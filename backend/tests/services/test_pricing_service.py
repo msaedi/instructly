@@ -10,6 +10,7 @@ import pytest
 
 from app.core.exceptions import BusinessRuleException
 from app.models.booking import Booking, BookingStatus
+from app.schemas.pricing_preview import PricingPreviewIn
 from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 from app.services.pricing_service import PricingService
 
@@ -174,6 +175,51 @@ def test_pricing_service_enforces_remote_floor(
 
     result = pricing_service.compute_booking_pricing(valid_remote.id)
     assert result["base_price_cents"] == 3000
+
+
+def test_pricing_preview_returns_tier_pct_float_for_booking(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+):
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("90.00"),
+    )
+
+    result = pricing_service.compute_booking_pricing(booking.id)
+
+    assert isinstance(result["instructor_tier_pct"], float)
+    assert result["instructor_tier_pct"] >= 0
+
+
+def test_pricing_preview_returns_tier_pct_float_for_quote(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+):
+    payload = PricingPreviewIn(
+        instructor_id=str(test_instructor.id),
+        instructor_service_id=str(instructor_service.id),
+        booking_date=date.today().strftime("%Y-%m-%d"),
+        start_time="10:00",
+        selected_duration=60,
+        location_type="remote",
+        meeting_location="Online",
+        applied_credit_cents=0,
+    )
+
+    result = pricing_service.compute_quote_pricing(payload, student_id=str(test_student.id))
+
+    assert isinstance(result["instructor_tier_pct"], float)
+    assert result["instructor_tier_pct"] >= 0
 
 
 def test_pricing_service_respects_config_overrides(

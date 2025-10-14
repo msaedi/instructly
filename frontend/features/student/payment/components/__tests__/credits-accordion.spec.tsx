@@ -116,8 +116,6 @@ function CreditsHarness() {
       referralActive={false}
       floorViolationMessage={null}
       onClearFloorViolation={jest.fn()}
-      pricingPreview={null}
-      isPricingPreviewLoading={false}
     />
   );
 }
