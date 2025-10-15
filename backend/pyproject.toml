@@ -107,6 +107,7 @@ markers = [
     "unit: marks tests as unit tests",
     "requires_cache: marks tests that require cache to be running",
     "supporting_systems: marks tests for supporting systems",
+    "stripe_e2e: marks optional Stripe parity E2E tests (requires RUN_STRIPE_E2E=1)",
 ]
 
 [tool.ruff]
