@@ -37,6 +37,12 @@ from app.services.booking_service import BookingService
 from app.services.notification_service import NotificationService
 
 
+@pytest.fixture(autouse=True)
+def _no_price_floors(disable_price_floors):
+    """Comprehensive suite uses legacy low-price fixtures."""
+    yield
+
+
 class TestBookingServiceCreation:
     """Test booking creation functionality."""
 

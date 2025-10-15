@@ -138,7 +138,6 @@ describe('PaymentSection referral integration', () => {
       duration: 60,
       location: 'Online',
       basePrice: 100,
-      serviceFee: 20,
       totalAmount: 120,
       bookingType: BookingType.STANDARD,
       paymentStatus: PaymentStatus.PENDING,

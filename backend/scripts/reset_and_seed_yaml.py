@@ -14,6 +14,7 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 import json
 import os
 import random
@@ -51,6 +52,7 @@ class DatabaseSeeder:
         self.created_users = {}
         self.created_services = {}
         self.stripe_mapping = self._load_stripe_mapping()
+        self.instructor_seed_plan = {}
 
     def _create_engine(self):
         db_url = settings.get_database_url()
@@ -286,12 +288,18 @@ class DatabaseSeeder:
                 _bio = profile_data.get("bio", "").strip()
                 _areas_list = profile_data.get("areas", [])
 
+                current_tier_pct_value = float(instructor_data.get("current_tier_pct", 15.00))
+                seed_completed_last_30d = int(instructor_data.get("seed_completed_last_30d") or 0)
+                seed_randomize_categories = bool(instructor_data.get("seed_randomize_categories", False))
+
                 profile = InstructorProfile(
                     user_id=user.id,
                     bio=_bio,
                     years_experience=profile_data.get("years_experience", 1),
                     min_advance_booking_hours=2,
                     buffer_time_minutes=0,
+                    current_tier_pct=current_tier_pct_value,
+                    last_tier_eval_at=_now,
                     # Onboarding defaults for seeded instructors
                     skills_configured=_has_services,
                     identity_verified_at=_now,
@@ -309,6 +317,15 @@ class DatabaseSeeder:
 
                 session.add(profile)
                 session.flush()
+
+                plan_entry = {
+                    "user_id": user.id,
+                    "profile_id": profile.id,
+                    "seed_completed_last_30d": seed_completed_last_30d,
+                    "seed_randomize_categories": seed_randomize_categories,
+                    "service_ids": [],
+                }
+                self.instructor_seed_plan[user.email] = plan_entry
 
                 if os.getenv("SEED_FORCE_BGC_PASSED", "1") == "1" and profile.is_live:
                     now_utc = profile.bgc_completed_at or datetime.now(timezone.utc)
@@ -389,6 +406,7 @@ class DatabaseSeeder:
                     session.flush()
                     self.created_services[f"{user.email}:{service_name}"] = service.id
                     service_count += 1
+                    plan_entry["service_ids"].append(service.id)
 
                 # Create Stripe connected account if mapping exists
                 if user.email in self.stripe_mapping and self.stripe_mapping[user.email]:
@@ -411,6 +429,7 @@ class DatabaseSeeder:
                     f"  ✅ Created instructor: {user.first_name} {user.last_name} with {service_count} services{status_info}"
                 )
 
+            self._seed_tier_maintenance_sessions(session)
             session.commit()
 
         # Count instructors by status
@@ -424,6 +443,132 @@ class DatabaseSeeder:
             print(
                 f"   ⚠️  Including test instructors: {status_counts['suspended']} suspended, {status_counts['deactivated']} deactivated"
             )
+
+    def _seed_tier_maintenance_sessions(self, session: Session) -> None:
+        """Seed completed sessions in the last 30 days to preserve tier assignments."""
+
+        if not self.instructor_seed_plan:
+            return
+
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(days=30)
+
+        student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
+        if not student_role:
+            return
+
+        students = (
+            session.query(User)
+            .join(UserRoleJunction, UserRoleJunction.user_id == User.id)
+            .filter(UserRoleJunction.role_id == student_role.id, User.email.like("%@example.com"))
+            .all()
+        )
+
+        if not students:
+            print("  ⚠️  Skipping tier maintenance seeding: no seed students available")
+            return
+
+        rng = random.Random(42)
+        total_seeded = 0
+
+        for email, plan in self.instructor_seed_plan.items():
+            desired = int(plan.get("seed_completed_last_30d") or 0)
+            if desired <= 0:
+                continue
+
+            user_id = plan.get("user_id")
+            if not user_id:
+                continue
+
+            existing_count = (
+                session.query(Booking)
+                .filter(
+                    Booking.instructor_id == user_id,
+                    Booking.status == BookingStatus.COMPLETED,
+                    Booking.completed_at >= window_start,
+                )
+                .count()
+            )
+
+            remaining = desired - existing_count
+            if remaining <= 0:
+                continue
+
+            service_ids = plan.get("service_ids") or []
+            if not service_ids:
+                continue
+
+            services = (
+                session.query(InstructorService)
+                .filter(InstructorService.id.in_(service_ids))
+                .all()
+            )
+
+            if not services:
+                continue
+
+            for _ in range(remaining):
+                if plan.get("seed_randomize_categories") and len(services) > 1:
+                    service = rng.choice(services)
+                else:
+                    service = services[0]
+
+                duration_options = service.duration_options or [60]
+                duration = int(rng.choice(duration_options)) or 60
+
+                days_ago = rng.randint(0, 29)
+                booking_date = (now - timedelta(days=days_ago)).date()
+
+                start_hour = rng.randint(9, 18)
+                start_time = time(start_hour, 0)
+                start_dt_naive = datetime.combine(booking_date, start_time)
+                end_dt_naive = start_dt_naive + timedelta(minutes=duration)
+                end_time = end_dt_naive.time()
+
+                start_dt = start_dt_naive.replace(tzinfo=timezone.utc)
+                end_dt = end_dt_naive.replace(tzinfo=timezone.utc)
+
+                loc_types = [lt.lower() for lt in (service.location_types or [])]
+                is_remote = any(lt in {"online", "remote", "virtual"} for lt in loc_types)
+                location_type = "remote" if is_remote else "student_home"
+                meeting_location = "Online" if is_remote else "Student location"
+
+                student = rng.choice(students)
+
+                hourly_rate = Decimal(str(service.hourly_rate)).quantize(Decimal("0.01"))
+                total_price = (hourly_rate * Decimal(duration) / Decimal(60)).quantize(Decimal("0.01"))
+
+                service_name = (
+                    service.catalog_entry.name
+                    if service.catalog_entry
+                    else (service.description or service.name)
+                )
+
+                booking = Booking(
+                    student_id=student.id,
+                    instructor_id=user_id,
+                    instructor_service_id=service.id,
+                    booking_date=booking_date,
+                    start_time=start_time,
+                    end_time=end_time,
+                    duration_minutes=duration,
+                    service_name=service_name,
+                    hourly_rate=hourly_rate,
+                    total_price=total_price,
+                    status=BookingStatus.COMPLETED,
+                    location_type=location_type,
+                    meeting_location=meeting_location,
+                    service_area=None,
+                    student_note="Seeded maintenance session",
+                    created_at=start_dt - timedelta(days=1),
+                    confirmed_at=start_dt - timedelta(hours=2),
+                    completed_at=end_dt,
+                )
+                session.add(booking)
+                total_seeded += 1
+
+        if total_seeded:
+            print(f"  🎯 Seeded {total_seeded} maintenance sessions to preserve tier assignments")
 
     def create_coverage_areas(self):
         """Assign deterministic primary/secondary/by_request neighborhoods using repository pattern.

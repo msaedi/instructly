@@ -71,7 +71,7 @@ body {
  */
  :root {
   /* Color Variables */
-  --background: #ffffff;
+  --background: 0 0% 100%;
   --foreground: #171717;
   --background-secondary: #f9fafb;
   --foreground-secondary: #6b7280;
@@ -136,7 +136,7 @@ body {
 /* Dark Mode Support */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #111827; /* Gray 900 */
+    --background: 222 47% 11%;
     --foreground: #f3f4f6; /* Gray 100 */
     --background-secondary: #1f2937; /* Gray 800 */
     --foreground-secondary: #9ca3af; /* Gray 400 */

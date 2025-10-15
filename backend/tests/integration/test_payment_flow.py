@@ -7,7 +7,7 @@ all pieces are integrated together.
 """
 
 from datetime import date, time
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,8 +21,25 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
+from app.services.config_service import ConfigService
 from app.services.permission_service import PermissionService
+from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
+
+
+@pytest.fixture(autouse=True)
+def _no_floors_for_payment_flow(disable_price_floors):
+    """Disable price floors for payment flow integration tests."""
+    yield
+
+
+def _build_stripe_service(db_session: Session) -> StripeService:
+    """Construct StripeService with explicit configuration dependencies."""
+    return StripeService(
+        db_session,
+        config_service=ConfigService(db_session),
+        pricing_service=PricingService(db_session),
+    )
 
 
 class TestPaymentIntegration:
@@ -177,7 +194,7 @@ class TestPaymentIntegration:
         mock_confirmed_intent.status = "succeeded"
         mock_confirm.return_value = mock_confirmed_intent
 
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Step 1: Create Stripe customer for student
         customer = stripe_service.create_customer(
@@ -217,15 +234,15 @@ class TestPaymentIntegration:
         assert payment_result["success"] is True
         assert payment_result["payment_intent_id"] == "pi_test123"
         assert payment_result["status"] == "succeeded"
-        assert payment_result["amount"] == 8000  # $80.00 in cents
-        assert payment_result["application_fee"] == 1200  # 15% of $80.00
+        assert payment_result["amount"] == 8960  # $80 base + 12% student fee
+        assert payment_result["application_fee"] == 2160  # 12% fee + 15% commission
 
         # Step 6: Verify database records
         payment_record = stripe_service.payment_repository.get_payment_by_booking_id(test_booking.id)
         assert payment_record is not None
         assert payment_record.stripe_payment_intent_id == "pi_test123"
-        assert payment_record.amount == 8000
-        assert payment_record.application_fee == 1200
+        assert payment_record.amount == 8960
+        assert payment_record.application_fee == 2160
         assert payment_record.status == "succeeded"
 
         # Verify all Stripe calls were made
@@ -270,7 +287,7 @@ class TestPaymentIntegration:
         mock_refund.amount = 8000
         mock_refund_create.return_value = mock_refund
 
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Step 1: Create customer and payment (simulate completed payment)
         _customer = stripe_service.create_customer(
@@ -306,7 +323,7 @@ class TestPaymentIntegration:
     @patch("stripe.Webhook.construct_event")
     def test_webhook_payment_confirmation_flow(self, mock_construct_event, db: Session, test_booking: Booking):
         """Test webhook updating payment status and booking confirmation."""
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Create initial payment record in pending state
         _payment_record = stripe_service.payment_repository.create_payment_record(
@@ -347,7 +364,7 @@ class TestPaymentIntegration:
         mock_customer.id = "cus_test123"
         mock_customer_create.return_value = mock_customer
 
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Step 1: Create customer
         _customer = stripe_service.create_customer(
@@ -430,7 +447,7 @@ class TestPaymentIntegration:
 
     def test_error_handling_in_payment_flow(self, db: Session, student_user: User, test_booking: Booking):
         """Test error handling throughout payment flow."""
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Test 1: Payment for non-existent booking
         with pytest.raises(ServiceException, match="not found"):
@@ -469,7 +486,7 @@ class TestPaymentIntegration:
         mock_customer.id = "cus_test123"
         mock_customer_create.return_value = mock_customer
 
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
 
         # Test concurrent customer creation (should handle duplicates gracefully)
         customer1 = stripe_service.create_customer(
@@ -577,12 +594,19 @@ class TestPaymentAnalytics:
 
     def test_platform_revenue_calculations(self, db: Session, student_user: User, instructor_setup: tuple):
         """Test platform revenue analytics across multiple payments."""
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
         instructor_user, instructor_profile, instructor_service = instructor_setup
+
+        config_service = ConfigService(db)
+        pricing_config, _ = config_service.get_pricing_config()
+        student_fee_pct = Decimal(str(pricing_config["student_fee_pct"]))
+        default_tier_pct = Decimal(str(pricing_config["instructor_tiers"][0]["pct"]))
+        fee_ratio = (student_fee_pct + default_tier_pct) / (Decimal(1) + student_fee_pct)
 
         # Create test bookings and payments using repository
         booking_repo = RepositoryFactory.create_booking_repository(db)
         booking_ids = []
+        recorded_fees: list[int] = []
         for i in range(3):
             # Create actual booking first using repository
             booking = booking_repo.create(
@@ -604,7 +628,10 @@ class TestPaymentAnalytics:
 
             # Create payment records with different amounts
             amount = (i + 1) * 2000  # $20, $40, $60
-            fee = int(amount * 0.15)  # 15% platform fee
+            fee = int(
+                (Decimal(amount) * fee_ratio).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            )
+            recorded_fees.append(fee)
 
             stripe_service.payment_repository.create_payment_record(
                 booking_id=booking.id,
@@ -618,8 +645,8 @@ class TestPaymentAnalytics:
         stats = stripe_service.get_platform_revenue_stats()
 
         # Verify calculations
-        expected_total = 2000 + 4000 + 6000  # $120 total
-        expected_fees = 300 + 600 + 900  # $18 total fees
+        expected_total = sum((i + 1) * 2000 for i in range(3))
+        expected_fees = sum(recorded_fees)
 
         assert stats["total_amount"] == expected_total
         assert stats["total_fees"] == expected_fees
@@ -629,11 +656,18 @@ class TestPaymentAnalytics:
     def test_instructor_earnings_calculations(self, db: Session, student_user: User, instructor_setup: tuple):
         """Test instructor earnings analytics."""
         instructor_user, instructor_profile, instructor_service = instructor_setup
-        stripe_service = StripeService(db)
+        stripe_service = _build_stripe_service(db)
+
+        config_service = ConfigService(db)
+        pricing_config, _ = config_service.get_pricing_config()
+        student_fee_pct = Decimal(str(pricing_config["student_fee_pct"]))
+        default_tier_pct = Decimal(str(pricing_config["instructor_tiers"][0]["pct"]))
+        fee_ratio = (student_fee_pct + default_tier_pct) / (Decimal(1) + student_fee_pct)
 
         # Create test payments for this instructor using repository
         booking_repo = RepositoryFactory.create_booking_repository(db)
 
+        recorded_fees: list[int] = []
         for i in range(2):
             # Create actual booking first using repository
             booking = booking_repo.create(
@@ -653,7 +687,10 @@ class TestPaymentAnalytics:
             )
 
             amount = (i + 1) * 3000  # $30, $60
-            fee = int(amount * 0.15)
+            fee = int(
+                (Decimal(amount) * fee_ratio).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            )
+            recorded_fees.append(fee)
 
             stripe_service.payment_repository.create_payment_record(
                 booking_id=booking.id,
@@ -667,9 +704,9 @@ class TestPaymentAnalytics:
         earnings = stripe_service.get_instructor_earnings(instructor_user.id)
 
         # Verify calculations
-        expected_gross = 3000 + 6000  # $90 total
-        expected_fees = 450 + 900  # $13.50 total fees
-        expected_net = expected_gross - expected_fees  # $76.50
+        expected_gross = sum((i + 1) * 3000 for i in range(2))
+        expected_fees = sum(recorded_fees)
+        expected_net = expected_gross - expected_fees
 
         assert earnings["total_earned"] == expected_net
         assert earnings["total_fees"] == expected_fees

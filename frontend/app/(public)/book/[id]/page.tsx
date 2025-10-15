@@ -17,7 +17,7 @@ import { useAuth } from '@/features/student/booking';
 import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/booking';
 import { BookingPayment, PaymentStatus } from '@/features/student/payment';
 import { BookingType } from '@/features/shared/types/booking';
-import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
+import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 
 interface Service {
@@ -178,8 +178,7 @@ export default function QuickBookingPage() {
     const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
     const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
     const basePrice = safeRate * (duration / 60);
-    const serviceFee = calculateServiceFee(basePrice);
-    const totalAmount = calculateTotalAmount(basePrice);
+    const totalAmount = basePrice;
     const bookingType = determineBookingType(bookingDate);
 
     const paymentBookingData: BookingPayment = {
@@ -193,7 +192,6 @@ export default function QuickBookingPage() {
       duration,
       location: serviceAreaDisplay,
       basePrice,
-      serviceFee,
       totalAmount,
       bookingType,
       paymentStatus: PaymentStatus.PENDING,

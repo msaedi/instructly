@@ -100,8 +100,7 @@ test.describe('Slot Preservation on Back Navigation', () => {
         duration: 60,
         location: 'Upper West Side',
         basePrice: 120,
-        serviceFee: 12,
-        totalAmount: 132,
+        totalAmount: 120,
         freeCancellationUntil: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
       };
       sessionStorage.setItem('bookingData', JSON.stringify(bookingData));

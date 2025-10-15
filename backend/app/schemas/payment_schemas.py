@@ -33,6 +33,11 @@ class CreateCheckoutRequest(StrictRequestModel):
     save_payment_method: bool = Field(
         default=False, description="Whether to save payment method for future use"
     )
+    applied_credit_cents: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Optional wallet credit amount (in cents) the student chose to apply",
+    )
 
 
 # ========== Response Models ==========

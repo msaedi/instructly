@@ -16,6 +16,7 @@ type ServerInstructorProfileResult = {
     duration_options?: number[];
     hourly_rate?: number | string;
     description?: string | null;
+    location_types?: string[];
   }>;
   bio?: string;
   service_area_boroughs?: string[];
@@ -98,6 +99,10 @@ export function useInstructorProfile(instructorId: string) {
           duration_options: Array.isArray(svc.duration_options) && svc.duration_options.length > 0 ? (svc.duration_options as number[]) : [60],
           hourly_rate: isNaN(hourly_rate) ? 0 : hourly_rate,
           description: (svc.description as string | null) ?? null,
+          ...(Array.isArray((svc as Record<string, unknown>)['location_types'])
+            && ((svc as Record<string, unknown>)['location_types'] as unknown[]).length
+            ? { location_types: (svc as Record<string, unknown>)['location_types'] as string[] }
+            : {}),
         };
         return mapped;
       }) || [];

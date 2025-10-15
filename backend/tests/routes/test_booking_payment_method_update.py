@@ -1,3 +1,4 @@
+# noqa: D100
 """
 Tests for PATCH /bookings/{id}/payment-method endpoint.
 """
@@ -10,6 +11,12 @@ import pytest
 
 from app.auth import create_access_token
 from app.models.booking import BookingStatus
+
+
+@pytest.fixture(autouse=True)
+def _no_price_floors(disable_price_floors):
+    """Payment-method tests rely on $50 legacy fixtures."""
+    yield
 
 
 @pytest.mark.asyncio

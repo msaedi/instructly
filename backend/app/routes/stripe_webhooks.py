@@ -21,6 +21,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..schemas.payment_schemas import WebhookResponse
+from ..services.config_service import ConfigService
+from ..services.pricing_service import PricingService
 from ..services.stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
@@ -30,7 +32,13 @@ router = APIRouter(prefix="/webhooks/stripe", tags=["stripe-webhooks"])
 
 def get_stripe_service(db: Session = Depends(get_db)) -> StripeService:
     """Get StripeService instance."""
-    return StripeService(db)
+    config_service = ConfigService(db)
+    pricing_service = PricingService(db)
+    return StripeService(
+        db,
+        config_service=config_service,
+        pricing_service=pricing_service,
+    )
 
 
 @router.post("/payment-events", response_model=WebhookResponse)

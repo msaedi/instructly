@@ -55,6 +55,7 @@ export async function fetchJson<T = unknown>(endpoint: string, init: FetchOption
     logger.info(`API ${method} ${endpoint}`, { hasBody: !!init.body });
     const timer = `API ${method} ${endpoint}`;
     logger.time(timer);
+    let timerEnded = false;
     try {
       let res = await run();
       let attempt = 1;
@@ -70,6 +71,7 @@ export async function fetchJson<T = unknown>(endpoint: string, init: FetchOption
       }
 
       logger.timeEnd(timer);
+      timerEnded = true;
 
       const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
       let body: unknown = null;
@@ -95,6 +97,16 @@ export async function fetchJson<T = unknown>(endpoint: string, init: FetchOption
       try { return (await res.json()) as T; } catch { /* fallthrough */ }
       return undefined as unknown as T;
     } catch (err) {
+      if (!timerEnded) {
+        try {
+          logger.timeEnd(timer);
+        } catch {
+          // ignore timing cleanup failures
+        }
+      }
+      if ((err as { name?: string } | null)?.name === 'AbortError') {
+        return undefined as unknown as T;
+      }
       logger.error(`API ${method} ${endpoint} error`, err);
       throw err;
     }

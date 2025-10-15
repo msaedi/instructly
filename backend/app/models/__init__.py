@@ -24,6 +24,7 @@ from .message import Message, MessageNotification
 from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
 from .payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
+from .platform_config import PlatformConfig
 from .rbac import Permission, Role, RolePermission, UserPermission, UserRole
 from .referrals import (
     ReferralAttribution,
@@ -67,6 +68,7 @@ __all__ = [
     # Booking models
     "Booking",
     "BookingStatus",
+    "PlatformConfig",
     # Payment models
     "PaymentIntent",
     "PaymentMethod",

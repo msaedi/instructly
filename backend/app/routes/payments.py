@@ -51,6 +51,8 @@ from ..schemas.payment_schemas import (
     TransactionHistoryItem,
     WebhookResponse,
 )
+from ..services.config_service import ConfigService
+from ..services.pricing_service import PricingService
 from ..services.stripe_service import StripeService
 from ..utils.strict import model_filter
 
@@ -61,7 +63,13 @@ router = APIRouter(prefix="/api/payments", tags=["payments"])
 
 def get_stripe_service(db: Session = Depends(get_db)) -> StripeService:
     """Get StripeService instance with dependency injection."""
-    return StripeService(db)
+    config_service = ConfigService(db)
+    pricing_service = PricingService(db)
+    return StripeService(
+        db,
+        config_service=config_service,
+        pricing_service=pricing_service,
+    )
 
 
 def validate_instructor_role(user: User) -> None:
@@ -911,6 +919,7 @@ async def create_checkout(
             stripe_service.process_booking_payment,
             payload.booking_id,
             payload.payment_method_id,
+            payload.applied_credit_cents,
         )
 
         # Update booking status if payment succeeded
@@ -1035,7 +1044,13 @@ async def get_transaction_history(
     Returns list of completed payments with booking details
     """
     try:
-        stripe_service = StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
 
         # Get payment intents for this user
         transactions = stripe_service.payment_repository.get_user_payment_history(
@@ -1142,7 +1157,13 @@ async def get_credit_balance(
     Returns available credits and expiration
     """
     try:
-        stripe_service = StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
         payment_repo = stripe_service.payment_repository
 
         # Total available credits in cents
@@ -1250,7 +1271,13 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
             logger.info("Event from platform account")
 
         # Process the verified event
-        stripe_service = StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
         _result = stripe_service.handle_webhook_event(event)  # Pass parsed event directly
 
         logger.info(f"Webhook processed successfully: {event['type']}")

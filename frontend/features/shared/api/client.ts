@@ -196,8 +196,15 @@ export async function cleanFetch<T>(
         } as ApiResponse<T> & { retryAfterSeconds?: number };
       }
 
+      const detailValue = (data as Record<string, unknown>)?.['detail'];
+      const errorValue =
+        detailValue !== undefined && detailValue !== null
+          ? typeof detailValue === 'string'
+            ? detailValue
+            : JSON.stringify(detailValue)
+          : `Error: ${response.status}`;
       return {
-        error: (data as Record<string, unknown>)?.['detail'] as string || `Error: ${response.status}`,
+        error: errorValue,
         status: response.status,
       };
     }
@@ -212,6 +219,28 @@ export async function cleanFetch<T>(
       status: 0,
     };
   }
+}
+
+/**
+ * Fetch normalized place details for a suggestion.
+ */
+export async function getPlaceDetails(params: {
+  place_id: string;
+  provider?: string;
+  signal?: AbortSignal;
+}): Promise<ApiResponse<Record<string, unknown>>> {
+  const { place_id, provider, signal } = params;
+  const searchParams = new URLSearchParams({ place_id });
+  if (provider) {
+    searchParams.set('provider', provider);
+  }
+
+  const options: FetchOptions = {};
+  if (signal) {
+    options.signal = signal;
+  }
+
+  return cleanFetch<Record<string, unknown>>(`/api/addresses/places/details?${searchParams.toString()}`, options);
 }
 
 /**
@@ -695,7 +724,7 @@ export interface CreateBookingRequest {
   selected_duration: number; // Duration in minutes
   student_note?: string;
   meeting_location?: string;
-  location_type?: 'student_home' | 'instructor_location' | 'neutral';
+  location_type?: 'student_home' | 'instructor_location' | 'neutral' | 'remote' | 'in_person';
 }
 
 // Re-export generated Booking type for tests that import from this module
@@ -725,9 +754,21 @@ export const protectedApi = {
     upcoming?: boolean;
     limit?: number;
     offset?: number;
+    signal?: AbortSignal;
   }) {
+    const { signal, ...query } = params ?? {};
+    const options: FetchOptions = {};
+
+    if (signal) {
+      options.signal = signal;
+    }
+
+    if (Object.keys(query).length > 0) {
+      options.params = query as Record<string, string | number | boolean>;
+    }
+
     // Use generated PaginatedBookingResponse type
-    return authFetch<PaginatedBookingResponse>(PROTECTED_ENDPOINTS.bookings.list, params ? { params } : {});
+    return authFetch<PaginatedBookingResponse>(PROTECTED_ENDPOINTS.bookings.list, options);
   },
 
   /**

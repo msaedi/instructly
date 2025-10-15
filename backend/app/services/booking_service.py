@@ -37,7 +37,10 @@ from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..schemas.booking import BookingCreate, BookingUpdate
 from .base import BaseService
+from .config_service import ConfigService
 from .notification_service import NotificationService
+from .pricing_service import PricingService
+from .student_credit_service import StudentCreditService
 
 if TYPE_CHECKING:
     from ..models.availability_slot import AvailabilitySlot
@@ -241,7 +244,11 @@ class BookingService(BaseService):
             booking.payment_status = "pending_payment_method"
 
             # 6. Create Stripe SetupIntent (with safe fallback for CI/mock environments)
-            stripe_service = StripeService(self.db)
+            stripe_service = StripeService(
+                self.db,
+                config_service=ConfigService(self.db),
+                pricing_service=PricingService(self.db),
+            )
 
             # Ensure customer exists (uses mock customer in non-configured environments)
             stripe_customer = stripe_service.get_or_create_customer(student.id)
@@ -351,7 +358,11 @@ class BookingService(BaseService):
             if save_payment_method:
                 from ..services.stripe_service import StripeService
 
-                stripe_service = StripeService(self.db)
+                stripe_service = StripeService(
+                    self.db,
+                    config_service=ConfigService(self.db),
+                    pricing_service=PricingService(self.db),
+                )
                 stripe_service.save_payment_method(
                     user_id=student.id, payment_method_id=payment_method_id, set_as_default=False
                 )
@@ -513,7 +524,11 @@ class BookingService(BaseService):
             from ..services.stripe_service import StripeService
 
             payment_repo = PaymentRepository(self.db)
-            stripe_service = StripeService(self.db)
+            stripe_service = StripeService(
+                self.db,
+                config_service=ConfigService(self.db),
+                pricing_service=PricingService(self.db),
+            )
 
             # >24h: release authorization (cancel PI), no charge
             if hours_until > 24:
@@ -628,6 +643,16 @@ class BookingService(BaseService):
 
         # Invalidate caches
         self._invalidate_booking_caches(booking)
+
+        try:
+            credit_service = StudentCreditService(self.db)
+            credit_service.process_refund_hooks(booking=booking)
+        except Exception as exc:
+            logger.error(
+                "Failed to adjust student credits for cancelled booking %s: %s",
+                booking.id,
+                exc,
+            )
 
         return booking
 
@@ -865,6 +890,19 @@ class BookingService(BaseService):
         if refreshed_booking is None:
             raise NotFoundException("Booking not found")
         self._invalidate_booking_caches(refreshed_booking)
+
+        try:
+            credit_service = StudentCreditService(self.db)
+            credit_service.maybe_issue_milestone_credit(
+                student_id=refreshed_booking.student_id,
+                booking_id=refreshed_booking.id,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed issuing milestone credit for booking completion %s: %s",
+                booking_id,
+                exc,
+            )
 
         return refreshed_booking
 
@@ -1190,6 +1228,9 @@ class BookingService(BaseService):
 
         # Load relationships for response
         detailed_booking = self.repository.get_booking_with_details(booking.id)
+
+        pricing_service = PricingService(self.db)
+        pricing_service.compute_booking_pricing(booking.id, applied_credit_cents=0, persist=False)
 
         if detailed_booking is not None:
             return detailed_booking

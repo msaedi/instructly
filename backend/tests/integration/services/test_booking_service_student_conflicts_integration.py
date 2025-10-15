@@ -26,6 +26,12 @@ except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import add_service_areas_for_boroughs
 
 
+@pytest.fixture(autouse=True)
+def _no_price_floors(disable_price_floors):
+    """Conflicts regression keeps legacy $60/$80 rates unchecked."""
+    yield
+
+
 class TestStudentConflictValidationIntegration:
     """Integration tests for student conflict validation."""
 

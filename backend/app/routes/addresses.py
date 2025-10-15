@@ -186,16 +186,9 @@ def places_autocomplete(q: str, provider: str | None = None) -> AutocompleteResp
     from ..services.geocoding.factory import create_geocoding_provider
 
     requested_provider = (provider or settings.geocoding_provider or "google").lower()
+
     geocoder = create_geocoding_provider(requested_provider)
     results: list[AutocompleteResult] = anyio.run(geocoder.autocomplete, q)
-
-    if not results and requested_provider == "google" and settings.mapbox_access_token:
-        fallback = create_geocoding_provider("mapbox")
-        results = anyio.run(fallback.autocomplete, q)
-
-    if not results and requested_provider != "mock":
-        mock_provider = create_geocoding_provider("mock")
-        results = anyio.run(mock_provider.autocomplete, q)
 
     items: list[dict[str, Any]] = [
         {
@@ -203,6 +196,7 @@ def places_autocomplete(q: str, provider: str | None = None) -> AutocompleteResp
             "place_id": r.place_id,
             "description": r.description,
             "types": r.types,
+            "provider": requested_provider,
         }
         for r in results
     ]
@@ -220,32 +214,67 @@ def place_details(place_id: str, provider: str | None = None) -> PlaceDetails:
     from ..core.config import settings
     from ..services.geocoding.factory import create_geocoding_provider
 
-    effective_provider = provider
+    original_place_id = place_id
+    requested_provider = provider.lower() if provider else None
     normalized_place_id = place_id
 
-    if effective_provider is None and ":" in place_id:
+    if requested_provider is None and ":" in place_id:
         prefix, remainder = place_id.split(":", 1)
         if prefix in {"google", "mapbox", "mock"} and remainder:
-            effective_provider = prefix
+            requested_provider = prefix
             normalized_place_id = remainder
 
-    geocoder = create_geocoding_provider(effective_provider)
+    if requested_provider is None:
+        requested_provider = (settings.geocoding_provider or "google").lower()
+
+    provider_used = requested_provider
+    geocoder = create_geocoding_provider(requested_provider)
     result: GeocodedAddress | None = anyio.run(geocoder.get_place_details, normalized_place_id)
 
-    if not result and effective_provider in {None, "google"} and settings.mapbox_access_token:
-        fallback = create_geocoding_provider("mapbox")
-        result = anyio.run(fallback.get_place_details, normalized_place_id)
+    if provider and not result:
+        logger.warning(
+            "Place details provider mismatch",
+            extra={
+                "provider": requested_provider,
+                "requested_place_id": original_place_id,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "invalid_place_id_for_provider",
+                "provider": requested_provider,
+                "place_id": original_place_id,
+            },
+        )
+
+    if not result and requested_provider == "google":
+        fallback_provider = None
+        try:
+            fallback_provider = create_geocoding_provider("mapbox")
+        except Exception:
+            fallback_provider = None
+
+        if fallback_provider is not None:
+            logger.warning(
+                "Falling back to Mapbox place details",
+                extra={
+                    "fallback_from": "google",
+                    "fallback_to": "mapbox",
+                    "original_place_id": normalized_place_id,
+                },
+            )
+            fallback_result = anyio.run(fallback_provider.get_place_details, normalized_place_id)
+            if fallback_result:
+                result = fallback_result
+                provider_used = "mapbox"
 
     if not result:
         raise HTTPException(status_code=404, detail="Place not found")
+
     provider_id = result.provider_id
-    if effective_provider:
-        if not provider_id.startswith(f"{effective_provider}:"):
-            provider_id = f"{effective_provider}:{provider_id}" if provider_id else provider_id
-    else:
-        default_provider = (settings.geocoding_provider or "google").lower()
-        if provider_id and not provider_id.startswith(f"{default_provider}:"):
-            provider_id = f"{default_provider}:{provider_id}" if provider_id else provider_id
+    if provider_used and provider_id and not provider_id.startswith(f"{provider_used}:"):
+        provider_id = f"{provider_used}:{provider_id}" if provider_id else provider_id
 
     return PlaceDetails(
         formatted_address=result.formatted_address,

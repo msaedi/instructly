@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { BookingPayment, PaymentCard, CreditBalance, PaymentMethod } from '../types';
 import { usePaymentFlow, PaymentStep } from '../hooks/usePaymentFlow';
@@ -14,7 +14,16 @@ import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBooking';
 import { paymentService } from '@/services/api/payments';
 import { protectedApi, type Booking } from '@/features/shared/api/client';
+import { ApiProblemError } from '@/lib/api/fetch';
+import { PricingPreviewContext, usePricingPreviewController } from '../hooks/usePricingPreview';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
+import { buildCreateBookingPayload } from '../utils/buildCreateBookingPayload';
+import {
+  buildPricingPreviewQuotePayload,
+  type PricingPreviewSelection,
+} from '../utils/buildPricingPreviewQuotePayload';
+import { to24HourTime } from '@/lib/time';
+import { minutesSinceHHMM } from '@/lib/time/overlap';
 
 // Custom error for payment actions that require user interaction
 class PaymentActionError extends Error {
@@ -27,6 +36,12 @@ class PaymentActionError extends Error {
     this.name = 'PaymentActionError';
   }
 }
+
+const logDevInfo = (...args: Parameters<typeof logger.info>) => {
+  if (process.env.NODE_ENV !== 'production') {
+    logger.info(...args);
+  }
+};
 
 const normalizeCurrency = (value: unknown, fallback: number): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -41,14 +56,15 @@ const normalizeCurrency = (value: unknown, fallback: number): number => {
   return Number(fallback.toFixed(2));
 };
 
-const mergeBookingIntoPayment = (booking: Booking, fallback: BookingPayment): BookingPayment => {
+type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
+
+const mergeBookingIntoPayment = (booking: Booking, fallback: BookingWithMetadata): BookingWithMetadata => {
   const durationMinutes = booking.duration_minutes ?? fallback.duration;
   const hourlyRate = normalizeCurrency(booking.hourly_rate, fallback.basePrice);
   const computedBase = durationMinutes
     ? Number(((hourlyRate * durationMinutes) / 60).toFixed(2))
     : fallback.basePrice;
   const totalAmount = normalizeCurrency(booking.total_price, fallback.totalAmount);
-  const serviceFee = Number(Math.max(0, totalAmount - computedBase).toFixed(2));
 
   const bookingDate = booking.booking_date
     ? new Date(`${booking.booking_date}T00:00:00`)
@@ -70,8 +86,11 @@ const mergeBookingIntoPayment = (booking: Booking, fallback: BookingPayment): Bo
     duration: durationMinutes ?? fallback.duration,
     location: booking.meeting_location || fallback.location,
     basePrice: computedBase,
-    serviceFee,
     totalAmount,
+    metadata: {
+      ...(fallback.metadata ?? {}),
+      ...(booking as unknown as { metadata?: Record<string, unknown> }).metadata,
+    },
   };
 };
 
@@ -94,10 +113,236 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   } = useCreateBooking();
 
   const [confirmationNumber, setConfirmationNumber] = useState<string>('');
-  const [updatedBookingData, setUpdatedBookingData] = useState<BookingPayment>(bookingData);
+  const [updatedBookingData, setUpdatedBookingData] = useState<BookingWithMetadata>(bookingData);
   const [localErrorMessage, setLocalErrorMessage] = useState<string>('');
+  const [floorViolationMessage, setFloorViolationMessage] = useState<string | null>(null);
   const [referralAppliedCents, setReferralAppliedCents] = useState(0);
   const [promoApplied, setPromoApplied] = useState(false);
+  const [creditSliderCents, setCreditSliderCents] = useState(0);
+  const [lastSuccessfulCreditCents, setLastSuccessfulCreditCents] = useState(0);
+  const resolvedInstructorId = useMemo(() => {
+    const candidate =
+      (updatedBookingData.instructorId ?? bookingData.instructorId ?? null);
+    return typeof candidate === 'string' ? candidate : candidate != null ? String(candidate) : null;
+  }, [updatedBookingData.instructorId, bookingData.instructorId]);
+
+  const resolvedServiceId = useMemo(() => {
+    const metadataService =
+      (updatedBookingData.metadata?.['serviceId'] ?? bookingData.metadata?.['serviceId']) ??
+      bookingData.serviceId ?? null;
+    if (metadataService === null || metadataService === undefined) {
+      return null;
+    }
+    return typeof metadataService === 'string' ? metadataService : String(metadataService);
+  }, [updatedBookingData.metadata, bookingData.metadata, bookingData.serviceId]);
+
+  const mergedMetadata = useMemo(
+    () => ({
+      ...(bookingData.metadata ?? {}),
+      ...(updatedBookingData.metadata ?? {}),
+    }) as Record<string, unknown>,
+    [bookingData.metadata, updatedBookingData.metadata],
+  );
+
+  const quoteSelection = useMemo<PricingPreviewSelection | null>(() => {
+    if (!resolvedInstructorId) {
+      logDevInfo('[pricing-preview] Missing instructor ID', {
+        bookingId: bookingData.bookingId,
+        updatedBookingId: updatedBookingData.bookingId,
+      });
+      return null;
+    }
+
+    let effectiveServiceId = resolvedServiceId;
+    if (!effectiveServiceId && typeof window !== 'undefined') {
+      const stored = window.sessionStorage?.getItem('serviceId');
+      effectiveServiceId = stored && stored.trim().length > 0 ? stored : null;
+    }
+    if (!effectiveServiceId) {
+      logDevInfo('[pricing-preview] Missing service ID', {
+        resolvedServiceId,
+        metadata: mergedMetadata,
+        sessionStorageServiceId: typeof window !== 'undefined' ? window.sessionStorage?.getItem('serviceId') : null,
+      });
+      return null;
+    }
+
+    let bookingDateValue = updatedBookingData.date ?? bookingData.date;
+
+    // Try to recover date from sessionStorage if missing
+    if (!bookingDateValue && typeof window !== 'undefined') {
+      try {
+        const storedBooking = window.sessionStorage?.getItem('bookingData');
+        if (storedBooking) {
+          const parsed = JSON.parse(storedBooking);
+          bookingDateValue = parsed.date;
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    if (!bookingDateValue) {
+      logDevInfo('[pricing-preview] Missing booking date', {
+        bookingId: bookingData.bookingId,
+        updatedBookingId: updatedBookingData.bookingId,
+        sessionStorage: typeof window !== 'undefined' ? window.sessionStorage?.getItem('bookingData') : 'N/A'
+      });
+      return null;
+    }
+
+    let bookingDateLocal: string;
+    try {
+      bookingDateLocal = toDateOnlyString(bookingDateValue, 'pricing-preview.booking-date');
+    } catch (error) {
+      logger.debug('pricing-preview:quote-date-error', error);
+      logDevInfo('[pricing-preview] Date conversion error', { bookingDateValue, error });
+      return null;
+    }
+
+    const startTimeValue = updatedBookingData.startTime ?? bookingData.startTime;
+    if (!startTimeValue) {
+      logDevInfo('[pricing-preview] Missing start time', {
+        bookingId: bookingData.bookingId,
+        updatedBookingId: updatedBookingData.bookingId,
+      });
+      return null;
+    }
+
+    let startHHMM24: string;
+    try {
+      const timeStr = String(startTimeValue);
+      // If already in HH:MM:SS format, extract HH:MM
+      if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) {
+        startHHMM24 = timeStr.slice(0, 5);
+      } else {
+        startHHMM24 = to24HourTime(timeStr);
+      }
+    } catch (error) {
+      logger.debug('pricing-preview:quote-start-time-error', error);
+      logDevInfo('[pricing-preview] Time conversion error', {
+        startTimeValue,
+        error,
+        expectedFormat: 'HH:MM (24hr) or H:MMam/pm'
+      });
+      return null;
+    }
+
+    const resolveDuration = (): number => {
+      const candidates = [
+        updatedBookingData.duration,
+        bookingData.duration,
+        mergedMetadata['duration'],
+        mergedMetadata['duration_minutes'],
+      ];
+
+      for (const candidate of candidates) {
+        if (typeof candidate === 'number' && candidate > 0) {
+          return Math.round(candidate);
+        }
+        if (typeof candidate === 'string') {
+          const parsed = Number(candidate);
+          if (Number.isFinite(parsed) && parsed > 0) {
+            return Math.round(parsed);
+          }
+        }
+      }
+
+      const endTimeValue = updatedBookingData.endTime ?? bookingData.endTime;
+      if (endTimeValue) {
+        try {
+          const startMinutes = minutesSinceHHMM(to24HourTime(String(startTimeValue)));
+          const endMinutes = minutesSinceHHMM(to24HourTime(String(endTimeValue)));
+          const diff = endMinutes - startMinutes;
+          if (diff > 0) {
+            return diff;
+          }
+        } catch (error) {
+          logger.debug('pricing-preview:unable-to-derive-duration', error);
+        }
+      }
+
+      return 0;
+    };
+
+    const durationMinutes = resolveDuration();
+    if (durationMinutes <= 0) {
+      return null;
+    }
+
+    const rawLocation = (updatedBookingData.location ?? bookingData.location ?? '').toString().trim();
+    const meetingLocation = rawLocation || 'Student provided address';
+    const metadataModality = String(mergedMetadata['modality'] ?? '').trim().toLowerCase();
+    const isRemoteMetadata = metadataModality === 'remote' || metadataModality === 'online';
+    const isRemoteLocation = /online|remote|virtual/i.test(meetingLocation);
+    const isRemote = isRemoteMetadata || isRemoteLocation;
+
+    const allowedModalities: PricingPreviewSelection['modality'][] = [
+      'remote',
+      'in_person',
+      'student_home',
+      'instructor_location',
+      'neutral',
+    ];
+    const normalizedModality = (allowedModalities.find((value) => value === metadataModality) ??
+      (isRemote ? 'remote' : 'in_person')) as PricingPreviewSelection['modality'];
+
+    const selection = {
+      instructorId: resolvedInstructorId,
+      instructorServiceId: effectiveServiceId,
+      bookingDateLocalYYYYMMDD: bookingDateLocal,
+      startHHMM24,
+      selectedDurationMinutes: durationMinutes,
+      modality: normalizedModality,
+      meetingLocation: isRemote ? 'Online' : meetingLocation,
+      appliedCreditCents: Math.max(0, Math.round(creditSliderCents)),
+    };
+
+    logDevInfo('[pricing-preview] Quote selection built', selection);
+
+    return selection;
+  }, [
+    resolvedInstructorId,
+    resolvedServiceId,
+    updatedBookingData.date,
+    bookingData.date,
+    updatedBookingData.startTime,
+    bookingData.startTime,
+    updatedBookingData.endTime,
+    bookingData.endTime,
+    updatedBookingData.duration,
+    bookingData.duration,
+    updatedBookingData.location,
+    bookingData.location,
+    mergedMetadata,
+    creditSliderCents,
+    bookingData.bookingId,
+    updatedBookingData.bookingId,
+  ]);
+
+  const quotePayload = useMemo(
+    () => (quoteSelection ? buildPricingPreviewQuotePayload(quoteSelection) : null),
+    [quoteSelection],
+  );
+
+  const previewController = usePricingPreviewController({
+    bookingId: bookingData.bookingId || updatedBookingData.bookingId || null,
+    quotePayload,
+  });
+  const {
+    preview: pricingPreview,
+    applyCredit: applyCreditPreview,
+    lastAppliedCreditCents,
+  } = previewController;
+  const bookingDraftId = useMemo(
+    () => updatedBookingData.bookingId || bookingData.bookingId || null,
+    [updatedBookingData.bookingId, bookingData.bookingId],
+  );
+  const lastCommittedCreditRef = useRef<number>(lastAppliedCreditCents);
+
+  useEffect(() => {
+    lastCommittedCreditRef.current = lastAppliedCreditCents;
+  }, [lastAppliedCreditCents]);
 
   // Real payment data from backend
   const [userCards, setUserCards] = useState<PaymentCard[]>([]);
@@ -123,7 +368,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   } = usePaymentFlow({
     booking: updatedBookingData,
     onSuccess: (bookingId) => {
-      logger.info('Payment successful', { bookingId });
+      logDevInfo('Payment successful', { bookingId });
     },
     onError: (error) => {
       logger.error('Payment failed', error);
@@ -140,12 +385,67 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     selectPaymentMethodOriginal(method, cardId, credits);
   }, [selectPaymentMethodOriginal]);
 
+  const updateCreditSelection = useCallback((creditCents: number, totalDueCents: number) => {
+    const normalizedCreditCents = Math.max(0, Math.round(creditCents));
+    const creditDollars = Number((normalizedCreditCents / 100).toFixed(2));
+    const currentCreditCents = Math.max(0, Math.round(creditsToUse * 100));
+    const coversFullAmount = normalizedCreditCents >= totalDueCents;
+
+    // Exit early if no change needed
+    if (currentCreditCents === normalizedCreditCents) {
+      return;
+    }
+
+    if (normalizedCreditCents === 0) {
+      if (paymentMethod !== PaymentMethod.CREDIT_CARD || currentCreditCents !== 0) {
+        const effectiveCardId = selectedCardId
+          ?? userCards.find((card) => card.isDefault)?.id
+          ?? userCards[0]?.id;
+        selectPaymentMethod(PaymentMethod.CREDIT_CARD, effectiveCardId, 0);
+      }
+      return;
+    }
+
+    if (coversFullAmount) {
+      if (paymentMethod !== PaymentMethod.CREDITS || currentCreditCents !== normalizedCreditCents) {
+        selectPaymentMethod(PaymentMethod.CREDITS, undefined, creditDollars);
+      }
+      return;
+    }
+
+    const effectiveCardId = selectedCardId
+      ?? userCards.find((card) => card.isDefault)?.id
+      ?? userCards[0]?.id;
+    if (paymentMethod !== PaymentMethod.MIXED || currentCreditCents !== normalizedCreditCents) {
+      selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, creditDollars);
+    }
+  }, [creditsToUse, paymentMethod, selectPaymentMethod, selectedCardId, userCards]);
+
+  const handleBookingUpdate = useCallback(
+    (updater: (prev: BookingWithMetadata) => BookingWithMetadata) => {
+      setUpdatedBookingData((prev) => updater({
+        ...prev,
+        metadata: { ...(prev.metadata ?? {}) },
+      }));
+    },
+    []
+  );
+
   const subtotalCents = useMemo(() => Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100)), [updatedBookingData.totalAmount]);
   const effectiveOrderId = updatedBookingData.bookingId || bookingData.bookingId;
 
   useEffect(() => {
     setReferralAppliedCents(0);
   }, [effectiveOrderId]);
+
+  useEffect(() => {
+    setFloorViolationMessage(null);
+  }, [updatedBookingData.duration, updatedBookingData.basePrice, updatedBookingData.totalAmount]);
+
+  useEffect(() => {
+    const nextCreditCents = Math.max(0, Math.round(creditsToUse * 100));
+    setCreditSliderCents(nextCreditCents);
+  }, [creditsToUse]);
 
   const refreshOrderSummary = useCallback(async (orderIdentifier: string) => {
     try {
@@ -185,17 +485,159 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     />
   );
 
+  const getTotalDueCents = useCallback(() => {
+    if (pricingPreview) {
+      return pricingPreview.student_pay_cents + Math.max(0, pricingPreview.credit_applied_cents);
+    }
+    return Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100));
+  }, [pricingPreview, updatedBookingData.totalAmount]);
+
+  const commitCreditPreview = useCallback(async (creditCents: number) => {
+    const normalizedCreditCents = Math.max(0, Math.round(creditCents));
+
+    try {
+      await applyCreditPreview(normalizedCreditCents);
+      if (floorViolationMessage !== null) {
+        setFloorViolationMessage(null);
+      }
+    } catch (error) {
+      const maybeProblemError = error as ApiProblemError;
+      const status = maybeProblemError?.response?.status;
+
+      if (status === 422) {
+        const detail = maybeProblemError?.problem?.detail ?? 'Price must meet minimum requirements.';
+        setFloorViolationMessage(detail);
+        logDevInfo('pricing-floor-violation', {
+          bookingId: bookingDraftId,
+          requestedCreditCents: normalizedCreditCents,
+        });
+      } else {
+        logger.error('Failed to fetch pricing preview', error as Error, {
+          bookingId: bookingDraftId,
+          requestedCreditCents: normalizedCreditCents,
+        });
+        setLocalErrorMessage('Unable to refresh pricing preview. Please try again.');
+      }
+
+      const fallbackCents = lastSuccessfulCreditCents;
+      setCreditSliderCents(fallbackCents);
+      updateCreditSelection(fallbackCents, getTotalDueCents());
+      lastCommittedCreditRef.current = fallbackCents;
+    }
+  }, [
+    applyCreditPreview,
+    bookingDraftId,
+    floorViolationMessage,
+    getTotalDueCents,
+    lastSuccessfulCreditCents,
+    updateCreditSelection,
+  ]);
+
+  const handleCreditCommitCents = useCallback((creditCents: number) => {
+    const normalizedCreditCents = Math.max(0, Math.round(creditCents));
+    if (normalizedCreditCents === lastCommittedCreditRef.current) {
+      return;
+    }
+    lastCommittedCreditRef.current = normalizedCreditCents;
+    void commitCreditPreview(normalizedCreditCents);
+  }, [commitCreditPreview]);
+
+  const handleCreditToggle = useCallback(() => {
+    const totalDueCents = getTotalDueCents();
+    if (creditSliderCents > 0) {
+      const nextCents = 0;
+      setCreditSliderCents(nextCents);
+      updateCreditSelection(nextCents, totalDueCents);
+      handleCreditCommitCents(nextCents);
+      if (floorViolationMessage) {
+        setFloorViolationMessage(null);
+      }
+      return;
+    }
+
+    const availableCreditCents = Math.max(0, Math.round((userCredits.totalAmount || 0) * 100));
+    if (availableCreditCents === 0) return;
+
+    const targetCents = Math.min(availableCreditCents, totalDueCents);
+    setCreditSliderCents(targetCents);
+    updateCreditSelection(targetCents, totalDueCents);
+    handleCreditCommitCents(targetCents);
+  }, [creditSliderCents, getTotalDueCents, updateCreditSelection, userCredits.totalAmount, floorViolationMessage, handleCreditCommitCents]);
+
+  const handleCreditAmountChange = useCallback((amountDollars: number) => {
+    const totalDueCents = getTotalDueCents();
+    const requestedCents = Math.max(0, Math.round(amountDollars * 100));
+    const clampedCents = Math.min(requestedCents, totalDueCents);
+
+    // Skip if no actual change
+    if (creditSliderCents === clampedCents) {
+      return;
+    }
+
+    if (floorViolationMessage && clampedCents < lastSuccessfulCreditCents) {
+      setFloorViolationMessage(null);
+    }
+    setCreditSliderCents(clampedCents);
+    updateCreditSelection(clampedCents, totalDueCents);
+    handleCreditCommitCents(clampedCents);
+  }, [
+    getTotalDueCents,
+    updateCreditSelection,
+    floorViolationMessage,
+    lastSuccessfulCreditCents,
+    creditSliderCents,
+    handleCreditCommitCents,
+  ]);
+
+  useEffect(() => {
+    if (!pricingPreview) {
+      return;
+    }
+
+    const previewCredits = Math.max(0, pricingPreview.credit_applied_cents);
+
+    // Only update if actually changed
+    if (lastSuccessfulCreditCents !== previewCredits) {
+      setLastSuccessfulCreditCents(previewCredits);
+    }
+
+    setCreditSliderCents((prev) => (prev === previewCredits ? prev : previewCredits));
+
+    setUpdatedBookingData((prev) => {
+      const newBasePrice = pricingPreview.base_price_cents / 100;
+      const newTotalAmount = (pricingPreview.student_pay_cents + previewCredits) / 100;
+
+      // Only update if values actually changed
+      if (prev.basePrice === newBasePrice && prev.totalAmount === newTotalAmount) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        basePrice: newBasePrice,
+        totalAmount: newTotalAmount,
+      };
+    });
+
+    const totalDueCents = pricingPreview.student_pay_cents + previewCredits;
+    const currentCreditCents = Math.max(0, Math.round(creditsToUse * 100));
+    // Only update if significantly different (avoid floating point issues)
+    if (Math.abs(currentCreditCents - previewCredits) > 0.01) {
+      updateCreditSelection(previewCredits, totalDueCents);
+    }
+  }, [pricingPreview, creditsToUse, updateCreditSelection, lastSuccessfulCreditCents]);
+
   // Fetch real payment methods and credits from backend
   useEffect(() => {
     const fetchPaymentData = async () => {
       try {
         setIsLoadingPaymentMethods(true);
 
-        logger.info('Fetching payment data');
+        logDevInfo('Fetching payment data');
 
         // Fetch payment methods
         const methods = await paymentService.listPaymentMethods();
-        logger.info('Payment methods response', { methods });
+        logDevInfo('Payment methods response', { methods });
 
         const mappedCards: PaymentCard[] = methods.map(method => ({
           id: method.id,
@@ -209,7 +651,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
         // Fetch credit balance
         const balance = await paymentService.getCreditBalance();
-        logger.info('Credit balance response', { balance });
+        logDevInfo('Credit balance response', { balance });
 
         setUserCredits({
           totalAmount: balance.available || 0,
@@ -217,7 +659,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           earliestExpiry: balance.expires_at || null,
         });
 
-        logger.info('Successfully loaded payment data', {
+        logDevInfo('Successfully loaded payment data', {
           cardCount: mappedCards.length,
           creditBalance: balance.available,
           cards: mappedCards
@@ -259,12 +701,14 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
     if (!effectiveCardId) return; // No card yet
 
-    const amountToApply = Math.min(userCredits.totalAmount || 0, updatedBookingData.totalAmount);
-    if (amountToApply <= 0) return;
+    // Disable auto-apply for now to prevent loops
+    // const totalDueDollars = getTotalDueCents() / 100;
+    // const amountToApply = Math.min(userCredits.totalAmount || 0, totalDueDollars);
+    // if (amountToApply <= 0) return;
 
-    selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, amountToApply);
+    // selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, amountToApply);
     setAutoAppliedCredits(true);
-  }, [userCredits, userCards, selectedCardId, updatedBookingData.totalAmount, autoAppliedCredits, selectPaymentMethod]);
+  }, [userCredits, userCards, selectedCardId, autoAppliedCredits, selectPaymentMethod, getTotalDueCents]);
 
   // Track if user manually went back to change payment method
   const [userChangingPayment, setUserChangingPayment] = useState(false);
@@ -280,47 +724,15 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
   // Override processPayment to create booking and process payment
   const processPayment = async () => {
+    setFloorViolationMessage(null);
     // Set to processing state
     goToStep(PaymentStep.PROCESSING);
 
     try {
-      // Helper: convert display times like "6:00am" or "12:30pm" to 24h "HH:MM"
-      const toHHMM = (display: string): string => {
-        const lower = String(display ?? '').trim().toLowerCase();
-        if (!lower) throw new Error('Invalid time format: empty');
-        // If already in HH:MM or HH:MM:SS (24h), normalize to HH:MM
-        const basicMatch = lower.match(/^\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*$/) as RegExpMatchArray | null;
-        const ampmMatch = lower.match(/^\s*(\d{1,2}):(\d{2})\s*(am|pm)\s*$/) as RegExpMatchArray | null;
-        if (ampmMatch) {
-          const [, hStr = '', mStr = '', ampm = ''] = ampmMatch as RegExpMatchArray;
-          let hour = parseInt(hStr, 10);
-          const minute = parseInt(mStr, 10);
-          if (ampm === 'pm' && hour !== 12) hour += 12;
-          if (ampm === 'am' && hour === 12) hour = 0;
-          return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-        }
-        if (basicMatch) {
-          const [, hStr = '', mStr = ''] = basicMatch as RegExpMatchArray;
-          const hour = parseInt(hStr, 10);
-          const minute = parseInt(mStr, 10);
-          return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-        }
-        // Fallback: attempt Date parse
-        const parsed = new Date(`1970-01-01T${display}`);
-        if (!Number.isNaN(parsed.getTime())) {
-          return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
-        }
-        throw new Error(`Invalid time format: ${display}`);
-      };
-
       // Get instructor ID and service ID from booking data (now strings/ULIDs)
       const instructorId = String(bookingData.instructorId || '');
       // Prefer explicit serviceId (ULID) from metadata; as a fallback, try bookingData.serviceId
       const serviceId = String((bookingData.metadata?.['serviceId'] || bookingData.serviceId) ?? '');
-
-      // Normalize times and date
-      const formattedStartTime = toHHMM(String(bookingData.startTime ?? ''));
-      const endTime = toHHMM(String(bookingData.endTime ?? ''));
 
       // If date is missing (null/undefined), try to recover from selectedSlot in sessionStorage
       let bookingDate: string;
@@ -348,12 +760,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       }
 
       // Debug logging to identify missing data
-      logger.info('Preparing booking request', {
+      logDevInfo('Preparing booking request', {
         instructorId,
         serviceId,
         bookingDate,
-        startTime: formattedStartTime,
-        endTime,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime,
         duration: bookingData.duration,
         metadata: bookingData.metadata,
         lessonType: bookingData.lessonType,
@@ -364,42 +776,39 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       requireString(bookingDate, 'bookingDate');
       requireString(instructorId, 'instructorId');
       requireString(serviceId, 'serviceId');
-      // Build a payload compatible with CreateBookingRequest used by protectedApi
-      const selectedDuration = (() => {
-        try {
-          const startParts = formattedStartTime.split(':');
-          const endParts = endTime.split(':');
-          const sh = parseInt(startParts[0] ?? '0', 10);
-          const sm = parseInt(startParts[1] ?? '0', 10);
-          const eh = parseInt(endParts[0] ?? '0', 10);
-          const em = parseInt(endParts[1] ?? '0', 10);
-          const mins = (eh * 60 + em) - (sh * 60 + sm);
-          return Number.isFinite(mins) && mins > 0 ? mins : undefined;
-        } catch {
-          return undefined;
-        }
-      })();
+      const bookingPayload = buildCreateBookingPayload({
+        instructorId,
+        serviceId,
+        bookingDate,
+        booking: {
+          ...bookingData,
+          ...updatedBookingData,
+          metadata: {
+            ...(bookingData.metadata ?? {}),
+            ...(updatedBookingData.metadata ?? {}),
+          },
+        },
+      });
 
-      const booking = await createBooking({
-        instructor_id: instructorId,
-        instructor_service_id: serviceId,
-        booking_date: bookingDate,
-        start_time: formattedStartTime,
-        end_time: endTime,
-        selected_duration: selectedDuration,
-      } as unknown as import('@/features/shared/api/client').CreateBookingRequest);
+      logDevInfo('Submitting booking payload', bookingPayload);
+
+      const booking = await createBooking(bookingPayload);
 
       if (!booking) {
-        // Use the specific error message from the booking hook
         const errorMsg = (bookingError as string) || 'Failed to create booking';
-        logger.error('Booking creation prevented', new Error(errorMsg), {
-          bookingError,
-          bookingData
-        });
+        const context = { bookingError, bookingData };
+        if (/minimum price/i.test(errorMsg)) {
+          logger.warn('Booking creation blocked by price floor validation', context);
+          setFloorViolationMessage(errorMsg);
+          resetBookingError();
+          goToStep(PaymentStep.CONFIRMATION);
+          return;
+        }
+        logger.error('Booking creation prevented', new Error(errorMsg), context);
         throw new Error(errorMsg);
       }
 
-      logger.info('Booking created successfully', {
+      logDevInfo('Booking created successfully', {
         bookingId: booking.id,
         status: booking.status,
       });
@@ -416,7 +825,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
             save_payment_method: false, // Can be configured based on user preference
           });
 
-          logger.info('Payment processed', {
+          logDevInfo('Payment processed', {
             paymentIntentId: checkoutResult.payment_intent_id,
             status: checkoutResult.status,
             amount: checkoutResult.amount,
@@ -449,7 +858,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
         try {
           await protectedApi.cancelBooking(String(booking.id), 'Payment failed');
-          logger.info('Booking cancelled after payment failure', { bookingId: booking.id });
+          logDevInfo('Booking cancelled after payment failure', { bookingId: booking.id });
         } catch (cancelError) {
           logger.error('Failed to cancel booking after payment failure', cancelError as Error);
         }
@@ -516,24 +925,28 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     resetPayment();
     resetBookingError();
     setLocalErrorMessage('');
+    setFloorViolationMessage(null);
     goToStep(PaymentStep.METHOD_SELECTION);
   };
 
   // Show loading state while fetching payment methods
   if (isLoadingPaymentMethods) {
     return (
-      <div className="w-full p-8 text-center">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-48 mx-auto mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
+      <PricingPreviewContext.Provider value={previewController}>
+        <div className="w-full p-8 text-center">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-48 mx-auto mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
+          </div>
+          <p className="text-gray-500 mt-4">Loading payment methods...</p>
         </div>
-        <p className="text-gray-500 mt-4">Loading payment methods...</p>
-      </div>
+      </PricingPreviewContext.Provider>
     );
   }
 
   return (
-    <div className="w-full">
+    <PricingPreviewContext.Provider value={previewController}>
+      <div className="w-full">
       {/* Show both payment selection and confirmation on same page when inline mode */}
       {showPaymentMethodInline && (currentStep === PaymentStep.METHOD_SELECTION || currentStep === PaymentStep.CONFIRMATION) ? (
         <div className="space-y-6">
@@ -555,7 +968,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               onCardAdded={(newCard) => {
                 // Add the new card to the list
                 setUserCards([...userCards, newCard]);
-              logger.info('New card added to list', { cardId: newCard.id });
+              logDevInfo('New card added to list', { cardId: newCard.id });
               }}
             />
           </div>
@@ -572,38 +985,24 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
               {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
               {...(selectedCard?.isDefault !== undefined && { isDefaultCard: selectedCard.isDefault })}
-              creditsUsed={creditsToUse}
+              creditsUsed={creditSliderCents / 100}
               availableCredits={userCredits.totalAmount}
               {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
               promoApplied={promoApplied}
               onPromoStatusChange={setPromoApplied}
               referralAppliedCents={referralAppliedCents}
               referralActive={referralAppliedCents > 0}
+              floorViolationMessage={floorViolationMessage}
+              onClearFloorViolation={() => setFloorViolationMessage(null)}
               onConfirm={processPayment}
               onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
               onChangePaymentMethod={() => {
                 setUserChangingPayment(true);
                 // Don't change step, just let user select a different method above
               }}
-              onCreditToggle={() => {
-                if (creditsToUse > 0) {
-                  // Turn off credits completely
-                  selectPaymentMethod(PaymentMethod.CREDIT_CARD, selectedCardId);
-                } else {
-                  // Turn on credits - apply max available
-                  const maxApplicable = Math.min(userCredits.totalAmount, updatedBookingData.totalAmount);
-                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, maxApplicable);
-                }
-              }}
-              onCreditAmountChange={(amount) => {
-                // Keep credits "on" even at zero - just change the amount
-                if (amount >= updatedBookingData.totalAmount) {
-                  selectPaymentMethod(PaymentMethod.CREDITS, undefined, amount);
-                } else {
-                  // Always use MIXED mode when slider is visible, even at 0
-                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, amount);
-                }
-              }}
+              onCreditToggle={handleCreditToggle}
+              onCreditAmountChange={handleCreditAmountChange}
+              onBookingUpdate={handleBookingUpdate}
             />
           )}
         </div>
@@ -620,7 +1019,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               onCardAdded={(newCard) => {
                 // Add the new card to the list
                 setUserCards([...userCards, newCard]);
-                logger.info('New card added to list', { cardId: newCard.id });
+                logDevInfo('New card added to list', { cardId: newCard.id });
               }}
             />
           )}
@@ -637,38 +1036,24 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
               {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
               {...(selectedCard?.isDefault !== undefined && { isDefaultCard: selectedCard.isDefault })}
-              creditsUsed={creditsToUse}
+              creditsUsed={creditSliderCents / 100}
               availableCredits={userCredits.totalAmount}
               {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
               promoApplied={promoApplied}
               onPromoStatusChange={setPromoApplied}
               referralAppliedCents={referralAppliedCents}
               referralActive={referralAppliedCents > 0}
+              floorViolationMessage={floorViolationMessage}
+              onClearFloorViolation={() => setFloorViolationMessage(null)}
               onConfirm={processPayment}
               onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
               onChangePaymentMethod={() => {
                 setUserChangingPayment(true);
                 goToStep(PaymentStep.METHOD_SELECTION);
               }}
-              onCreditToggle={() => {
-                if (creditsToUse > 0) {
-                  // Turn off credits completely
-                  selectPaymentMethod(PaymentMethod.CREDIT_CARD, selectedCardId);
-                } else {
-                  // Turn on credits - apply max available
-                  const maxApplicable = Math.min(userCredits.totalAmount, updatedBookingData.totalAmount);
-                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, maxApplicable);
-                }
-              }}
-              onCreditAmountChange={(amount) => {
-                // Keep credits "on" even at zero - just change the amount
-                if (amount >= updatedBookingData.totalAmount) {
-                  selectPaymentMethod(PaymentMethod.CREDITS, undefined, amount);
-                } else {
-                  // Always use MIXED mode when slider is visible, even at 0
-                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, amount);
-                }
-              }}
+              onCreditToggle={handleCreditToggle}
+              onCreditAmountChange={handleCreditAmountChange}
+              onBookingUpdate={handleBookingUpdate}
             />
           )}
         </>
@@ -716,6 +1101,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           )}
         </div>
       )}
-    </div>
+      </div>
+    </PricingPreviewContext.Provider>
   );
 }

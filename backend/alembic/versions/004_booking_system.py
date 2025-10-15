@@ -96,6 +96,18 @@ def upgrade() -> None:
     op.create_index("idx_bookings_date", "bookings", ["booking_date"])
     op.create_index("idx_bookings_status", "bookings", ["status"])
     op.create_index("idx_bookings_created_at", "bookings", ["created_at"])
+    op.create_index(
+        "ix_booking_instructor_completed",
+        "bookings",
+        ["instructor_id", "status", "completed_at"],
+        postgresql_where=sa.text("status = 'COMPLETED'"),
+    )
+    op.create_index(
+        "ix_booking_student_completed",
+        "bookings",
+        ["student_id", "status", "completed_at"],
+        postgresql_where=sa.text("status = 'COMPLETED'"),
+    )
 
     # NEW: Index for time-based conflict checking
     # This index optimizes queries that check for booking conflicts by time range
@@ -124,7 +136,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_bookings_location_type",
         "bookings",
-        "location_type IN ('student_home', 'instructor_location', 'neutral')",
+        "location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online')",
     )
 
     # Create password_reset_tokens table
@@ -577,6 +589,8 @@ def downgrade() -> None:
     op.drop_index("idx_bookings_instructor_date_status", table_name="bookings")
     op.drop_index("idx_bookings_instructor_datetime", table_name="bookings")
     op.drop_index("idx_bookings_created_at", table_name="bookings")
+    op.drop_index("ix_booking_student_completed", table_name="bookings", if_exists=True)
+    op.drop_index("ix_booking_instructor_completed", table_name="bookings", if_exists=True)
     op.drop_index("idx_bookings_status", table_name="bookings")
     op.drop_index("idx_bookings_date", table_name="bookings")
     op.drop_index("idx_bookings_instructor_id", table_name="bookings")

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import Link from 'next/link';
 import { BookOpen, CheckSquare, Lightbulb } from 'lucide-react';
@@ -10,6 +10,8 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { usePricingConfig, usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 
@@ -39,6 +41,31 @@ function Step3SkillsPricingInner() {
   const [requestText, setRequestText] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
+  const { floors: pricingFloors } = usePricingFloors();
+  const { config: pricingConfig } = usePricingConfig();
+  const defaultInstructorTierPct = useMemo(() => {
+    const pct = pricingConfig?.instructor_tiers?.[0]?.pct;
+    return typeof pct === 'number' ? pct : null;
+  }, [pricingConfig]);
+
+  const floorViolationsByService = useMemo(() => {
+    const map = new Map<string, FloorViolation[]>();
+    if (!pricingFloors) return map;
+    selected.forEach((svc) => {
+      const violations = evaluatePriceFloorViolations({
+        hourlyRate: Number(svc.hourly_rate),
+        durationOptions: svc.duration_options ?? [60],
+        locationTypes: svc.location_types ?? ['in-person'],
+        floors: pricingFloors,
+      });
+      if (violations.length > 0) {
+        map.set(svc.catalog_service_id, violations);
+      }
+    });
+    return map;
+  }, [pricingFloors, selected]);
+
+  const hasFloorViolations = floorViolationsByService.size > 0;
   const [skillsFilter, setSkillsFilter] = useState<string>('');
 
   useEffect(() => {
@@ -250,6 +277,23 @@ function Step3SkillsPricingInner() {
     try {
       setSaving(true);
       setError(null);
+      if (pricingFloors && hasFloorViolations) {
+        const iterator = floorViolationsByService.entries().next();
+        if (!iterator.done) {
+          const [serviceId, violations] = iterator.value;
+          const violation = violations[0];
+          if (!violation) {
+            setSaving(false);
+            return;
+          }
+          const serviceName = selected.find((svc) => svc.catalog_service_id === serviceId)?.name || 'this service';
+          setError(
+            `Minimum price for a ${violation.modalityLabel} ${violation.duration}-minute private session is $${formatCents(violation.floorCents)} (current $${formatCents(violation.baseCents)}). Please update the rate for ${serviceName}.`
+          );
+          setSaving(false);
+          return;
+        }
+      }
       const nextUrl = redirectParam || '/instructor/onboarding/verification';
       // If no skills selected, skip saving and go to verification step
       if (selected.length === 0) {
@@ -335,6 +379,12 @@ function Step3SkillsPricingInner() {
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!hasFloorViolations && error && /Minimum price for a/.test(error)) {
+      setError(null);
+    }
+  }, [hasFloorViolations, error]);
 
   const submitServiceRequest = async () => {
     if (!requestText.trim()) return;
@@ -576,7 +626,8 @@ function Step3SkillsPricingInner() {
               </div>
               )}
             </div>
-          );})}
+          );
+        })}
         </div>
       </div>
       {/* Divider */}
@@ -599,8 +650,10 @@ function Step3SkillsPricingInner() {
           <p className="text-gray-500">You can add skills now or later.</p>
         ) : (
           <div className="grid gap-4">
-            {selected.map((s) => (
-              <div key={s.catalog_service_id} className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
+            {selected.map((s) => {
+              const violations = pricingFloors ? floorViolationsByService.get(s.catalog_service_id) ?? [] : [];
+              return (
+                <div key={s.catalog_service_id} className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <div className="text-lg font-medium text-gray-900">{s.name}</div>
@@ -647,9 +700,22 @@ function Step3SkillsPricingInner() {
                       <span className="text-gray-500">/hr</span>
                     </div>
                   </div>
-                  {s.hourly_rate && Number(s.hourly_rate) > 0 && (
+                  {s.hourly_rate && Number(s.hourly_rate) > 0 && defaultInstructorTierPct !== null && (
                     <div className="mt-2 text-xs text-gray-600">
-                      You&apos;ll earn <span className="font-semibold text-[#7E22CE]">${(Number(s.hourly_rate) * 0.85).toFixed(2)}</span> after the 15% platform fee
+                      You&apos;ll earn{' '}
+                      <span className="font-semibold text-[#7E22CE]">
+                        ${Number(Number(s.hourly_rate) * (1 - defaultInstructorTierPct)).toFixed(2)}
+                      </span>{' '}
+                      after the {(defaultInstructorTierPct * 100).toFixed(1).replace(/\.0$/, '')}% platform fee
+                    </div>
+                  )}
+                  {violations.length > 0 && (
+                    <div className="mt-2 space-y-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {violations.map((violation, index) => (
+                        <div key={`${violation.modalityLabel}-${violation.duration}-${index}`}>
+                          Minimum for {violation.modalityLabel} {violation.duration}-minute private session is ${formatCents(violation.floorCents)} (current ${formatCents(violation.baseCents)}).
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -857,8 +923,9 @@ function Step3SkillsPricingInner() {
                     />
                   </div>
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -925,7 +992,7 @@ function Step3SkillsPricingInner() {
         </button>
         <button
           onClick={save}
-          disabled={saving}
+          disabled={saving || hasFloorViolations}
           className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
         >
           {saving ? 'Saving...' : 'Save & Continue'}

@@ -15,7 +15,7 @@ import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/bo
 import CheckoutFlow from '@/components/booking/CheckoutFlow';
 import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
 import { BookingType } from '@/features/shared/types/booking';
-import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
+import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 
 // Define the Booking interface for pending booking
 interface PendingBooking {
@@ -131,8 +131,7 @@ export default function BookingModalWithPayment({
       // Store booking intent and redirect to login
       const bookingDate = new Date(selectedDate + 'T' + selectedTime);
       const basePrice = totalPrice;
-      const serviceFee = calculateServiceFee(basePrice);
-      const totalAmount = calculateTotalAmount(basePrice);
+      const totalAmount = basePrice;
       const bookingType = determineBookingType(bookingDate);
 
       const paymentBookingData: BookingPayment = {
@@ -146,7 +145,6 @@ export default function BookingModalWithPayment({
         duration,
         location: primaryServiceArea,
         basePrice,
-        serviceFee,
         totalAmount,
         bookingType,
         paymentStatus: PaymentStatus.PENDING,

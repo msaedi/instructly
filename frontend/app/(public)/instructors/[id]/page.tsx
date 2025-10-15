@@ -19,7 +19,7 @@ import { useRouter as useNextRouter } from 'next/navigation';
 import { calculateEndTime } from '@/features/shared/utils/booking';
 import { BookingPayment, PaymentStatus } from '@/features/student/payment';
 import { BookingType } from '@/features/shared/types/booking';
-import { determineBookingType, calculateServiceFee, calculateTotalAmount } from '@/features/shared/utils/paymentCalculations';
+import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { format } from 'date-fns';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
@@ -135,8 +135,7 @@ function InstructorProfileContent() {
       const hourlyRate = getNumber(selectedService, 'hourly_rate', 0);
       const totalPrice = hourlyRate * (duration / 60);
       const basePrice = totalPrice;
-      const serviceFee = calculateServiceFee(basePrice);
-      const totalAmount = calculateTotalAmount(basePrice);
+      const totalAmount = basePrice;
       const bookingType = determineBookingType(bookingDate);
 
       const paymentBookingData: BookingPayment = {
@@ -150,7 +149,6 @@ function InstructorProfileContent() {
         duration,
         location: '', // Let user enter their address on confirmation page
         basePrice,
-        serviceFee,
         totalAmount,
         bookingType,
         paymentStatus: PaymentStatus.PENDING,
@@ -562,7 +560,8 @@ function InstructorProfileContent() {
               id: s.id,
               skill: s.skill || '',
               hourly_rate: s.hourly_rate,
-              duration_options: s.duration_options || [60]
+              duration_options: s.duration_options || [60],
+              location_types: s.location_types || []
             }))
           }}
           preSelectedDate={bookingModal.selectedDate || ''}
@@ -586,8 +585,7 @@ function InstructorProfileContent() {
               const hourlyRate = selectedService.hourly_rate;
               const totalPrice = hourlyRate * (newSlot.duration / 60);
               const basePrice = totalPrice;
-              const serviceFee = calculateServiceFee(basePrice);
-              const totalAmount = calculateTotalAmount(basePrice);
+              const totalAmount = basePrice;
               const bookingType = determineBookingType(bookingDate);
 
               const paymentBookingData: BookingPayment = {
@@ -601,7 +599,6 @@ function InstructorProfileContent() {
                 duration: newSlot.duration,
                 location: '', // Let user enter their address on confirmation page
                 basePrice,
-                serviceFee,
                 totalAmount,
                 bookingType,
                 paymentStatus: PaymentStatus.PENDING,

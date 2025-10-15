@@ -22,6 +22,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -143,7 +144,7 @@ class Booking(Base):
             name="ck_bookings_status",
         ),
         CheckConstraint(
-            "location_type IN ('student_home', 'instructor_location', 'neutral')",
+            "location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online')",
             name="ck_bookings_location_type",
         ),
         CheckConstraint("duration_minutes > 0", name="check_duration_positive"),
@@ -261,3 +262,21 @@ class Booking(Base):
             "cancelled_by_id": self.cancelled_by_id,
             "cancellation_reason": self.cancellation_reason,
         }
+
+
+Index(
+    "ix_booking_instructor_completed",
+    Booking.instructor_id,
+    Booking.status,
+    Booking.completed_at,
+    postgresql_where=(Booking.status == BookingStatus.COMPLETED),
+)
+
+
+Index(
+    "ix_booking_student_completed",
+    Booking.student_id,
+    Booking.status,
+    Booking.completed_at,
+    postgresql_where=(Booking.status == BookingStatus.COMPLETED),
+)

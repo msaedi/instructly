@@ -5,11 +5,24 @@ import { X, ArrowLeft } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
+import { ApiProblemError } from '@/lib/api/fetch';
+import {
+  fetchPricingPreview,
+  type PricingPreviewResponse,
+} from '@/lib/api/pricing';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
 import Calendar from './TimeSelectionModal/Calendar';
 import TimeDropdown from './TimeSelectionModal/TimeDropdown';
 import DurationButtons from './TimeSelectionModal/DurationButtons';
 import SummarySection from './TimeSelectionModal/SummarySection';
+import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import {
+  computeBasePriceCents,
+  computePriceFloorCents,
+  formatCents,
+  normalizeModality,
+  type NormalizedModality,
+} from '@/lib/pricing/priceFloors';
 
 // Type for availability slots
 interface AvailabilitySlot {
@@ -58,12 +71,15 @@ interface TimeSelectionModalProps {
       duration_options: number[];
       hourly_rate: number;
       skill: string;
+      location_types?: string[];
     }>;
   };
   preSelectedDate?: string; // From search context (format: "YYYY-MM-DD")
   preSelectedTime?: string; // Pre-selected time slot
   onTimeSelected?: (selection: { date: string; time: string; duration: number }) => void;
   serviceId?: string; // Optional service ID from search context
+  bookingDraftId?: string;
+  appliedCreditCents?: number;
 }
 
 export default function TimeSelectionModal({
@@ -74,8 +90,11 @@ export default function TimeSelectionModal({
   preSelectedTime,
   onTimeSelected,
   serviceId,
+  bookingDraftId,
+  appliedCreditCents,
 }: TimeSelectionModalProps) {
   const { isAuthenticated, redirectToLogin, user } = useAuth();
+  const { floors: pricingFloors } = usePricingFloors();
 
   const studentTimezone = (user as { timezone?: string })?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -97,27 +116,38 @@ export default function TimeSelectionModal({
     } as Intl.DateTimeFormatOptions).format(new Date());
   };
 
+  const selectedService = useMemo(() => {
+    if (!instructor.services.length) return null;
+    if (serviceId) {
+      const found = instructor.services.find((s) => s.id === serviceId);
+      if (found) return found;
+    }
+    return instructor.services[0] ?? null;
+  }, [instructor.services, serviceId]);
+
+  const selectedHourlyRate = useMemo(() => {
+    if (!selectedService) return 0;
+    const raw = (selectedService as unknown as Record<string, unknown>)?.['hourly_rate'] as unknown;
+    const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw ?? '0'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [selectedService]);
+
+  const selectedModality = useMemo<NormalizedModality>(() => {
+    const locationTypes = selectedService?.location_types ?? [];
+    if (locationTypes.length > 0) {
+      const primary = locationTypes.find((value) => /online|remote|virtual/i.test(String(value))) ?? locationTypes[0];
+      return normalizeModality(primary);
+    }
+    return 'remote';
+  }, [selectedService]);
+
   // Get duration options from the selected service
-  const getDurationOptions = useCallback(() => {
-    // Get the selected service if serviceId is provided, otherwise use first
-    const selectedService = serviceId
-      ? instructor.services.find((s) => s.id === serviceId) || at(instructor.services, 0)
-      : at(instructor.services, 0);
+  const durationOptions = useMemo(() => {
+    const durations = selectedService?.duration_options?.length
+      ? selectedService.duration_options
+      : [30, 60, 90, 120];
 
-    // Use duration_options from the service, or fallback to standard durations
-    const durations = selectedService?.duration_options || [30, 60, 90, 120];
-
-    logger.debug('Using service duration options', {
-      durations,
-      serviceId,
-      selectedService,
-    });
-
-    // Coerce hourly rate to a number (API may send string)
-    const hourlyRateRaw = (selectedService as unknown as Record<string, unknown>)?.['hourly_rate'] as unknown;
-    const hourlyRateParsed = typeof hourlyRateRaw === 'number' ? hourlyRateRaw : parseFloat(String(hourlyRateRaw ?? '100'));
-    const hourlyRate = Number.isNaN(hourlyRateParsed) ? 100 : hourlyRateParsed; // fallback to 100
-
+    const hourlyRate = selectedHourlyRate > 0 ? selectedHourlyRate : 100;
     const result = durations.map((duration) => ({
       duration,
       price: Math.round((hourlyRate * duration) / 60),
@@ -127,19 +157,25 @@ export default function TimeSelectionModal({
       durationsCount: result.length,
       options: result,
       hourlyRate,
+      serviceId,
+      selectedService,
     });
 
     return result;
-  }, [serviceId, instructor.services]);
-
-  const durationOptions = useMemo(() => getDurationOptions(), [getDurationOptions]);
+  }, [selectedHourlyRate, selectedService, serviceId]);
 
   // Debug logging
   logger.info('Duration options generated', {
     durationOptions,
     servicesCount: instructor.services.length,
     services: instructor.services,
+    selectedServiceId: selectedService?.id,
   });
+
+  const effectiveAppliedCreditCents = useMemo(
+    () => Math.max(0, Math.round(appliedCreditCents ?? 0)),
+    [appliedCreditCents]
+  );
 
   // Component state
   const [selectedDate, setSelectedDate] = useState<string | null>(preSelectedDate || null);
@@ -161,6 +197,92 @@ export default function TimeSelectionModal({
   } | null>(null);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
   const lastChangeWasDurationRef = useRef<boolean>(false);
+  const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
+  const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
+  const [pricingPreviewError, setPricingPreviewError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (durationOptions.length === 0) return;
+    const hasSelection = durationOptions.some((option) => option.duration === selectedDuration);
+    if (!hasSelection) {
+      const [firstOption] = durationOptions;
+      if (firstOption) {
+        setSelectedDuration(firstOption.duration);
+      }
+    }
+  }, [durationOptions, selectedDuration]);
+
+  useEffect(() => {
+    if (!bookingDraftId || !isOpen) {
+      setPricingPreview(null);
+      setPricingPreviewError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      setIsPricingPreviewLoading(true);
+      setPricingPreviewError(null);
+      try {
+        const preview = await fetchPricingPreview(bookingDraftId, effectiveAppliedCreditCents);
+        if (!cancelled) {
+          setPricingPreview(preview);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof ApiProblemError && error.response.status === 422) {
+          setPricingPreviewError(error.problem.detail ?? 'Price is below the minimum.');
+        } else {
+          setPricingPreviewError('Unable to load pricing preview.');
+        }
+        setPricingPreview(null);
+      } finally {
+        if (!cancelled) {
+          setIsPricingPreviewLoading(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingDraftId, effectiveAppliedCreditCents, isOpen]);
+
+  const priceFloorViolation = useMemo(() => {
+    if (!pricingFloors) return null;
+    if (!selectedService) return null;
+    if (!Number.isFinite(selectedHourlyRate) || selectedHourlyRate <= 0) return null;
+    if (!Number.isFinite(selectedDuration) || selectedDuration <= 0) return null;
+
+    const floorCents = computePriceFloorCents(pricingFloors, selectedModality, selectedDuration);
+    const baseCents = computeBasePriceCents(selectedHourlyRate, selectedDuration);
+    if (baseCents < floorCents) {
+      return { floorCents, baseCents };
+    }
+    return null;
+  }, [pricingFloors, selectedDuration, selectedHourlyRate, selectedModality, selectedService]);
+
+  const priceFloorWarning = useMemo(() => {
+    if (!priceFloorViolation) return null;
+    const modalityLabel = selectedModality === 'in_person' ? 'in-person' : 'remote';
+    return `Minimum for ${modalityLabel} ${selectedDuration}-minute private session is $${formatCents(priceFloorViolation.floorCents)} (current $${formatCents(priceFloorViolation.baseCents)}). Please pick a different duration.`;
+  }, [priceFloorViolation, selectedDuration, selectedModality]);
+
+  useEffect(() => {
+    if (!priceFloorViolation) return;
+    const modalityLabel = selectedModality === 'in_person' ? 'in-person' : 'remote';
+    logger.warn('Detected price floor violation in TimeSelectionModal', {
+      modality: modalityLabel,
+      duration: selectedDuration,
+      baseCents: priceFloorViolation.baseCents,
+      floorCents: priceFloorViolation.floorCents,
+      serviceId: selectedService?.id,
+    });
+  }, [priceFloorViolation, selectedDuration, selectedModality, selectedService]);
+
+  const isSelectionComplete = Boolean(selectedDate && selectedTime && !priceFloorViolation);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
@@ -339,6 +461,14 @@ export default function TimeSelectionModal({
 
   // Handle continue button - go directly to payment
   const handleContinue = () => {
+    if (priceFloorViolation) {
+      logger.warn('Blocking continue due to price floor violation', {
+        duration: selectedDuration,
+        baseCents: priceFloorViolation.baseCents,
+        floorCents: priceFloorViolation.floorCents,
+      });
+      return;
+    }
     if (selectedDate && selectedTime) {
       logger.info('Time selection completed, preparing booking data', {
         date: selectedDate,
@@ -418,10 +548,8 @@ export default function TimeSelectionModal({
         .toString()
         .padStart(2, '0')}:00`;
 
-      // Calculate fees
       const basePrice = price;
-      const serviceFee = Math.round(basePrice * 0.1); // 10% service fee
-      const totalAmount = basePrice + serviceFee;
+      const totalAmount = basePrice;
 
       // Log parsed values for debugging
       logger.debug('Time parsing results', {
@@ -484,10 +612,7 @@ export default function TimeSelectionModal({
       }
 
       // Prepare booking data for payment page
-      // Ensure hourly rate is numeric
-      const selectedRateRaw = (selectedService as unknown as Record<string, unknown>)?.['hourly_rate'] as unknown;
-      const selectedRateParsed = typeof selectedRateRaw === 'number' ? selectedRateRaw : parseFloat(String(selectedRateRaw ?? '0'));
-      const selectedHourlyRate = Number.isNaN(selectedRateParsed) ? 0 : selectedRateParsed;
+      const locationLabel = selectedModality === 'in_person' ? 'In-person (student to confirm location)' : 'Online';
 
       const bookingData = {
         instructorId: instructor.user_id,
@@ -501,10 +626,12 @@ export default function TimeSelectionModal({
         endTime: endTime,
         duration: selectedDuration,
         basePrice: basePrice,
-        serviceFee: serviceFee,
         totalAmount: totalAmount,
         hourlyRate: selectedHourlyRate,
-        location: 'Online', // Default to online, could be enhanced later
+        location: locationLabel,
+        metadata: {
+          modality: selectedModality,
+        },
         freeCancellationUntil: freeCancellationUntil.toISOString(),
       };
 
@@ -1150,7 +1277,12 @@ export default function TimeSelectionModal({
               selectedDuration={selectedDuration}
               price={getCurrentPrice()}
               onContinue={handleContinue}
-              isComplete={!!selectedDate && !!selectedTime}
+              isComplete={isSelectionComplete}
+              floorWarning={priceFloorWarning}
+              pricingPreview={pricingPreview}
+              isPricingPreviewLoading={isPricingPreviewLoading}
+              pricingError={pricingPreviewError}
+              hasBookingDraft={Boolean(bookingDraftId)}
             />
           </div>
 
@@ -1162,7 +1294,12 @@ export default function TimeSelectionModal({
               selectedDuration={selectedDuration}
               price={getCurrentPrice()}
               onContinue={handleContinue}
-              isComplete={!!selectedDate && !!selectedTime}
+              isComplete={isSelectionComplete}
+              floorWarning={priceFloorWarning}
+              pricingPreview={pricingPreview}
+              isPricingPreviewLoading={isPricingPreviewLoading}
+              pricingError={pricingPreviewError}
+              hasBookingDraft={Boolean(bookingDraftId)}
             />
           </div>
         </div>
@@ -1264,7 +1401,12 @@ export default function TimeSelectionModal({
                     selectedDuration={selectedDuration}
                     price={getCurrentPrice()}
                     onContinue={handleContinue}
-                    isComplete={!!selectedDate && !!selectedTime}
+                    isComplete={isSelectionComplete}
+                    floorWarning={priceFloorWarning}
+                    pricingPreview={pricingPreview}
+                    isPricingPreviewLoading={isPricingPreviewLoading}
+                    pricingError={pricingPreviewError}
+                    hasBookingDraft={Boolean(bookingDraftId)}
                   />
                 </div>
               </div>

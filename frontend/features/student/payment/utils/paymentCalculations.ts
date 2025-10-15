@@ -15,7 +15,7 @@ export const calculateCreditApplication = (
   };
 };
 
-export { calculateServiceFee, calculateTotalAmount, determineBookingType } from '@/features/shared/utils/paymentCalculations';
+export { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 export type { BookingType } from '@/features/shared/types/booking';
 
 export const validateTransactionAmount = (amount: number): boolean => amount > 0 && amount <= TRANSACTION_LIMITS.MAX_TRANSACTION;

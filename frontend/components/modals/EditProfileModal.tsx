@@ -16,6 +16,8 @@ import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
 import { SelectedNeighborhoodChips, type SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
+import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import { evaluatePriceFloorViolations, FloorViolation, formatCents } from '@/lib/pricing/priceFloors';
 type EditableService = {
   service_catalog_id?: string;
   service_catalog_name?: string | null;
@@ -232,6 +234,24 @@ export default function EditProfileModal({
   const [svcLoading, setSvcLoading] = useState(false);
   const [svcSaving, setSvcSaving] = useState(false);
   const [skillsFilter, setSkillsFilter] = useState('');
+  const { floors: pricingFloors } = usePricingFloors();
+  const serviceFloorViolations = useMemo(() => {
+    const map = new Map<string, FloorViolation[]>();
+    if (!pricingFloors) return map;
+    selectedServices.forEach((service) => {
+      const violations = evaluatePriceFloorViolations({
+        hourlyRate: Number(service.hourly_rate),
+        durationOptions: service.duration_options ?? [60],
+        locationTypes: service.location_types ?? ['in-person'],
+        floors: pricingFloors,
+      });
+      if (violations.length > 0) {
+        map.set(service.catalog_service_id, violations);
+      }
+    });
+    return map;
+  }, [pricingFloors, selectedServices]);
+  const hasServiceFloorViolations = serviceFloorViolations.size > 0;
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -634,6 +654,23 @@ export default function EditProfileModal({
   const handleServicesSave = useCallback(async () => {
     try {
       setSvcSaving(true);
+      if (pricingFloors && hasServiceFloorViolations) {
+        const iterator = serviceFloorViolations.entries().next();
+        if (!iterator.done) {
+          const [serviceId, violations] = iterator.value;
+          const violation = violations[0];
+          if (!violation) {
+            setSvcSaving(false);
+            return;
+          }
+          const serviceName = selectedServices.find((svc) => svc.catalog_service_id === serviceId)?.name || 'this service';
+          setError(
+            `Minimum price for a ${violation.modalityLabel} ${violation.duration}-minute private session is $${formatCents(violation.floorCents)} (current $${formatCents(violation.baseCents)}). Please adjust the rate for ${serviceName}.`
+          );
+          setSvcSaving(false);
+          return;
+        }
+      }
       const payload: ProfileServiceUpdatePayload = {
         services: selectedServices
           .filter((service) => service.hourly_rate.trim() !== '')
@@ -677,7 +714,14 @@ export default function EditProfileModal({
     } finally {
       setSvcSaving(false);
     }
-  }, [selectedServices, onClose, onSuccess]);
+  }, [
+    selectedServices,
+    onClose,
+    onSuccess,
+    pricingFloors,
+    hasServiceFloorViolations,
+    serviceFloorViolations,
+  ]);
 
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
     const items = itemsOverride || boroughNeighborhoods[borough] || [];
@@ -1769,6 +1813,7 @@ export default function EditProfileModal({
                   ) : (
                     <div className="grid gap-4">
                       {selectedServices.map((s) => {
+                        const violations = serviceFloorViolations.get(s.catalog_service_id) ?? [];
                         const label = displayServiceName(
                           {
                             service_catalog_id: s.catalog_service_id,
@@ -1832,6 +1877,15 @@ export default function EditProfileModal({
                             {s.hourly_rate && Number(s.hourly_rate) > 0 && (
                               <div className="mt-2 text-xs text-gray-600">
                                 You&apos;ll earn <span className="font-semibold text-[#7E22CE]">${(Number(s.hourly_rate) * 0.85).toFixed(2)}</span> after the 15% platform fee
+                              </div>
+                            )}
+                            {violations.length > 0 && (
+                              <div className="mt-2 space-y-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                                {violations.map((violation, index) => (
+                                  <div key={`${violation.modalityLabel}-${violation.duration}-${index}`}>
+                                    Minimum for {violation.modalityLabel} {violation.duration}-minute private session is ${formatCents(violation.floorCents)} (current ${formatCents(violation.baseCents)}).
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
@@ -1988,7 +2042,7 @@ export default function EditProfileModal({
               <button
                 type="button"
                 onClick={isAreasVariant ? () => { void handleAreasSave(); } : () => { void handleServicesSave(); }}
-                disabled={isAreasVariant ? savingAreas : svcSaving}
+                disabled={isAreasVariant ? savingAreas : (svcSaving || hasServiceFloorViolations)}
                 className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
               >
                 {(isAreasVariant ? savingAreas : svcSaving) ? 'Saving…' : 'Save'}

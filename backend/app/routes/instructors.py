@@ -59,8 +59,10 @@ from ..schemas.instructor import (
 )
 from ..services.address_service import AddressService
 from ..services.cache_service import CacheService
+from ..services.config_service import ConfigService
 from ..services.favorites_service import FavoritesService
 from ..services.instructor_service import InstructorService
+from ..services.pricing_service import PricingService
 from ..services.stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
@@ -266,7 +268,13 @@ async def go_live(
         raise
 
     # Check Stripe Connect status
-    stripe_service = StripeService(db)
+    config_service = ConfigService(db)
+    pricing_service = PricingService(db)
+    stripe_service = StripeService(
+        db,
+        config_service=config_service,
+        pricing_service=pricing_service,
+    )
     connect = (
         stripe_service.check_account_status(profile_data["id"])
         if profile_data.get("id")

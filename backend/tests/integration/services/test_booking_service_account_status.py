@@ -24,6 +24,12 @@ except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import add_service_areas_for_boroughs
 
 
+@pytest.fixture(autouse=True)
+def _no_price_floors(disable_price_floors):
+    """Legacy account-status flows rely on $50 hourly rates."""
+    yield
+
+
 class TestBookingServiceAccountStatus:
     """Test booking service respects account status."""
 

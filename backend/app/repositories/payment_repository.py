@@ -16,7 +16,7 @@ This repository handles:
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
@@ -865,6 +865,55 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
 
     # ========== Platform Credits (Phase 1.3) ==========
 
+    def get_applied_credit_cents_for_booking(self, booking_id: str) -> int:
+        """Return total cents of credits applied to the booking so far."""
+
+        try:
+            credit_use_events = (
+                self.db.query(PaymentEvent)
+                .filter(
+                    PaymentEvent.booking_id == booking_id,
+                    PaymentEvent.event_type == "credit_used",
+                )
+                .all()
+            )
+
+            total_used = 0
+            for event in credit_use_events:
+                data = event.event_data or {}
+                try:
+                    total_used += max(0, int(data.get("used_cents") or 0))
+                except (TypeError, ValueError):
+                    continue
+
+            if total_used > 0:
+                return total_used
+
+            # Legacy fallback: aggregated credits_applied events (pre "credit_used" granularity)
+            legacy_events = (
+                self.db.query(PaymentEvent)
+                .filter(
+                    PaymentEvent.booking_id == booking_id,
+                    PaymentEvent.event_type == "credits_applied",
+                )
+                .all()
+            )
+
+            legacy_total = 0
+            for event in legacy_events:
+                data = event.event_data or {}
+                try:
+                    legacy_total += max(0, int(data.get("applied_cents") or 0))
+                except (TypeError, ValueError):
+                    continue
+
+            return legacy_total
+        except Exception as exc:
+            self.logger.error(
+                "Failed to load applied credits for booking %s: %s", booking_id, str(exc)
+            )
+            raise RepositoryException("Failed to compute applied credits")
+
     def create_platform_credit(
         self,
         user_id: str,
@@ -1031,6 +1080,72 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         except Exception as e:
             self.logger.error(f"Failed to get available credits: {str(e)}")
             raise RepositoryException(f"Failed to get available credits: {str(e)}")
+
+    def delete_platform_credit(self, credit_id: str) -> None:
+        """Delete a platform credit by id."""
+
+        try:
+            credit = (
+                self.db.query(PlatformCredit).filter(PlatformCredit.id == credit_id).one_or_none()
+            )
+            if not credit:
+                return
+            self.db.delete(credit)
+            self.db.flush()
+        except Exception as exc:
+            self.logger.error("Failed to delete platform credit %s: %s", credit_id, str(exc))
+            raise RepositoryException("Failed to delete platform credit")
+
+    def get_credits_issued_for_source(self, booking_id: str) -> List[PlatformCredit]:
+        """Return credits generated from the given booking (source)."""
+
+        try:
+            credits = (
+                self.db.query(PlatformCredit)
+                .filter(PlatformCredit.source_booking_id == booking_id)
+                .order_by(PlatformCredit.created_at.asc())
+                .all()
+            )
+            return cast(List[PlatformCredit], credits)
+        except Exception as exc:
+            self.logger.error(
+                "Failed to load credits for source booking %s: %s", booking_id, str(exc)
+            )
+            raise RepositoryException("Failed to load source credits")
+
+    def get_credits_used_by_booking(self, booking_id: str) -> List[Tuple[str, int]]:
+        """Return list of (credit_id, used_amount_cents) for credits applied to a booking."""
+
+        try:
+            events = (
+                self.db.query(PaymentEvent)
+                .filter(
+                    PaymentEvent.booking_id == booking_id,
+                    PaymentEvent.event_type == "credit_used",
+                )
+                .all()
+            )
+
+            used: List[Tuple[str, int]] = []
+            for event in events:
+                data = event.event_data or {}
+                credit_id = data.get("credit_id")
+                used_amount = data.get("used_cents")
+                if not credit_id:
+                    continue
+                if used_amount is None:
+                    continue
+                try:
+                    amount_int = int(used_amount)
+                except (TypeError, ValueError):
+                    continue
+                if amount_int <= 0:
+                    continue
+                used.append((str(credit_id), amount_int))
+            return used
+        except Exception as exc:
+            self.logger.error("Failed to load credits used by booking %s: %s", booking_id, str(exc))
+            raise RepositoryException("Failed to load used credits for booking")
 
     def get_total_available_credits(self, user_id: str) -> int:
         """

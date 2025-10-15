@@ -1,4 +1,5 @@
 # backend/tests/integration/api/test_public_availability_integration.py
+# noqa: D100
 """
 Integration tests for public availability endpoint.
 
@@ -15,6 +16,12 @@ from app.core.config import settings
 from app.models.availability import AvailabilitySlot
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
+
+
+@pytest.fixture(autouse=True)
+def _no_price_floors(disable_price_floors):
+    """These availability scenarios are not validating price floors."""
+    yield
 
 
 @pytest.fixture

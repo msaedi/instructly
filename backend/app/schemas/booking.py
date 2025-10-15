@@ -60,9 +60,9 @@ class BookingCreate(StrictRequestModel):
     meeting_location: Optional[str] = Field(
         None, description="Specific meeting location if applicable"
     )
-    location_type: Optional[Literal["student_home", "instructor_location", "neutral"]] = Field(
-        "neutral", description="Type of meeting location"
-    )
+    location_type: Optional[
+        Literal["student_home", "instructor_location", "neutral", "remote", "in_person"]
+    ] = Field("neutral", description="Type of meeting location")
 
     # Note: end_time is calculated from start_time + selected_duration
     end_time: Optional[time] = Field(None, description="Calculated end time (set automatically)")
@@ -114,7 +114,13 @@ class BookingCreate(StrictRequestModel):
     @classmethod
     def validate_location_type(cls, v: Optional[str]) -> str:
         """Ensure location type is valid."""
-        valid_types = ["student_home", "instructor_location", "neutral"]
+        valid_types = [
+            "student_home",
+            "instructor_location",
+            "neutral",
+            "remote",
+            "in_person",
+        ]
         if v and v not in valid_types:
             raise ValueError(f"location_type must be one of {valid_types}")
         return v or "neutral"

@@ -59,7 +59,7 @@ class GoogleMapsProvider(GeocodingProvider):
                 results.append(
                     AutocompleteResult(
                         text=p.get("structured_formatting", {}).get("main_text", ""),
-                        place_id=self._add_prefix(p.get("place_id", "")),
+                        place_id=p.get("place_id", "") or "",
                         description=p.get("description", ""),
                         types=p.get("types", []),
                     )
@@ -103,18 +103,27 @@ class GoogleMapsProvider(GeocodingProvider):
             return parsed
 
     def _parse_result(self, result: dict[str, Any]) -> GeocodedAddress:
-        comps = {}
+        comps: dict[str, str] = {}
+        short_comps: dict[str, str] = {}
         # Google returns 'address_components' in Details; support both keys defensively
         addr_components = result.get("address_components") or result.get("address_component") or []
         for c in addr_components:
+            long_name = c.get("long_name")
+            short_name = c.get("short_name")
             for t in c.get("types", []):
-                comps[t] = c.get("long_name")
+                if isinstance(long_name, str) and long_name:
+                    comps[t] = long_name
+                if isinstance(short_name, str) and short_name:
+                    short_comps[t] = short_name
         geom = result.get("geometry", {})
         loc = geom.get("location", {})
         # Normalize country to ISO alpha-2 if Google returns full name
         raw_country = comps.get("country")
+        country_short = short_comps.get("country")
         country_code = None
-        if raw_country:
+        if country_short and len(country_short) == 2:
+            country_code = country_short.upper()
+        elif raw_country:
             if len(raw_country) == 2:
                 country_code = raw_country.upper()
             else:
@@ -123,15 +132,17 @@ class GoogleMapsProvider(GeocodingProvider):
                     if raw_country.lower() in {"united states", "united states of america", "usa"}
                     else raw_country[:2].upper()
                 )
-        provider_id = self._add_prefix(result.get("place_id", ""))
+
+        provider_id = self._format_provider_id(result.get("place_id", ""))
         return GeocodedAddress(
             latitude=loc.get("lat", 0.0),
             longitude=loc.get("lng", 0.0),
             formatted_address=result.get("formatted_address", ""),
             street_number=comps.get("street_number"),
             street_name=comps.get("route"),
-            city=comps.get("locality") or comps.get("sublocality") or comps.get("postal_town"),
-            state=comps.get("administrative_area_level_1"),
+            city=comps.get("locality") or comps.get("postal_town") or comps.get("sublocality"),
+            state=short_comps.get("administrative_area_level_1")
+            or comps.get("administrative_area_level_1"),
             postal_code=comps.get("postal_code"),
             country=country_code or comps.get("country"),
             neighborhood=comps.get("neighborhood"),
@@ -141,7 +152,7 @@ class GoogleMapsProvider(GeocodingProvider):
         )
 
     @staticmethod
-    def _add_prefix(place_id: str) -> str:
+    def _format_provider_id(place_id: str) -> str:
         if not place_id:
             return ""
         return place_id if place_id.startswith("google:") else f"google:{place_id}"

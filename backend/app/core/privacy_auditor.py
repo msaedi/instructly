@@ -22,7 +22,7 @@ import traceback
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 import httpx
-import yaml  # type: ignore[import-untyped]  # third-party package lacks typing stubs
+import yaml  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 

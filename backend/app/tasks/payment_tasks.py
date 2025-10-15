@@ -31,8 +31,11 @@ from app.database import get_db
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import PaymentEvent
 from app.repositories.factory import RepositoryFactory
+from app.services.config_service import ConfigService
 from app.services.notification_service import NotificationService
+from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
+from app.services.student_credit_service import StudentCreditService
 from app.tasks.celery_app import celery_app
 
 P = ParamSpec("P")
@@ -89,7 +92,6 @@ stripe.api_key = (
     settings.stripe_secret_key.get_secret_value() if settings.stripe_secret_key else None
 )
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
-PLATFORM_FEE_PERCENTAGE = 15  # 15% platform fee
 
 
 @typed_task(
@@ -111,6 +113,13 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
         notification_service = NotificationService(db)
 
         # Find bookings that need authorization (T-24 hours)
@@ -166,38 +175,18 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
                 if not instructor_account or not instructor_account.stripe_account_id:
                     raise Exception(f"No Stripe account for instructor {booking.instructor_id}")
 
-                # Calculate amount and apply available credits up-front
-                original_amount_cents = int(booking.total_price * 100)
-                credits_applied = 0
-                try:
-                    if hasattr(_payment_repo, "apply_credits_for_booking"):
-                        credit_result = _payment_repo.apply_credits_for_booking(
-                            user_id=booking.student_id,
-                            booking_id=booking.id,
-                            amount_cents=original_amount_cents,
-                        )
-                        # Safely coerce to int in case tests use MagicMock
-                        if isinstance(credit_result, dict):
-                            credits_applied = int(credit_result.get("applied_cents", 0) or 0)
-                        else:
-                            credits_applied = 0
-                except Exception as credit_err:
-                    logger.warning(
-                        f"Failed to apply credits for booking {booking.id}: {credit_err}. Proceeding without credits."
-                    )
-                    credits_applied = 0
+                ctx = stripe_service.build_charge_context(
+                    booking_id=booking.id, requested_credit_cents=None
+                )
 
-                amount_cents = max(int(original_amount_cents) - int(credits_applied), 0)
-
-                if amount_cents <= 0:
-                    # Fully covered by credits; mark as authorized without creating PI
+                if ctx.student_pay_cents <= 0:
                     booking.payment_status = "authorized"
                     _payment_repo.create_payment_event(
                         booking_id=booking.id,
                         event_type="auth_succeeded_credits_only",
                         event_data={
-                            "original_amount_cents": original_amount_cents,
-                            "credits_applied_cents": credits_applied,
+                            "base_price_cents": ctx.base_price_cents,
+                            "credits_applied_cents": ctx.applied_credit_cents,
                         },
                     )
                     results["success"] += 1
@@ -206,34 +195,17 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
                     )
                     continue
 
-                application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE / 100)
-
-                # Create PaymentIntent with manual capture (authorization only) for the remainder
-                payment_intent = stripe.PaymentIntent.create(
-                    amount=amount_cents,
-                    currency=STRIPE_CURRENCY,
-                    customer=student_customer.stripe_customer_id,
-                    payment_method=booking.payment_method_id,
-                    capture_method="manual",  # CRITICAL: Don't capture yet
-                    confirm=True,  # Authorize immediately
-                    transfer_data={"destination": instructor_account.stripe_account_id},
-                    application_fee_amount=application_fee,
-                    metadata={
-                        "booking_id": booking.id,
-                        "student_id": booking.student_id,
-                        "instructor_id": booking.instructor_id,
-                        "lesson_datetime": booking_datetime.isoformat(),
-                        "credits_applied_cents": credits_applied,
-                    },
-                    idempotency_key=f"auth_{booking.id}",
+                payment_intent = stripe_service.create_or_retry_booking_payment_intent(
+                    booking_id=booking.id,
+                    payment_method_id=booking.payment_method_id,
+                    requested_credit_cents=None,
                 )
 
-                # Update booking with payment intent
-                booking.payment_intent_id = payment_intent.id
+                booking.payment_intent_id = getattr(payment_intent, "id", None)
                 booking.payment_status = "authorized"
 
                 # Record success event
-                if credits_applied:
+                if ctx.applied_credit_cents:
                     try:
                         from app.monitoring.prometheus_metrics import prometheus_metrics
 
@@ -245,12 +217,12 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
                     booking_id=booking.id,
                     event_type="auth_succeeded",
                     event_data={
-                        "payment_intent_id": payment_intent.id,
-                        "amount_cents": amount_cents,
-                        "application_fee_cents": application_fee,
+                        "payment_intent_id": getattr(payment_intent, "id", None),
+                        "amount_cents": ctx.student_pay_cents,
+                        "application_fee_cents": ctx.application_fee_cents,
                         "authorized_at": datetime.now(timezone.utc).isoformat(),
                         "hours_before_lesson": round(hours_until_lesson, 1),
-                        "credits_applied_cents": credits_applied,
+                        "credits_applied_cents": ctx.applied_credit_cents,
                     },
                 )
 
@@ -338,6 +310,13 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
         notification_service = NotificationService(db)
 
         now = datetime.now(timezone.utc)
@@ -410,7 +389,9 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                     results["warnings_sent"] += 1
 
                 # Attempt retry
-                if attempt_authorization_retry(booking, _payment_repo, db, hours_until_lesson):
+                if attempt_authorization_retry(
+                    booking, _payment_repo, db, hours_until_lesson, stripe_service
+                ):
                     results["success"] += 1
                 else:
                     results["failed"] += 1
@@ -436,7 +417,7 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
 
                     if not recent_retry_times:  # Haven't retried recently
                         if attempt_authorization_retry(
-                            booking, _payment_repo, db, hours_until_lesson
+                            booking, _payment_repo, db, hours_until_lesson, stripe_service
                         ):
                             results["success"] += 1
                         else:
@@ -480,7 +461,11 @@ def handle_authorization_failure(
 
 
 def attempt_authorization_retry(
-    booking: Booking, payment_repo: Any, db: Session, hours_until_lesson: float
+    booking: Booking,
+    payment_repo: Any,
+    db: Session,
+    hours_until_lesson: float,
+    stripe_service: StripeService,
 ) -> bool:
     """
     Attempt to retry authorization for a booking.
@@ -516,39 +501,43 @@ def attempt_authorization_retry(
         if not instructor_account:
             raise Exception(f"No Stripe account for instructor {booking.instructor_id}")
 
-        # Create new PaymentIntent
-        amount_cents = int(booking.total_price * 100)
-        application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE)
-
-        payment_intent = stripe.PaymentIntent.create(
-            amount=amount_cents,
-            currency=STRIPE_CURRENCY,
-            customer=student_customer.stripe_customer_id,
-            payment_method=booking.payment_method_id,
-            capture_method="manual",
-            confirm=True,
-            transfer_data={"destination": instructor_account.stripe_account_id},
-            application_fee_amount=application_fee,
-            metadata={
-                "booking_id": booking.id,
-                "retry": "true",
-                "hours_until_lesson": str(round(hours_until_lesson, 1)),
-            },
-            idempotency_key=f"retry_{booking.id}_{int(round(hours_until_lesson))}",
+        ctx = stripe_service.build_charge_context(
+            booking_id=booking.id, requested_credit_cents=None
         )
 
-        # Update booking
-        booking.payment_intent_id = payment_intent.id
+        if ctx.student_pay_cents <= 0:
+            booking.payment_status = "authorized"
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="auth_retry_succeeded",
+                event_data={
+                    "payment_intent_id": booking.payment_intent_id,
+                    "hours_until_lesson": round(hours_until_lesson, 1),
+                    "authorized_at": datetime.now(timezone.utc).isoformat(),
+                    "credits_applied_cents": ctx.applied_credit_cents,
+                },
+            )
+            return True
+
+        payment_intent = stripe_service.create_or_retry_booking_payment_intent(
+            booking_id=booking.id,
+            payment_method_id=booking.payment_method_id,
+            requested_credit_cents=None,
+        )
+
+        booking.payment_intent_id = getattr(payment_intent, "id", None)
         booking.payment_status = "authorized"
 
-        # Record success
         payment_repo.create_payment_event(
             booking_id=booking.id,
             event_type="auth_retry_succeeded",
             event_data={
                 "payment_intent_id": payment_intent.id,
                 "hours_until_lesson": round(hours_until_lesson, 1),
-                "succeeded_at": datetime.now(timezone.utc).isoformat(),
+                "authorized_at": datetime.now(timezone.utc).isoformat(),
+                "credits_applied_cents": ctx.applied_credit_cents,
+                "amount_cents": ctx.student_pay_cents,
+                "application_fee_cents": ctx.application_fee_cents,
             },
         )
 
@@ -602,6 +591,14 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
+        credit_service = StudentCreditService(db)
         now = datetime.now(timezone.utc)
 
         results: CaptureJobResults = {
@@ -624,7 +621,9 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
         ]
 
         for booking in bookings_to_capture:
-            capture_result = attempt_payment_capture(booking, _payment_repo, "instructor_completed")
+            capture_result = attempt_payment_capture(
+                booking, _payment_repo, "instructor_completed", stripe_service
+            )
             if capture_result["success"]:
                 results["captured"] += 1
             else:
@@ -651,6 +650,11 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
             booking.status = BookingStatus.COMPLETED
             booking.completed_at = now
 
+            credit_service.maybe_issue_milestone_credit(
+                student_id=booking.student_id,
+                booking_id=booking.id,
+            )
+
             _payment_repo.create_payment_event(
                 booking_id=booking.id,
                 event_type="auto_completed",
@@ -664,7 +668,9 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
             )
 
             # Attempt capture
-            capture_result = attempt_payment_capture(booking, _payment_repo, "auto_completed")
+            capture_result = attempt_payment_capture(
+                booking, _payment_repo, "auto_completed", stripe_service
+            )
             if capture_result["success"]:
                 results["captured"] += 1
             else:
@@ -698,7 +704,9 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                 # Authorization is expired, need to handle it
                 if booking.status == BookingStatus.COMPLETED:
                     # Try to capture anyway (might fail)
-                    capture_result = attempt_payment_capture(booking, _payment_repo, "expired_auth")
+                    capture_result = attempt_payment_capture(
+                        booking, _payment_repo, "expired_auth", stripe_service
+                    )
                     if not capture_result["success"]:
                         # Create new authorization and capture
                         new_auth_result = create_new_authorization_and_capture(
@@ -740,7 +748,10 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
 
 
 def attempt_payment_capture(
-    booking: Booking, payment_repo: Any, capture_reason: str
+    booking: Booking,
+    payment_repo: Any,
+    capture_reason: str,
+    stripe_service: StripeService,
 ) -> Dict[str, Any]:
     """
     Attempt to capture a payment for a booking.
@@ -765,19 +776,34 @@ def attempt_payment_capture(
             logger.info(f"Skipping cancelled booking {booking.id} - already captured")
             return {"success": True, "skipped": True}
 
-        # Attempt capture
-        captured_intent = stripe.PaymentIntent.capture(
-            booking.payment_intent_id, idempotency_key=f"capture_{booking.id}_{capture_reason}"
+        capture_payload = stripe_service.capture_booking_payment_intent(
+            booking_id=booking.id,
+            payment_intent_id=booking.payment_intent_id,
         )
 
         booking.payment_status = "captured"
+
+        payment_intent = None
+        amount_received = None
+
+        if isinstance(capture_payload, dict):
+            payment_intent = capture_payload.get("payment_intent")
+            amount_received = capture_payload.get("amount_received")
+        else:
+            payment_intent = capture_payload
+
+        if amount_received is None and payment_intent is not None:
+            amount_received = getattr(payment_intent, "amount_received", None)
+
+        if amount_received is None and payment_intent is not None:
+            amount_received = getattr(payment_intent, "amount", None)
 
         payment_repo.create_payment_event(
             booking_id=booking.id,
             event_type="payment_captured",
             event_data={
                 "payment_intent_id": booking.payment_intent_id,
-                "amount_captured_cents": captured_intent.amount_received,
+                "amount_captured_cents": amount_received,
                 "capture_reason": capture_reason,
                 "captured_at": datetime.now(timezone.utc).isoformat(),
             },
@@ -874,55 +900,44 @@ def create_new_authorization_and_capture(
         Dict with success status
     """
     try:
-        # Get student's Stripe customer
-        student_customer = payment_repo.get_customer_by_user_id(booking.student_id)
-        if not student_customer:
-            raise Exception(f"No Stripe customer for student {booking.student_id}")
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
+        original_intent_id = booking.payment_intent_id
 
-        # Get instructor's Stripe account
-        from app.repositories.instructor_profile_repository import InstructorProfileRepository
+        # Recreate authorization via service so pricing comes from pricing_service
+        new_intent = stripe_service.create_or_retry_booking_payment_intent(
+            booking_id=booking.id,
+            payment_method_id=booking.payment_method_id,
+        )
+        intent_id = getattr(new_intent, "id", None)
+        if intent_id is None and isinstance(new_intent, dict):
+            intent_id = new_intent.get("id")
 
-        instructor_repo = InstructorProfileRepository(db)
-        instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
-        instructor_account = payment_repo.get_connected_account_by_instructor_id(
-            instructor_profile.id if instructor_profile else None
+        resolved_intent_id = intent_id or booking.payment_intent_id
+        if not resolved_intent_id:
+            raise Exception(f"No payment intent id after reauthorization for booking {booking.id}")
+
+        capture_result = stripe_service.capture_booking_payment_intent(
+            booking_id=booking.id,
+            payment_intent_id=str(resolved_intent_id),
         )
 
-        if not instructor_account:
-            raise Exception(f"No Stripe account for instructor {booking.instructor_id}")
-
-        # Create new PaymentIntent with immediate capture
-        amount_cents = int(booking.total_price * 100)
-        application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE)
-
-        payment_intent = stripe.PaymentIntent.create(
-            amount=amount_cents,
-            currency=STRIPE_CURRENCY,
-            customer=student_customer.stripe_customer_id,
-            payment_method=booking.payment_method_id,
-            capture_method="automatic",  # Immediate capture
-            confirm=True,
-            transfer_data={"destination": instructor_account.stripe_account_id},
-            application_fee_amount=application_fee,
-            metadata={
-                "booking_id": booking.id,
-                "type": "expired_reauth",
-                "original_intent": booking.payment_intent_id,
-            },
-            idempotency_key=f"reauth_{booking.id}",
-        )
-
-        # Update booking
-        booking.payment_intent_id = payment_intent.id
         booking.payment_status = "captured"
+        new_payment_intent_id = booking.payment_intent_id or resolved_intent_id
 
         payment_repo.create_payment_event(
             booking_id=booking.id,
             event_type="reauth_and_capture_success",
             event_data={
-                "new_payment_intent_id": payment_intent.id,
-                "original_payment_intent_id": booking.payment_intent_id,
-                "amount_captured_cents": amount_cents,
+                "new_payment_intent_id": new_payment_intent_id,
+                "original_payment_intent_id": original_intent_id,
+                "amount_captured_cents": capture_result.get("amount_received"),
+                "top_up_transfer_cents": capture_result.get("top_up_transfer_cents"),
                 "captured_at": datetime.now(timezone.utc).isoformat(),
             },
         )
@@ -936,7 +951,9 @@ def create_new_authorization_and_capture(
             event_type="reauth_and_capture_failed",
             event_data={
                 "error": str(e),
-                "original_payment_intent_id": booking.payment_intent_id,
+                "original_payment_intent_id": original_intent_id
+                if "original_intent_id" in locals()
+                else booking.payment_intent_id,
             },
         )
         logger.error(f"Failed to reauth and capture for booking {booking.id}: {e}")
@@ -960,6 +977,13 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
     try:
         db = cast(Session, next(get_db()))
         _payment_repo = RepositoryFactory.get_payment_repository(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
 
         # Get the booking
         booking_repo = RepositoryFactory.get_booking_repository(db)
@@ -993,18 +1017,20 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
 
         # Attempt immediate capture
         try:
-            captured_intent = stripe.PaymentIntent.capture(
-                booking.payment_intent_id, idempotency_key=f"capture_late_cancel_{booking.id}"
+            captured_intent = stripe_service.capture_booking_payment_intent(
+                booking_id=booking.id,
+                payment_intent_id=booking.payment_intent_id,
             )
 
             booking.payment_status = "captured"
 
+            amount_received = getattr(captured_intent, "amount_received", None)
             _payment_repo.create_payment_event(
                 booking_id=booking.id,
                 event_type="late_cancellation_captured",
                 event_data={
                     "payment_intent_id": booking.payment_intent_id,
-                    "amount_captured_cents": captured_intent.amount_received,
+                    "amount_captured_cents": amount_received,
                     "hours_before_lesson": round(hours_until_lesson, 1),
                     "captured_at": now.isoformat(),
                     "cancellation_policy": "Full charge for <12hr cancellation",
@@ -1019,7 +1045,7 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
             )
             return {
                 "success": True,
-                "amount_captured": captured_intent.amount_received,
+                "amount_captured": amount_received,
                 "hours_before_lesson": round(hours_until_lesson, 1),
             }
 
@@ -1168,7 +1194,13 @@ def audit_and_fix_payout_schedules(self: Any) -> Dict[str, Any]:
     db: Session = SessionLocal()
     try:
         _payment_repo = RepositoryFactory.get_payment_repository(db)
-        stripe_service = StripeService(db)
+        config_service = ConfigService(db)
+        pricing_service = PricingService(db)
+        stripe_service = StripeService(
+            db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
 
         # repo-pattern-ignore: Simple scan over connected accounts table
         from app.models.payment import StripeConnectedAccount

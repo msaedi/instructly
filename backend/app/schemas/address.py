@@ -95,6 +95,7 @@ class PlaceSuggestion(BaseModel):
     text: str
     place_id: str
     description: str
+    provider: str
     types: List[str] = []
 
 

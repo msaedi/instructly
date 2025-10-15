@@ -26,6 +26,12 @@ except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import add_service_areas_for_boroughs
 
 
+@pytest.fixture(autouse=True)
+def _no_price_floors(disable_price_floors):
+    """Double-booking regression uses sub-floor rates."""
+    yield
+
+
 @pytest.mark.asyncio
 async def test_student_cannot_double_book_overlapping_sessions(db: Session, catalog_data: dict):
     """

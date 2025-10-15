@@ -66,6 +66,7 @@ from .routes import (
     account_management,
     addresses,
     admin_background_checks,
+    admin_config,
     admin_instructors,
     alerts,
     analytics,
@@ -86,6 +87,8 @@ from .routes import (
     monitoring,
     password_reset,
     payments,
+    pricing_config_public,
+    pricing_preview,
     privacy,
     prometheus,
     public,
@@ -749,6 +752,8 @@ app.include_router(services.router)
 app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
 app.include_router(bookings.router)
+app.include_router(pricing_preview.router)
+app.include_router(pricing_config_public.router)
 app.include_router(favorites.router)
 app.include_router(payments.router)
 app.include_router(messages.router)
@@ -766,6 +771,7 @@ app.include_router(search_history.router, prefix="/api/search-history", tags=["s
 app.include_router(addresses.router)
 app.include_router(redis_monitor.router)
 app.include_router(database_monitor.router)
+app.include_router(admin_config.router)
 app.include_router(privacy.router, prefix="/api", tags=["privacy"])
 app.include_router(stripe_webhooks.router)
 app.include_router(webhooks_checkr.router)
@@ -961,6 +967,14 @@ def _prewarm_metrics_cache() -> None:
     """Warm metrics cache so the first scrape is fast."""
 
     prometheus_metrics.prewarm()
+
+    try:
+        from .routes.prometheus import warm_prometheus_metrics_response_cache
+
+        warm_prometheus_metrics_response_cache()
+    except Exception:
+        # Cache warmup should never block startup; swallow any issues.
+        pass
 
 
 # Wrap with ASGI middleware for production

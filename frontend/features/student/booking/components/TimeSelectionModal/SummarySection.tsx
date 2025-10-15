@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  formatCentsToDisplay,
+  type PricingPreviewResponse,
+} from '@/lib/api/pricing';
+
 interface SummarySectionProps {
   selectedDate: string | null;
   selectedTime: string | null;
@@ -7,6 +12,11 @@ interface SummarySectionProps {
   price: number;
   onContinue: () => void;
   isComplete: boolean;
+  floorWarning?: string | null;
+  pricingPreview?: PricingPreviewResponse | null;
+  isPricingPreviewLoading?: boolean;
+  pricingError?: string | null;
+  hasBookingDraft?: boolean;
 }
 
 export default function SummarySection({
@@ -16,6 +26,11 @@ export default function SummarySection({
   price,
   onContinue,
   isComplete,
+  floorWarning = null,
+  pricingPreview = null,
+  isPricingPreviewLoading = false,
+  pricingError = null,
+  hasBookingDraft = false,
 }: SummarySectionProps) {
   // Format date to human-readable format
   const formatDate = (dateStr: string, timeStr: string) => {
@@ -81,11 +96,55 @@ export default function SummarySection({
           </p>
         )}
 
-        {/* Duration and Price */}
-        {selectedDuration && price > 0 && (
-          <p className="text-base mb-4" style={{ color: '#333333', fontSize: '16px' }}>
-            {selectedDuration} min · ${price}
-          </p>
+        {/* Duration and Pricing */}
+        {selectedDuration && (
+          <div className="mb-4">
+            <p className="text-base" style={{ color: '#333333', fontSize: '16px' }}>
+              {selectedDuration} min
+              {!pricingPreview && price > 0 ? ` · $${price}` : ''}
+            </p>
+
+            {pricingPreview && (
+              <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 text-sm text-left space-y-2">
+                <div className="flex justify-between">
+                  <span>Lesson</span>
+                  <span>{formatCentsToDisplay(pricingPreview.base_price_cents)}</span>
+                </div>
+                {pricingPreview.line_items.map((item) => {
+                  const isCredit = item.amount_cents < 0;
+                  return (
+                    <div
+                      key={`${item.label}-${item.amount_cents}`}
+                      className={`flex justify-between text-gray-700 ${
+                        isCredit ? 'text-green-600 dark:text-green-400' : ''
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      <span>{formatCentsToDisplay(item.amount_cents)}</span>
+                    </div>
+                  );
+                })}
+                <div className="flex justify-between font-semibold text-base border-t border-gray-200 pt-2">
+                  <span>Total</span>
+                  <span>{formatCentsToDisplay(pricingPreview.student_pay_cents)}</span>
+                </div>
+              </div>
+            )}
+
+            {isPricingPreviewLoading && hasBookingDraft && (
+              <p className="mt-2 text-xs text-gray-500">Updating pricing…</p>
+            )}
+
+            {pricingError && (
+              <p className="mt-2 text-xs text-red-600">{pricingError}</p>
+            )}
+
+            {!hasBookingDraft && (
+              <p className="mt-2 text-xs text-gray-500">
+                Booking Protection (12%) and credits apply at checkout.
+              </p>
+            )}
+          </div>
         )}
 
         {/* Continue Button */}
@@ -103,6 +162,12 @@ export default function SummarySection({
         >
           Select and continue
         </button>
+
+        {floorWarning && (
+          <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {floorWarning}
+          </div>
+        )}
 
         {/* Helper Text */}
         <p
