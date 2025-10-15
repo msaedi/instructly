@@ -312,16 +312,27 @@ class PricingService(BaseService):
     @staticmethod
     def _resolve_modality(booking: Booking) -> str:
         location = str(getattr(booking, "location_type", "") or "").lower()
-        if location in {"student_home", "instructor_location", "neutral", "in_person"}:
-            return "in_person"
         if "remote" in location or "online" in location or "virtual" in location:
             return "remote"
+        if location in {"student_home", "instructor_location", "neutral", "in_person"}:
+            if PricingService._meeting_location_indicates_remote(booking):
+                return "remote"
+            return "in_person"
         service_location_types = getattr(booking.instructor_service, "location_types", None)
         if service_location_types and any(
             str(loc).lower() in {"online", "remote", "virtual"} for loc in service_location_types
         ):
             return "remote"
+        if PricingService._meeting_location_indicates_remote(booking):
+            return "remote"
         return "in_person"
+
+    @staticmethod
+    def _meeting_location_indicates_remote(booking: Booking) -> bool:
+        meeting_location = str(getattr(booking, "meeting_location", "") or "").lower()
+        if not meeting_location:
+            return False
+        return any(keyword in meeting_location for keyword in ("online", "remote", "virtual"))
 
     @staticmethod
     def _is_private_booking(booking: Booking) -> bool:

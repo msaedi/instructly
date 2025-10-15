@@ -177,6 +177,38 @@ def test_pricing_service_enforces_remote_floor(
     assert result["base_price_cents"] == 3000
 
 
+def test_pricing_service_detects_remote_by_meeting_location(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+):
+    """Neutral location type should defer to meeting location when it signals remote."""
+
+    remote_booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("50.00"),
+        location_type="neutral",
+    )
+
+    remote_booking.meeting_location = "Online session"
+    db.add(remote_booking)
+    db.commit()
+    db.refresh(remote_booking)
+
+    with pytest.raises(BusinessRuleException) as exc:
+        pricing_service.compute_booking_pricing(remote_booking.id)
+
+    assert exc.value.code == "PRICE_BELOW_FLOOR"
+    assert "remote 60-minute private session" in exc.value.message
+    assert exc.value.details.get("modality") == "remote"
+    assert exc.value.details.get("required_floor_cents") == 6000
+
+
 def test_pricing_preview_returns_tier_pct_float_for_booking(
     db,
     pricing_service,
