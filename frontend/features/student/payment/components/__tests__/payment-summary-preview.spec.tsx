@@ -11,9 +11,11 @@ import {
   type PricingPreviewResponse,
 } from '@/lib/api/pricing';
 
+let mockStudentFeePct = 0.12;
+
 jest.mock('@/lib/pricing/usePricingFloors', () => ({
   usePricingFloors: () => ({ floors: null }),
-  usePricingConfig: () => ({ config: { student_fee_pct: 0.12 }, isLoading: false, error: null }),
+  usePricingConfig: () => ({ config: { student_fee_pct: mockStudentFeePct }, isLoading: false, error: null }),
 }));
 
 jest.mock('@/features/shared/api/client', () => ({
@@ -198,6 +200,7 @@ const renderPaymentSectionForSummary = (overrides: Partial<typeof BASE_BOOKING> 
 describe('Payment summary integration with pricing preview', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockStudentFeePct = 0.12;
   });
 
   afterEach(() => {
@@ -346,6 +349,56 @@ function PaymentSummaryHarness() {
 }
 
 describe('Payment summary preview', () => {
+  it('reflects updated booking protection percent from admin config', async () => {
+    mockStudentFeePct = 0.14;
+    const preview: PricingPreviewResponse = {
+      base_price_cents: 15000,
+      student_fee_cents: 2100,
+      instructor_commission_cents: 0,
+      credit_applied_cents: 0,
+      student_pay_cents: 17100,
+      application_fee_cents: 2100,
+      top_up_transfer_cents: 0,
+      instructor_tier_pct: 0.12,
+      line_items: [{ label: 'Booking Protection (14%)', amount_cents: 2100 }],
+    };
+
+    const controller = {
+      preview,
+      loading: false,
+      error: null,
+      lastAppliedCreditCents: preview.credit_applied_cents,
+      requestPricingPreview: async () => preview,
+      applyCredit: async () => preview,
+      reset: () => undefined,
+      bookingId: 'booking-1',
+    };
+
+    render(
+      <PricingPreviewContext.Provider value={controller}>
+        <PaymentConfirmation
+          booking={BASE_BOOKING}
+          paymentMethod={PaymentMethod.CREDIT_CARD}
+          cardLast4="4242"
+          onConfirm={jest.fn()}
+          onBack={jest.fn()}
+          onChangePaymentMethod={jest.fn()}
+          onCreditToggle={jest.fn()}
+          onCreditAmountChange={jest.fn()}
+          availableCredits={0}
+          creditsUsed={0}
+          creditEarliestExpiry={null}
+          referralAppliedCents={0}
+          referralActive={false}
+          floorViolationMessage={null}
+          onClearFloorViolation={jest.fn()}
+        />
+      </PricingPreviewContext.Provider>
+    );
+
+    expect(await screen.findByText('Booking Protection (14%)')).toBeInTheDocument();
+  });
+
   it('renders preview line items and updates totals when credits are removed', async () => {
     render(<PaymentSummaryHarness />);
 
