@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { ApiProblemError } from '@/lib/api/fetch';
 import { fetchPricingPreview, fetchPricingPreviewQuote } from '@/lib/api/pricing';
 import { paymentService } from '@/services/api/payments';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
@@ -267,5 +268,31 @@ describe('PaymentSection pricing preview integration', () => {
       const confirmButton = screen.queryByRole('button', { name: /price must meet minimum/i });
       expect(confirmButton).toBeDisabled();
     });
+  });
+
+  it('surfaces preview errors in the payment summary when the request fails', async () => {
+    const mockResponse = { status: 422 } as Response;
+    fetchPricingPreviewMock.mockRejectedValueOnce(
+      new ApiProblemError(
+        {
+          title: 'Price floor',
+          detail: 'Below minimum',
+          status: 422,
+          type: 'about:blank',
+        },
+        mockResponse,
+      ),
+    );
+
+    renderPaymentSection();
+
+    await waitFor(() => {
+      expect(fetchPricingPreviewMock).toHaveBeenCalledTimes(1);
+    });
+
+    const errorMessage = await screen.findByText('Unable to load pricing preview. Please try again.');
+    expect(errorMessage).toBeInTheDocument();
+    expect(screen.getByText('Booking Protection (12%)')).toBeInTheDocument();
+    expect(screen.queryByTestId('pricing-preview-skeleton')).not.toBeInTheDocument();
   });
 });

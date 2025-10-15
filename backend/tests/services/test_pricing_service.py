@@ -209,6 +209,80 @@ def test_pricing_service_detects_remote_by_meeting_location(
     assert exc.value.details.get("required_floor_cents") == 6000
 
 
+def test_pricing_service_tier_pct_at_five_completed_sessions(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+):
+    """Exactly five recent completions should maintain the 12% tier."""
+
+    profile = test_instructor.instructor_profile
+    profile.current_tier_pct = Decimal("15.00")
+    db.add(profile)
+    db.flush()
+
+    for offset in range(5):
+        _create_booking(
+            db=db,
+            instructor=test_instructor,
+            student=test_student,
+            service=instructor_service,
+            hourly_rate=Decimal("90.00"),
+            status=BookingStatus.COMPLETED,
+            completed_at=datetime.now(timezone.utc) - timedelta(days=offset),
+        )
+
+    upcoming_booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("90.00"),
+    )
+
+    result = pricing_service.compute_booking_pricing(upcoming_booking.id)
+    assert result["instructor_tier_pct"] == pytest.approx(0.12)
+
+
+def test_pricing_service_tier_pct_at_eleven_completed_sessions(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+):
+    """Eleven recent completions should maintain the 10% tier."""
+
+    profile = test_instructor.instructor_profile
+    profile.current_tier_pct = Decimal("15.00")
+    db.add(profile)
+    db.flush()
+
+    for offset in range(11):
+        _create_booking(
+            db=db,
+            instructor=test_instructor,
+            student=test_student,
+            service=instructor_service,
+            hourly_rate=Decimal("95.00"),
+            status=BookingStatus.COMPLETED,
+            completed_at=datetime.now(timezone.utc) - timedelta(days=offset),
+        )
+
+    upcoming_booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("95.00"),
+    )
+
+    result = pricing_service.compute_booking_pricing(upcoming_booking.id)
+    assert result["instructor_tier_pct"] == pytest.approx(0.10)
+
+
 def test_pricing_preview_returns_tier_pct_float_for_booking(
     db,
     pricing_service,

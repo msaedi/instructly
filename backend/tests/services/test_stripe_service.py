@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 import stripe
 import ulid
 
+from app.core.config import settings
 from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -622,6 +623,58 @@ class TestStripeService:
         assert payment.stripe_payment_intent_id == "pi_test123"
         assert payment.amount == student_pay_cents
         assert payment.application_fee == application_fee_cents
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_skips_parity_assertions_in_production(
+        self,
+        mock_create,
+        stripe_service: StripeService,
+        test_booking: Booking,
+        monkeypatch,
+    ):
+        """Parity assertions should be disabled in production environment."""
+
+        monkeypatch.setattr(settings, "environment", "production", raising=False)
+        debug_spy = MagicMock()
+        monkeypatch.setattr(stripe_service.logger, "debug", debug_spy)
+
+        base_price_cents = 12000
+        tier_pct = Decimal("0.12")
+        student_fee_pct = Decimal("0.12")
+        student_fee_cents = _round_cents(Decimal(base_price_cents) * student_fee_pct)
+        instructor_commission_cents = _round_cents(Decimal(base_price_cents) * tier_pct)
+        credit_applied = 0
+        student_pay_cents = base_price_cents + student_fee_cents - credit_applied
+        application_fee_cents = student_fee_cents + instructor_commission_cents - credit_applied
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=credit_applied,
+            base_price_cents=base_price_cents,
+            student_fee_cents=student_fee_cents,
+            instructor_commission_cents=instructor_commission_cents,
+            target_instructor_payout_cents=base_price_cents - instructor_commission_cents,
+            student_pay_cents=student_pay_cents,
+            application_fee_cents=application_fee_cents,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=tier_pct,
+        )
+
+        mock_intent = MagicMock()
+        mock_intent.id = "pi_prod123"
+        mock_intent.status = "requires_payment_method"
+        mock_create.return_value = mock_intent
+
+        stripe_service.create_payment_intent(
+            booking_id=test_booking.id,
+            customer_id="cus_prod123",
+            destination_account_id="acct_prod123",
+            charge_context=context,
+        )
+
+        assert all(
+            "stripe.pi.preview_parity" not in str(call.args[0]) if call.args else True
+            for call in debug_spy.call_args_list
+        )
 
     @patch("stripe.PaymentIntent.create")
     def test_create_or_retry_booking_payment_intent(

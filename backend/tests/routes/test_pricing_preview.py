@@ -168,3 +168,55 @@ def test_pricing_preview_propagates_floor_validation(
         message = message.get("message")
     assert message is not None
     assert "Minimum price for a in-person" in str(message)
+
+
+def test_quote_preview_rejects_invalid_booking_date(
+    client,
+    test_student,
+    test_instructor,
+    instructor_service,
+    auth_headers_student,
+):
+    payload = {
+        "instructor_id": str(test_instructor.id),
+        "instructor_service_id": str(instructor_service.id),
+        "booking_date": "2024-13-01",
+        "start_time": "10:00",
+        "selected_duration": 60,
+        "location_type": "remote",
+        "meeting_location": "Online",
+        "applied_credit_cents": 0,
+    }
+
+    response = client.post("/api/pricing/preview", json=payload, headers=auth_headers_student)
+
+    assert response.status_code == 400
+    detail = response.json()
+    assert detail.get("code") == "INVALID_BOOKING_DATE"
+    assert detail.get("errors", {}).get("booking_date") == "2024-13-01"
+
+
+def test_quote_preview_rejects_invalid_start_time(
+    client,
+    test_student,
+    test_instructor,
+    instructor_service,
+    auth_headers_student,
+):
+    payload = {
+        "instructor_id": str(test_instructor.id),
+        "instructor_service_id": str(instructor_service.id),
+        "booking_date": "2024-05-01",
+        "start_time": "25:00",
+        "selected_duration": 60,
+        "location_type": "remote",
+        "meeting_location": "Online",
+        "applied_credit_cents": 0,
+    }
+
+    response = client.post("/api/pricing/preview", json=payload, headers=auth_headers_student)
+
+    assert response.status_code == 400
+    detail = response.json()
+    assert detail.get("code") == "INVALID_START_TIME"
+    assert detail.get("errors", {}).get("start_time") == "25:00"
