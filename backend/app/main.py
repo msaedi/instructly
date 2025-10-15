@@ -968,6 +968,14 @@ def _prewarm_metrics_cache() -> None:
 
     prometheus_metrics.prewarm()
 
+    try:
+        from .routes.prometheus import warm_prometheus_metrics_response_cache
+
+        warm_prometheus_metrics_response_cache()
+    except Exception:
+        # Cache warmup should never block startup; swallow any issues.
+        pass
+
 
 # Wrap with ASGI middleware for production
 wrapped_app: ASGIApp = TimingMiddlewareASGI(app)

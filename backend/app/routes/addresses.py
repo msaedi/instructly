@@ -248,20 +248,26 @@ def place_details(place_id: str, provider: str | None = None) -> PlaceDetails:
             },
         )
 
-    if not result and requested_provider == "google" and settings.mapbox_access_token:
-        logger.warning(
-            "Falling back to Mapbox place details",
-            extra={
-                "fallback_from": "google",
-                "fallback_to": "mapbox",
-                "original_place_id": normalized_place_id,
-            },
-        )
-        fallback = create_geocoding_provider("mapbox")
-        fallback_result = anyio.run(fallback.get_place_details, normalized_place_id)
-        if fallback_result:
-            result = fallback_result
-            provider_used = "mapbox"
+    if not result and requested_provider == "google":
+        fallback_provider = None
+        try:
+            fallback_provider = create_geocoding_provider("mapbox")
+        except Exception:
+            fallback_provider = None
+
+        if fallback_provider is not None:
+            logger.warning(
+                "Falling back to Mapbox place details",
+                extra={
+                    "fallback_from": "google",
+                    "fallback_to": "mapbox",
+                    "original_place_id": normalized_place_id,
+                },
+            )
+            fallback_result = anyio.run(fallback_provider.get_place_details, normalized_place_id)
+            if fallback_result:
+                result = fallback_result
+                provider_used = "mapbox"
 
     if not result:
         raise HTTPException(status_code=404, detail="Place not found")

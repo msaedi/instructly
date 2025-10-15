@@ -198,6 +198,7 @@ def test_pricing_preview_returns_tier_pct_float_for_booking(
     assert result["instructor_tier_pct"] >= 0
 
 
+@pytest.mark.usefixtures("disable_price_floors")
 def test_pricing_preview_returns_tier_pct_float_for_quote(
     db,
     pricing_service,
