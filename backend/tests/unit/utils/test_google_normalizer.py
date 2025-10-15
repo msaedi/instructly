@@ -75,3 +75,42 @@ def test_google_feature_uses_short_code_state():
     assert parsed.city == "New York"
     assert parsed.state == "NY"
     assert parsed.postal_code == "10017"
+
+
+def test_google_feature_parses_canadian_address_with_province_short_code():
+    provider = GoogleMapsProvider()
+
+    result = {
+        "place_id": "ChIJPZDrEzL1LIgRhVXymwWbK7Y",
+        "formatted_address": "100 King Street West, Toronto, ON M5X 1A9, Canada",
+        "geometry": {
+            "location": {"lat": 43.648691, "lng": -79.382392},
+        },
+        "address_components": [
+            {"long_name": "100", "short_name": "100", "types": ["street_number"]},
+            {"long_name": "King Street West", "short_name": "King St W", "types": ["route"]},
+            {"long_name": "Toronto", "short_name": "Toronto", "types": ["locality", "political"]},
+            {
+                "long_name": "Toronto",
+                "short_name": "Toronto",
+                "types": ["administrative_area_level_2", "political"],
+            },
+            {
+                "long_name": "Ontario",
+                "short_name": "ON",
+                "types": ["administrative_area_level_1", "political"],
+            },
+            {"long_name": "Canada", "short_name": "CA", "types": ["country", "political"]},
+            {"long_name": "M5X 1A9", "short_name": "M5X 1A9", "types": ["postal_code"]},
+        ],
+    }
+
+    parsed = provider._parse_result(result)
+
+    assert parsed.city == "Toronto"
+    assert parsed.state == "ON"
+    assert parsed.country == "CA"
+    assert parsed.postal_code == "M5X 1A9"
+
+    meeting_location = f"{parsed.street_name}, {parsed.city}, {parsed.state} {parsed.postal_code}"
+    assert meeting_location == "King Street West, Toronto, ON M5X 1A9"

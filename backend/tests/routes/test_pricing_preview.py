@@ -220,3 +220,46 @@ def test_quote_preview_rejects_invalid_start_time(
     detail = response.json()
     assert detail.get("code") == "INVALID_START_TIME"
     assert detail.get("errors", {}).get("start_time") == "25:00"
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_code"),
+    [
+        ("booking_date", "2025-13-01", "INVALID_BOOKING_DATE"),
+        ("start_time", "25:00", "INVALID_START_TIME"),
+    ],
+)
+def test_quote_rejects_invalid_date_time(
+    client,
+    test_student,
+    test_instructor,
+    instructor_service,
+    auth_headers_student,
+    field,
+    value,
+    expected_code,
+):
+    payload = {
+        "instructor_id": str(test_instructor.id),
+        "instructor_service_id": str(instructor_service.id),
+        "booking_date": "2025-05-01",
+        "start_time": "11:00",
+        "selected_duration": 60,
+        "location_type": "student_home",
+        "meeting_location": "123 Main St",
+        "applied_credit_cents": 0,
+    }
+    payload[field] = value
+
+    response = client.post("/api/pricing/preview", json=payload, headers=auth_headers_student)
+
+    if response.status_code == 422:
+        detail = response.json()
+        errors = detail.get("detail", []) if isinstance(detail, dict) else []
+        assert any(field in err.get("loc", []) for err in errors), errors
+    else:
+        assert response.status_code == 400
+        detail = response.json()
+        assert detail.get("code") == expected_code
+        error_details = detail.get("details") or detail.get("errors") or {}
+        assert error_details.get(field) == value

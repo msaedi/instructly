@@ -329,6 +329,47 @@ def test_pricing_preview_returns_tier_pct_float_for_quote(
     assert result["instructor_tier_pct"] >= 0
 
 
+@pytest.mark.usefixtures("disable_price_floors")
+def test_inactivity_reset_to_entry_tier(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+):
+    """If the instructor has been inactive past the reset window, fall back to entry tier."""
+
+    profile = test_instructor.instructor_profile
+    profile.current_tier_pct = Decimal("10.00")
+    db.add(profile)
+    db.flush()
+
+    _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("90.00"),
+        status=BookingStatus.COMPLETED,
+        completed_at=datetime.now(timezone.utc) - timedelta(days=120),
+    )
+
+    payload = PricingPreviewIn(
+        instructor_id=str(test_instructor.id),
+        instructor_service_id=str(instructor_service.id),
+        booking_date=date.today().strftime("%Y-%m-%d"),
+        start_time="11:00",
+        selected_duration=60,
+        location_type="remote",
+        meeting_location="Online",
+        applied_credit_cents=0,
+    )
+
+    result = pricing_service.compute_quote_pricing(payload, student_id=str(test_student.id))
+
+    assert result["instructor_tier_pct"] == pytest.approx(0.15)
+
+
 def test_pricing_service_respects_config_overrides(
     db,
     pricing_service,

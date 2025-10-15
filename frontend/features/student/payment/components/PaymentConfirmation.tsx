@@ -424,11 +424,13 @@ export default function PaymentConfirmation({
     addressDetailsAbortRef.current = null;
   }, [fetchPlaceDetails, isOnlineLesson, parseAddressComponents, parseDescriptionFallback]);
 
-  logger.info('PaymentConfirmation component rendered', {
-    booking,
-    hasConflict,
-    isCheckingConflict
-  });
+  if (process.env.NODE_ENV !== 'production') {
+    logger.info('PaymentConfirmation component rendered', {
+      booking,
+      hasConflict,
+      isCheckingConflict,
+    });
+  }
   // Auto-collapse payment if user has a saved card
   const hasSavedCard = !!cardLast4;
   const [isPaymentExpanded, setIsPaymentExpanded] = useState(!hasSavedCard);
@@ -1003,7 +1005,9 @@ export default function PaymentConfirmation({
     conflictAbortRef.current = controller;
     setIsCheckingConflict(true);
 
-    logger.info('Checking for booking conflicts...', conflictKey);
+    if (process.env.NODE_ENV !== 'production') {
+      logger.info('Checking for booking conflicts...', conflictKey);
+    }
 
     const timeoutId = window.setTimeout(async () => {
       const cacheKey = `${conflictKey.studentId}|${conflictKey.bookingDate}`;
