@@ -14,7 +14,7 @@ import TimeSelectionModal from '@/features/student/booking/components/TimeSelect
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { logger } from '@/lib/logger';
-import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import { usePricingFloors, usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { formatMeetingLocation, toStateCode } from '@/utils/address/format';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 import type { PlaceSuggestion } from '@/components/forms/PlacesAutocompleteInput';
@@ -507,6 +507,52 @@ export default function PaymentConfirmation({
       aria-hidden="true"
     />
   );
+
+  const { config: pricingConfig } = usePricingConfig();
+
+  const bookingProtectionLabel = useMemo(() => {
+    const percentFromLineItem = (() => {
+      if (!pricingPreview) {
+        return null;
+      }
+      const item = pricingPreview.line_items.find((lineItem) =>
+        lineItem.label.toLowerCase().startsWith('booking protection'),
+      );
+      if (!item) {
+        return null;
+      }
+      const match = item.label.match(/\((\d+)%\)/);
+      if (!match) {
+        return null;
+      }
+      const parsed = Number(match[1]);
+      return Number.isFinite(parsed) ? parsed : null;
+    })();
+
+    if (percentFromLineItem !== null) {
+      return `Booking Protection (${percentFromLineItem}%)`;
+    }
+
+    if (pricingPreview) {
+      const baseCents = pricingPreview.base_price_cents;
+      const feeCents = pricingPreview.student_fee_cents;
+      if (baseCents > 0) {
+        const pct = Math.round((feeCents / baseCents) * 100);
+        if (Number.isFinite(pct)) {
+          return `Booking Protection (${pct}%)`;
+        }
+      }
+    }
+
+    if (typeof pricingConfig?.student_fee_pct === 'number') {
+      const pct = Math.round(pricingConfig.student_fee_pct * 100);
+      if (Number.isFinite(pct)) {
+        return `Booking Protection (${pct}%)`;
+      }
+    }
+
+    return 'Booking Protection';
+  }, [pricingConfig, pricingPreview]);
 
   const fallbackBasePrice = Number.isFinite(booking.basePrice) ? Number(booking.basePrice) : 0;
   const lessonAmountDisplay = pricingPreview
@@ -1713,7 +1759,7 @@ export default function PaymentConfirmation({
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span>Booking Protection (12%)</span>
+                <span>{bookingProtectionLabel}</span>
                 <span>
                   {pricingPreview
                     ? bookingProtectionAmountDisplay

@@ -8,6 +8,7 @@ const mockGetBookings = jest.fn();
 
 jest.mock('@/lib/pricing/usePricingFloors', () => ({
   usePricingFloors: () => ({ floors: null }),
+  usePricingConfig: () => ({ config: { student_fee_pct: 0.12 }, isLoading: false, error: null }),
 }));
 
 jest.mock('@/features/shared/api/client', () => ({
