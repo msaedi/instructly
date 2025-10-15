@@ -11,6 +11,7 @@ from typing import Optional, Tuple
 
 from fastapi import APIRouter, Response
 
+from ..core.config import settings
 from ..monitoring.prometheus_metrics import prometheus_metrics
 
 router = APIRouter()
@@ -20,10 +21,18 @@ _METRICS_CACHE_TTL_SECONDS = 1.0
 _metrics_cache: Optional[Tuple[float, bytes]] = None
 
 
+def _cache_enabled() -> bool:
+    env = (settings.environment or "").strip().lower()
+    return env != "test"
+
+
 def _get_cached_metrics_payload() -> bytes:
     """Return cached metrics payload, refreshing at most once per TTL."""
 
     global _metrics_cache
+
+    if not _cache_enabled():
+        return prometheus_metrics.get_metrics()
 
     now = monotonic()
     if _metrics_cache is not None:
@@ -40,6 +49,9 @@ def warm_prometheus_metrics_response_cache() -> None:
     """Populate the metrics response cache so the first scrape is warm."""
 
     global _metrics_cache
+
+    if not _cache_enabled():
+        return
 
     try:
         payload = prometheus_metrics.get_metrics()
