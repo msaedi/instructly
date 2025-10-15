@@ -18,6 +18,7 @@ router = APIRouter()
 
 
 _METRICS_CACHE_TTL_SECONDS = 1.0
+_METRICS_FORCE_REFRESH_WINDOW_SECONDS = 0.75
 _metrics_cache: Optional[Tuple[float, bytes]] = None
 
 
@@ -27,7 +28,7 @@ def _cache_enabled() -> bool:
 
 
 def _get_cached_metrics_payload() -> bytes:
-    """Return cached metrics payload, refreshing at most once per TTL."""
+    """Return cached metrics payload with fresh-if-recent bypass for rapid scrapes."""
 
     global _metrics_cache
 
@@ -37,7 +38,13 @@ def _get_cached_metrics_payload() -> bytes:
     now = monotonic()
     if _metrics_cache is not None:
         cached_ts, cached_payload = _metrics_cache
-        if (now - cached_ts) < _METRICS_CACHE_TTL_SECONDS:
+        elapsed = now - cached_ts
+
+        if elapsed < _METRICS_FORCE_REFRESH_WINDOW_SECONDS:
+            # Allow counters to advance when a second scrape follows immediately.
+            return prometheus_metrics.get_metrics()
+
+        if elapsed < _METRICS_CACHE_TTL_SECONDS:
             return cached_payload
 
     payload = prometheus_metrics.get_metrics()
