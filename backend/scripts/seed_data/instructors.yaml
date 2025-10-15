@@ -48,7 +48,7 @@ instructors:
     services:
     - name: Piano
       description: Piano fundamentals and music theory
-      price: 65.0
+      price: 85.0
       duration_options:
       - 30
       - 45
@@ -102,7 +102,7 @@ instructors:
     services:
     - name: Guitar
       description: Acoustic and electric guitar for all styles
-      price: 75.0
+      price: 90.0
       duration_options:
       - 30
       - 45
@@ -173,7 +173,7 @@ instructors:
     services:
     - name: Drums
       description: Drum kit, hand percussion, and rhythm training
-      price: 70.0
+      price: 85.0
       duration_options:
       - 45
       - 60
@@ -273,7 +273,7 @@ instructors:
     services:
     - name: Math Tutoring Elementary
       description: K-5 math with engaging, hands-on methods
-      price: 75.0
+      price: 90.0
       duration_options:
       - 30
       - 45
@@ -302,7 +302,7 @@ instructors:
     services:
     - name: Math Tutoring Elementary
       description: Patient, encouraging approach to elementary math
-      price: 55.0
+      price: 85.0
       duration_options:
       - 30
       - 45
@@ -372,7 +372,7 @@ instructors:
     services:
     - name: Algebra I
       description: Foundations of algebra with real-world applications
-      price: 70.0
+      price: 85.0
       duration_options:
       - 60
       location_types:
@@ -380,7 +380,7 @@ instructors:
       - online
     - name: Algebra II
       description: Advanced algebra and trigonometry
-      price: 75.0
+      price: 90.0
       duration_options:
       - 60
       location_types:
@@ -551,7 +551,7 @@ instructors:
     services:
     - name: Personal Training
       description: Weight loss, muscle building, and general fitness
-      price: 65.0
+      price: 85.0
       duration_options:
       - 45
       location_types:
@@ -593,7 +593,7 @@ instructors:
     services:
     - name: Yoga
       description: Hatha yoga, restorative yoga, and meditation
-      price: 70.0
+      price: 85.0
       duration_options:
       - 60
       location_types:
@@ -662,7 +662,7 @@ instructors:
     services:
     - name: Basketball Skills
       description: Shooting, dribbling, defense, and game IQ
-      price: 75.0
+      price: 90.0
       duration_options:
       - 60
       age_groups:
@@ -731,7 +731,7 @@ instructors:
     services:
     - name: Running
       description: 5K to marathon training, form analysis, and injury prevention
-      price: 70.0
+      price: 90.0
       duration_options:
       - 60
       location_types:
@@ -751,7 +751,7 @@ instructors:
     services:
     - name: Spanish
       description: Conversational Spanish, grammar, and business Spanish
-      price: 75.0
+      price: 90.0
       duration_options:
       - 45
       - 60
@@ -774,7 +774,7 @@ instructors:
     services:
     - name: Spanish
       description: Spanish for beginners and intermediate learners
-      price: 55.0
+      price: 65.0
       duration_options:
       - 30
       - 45
@@ -816,7 +816,7 @@ instructors:
     services:
     - name: French
       description: French conversation, grammar, and pronunciation
-      price: 70.0
+      price: 90.0
       duration_options:
       - 45
       - 60
@@ -924,7 +924,7 @@ instructors:
     services:
     - name: Sign Language ASL
       description: American Sign Language for beginners to advanced
-      price: 70.0
+      price: 90.0
       duration_options:
       - 45
       - 60
@@ -988,7 +988,7 @@ instructors:
     services:
     - name: Photography
       description: Smartphone photography and basic editing
-      price: 60.0
+      price: 85.0
       duration_options:
       - 60
       location_types:
@@ -1103,7 +1103,7 @@ instructors:
     services:
     - name: Hip Hop Dance
       description: Hip hop choreography and freestyle
-      price: 75.0
+      price: 90.0
       duration_options:
       - 60
       age_groups:
@@ -1459,7 +1459,7 @@ instructors:
     services:
     - name: Drawing
       description: Fun drawing lessons for kids - cartoons, animals, and more!
-      price: 55.0
+      price: 80.0
       duration_options:
       - 45
       - 60
@@ -1469,7 +1469,7 @@ instructors:
       - in-person
     - name: Painting Watercolor
       description: Messy, fun watercolor projects for young artists
-      price: 60.0
+      price: 80.0
       duration_options:
       - 60
       age_groups:
@@ -1491,7 +1491,7 @@ instructors:
     services:
     - name: Voice
       description: Kids singing lessons with Disney songs and fun exercises
-      price: 60.0
+      price: 85.0
       duration_options:
       - 30
       - 45
@@ -1502,7 +1502,7 @@ instructors:
       - online
     - name: Drums
       description: Beginning drums for kids - rhythm games and basic beats
-      price: 65.0
+      price: 85.0
       duration_options:
       - 30
       - 45
@@ -1525,7 +1525,7 @@ instructors:
     services:
     - name: Spanish
       description: Spanish for kids through games, songs, and cultural activities
-      price: 50.0
+      price: 85.0
       duration_options:
       - 30
       - 45
@@ -1536,7 +1536,7 @@ instructors:
       - online
     - name: French
       description: Fun French lessons for children with songs and activities
-      price: 50.0
+      price: 65.0
       duration_options:
       - 30
       - 45
@@ -1592,7 +1592,7 @@ instructors:
     services:
     - name: Ballet
       description: Pre-ballet and beginning ballet for little dancers
-      price: 65.0
+      price: 85.0
       duration_options:
       - 45
       age_groups:
@@ -1603,7 +1603,7 @@ instructors:
       - in-person
     - name: Jazz Dance
       description: Fun, energetic jazz dance for kids with popular music
-      price: 60.0
+      price: 85.0
       duration_options:
       - 45
       age_groups:

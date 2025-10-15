@@ -64,7 +64,7 @@ def create_test_booking():
             service = Service(
                 instructor_profile_id=instructor.instructor_profile.id,
                 skill="Test Piano Lessons",
-                hourly_rate=75.00,
+                hourly_rate=90.00,
                 areas_served="Manhattan, Brooklyn",
                 min_lesson_duration=60,
                 max_lesson_duration=120,
