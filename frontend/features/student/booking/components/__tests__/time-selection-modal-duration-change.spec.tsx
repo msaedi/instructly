@@ -9,6 +9,19 @@ jest.mock('@/features/shared/api/client', () => ({
   },
 }));
 
+jest.mock('@/lib/pricing/usePricingFloors', () => ({
+  usePricingFloors: () => ({ floors: {} }),
+  usePricingConfig: () => ({ config: { student_fee_pct: 0.12 }, isLoading: false, error: null }),
+}));
+
+jest.mock('@radix-ui/react-tooltip', () => ({
+  Provider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Root: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Trigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Content: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Arrow: () => null,
+}));
+
 jest.mock('@/features/student/booking/hooks/useAuth', () => ({
   useAuth: () => ({
     isAuthenticated: true,
@@ -18,10 +31,22 @@ jest.mock('@/features/student/booking/hooks/useAuth', () => ({
   storeBookingIntent: jest.fn(),
 }));
 
-jest.mock('@/lib/api/pricing', () => ({
-  fetchPricingPreview: jest.fn(),
-  fetchPricingPreviewQuote: jest.fn(),
-}));
+jest.mock('@/lib/api/pricing', () => {
+  const actual = jest.requireActual('@/lib/api/pricing');
+  return {
+    ...actual,
+    fetchPricingPreview: jest.fn(),
+    fetchPricingPreviewQuote: jest.fn(),
+    fetchPricingConfig: jest.fn().mockResolvedValue({
+      config: {
+        student_fee_pct: 0.12,
+        instructor_tiers: [],
+        price_floor_cents: {} as never,
+      },
+      updated_at: null,
+    }),
+  };
+});
 
 const availabilityMock = publicApi.getInstructorAvailability as jest.MockedFunction<typeof publicApi.getInstructorAvailability>;
 

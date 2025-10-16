@@ -133,7 +133,7 @@ const PREVIEW_WITH_CREDIT: PricingPreviewResponse = {
   top_up_transfer_cents: 0,
   instructor_tier_pct: null,
   line_items: [
-    { label: 'Booking Protection (12%)', amount_cents: 2700 },
+    { label: 'Service & Support fee (12%)', amount_cents: 2700 },
     { label: 'Credit', amount_cents: -4500 },
   ],
 };
@@ -142,7 +142,7 @@ const PREVIEW_NO_CREDIT: PricingPreviewResponse = {
   ...PREVIEW_WITH_CREDIT,
   credit_applied_cents: 0,
   student_pay_cents: 25200,
-  line_items: [{ label: 'Booking Protection (12%)', amount_cents: 2700 }],
+  line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 2700 }],
 };
 
 const PREVIEW_BY_CREDIT: Record<number, PricingPreviewResponse> = {
@@ -220,7 +220,7 @@ describe('Payment summary integration with pricing preview', () => {
       application_fee_cents: 0,
       top_up_transfer_cents: 0,
       instructor_tier_pct: null,
-      line_items: [{ label: 'Booking Protection (12%)', amount_cents: 900 }],
+      line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 900 }],
     });
 
     renderPaymentSectionForSummary({ bookingId: '' });
@@ -235,7 +235,7 @@ describe('Payment summary integration with pricing preview', () => {
     const scoped = within(paymentDetails as HTMLElement);
     expect(scoped.getByText('Lesson (90 min)')).toBeInTheDocument();
     expect(scoped.getByText('$75.00')).toBeInTheDocument();
-    expect(scoped.getByText('Booking Protection (12%)')).toBeInTheDocument();
+    expect(scoped.getByText('Service & Support fee (12%)')).toBeInTheDocument();
     expect(scoped.getByText('$9.00')).toBeInTheDocument();
     expect(scoped.getByText('Total')).toBeInTheDocument();
     expect(scoped.getByText('$84.00')).toBeInTheDocument();
@@ -254,7 +254,7 @@ describe('Payment summary integration with pricing preview', () => {
       application_fee_cents: 0,
       top_up_transfer_cents: 0,
       instructor_tier_pct: null,
-      line_items: [{ label: 'Booking Protection (12%)', amount_cents: 1092 }],
+      line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 1092 }],
     });
 
     renderPaymentSectionForSummary();
@@ -269,7 +269,7 @@ describe('Payment summary integration with pricing preview', () => {
     const scoped = within(paymentDetails as HTMLElement);
     expect(scoped.getByText('Lesson (90 min)')).toBeInTheDocument();
     expect(scoped.getByText('$91.00')).toBeInTheDocument();
-    expect(scoped.getByText('Booking Protection (12%)')).toBeInTheDocument();
+    expect(scoped.getByText('Service & Support fee (12%)')).toBeInTheDocument();
     expect(scoped.getByText('$10.92')).toBeInTheDocument();
     expect(scoped.getByText('Total')).toBeInTheDocument();
     expect(scoped.getByText('$101.92')).toBeInTheDocument();
@@ -360,7 +360,7 @@ describe('Payment summary preview', () => {
       application_fee_cents: 2100,
       top_up_transfer_cents: 0,
       instructor_tier_pct: 0.12,
-      line_items: [{ label: 'Booking Protection (14%)', amount_cents: 2100 }],
+      line_items: [{ label: 'Service & Support fee (14%)', amount_cents: 2100 }],
     };
 
     const controller = {
@@ -396,7 +396,7 @@ describe('Payment summary preview', () => {
       </PricingPreviewContext.Provider>
     );
 
-    expect(await screen.findByText('Booking Protection (14%)')).toBeInTheDocument();
+    expect(await screen.findByText('Service & Support fee (14%)')).toBeInTheDocument();
   });
 
   it('renders preview line items and updates totals when credits are removed', async () => {
@@ -404,7 +404,7 @@ describe('Payment summary preview', () => {
 
     expect(await screen.findByText('Lesson (90 min)')).toBeInTheDocument();
     expect(screen.getByText('$225.00')).toBeInTheDocument();
-    expect(screen.getByText('Booking Protection (12%)')).toBeInTheDocument();
+    expect(screen.getByText('Service & Support fee (12%)')).toBeInTheDocument();
     expect(screen.getByText('$27.00')).toBeInTheDocument();
     expect(screen.getByText('Credits applied')).toBeInTheDocument();
     expect(screen.getByText('-$45.00')).toBeInTheDocument();
@@ -418,6 +418,6 @@ describe('Payment summary preview', () => {
       expect(screen.getByText('$252.00')).toBeInTheDocument();
     });
     expect(screen.queryByText('-$45.00')).not.toBeInTheDocument();
-    expect(screen.getByText('Booking Protection (12%)')).toBeInTheDocument();
+    expect(screen.getByText('Service & Support fee (12%)')).toBeInTheDocument();
   });
 });

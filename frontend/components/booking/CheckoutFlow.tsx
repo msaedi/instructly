@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -17,7 +17,9 @@ import {
   CheckCircle,
   XCircle,
   Shield,
+  Info,
 } from 'lucide-react';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
@@ -27,6 +29,12 @@ import {
   type PricingPreviewResponse,
   formatCentsToDisplay,
 } from '@/lib/api/pricing';
+import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
+import {
+  computeStudentFeePercent,
+  formatServiceSupportLabel,
+  formatServiceSupportTooltip,
+} from '@/lib/pricing/studentFee';
 
 const stripePromise = loadStripe(
   process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || ''
@@ -333,6 +341,23 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
   const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
   const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
   const [pricingPreviewError, setPricingPreviewError] = useState<string | null>(null);
+  const { config: pricingConfig } = usePricingConfig();
+  const serviceSupportFeePercent = useMemo(
+    () => computeStudentFeePercent({ preview: pricingPreview, config: pricingConfig }),
+    [pricingConfig, pricingPreview],
+  );
+  const serviceSupportFeeLabel = useMemo(
+    () => formatServiceSupportLabel(serviceSupportFeePercent),
+    [serviceSupportFeePercent],
+  );
+  const serviceSupportAnnotationLabel = useMemo(
+    () => formatServiceSupportLabel(serviceSupportFeePercent, { includeFeeWord: false }),
+    [serviceSupportFeePercent],
+  );
+  const serviceSupportTooltip = useMemo(
+    () => formatServiceSupportTooltip(serviceSupportFeePercent),
+    [serviceSupportFeePercent],
+  );
 
   const normalizeAmount = (value: unknown, fallback = 0): number => {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -507,6 +532,14 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
               {previewLineItems.length > 0 ? (
                 previewLineItems.map((item) => {
                   const isCredit = item.amount_cents < 0;
+                  const normalizedLabel = (() => {
+                    const label = item.label.toLowerCase();
+                    if (label.startsWith('booking protection') || label.startsWith('service & support')) {
+                      return serviceSupportFeeLabel;
+                    }
+                    return item.label;
+                  })();
+                  const isServiceSupportLineItem = normalizedLabel === serviceSupportFeeLabel;
                   return (
                     <div
                       key={`${item.label}-${item.amount_cents}`}
@@ -514,14 +547,65 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
                         isCredit ? 'text-green-600 dark:text-green-400' : 'text-gray-600'
                       }`}
                     >
-                      <span>{item.label}</span>
+                      {isServiceSupportLineItem ? (
+                        <span className="inline-flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
+                          <span>{serviceSupportFeeLabel}</span>
+                          <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                                  aria-label="Learn about the Service & Support fee"
+                                >
+                                  <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                                </button>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content
+                                side="top"
+                                sideOffset={6}
+                                className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
+                              >
+                                {serviceSupportTooltip}
+                                <Tooltip.Arrow className="fill-gray-900" />
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                          </Tooltip.Provider>
+                        </span>
+                      ) : (
+                        <span>{normalizedLabel}</span>
+                      )}
                       <span>{formatCentsToDisplay(item.amount_cents)}</span>
                     </div>
                   );
                 })
               ) : (
                 <p className="text-xs text-gray-500">
-                  Booking Protection (12%) and credits apply at checkout.
+                  <span className="inline-flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
+                    <span>{serviceSupportAnnotationLabel}</span>
+                    <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                            aria-label="Learn about the Service & Support fee"
+                          >
+                            <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </Tooltip.Trigger>
+                    <Tooltip.Content
+                      side="top"
+                      sideOffset={6}
+                      className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
+                    >
+                      {serviceSupportTooltip}
+                      <Tooltip.Arrow className="fill-gray-900" />
+                    </Tooltip.Content>
+                      </Tooltip.Root>
+                    </Tooltip.Provider>
+                  </span>{' '}
+                  and credits apply at checkout.
                 </p>
               )}
               <div className="flex justify-between text-sm font-semibold text-gray-800">

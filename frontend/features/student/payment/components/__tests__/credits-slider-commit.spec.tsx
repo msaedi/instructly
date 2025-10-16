@@ -110,7 +110,7 @@ const PREVIEW_NO_CREDIT: PricingPreviewResponse = {
   application_fee_cents: 0,
   top_up_transfer_cents: 0,
   instructor_tier_pct: 0.12,
-  line_items: [{ label: 'Booking Protection (12%)', amount_cents: 2700 }],
+  line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 2700 }],
 };
 
 const PREVIEW_WITH_CREDIT: PricingPreviewResponse = {
@@ -118,7 +118,7 @@ const PREVIEW_WITH_CREDIT: PricingPreviewResponse = {
   credit_applied_cents: 4500,
   student_pay_cents: 20700,
   line_items: [
-    { label: 'Booking Protection (12%)', amount_cents: 2700 },
+    { label: 'Service & Support fee (12%)', amount_cents: 2700 },
     { label: 'Credit', amount_cents: -4500 },
   ],
 };

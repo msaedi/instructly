@@ -141,7 +141,7 @@ const buildPreview = (base: number, fee: number, credit: number): PricingPreview
   top_up_transfer_cents: 0,
   instructor_tier_pct: null,
   line_items: [
-    { label: `Booking Protection (${Math.round((fee / base) * 100)}%)`, amount_cents: fee },
+    { label: `Service & Support fee (${Math.round((fee / base) * 100)}%)`, amount_cents: fee },
     ...(credit > 0 ? [{ label: 'Credit applied', amount_cents: -credit }] : []),
   ],
 });

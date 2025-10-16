@@ -144,7 +144,7 @@ const BASE_PREVIEW_WITH_CREDIT: PricingPreviewResponse = {
   top_up_transfer_cents: 0,
   instructor_tier_pct: null,
   line_items: [
-    { label: 'Booking Protection (12%)', amount_cents: 2700 },
+    { label: 'Service & Support fee (12%)', amount_cents: 2700 },
     { label: 'Credit', amount_cents: -4500 },
   ],
 };
@@ -271,7 +271,7 @@ describe('PaymentSection optimistic preview handling', () => {
       credit_applied_cents: 0,
       student_pay_cents: 30000,
       base_price_cents: 30000,
-      line_items: [{ label: 'Booking Protection (12%)', amount_cents: 3600 }],
+      line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 3600 }],
     };
 
     fetchPricingPreviewMock

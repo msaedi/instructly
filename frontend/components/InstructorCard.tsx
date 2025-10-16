@@ -2,7 +2,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Star, MapPin, Heart } from 'lucide-react';
+import * as Tooltip from '@radix-ui/react-tooltip';
+import { Star, MapPin, Heart, Info } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
 import { useEffect, useMemo, useState } from 'react';
@@ -23,6 +24,12 @@ import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { at } from '@/lib/ts/safe';
 import { VerifiedBadge } from '@/components/common/VerifiedBadge';
+import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
+import {
+  computeStudentFeePercent,
+  formatServiceSupportLabel,
+  formatServiceSupportTooltip,
+} from '@/lib/pricing/studentFee';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
 let catalogCache: ServiceCatalogItem[] | null = null;
@@ -61,6 +68,23 @@ export default function InstructorCard({
   const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
   const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
   const [pricingPreviewError, setPricingPreviewError] = useState<string | null>(null);
+  const { config: pricingConfig } = usePricingConfig();
+  const serviceSupportFeePercent = useMemo(
+    () => computeStudentFeePercent({ preview: pricingPreview, config: pricingConfig }),
+    [pricingConfig, pricingPreview],
+  );
+  const serviceSupportFeeLabel = useMemo(
+    () => formatServiceSupportLabel(serviceSupportFeePercent),
+    [serviceSupportFeePercent],
+  );
+  const serviceSupportAnnotationLabel = useMemo(
+    () => formatServiceSupportLabel(serviceSupportFeePercent, { includeFeeWord: false }),
+    [serviceSupportFeePercent],
+  );
+  const serviceSupportTooltip = useMemo(
+    () => formatServiceSupportTooltip(serviceSupportFeePercent),
+    [serviceSupportFeePercent],
+  );
   const effectiveAppliedCreditCents = useMemo(
     () => Math.max(0, Math.round(appliedCreditCents ?? 0)),
     [appliedCreditCents]
@@ -428,6 +452,14 @@ export default function InstructorCard({
                   </div>
                   {pricingPreview.line_items.map((item) => {
                     const isCreditLine = item.amount_cents < 0;
+                    const normalizedLabel = (() => {
+                      const label = item.label.toLowerCase();
+                      if (label.startsWith('booking protection') || label.startsWith('service & support')) {
+                        return serviceSupportFeeLabel;
+                      }
+                      return item.label;
+                    })();
+                    const isServiceSupportLineItem = normalizedLabel === serviceSupportFeeLabel;
                     return (
                       <div
                         key={`${item.label}-${item.amount_cents}`}
@@ -435,7 +467,34 @@ export default function InstructorCard({
                           isCreditLine ? 'text-green-600 dark:text-green-400' : ''
                         }`}
                       >
-                        <span>{item.label}</span>
+                        {isServiceSupportLineItem ? (
+                          <span className="inline-flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
+                            <span>{serviceSupportFeeLabel}</span>
+                            <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
+                              <Tooltip.Root>
+                                <Tooltip.Trigger asChild>
+                                  <button
+                                    type="button"
+                                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                                    aria-label="Learn about the Service & Support fee"
+                                  >
+                                    <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                                  </button>
+                                </Tooltip.Trigger>
+                                <Tooltip.Content
+                                  side="top"
+                                  sideOffset={6}
+                                  className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
+                                >
+                                  {serviceSupportTooltip}
+                                  <Tooltip.Arrow className="fill-gray-900" />
+                                </Tooltip.Content>
+                              </Tooltip.Root>
+                            </Tooltip.Provider>
+                          </span>
+                        ) : (
+                          <span>{normalizedLabel}</span>
+                        )}
                         <span>{formatCentsToDisplay(item.amount_cents)}</span>
                       </div>
                     );
@@ -451,7 +510,31 @@ export default function InstructorCard({
             </div>
           ) : (
             <p className={`${compact ? 'mb-2' : 'mb-4'} text-xs text-gray-500`}>
-              Booking Protection (12%) and credits apply at checkout.
+              <span className="inline-flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
+                <span>{serviceSupportAnnotationLabel}</span>
+                <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                        aria-label="Learn about the Service & Support fee"
+                      >
+                        <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content
+                      side="top"
+                      sideOffset={6}
+                      className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
+                    >
+                      {serviceSupportTooltip}
+                      <Tooltip.Arrow className="fill-gray-900" />
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                </Tooltip.Provider>
+              </span>{' '}
+              and credits apply at checkout.
             </p>
           )}
 

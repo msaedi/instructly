@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown } from 'lucide-react';
+import * as Tooltip from '@radix-ui/react-tooltip';
+import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, Info } from 'lucide-react';
 import { BookingPayment, PaymentMethod } from '../types';
 import { BookingType } from '@/features/shared/types/booking';
 import { format } from 'date-fns';
@@ -28,6 +29,11 @@ import {
 } from '@/lib/pricing/priceFloors';
 import { formatCentsToDisplay } from '@/lib/api/pricing';
 import { usePricingPreview } from '../hooks/usePricingPreview';
+import {
+  computeStudentFeePercent,
+  formatServiceSupportLabel,
+  formatServiceSupportTooltip,
+} from '@/lib/pricing/studentFee';
 
 type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
 
@@ -489,12 +495,19 @@ export default function PaymentConfirmation({
     if (!pricingPreview) {
       return [] as { label: string; amount_cents: number }[];
     }
+    const studentFeeCents = pricingPreview.student_fee_cents;
     return pricingPreview.line_items.filter((item) => {
-      const label = item.label.toLowerCase();
-      if (label.includes('booking protection')) {
+      const normalizedLabel = item.label.toLowerCase();
+      if (normalizedLabel.startsWith('booking protection')) {
         return false;
       }
-      if (label.includes('credit')) {
+      if (normalizedLabel.startsWith('service & support')) {
+        return false;
+      }
+      if (normalizedLabel.includes('credit')) {
+        return false;
+      }
+      if (typeof studentFeeCents === 'number' && item.amount_cents === studentFeeCents) {
         return false;
       }
       return true;
@@ -511,55 +524,25 @@ export default function PaymentConfirmation({
 
   const { config: pricingConfig } = usePricingConfig();
 
-  const bookingProtectionLabel = useMemo(() => {
-    const percentFromLineItem = (() => {
-      if (!pricingPreview) {
-        return null;
-      }
-      const item = pricingPreview.line_items.find((lineItem) =>
-        lineItem.label.toLowerCase().startsWith('booking protection'),
-      );
-      if (!item) {
-        return null;
-      }
-      const match = item.label.match(/\((\d+)%\)/);
-      if (!match) {
-        return null;
-      }
-      const parsed = Number(match[1]);
-      return Number.isFinite(parsed) ? parsed : null;
-    })();
+  const serviceSupportFeePercent = useMemo(
+    () => computeStudentFeePercent({ preview: pricingPreview, config: pricingConfig }),
+    [pricingConfig, pricingPreview],
+  );
 
-    if (percentFromLineItem !== null) {
-      return `Booking Protection (${percentFromLineItem}%)`;
-    }
-
-    if (pricingPreview) {
-      const baseCents = pricingPreview.base_price_cents;
-      const feeCents = pricingPreview.student_fee_cents;
-      if (baseCents > 0) {
-        const pct = Math.round((feeCents / baseCents) * 100);
-        if (Number.isFinite(pct)) {
-          return `Booking Protection (${pct}%)`;
-        }
-      }
-    }
-
-    if (typeof pricingConfig?.student_fee_pct === 'number') {
-      const pct = Math.round(pricingConfig.student_fee_pct * 100);
-      if (Number.isFinite(pct)) {
-        return `Booking Protection (${pct}%)`;
-      }
-    }
-
-    return 'Booking Protection';
-  }, [pricingConfig, pricingPreview]);
+  const serviceSupportFeeLabel = useMemo(
+    () => formatServiceSupportLabel(serviceSupportFeePercent),
+    [serviceSupportFeePercent],
+  );
+  const serviceSupportFeeTooltip = useMemo(
+    () => formatServiceSupportTooltip(serviceSupportFeePercent),
+    [serviceSupportFeePercent],
+  );
 
   const fallbackBasePrice = Number.isFinite(booking.basePrice) ? Number(booking.basePrice) : 0;
   const lessonAmountDisplay = pricingPreview
     ? formatCentsToDisplay(pricingPreview.base_price_cents)
     : `$${fallbackBasePrice.toFixed(2)}`;
-  const bookingProtectionAmountDisplay = pricingPreview
+  const serviceSupportFeeAmountDisplay = pricingPreview
     ? formatCentsToDisplay(pricingPreview.student_fee_cents)
     : null;
   const creditsLineCents = pricingPreview
@@ -1762,12 +1745,35 @@ export default function PaymentConfirmation({
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span>{bookingProtectionLabel}</span>
+                <span className="flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
+                  <span>{serviceSupportFeeLabel}</span>
+                  <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                          aria-label="Learn about the Service & Support fee"
+                        >
+                          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content
+                        side="top"
+                        sideOffset={6}
+                        className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
+                      >
+                        {serviceSupportFeeTooltip}
+                        <Tooltip.Arrow className="fill-gray-900" />
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  </Tooltip.Provider>
+                </span>
                 <span>
                   {isPricingPreviewLoading
                     ? renderSummarySkeleton()
                     : pricingPreview
-                      ? bookingProtectionAmountDisplay
+                      ? serviceSupportFeeAmountDisplay
                       : pricingPreviewError
                         ? 'Unavailable'
                         : renderSummarySkeleton()}

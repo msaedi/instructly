@@ -117,7 +117,7 @@ describe('PaymentSection pricing preview integration', () => {
       top_up_transfer_cents: 0,
       instructor_tier_pct: null,
       line_items: [
-        { label: 'Booking Protection (12%)', amount_cents: 900 },
+        { label: 'Service & Support fee (12%)', amount_cents: 900 },
       ],
     });
 
@@ -133,7 +133,7 @@ describe('PaymentSection pricing preview integration', () => {
     const scoped = within(paymentDetails as HTMLElement);
     expect(scoped.getByText('Lesson (60 min)')).toBeInTheDocument();
     expect(scoped.getByText('$75.00')).toBeInTheDocument();
-    expect(scoped.getByText('Booking Protection (12%)')).toBeInTheDocument();
+    expect(scoped.getByText('Service & Support fee (12%)')).toBeInTheDocument();
     expect(scoped.getByText('$9.00')).toBeInTheDocument();
     expect(scoped.getByText('Total')).toBeInTheDocument();
     expect(scoped.getByText('$84.00')).toBeInTheDocument();
@@ -153,7 +153,7 @@ describe('PaymentSection pricing preview integration', () => {
       top_up_transfer_cents: 0,
       instructor_tier_pct: null,
       line_items: [
-        { label: 'Booking Protection (12%)', amount_cents: 1056 },
+        { label: 'Service & Support fee (12%)', amount_cents: 1056 },
       ],
     });
 
@@ -209,7 +209,7 @@ describe('PaymentSection pricing preview integration', () => {
           top_up_transfer_cents: 0,
           instructor_tier_pct: null,
           line_items: [
-            { label: 'Booking Protection (12%)', amount_cents: 1200 },
+            { label: 'Service & Support fee (12%)', amount_cents: 1200 },
           ],
         });
       }
@@ -224,7 +224,7 @@ describe('PaymentSection pricing preview integration', () => {
           top_up_transfer_cents: 0,
           instructor_tier_pct: null,
           line_items: [
-            { label: 'Booking Protection (12%)', amount_cents: 1200 },
+            { label: 'Service & Support fee (12%)', amount_cents: 1200 },
             { label: 'Credit', amount_cents: -2000 },
           ],
         });
@@ -245,7 +245,7 @@ describe('PaymentSection pricing preview integration', () => {
 
     renderPaymentSection();
 
-    await screen.findByText('Booking Protection (12%)');
+    await screen.findByText('Service & Support fee (12%)');
     fireEvent.click(screen.getByText('Available Credits'));
 
     await waitFor(() => {
@@ -292,7 +292,7 @@ describe('PaymentSection pricing preview integration', () => {
 
     const errorMessage = await screen.findByText('Unable to load pricing preview. Please try again.');
     expect(errorMessage).toBeInTheDocument();
-    expect(screen.getByText('Booking Protection (12%)')).toBeInTheDocument();
+    expect(screen.getByText('Service & Support fee (12%)')).toBeInTheDocument();
     expect(screen.queryByTestId('pricing-preview-skeleton')).not.toBeInTheDocument();
   });
 });
