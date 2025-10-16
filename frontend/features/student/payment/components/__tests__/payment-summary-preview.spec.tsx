@@ -201,6 +201,7 @@ describe('Payment summary integration with pricing preview', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockStudentFeePct = 0.12;
+    sessionStorage.clear();
   });
 
   afterEach(() => {

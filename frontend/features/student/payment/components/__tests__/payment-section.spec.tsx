@@ -93,6 +93,10 @@ jest.mock('@/services/api/payments', () => ({
 import { PaymentSection } from '../PaymentSection';
 
 describe('PaymentSection referral integration', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
   afterEach(() => {
     latestReferralProps.current = null;
     latestPaymentConfirmationProps.current = null;

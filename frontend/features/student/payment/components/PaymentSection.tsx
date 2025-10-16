@@ -25,6 +25,12 @@ import {
 } from '../utils/buildPricingPreviewQuotePayload';
 import { to24HourTime } from '@/lib/time';
 import { minutesSinceHHMM } from '@/lib/time/overlap';
+import {
+  computeCreditStorageKey,
+  readStoredCreditDecision,
+  writeStoredCreditDecision,
+  type StoredCreditDecision,
+} from '../utils/creditStorage';
 
 // Custom error for payment actions that require user interaction
 class PaymentActionError extends Error {
@@ -38,58 +44,9 @@ class PaymentActionError extends Error {
   }
 }
 
-const AUTO_APPLY_STORAGE_PREFIX = 'insta:credit:auto-applied:';
-
 const logDevInfo = (...args: Parameters<typeof logger.info>) => {
   if (process.env.NODE_ENV !== 'production') {
     logger.info(...args);
-  }
-};
-
-const stableSerializeForKey = (value: unknown): string => {
-  if (value === null || typeof value !== 'object') {
-    return JSON.stringify(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map(stableSerializeForKey).join(',')}]`;
-  }
-
-  const entries = Object.keys(value as Record<string, unknown>)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableSerializeForKey((value as Record<string, unknown>)[key])}`);
-
-  return `{${entries.join(',')}}`;
-};
-
-const deriveStudentKey = (metadata: Record<string, unknown> | undefined): string | null => {
-  const candidateKeys = ['studentId', 'student_id', 'userId', 'user_id'];
-
-  for (const key of candidateKeys) {
-    const value = metadata?.[key];
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (trimmed.length > 0) {
-        return trimmed;
-      }
-    }
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return String(value);
-    }
-  }
-
-  return null;
-};
-
-const persistAutoApplyKey = (key: string) => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    window.sessionStorage?.setItem(`${AUTO_APPLY_STORAGE_PREFIX}${key}`, 'true');
-  } catch {
-    // Ignore storage failures (e.g., quota exceeded or disabled storage)
   }
 };
 
@@ -390,9 +347,19 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     () => updatedBookingData.bookingId || bookingData.bookingId || null,
     [updatedBookingData.bookingId, bookingData.bookingId],
   );
+  const creditDecisionKey = useMemo(() => {
+    const normalizedBookingId = bookingDraftId?.trim() || null;
+    const basePayload = quoteSelection ? buildPricingPreviewQuotePayloadBase(quoteSelection) : null;
+    return computeCreditStorageKey({
+      bookingId: normalizedBookingId,
+      quotePayloadBase: basePayload,
+    });
+  }, [bookingDraftId, quoteSelection]);
   const lastCommittedCreditRef = useRef<number>(lastAppliedCreditCents);
   const autoAppliedOnceRef = useRef(false);
-  const autoApplyKeyRef = useRef<string | null>(null);
+  const creditDecisionKeyRef = useRef<string | null>(null);
+  const creditDecisionRef = useRef<StoredCreditDecision | null>(null);
+  const expansionInitializedRef = useRef(false);
   const pendingPreviewCauseRef = useRef<PreviewCause | null>(null);
 
   useEffect(() => {
@@ -406,6 +373,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     credits: [],
   });
   const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(true);
+  const [isCreditsExpanded, setIsCreditsExpanded] = useState(false);
 
   // Track selected card ID separately for payment processing
   const [selectedCardId, setSelectedCardId] = useState<string | undefined>();
@@ -684,11 +652,26 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     return Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100));
   }, [pricingPreview, updatedBookingData.totalAmount]);
 
-  const commitCreditPreview = useCallback(async (creditCents: number) => {
+  const commitCreditPreview = useCallback(async (
+    creditCents: number,
+    options?: { suppressLoading?: boolean },
+  ) => {
     const normalizedCreditCents = Math.max(0, Math.round(creditCents));
 
     try {
-      await applyCreditPreview(normalizedCreditCents);
+      const result = await applyCreditPreview(normalizedCreditCents, options);
+      if (creditDecisionKey) {
+        const appliedCents = Math.max(0, Math.round(result?.credit_applied_cents ?? normalizedCreditCents));
+        const existingDecision = creditDecisionRef.current;
+        const nextDecision: StoredCreditDecision = normalizedCreditCents > 0
+          ? { lastCreditCents: appliedCents, explicitlyRemoved: false }
+          : {
+              lastCreditCents: appliedCents,
+              explicitlyRemoved: existingDecision?.explicitlyRemoved ?? false,
+            };
+        writeStoredCreditDecision(creditDecisionKey, nextDecision);
+        creditDecisionRef.current = nextDecision;
+      }
       if (floorViolationMessage !== null) {
         setFloorViolationMessage(null);
       }
@@ -715,6 +698,14 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       setCreditSliderCents(fallbackCents);
       updateCreditSelection(fallbackCents, getTotalDueCents());
       lastCommittedCreditRef.current = fallbackCents;
+      if (creditDecisionKey) {
+        const nextDecision: StoredCreditDecision = {
+          lastCreditCents: fallbackCents,
+          explicitlyRemoved: fallbackCents > 0 ? false : creditDecisionRef.current?.explicitlyRemoved ?? false,
+        };
+        writeStoredCreditDecision(creditDecisionKey, nextDecision);
+        creditDecisionRef.current = nextDecision;
+      }
     }
   }, [
     applyCreditPreview,
@@ -723,6 +714,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     getTotalDueCents,
     lastSuccessfulCreditCents,
     updateCreditSelection,
+    creditDecisionKey,
   ]);
 
   const handleCreditCommitCents = useCallback((creditCents: number) => {
@@ -744,6 +736,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       if (floorViolationMessage) {
         setFloorViolationMessage(null);
       }
+      if (creditDecisionKey) {
+        const decision: StoredCreditDecision = { lastCreditCents: 0, explicitlyRemoved: true };
+        writeStoredCreditDecision(creditDecisionKey, decision);
+        creditDecisionRef.current = decision;
+      }
+      setIsCreditsExpanded(false);
       return;
     }
 
@@ -754,7 +752,13 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     setCreditSliderCents(targetCents);
     updateCreditSelection(targetCents, totalDueCents);
     handleCreditCommitCents(targetCents);
-  }, [creditSliderCents, getTotalDueCents, updateCreditSelection, userCredits.totalAmount, floorViolationMessage, handleCreditCommitCents]);
+    if (creditDecisionKey) {
+      const decision: StoredCreditDecision = { lastCreditCents: targetCents, explicitlyRemoved: false };
+      writeStoredCreditDecision(creditDecisionKey, decision);
+      creditDecisionRef.current = decision;
+    }
+    setIsCreditsExpanded(true);
+  }, [creditSliderCents, getTotalDueCents, updateCreditSelection, userCredits.totalAmount, floorViolationMessage, handleCreditCommitCents, creditDecisionKey]);
 
   const handleCreditAmountChange = useCallback((amountDollars: number) => {
     const totalDueCents = getTotalDueCents();
@@ -772,6 +776,17 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     setCreditSliderCents(clampedCents);
     updateCreditSelection(clampedCents, totalDueCents);
     handleCreditCommitCents(clampedCents);
+    if (creditDecisionKey) {
+      const decision: StoredCreditDecision = {
+        lastCreditCents: clampedCents,
+        explicitlyRemoved: clampedCents === 0,
+      };
+      writeStoredCreditDecision(creditDecisionKey, decision);
+      creditDecisionRef.current = decision;
+    }
+    if (clampedCents > 0) {
+      setIsCreditsExpanded(true);
+    }
   }, [
     getTotalDueCents,
     updateCreditSelection,
@@ -779,48 +794,67 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     lastSuccessfulCreditCents,
     creditSliderCents,
     handleCreditCommitCents,
+    creditDecisionKey,
   ]);
 
-  const autoApplyKey = useMemo(() => {
-    const normalizedBookingId = bookingDraftId?.trim();
-    const studentKey = deriveStudentKey(mergedMetadata);
-
-    if (normalizedBookingId) {
-      return `${studentKey ?? 'anon'}|booking:${normalizedBookingId}`;
-    }
-
-    if (quoteSelection) {
-      const basePayload = buildPricingPreviewQuotePayloadBase(quoteSelection);
-      return `${studentKey ?? 'anon'}|quote:${stableSerializeForKey(basePayload)}`;
-    }
-
-    return null;
-  }, [bookingDraftId, mergedMetadata, quoteSelection]);
+  const handleCreditsAccordionToggleFromChild = useCallback(
+    (expanded: boolean) => {
+      if ((pricingPreview?.credit_applied_cents ?? 0) > 0) {
+        setIsCreditsExpanded(true);
+        return;
+      }
+      setIsCreditsExpanded(expanded);
+    },
+    [pricingPreview?.credit_applied_cents],
+  );
 
   useEffect(() => {
-    if (!autoApplyKey) {
-      autoAppliedOnceRef.current = false;
-      autoApplyKeyRef.current = null;
+    if (creditDecisionKeyRef.current === creditDecisionKey) {
       return;
     }
 
-    if (autoApplyKeyRef.current === autoApplyKey) {
+    creditDecisionKeyRef.current = creditDecisionKey;
+    autoAppliedOnceRef.current = false;
+    expansionInitializedRef.current = false;
+
+    if (!creditDecisionKey) {
+      creditDecisionRef.current = null;
+      setIsCreditsExpanded(false);
       return;
     }
 
-    autoApplyKeyRef.current = autoApplyKey;
+    const stored = readStoredCreditDecision(creditDecisionKey);
+    creditDecisionRef.current = stored;
+    setIsCreditsExpanded((stored?.lastCreditCents ?? 0) > 0);
+  }, [creditDecisionKey]);
 
-    if (typeof window === 'undefined') {
-      autoAppliedOnceRef.current = false;
+  useEffect(() => {
+    if (!creditDecisionKey) {
       return;
     }
-
-    try {
-      autoAppliedOnceRef.current = window.sessionStorage?.getItem(`${AUTO_APPLY_STORAGE_PREFIX}${autoApplyKey}`) === 'true';
-    } catch {
-      autoAppliedOnceRef.current = false;
+    const stored = readStoredCreditDecision(creditDecisionKey);
+    if (stored) {
+      creditDecisionRef.current = stored;
     }
-  }, [autoApplyKey]);
+  }, [creditDecisionKey, pricingPreview?.credit_applied_cents]);
+
+  useEffect(() => {
+    if (expansionInitializedRef.current) {
+      return;
+    }
+    const previewCredits = Math.max(0, pricingPreview?.credit_applied_cents ?? 0);
+    const storedCredits = Math.max(0, creditDecisionRef.current?.lastCreditCents ?? 0);
+    if (pricingPreview || creditDecisionRef.current) {
+      setIsCreditsExpanded(previewCredits > 0 || storedCredits > 0);
+      expansionInitializedRef.current = true;
+    }
+  }, [pricingPreview]);
+
+  useEffect(() => {
+    if ((pricingPreview?.credit_applied_cents ?? 0) > 0) {
+      setIsCreditsExpanded(true);
+    }
+  }, [pricingPreview?.credit_applied_cents]);
 
   useEffect(() => {
     if (!pricingPreview) {
@@ -861,7 +895,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   }, [pricingPreview, creditsToUse, updateCreditSelection, lastSuccessfulCreditCents]);
 
   useEffect(() => {
-    if (!pricingPreview || !autoApplyKey || autoAppliedOnceRef.current) {
+    if (!pricingPreview || !creditDecisionKey || autoAppliedOnceRef.current) {
       return;
     }
 
@@ -870,43 +904,53 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       return;
     }
 
-    if (pricingPreviewError) {
-      return;
-    }
-
-    if (floorViolationMessage) {
+    if (pricingPreviewError || floorViolationMessage) {
       return;
     }
 
     const previewCredits = Math.max(0, pricingPreview.credit_applied_cents);
     if (previewCredits > 0) {
       autoAppliedOnceRef.current = true;
-      persistAutoApplyKey(autoApplyKey);
+      const decision: StoredCreditDecision = { lastCreditCents: previewCredits, explicitlyRemoved: false };
+      writeStoredCreditDecision(creditDecisionKey, decision);
+      creditDecisionRef.current = decision;
       return;
     }
 
     const subtotalCents = Math.max(0, pricingPreview.base_price_cents + pricingPreview.student_fee_cents);
-    const defaultCreditCents = Math.min(walletBalanceCents, subtotalCents);
+    const maxApplicableCents = Math.min(walletBalanceCents, subtotalCents);
+    if (maxApplicableCents <= 0) {
+      return;
+    }
 
-    if (defaultCreditCents <= 0) {
+    const storedDecision = creditDecisionRef.current;
+    if (storedDecision?.explicitlyRemoved) {
+      autoAppliedOnceRef.current = true;
+      return;
+    }
+
+    const desiredCents = Math.max(0, Math.min(storedDecision?.lastCreditCents ?? maxApplicableCents, maxApplicableCents));
+    if (desiredCents <= 0) {
+      autoAppliedOnceRef.current = true;
       return;
     }
 
     autoAppliedOnceRef.current = true;
-    persistAutoApplyKey(autoApplyKey);
-
-    setCreditSliderCents(defaultCreditCents);
+    const decision: StoredCreditDecision = { lastCreditCents: desiredCents, explicitlyRemoved: false };
+    writeStoredCreditDecision(creditDecisionKey, decision);
+    creditDecisionRef.current = decision;
+    setIsCreditsExpanded(true);
+    setCreditSliderCents(desiredCents);
     const totalDueCents = pricingPreview.student_pay_cents + previewCredits;
-    updateCreditSelection(defaultCreditCents, totalDueCents);
-    lastCommittedCreditRef.current = defaultCreditCents;
-
-    void commitCreditPreview(defaultCreditCents);
+    updateCreditSelection(desiredCents, totalDueCents);
+    lastCommittedCreditRef.current = desiredCents;
+    void commitCreditPreview(desiredCents, { suppressLoading: true });
   }, [
     pricingPreview,
     pricingPreviewError,
     floorViolationMessage,
     userCredits.totalAmount,
-    autoApplyKey,
+    creditDecisionKey,
     updateCreditSelection,
     commitCreditPreview,
   ]);
@@ -1267,6 +1311,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               onCreditToggle={handleCreditToggle}
               onCreditAmountChange={handleCreditAmountChange}
               onBookingUpdate={handleBookingUpdate}
+              creditsAccordionExpanded={isCreditsExpanded}
+              onCreditsAccordionToggle={handleCreditsAccordionToggleFromChild}
             />
           )}
         </div>
@@ -1318,6 +1364,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               onCreditToggle={handleCreditToggle}
               onCreditAmountChange={handleCreditAmountChange}
               onBookingUpdate={handleBookingUpdate}
+              creditsAccordionExpanded={isCreditsExpanded}
+              onCreditsAccordionToggle={handleCreditsAccordionToggleFromChild}
             />
           )}
         </>

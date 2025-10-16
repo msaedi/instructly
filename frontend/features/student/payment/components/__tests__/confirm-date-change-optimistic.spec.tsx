@@ -204,6 +204,7 @@ describe('PaymentSection optimistic preview handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     bookingUpdateHandlerRef.current = null;
+    sessionStorage.clear();
   });
 
   afterEach(() => {

@@ -149,6 +149,7 @@ describe('Available Credits accordion', () => {
     expect(slider.value).toBe('10');
 
     fireEvent.change(slider, { target: { value: '0' } });
+    fireEvent.mouseUp(slider);
     await act(async () => {
       jest.advanceTimersByTime(0);
       await Promise.resolve();
@@ -158,16 +159,21 @@ describe('Available Credits accordion', () => {
     expect(screen.getByText('Using $0.00')).toBeInTheDocument();
     expect(screen.getByRole('slider')).toBeInTheDocument();
 
-    const header = screen.getByText('Available Credits');
-    fireEvent.click(header);
+    const toggle = screen.getByRole('button', { name: /Available Credits/i });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('slider')).not.toBeInTheDocument();
 
-    fireEvent.click(header);
+    fireEvent.click(toggle);
     const reopenedSlider = await screen.findByRole('slider');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect((reopenedSlider as HTMLInputElement).value).toBe('0');
     expect(screen.getByText('Using $0.00')).toBeInTheDocument();
 
     fireEvent.change(reopenedSlider, { target: { value: '15' } });
+    fireEvent.mouseUp(reopenedSlider);
     await act(async () => {
       jest.advanceTimersByTime(0);
       await Promise.resolve();
@@ -176,7 +182,9 @@ describe('Available Credits accordion', () => {
     expect((reopenedSlider as HTMLInputElement).value).toBe('15');
     expect(screen.getByText('Using $15.00')).toBeInTheDocument();
 
-    fireEvent.click(header);
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Using $15.00')).toBeInTheDocument();
+    expect(screen.getByRole('slider')).toBeInTheDocument();
   });
 });

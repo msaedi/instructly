@@ -104,6 +104,7 @@ const renderPaymentSection = (overrides: Partial<typeof baseBookingData> = {}) =
 describe('PaymentSection pricing preview integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    sessionStorage.clear();
   });
 
   it('renders server line items for bookings with an id', async () => {
@@ -246,12 +247,8 @@ describe('PaymentSection pricing preview integration', () => {
     renderPaymentSection();
 
     await screen.findByText('Service & Support fee (12%)');
-    fireEvent.click(screen.getByText('Available Credits'));
 
-    await waitFor(() => {
-      expect(document.querySelector('input[type="range"]')).toBeTruthy();
-    });
-    const creditSlider = document.querySelector('input[type="range"]') as HTMLInputElement;
+    const creditSlider = await screen.findByRole('slider');
     fireEvent.change(creditSlider, { target: { value: '20' } });
     fireEvent.mouseUp(creditSlider);
     await new Promise((resolve) => setTimeout(resolve, 250));

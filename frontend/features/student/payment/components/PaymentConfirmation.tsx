@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, useId } from 'react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, Info } from 'lucide-react';
 import { BookingPayment, PaymentMethod } from '../types';
@@ -98,6 +98,8 @@ interface PaymentConfirmationProps {
   floorViolationMessage?: string | null;
   onClearFloorViolation?: () => void;
   onBookingUpdate?: (updater: (prev: BookingWithMetadata) => BookingWithMetadata) => void;
+  creditsAccordionExpanded?: boolean;
+  onCreditsAccordionToggle?: (expanded: boolean) => void;
 }
 
 export default function PaymentConfirmation({
@@ -121,6 +123,8 @@ export default function PaymentConfirmation({
   floorViolationMessage = null,
   onClearFloorViolation,
   onBookingUpdate,
+  creditsAccordionExpanded,
+  onCreditsAccordionToggle,
 }: PaymentConfirmationProps) {
   if (process.env.NODE_ENV !== 'production') {
     const summaryConsole = (globalThis as unknown as { console?: Console }).console;
@@ -898,7 +902,27 @@ export default function PaymentConfirmation({
     return 'Book now!';
   }, [isCheckingConflict, hasConflict, isFloorBlocking, isPricingPreviewLoading]);
 
-  const [isCreditsExpanded, setIsCreditsExpanded] = useState(() => derivedAppliedCreditCents > 0);
+  const creditsAccordionPanelId = useId();
+  const isCreditsExpandedControlled = typeof creditsAccordionExpanded === 'boolean';
+  const [internalCreditsExpanded, setInternalCreditsExpanded] = useState(() => derivedAppliedCreditCents > 0);
+
+  useEffect(() => {
+    if (!isCreditsExpandedControlled && derivedAppliedCreditCents > 0 && !internalCreditsExpanded) {
+      setInternalCreditsExpanded(true);
+    }
+  }, [isCreditsExpandedControlled, derivedAppliedCreditCents, internalCreditsExpanded]);
+
+  const creditsAccordionIsExpanded = isCreditsExpandedControlled
+    ? Boolean(creditsAccordionExpanded)
+    : internalCreditsExpanded;
+
+  const handleCreditsAccordionToggle = useCallback(() => {
+    const next = !creditsAccordionIsExpanded;
+    if (!isCreditsExpandedControlled) {
+      setInternalCreditsExpanded(next);
+    }
+    onCreditsAccordionToggle?.(next);
+  }, [creditsAccordionIsExpanded, isCreditsExpandedControlled, onCreditsAccordionToggle]);
   const creditsAppliedLabel = useMemo(() => `Using $${appliedCreditDollars.toFixed(2)}`, [appliedCreditDollars]);
 
   useEffect(() => {
@@ -1396,7 +1420,17 @@ export default function PaymentConfirmation({
           <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
             <div
               className="flex items-center justify-between cursor-pointer"
-              onClick={() => setIsCreditsExpanded((prev) => !prev)}
+              onClick={handleCreditsAccordionToggle}
+              role="button"
+              tabIndex={0}
+              aria-expanded={creditsAccordionIsExpanded}
+              aria-controls={creditsAccordionPanelId}
+              onKeyDown={(event) => {
+                if (event.key === ' ' || event.key === 'Enter') {
+                  event.preventDefault();
+                  handleCreditsAccordionToggle();
+                }
+              }}
             >
               <div className="flex-1">
                 <h4 className="font-bold text-xl">Available Credits</h4>
@@ -1407,13 +1441,17 @@ export default function PaymentConfirmation({
               </div>
               <ChevronDown
                 className={`h-5 w-5 text-gray-500 transition-transform ${
-                  isCreditsExpanded ? 'rotate-180' : ''
+                  creditsAccordionIsExpanded ? 'rotate-180' : ''
                 }`}
               />
             </div>
 
-            {isCreditsExpanded && (
-              <div className="mt-3 p-3 bg-white rounded-lg space-y-3">
+            {creditsAccordionIsExpanded && (
+              <div
+                id={creditsAccordionPanelId}
+                className="mt-3 p-3 bg-white rounded-lg space-y-3"
+                aria-hidden={!creditsAccordionIsExpanded}
+              >
                 <div className="flex items-center justify-between text-sm">
                   <span>Credits to apply:</span>
                   <span className="font-medium">${appliedCreditDollars.toFixed(2)}</span>

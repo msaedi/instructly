@@ -10,6 +10,11 @@ import {
 } from '@/lib/api/pricing';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import {
+  computeCreditStorageKey,
+  readStoredCreditDecision,
+  writeStoredCreditDecision,
+} from '../utils/creditStorage';
 
 export type PreviewCause = 'date-time-only' | 'duration-change' | 'credit-change';
 
@@ -19,7 +24,10 @@ type PricingPreviewController = {
   error: string | null;
   lastAppliedCreditCents: number;
   requestPricingPreview: (options?: { key?: string; cause?: PreviewCause }) => Promise<PricingPreviewResponse | null>;
-  applyCredit: (creditCents: number, options?: { skipIfUnchanged?: boolean }) => Promise<PricingPreviewResponse | null>;
+  applyCredit: (
+    creditCents: number,
+    options?: { skipIfUnchanged?: boolean; suppressLoading?: boolean },
+  ) => Promise<PricingPreviewResponse | null>;
   reset: () => void;
   bookingId: string | null;
 };
@@ -197,6 +205,46 @@ export function usePricingPreviewController({
     return extractBasePayload(payload);
   }, []);
 
+  const getCreditStorageKey = useCallback(() => {
+    const normalizedBookingId = bookingId?.trim() || null;
+    const basePayload = resolveQuotePayloadBase();
+    return computeCreditStorageKey({
+      bookingId: normalizedBookingId,
+      quotePayloadBase: basePayload,
+    });
+  }, [bookingId, resolveQuotePayloadBase]);
+
+  const persistCreditDecision = useCallback(
+    (creditCents: number) => {
+      const key = getCreditStorageKey();
+      if (!key) {
+        return;
+      }
+      const sanitizedCents = Math.max(0, Math.round(creditCents));
+      const existing = readStoredCreditDecision(key);
+      if (sanitizedCents === 0) {
+        if (!existing) {
+          return;
+        }
+        if (existing.lastCreditCents > 0 && !existing.explicitlyRemoved) {
+          return;
+        }
+      }
+      const nextDecision = {
+        lastCreditCents: sanitizedCents,
+        explicitlyRemoved: sanitizedCents > 0 ? false : existing?.explicitlyRemoved ?? false,
+      };
+      if (
+        !existing ||
+        existing.lastCreditCents !== nextDecision.lastCreditCents ||
+        existing.explicitlyRemoved !== nextDecision.explicitlyRemoved
+      ) {
+        writeStoredCreditDecision(key, nextDecision);
+      }
+    },
+    [getCreditStorageKey],
+  );
+
   const computeInitKey = useCallback(() => {
     const normalizedBookingId = bookingId?.trim() ? bookingId : null;
     if (normalizedBookingId) {
@@ -216,8 +264,9 @@ export function usePricingPreviewController({
     appliedCreditCentsRef.current = sanitizedCreditCents;
     setPreview(result);
     setError(null);
+    persistCreditDecision(sanitizedCreditCents);
     return result;
-  }, []);
+  }, [persistCreditDecision]);
 
   const performFetch = useCallback(
     async (creditCents: number, signal: AbortSignal): Promise<PricingPreviewResponse | null> => {
@@ -339,7 +388,10 @@ export function usePricingPreviewController({
       commitAbortRef.current?.abort();
       const controller = new AbortController();
       commitAbortRef.current = controller;
-      beginRequest();
+      const shouldUseLoading = !options?.suppressLoading;
+      if (shouldUseLoading) {
+        beginRequest();
+      }
 
       try {
         const result = await performFetch(normalizedCreditCents, controller.signal);
@@ -380,7 +432,9 @@ export function usePricingPreviewController({
         lastCommitValueRef.current = null;
         throw err;
       } finally {
-        endRequest();
+        if (shouldUseLoading) {
+          endRequest();
+        }
         if (commitAbortRef.current === controller) {
           commitAbortRef.current = null;
         }
