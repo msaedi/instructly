@@ -167,7 +167,7 @@ describe('PaymentSection auto credit application', () => {
     };
 
     fetchPricingPreviewMock.mockImplementation(async (_bookingId, creditCents) => {
-      const normalized = Math.max(0, Math.round(creditCents));
+      const normalized = Math.max(0, Math.round(creditCents ?? 0));
       const preview = previewsByCredit[normalized];
       if (!preview) {
         throw new Error(`Unexpected preview request for credit ${normalized}`);
@@ -184,7 +184,9 @@ describe('PaymentSection auto credit application', () => {
     });
 
     await waitFor(() => {
-      const commitCalls = fetchPricingPreviewMock.mock.calls.filter(([, credit]) => Math.round(credit) === 4_500);
+      const commitCalls = fetchPricingPreviewMock.mock.calls.filter(([, credit]) =>
+        typeof credit === 'number' && Math.round(credit) === 4_500
+      );
       expect(commitCalls).toHaveLength(1);
     });
 
@@ -204,7 +206,7 @@ describe('PaymentSection auto credit application', () => {
     };
 
     fetchPricingPreviewMock.mockImplementation(async (_bookingId, creditCents) => {
-      const normalized = Math.max(0, Math.round(creditCents));
+      const normalized = Math.max(0, Math.round(creditCents ?? 0));
       const preview = previewsByCredit[normalized];
       if (!preview) {
         throw new Error(`Unexpected preview request for credit ${normalized}`);
@@ -224,7 +226,9 @@ describe('PaymentSection auto credit application', () => {
     });
 
     await waitFor(() => {
-      const commitCalls = fetchPricingPreviewMock.mock.calls.filter(([, credit]) => Math.round(credit) === 8_400);
+      const commitCalls = fetchPricingPreviewMock.mock.calls.filter(([, credit]) =>
+        typeof credit === 'number' && Math.round(credit) === 8_400
+      );
       expect(commitCalls).toHaveLength(1);
     });
 

@@ -57,7 +57,7 @@ const expandDiscreteStarts = (
   return times;
 };
 
-interface TimeSelectionModalProps {
+export interface TimeSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   instructor: {
@@ -179,6 +179,8 @@ export default function TimeSelectionModal({
 
   // Component state
   const [selectedDate, setSelectedDate] = useState<string | null>(preSelectedDate || null);
+  const selectedDateRef = useRef<string | null>(preSelectedDate || null);
+  const hasUserChosenDateRef = useRef<boolean>(Boolean(preSelectedDate));
   const [selectedTime, setSelectedTime] = useState<string | null>(preSelectedTime || null);
   // Pre-select middle duration option by default
   const [selectedDuration, setSelectedDuration] = useState<number>(
@@ -187,6 +189,7 @@ export default function TimeSelectionModal({
       : 60
   );
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const currentMonthIso = useMemo(() => (currentMonth ? currentMonth.toISOString() : null), [currentMonth]);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
@@ -205,6 +208,86 @@ export default function TimeSelectionModal({
     date: string;
     nextDate: string | null;
   } | null>(null);
+
+  const selectedTimeRef = useRef<string | null>(preSelectedTime || null);
+
+  const logDev = (...args: unknown[]) => {
+    if (process.env.NODE_ENV !== 'production') {
+      const { info } = console;
+      if (typeof info === 'function') {
+        info.call(console, '[time-modal]', ...args);
+      }
+    }
+  };
+
+  useEffect(() => {
+    selectedDateRef.current = selectedDate;
+  }, [selectedDate]);
+
+  useEffect(() => {
+    selectedTimeRef.current = selectedTime;
+  }, [selectedTime]);
+
+  const getTimesForDate = useCallback(
+    (targetDate: string | null, durationMinutes: number): string[] => {
+      if (!targetDate || !availabilityData || !availabilityData[targetDate]) {
+        return [];
+      }
+
+      const dayData = availabilityData[targetDate] as {
+        available_slots?: AvailabilitySlot[];
+      };
+      const slots = (dayData?.available_slots ?? []) as AvailabilitySlot[];
+
+      const now = new Date();
+      const isToday = targetDate === formatDateInTz(now, studentTimezone);
+
+      const validSlots = slots.filter((slot) => {
+        if (isToday) {
+          const currentHHMM = nowHHMMInTz(studentTimezone);
+          if (slot.start_time.slice(0, 5) <= currentHHMM) {
+            return false;
+          }
+        }
+
+        const startParts = slot.start_time.split(':');
+        const endParts = slot.end_time.split(':');
+        const sh = parseInt(at(startParts, 0) || '0', 10);
+        const sm = parseInt(at(startParts, 1) || '0', 10);
+        const eh = parseInt(at(endParts, 0) || '0', 10);
+        const em = parseInt(at(endParts, 1) || '0', 10);
+        const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
+        return slotDuration >= durationMinutes;
+      });
+
+      return validSlots.flatMap((slot) =>
+        expandDiscreteStarts(slot.start_time, slot.end_time, 60, durationMinutes)
+      );
+    },
+    [availabilityData, studentTimezone]
+  );
+
+  const setDate = useCallback(
+    (reason: string, nextDate: string | null) => {
+      if (process.env.NODE_ENV !== 'production') {
+        logDev('setSelectedDate', {
+          reason,
+          prevDate: selectedDateRef.current,
+          nextDate,
+          selectedDuration,
+          timesOnPrev: getTimesForDate(selectedDateRef.current, selectedDuration).length,
+        });
+      }
+      if (nextDate !== null) {
+        selectedDateRef.current = nextDate;
+      }
+      if (reason !== 'effect' && nextDate) {
+        hasUserChosenDateRef.current = true;
+      }
+      setSelectedDate(nextDate);
+    },
+    [getTimesForDate, selectedDuration]
+  );
 
   const formatDateLabel = useCallback((isoDate: string) => {
     if (!isoDate) {
@@ -358,65 +441,65 @@ export default function TimeSelectionModal({
         });
         setAvailableDates(datesWithSlots);
 
-        // Auto-select first available date if no pre-selection
-        if (!preSelectedDate && datesWithSlots.length > 0) {
-          const firstDate = at(datesWithSlots, 0);
-          if (!firstDate) return;
-          setSelectedDate(firstDate);
-          setShowTimeDropdown(true); // Show time dropdown immediately
+        const firstAvailableDate = at(datesWithSlots, 0) ?? null;
+        const preselectedIsAvailable = Boolean(
+          preSelectedDate && availabilityByDate[preSelectedDate]
+        );
 
-          // Load time slots for the first available date
-          const dayData = availabilityByDate[firstDate];
-          if (!dayData) return;
-          const slots = dayData.available_slots || [];
+        let shouldAutoSelectFirstTime = false;
 
-          const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
-            expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
-          );
-
-          setTimeSlots(formattedSlots);
-
-          // Auto-select first available time slot
-          if (formattedSlots.length > 0 && !preSelectedTime) {
-            const firstSlot = at(formattedSlots, 0);
-            if (firstSlot) {
-              setSelectedTime(firstSlot);
+        if (!hasUserChosenDateRef.current) {
+          const initialDate = preselectedIsAvailable ? preSelectedDate : firstAvailableDate;
+          if (initialDate) {
+            const initReason = preselectedIsAvailable ? 'init-preselected' : 'init';
+            setDate(initReason, initialDate);
+            selectedDateRef.current = initialDate;
+            hasUserChosenDateRef.current = true;
+            if (!preSelectedTime) {
+              shouldAutoSelectFirstTime = true;
             }
           }
         }
 
-        // If we have a pre-selected date, load its time slots
-        if (preSelectedDate && availabilityByDate[preSelectedDate]) {
-          setSelectedDate(preSelectedDate);
-          setShowTimeDropdown(true); // Show time dropdown immediately
-          const availableSlots = availabilityByDate[preSelectedDate];
-          if (!availableSlots) return;
-          const slots = availableSlots.available_slots || [];
+        const activeDate =
+          selectedDateRef.current ??
+          (preselectedIsAvailable ? preSelectedDate : null) ??
+          firstAvailableDate;
 
-          const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
-            expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
-          );
+        if (activeDate) {
+          setShowTimeDropdown(true);
+          const dayData = availabilityByDate[activeDate];
+          if (dayData) {
+            const slots = dayData.available_slots || [];
+            const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
+              expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
+            );
 
-          setTimeSlots(formattedSlots);
+            setTimeSlots(formattedSlots);
 
-          // If pre-selected time is provided, format it to match
-          if (preSelectedTime) {
-            const parts = preSelectedTime.split(':');
-            const hours = at(parts, 0);
-            const minutes = at(parts, 1);
-            if (!hours || !minutes) return;
-            const hour = parseInt(hours);
-            const ampm = hour >= 12 ? 'pm' : 'am';
-            const displayHour = hour % 12 || 12;
-            const formattedTime = `${displayHour}:${minutes.padStart(2, '0')}${ampm}`;
-            setSelectedTime(formattedTime);
-          } else if (formattedSlots.length > 0) {
-            // Auto-select first time if no pre-selected time
-            const firstSlot = at(formattedSlots, 0);
-            if (firstSlot) {
-              setSelectedTime(firstSlot);
+            if (preSelectedTime && activeDate === preSelectedDate && !selectedTimeRef.current) {
+              const parts = preSelectedTime.split(':');
+              const hours = at(parts, 0);
+              const minutes = at(parts, 1);
+              if (hours && minutes) {
+                const hour = parseInt(hours, 10);
+                const ampm = hour >= 12 ? 'pm' : 'am';
+                const displayHour = hour % 12 || 12;
+                const formattedTime = `${displayHour}:${minutes.padStart(2, '0')}${ampm}`;
+                setSelectedTime(formattedTime);
+              }
+            } else if ((shouldAutoSelectFirstTime || (!selectedTimeRef.current && !preSelectedTime)) && formattedSlots.length > 0) {
+              const firstSlot = at(formattedSlots, 0);
+              if (firstSlot) {
+                setSelectedTime(firstSlot);
+              }
             }
+          } else {
+            setTimeSlots([]);
           }
+        } else {
+          setShowTimeDropdown(false);
+          setTimeSlots([]);
         }
       }
     } catch (error) {
@@ -424,7 +507,7 @@ export default function TimeSelectionModal({
     } finally {
       // Loading state cleared
     }
-  }, [instructor.user_id, selectedDuration, preSelectedDate, preSelectedTime, studentTimezone]);
+  }, [instructor.user_id, selectedDuration, preSelectedDate, preSelectedTime, studentTimezone, setDate]);
 
   // Fetch availability data when modal opens
   useEffect(() => {
@@ -695,8 +778,11 @@ export default function TimeSelectionModal({
   };
 
   // Handle date selection
-  const handleDateSelect = async (date: string) => {
-    setSelectedDate(date);
+  const handleDateSelect = async (
+    date: string,
+    reason: 'user-select' | 'jump-confirm' | 'auto' = 'user-select'
+  ) => {
+    setDate(reason, date);
     setDurationAvailabilityNotice(null);
     setSelectedTime(null); // Clear previous time selection initially
     setShowTimeDropdown(true);
@@ -872,7 +958,7 @@ export default function TimeSelectionModal({
       return;
     }
     setDurationAvailabilityNotice(null);
-    void handleDateSelect(targetDate);
+    void handleDateSelect(targetDate, 'jump-confirm');
   };
 
   // Handle time selection
@@ -951,14 +1037,14 @@ export default function TimeSelectionModal({
     }
 
     if (!availabilityData) {
-      void handleDateSelect(selectedDate);
+      void handleDateSelect(selectedDate, 'auto');
       return;
     }
 
     try {
       const currentDateData = availabilityData[selectedDate];
       if (!currentDateData) {
-        void handleDateSelect(selectedDate);
+        void handleDateSelect(selectedDate, 'auto');
         return;
       }
 
@@ -1091,12 +1177,13 @@ export default function TimeSelectionModal({
       lastChangeWasDurationRef.current = true;
       setTimeSlots(newSlots);
       if (!selectedTime || !newSlots.includes(selectedTime)) {
-        setSelectedTime(null);
+        const firstSlot = at(newSlots, 0);
+        setSelectedTime(firstSlot ?? null);
       }
       setDisabledDurations(combinedDisabled);
     } catch (e) {
       logger.error('Failed to recompute slots on duration change', e);
-      void handleDateSelect(selectedDate);
+      void handleDateSelect(selectedDate, 'auto');
     }
   };
 
@@ -1206,6 +1293,23 @@ export default function TimeSelectionModal({
 
   if (!isOpen) return null;
 
+  if (process.env.NODE_ENV !== 'production') {
+    logDev('render:calendar-props', {
+      variant: 'mobile',
+      selectedDate,
+      preSelectedDate,
+      currentMonth: currentMonthIso,
+      keyProp: null,
+    });
+    logDev('render:calendar-props', {
+      variant: 'desktop',
+      selectedDate,
+      preSelectedDate,
+      currentMonth: currentMonthIso,
+      keyProp: null,
+    });
+  }
+
   return (
     <>
       {/* Mobile Full Screen View */}
@@ -1240,7 +1344,6 @@ export default function TimeSelectionModal({
             <Calendar
               currentMonth={currentMonth}
               selectedDate={selectedDate}
-              {...(preSelectedDate && { preSelectedDate })}
               availableDates={availableDates}
               onDateSelect={handleDateSelect}
               onMonthChange={setCurrentMonth}
@@ -1380,7 +1483,6 @@ export default function TimeSelectionModal({
                   <Calendar
                     currentMonth={currentMonth}
                     selectedDate={selectedDate}
-                    {...(preSelectedDate && { preSelectedDate })}
                     availableDates={availableDates}
                     onDateSelect={handleDateSelect}
                     onMonthChange={setCurrentMonth}

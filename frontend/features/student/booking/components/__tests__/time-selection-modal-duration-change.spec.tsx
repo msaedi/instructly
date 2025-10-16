@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import TimeSelectionModal from '../TimeSelectionModal';
+import TimeSelectionModal, { type TimeSelectionModalProps } from '../TimeSelectionModal';
 import { publicApi } from '@/features/shared/api/client';
 
 jest.mock('@/features/shared/api/client', () => ({
@@ -62,7 +62,7 @@ const buildAvailabilityResponse = (
   };
 };
 
-const instructor = {
+const instructor: TimeSelectionModalProps['instructor'] = {
   user_id: 'inst-1',
   user: {
     first_name: 'Jordan',
@@ -77,7 +77,7 @@ const instructor = {
       location_types: ['remote'],
     },
   ],
-} as const;
+};
 
 const baseProps = {
   isOpen: true,
@@ -109,12 +109,16 @@ describe('TimeSelectionModal duration changes', () => {
 
     await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
 
-    await screen.findAllByRole('button', { name: /9:00am/i });
+    await screen.findAllByText(/9:00am/i);
     await screen.findAllByText(/October 17/i);
 
-    fireEvent.click(screen.getAllByLabelText(/45 min/)[0]);
+    const duration45 = screen.getAllByLabelText(/45 min/)[0];
+    if (!duration45) {
+      throw new Error('Expected 45 min option to be present');
+    }
+    fireEvent.click(duration45);
 
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /9:00am/i }).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(/9:00am/i).length).toBeGreaterThan(0));
     await waitFor(() => expect(screen.getAllByText(/October 17/i).length).toBeGreaterThan(0));
     expect(screen.queryByText(/No 45-min slots/)).toBeNull();
   });
@@ -135,18 +139,26 @@ describe('TimeSelectionModal duration changes', () => {
 
     await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
 
-    await screen.findAllByRole('button', { name: /9:00am/i });
-    fireEvent.click(screen.getAllByLabelText(/60 min/)[0]);
+    await screen.findAllByText(/9:00am/i);
+    const duration60 = screen.getAllByLabelText(/60 min/)[0];
+    if (!duration60) {
+      throw new Error('Expected 60 min option to be present');
+    }
+    fireEvent.click(duration60);
 
     const notices = await screen.findAllByText(/No 60-min slots on Oct 17/i);
     expect(notices.length).toBeGreaterThan(0);
 
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /No times available for this date/i }).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(/No times available for this date/i).length).toBeGreaterThan(0));
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Jump to Oct 18/i })[0]);
+    const jumpButton = screen.getAllByRole('button', { name: /Jump to Oct 18/i })[0];
+    if (!jumpButton) {
+      throw new Error('Expected jump button to be present');
+    }
+    fireEvent.click(jumpButton);
 
     await waitFor(() => expect(screen.getAllByText(/October 18/i).length).toBeGreaterThan(0));
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /10:00am/i }).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(/10:00am/i).length).toBeGreaterThan(0));
     await waitFor(() => expect(screen.queryAllByText(/No 60-min slots/)).toHaveLength(0));
   });
 });
