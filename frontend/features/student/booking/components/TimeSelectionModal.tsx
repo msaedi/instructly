@@ -57,6 +57,48 @@ const expandDiscreteStarts = (
   return times;
 };
 
+const normalizeDateInput = (value?: string | Date | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === 'string') {
+    if (value.includes('T')) {
+      return value.slice(0, 10);
+    }
+    return value;
+  }
+
+  return null;
+};
+
+const convertHHMM24ToDisplay = (value?: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const parts = value.split(':');
+  const hoursPart = at(parts, 0);
+  const minutesPart = at(parts, 1);
+  if (!hoursPart || !minutesPart) {
+    return null;
+  }
+
+  const hour = Number(hoursPart);
+  const minutes = minutesPart.padStart(2, '0');
+  if (!Number.isFinite(hour)) {
+    return null;
+  }
+
+  const ampm = hour >= 12 ? 'pm' : 'am';
+  const displayHour = ((hour % 12) || 12).toString();
+  return `${displayHour}:${minutes}${ampm}`;
+};
+
 export interface TimeSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -76,6 +118,9 @@ export interface TimeSelectionModalProps {
   };
   preSelectedDate?: string; // From search context (format: "YYYY-MM-DD")
   preSelectedTime?: string; // Pre-selected time slot
+  initialDate?: string | Date | null;
+  initialTimeHHMM24?: string | null;
+  initialDurationMinutes?: number | null;
   onTimeSelected?: (selection: { date: string; time: string; duration: number }) => void;
   serviceId?: string; // Optional service ID from search context
   bookingDraftId?: string;
@@ -88,6 +133,9 @@ export default function TimeSelectionModal({
   instructor,
   preSelectedDate,
   preSelectedTime,
+  initialDate,
+  initialTimeHHMM24,
+  initialDurationMinutes,
   onTimeSelected,
   serviceId,
   bookingDraftId,
@@ -177,17 +225,32 @@ export default function TimeSelectionModal({
     [appliedCreditCents]
   );
 
+  const normalizedInitialDateValue = normalizeDateInput(initialDate);
+  const normalizedPreselectedDateValue = normalizeDateInput(preSelectedDate);
+  const effectiveInitialDate = normalizedInitialDateValue ?? normalizedPreselectedDateValue ?? null;
+  const normalizedInitialTimeDisplay = convertHHMM24ToDisplay(initialTimeHHMM24);
+  const effectiveInitialTimeDisplay = normalizedInitialTimeDisplay ?? preSelectedTime ?? null;
+  const normalizedInitialDurationValue = Number.isFinite(initialDurationMinutes ?? NaN)
+    ? Number(initialDurationMinutes)
+    : null;
+
   // Component state
-  const [selectedDate, setSelectedDate] = useState<string | null>(preSelectedDate || null);
-  const selectedDateRef = useRef<string | null>(preSelectedDate || null);
-  const hasUserChosenDateRef = useRef<boolean>(Boolean(preSelectedDate));
-  const [selectedTime, setSelectedTime] = useState<string | null>(preSelectedTime || null);
-  // Pre-select middle duration option by default
-  const [selectedDuration, setSelectedDuration] = useState<number>(
-    durationOptions.length > 0
+  const [selectedDate, setSelectedDate] = useState<string | null>(effectiveInitialDate);
+  const selectedDateRef = useRef<string | null>(effectiveInitialDate);
+  const hasUserChosenDateRef = useRef<boolean>(Boolean(effectiveInitialDate));
+  const [selectedTime, setSelectedTime] = useState<string | null>(effectiveInitialTimeDisplay);
+  const initialDurationFallback = (() => {
+    if (
+      normalizedInitialDurationValue &&
+      durationOptions.some((option) => option.duration === normalizedInitialDurationValue)
+    ) {
+      return normalizedInitialDurationValue;
+    }
+    return durationOptions.length > 0
       ? Math.min(...durationOptions.map((o) => o.duration))
-      : 60
-  );
+      : 60;
+  })();
+  const [selectedDuration, setSelectedDuration] = useState<number>(initialDurationFallback);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const currentMonthIso = useMemo(() => (currentMonth ? currentMonth.toISOString() : null), [currentMonth]);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
@@ -209,7 +272,7 @@ export default function TimeSelectionModal({
     nextDate: string | null;
   } | null>(null);
 
-  const selectedTimeRef = useRef<string | null>(preSelectedTime || null);
+  const selectedTimeRef = useRef<string | null>(effectiveInitialTimeDisplay);
 
   const logDev = (...args: unknown[]) => {
     if (process.env.NODE_ENV !== 'production') {
@@ -443,19 +506,19 @@ export default function TimeSelectionModal({
 
         const firstAvailableDate = at(datesWithSlots, 0) ?? null;
         const preselectedIsAvailable = Boolean(
-          preSelectedDate && availabilityByDate[preSelectedDate]
+          effectiveInitialDate && availabilityByDate[effectiveInitialDate]
         );
 
         let shouldAutoSelectFirstTime = false;
 
         if (!hasUserChosenDateRef.current) {
-          const initialDate = preselectedIsAvailable ? preSelectedDate : firstAvailableDate;
+          const initialDate = preselectedIsAvailable ? effectiveInitialDate : firstAvailableDate;
           if (initialDate) {
             const initReason = preselectedIsAvailable ? 'init-preselected' : 'init';
             setDate(initReason, initialDate);
             selectedDateRef.current = initialDate;
             hasUserChosenDateRef.current = true;
-            if (!preSelectedTime) {
+            if (!effectiveInitialTimeDisplay) {
               shouldAutoSelectFirstTime = true;
             }
           }
@@ -463,7 +526,7 @@ export default function TimeSelectionModal({
 
         const activeDate =
           selectedDateRef.current ??
-          (preselectedIsAvailable ? preSelectedDate : null) ??
+          (preselectedIsAvailable ? effectiveInitialDate : null) ??
           firstAvailableDate;
 
         if (activeDate) {
@@ -477,21 +540,21 @@ export default function TimeSelectionModal({
 
             setTimeSlots(formattedSlots);
 
-            if (preSelectedTime && activeDate === preSelectedDate && !selectedTimeRef.current) {
-              const parts = preSelectedTime.split(':');
-              const hours = at(parts, 0);
-              const minutes = at(parts, 1);
-              if (hours && minutes) {
-                const hour = parseInt(hours, 10);
-                const ampm = hour >= 12 ? 'pm' : 'am';
-                const displayHour = hour % 12 || 12;
-                const formattedTime = `${displayHour}:${minutes.padStart(2, '0')}${ampm}`;
-                setSelectedTime(formattedTime);
-              }
-            } else if ((shouldAutoSelectFirstTime || (!selectedTimeRef.current && !preSelectedTime)) && formattedSlots.length > 0) {
+            if (
+              effectiveInitialTimeDisplay &&
+              activeDate === effectiveInitialDate &&
+              !selectedTimeRef.current
+            ) {
+              setSelectedTime(effectiveInitialTimeDisplay);
+              selectedTimeRef.current = effectiveInitialTimeDisplay;
+            } else if (
+              (shouldAutoSelectFirstTime || (!selectedTimeRef.current && !effectiveInitialTimeDisplay)) &&
+              formattedSlots.length > 0
+            ) {
               const firstSlot = at(formattedSlots, 0);
               if (firstSlot) {
                 setSelectedTime(firstSlot);
+                selectedTimeRef.current = firstSlot;
               }
             }
           } else {
@@ -507,7 +570,7 @@ export default function TimeSelectionModal({
     } finally {
       // Loading state cleared
     }
-  }, [instructor.user_id, selectedDuration, preSelectedDate, preSelectedTime, studentTimezone, setDate]);
+  }, [instructor.user_id, selectedDuration, effectiveInitialDate, effectiveInitialTimeDisplay, studentTimezone, setDate]);
 
   // Fetch availability data when modal opens
   useEffect(() => {
@@ -515,6 +578,51 @@ export default function TimeSelectionModal({
       void fetchAvailability();
     }
   }, [isOpen, instructor.user_id, fetchAvailability]);
+
+  const initialSelectionAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (initialSelectionAppliedRef.current) {
+      return;
+    }
+    if (!effectiveInitialDate || !normalizedInitialDurationValue) {
+      return;
+    }
+    if (!availabilityData || !availabilityData[effectiveInitialDate]) {
+      return;
+    }
+
+    const timesForInitial = getTimesForDate(effectiveInitialDate, normalizedInitialDurationValue);
+
+    if (selectedDuration !== normalizedInitialDurationValue) {
+      setSelectedDuration(normalizedInitialDurationValue);
+    }
+
+    if (selectedDateRef.current !== effectiveInitialDate) {
+      setDate('init-preselected', effectiveInitialDate);
+      selectedDateRef.current = effectiveInitialDate;
+    }
+
+    hasUserChosenDateRef.current = true;
+
+    if (normalizedInitialTimeDisplay && timesForInitial.includes(normalizedInitialTimeDisplay)) {
+      setSelectedTime(normalizedInitialTimeDisplay);
+      selectedTimeRef.current = normalizedInitialTimeDisplay;
+    } else if (normalizedInitialTimeDisplay) {
+      setSelectedTime(null);
+      selectedTimeRef.current = null;
+    }
+
+    initialSelectionAppliedRef.current = true;
+  }, [
+    availabilityData,
+    effectiveInitialDate,
+    normalizedInitialDurationValue,
+    normalizedInitialTimeDisplay,
+    getTimesForDate,
+    selectedDuration,
+    setDate,
+  ]);
 
   // Handle escape key
   useEffect(() => {
@@ -580,11 +688,56 @@ export default function TimeSelectionModal({
         servicesCount: instructor.services.length,
       });
 
+      const timeWithoutAmPm = selectedTime.replace(/[ap]m/gi, '').trim();
+      const timeParts = timeWithoutAmPm.split(':');
+      const hourStr = at(timeParts, 0);
+      const minuteStr = at(timeParts, 1);
+      if (!hourStr || !minuteStr) {
+        logger.error('Invalid time format', { selectedTime });
+        return;
+      }
+
+      if (timeParts.length !== 2) {
+        logger.error('Invalid time format', { selectedTime });
+        return;
+      }
+
+      let hour = parseInt(hourStr, 10);
+      const minute = parseInt(minuteStr, 10) || 0;
+
+      if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+        logger.error('Invalid time values', { hourStr, minuteStr, selectedTime });
+        return;
+      }
+
+      const isAM = selectedTime.toLowerCase().includes('am');
+      const isPM = selectedTime.toLowerCase().includes('pm');
+
+      if (isPM && hour !== 12) hour += 12;
+      if (isAM && hour === 12) hour = 0;
+
+      const normalizedTimeHHMM = `${hour.toString().padStart(2, '0')}:${minute
+        .toString()
+        .padStart(2, '0')}`;
+
+      let endHour = hour + Math.floor(selectedDuration / 60);
+      let endMinute = minute + (selectedDuration % 60);
+
+      if (endMinute >= 60) {
+        endHour += Math.floor(endMinute / 60);
+        endMinute = endMinute % 60;
+      }
+
+      const startTime = `${normalizedTimeHHMM}:00`;
+      const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute
+        .toString()
+        .padStart(2, '0')}:00`;
+
       // If callback provided, use it (for backward compatibility)
       if (onTimeSelected) {
         onTimeSelected({
           date: selectedDate,
-          time: selectedTime,
+          time: normalizedTimeHHMM,
           duration: selectedDuration,
         });
         onClose();
@@ -603,51 +756,6 @@ export default function TimeSelectionModal({
       }
 
       const price = getCurrentPrice();
-
-      // Parse time - handle both "8:00am" and "8:00" formats
-      const timeWithoutAmPm = selectedTime.replace(/[ap]m/gi, '').trim();
-      const timeParts = timeWithoutAmPm.split(':');
-      const hourStr = at(timeParts, 0);
-      const minuteStr = at(timeParts, 1);
-      if (!hourStr || !minuteStr) return 'Invalid time';
-
-      if (timeParts.length !== 2) {
-        logger.error('Invalid time format', { selectedTime });
-        return;
-      }
-
-      let hour = parseInt(hourStr);
-      const minute = parseInt(minuteStr) || 0;
-
-      if (isNaN(hour) || isNaN(minute)) {
-        logger.error('Invalid time values', { hourStr, minuteStr, selectedTime });
-        return;
-      }
-
-      const isAM = selectedTime.toLowerCase().includes('am');
-      const isPM = selectedTime.toLowerCase().includes('pm');
-
-      // Convert to 24-hour format if AM/PM is present
-      if (isPM && hour !== 12) hour += 12;
-      if (isAM && hour === 12) hour = 0;
-
-      const startTime = `${hour.toString().padStart(2, '0')}:${minute
-        .toString()
-        .padStart(2, '0')}:00`;
-      const endHour = hour + Math.floor(selectedDuration / 60);
-      const endMinute = minute + (selectedDuration % 60);
-
-      // Handle minute overflow
-      let finalEndHour = endHour;
-      let finalEndMinute = endMinute;
-      if (endMinute >= 60) {
-        finalEndHour += Math.floor(endMinute / 60);
-        finalEndMinute = endMinute % 60;
-      }
-
-      const endTime = `${finalEndHour.toString().padStart(2, '0')}:${finalEndMinute
-        .toString()
-        .padStart(2, '0')}:00`;
 
       const basePrice = price;
       const totalAmount = basePrice;
@@ -693,7 +801,7 @@ export default function TimeSelectionModal({
         } = {
           instructorId: instructor.user_id,
           date: selectedDate,
-          time: selectedTime,
+          time: normalizedTimeHHMM,
           duration: selectedDuration,
         };
 
@@ -1297,14 +1405,14 @@ export default function TimeSelectionModal({
     logDev('render:calendar-props', {
       variant: 'mobile',
       selectedDate,
-      preSelectedDate,
+      preSelectedDate: effectiveInitialDate,
       currentMonth: currentMonthIso,
       keyProp: null,
     });
     logDev('render:calendar-props', {
       variant: 'desktop',
       selectedDate,
-      preSelectedDate,
+      preSelectedDate: effectiveInitialDate,
       currentMonth: currentMonthIso,
       keyProp: null,
     });
@@ -1344,6 +1452,7 @@ export default function TimeSelectionModal({
             <Calendar
               currentMonth={currentMonth}
               selectedDate={selectedDate}
+              {...(effectiveInitialDate ? { preSelectedDate: effectiveInitialDate } : {})}
               availableDates={availableDates}
               onDateSelect={handleDateSelect}
               onMonthChange={setCurrentMonth}
@@ -1483,6 +1592,7 @@ export default function TimeSelectionModal({
                   <Calendar
                     currentMonth={currentMonth}
                     selectedDate={selectedDate}
+                    {...(effectiveInitialDate ? { preSelectedDate: effectiveInitialDate } : {})}
                     availableDates={availableDates}
                     onDateSelect={handleDateSelect}
                     onMonthChange={setCurrentMonth}

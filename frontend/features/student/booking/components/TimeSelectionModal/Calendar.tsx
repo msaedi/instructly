@@ -146,6 +146,8 @@ export default function Calendar({
               key={index}
               onClick={() => isAvailable && !isPast && onDateSelect(dateStr)}
               disabled={!isAvailable || isPast}
+              aria-pressed={isSelected}
+              aria-current={isSelected ? 'date' : undefined}
               className={`
                 h-9 w-9 mx-auto rounded-lg text-base font-medium relative flex items-center justify-center
                 ${isCurrentMonth ? '' : 'text-gray-400 dark:text-gray-600'}

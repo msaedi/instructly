@@ -15,7 +15,7 @@ import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBook
 import { paymentService } from '@/services/api/payments';
 import { protectedApi, type Booking } from '@/features/shared/api/client';
 import { ApiProblemError } from '@/lib/api/fetch';
-import { PricingPreviewContext, usePricingPreviewController } from '../hooks/usePricingPreview';
+import { PricingPreviewContext, usePricingPreviewController, type PreviewCause } from '../hooks/usePricingPreview';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
 import { buildCreateBookingPayload } from '../utils/buildCreateBookingPayload';
 import {
@@ -383,6 +383,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     preview: pricingPreview,
     error: pricingPreviewError,
     applyCredit: applyCreditPreview,
+    requestPricingPreview,
     lastAppliedCreditCents,
   } = previewController;
   const bookingDraftId = useMemo(
@@ -392,6 +393,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const lastCommittedCreditRef = useRef<number>(lastAppliedCreditCents);
   const autoAppliedOnceRef = useRef(false);
   const autoApplyKeyRef = useRef<string | null>(null);
+  const pendingPreviewCauseRef = useRef<PreviewCause | null>(null);
 
   useEffect(() => {
     lastCommittedCreditRef.current = lastAppliedCreditCents;
@@ -473,18 +475,156 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     }
   }, [creditsToUse, paymentMethod, selectPaymentMethod, selectedCardId, userCards]);
 
+  const determinePreviewCause = useCallback((prevBooking: BookingWithMetadata, nextBooking: BookingWithMetadata): PreviewCause | null => {
+    const normalizeDateForComparison = (value: unknown): string | null => {
+      if (!value) {
+        return null;
+      }
+      if (value instanceof Date) {
+        if (Number.isNaN(value.getTime())) {
+          return null;
+        }
+        return value.toISOString().slice(0, 10);
+      }
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return null;
+        }
+        if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+          return trimmed.slice(0, 10);
+        }
+        try {
+          const parsed = new Date(trimmed);
+          if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toISOString().slice(0, 10);
+          }
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    };
+
+    const normalizeTimeForComparison = (value: unknown): string | null => {
+      if (!value) {
+        return null;
+      }
+      const raw = String(value).trim();
+      if (!raw) {
+        return null;
+      }
+      try {
+        return to24HourTime(raw);
+      } catch {
+        if (/^\d{2}:\d{2}$/.test(raw)) {
+          return raw;
+        }
+        return null;
+      }
+    };
+
+    const normalizeDurationForComparison = (value: unknown): number | null => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.round(value);
+      }
+      if (typeof value === 'string') {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) {
+          return Math.round(parsed);
+        }
+      }
+      return null;
+    };
+
+    const prevDuration = normalizeDurationForComparison(prevBooking.duration);
+    const nextDuration = normalizeDurationForComparison(nextBooking.duration);
+    const prevDate = normalizeDateForComparison(prevBooking.date);
+    const nextDate = normalizeDateForComparison(nextBooking.date);
+    const prevTime = normalizeTimeForComparison(prevBooking.startTime);
+    const nextTime = normalizeTimeForComparison(nextBooking.startTime);
+
+    logDevInfo('[pricing-preview] Booking update comparison', {
+      prevDate,
+      nextDate,
+      prevTime,
+      nextTime,
+      prevDuration,
+      nextDuration,
+    });
+
+    const durationChanged = prevDuration !== nextDuration;
+    const dateChanged = prevDate !== nextDate;
+    const timeChanged = prevTime !== nextTime;
+    const hasDateTimeChanged = dateChanged || timeChanged;
+
+    if (!durationChanged && !hasDateTimeChanged) {
+      return null;
+    }
+
+    const hasRequiredFields = nextDuration != null && nextDuration > 0 && Boolean(nextDate) && Boolean(nextTime);
+    if (!hasRequiredFields) {
+      return null;
+    }
+
+    if (durationChanged) {
+      return 'duration-change';
+    }
+
+    if (hasDateTimeChanged) {
+      return 'date-time-only';
+    }
+
+    return null;
+  }, []);
+
   const handleBookingUpdate = useCallback(
     (updater: (prev: BookingWithMetadata) => BookingWithMetadata) => {
-      setUpdatedBookingData((prev) => updater({
-        ...prev,
-        metadata: { ...(prev.metadata ?? {}) },
-      }));
+      setUpdatedBookingData((prev) => {
+        const prevSnapshot: BookingWithMetadata = {
+          ...prev,
+          metadata: { ...(prev.metadata ?? {}) },
+        };
+        const nextState = updater({
+          ...prev,
+          metadata: { ...(prev.metadata ?? {}) },
+        });
+
+        if (!nextState) {
+          return prev;
+        }
+
+        const cause = determinePreviewCause(prevSnapshot, nextState);
+        if (cause) {
+          pendingPreviewCauseRef.current = cause;
+          logDevInfo('[pricing-preview] Booking update cause determined', { cause });
+        }
+
+        return nextState;
+      });
     },
-    []
+    [determinePreviewCause]
   );
 
   const subtotalCents = useMemo(() => Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100)), [updatedBookingData.totalAmount]);
   const effectiveOrderId = updatedBookingData.bookingId || bookingData.bookingId;
+
+  useEffect(() => {
+    if (!pendingPreviewCauseRef.current) {
+      return;
+    }
+    if (!quoteSelection) {
+      logDevInfo('[pricing-preview] Pending preview cause awaiting quote payload', {
+        cause: pendingPreviewCauseRef.current,
+      });
+      return;
+    }
+
+    const cause = pendingPreviewCauseRef.current;
+    pendingPreviewCauseRef.current = null;
+    logDevInfo('[pricing-preview] Triggering preview refresh', { cause });
+    void requestPricingPreview({ cause });
+  }, [quoteSelection, requestPricingPreview]);
 
   useEffect(() => {
     setReferralAppliedCents(0);

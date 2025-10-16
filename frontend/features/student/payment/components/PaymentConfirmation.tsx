@@ -12,7 +12,6 @@ import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instr
 import type { InstructorService } from '@/types/instructor';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
-import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { logger } from '@/lib/logger';
 import { usePricingFloors, usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { formatMeetingLocation, toStateCode } from '@/utils/address/format';
@@ -1755,7 +1754,7 @@ export default function PaymentConfirmation({
               <div className="flex justify-between text-sm">
                 <span>{lessonSummaryLabel}</span>
                 <span>
-                  {isPricingPreviewLoading && !pricingPreview ? (
+                  {isPricingPreviewLoading ? (
                     <span className="inline-block h-3 w-16 rounded bg-gray-200 animate-pulse" aria-hidden="true" />
                   ) : (
                     lessonAmountDisplay
@@ -1765,11 +1764,13 @@ export default function PaymentConfirmation({
               <div className="flex justify-between text-sm">
                 <span>{bookingProtectionLabel}</span>
                 <span>
-                  {pricingPreview
-                    ? bookingProtectionAmountDisplay
-                    : pricingPreviewError
-                      ? 'Unavailable'
-                      : renderSummarySkeleton()}
+                  {isPricingPreviewLoading
+                    ? renderSummarySkeleton()
+                    : pricingPreview
+                      ? bookingProtectionAmountDisplay
+                      : pricingPreviewError
+                        ? 'Unavailable'
+                        : renderSummarySkeleton()}
                 </span>
               </div>
               {previewAdditionalLineItems.map((item) => (
@@ -1781,7 +1782,7 @@ export default function PaymentConfirmation({
                 >
                   <span>{item.label}</span>
                   <span>
-                    {isPricingPreviewLoading && !pricingPreview ? (
+                    {isPricingPreviewLoading ? (
                       <span className="inline-block h-3 w-16 rounded bg-gray-200 animate-pulse" aria-hidden="true" />
                     ) : (
                       formatCentsToDisplay(item.amount_cents)
@@ -1793,7 +1794,7 @@ export default function PaymentConfirmation({
                 <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                   <span>Credits applied</span>
                   <span>
-                    {isPricingPreviewLoading && !pricingPreview ? (
+                    {isPricingPreviewLoading ? (
                       <span className="inline-block h-3 w-16 rounded bg-gray-200 animate-pulse" aria-hidden="true" />
                     ) : (
                       creditsAmountDisplay
@@ -1811,11 +1812,13 @@ export default function PaymentConfirmation({
                 <div className="flex justify-between font-bold text-base">
                   <span>Total</span>
                   <span>
-                    {pricingPreview
-                      ? totalAmountDisplay
-                      : pricingPreviewError
-                        ? `$${totalAfterCredits.toFixed(2)}`
-                        : renderSummarySkeleton('w-20')}
+                    {isPricingPreviewLoading
+                      ? renderSummarySkeleton('w-20')
+                      : pricingPreview
+                        ? totalAmountDisplay
+                        : pricingPreviewError
+                          ? `$${totalAfterCredits.toFixed(2)}`
+                          : renderSummarySkeleton('w-20')}
                   </span>
                 </div>
                 {showFeesPlaceholder && (
@@ -1871,39 +1874,32 @@ export default function PaymentConfirmation({
                   location_types: ['online'],
                 }]
           }}
-          // Don't pre-select date/time when editing - let modal default to first available
+          initialDate={bookingDateLocal ?? (booking.date ?? null)}
+          initialTimeHHMM24={startHHMM24 ?? null}
+          initialDurationMinutes={
+            typeof booking.duration === 'number' && Number.isFinite(booking.duration)
+              ? booking.duration
+              : null
+          }
           {...(sessionStorage.getItem('serviceId') && { serviceId: sessionStorage.getItem('serviceId')! })}
           bookingDraftId={booking.bookingId}
           appliedCreditCents={derivedAppliedCreditCents}
           onTimeSelected={(selection) => {
-            // Update booking data with new selection
-            const newBookingDate = new Date(selection.date + 'T' + selection.time);
-            const hourlyRate = booking.duration > 0 ? booking.basePrice / (booking.duration / 60) : 0;
-            const basePrice = Number(((hourlyRate || 0) * selection.duration) / 60);
-            const totalAmount = basePrice;
-            const bookingType = determineBookingType(newBookingDate);
+            const newBookingDate = new Date(`${selection.date}T${selection.time}`);
+            const newEndTime = calculateEndTime(selection.time, selection.duration);
 
-            const updatedBookingData: BookingPayment = {
-              ...booking,
-              date: newBookingDate,
-              startTime: selection.time,
-              endTime: calculateEndTime(selection.time, selection.duration),
-              duration: selection.duration,
-              basePrice,
-              totalAmount,
-              bookingType,
-              ...(bookingType === BookingType.STANDARD && {
-                freeCancellationUntil: new Date(newBookingDate.getTime() - 24 * 60 * 60 * 1000)
-              }),
-            };
+            if (onBookingUpdate) {
+              onBookingUpdate((prev) => ({
+                ...prev,
+                date: newBookingDate,
+                startTime: selection.time,
+                endTime: newEndTime,
+                duration: selection.duration,
+              }));
+            }
 
-            // Store updated booking data
-            sessionStorage.setItem('bookingData', JSON.stringify(updatedBookingData));
-
-            // Close modal and refresh the page with new data
             setIsModalOpen(false);
             onClearFloorViolation?.();
-            window.location.reload();
           }}
         />
       )}

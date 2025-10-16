@@ -11,12 +11,14 @@ import {
 import { createContext, useCallback, useContext, useMemo, useRef, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 
+export type PreviewCause = 'date-time-only' | 'duration-change' | 'credit-change';
+
 type PricingPreviewController = {
   preview: PricingPreviewResponse | null;
   loading: boolean;
   error: string | null;
   lastAppliedCreditCents: number;
-  requestPricingPreview: (options?: { key?: string }) => Promise<PricingPreviewResponse | null>;
+  requestPricingPreview: (options?: { key?: string; cause?: PreviewCause }) => Promise<PricingPreviewResponse | null>;
   applyCredit: (creditCents: number, options?: { skipIfUnchanged?: boolean }) => Promise<PricingPreviewResponse | null>;
   reset: () => void;
   bookingId: string | null;
@@ -137,6 +139,7 @@ export function usePricingPreviewController({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastAppliedRef = useRef(0);
+  const appliedCreditCentsRef = useRef(0);
   const previewRef = useRef<PricingPreviewResponse | null>(null);
   const initAbortRef = useRef<AbortController | null>(null);
   const commitAbortRef = useRef<AbortController | null>(null);
@@ -155,6 +158,12 @@ export function usePricingPreviewController({
   useEffect(() => {
     quotePayloadRef.current = quotePayload ?? null;
   }, [quotePayload]);
+
+  useEffect(() => {
+    const creditCents = Math.max(0, preview?.credit_applied_cents ?? 0);
+    appliedCreditCentsRef.current = creditCents;
+    lastAppliedRef.current = creditCents;
+  }, [preview?.credit_applied_cents]);
 
   const reset = useCallback(() => {
     initAbortRef.current?.abort();
@@ -201,8 +210,10 @@ export function usePricingPreviewController({
     if (!result) {
       return previewRef.current;
     }
+    const sanitizedCreditCents = Math.max(0, result.credit_applied_cents ?? 0);
     previewRef.current = result;
-    lastAppliedRef.current = result.credit_applied_cents;
+    lastAppliedRef.current = sanitizedCreditCents;
+    appliedCreditCentsRef.current = sanitizedCreditCents;
     setPreview(result);
     setError(null);
     return result;
@@ -253,10 +264,11 @@ export function usePricingPreviewController({
     [bookingId, resolveQuotePayloadBase],
   );
 
-  const requestPricingPreview = useCallback(async (options?: { key?: string }) => {
+  const requestPricingPreview = useCallback(async (options?: { key?: string; cause?: PreviewCause }) => {
+    const cause = options?.cause ?? null;
     const requestKey = options?.key ?? computeInitKey();
 
-    if (requestKey && lastInitKeyRef.current === requestKey && previewRef.current) {
+    if (!cause && requestKey && lastInitKeyRef.current === requestKey && previewRef.current) {
       return previewRef.current;
     }
 
@@ -265,10 +277,18 @@ export function usePricingPreviewController({
     initAbortRef.current?.abort();
     const controller = new AbortController();
     initAbortRef.current = controller;
-    beginRequest();
+    const suppressLoading = cause === 'date-time-only';
+    if (!suppressLoading) {
+      beginRequest();
+    }
+
+    const appliedCreditForRequest = Math.max(
+      0,
+      Math.round(cause === 'date-time-only' ? appliedCreditCentsRef.current : 0),
+    );
 
     try {
-      const result = await performFetch(0, controller.signal);
+      const result = await performFetch(appliedCreditForRequest, controller.signal);
       if (controller.signal.aborted) {
         return previewRef.current;
       }
@@ -283,12 +303,22 @@ export function usePricingPreviewController({
       setError('Unable to load pricing preview. Please try again.');
       return previewRef.current;
     } finally {
-      endRequest();
+      if (!suppressLoading) {
+        endRequest();
+      }
       if (initAbortRef.current === controller) {
         initAbortRef.current = null;
       }
     }
-  }, [applyPreviewResult, beginRequest, bookingId, computeInitKey, endRequest, performFetch]);
+  }, [
+    applyPreviewResult,
+    appliedCreditCentsRef,
+    beginRequest,
+    bookingId,
+    computeInitKey,
+    endRequest,
+    performFetch,
+  ]);
 
   const applyCredit = useCallback<PricingPreviewController['applyCredit']>(
     async (creditCents, options) => {
