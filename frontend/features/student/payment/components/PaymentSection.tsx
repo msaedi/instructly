@@ -20,6 +20,7 @@ import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral'
 import { buildCreateBookingPayload } from '../utils/buildCreateBookingPayload';
 import {
   buildPricingPreviewQuotePayload,
+  buildPricingPreviewQuotePayloadBase,
   type PricingPreviewSelection,
 } from '../utils/buildPricingPreviewQuotePayload';
 import { to24HourTime } from '@/lib/time';
@@ -37,9 +38,58 @@ class PaymentActionError extends Error {
   }
 }
 
+const AUTO_APPLY_STORAGE_PREFIX = 'insta:credit:auto-applied:';
+
 const logDevInfo = (...args: Parameters<typeof logger.info>) => {
   if (process.env.NODE_ENV !== 'production') {
     logger.info(...args);
+  }
+};
+
+const stableSerializeForKey = (value: unknown): string => {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map(stableSerializeForKey).join(',')}]`;
+  }
+
+  const entries = Object.keys(value as Record<string, unknown>)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableSerializeForKey((value as Record<string, unknown>)[key])}`);
+
+  return `{${entries.join(',')}}`;
+};
+
+const deriveStudentKey = (metadata: Record<string, unknown> | undefined): string | null => {
+  const candidateKeys = ['studentId', 'student_id', 'userId', 'user_id'];
+
+  for (const key of candidateKeys) {
+    const value = metadata?.[key];
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        return trimmed;
+      }
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+
+  return null;
+};
+
+const persistAutoApplyKey = (key: string) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.sessionStorage?.setItem(`${AUTO_APPLY_STORAGE_PREFIX}${key}`, 'true');
+  } catch {
+    // Ignore storage failures (e.g., quota exceeded or disabled storage)
   }
 };
 
@@ -331,6 +381,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   });
   const {
     preview: pricingPreview,
+    error: pricingPreviewError,
     applyCredit: applyCreditPreview,
     lastAppliedCreditCents,
   } = previewController;
@@ -339,6 +390,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     [updatedBookingData.bookingId, bookingData.bookingId],
   );
   const lastCommittedCreditRef = useRef<number>(lastAppliedCreditCents);
+  const autoAppliedOnceRef = useRef(false);
+  const autoApplyKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     lastCommittedCreditRef.current = lastAppliedCreditCents;
@@ -350,7 +403,6 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     totalAmount: 0,
     credits: [],
   });
-  const [autoAppliedCredits, setAutoAppliedCredits] = useState(false);
   const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(true);
 
   // Track selected card ID separately for payment processing
@@ -589,6 +641,47 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     handleCreditCommitCents,
   ]);
 
+  const autoApplyKey = useMemo(() => {
+    const normalizedBookingId = bookingDraftId?.trim();
+    const studentKey = deriveStudentKey(mergedMetadata);
+
+    if (normalizedBookingId) {
+      return `${studentKey ?? 'anon'}|booking:${normalizedBookingId}`;
+    }
+
+    if (quoteSelection) {
+      const basePayload = buildPricingPreviewQuotePayloadBase(quoteSelection);
+      return `${studentKey ?? 'anon'}|quote:${stableSerializeForKey(basePayload)}`;
+    }
+
+    return null;
+  }, [bookingDraftId, mergedMetadata, quoteSelection]);
+
+  useEffect(() => {
+    if (!autoApplyKey) {
+      autoAppliedOnceRef.current = false;
+      autoApplyKeyRef.current = null;
+      return;
+    }
+
+    if (autoApplyKeyRef.current === autoApplyKey) {
+      return;
+    }
+
+    autoApplyKeyRef.current = autoApplyKey;
+
+    if (typeof window === 'undefined') {
+      autoAppliedOnceRef.current = false;
+      return;
+    }
+
+    try {
+      autoAppliedOnceRef.current = window.sessionStorage?.getItem(`${AUTO_APPLY_STORAGE_PREFIX}${autoApplyKey}`) === 'true';
+    } catch {
+      autoAppliedOnceRef.current = false;
+    }
+  }, [autoApplyKey]);
+
   useEffect(() => {
     if (!pricingPreview) {
       return;
@@ -626,6 +719,57 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       updateCreditSelection(previewCredits, totalDueCents);
     }
   }, [pricingPreview, creditsToUse, updateCreditSelection, lastSuccessfulCreditCents]);
+
+  useEffect(() => {
+    if (!pricingPreview || !autoApplyKey || autoAppliedOnceRef.current) {
+      return;
+    }
+
+    const walletBalanceCents = Math.max(0, Math.round((userCredits.totalAmount || 0) * 100));
+    if (walletBalanceCents <= 0) {
+      return;
+    }
+
+    if (pricingPreviewError) {
+      return;
+    }
+
+    if (floorViolationMessage) {
+      return;
+    }
+
+    const previewCredits = Math.max(0, pricingPreview.credit_applied_cents);
+    if (previewCredits > 0) {
+      autoAppliedOnceRef.current = true;
+      persistAutoApplyKey(autoApplyKey);
+      return;
+    }
+
+    const subtotalCents = Math.max(0, pricingPreview.base_price_cents + pricingPreview.student_fee_cents);
+    const defaultCreditCents = Math.min(walletBalanceCents, subtotalCents);
+
+    if (defaultCreditCents <= 0) {
+      return;
+    }
+
+    autoAppliedOnceRef.current = true;
+    persistAutoApplyKey(autoApplyKey);
+
+    setCreditSliderCents(defaultCreditCents);
+    const totalDueCents = pricingPreview.student_pay_cents + previewCredits;
+    updateCreditSelection(defaultCreditCents, totalDueCents);
+    lastCommittedCreditRef.current = defaultCreditCents;
+
+    void commitCreditPreview(defaultCreditCents);
+  }, [
+    pricingPreview,
+    pricingPreviewError,
+    floorViolationMessage,
+    userCredits.totalAmount,
+    autoApplyKey,
+    updateCreditSelection,
+    commitCreditPreview,
+  ]);
 
   // Fetch real payment methods and credits from backend
   useEffect(() => {
@@ -689,26 +833,6 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
     void fetchPaymentData();
   }, []);
-
-  // Auto-apply available credits by default on confirmation step
-  useEffect(() => {
-    const hasCredits = (userCredits?.totalAmount || 0) > 0;
-    if (!hasCredits || autoAppliedCredits) return;
-
-    // Determine a card to use if needed
-    const defaultCard = userCards.find(c => c.isDefault) || userCards[0];
-    const effectiveCardId = selectedCardId || defaultCard?.id;
-
-    if (!effectiveCardId) return; // No card yet
-
-    // Disable auto-apply for now to prevent loops
-    // const totalDueDollars = getTotalDueCents() / 100;
-    // const amountToApply = Math.min(userCredits.totalAmount || 0, totalDueDollars);
-    // if (amountToApply <= 0) return;
-
-    // selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, amountToApply);
-    setAutoAppliedCredits(true);
-  }, [userCredits, userCards, selectedCardId, autoAppliedCredits, selectPaymentMethod, getTotalDueCents]);
 
   // Track if user manually went back to change payment method
   const [userChangingPayment, setUserChangingPayment] = useState(false);
