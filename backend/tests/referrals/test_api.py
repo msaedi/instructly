@@ -418,6 +418,7 @@ def test_admin_referral_health_endpoint(db, client, monkeypatch):
         pending_total=5,
         unlocked_total=3,
         void_total=1,
+        last_run_age_s=120,
     )
 
     monkeypatch.setattr(ReferralService, "get_admin_health", lambda self: health_payload)

@@ -163,3 +163,4 @@ class AdminReferralsHealthOut(BaseModel):
     pending_total: int
     unlocked_total: int
     void_total: int
+    last_run_age_s: Optional[int] = None

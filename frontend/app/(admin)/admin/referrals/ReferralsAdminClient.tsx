@@ -23,6 +23,7 @@ interface AdminReferralsHealth {
   pending_total: number;
   unlocked_total: number;
   void_total: number;
+  last_run_age_s: number | null;
 }
 
 interface AdminReferralsSummary {
@@ -34,6 +35,31 @@ interface AdminReferralsSummary {
 }
 
 const numberFormatter = new Intl.NumberFormat('en-US');
+const LAST_RUN_WARNING_SECONDS = 1800;
+
+function formatLastRunAge(ageInSeconds: number | null): string {
+  if (ageInSeconds === null) {
+    return 'unknown';
+  }
+
+  if (ageInSeconds < 0) {
+    return 'just now';
+  }
+
+  const hours = Math.floor(ageInSeconds / 3600);
+  const minutes = Math.floor((ageInSeconds % 3600) / 60);
+  const seconds = ageInSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ago`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s ago`;
+  }
+
+  return `${seconds}s ago`;
+}
 
 export default function ReferralsAdminClient() {
   const { isAdmin, isLoading } = useAdminAuth();
@@ -156,6 +182,9 @@ export default function ReferralsAdminClient() {
   const pendingTotal = health?.pending_total ?? 0;
   const unlockedTotal = health?.unlocked_total ?? 0;
   const voidTotal = health?.void_total ?? 0;
+  const lastRunAgeSeconds = health?.last_run_age_s ?? null;
+  const lastRunIsStale = lastRunAgeSeconds !== null && lastRunAgeSeconds > LAST_RUN_WARNING_SECONDS;
+  const lastRunDisplay = formatLastRunAge(lastRunAgeSeconds);
   const clicks24h = summary?.clicks_24h ?? 0;
   const attributions24h = summary?.attributions_24h ?? 0;
 
@@ -182,6 +211,12 @@ export default function ReferralsAdminClient() {
   const backlogCardClasses = backlogDue > 0
     ? 'bg-amber-50 dark:bg-amber-900/20 ring-amber-200/60 dark:ring-amber-800/50 text-amber-900 dark:text-amber-100'
     : 'bg-white/60 dark:bg-gray-900/40 ring-gray-200/70 dark:ring-gray-700/60 text-gray-900 dark:text-gray-100';
+  const backlogChipClasses = backlogDue > 0
+    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-200'
+    : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-200';
+  const lastRunTextClasses = lastRunIsStale
+    ? 'text-amber-600 dark:text-amber-300'
+    : 'text-gray-700 dark:text-gray-300';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -250,6 +285,7 @@ export default function ReferralsAdminClient() {
                 <p className="mt-4 text-xs">
                   {health?.workers?.length ? health.workers.join(', ') : 'No workers responding'}
                 </p>
+                <p className={`mt-3 text-xs font-medium ${lastRunTextClasses}`}>Last run: {lastRunDisplay}</p>
               </div>
 
               <div className={`rounded-2xl p-6 shadow-sm ring-1 backdrop-blur ${backlogCardClasses}`}>
@@ -263,6 +299,11 @@ export default function ReferralsAdminClient() {
                 <p className="mt-4 text-xs text-gray-700 dark:text-gray-300">
                   Rewards pending unlock with past-due unlock timestamps.
                 </p>
+                <span
+                  className={`mt-3 inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold ${backlogChipClasses}`}
+                >
+                  {backlogDue > 0 ? 'Attention required' : 'No backlog'}
+                </span>
               </div>
 
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">

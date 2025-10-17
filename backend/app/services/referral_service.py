@@ -36,6 +36,7 @@ from app.schemas.referrals import (
 )
 from app.services import referral_fraud
 from app.services.base import BaseService
+from app.services.referral_unlocker import get_last_success_timestamp
 from app.services.referrals_config_service import ReferralsConfigService, ReferralsEffectiveConfig
 from app.tasks.celery_app import celery_app
 
@@ -62,6 +63,7 @@ class ReferralService(BaseService):
             RepositoryFactory.create_referral_reward_repository(db)
         )
         self.booking_repo: BookingRepository = RepositoryFactory.create_booking_repository(db)
+        self.referral_limit_repo = RepositoryFactory.create_referral_limit_repository(db)
         self._config_service = ReferralsConfigService(db, cache=self.cache)
 
     @staticmethod
@@ -421,6 +423,13 @@ class ReferralService(BaseService):
         counts = self.referral_reward_repo.counts_by_status()
         backlog_pending_due = self.referral_reward_repo.count_pending_due(now)
 
+        last_run_ts = get_last_success_timestamp()
+        last_run_age_s: int | None = None
+        if last_run_ts is not None:
+            last_run_age_s = max(0, int((now - last_run_ts).total_seconds()))
+            if last_run_age_s > 1800:
+                logger.warning("unlocker.warn.no_recent_runs", extra={"age_s": last_run_age_s})
+
         pending_total = counts.get(RewardStatus.PENDING.value, 0)
         unlocked_total = counts.get(RewardStatus.UNLOCKED.value, 0)
         void_total = counts.get(RewardStatus.VOID.value, 0)
@@ -445,6 +454,7 @@ class ReferralService(BaseService):
             pending_total=pending_total,
             unlocked_total=unlocked_total,
             void_total=void_total,
+            last_run_age_s=last_run_age_s,
         )
 
     def _assert_enabled(self) -> ReferralsEffectiveConfig:
@@ -483,7 +493,18 @@ class ReferralService(BaseService):
         daily, weekly = self.referral_attribution_repo.velocity_counts(
             referrer_user_id, day_floor, week_floor
         )
-        return bool(referral_fraud.is_velocity_abuse(daily_count=daily, weekly_count=weekly))
+        flagged = bool(referral_fraud.is_velocity_abuse(daily_count=daily, weekly_count=weekly))
+        config = self._get_config()
+        trust_score = -1 if flagged else 0
+        self.referral_limit_repo.upsert(
+            user_id=referrer_user_id,
+            daily_ok=daily,
+            weekly_ok=weekly,
+            month_cap=config["student_global_cap"],
+            trust_score=trust_score,
+            last_reviewed_at=now,
+        )
+        return flagged
 
     def _void_rewards(self, rewards: Iterable[ReferralReward], *, reason: str) -> None:
         reward_ids = [reward.id for reward in rewards]

@@ -20,6 +20,32 @@ from app.services.referrals_config_service import ReferralsConfigService
 logger = logging.getLogger(__name__)
 
 
+_LAST_SUCCESS_TS: Optional[datetime] = None
+_BACKLOG_WARN_COUNTER: int = 0
+
+
+def _record_success(timestamp: datetime) -> None:
+    global _LAST_SUCCESS_TS
+    _LAST_SUCCESS_TS = timestamp
+
+
+def get_last_success_timestamp() -> Optional[datetime]:
+    return _LAST_SUCCESS_TS
+
+
+def _update_backlog_warning(backlog_pending_due: int) -> None:
+    global _BACKLOG_WARN_COUNTER
+    if backlog_pending_due > 0:
+        _BACKLOG_WARN_COUNTER += 1
+        if _BACKLOG_WARN_COUNTER >= 2:
+            logger.warning(
+                "unlocker.warn.backlog_persist",
+                extra={"backlog_pending_due": backlog_pending_due},
+            )
+    else:
+        _BACKLOG_WARN_COUNTER = 0
+
+
 @dataclass
 class UnlockerResult:
     processed: int
@@ -82,6 +108,11 @@ class ReferralUnlocker(BaseService):
         for reward_id in expired_ids:
             emit_reward_voided(reward_id=reward_id, reason="expired")
         expired = len(expired_ids)
+
+        backlog_pending_due = self.referral_reward_repo.count_pending_due(now)
+
+        _record_success(now)
+        _update_backlog_warning(backlog_pending_due)
 
         return UnlockerResult(
             processed=processed, unlocked=unlocked, voided=voided, expired=expired

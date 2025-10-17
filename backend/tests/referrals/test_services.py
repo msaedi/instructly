@@ -17,6 +17,7 @@ from app.models.referrals import (
     WalletTransactionType,
 )
 from app.models.user import User
+from app.services import referral_fraud
 from app.services.referral_service import ReferralService
 from app.services.referral_unlocker import ReferralUnlocker
 from app.services.wallet_service import WalletService
@@ -322,3 +323,64 @@ def test_idempotency_guarantees(db, referral_service, unlocker, wallet_service):
     assert txn is not None
     second_attempt = wallet_service.consume_student_credit(user_id=student.id, order_id="order-1", amount_cents=1500)
     assert second_attempt is None
+
+
+def test_velocity_limits_persist(db, referral_service, monkeypatch):
+    referrer = _create_user(db, "velocity-limits@example.com")
+
+    monkeypatch.setattr(
+        referral_service.referral_attribution_repo,
+        "velocity_counts",
+        lambda *_args, **_kwargs: (6, 18),
+    )
+
+    monkeypatch.setattr(
+        referral_fraud,
+        "is_velocity_abuse",
+        lambda *, daily_count, weekly_count, **_: daily_count > 5 or weekly_count > 15,
+    )
+
+    flagged = referral_service._is_velocity_abuse(referrer.id)
+    assert flagged is True
+
+    record = referral_service.referral_limit_repo.get(referrer.id)
+    assert record is not None
+    assert record.daily_ok == 6
+    assert record.weekly_ok == 18
+    assert record.trust_score == -1
+    assert record.last_reviewed_at is not None
+
+
+class TestFraudVelocity:
+    def test_velocity_review_persists(self, db, referral_service, monkeypatch):
+        referrer = _create_user(db, "velocity-review@example.com")
+
+        counts = iter([(3, 12), (7, 22)])
+
+        def fake_counts(*_args, **_kwargs):
+            return next(counts)
+
+        monkeypatch.setattr(
+            referral_service.referral_attribution_repo,
+            "velocity_counts",
+            fake_counts,
+        )
+
+        def fake_velocity_check(*, daily_count, weekly_count, **_kwargs):
+            return daily_count > 5 or weekly_count > 15
+
+        monkeypatch.setattr(referral_fraud, "is_velocity_abuse", fake_velocity_check)
+
+        first_flag = referral_service._is_velocity_abuse(referrer.id)
+        assert first_flag is False
+        initial_record = referral_service.referral_limit_repo.get(referrer.id)
+        assert initial_record is not None
+        assert initial_record.daily_ok == 3
+        assert initial_record.trust_score == 0
+
+        second_flag = referral_service._is_velocity_abuse(referrer.id)
+        assert second_flag is True
+        updated_record = referral_service.referral_limit_repo.get(referrer.id)
+        assert updated_record is not None
+        assert updated_record.daily_ok == 7
+        assert updated_record.trust_score == -1

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from typing import Dict, List, Optional, Tuple, cast
 import uuid
@@ -625,8 +625,69 @@ class WalletTransactionRepository(BaseRepository[WalletTransaction]):
         return transaction
 
 
-class ReferralLimitRepository(BaseRepository[ReferralLimit]):  # Placeholder
-    """Reserved for future referral limit management (no-op for now)."""
+class ReferralLimitRepository(BaseRepository[ReferralLimit]):
+    """Data access for referral limit counters and trust metrics."""
 
     def __init__(self, db: Session):
-        super().__init__(db, ReferralReward)
+        super().__init__(db, ReferralLimit)
+
+    def get(self, user_id: str, *, for_update: bool = False) -> Optional[ReferralLimit]:
+        query = self.db.query(ReferralLimit).filter(ReferralLimit.user_id == user_id)
+        if for_update:
+            query = query.with_for_update()
+        return cast(Optional[ReferralLimit], query.first())
+
+    def upsert(
+        self,
+        *,
+        user_id: str,
+        daily_ok: int,
+        weekly_ok: int,
+        month_cap: int,
+        trust_score: int,
+        last_reviewed_at: Optional[datetime] = None,
+    ) -> ReferralLimit:
+        record = self.get(user_id, for_update=True)
+        reviewed_at = last_reviewed_at or datetime.now(timezone.utc)
+
+        if record is None:
+            record = ReferralLimit(
+                user_id=user_id,
+                daily_ok=daily_ok,
+                weekly_ok=weekly_ok,
+                month_cap=month_cap,
+                trust_score=trust_score,
+                last_reviewed_at=reviewed_at,
+            )
+            self.db.add(record)
+        else:
+            record.daily_ok = daily_ok
+            record.weekly_ok = weekly_ok
+            record.month_cap = month_cap
+            record.trust_score = trust_score
+            record.last_reviewed_at = reviewed_at
+
+        self.db.flush()
+        return record
+
+    def increment_daily(self, user_id: str, *, increment: int = 1) -> ReferralLimit:
+        record = self.get(user_id, for_update=True)
+        reviewed_at = datetime.now(timezone.utc)
+
+        if record is None:
+            record = ReferralLimit(
+                user_id=user_id,
+                daily_ok=increment,
+                weekly_ok=increment,
+                month_cap=0,
+                trust_score=0,
+                last_reviewed_at=reviewed_at,
+            )
+            self.db.add(record)
+        else:
+            record.daily_ok += increment
+            record.weekly_ok += increment
+            record.last_reviewed_at = reviewed_at
+
+        self.db.flush()
+        return record
