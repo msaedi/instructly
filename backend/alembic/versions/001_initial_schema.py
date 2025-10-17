@@ -867,6 +867,39 @@ def upgrade() -> None:
         comment="Rate limits and trust scores for referral program",
     )
 
+    op.create_table(
+        "referral_config",
+        sa.Column("id", sa.UUID(), primary_key=True, nullable=False),
+        sa.Column("version", sa.BigInteger(), nullable=False, unique=True),
+        sa.Column(
+            "effective_at",
+            sa.TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column("student_amount_cents", sa.Integer(), nullable=False),
+        sa.Column("instructor_amount_cents", sa.Integer(), nullable=False),
+        sa.Column("min_basket_cents", sa.Integer(), nullable=False),
+        sa.Column("hold_days", sa.Integer(), nullable=False),
+        sa.Column("expiry_months", sa.Integer(), nullable=False),
+        sa.Column("student_global_cap", sa.Integer(), nullable=False),
+        sa.Column("updated_by", sa.Text(), nullable=False),
+        sa.Column("note", sa.Text(), nullable=True),
+        sa.CheckConstraint("student_amount_cents >= 0"),
+        sa.CheckConstraint("instructor_amount_cents >= 0"),
+        sa.CheckConstraint("min_basket_cents >= 6000"),
+        sa.CheckConstraint("hold_days BETWEEN 1 AND 14"),
+        sa.CheckConstraint("expiry_months BETWEEN 1 AND 24"),
+        sa.CheckConstraint("student_global_cap >= 0"),
+    )
+    op.create_index(
+        "ix_referral_config_effective_at_desc",
+        "referral_config",
+        ["effective_at"],
+        unique=False,
+    )
+
     print("Initial schema created successfully!")
     print("- Created users table WITHOUT role field (using RBAC)")
     print("- Created RBAC tables: roles, permissions, user_roles, role_permissions, user_permissions")
@@ -882,6 +915,9 @@ def downgrade() -> None:
     print("Dropping initial schema...")
 
     # Drop referral program tables and enums first (added after initial schema)
+    op.execute("DROP INDEX IF EXISTS ix_referral_config_effective_at_desc")
+    op.execute("DROP TABLE IF EXISTS referral_config CASCADE")
+
     op.drop_table("referral_limits")
 
     op.drop_index("idx_wallet_transactions_user_created_at", table_name="wallet_transactions")

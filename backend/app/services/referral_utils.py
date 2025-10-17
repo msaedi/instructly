@@ -2,10 +2,8 @@
 
 import secrets
 
-from app.core.config import settings
-
 ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-MIN_BASKET_CENTS = settings.referrals_min_basket_cents
+MIN_BASKET_CENTS = 8000
 
 
 def gen_code(n: int = 8) -> str:

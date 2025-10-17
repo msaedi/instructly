@@ -164,7 +164,7 @@ class Settings(BaseSettings):
         description="Local-only override for beta invite links",
     )
     frontend_referral_landing_url: str = Field(
-        default="https://beta.instainstru.com/referrals",
+        default="https://beta.instainstru.com/referral",
         description="Landing page for public referral links",
     )
 

@@ -273,6 +273,24 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/config/pricing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Pricing Config */
+        get: operations["get_pricing_config_api_admin_config_pricing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Pricing Config */
+        patch: operations["update_pricing_config_api_admin_config_pricing_patch"];
+        trace?: never;
+    };
     "/api/admin/referrals/config": {
         parameters: {
             query?: never;
@@ -752,7 +770,7 @@ export type paths = {
          *     Rate limited to prevent token brute forcing.
          *
          *     Args:
-         *         request: Token and new password
+         *         payload: Token and new password
          *         password_reset_service: Password reset service
          *
          *     Returns:
@@ -787,7 +805,7 @@ export type paths = {
          *     Rate limited by both IP and email to prevent abuse.
          *
          *     Args:
-         *         request: Email address for password reset
+         *         payload: Email address for password reset
          *         password_reset_service: Password reset service
          *
          *     Returns:
@@ -1633,7 +1651,7 @@ export type paths = {
          * @description Create a checkout/payment for a booking.
          *
          *     Args:
-         *         request: Checkout details including booking and payment method
+         *         payload: Checkout details including booking and payment method
          *
          *     Returns:
          *         CheckoutResponse with payment details
@@ -1889,7 +1907,7 @@ export type paths = {
          * @description Save a payment method for a student.
          *
          *     Args:
-         *         request: Payment method details
+         *         payload: Payment method details
          *
          *     Returns:
          *         PaymentMethodResponse with saved payment method details
@@ -2877,7 +2895,7 @@ export type paths = {
          *         auth_service: Authentication service
          *
          *     Returns:
-         *         Token: Access token and token type
+         *         AuthTokenResponse: Access token and token type
          *
          *     Raises:
          *         HTTPException: If credentials are invalid or rate limit exceeded
@@ -2910,7 +2928,7 @@ export type paths = {
          *         db: Database session
          *
          *     Returns:
-         *         Token: Access token and token type
+         *         AuthTokenResponse: Access token and token type
          *
          *     Raises:
          *         HTTPException: If credentials are invalid or rate limit exceeded
@@ -2941,7 +2959,7 @@ export type paths = {
          *         db: Database session
          *
          *     Returns:
-         *         UserWithPermissionsResponse: Current user data with roles and permissions
+         *         AuthUserWithPermissionsResponse: Current user data with roles and permissions
          *
          *     Raises:
          *         HTTPException: If user not found
@@ -2963,7 +2981,7 @@ export type paths = {
          *         db: Database session
          *
          *     Returns:
-         *         UserWithPermissionsResponse: Updated user data
+         *         AuthUserWithPermissionsResponse: Updated user data
          *
          *     Raises:
          *         HTTPException: If user not found or update fails
@@ -2987,12 +3005,12 @@ export type paths = {
          *     Rate limited to prevent spam registrations.
          *
          *     Args:
-         *         user: User creation data (including optional guest_session_id)
+         *         payload: User creation data (including optional guest_session_id)
          *         auth_service: Authentication service
          *         db: Database session
          *
          *     Returns:
-         *         UserResponse: The created user
+         *         AuthUserResponse: The created user
          *
          *     Raises:
          *         HTTPException: If email already registered or rate limit exceeded
@@ -3748,8 +3766,7 @@ export type paths = {
          *     - Stripe Connect onboarding completed
          *     - Identity verification completed
          *     - At least one service configured (skills/pricing)
-         *
-         *     Background check is optional and does NOT gate going live.
+         *     - Background check cleared within the platform
          */
         post: operations["go_live_instructors_me_go_live_post"];
         delete?: never;
@@ -3795,7 +3812,7 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/metrics/cache": {
+    "/ops/cache": {
         parameters: {
             query?: never;
             header?: never;
@@ -3806,7 +3823,7 @@ export type paths = {
          * Get Cache Metrics
          * @description Get detailed cache metrics including availability-specific stats.
          */
-        get: operations["get_cache_metrics_metrics_cache_get"];
+        get: operations["get_cache_metrics_ops_cache_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3815,7 +3832,7 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/metrics/cache/availability": {
+    "/ops/cache/availability": {
         parameters: {
             query?: never;
             header?: never;
@@ -3826,7 +3843,7 @@ export type paths = {
          * Get Availability Cache Metrics
          * @description Get detailed availability-specific cache metrics and top cached keys.
          */
-        get: operations["get_availability_cache_metrics_metrics_cache_availability_get"];
+        get: operations["get_availability_cache_metrics_ops_cache_availability_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3835,7 +3852,7 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/metrics/cache/reset-stats": {
+    "/ops/cache/reset-stats": {
         parameters: {
             query?: never;
             header?: never;
@@ -3848,14 +3865,14 @@ export type paths = {
          * Reset Cache Stats
          * @description Reset cache statistics.
          */
-        post: operations["reset_cache_stats_metrics_cache_reset_stats_post"];
+        post: operations["reset_cache_stats_ops_cache_reset_stats_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/metrics/health": {
+    "/ops/health": {
         parameters: {
             query?: never;
             header?: never;
@@ -3866,7 +3883,7 @@ export type paths = {
          * Health Check
          * @description Basic health check endpoint.
          */
-        get: operations["health_check_metrics_health_get"];
+        get: operations["health_check_ops_health_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3875,7 +3892,7 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/metrics/performance": {
+    "/ops/performance": {
         parameters: {
             query?: never;
             header?: never;
@@ -3886,7 +3903,7 @@ export type paths = {
          * Get Performance Metrics
          * @description Get performance metrics from all services.
          */
-        get: operations["get_performance_metrics_metrics_performance_get"];
+        get: operations["get_performance_metrics_ops_performance_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3895,7 +3912,7 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/metrics/rate-limits": {
+    "/ops/rate-limits": {
         parameters: {
             query?: never;
             header?: never;
@@ -3913,7 +3930,7 @@ export type paths = {
          *
          *     Requires authentication.
          */
-        get: operations["get_rate_limit_stats_metrics_rate_limits_get"];
+        get: operations["get_rate_limit_stats_ops_rate_limits_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3922,7 +3939,7 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/metrics/rate-limits/reset": {
+    "/ops/rate-limits/reset": {
         parameters: {
             query?: never;
             header?: never;
@@ -3942,14 +3959,14 @@ export type paths = {
          *
          *     Requires admin privileges.
          */
-        post: operations["reset_rate_limits_metrics_rate_limits_reset_post"];
+        post: operations["reset_rate_limits_ops_rate_limits_reset_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/metrics/rate-limits/test": {
+    "/ops/rate-limits/test": {
         parameters: {
             query?: never;
             header?: never;
@@ -3963,7 +3980,7 @@ export type paths = {
          *     This endpoint has a low rate limit for testing purposes.
          *     Try making multiple requests to see rate limiting in action.
          */
-        get: operations["test_rate_limit_metrics_rate_limits_test_get"];
+        get: operations["test_rate_limit_ops_rate_limits_test_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3972,7 +3989,7 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/metrics/slow-queries": {
+    "/ops/slow-queries": {
         parameters: {
             query?: never;
             header?: never;
@@ -3983,7 +4000,7 @@ export type paths = {
          * Get Slow Queries
          * @description Get recent slow queries.
          */
-        get: operations["get_slow_queries_metrics_slow_queries_get"];
+        get: operations["get_slow_queries_ops_slow_queries_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4298,10 +4315,7 @@ export type components = {
             /** User Id */
             user_id: string;
         };
-        /**
-         * AccountStatusChangeResponse
-         * @description Response for account status change operations.
-         */
+        /** AccountStatusChangeResponse */
         AccountStatusChangeResponse: {
             /** Message */
             message: string;
@@ -4312,10 +4326,7 @@ export type components = {
             /** Success */
             success: boolean;
         };
-        /**
-         * AccountStatusResponse
-         * @description Response for account status check endpoint.
-         */
+        /** AccountStatusResponse */
         AccountStatusResponse: {
             /** Account Status */
             account_status: string;
@@ -4501,8 +4512,15 @@ export type components = {
             instructor_amount_cents: number;
             /** Min Basket Cents */
             min_basket_cents: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "db" | "defaults";
             /** Student Amount Cents */
             student_amount_cents: number;
+            /** Version */
+            version: number | null;
         };
         /**
          * AdminReferralsHealthOut
@@ -4681,6 +4699,29 @@ export type components = {
              */
             total: number;
         };
+        /**
+         * AllServicesMetadata
+         * @description Metadata for full catalog-with-instructors payload.
+         */
+        AllServicesMetadata: {
+            /** Cached For Seconds */
+            cached_for_seconds: number;
+            /** Total Categories */
+            total_categories: number;
+            /** Total Services */
+            total_services?: number | null;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * AllServicesWithInstructorsResponse
+         * @description Full catalog payload including instructor analytics.
+         */
+        AllServicesWithInstructorsResponse: {
+            /** Categories */
+            categories?: components["schemas"]["CategoryWithServices"][];
+            metadata: components["schemas"]["AllServicesMetadata"];
+        };
         /** AppendHistoryResponse */
         AppendHistoryResponse: {
             /** Count */
@@ -4709,10 +4750,7 @@ export type components = {
              */
             start_date: string;
         };
-        /**
-         * ApplyToDateRangeResponse
-         * @description Response for applying availability to date range.
-         */
+        /** ApplyToDateRangeResponse */
         ApplyToDateRangeResponse: {
             /**
              * End Date
@@ -4730,6 +4768,108 @@ export type components = {
             weeks_applied: number;
             /** Windows Created */
             windows_created: number;
+        };
+        /**
+         * AuthTokenResponse
+         * @description Strict token payload for session-based login responses.
+         */
+        AuthTokenResponse: {
+            /** Access Token */
+            access_token: string;
+            /** Token Type */
+            token_type: string;
+        };
+        /**
+         * AuthUserResponse
+         * @description Minimal strict representation of a user for auth endpoints.
+         */
+        AuthUserResponse: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** First Name */
+            first_name: string;
+            /**
+             * Has Profile Picture
+             * @default false
+             */
+            has_profile_picture: boolean | null;
+            /** Id */
+            id: string;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Last Name */
+            last_name: string;
+            /** Permissions */
+            permissions?: string[];
+            /** Phone */
+            phone?: string | null;
+            /**
+             * Profile Picture Version
+             * @default 0
+             */
+            profile_picture_version: number | null;
+            /** Roles */
+            roles?: string[];
+            /** Timezone */
+            timezone?: string | null;
+            /** Zip Code */
+            zip_code?: string | null;
+        };
+        /**
+         * AuthUserWithPermissionsResponse
+         * @description Extends auth user response with optional beta metadata.
+         */
+        AuthUserWithPermissionsResponse: {
+            /** Beta Access */
+            beta_access?: boolean | null;
+            /** Beta Invited By */
+            beta_invited_by?: string | null;
+            /** Beta Phase */
+            beta_phase?: string | null;
+            /** Beta Role */
+            beta_role?: string | null;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** First Name */
+            first_name: string;
+            /**
+             * Has Profile Picture
+             * @default false
+             */
+            has_profile_picture: boolean | null;
+            /** Id */
+            id: string;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Last Name */
+            last_name: string;
+            /** Permissions */
+            permissions?: string[];
+            /** Phone */
+            phone?: string | null;
+            /**
+             * Profile Picture Version
+             * @default 0
+             */
+            profile_picture_version: number | null;
+            /** Roles */
+            roles?: string[];
+            /** Timezone */
+            timezone?: string | null;
+            /** Zip Code */
+            zip_code?: string | null;
         };
         /** AutocompleteResponse */
         AutocompleteResponse: {
@@ -4790,7 +4930,13 @@ export type components = {
              */
             top_cached_keys_sample: string[];
         };
-        /** AvailabilityCheckRequest */
+        /**
+         * AvailabilityCheckRequest
+         * @description Check if a specific time is available for booking.
+         *
+         *     Clean Architecture: Uses instructor, date, and time directly.
+         *     No slot references needed.
+         */
         AvailabilityCheckRequest: {
             /**
              * Booking Date
@@ -4893,8 +5039,23 @@ export type components = {
                 [key: string]: number;
             };
         };
-        /** BetaSettingsPayload */
-        BetaSettingsPayload: {
+        /**
+         * BetaSettingsResponse
+         * @description Response payload describing beta feature flags.
+         */
+        BetaSettingsResponse: {
+            /** Allow Signup Without Invite */
+            allow_signup_without_invite: boolean;
+            /** Beta Disabled */
+            beta_disabled: boolean;
+            /** Beta Phase */
+            beta_phase: string;
+        };
+        /**
+         * BetaSettingsUpdateRequest
+         * @description Request payload for updating beta settings.
+         */
+        BetaSettingsUpdateRequest: {
             /** Allow Signup Without Invite */
             allow_signup_without_invite: boolean;
             /** Beta Disabled */
@@ -4973,10 +5134,7 @@ export type components = {
              */
             key: string;
         };
-        /**
-         * BookedSlotsResponse
-         * @description Response for getting booked slots in a week.
-         */
+        /** BookedSlotsResponse */
         BookedSlotsResponse: {
             /**
              * Booked Slots
@@ -5053,7 +5211,7 @@ export type components = {
              * @description Type of meeting location
              * @default neutral
              */
-            location_type: ("student_home" | "instructor_location" | "neutral") | null;
+            location_type: ("student_home" | "instructor_location" | "neutral" | "remote" | "in_person") | null;
             /**
              * Meeting Location
              * @description Specific meeting location if applicable
@@ -5215,7 +5373,13 @@ export type components = {
             /** Total Price */
             total_price: number;
         };
-        /** BookingRescheduleRequest */
+        /**
+         * BookingRescheduleRequest
+         * @description Request to reschedule an existing booking by specifying a new date/time and duration.
+         *
+         *     Frontend will subsequently create a new booking; this endpoint prepares the system by
+         *     cancelling the old booking according to policy and recording audit events.
+         */
         BookingRescheduleRequest: {
             /**
              * Booking Date
@@ -5365,10 +5529,7 @@ export type components = {
              */
             validate_only: boolean;
         };
-        /**
-         * BulkUpdateResponse
-         * @description Response schema for bulk availability update.
-         */
+        /** BulkUpdateResponse */
         BulkUpdateResponse: {
             /** Failed */
             failed: number;
@@ -5580,6 +5741,8 @@ export type components = {
             category_id: string;
             /** Description */
             description?: string | null;
+            /** Display Order */
+            display_order?: number | null;
             /** Id */
             id: string;
             /** Max Recommended Price */
@@ -5588,6 +5751,10 @@ export type components = {
             min_recommended_price?: number | null;
             /** Name */
             name: string;
+            /** Online Capable */
+            online_capable?: boolean | null;
+            /** Requires Certification */
+            requires_certification?: boolean | null;
             /**
              * Search Terms
              * @default []
@@ -5623,6 +5790,76 @@ export type components = {
             /** Subtitle */
             subtitle?: string | null;
         };
+        /**
+         * CategoryServiceDetail
+         * @description Detailed catalog service information with instructor analytics.
+         */
+        CategoryServiceDetail: {
+            /**
+             * Active Instructors
+             * @default 0
+             */
+            active_instructors: number;
+            /** Actual Max Price */
+            actual_max_price?: number | null;
+            /** Actual Min Price */
+            actual_min_price?: number | null;
+            /** Category Id */
+            category_id: string;
+            /**
+             * Demand Score
+             * @default 0
+             */
+            demand_score: number;
+            /** Description */
+            description?: string | null;
+            /** Display Order */
+            display_order?: number | null;
+            /** Id */
+            id: string;
+            /**
+             * Instructor Count
+             * @default 0
+             */
+            instructor_count: number;
+            /** Is Active */
+            is_active?: boolean | null;
+            /**
+             * Is Trending
+             * @default false
+             */
+            is_trending: boolean;
+            /** Name */
+            name: string;
+            /** Online Capable */
+            online_capable?: boolean | null;
+            /** Requires Certification */
+            requires_certification?: boolean | null;
+            /** Search Terms */
+            search_terms?: string[];
+            /** Slug */
+            slug: string;
+        };
+        /**
+         * CategoryWithServices
+         * @description Category record containing detailed services.
+         */
+        CategoryWithServices: {
+            /** Description */
+            description?: string | null;
+            /** Icon Name */
+            icon_name?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Services */
+            services?: components["schemas"]["CategoryServiceDetail"][];
+            /** Slug */
+            slug: string;
+            /** Subtitle */
+            subtitle?: string | null;
+        };
         /** CheckoutApplyRequest */
         CheckoutApplyRequest: {
             /** Order Id */
@@ -5633,10 +5870,7 @@ export type components = {
             /** Applied Cents */
             applied_cents: number;
         };
-        /**
-         * CheckoutResponse
-         * @description Response for checkout/payment creation.
-         */
+        /** CheckoutResponse */
         CheckoutResponse: {
             /**
              * Amount
@@ -5835,10 +6069,7 @@ export type components = {
              */
             to_week_start: string;
         };
-        /**
-         * CopyWeekResponse
-         * @description Response for copying week availability.
-         */
+        /** CopyWeekResponse */
         CopyWeekResponse: {
             /** Message */
             message: string;
@@ -5869,6 +6100,11 @@ export type components = {
          * @description Request to create a checkout/payment for a booking.
          */
         CreateCheckoutRequest: {
+            /**
+             * Applied Credit Cents
+             * @description Optional wallet credit amount (in cents) the student chose to apply
+             */
+            applied_credit_cents?: number | null;
             /**
              * Booking Id
              * @description Booking ID to process payment for
@@ -5909,10 +6145,7 @@ export type components = {
              */
             size_bytes: number;
         };
-        /**
-         * CreditBalanceResponse
-         * @description Response for credit balance inquiry.
-         */
+        /** CreditBalanceResponse */
         CreditBalanceResponse: {
             /**
              * Available
@@ -5978,10 +6211,7 @@ export type components = {
              */
             unique_users: number;
         };
-        /**
-         * DashboardLinkResponse
-         * @description Response for Stripe Express dashboard link.
-         */
+        /** DashboardLinkResponse */
         DashboardLinkResponse: {
             /**
              * Dashboard Url
@@ -5995,10 +6225,7 @@ export type components = {
              */
             expires_in_minutes: number;
         };
-        /**
-         * DataExportResponse
-         * @description Response schema for data export requests.
-         */
+        /** DataExportResponse */
         DataExportResponse: {
             /**
              * Data
@@ -6046,10 +6273,7 @@ export type components = {
              */
             status: string;
         };
-        /**
-         * DatabasePoolStatusResponse
-         * @description Response for database pool status endpoint.
-         */
+        /** DatabasePoolStatusResponse */
         DatabasePoolStatusResponse: {
             /** Configuration */
             configuration: {
@@ -6066,10 +6290,7 @@ export type components = {
             /** Status */
             status: string;
         };
-        /**
-         * DatabaseStatsResponse
-         * @description Response for database statistics endpoint.
-         */
+        /** DatabaseStatsResponse */
         DatabaseStatsResponse: {
             /** Configuration */
             configuration: {
@@ -6112,10 +6333,7 @@ export type components = {
              */
             start: string;
         };
-        /**
-         * DeleteBlackoutResponse
-         * @description Response for deleting a blackout date.
-         */
+        /** DeleteBlackoutResponse */
         DeleteBlackoutResponse: {
             /** Blackout Id */
             blackout_id: string;
@@ -6125,10 +6343,7 @@ export type components = {
              */
             message: string;
         };
-        /**
-         * DeleteMessageResponse
-         * @description Response after deleting a message.
-         */
+        /** DeleteMessageResponse */
         DeleteMessageResponse: {
             /**
              * Message
@@ -6142,10 +6357,7 @@ export type components = {
              */
             success: boolean;
         };
-        /**
-         * DeleteWindowResponse
-         * @description Response for deleting an availability window.
-         */
+        /** DeleteWindowResponse */
         DeleteWindowResponse: {
             /**
              * Message
@@ -6155,10 +6367,7 @@ export type components = {
             /** Window Id */
             window_id: string;
         };
-        /**
-         * EarningsResponse
-         * @description Response for earnings data.
-         */
+        /** EarningsResponse */
         EarningsResponse: {
             /**
              * Average Earning
@@ -6196,6 +6405,8 @@ export type components = {
             /** Content */
             content: string;
         };
+        /** ExistingReviewIdsResponse */
+        ExistingReviewIdsResponse: string[];
         /**
          * ExportAnalyticsResponse
          * @description Analytics export response.
@@ -6432,7 +6643,10 @@ export type components = {
              */
             object_key: string;
         };
-        /** GatedPingResponse */
+        /**
+         * GatedPingResponse
+         * @description Simple response indicating gated ping success.
+         */
         GatedPingResponse: {
             /** Ok */
             ok: boolean;
@@ -6587,25 +6801,46 @@ export type components = {
         };
         /** IdentityRefreshResponse */
         IdentityRefreshResponse: {
-            /** Status */
+            /**
+             * Status
+             * @description Latest verification status from Stripe
+             */
             status: string;
-            /** Verified */
+            /**
+             * Verified
+             * @description Whether the user is now verified
+             */
             verified: boolean;
         };
         /** IdentitySessionResponse */
         IdentitySessionResponse: {
-            /** Client Secret */
+            /**
+             * Client Secret
+             * @description Client secret for the verification session
+             */
             client_secret: string;
-            /** Verification Session Id */
+            /**
+             * Verification Session Id
+             * @description Stripe verification session identifier
+             */
             verification_session_id: string;
         };
         /** InstantPayoutResponse */
         InstantPayoutResponse: {
-            /** Ok */
+            /**
+             * Ok
+             * @description Whether the instant payout request succeeded
+             */
             ok: boolean;
-            /** Payout Id */
+            /**
+             * Payout Id
+             * @description Stripe payout identifier if one was created
+             */
             payout_id?: string | null;
-            /** Status */
+            /**
+             * Status
+             * @description Stripe status of the payout (e.g., pending, paid)
+             */
             status?: string | null;
         };
         /**
@@ -7123,10 +7358,7 @@ export type components = {
              */
             message_ids?: string[] | null;
         };
-        /**
-         * MarkMessagesReadResponse
-         * @description Response after marking messages as read.
-         */
+        /** MarkMessagesReadResponse */
         MarkMessagesReadResponse: {
             /**
              * Messages Marked
@@ -7165,10 +7397,7 @@ export type components = {
              */
             used_mb: number;
         };
-        /**
-         * MessageConfigResponse
-         * @description Public config values for messaging UI.
-         */
+        /** MessageConfigResponse */
         MessageConfigResponse: {
             /** Edit Window Minutes */
             edit_window_minutes: number;
@@ -7231,10 +7460,7 @@ export type components = {
             /** Last Name */
             last_name: string;
         };
-        /**
-         * MessagesHistoryResponse
-         * @description Response for message history request.
-         */
+        /** MessagesHistoryResponse */
         MessagesHistoryResponse: {
             /** Booking Id */
             booking_id: string;
@@ -7323,14 +7549,20 @@ export type components = {
              */
             timestamp: string;
         };
-        /** NYCZipCheckResponse */
+        /**
+         * NYCZipCheckResponse
+         * @description Response payload for lightweight NYC ZIP verification.
+         */
         NYCZipCheckResponse: {
             /** Borough */
             borough?: string | null;
             /** Is Nyc */
             is_nyc: boolean;
         };
-        /** NeighborhoodItem */
+        /**
+         * NeighborhoodItem
+         * @description Single neighborhood entry with optional borough metadata.
+         */
         NeighborhoodItem: {
             /** Borough */
             borough?: string | null;
@@ -7341,7 +7573,10 @@ export type components = {
             /** Name */
             name: string;
         };
-        /** NeighborhoodsListResponse */
+        /**
+         * NeighborhoodsListResponse
+         * @description Paginated list of neighborhoods.
+         */
         NeighborhoodsListResponse: {
             /** Items */
             items: components["schemas"]["NeighborhoodItem"][];
@@ -7396,10 +7631,7 @@ export type components = {
              */
             start_time?: string | null;
         };
-        /**
-         * OnboardingResponse
-         * @description Response for starting instructor onboarding.
-         */
+        /** OnboardingResponse */
         OnboardingResponse: {
             /**
              * Account Id
@@ -7417,10 +7649,7 @@ export type components = {
              */
             onboarding_url: string;
         };
-        /**
-         * OnboardingStatusResponse
-         * @description Response for onboarding status check.
-         */
+        /** OnboardingStatusResponse */
         OnboardingStatusResponse: {
             /**
              * Charges Enabled
@@ -7627,14 +7856,20 @@ export type components = {
             /** Message */
             message: string;
         };
-        /** PasswordResetConfirm */
+        /**
+         * PasswordResetConfirm
+         * @description Request model for confirming password reset with new password
+         */
         PasswordResetConfirm: {
             /** New Password */
             new_password: string;
             /** Token */
             token: string;
         };
-        /** PasswordResetRequest */
+        /**
+         * PasswordResetRequest
+         * @description Request model for initiating password reset
+         */
         PasswordResetRequest: {
             /**
              * Email
@@ -7642,37 +7877,13 @@ export type components = {
              */
             email: string;
         };
-        /**
-         * PasswordResetResponse
-         * @description Response after requesting password reset
-         */
+        /** PasswordResetResponse */
         PasswordResetResponse: {
             /** Message */
             message: string;
         };
-        /**
-         * PasswordResetVerifyResponseInvalid
-         * @description Response for invalid password reset token
-         */
-        PasswordResetVerifyResponseInvalid: {
-            /**
-             * Valid
-             * @default false
-             */
-            valid: boolean;
-        };
-        /**
-         * PasswordResetVerifyResponseValid
-         * @description Response for valid password reset token
-         */
-        PasswordResetVerifyResponseValid: {
-            /** Email */
-            email: string;
-            /**
-             * Valid
-             * @default true
-             */
-            valid: boolean;
+        PasswordResetVerifyResponse: {
+            [key: string]: unknown;
         };
         /**
          * PaymentHealthCheckTriggerResponse
@@ -7819,11 +8030,20 @@ export type components = {
         };
         /** PayoutScheduleResponse */
         PayoutScheduleResponse: {
-            /** Account Id */
+            /**
+             * Account Id
+             * @description Stripe connected account identifier
+             */
             account_id?: string | null;
-            /** Ok */
+            /**
+             * Ok
+             * @description Whether the schedule update succeeded
+             */
             ok: boolean;
-            /** Settings */
+            /**
+             * Settings
+             * @description Stripe payout schedule settings that were applied
+             */
             settings?: {
                 [key: string]: unknown;
             } | null;
@@ -7991,6 +8211,8 @@ export type components = {
             description: string;
             /** Place Id */
             place_id: string;
+            /** Provider */
+            provider: string;
             /** Text */
             text: string;
             /**
@@ -8080,10 +8302,83 @@ export type components = {
             /** Label */
             label?: string | null;
         };
+        /** PriceFloorConfig */
+        PriceFloorConfig: {
+            /**
+             * Private In Person
+             * @description Minimum cents for in-person private lessons
+             */
+            private_in_person: number;
+            /**
+             * Private Remote
+             * @description Minimum cents for remote private lessons
+             */
+            private_remote: number;
+        };
+        /** PricingConfig */
+        PricingConfig: {
+            /** Instructor Tiers */
+            instructor_tiers: components["schemas"]["TierConfig"][];
+            price_floor_cents: components["schemas"]["PriceFloorConfig"];
+            student_credit_cycle: components["schemas"]["StudentCreditCycle"];
+            /**
+             * Student Fee Pct
+             * @description Student booking protection fee as decimal
+             */
+            student_fee_pct: number;
+            /**
+             * Tier Activity Window Days
+             * @description Rolling window for tier activity
+             */
+            tier_activity_window_days: number;
+            /**
+             * Tier Inactivity Reset Days
+             * @description Inactivity period before full reset
+             */
+            tier_inactivity_reset_days: number;
+            /**
+             * Tier Stepdown Max
+             * @description Maximum tiers to drop per evaluation
+             */
+            tier_stepdown_max: number;
+        };
         /**
-         * PrivacyStatisticsResponse
-         * @description Response schema for privacy statistics.
+         * PricingConfigPayload
+         * @description Alias for request payload compatibility.
          */
+        PricingConfigPayload: {
+            /** Instructor Tiers */
+            instructor_tiers: components["schemas"]["TierConfig"][];
+            price_floor_cents: components["schemas"]["PriceFloorConfig"];
+            student_credit_cycle: components["schemas"]["StudentCreditCycle"];
+            /**
+             * Student Fee Pct
+             * @description Student booking protection fee as decimal
+             */
+            student_fee_pct: number;
+            /**
+             * Tier Activity Window Days
+             * @description Rolling window for tier activity
+             */
+            tier_activity_window_days: number;
+            /**
+             * Tier Inactivity Reset Days
+             * @description Inactivity period before full reset
+             */
+            tier_inactivity_reset_days: number;
+            /**
+             * Tier Stepdown Max
+             * @description Maximum tiers to drop per evaluation
+             */
+            tier_stepdown_max: number;
+        };
+        /** PricingConfigResponse */
+        PricingConfigResponse: {
+            config: components["schemas"]["PricingConfig"];
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /** PrivacyStatisticsResponse */
         PrivacyStatisticsResponse: {
             /**
              * Statistics
@@ -8124,7 +8419,10 @@ export type components = {
              */
             query: string;
         };
-        /** ProxyUploadResponse */
+        /**
+         * ProxyUploadResponse
+         * @description Response payload for proxied uploads in local development.
+         */
         ProxyUploadResponse: {
             /** Ok */
             ok: boolean;
@@ -8431,30 +8729,21 @@ export type components = {
              */
             total: number;
         };
-        /**
-         * RedisCeleryQueuesResponse
-         * @description Response for Redis Celery queues.
-         */
+        /** RedisCeleryQueuesResponse */
         RedisCeleryQueuesResponse: {
             /** Queues */
             queues: {
                 [key: string]: unknown;
             };
         };
-        /**
-         * RedisConnectionAuditResponse
-         * @description Response for Redis connection audit.
-         */
+        /** RedisConnectionAuditResponse */
         RedisConnectionAuditResponse: {
             /** Connections */
             connections: {
                 [key: string]: unknown;
             }[];
         };
-        /**
-         * RedisFlushQueuesResponse
-         * @description Response for flushing Redis queues.
-         */
+        /** RedisFlushQueuesResponse */
         RedisFlushQueuesResponse: {
             /** Message */
             message: string;
@@ -8482,10 +8771,7 @@ export type components = {
              */
             status: string;
         };
-        /**
-         * RedisStatsResponse
-         * @description Response for Redis statistics.
-         */
+        /** RedisStatsResponse */
         RedisStatsResponse: {
             /** Stats */
             stats: {
@@ -8548,10 +8834,7 @@ export type components = {
             /** Reason */
             reason?: string | null;
         };
-        /**
-         * ReferralErrorResponse
-         * @description Standard error envelope for referral endpoints.
-         */
+        /** ReferralErrorResponse */
         ReferralErrorResponse: {
             /** Reason */
             reason: string;
@@ -8571,10 +8854,7 @@ export type components = {
             /** Unlocked */
             unlocked: components["schemas"]["RewardOut"][];
         };
-        /**
-         * ReferralResolveResponse
-         * @description Response payload when resolving referral slugs as JSON.
-         */
+        /** ReferralResolveResponse */
         ReferralResolveResponse: {
             /** Code */
             code: string;
@@ -8618,10 +8898,7 @@ export type components = {
              */
             referral_link: string;
         };
-        /**
-         * ReferralSendResponse
-         * @description Response after attempting to send referral invites.
-         */
+        /** ReferralSendResponse */
         ReferralSendResponse: {
             /**
              * Errors
@@ -8720,10 +8997,7 @@ export type components = {
              */
             zero_results: number;
         };
-        /**
-         * RetentionPolicyResponse
-         * @description Response schema for applying retention policies.
-         */
+        /** RetentionPolicyResponse */
         RetentionPolicyResponse: {
             /**
              * Message
@@ -9362,10 +9636,7 @@ export type components = {
              */
             content: string;
         };
-        /**
-         * SendMessageResponse
-         * @description Response after sending a message.
-         */
+        /** SendMessageResponse */
         SendMessageResponse: {
             message: components["schemas"]["MessageResponse"];
             /**
@@ -9592,6 +9863,11 @@ export type components = {
             /** Description */
             description?: string | null;
             /**
+             * Display Order
+             * @description Display order hint from the catalog (nullable)
+             */
+            display_order?: number | null;
+            /**
              * Duration Options
              * @description Available duration options for this service in minutes
              * @default [
@@ -9612,6 +9888,11 @@ export type components = {
             /** Id */
             id: string;
             /**
+             * Is Active
+             * @description Whether this service is currently active for the instructor
+             */
+            is_active?: boolean | null;
+            /**
              * Levels Taught
              * @description Levels taught. Allowed: 'beginner', 'intermediate', 'advanced'
              */
@@ -9621,8 +9902,23 @@ export type components = {
              * @description Where lessons are offered. Allowed: 'in-person', 'online'
              */
             location_types?: string[] | null;
+            /**
+             * Name
+             * @description Resolved name of the service from the catalog
+             */
+            name?: string | null;
+            /**
+             * Online Capable
+             * @description Whether the catalog service supports online delivery
+             */
+            online_capable?: boolean | null;
             /** Requirements */
             requirements?: string | null;
+            /**
+             * Requires Certification
+             * @description Whether the catalog service requires certification
+             */
+            requires_certification?: boolean | null;
             /**
              * Service Catalog Id
              * @description ID of the service from catalog
@@ -9634,12 +9930,58 @@ export type components = {
              */
             service_catalog_name: string;
         };
-        /** SignedUploadResponse */
+        /**
+         * ServiceSearchMetadata
+         * @description Metadata describing instructor search results.
+         */
+        ServiceSearchMetadata: {
+            /**
+             * Active Instructors
+             * @default 0
+             */
+            active_instructors: number;
+            /** Filters Applied */
+            filters_applied?: {
+                [key: string]: unknown;
+            };
+            /** Pagination */
+            pagination?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Total Matches
+             * @default 0
+             */
+            total_matches: number;
+        };
+        /**
+         * ServiceSearchResponse
+         * @description Envelope for service-focused instructor search results.
+         */
+        ServiceSearchResponse: {
+            /** Instructors */
+            instructors?: {
+                [key: string]: unknown;
+            }[];
+            metadata: components["schemas"]["ServiceSearchMetadata"];
+            /** Query */
+            query: string;
+            /**
+             * Search Type
+             * @default service
+             * @constant
+             */
+            search_type: "service";
+        };
+        /**
+         * SignedUploadResponse
+         * @description Response payload for signed upload requests.
+         */
         SignedUploadResponse: {
             /** Expires At */
             expires_at: string;
             /** Headers */
-            headers: {
+            headers?: {
                 [key: string]: string;
             };
             /** Object Key */
@@ -9816,6 +10158,34 @@ export type components = {
              */
             start_time: string;
         };
+        /** StudentCreditCycle */
+        StudentCreditCycle: {
+            /**
+             * Cents10
+             * @description Credit cents issued for $10 milestone
+             */
+            cents10: number;
+            /**
+             * Cents20
+             * @description Credit cents issued for $20 milestone
+             */
+            cents20: number;
+            /**
+             * Cycle Len
+             * @description Length of credit cycle in sessions
+             */
+            cycle_len: number;
+            /**
+             * Mod10
+             * @description Modulo offset for $10 credit milestone
+             */
+            mod10: number;
+            /**
+             * Mod20
+             * @description Modulo offset for $20 credit milestone
+             */
+            mod20: number;
+        };
         /**
          * StudentInfo
          * @description Basic student information for booking display.
@@ -9920,6 +10290,24 @@ export type components = {
             /** Token Type */
             token_type: string;
         };
+        /** TierConfig */
+        TierConfig: {
+            /**
+             * Max
+             * @description Maximum sessions for this tier (inclusive); null for open-ended
+             */
+            max?: number | null;
+            /**
+             * Min
+             * @description Minimum completed sessions for this tier
+             */
+            min: number;
+            /**
+             * Pct
+             * @description Commission percentage expressed as decimal
+             */
+            pct: number;
+        };
         /**
          * TimeRange
          * @description Simple time range for schedule entries.
@@ -9952,12 +10340,50 @@ export type components = {
              */
             start_time: string;
         };
-        /** Token */
-        Token: {
-            /** Access Token */
-            access_token: string;
-            /** Token Type */
-            token_type: string;
+        /**
+         * TopCategoryItem
+         * @description Top services grouped under a category.
+         */
+        TopCategoryItem: {
+            /** Icon Name */
+            icon_name?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Services */
+            services?: components["schemas"]["TopCategoryServiceItem"][];
+            /** Slug */
+            slug: string;
+        };
+        /**
+         * TopCategoryServiceItem
+         * @description Minimal service representation for top-per-category capsules.
+         */
+        TopCategoryServiceItem: {
+            /**
+             * Active Instructors
+             * @default 0
+             */
+            active_instructors: number;
+            /**
+             * Demand Score
+             * @default 0
+             */
+            demand_score: number;
+            /** Display Order */
+            display_order?: number | null;
+            /** Id */
+            id: string;
+            /**
+             * Is Trending
+             * @default false
+             */
+            is_trending: boolean;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
         };
         /**
          * TopReferrerOut
@@ -9973,6 +10399,29 @@ export type components = {
              * Format: uuid
              */
             user_id: string;
+        };
+        /**
+         * TopServicesMetadata
+         * @description Metadata for top-per-category payloads.
+         */
+        TopServicesMetadata: {
+            /** Cached For Seconds */
+            cached_for_seconds: number;
+            /** Services Per Category */
+            services_per_category: number;
+            /** Total Categories */
+            total_categories: number;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * TopServicesPerCategoryResponse
+         * @description Response payload for top services per category.
+         */
+        TopServicesPerCategoryResponse: {
+            /** Categories */
+            categories?: components["schemas"]["TopCategoryItem"][];
+            metadata: components["schemas"]["TopServicesMetadata"];
         };
         /**
          * TransactionHistoryItem
@@ -10050,10 +10499,7 @@ export type components = {
              */
             total_price: number;
         };
-        /**
-         * TypingStatusResponse
-         * @description Response for typing indicator endpoints (empty body).
-         */
+        /** TypingStatusResponse */
         TypingStatusResponse: {
             /**
              * Success
@@ -10061,10 +10507,7 @@ export type components = {
              */
             success: boolean;
         };
-        /**
-         * UnreadCountResponse
-         * @description Response for unread message count.
-         */
+        /** UnreadCountResponse */
         UnreadCountResponse: {
             /** Unread Count */
             unread_count: number;
@@ -10215,10 +10658,7 @@ export type components = {
              */
             delete_account: boolean;
         };
-        /**
-         * UserDataDeletionResponse
-         * @description Response schema for user data deletion.
-         */
+        /** UserDataDeletionResponse */
         UserDataDeletionResponse: {
             /**
              * Account Deleted
@@ -10255,54 +10695,6 @@ export type components = {
             /** Password */
             password: string;
         };
-        /** UserResponse */
-        UserResponse: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** First Name */
-            first_name: string;
-            /**
-             * Has Profile Picture
-             * @default false
-             */
-            has_profile_picture: boolean | null;
-            /** Id */
-            id: string;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean | null;
-            /** Last Name */
-            last_name: string;
-            /**
-             * Permissions
-             * @default []
-             */
-            permissions: string[];
-            /** Phone */
-            phone?: string | null;
-            /**
-             * Profile Picture Version
-             * @default 0
-             */
-            profile_picture_version: number | null;
-            /**
-             * Roles
-             * @default []
-             */
-            roles: string[];
-            /**
-             * Timezone
-             * @default America/New_York
-             */
-            timezone: string;
-            /** Zip Code */
-            zip_code: string;
-        };
         /** UserUpdate */
         UserUpdate: {
             /** First Name */
@@ -10315,65 +10707,6 @@ export type components = {
             timezone?: string | null;
             /** Zip Code */
             zip_code?: string | null;
-        };
-        /**
-         * UserWithPermissionsResponse
-         * @description Enhanced user response with roles and permissions for /me endpoint.
-         */
-        UserWithPermissionsResponse: {
-            /** Beta Access */
-            beta_access?: boolean | null;
-            /** Beta Invited By */
-            beta_invited_by?: string | null;
-            /** Beta Phase */
-            beta_phase?: string | null;
-            /** Beta Role */
-            beta_role?: string | null;
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** First Name */
-            first_name: string;
-            /**
-             * Has Profile Picture
-             * @default false
-             */
-            has_profile_picture: boolean | null;
-            /** Id */
-            id: string;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean | null;
-            /** Last Name */
-            last_name: string;
-            /**
-             * Permissions
-             * @default []
-             */
-            permissions: string[];
-            /** Phone */
-            phone?: string | null;
-            /**
-             * Profile Picture Version
-             * @default 0
-             */
-            profile_picture_version: number | null;
-            /**
-             * Roles
-             * @default []
-             */
-            roles: string[];
-            /**
-             * Timezone
-             * @default America/New_York
-             */
-            timezone: string;
-            /** Zip Code */
-            zip_code: string;
         };
         /**
          * ValidateWeekRequest
@@ -10449,10 +10782,7 @@ export type components = {
             /** Valid Operations */
             valid_operations: number;
         };
-        /**
-         * WebhookResponse
-         * @description Response for webhook processing.
-         */
+        /** WebhookResponse */
         WebhookResponse: {
             /**
              * Event Type
@@ -10471,9 +10801,13 @@ export type components = {
             status: string;
         };
         /**
-         * WeekAvailabilityUpdateResponse
-         * @description Response for updating weekly availability.
+         * WeekAvailabilityResponse
+         * @description Week availability mapping keyed by ISO date string.
          */
+        WeekAvailabilityResponse: {
+            [key: string]: components["schemas"]["TimeRange"][];
+        };
+        /** WeekAvailabilityUpdateResponse */
         WeekAvailabilityUpdateResponse: {
             /** Message */
             message: string;
@@ -10536,8 +10870,11 @@ export type components = {
              */
             warnings: string[];
         };
-        /** DeleteResponse */
-        app__routes__addresses__DeleteResponse: {
+        /**
+         * DeleteResponse
+         * @description Standard delete acknowledgement for address resources.
+         */
+        app__schemas__address_responses__DeleteResponse: {
             /** Message */
             message: string;
             /** Success */
@@ -10586,10 +10923,7 @@ export type components = {
             /** Last Initial */
             last_initial: string;
         };
-        /**
-         * DeleteResponse
-         * @description Response for delete operations.
-         */
+        /** DeleteResponse */
         app__schemas__payment_schemas__DeleteResponse: {
             /**
              * Success
@@ -10833,7 +11167,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__routes__addresses__DeleteResponse"];
+                    "application/json": components["schemas"]["app__schemas__address_responses__DeleteResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11051,6 +11385,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NYCZipCheckResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pricing_config_api_admin_config_pricing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingConfigResponse"];
+                };
+            };
+        };
+    };
+    update_pricing_config_api_admin_config_pricing_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PricingConfigPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingConfigResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11823,7 +12210,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PasswordResetVerifyResponseValid"] | components["schemas"]["PasswordResetVerifyResponseInvalid"];
+                    "application/json": components["schemas"]["PasswordResetVerifyResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12119,7 +12506,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BetaSettingsPayload"];
+                    "application/json": components["schemas"]["BetaSettingsResponse"];
                 };
             };
         };
@@ -12133,7 +12520,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BetaSettingsPayload"];
+                "application/json": components["schemas"]["BetaSettingsUpdateRequest"];
             };
         };
         responses: {
@@ -12143,7 +12530,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BetaSettingsPayload"];
+                    "application/json": components["schemas"]["BetaSettingsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -14006,7 +14393,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string[];
+                    "application/json": components["schemas"]["ExistingReviewIdsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -14734,7 +15121,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Token"];
+                    "application/json": components["schemas"]["AuthTokenResponse"];
                 };
             };
             /** @description Validation Error */
@@ -14763,7 +15150,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserWithPermissionsResponse"];
+                    "application/json": components["schemas"]["AuthUserWithPermissionsResponse"];
                 };
             };
         };
@@ -14787,7 +15174,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserWithPermissionsResponse"];
+                    "application/json": components["schemas"]["AuthUserWithPermissionsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -14820,7 +15207,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserResponse"];
+                    "application/json": components["schemas"]["AuthUserResponse"];
                 };
             };
             /** @description Validation Error */
@@ -15584,9 +15971,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: components["schemas"]["TimeRange"][];
-                    };
+                    "application/json": components["schemas"]["WeekAvailabilityResponse"];
                 };
             };
             /** @description Validation Error */
@@ -16084,7 +16469,7 @@ export interface operations {
             };
         };
     };
-    get_cache_metrics_metrics_cache_get: {
+    get_cache_metrics_ops_cache_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -16104,7 +16489,7 @@ export interface operations {
             };
         };
     };
-    get_availability_cache_metrics_metrics_cache_availability_get: {
+    get_availability_cache_metrics_ops_cache_availability_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -16124,7 +16509,7 @@ export interface operations {
             };
         };
     };
-    reset_cache_stats_metrics_cache_reset_stats_post: {
+    reset_cache_stats_ops_cache_reset_stats_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -16144,7 +16529,7 @@ export interface operations {
             };
         };
     };
-    health_check_metrics_health_get: {
+    health_check_ops_health_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -16164,7 +16549,7 @@ export interface operations {
             };
         };
     };
-    get_performance_metrics_metrics_performance_get: {
+    get_performance_metrics_ops_performance_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -16184,7 +16569,7 @@ export interface operations {
             };
         };
     };
-    get_rate_limit_stats_metrics_rate_limits_get: {
+    get_rate_limit_stats_ops_rate_limits_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -16204,7 +16589,7 @@ export interface operations {
             };
         };
     };
-    reset_rate_limits_metrics_rate_limits_reset_post: {
+    reset_rate_limits_ops_rate_limits_reset_post: {
         parameters: {
             query: {
                 /** @description Pattern to match (e.g., 'email_*', 'ip_192.168.*') */
@@ -16236,7 +16621,7 @@ export interface operations {
             };
         };
     };
-    test_rate_limit_metrics_rate_limits_test_get: {
+    test_rate_limit_ops_rate_limits_test_get: {
         parameters: {
             query?: {
                 /** @description Number of requests to simulate */
@@ -16268,7 +16653,7 @@ export interface operations {
             };
         };
     };
-    get_slow_queries_metrics_slow_queries_get: {
+    get_slow_queries_ops_slow_queries_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -16366,9 +16751,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AllServicesWithInstructorsResponse"];
                 };
             };
         };
@@ -16411,9 +16794,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TopServicesPerCategoryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -16498,9 +16879,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ServiceSearchResponse"];
                 };
             };
             /** @description Validation Error */

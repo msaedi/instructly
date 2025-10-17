@@ -21,11 +21,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 import sys
 from typing import Tuple
+import uuid
 
 # Ensure backend/ is importable when called directly
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine, select  # noqa: E402
+from sqlalchemy import create_engine, select, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app.auth import get_password_hash  # noqa: E402
@@ -123,6 +124,38 @@ def seed_admin_user(
         print(f"✅ {action} baseline admin user '{normalized_email}' at {now.isoformat()}")
 
 
+def seed_referral_config(engine, site_mode: str, actor: str = "seed") -> None:
+    with engine.begin() as conn:
+        exists = conn.execute(text("SELECT 1 FROM referral_config LIMIT 1")).first()
+        if exists:
+            print("[SEED][referral_config] already present; no-op")
+            return
+
+        normalized_mode = (site_mode or "local").strip().lower()
+        cap = 20 if normalized_mode in {"local", "int"} else 50 if normalized_mode == "preview" else 200
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO referral_config
+                  (id, version, enabled, student_amount_cents, instructor_amount_cents,
+                   min_basket_cents, hold_days, expiry_months, student_global_cap,
+                   updated_by, note)
+                VALUES
+                  (:id, 1, TRUE, 2000, 5000,
+                   8000, 7, 6, :cap,
+                   :actor, 'initial seed')
+                """
+            ),
+            {
+                "id": str(uuid.uuid4()),
+                "cap": cap,
+                "actor": actor,
+            },
+        )
+        print("[SEED][referral_config] inserted version=1")
+
+
 def _print_banner():
     import os
 
@@ -184,6 +217,8 @@ def seed_system_data(verbose: bool = True) -> None:
             now=datetime.now(timezone.utc),
             verbose=verbose,
         )
+
+    seed_referral_config(engine, site_mode=settings.site_mode, actor="seed-system")
 
 
 def seed_mock_data(verbose: bool = True) -> None:

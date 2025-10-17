@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import hashlib
 import logging
 from typing import List, Optional
+from urllib.parse import urlparse, urlunparse
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -80,6 +81,27 @@ def _accepts_json(accept_header: Optional[str]) -> bool:
     return True
 
 
+def _normalize_referral_landing_url(raw_url: str) -> str:
+    url = (raw_url or "").strip()
+    if not url:
+        return "/referral"
+
+    parsed = urlparse(url)
+    path = (parsed.path or "").rstrip("/")
+
+    if path.endswith("/referrals"):
+        path = path[:-1]
+
+    if not path.endswith("/referral"):
+        path = f"{path}/referral" if path else "/referral"
+
+    if not path.startswith("/"):
+        path = f"/{path}"
+
+    normalized = parsed._replace(path=path or "/referral")
+    return urlunparse(normalized)
+
+
 @public_router.get("/r/{slug}", response_model=ReferralResolveResponse)
 async def resolve_referral_slug(
     slug: str,
@@ -116,7 +138,7 @@ async def resolve_referral_slug(
         ts=datetime.now(timezone.utc),
     )
 
-    landing_url = settings.frontend_referral_landing_url
+    landing_url = _normalize_referral_landing_url(settings.frontend_referral_landing_url)
 
     if _accepts_json(request.headers.get("accept")):
         _set_referral_cookie(response, code_value)
@@ -216,10 +238,6 @@ async def apply_referral_credit(
     current_user: User = Depends(get_current_active_user),
     checkout_service: ReferralCheckoutService = Depends(get_referral_checkout_service),
 ) -> Response:
-    if not settings.referrals_enabled:
-        response.status_code = status.HTTP_409_CONFLICT
-        return ReferralErrorResponse(reason="disabled")
-
     try:
         applied = checkout_service.apply_student_credit(
             user_id=current_user.id,

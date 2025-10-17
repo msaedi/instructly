@@ -46,6 +46,7 @@ describe('AdminReferralsPage', () => {
             pending_total: 12,
             unlocked_total: 8,
             void_total: 1,
+            last_run_age_s: 90,
           }),
         );
       }
@@ -113,6 +114,7 @@ describe('AdminReferralsPage', () => {
     expect(workersCard).toHaveTextContent('3');
     const backlogCard = screen.getByText('Backlog Pending Due').closest('div');
     expect(backlogCard).toHaveTextContent('5');
+    expect(screen.getByText(/Last run:/i)).toHaveTextContent(/Last run: 1m 30s ago/);
     expect(screen.getByText('Pending')).toBeInTheDocument();
     expect(screen.getByText('Unlocked')).toBeInTheDocument();
     expect(screen.getByText('Void')).toBeInTheDocument();
