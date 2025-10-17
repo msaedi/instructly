@@ -32,6 +32,40 @@ import {
   type StoredCreditDecision,
 } from '../utils/creditStorage';
 
+type StoredCreditsUiState = {
+  creditsCollapsed: boolean;
+};
+
+const readStoredCreditsUiState = (key: string): StoredCreditsUiState | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const raw = window.sessionStorage?.getItem(key);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<StoredCreditsUiState>;
+    return { creditsCollapsed: Boolean(parsed?.creditsCollapsed) };
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredCreditsUiState = (key: string, state: StoredCreditsUiState): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    window.sessionStorage?.setItem(
+      key,
+      JSON.stringify({ creditsCollapsed: Boolean(state.creditsCollapsed) }),
+    );
+  } catch {
+    // Ignore storage failures (quota, disabled storage, etc.)
+  }
+};
+
 // Custom error for payment actions that require user interaction
 class PaymentActionError extends Error {
   constructor(
@@ -359,8 +393,11 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const autoAppliedOnceRef = useRef(false);
   const creditDecisionKeyRef = useRef<string | null>(null);
   const creditDecisionRef = useRef<StoredCreditDecision | null>(null);
+  const creditUiKeyRef = useRef<string | null>(null);
+  const creditsCollapsedRef = useRef(false);
   const expansionInitializedRef = useRef(false);
   const pendingPreviewCauseRef = useRef<PreviewCause | null>(null);
+  const pendingExplicitRemovalRef = useRef(false);
 
   useEffect(() => {
     lastCommittedCreditRef.current = lastAppliedCreditCents;
@@ -667,10 +704,14 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           ? { lastCreditCents: appliedCents, explicitlyRemoved: false }
           : {
               lastCreditCents: appliedCents,
-              explicitlyRemoved: existingDecision?.explicitlyRemoved ?? false,
+              explicitlyRemoved:
+                pendingExplicitRemovalRef.current || (existingDecision?.explicitlyRemoved ?? false),
             };
         writeStoredCreditDecision(creditDecisionKey, nextDecision);
         creditDecisionRef.current = nextDecision;
+        if (normalizedCreditCents === 0) {
+          pendingExplicitRemovalRef.current = false;
+        }
       }
       if (floorViolationMessage !== null) {
         setFloorViolationMessage(null);
@@ -701,10 +742,15 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       if (creditDecisionKey) {
         const nextDecision: StoredCreditDecision = {
           lastCreditCents: fallbackCents,
-          explicitlyRemoved: fallbackCents > 0 ? false : creditDecisionRef.current?.explicitlyRemoved ?? false,
+          explicitlyRemoved: fallbackCents > 0
+            ? false
+            : pendingExplicitRemovalRef.current || (creditDecisionRef.current?.explicitlyRemoved ?? false),
         };
         writeStoredCreditDecision(creditDecisionKey, nextDecision);
         creditDecisionRef.current = nextDecision;
+        if (fallbackCents === 0) {
+          pendingExplicitRemovalRef.current = false;
+        }
       }
     }
   }, [
@@ -732,14 +778,16 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       const nextCents = 0;
       setCreditSliderCents(nextCents);
       updateCreditSelection(nextCents, totalDueCents);
-      handleCreditCommitCents(nextCents);
-      if (floorViolationMessage) {
-        setFloorViolationMessage(null);
-      }
       if (creditDecisionKey) {
+        // Persist the explicit removal immediately so we don't race the preview commit
         const decision: StoredCreditDecision = { lastCreditCents: 0, explicitlyRemoved: true };
         writeStoredCreditDecision(creditDecisionKey, decision);
         creditDecisionRef.current = decision;
+      }
+      pendingExplicitRemovalRef.current = true;
+      handleCreditCommitCents(nextCents);
+      if (floorViolationMessage) {
+        setFloorViolationMessage(null);
       }
       setIsCreditsExpanded(false);
       return;
@@ -757,7 +805,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       writeStoredCreditDecision(creditDecisionKey, decision);
       creditDecisionRef.current = decision;
     }
-    setIsCreditsExpanded(true);
+    if (!creditsCollapsedRef.current) {
+      setIsCreditsExpanded(true);
+    }
   }, [creditSliderCents, getTotalDueCents, updateCreditSelection, userCredits.totalAmount, floorViolationMessage, handleCreditCommitCents, creditDecisionKey]);
 
   const handleCreditAmountChange = useCallback((amountDollars: number) => {
@@ -785,7 +835,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       creditDecisionRef.current = decision;
     }
     if (clampedCents > 0) {
-      setIsCreditsExpanded(true);
+      if (!creditsCollapsedRef.current) {
+        setIsCreditsExpanded(true);
+      }
     }
   }, [
     getTotalDueCents,
@@ -797,15 +849,20 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     creditDecisionKey,
   ]);
 
+  const persistCreditsCollapsedPreference = useCallback((collapsed: boolean) => {
+    creditsCollapsedRef.current = collapsed;
+    const uiKey = creditUiKeyRef.current;
+    if (uiKey) {
+      writeStoredCreditsUiState(uiKey, { creditsCollapsed: collapsed });
+    }
+  }, []);
+
   const handleCreditsAccordionToggleFromChild = useCallback(
     (expanded: boolean) => {
-      if ((pricingPreview?.credit_applied_cents ?? 0) > 0) {
-        setIsCreditsExpanded(true);
-        return;
-      }
       setIsCreditsExpanded(expanded);
+      persistCreditsCollapsedPreference(!expanded);
     },
-    [pricingPreview?.credit_applied_cents],
+    [persistCreditsCollapsedPreference],
   );
 
   useEffect(() => {
@@ -819,13 +876,23 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
     if (!creditDecisionKey) {
       creditDecisionRef.current = null;
+      creditUiKeyRef.current = null;
+      creditsCollapsedRef.current = false;
       setIsCreditsExpanded(false);
       return;
     }
 
-    const stored = readStoredCreditDecision(creditDecisionKey);
-    creditDecisionRef.current = stored;
-    setIsCreditsExpanded((stored?.lastCreditCents ?? 0) > 0);
+    const storedDecision = readStoredCreditDecision(creditDecisionKey);
+    creditDecisionRef.current = storedDecision;
+
+    const uiKey = `${creditDecisionKey}:ui`;
+    creditUiKeyRef.current = uiKey;
+    const storedUiState = readStoredCreditsUiState(uiKey);
+    const isCollapsed = Boolean(storedUiState?.creditsCollapsed);
+    creditsCollapsedRef.current = isCollapsed;
+
+    const hasAppliedCredits = (storedDecision?.lastCreditCents ?? 0) > 0;
+    setIsCreditsExpanded(hasAppliedCredits && !isCollapsed);
   }, [creditDecisionKey]);
 
   useEffect(() => {
@@ -845,13 +912,15 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     const previewCredits = Math.max(0, pricingPreview?.credit_applied_cents ?? 0);
     const storedCredits = Math.max(0, creditDecisionRef.current?.lastCreditCents ?? 0);
     if (pricingPreview || creditDecisionRef.current) {
-      setIsCreditsExpanded(previewCredits > 0 || storedCredits > 0);
+      const shouldExpand = (previewCredits > 0 || storedCredits > 0) && !creditsCollapsedRef.current;
+      setIsCreditsExpanded(shouldExpand);
       expansionInitializedRef.current = true;
     }
   }, [pricingPreview]);
 
   useEffect(() => {
-    if ((pricingPreview?.credit_applied_cents ?? 0) > 0) {
+    const previewCredits = Math.max(0, pricingPreview?.credit_applied_cents ?? 0);
+    if (previewCredits > 0 && !creditsCollapsedRef.current) {
       setIsCreditsExpanded(true);
     }
   }, [pricingPreview?.credit_applied_cents]);
@@ -866,6 +935,40 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     // Only update if actually changed
     if (lastSuccessfulCreditCents !== previewCredits) {
       setLastSuccessfulCreditCents(previewCredits);
+    }
+
+    if (creditDecisionKey) {
+      const storedDecision = creditDecisionRef.current;
+      const shouldSkipInitialZero = !storedDecision && previewCredits === 0;
+      if (!shouldSkipInitialZero) {
+        const shouldPersist =
+          !storedDecision ||
+          storedDecision.lastCreditCents !== previewCredits ||
+          (previewCredits > 0 && storedDecision.explicitlyRemoved);
+        const allowPersist =
+          previewCredits > 0 ||
+          storedDecision?.explicitlyRemoved ||
+          storedDecision?.lastCreditCents === previewCredits;
+        const removalPersist =
+          previewCredits === 0 &&
+          lastCommittedCreditRef.current === 0 &&
+          Math.max(0, storedDecision?.lastCreditCents ?? 0) === 0;
+        if (shouldPersist && (allowPersist || removalPersist)) {
+          const nextDecision: StoredCreditDecision = {
+            lastCreditCents: previewCredits,
+            explicitlyRemoved:
+              previewCredits > 0
+                ? false
+                : storedDecision
+                  ? storedDecision.explicitlyRemoved ?? (lastCommittedCreditRef.current === 0)
+                  : false,
+          };
+          writeStoredCreditDecision(creditDecisionKey, nextDecision);
+          creditDecisionRef.current = nextDecision;
+        }
+      } else {
+        creditDecisionRef.current = null;
+      }
     }
 
     setCreditSliderCents((prev) => (prev === previewCredits ? prev : previewCredits));
@@ -892,7 +995,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     if (Math.abs(currentCreditCents - previewCredits) > 0.01) {
       updateCreditSelection(previewCredits, totalDueCents);
     }
-  }, [pricingPreview, creditsToUse, updateCreditSelection, lastSuccessfulCreditCents]);
+  }, [pricingPreview, creditsToUse, updateCreditSelection, lastSuccessfulCreditCents, creditDecisionKey]);
 
   useEffect(() => {
     if (!pricingPreview || !creditDecisionKey || autoAppliedOnceRef.current) {
@@ -923,13 +1026,17 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       return;
     }
 
-    const storedDecision = creditDecisionRef.current;
+    const storedDecisionFromSession = readStoredCreditDecision(creditDecisionKey);
+    const storedDecision = storedDecisionFromSession ?? creditDecisionRef.current;
+    creditDecisionRef.current = storedDecision ?? null;
+
     if (storedDecision?.explicitlyRemoved) {
       autoAppliedOnceRef.current = true;
       return;
     }
 
-    const desiredCents = Math.max(0, Math.min(storedDecision?.lastCreditCents ?? maxApplicableCents, maxApplicableCents));
+    const desiredSourceCents = storedDecision?.lastCreditCents ?? maxApplicableCents;
+    const desiredCents = Math.max(0, Math.min(desiredSourceCents, maxApplicableCents));
     if (desiredCents <= 0) {
       autoAppliedOnceRef.current = true;
       return;
@@ -937,9 +1044,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
     autoAppliedOnceRef.current = true;
     const decision: StoredCreditDecision = { lastCreditCents: desiredCents, explicitlyRemoved: false };
-    writeStoredCreditDecision(creditDecisionKey, decision);
     creditDecisionRef.current = decision;
-    setIsCreditsExpanded(true);
+    if (!creditsCollapsedRef.current) {
+      setIsCreditsExpanded(true);
+    }
     setCreditSliderCents(desiredCents);
     const totalDueCents = pricingPreview.student_pay_cents + previewCredits;
     updateCreditSelection(desiredCents, totalDueCents);

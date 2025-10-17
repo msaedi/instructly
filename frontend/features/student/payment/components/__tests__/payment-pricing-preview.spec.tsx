@@ -59,6 +59,7 @@ jest.mock('@/lib/api/pricing', () => {
 
 const fetchPricingPreviewMock = fetchPricingPreview as jest.MockedFunction<typeof fetchPricingPreview>;
 const fetchPricingPreviewQuoteMock = fetchPricingPreviewQuote as jest.MockedFunction<typeof fetchPricingPreviewQuote>;
+const mockedPaymentService = paymentService as jest.Mocked<typeof paymentService>;
 
 const baseBookingData: BookingPayment & {
   serviceId?: string;
@@ -192,7 +193,7 @@ describe('PaymentSection pricing preview integration', () => {
   });
 
   it('shows floor violation banner and disables confirm when preview returns 422', async () => {
-    (paymentService.getCreditBalance as jest.Mock).mockResolvedValueOnce({
+    mockedPaymentService.getCreditBalance.mockResolvedValueOnce({
       available: 200,
       pending: 0,
       expires_at: null,
@@ -244,9 +245,16 @@ describe('PaymentSection pricing preview integration', () => {
       return Promise.reject(new Error(`Unexpected credit cents ${creditCents}`));
     });
 
+    mockedPaymentService.getCreditBalance.mockResolvedValue({ available: 200, pending: 0, expires_at: null });
+
     renderPaymentSection();
 
     await screen.findByText('Service & Support fee (12%)');
+
+    const creditsToggle = await screen.findByRole('button', { name: /Available Credits/i });
+    if (creditsToggle.getAttribute('aria-expanded') === 'false') {
+      fireEvent.click(creditsToggle);
+    }
 
     const creditSlider = await screen.findByRole('slider');
     fireEvent.change(creditSlider, { target: { value: '20' } });

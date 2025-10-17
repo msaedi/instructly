@@ -331,9 +331,10 @@ export function usePricingPreviewController({
       beginRequest();
     }
 
+    const shouldCarryCredit = cause === 'date-time-only' || cause === 'duration-change';
     const appliedCreditForRequest = Math.max(
       0,
-      Math.round(cause === 'date-time-only' ? appliedCreditCentsRef.current : 0),
+      Math.round(shouldCarryCredit ? appliedCreditCentsRef.current : 0),
     );
 
     try {

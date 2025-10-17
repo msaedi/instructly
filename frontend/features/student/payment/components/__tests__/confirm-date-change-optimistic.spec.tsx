@@ -19,6 +19,8 @@ const bookingUpdateHandlerRef: {
   current: ((updater: (prev: BookingWithOptionalService) => BookingWithOptionalService) => void) | null;
 } = { current: null };
 
+const CREDIT_STORAGE_KEY = 'insta:credits:last:booking-1';
+
 jest.mock('../PaymentConfirmation', () => {
   function MockPaymentConfirmation(
     props: {
@@ -31,9 +33,11 @@ jest.mock('../PaymentConfirmation', () => {
     const preview = controller?.preview ?? null;
     const creditApplied = preview ? preview.credit_applied_cents : 0;
 
+    const creditDisplay = (creditApplied / 100).toFixed(2);
+
     return (
       <div>
-        <div data-testid="credits-applied">{(creditApplied / 100).toFixed(2)}</div>
+        <div data-testid="credits-applied">Credits applied ${creditDisplay}</div>
         {loading && <span data-testid="pricing-preview-skeleton" />}
       </div>
     );
@@ -233,7 +237,7 @@ describe('PaymentSection optimistic preview handling', () => {
     expect(bookingUpdateHandler).toBeTruthy();
 
     const creditDisplay = await screen.findByTestId('credits-applied');
-    expect(creditDisplay.textContent).toBe('45.00');
+    expect(creditDisplay).toHaveTextContent(/Credits applied\s+\$45\.00/i);
 
     await act(async () => {
       bookingUpdateHandler?.((prev) => ({
@@ -253,26 +257,22 @@ describe('PaymentSection optimistic preview handling', () => {
     expect(appliedCreditCents).toBe(4500);
 
     expect(screen.queryByTestId('pricing-preview-skeleton')).not.toBeInTheDocument();
-    expect(screen.getByTestId('credits-applied').textContent).toBe('45.00');
+    expect(screen.getByTestId('credits-applied')).toHaveTextContent(/Credits applied\s+\$45\.00/i);
 
     await act(async () => {
       deferred.resolve({ ...BASE_PREVIEW_WITH_CREDIT });
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('credits-applied').textContent).toBe('45.00');
+      expect(screen.getByTestId('credits-applied')).toHaveTextContent(/Credits applied\s+\$45\.00/i);
     });
     expect(fetchPricingPreviewMock).toHaveBeenCalledTimes(2);
   });
 
-  it('shows skeleton and resets credit when duration changes', async () => {
+  it('shows skeleton but keeps credit applied when duration changes', async () => {
     const deferred = createDeferred<PricingPreviewResponse>();
     const durationPreview: PricingPreviewResponse = {
       ...BASE_PREVIEW_WITH_CREDIT,
-      credit_applied_cents: 0,
-      student_pay_cents: 30000,
-      base_price_cents: 30000,
-      line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 3600 }],
     };
 
     fetchPricingPreviewMock
@@ -305,10 +305,9 @@ describe('PaymentSection optimistic preview handling', () => {
       expect(fetchPricingPreviewMock).toHaveBeenCalledTimes(2);
     });
 
-    const durationCall = fetchPricingPreviewMock.mock.calls[1];
-    expect(durationCall).toBeDefined();
-    const appliedCreditAfterDuration = durationCall ? durationCall[1] : undefined;
-    expect(appliedCreditAfterDuration).toBe(0);
+    await screen.findByText(/Credits applied\s+\$45\.00/i);
+    const storedDecision = JSON.parse(sessionStorage.getItem(CREDIT_STORAGE_KEY)!);
+    expect(storedDecision).toMatchObject({ lastCreditCents: 4500, explicitlyRemoved: false });
 
     expect(screen.getAllByTestId('pricing-preview-skeleton').length).toBeGreaterThan(0);
 
@@ -321,6 +320,9 @@ describe('PaymentSection optimistic preview handling', () => {
     });
 
     const creditNode = await screen.findByTestId('credits-applied');
-    expect(creditNode.textContent).toBe('0.00');
+    expect(creditNode).toHaveTextContent(/Credits applied\s+\$45\.00/i);
+
+    const persistedDecision = JSON.parse(sessionStorage.getItem(CREDIT_STORAGE_KEY)!);
+    expect(persistedDecision).toMatchObject({ lastCreditCents: 4500, explicitlyRemoved: false });
   });
 });

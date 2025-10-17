@@ -38,9 +38,17 @@ jest.mock('@/features/shared/api/schemas/instructorProfile', () => ({
   loadInstructorProfileSchema: jest.fn().mockResolvedValue({ services: [] }),
 }));
 
+let latestTimeSelectionModalProps: {
+  isOpen?: boolean;
+  onTimeSelected?: (selection: { date: string; time: string; duration: number }) => void;
+} | null = null;
+
 jest.mock('@/features/student/booking/components/TimeSelectionModal', () => ({
   __esModule: true,
-  default: () => null,
+  default: (props: unknown) => {
+    latestTimeSelectionModalProps = props as typeof latestTimeSelectionModalProps;
+    return null;
+  },
 }));
 
 jest.mock('@/components/referrals/CheckoutApplyReferral', () => ({
@@ -123,6 +131,30 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => {
   return { PlacesAutocompleteInput: MockPlacesAutocompleteInput };
 });
 
+const { paymentService } = jest.requireMock('@/services/api/payments') as {
+  paymentService: {
+    listPaymentMethods: jest.Mock;
+    getCreditBalance: jest.Mock;
+  };
+};
+
+const CREDIT_STORAGE_KEY = 'insta:credits:last:booking-1';
+
+const buildPreview = (baseCents: number, feeCents: number, creditCents: number): PricingPreviewResponse => ({
+  base_price_cents: baseCents,
+  student_fee_cents: feeCents,
+  instructor_commission_cents: 0,
+  credit_applied_cents: creditCents,
+  student_pay_cents: baseCents + feeCents - creditCents,
+  application_fee_cents: 0,
+  top_up_transfer_cents: 0,
+  instructor_tier_pct: null,
+  line_items: [
+    { label: `Service & Support fee (12%)`, amount_cents: feeCents },
+    ...(creditCents > 0 ? [{ label: 'Credit applied', amount_cents: -creditCents }] : []),
+  ],
+});
+
 const PREVIEW_WITH_CREDIT: PricingPreviewResponse = {
   base_price_cents: 22500,
   student_fee_cents: 2700,
@@ -202,6 +234,7 @@ describe('Payment summary integration with pricing preview', () => {
     jest.clearAllMocks();
     mockStudentFeePct = 0.12;
     sessionStorage.clear();
+    latestTimeSelectionModalProps = null;
   });
 
   afterEach(() => {
@@ -274,6 +307,118 @@ describe('Payment summary integration with pricing preview', () => {
     expect(scoped.getByText('$10.92')).toBeInTheDocument();
     expect(scoped.getByText('Total')).toBeInTheDocument();
     expect(scoped.getByText('$101.92')).toBeInTheDocument();
+  });
+
+  it('keeps applied credits when duration increases and sends the credit amount with the preview request', async () => {
+    paymentService.getCreditBalance.mockResolvedValue({ available: 100, pending: 0, expires_at: null });
+
+    let durationIncreaseTriggered = false;
+
+    fetchPricingPreviewMock.mockImplementation(async (_bookingId, creditCents = 0) => {
+      const normalized = Math.max(0, Math.round(creditCents));
+      if (durationIncreaseTriggered) {
+        return buildPreview(15_000, 1_800, normalized);
+      }
+      return buildPreview(12_000, 1_500, normalized);
+    });
+
+    renderPaymentSectionForSummary({
+      duration: 45,
+      endTime: '02:45 PM',
+      totalAmount: 135,
+      basePrice: 120,
+    });
+
+    await waitFor(() => expect(screen.queryByText(/Loading payment methods/i)).not.toBeInTheDocument());
+
+    const creditsToggle = await screen.findByRole('button', { name: /Available Credits/i });
+    if (creditsToggle.getAttribute('aria-expanded') === 'false') {
+      fireEvent.click(creditsToggle);
+    }
+
+    const slider = await screen.findByRole('slider');
+    fireEvent.change(slider, { target: { value: '27' } });
+    fireEvent.mouseUp(slider);
+
+    await waitFor(() => expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('27'));
+    await screen.findByText(/Using \$27\.00/i);
+    expect(JSON.parse(sessionStorage.getItem(CREDIT_STORAGE_KEY)!)).toMatchObject({
+      lastCreditCents: 2700,
+      explicitlyRemoved: false,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit lesson/i }));
+
+    expect(latestTimeSelectionModalProps?.onTimeSelected).toBeDefined();
+
+    act(() => {
+      durationIncreaseTriggered = true;
+      latestTimeSelectionModalProps?.onTimeSelected?.({ date: '2025-05-06', time: '14:00', duration: 60 });
+    });
+
+    await waitFor(() => {
+      expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('27');
+    });
+    await screen.findByText(/Using \$27\.00/i);
+    expect(JSON.parse(sessionStorage.getItem(CREDIT_STORAGE_KEY)!)).toMatchObject({
+      lastCreditCents: 2700,
+      explicitlyRemoved: false,
+    });
+  });
+
+  it('clamps applied credits when duration decreases and persists the server amount', async () => {
+    paymentService.getCreditBalance.mockResolvedValue({ available: 100, pending: 0, expires_at: null });
+
+    let durationDecreaseTriggered = false;
+
+    fetchPricingPreviewMock.mockImplementation(async (_bookingId, creditCents = 0) => {
+      const normalized = Math.max(0, Math.round(creditCents));
+      if (durationDecreaseTriggered) {
+        const clamped = Math.min(normalized, 3_000);
+        return buildPreview(2_400, 600, clamped);
+      }
+      return buildPreview(16_000, 1_920, normalized);
+    });
+
+    renderPaymentSectionForSummary({
+      duration: 60,
+      endTime: '03:00 PM',
+      totalAmount: 198,
+      basePrice: 176,
+    });
+
+    await waitFor(() => expect(screen.queryByText(/Loading payment methods/i)).not.toBeInTheDocument());
+
+    const creditsToggle = await screen.findByRole('button', { name: /Available Credits/i });
+    if (creditsToggle.getAttribute('aria-expanded') === 'false') {
+      fireEvent.click(creditsToggle);
+    }
+
+    const slider = await screen.findByRole('slider');
+    fireEvent.change(slider, { target: { value: '40' } });
+    fireEvent.mouseUp(slider);
+
+    await waitFor(() => expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('40'));
+    expect(JSON.parse(sessionStorage.getItem(CREDIT_STORAGE_KEY)!)).toMatchObject({
+      lastCreditCents: 4000,
+      explicitlyRemoved: false,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit lesson/i }));
+
+    expect(latestTimeSelectionModalProps?.onTimeSelected).toBeDefined();
+
+    act(() => {
+      durationDecreaseTriggered = true;
+      latestTimeSelectionModalProps?.onTimeSelected?.({ date: '2025-05-06', time: '14:00', duration: 45 });
+    });
+
+    await waitFor(() => expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('30'));
+    await screen.findByText(/Using \$30\.00/i);
+    expect(JSON.parse(sessionStorage.getItem(CREDIT_STORAGE_KEY)!)).toMatchObject({
+      lastCreditCents: 3000,
+      explicitlyRemoved: false,
+    });
   });
 
   it('shows a skeleton while pricing preview is loading', async () => {

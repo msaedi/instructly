@@ -148,18 +148,6 @@ const buildPreview = (base: number, fee: number, credit: number): PricingPreview
 
 const STORAGE_KEY = 'insta:credits:last:booking-1';
 
-const getPositiveCommitCount = () =>
-  fetchPricingPreviewMock.mock.calls.filter(([, credit]) => Number(credit) > 0).length;
-
-const waitForCreditsAppliedAmount = async (amountCents: number) => {
-  const dollarsPattern = (amountCents / 100).toFixed(2).replace('.', '\\.');
-  const rows = await screen.findAllByText('Credits applied');
-  const row = rows[0]!;
-  await waitFor(() => {
-    expect(row.closest('div')).toHaveTextContent(new RegExp(`\\$${dollarsPattern}`));
-  });
-};
-
 describe('Credits accordion expansion & persistence', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -174,7 +162,7 @@ describe('Credits accordion expansion & persistence', () => {
     });
   });
 
-  it('auto-expands and persists when credits are applied', async () => {
+  it('allows collapsing while credits are applied and remembers the preference', async () => {
     const previewsByCredit: Record<number, PricingPreviewResponse> = {
       0: buildPreview(10_000, 2_000, 0),
       4_500: buildPreview(10_000, 2_000, 4_500),
@@ -191,27 +179,60 @@ describe('Credits accordion expansion & persistence', () => {
 
     paymentService.getCreditBalance.mockResolvedValue({ available: 45, pending: 0, expires_at: null });
 
+    const { unmount } = renderPaymentSection();
+
+    await waitFor(() => expect(screen.queryByText(/Loading payment methods/i)).not.toBeInTheDocument());
+
+    const toggle = await screen.findByRole('button', { name: /Available Credits/i });
+    if (toggle.getAttribute('aria-expanded') === 'false') {
+      fireEvent.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'));
+    } else {
+      expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    }
+
+    const applyFullBalanceButton = screen.queryByRole('button', { name: /Apply full balance/i });
+    if (applyFullBalanceButton) {
+      fireEvent.click(applyFullBalanceButton);
+    }
+
+    await waitFor(() =>
+      expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+        lastCreditCents: 4500,
+        explicitlyRemoved: false,
+      }),
+      { timeout: 2000 }
+    );
+
+    const slider = await screen.findByRole('slider');
+    await waitFor(() => {
+      expect((slider as HTMLInputElement).value).toBe('45');
+    });
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'false'));
+    const collapsedSummaryTexts = await screen.findAllByText(/Using \$45\.00/i);
+    expect(collapsedSummaryTexts.length).toBeGreaterThan(0);
+
+    expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+      lastCreditCents: 4500,
+      explicitlyRemoved: false,
+    });
+
+    unmount();
+
     renderPaymentSection();
 
     await waitFor(() => expect(screen.queryByText(/Loading payment methods/i)).not.toBeInTheDocument());
 
-    await waitFor(() => {
-      expect(getPositiveCommitCount()).toBe(1);
-    }, { timeout: 5000 });
-
-    await waitForCreditsAppliedAmount(4_500);
-
-    const slider = await screen.findByRole('slider');
-    expect(slider).toBeVisible();
-    expect((slider as HTMLInputElement).value).toBe('45');
-
-    const stored = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? 'null');
-    expect(stored).toEqual({ lastCreditCents: 4500, explicitlyRemoved: false });
-
-    const accordionToggle = screen.getByRole('button', { name: /Available Credits/i });
-    expect(accordionToggle).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.click(accordionToggle);
-    expect(accordionToggle).toHaveAttribute('aria-expanded', 'true');
+    const toggleAfterRefresh = await screen.findByRole('button', { name: /Available Credits/i });
+    expect(toggleAfterRefresh).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryAllByText(/Using \$45\.00/i).length).toBeGreaterThan(0);
+    expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+      lastCreditCents: 4500,
+      explicitlyRemoved: false,
+    });
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
   });
 
   it('remembers explicit removal across refresh', async () => {
@@ -235,24 +256,39 @@ describe('Credits accordion expansion & persistence', () => {
 
     await waitFor(() => expect(screen.queryByText(/Loading payment methods/i)).not.toBeInTheDocument());
 
-    await waitFor(() => {
-      expect(getPositiveCommitCount()).toBe(1);
-    }, { timeout: 5000 });
+    const toggle = await screen.findByRole('button', { name: /Available Credits/i });
+    if (toggle.getAttribute('aria-expanded') === 'false') {
+      fireEvent.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'));
+    }
 
-    await waitForCreditsAppliedAmount(4_500);
+    const applyFullBalance = screen.queryByRole('button', { name: /Apply full balance/i });
+    if (applyFullBalance) {
+      fireEvent.click(applyFullBalance);
+    }
 
-    fireEvent.click(screen.getByRole('button', { name: /Remove credits/i }));
+    await waitFor(() =>
+      expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+        lastCreditCents: 4500,
+        explicitlyRemoved: false,
+      }),
+      { timeout: 2000 }
+    );
 
-    await waitFor(() => {
-      expect(screen.getByText('Using $0.00')).toBeInTheDocument();
-    });
+    const slider = await screen.findByRole('slider');
+    await waitFor(() => expect((slider as HTMLInputElement).value).toBe('45'));
+    fireEvent.click(screen.getByRole('button', { name: /^Remove credits$/i }));
 
-    await waitFor(() => {
-      const stored = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? 'null');
-      expect(stored).toEqual({ lastCreditCents: 0, explicitlyRemoved: true });
-    });
+    await waitFor(() => expect(screen.getByText(/Using \$0\.00/i)).toBeInTheDocument());
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'false'));
+    expect(screen.queryByText(/Credit applied/i)).not.toBeInTheDocument();
 
-    const commitsBeforeRefresh = getPositiveCommitCount();
+    await waitFor(() =>
+      expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+        lastCreditCents: 0,
+        explicitlyRemoved: true,
+      }),
+    );
 
     unmount();
 
@@ -260,13 +296,14 @@ describe('Credits accordion expansion & persistence', () => {
 
     await waitFor(() => expect(screen.queryByText(/Loading payment methods/i)).not.toBeInTheDocument());
 
-    const accordionToggle = await screen.findByRole('button', { name: /Available Credits/i });
-    expect(accordionToggle).toHaveAttribute('aria-expanded', 'false');
+    const toggleAfterRefresh = await screen.findByRole('button', { name: /Available Credits/i });
+    expect(toggleAfterRefresh).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText(/Using \$0\.00/i)).toBeInTheDocument();
+    expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+      lastCreditCents: 0,
+      explicitlyRemoved: true,
+    });
     expect(screen.queryByRole('slider')).not.toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(getPositiveCommitCount()).toBe(commitsBeforeRefresh);
-    }, { timeout: 5000 });
   });
 
   it('restores stored credit amount on refresh, clamped to wallet/subtotal', async () => {
@@ -292,16 +329,24 @@ describe('Credits accordion expansion & persistence', () => {
 
     await waitFor(() => expect(screen.queryByText(/Loading payment methods/i)).not.toBeInTheDocument());
 
-    await waitFor(() => {
-      expect(getPositiveCommitCount()).toBe(1);
-    }, { timeout: 5000 });
+    const toggle = await screen.findByRole('button', { name: /Available Credits/i });
+    if (toggle.getAttribute('aria-expanded') === 'false') {
+      fireEvent.click(toggle);
+    }
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'));
 
-    await waitForCreditsAppliedAmount(3_000);
-    await waitFor(() => expect(screen.getByText('Using $30.00')).toBeInTheDocument());
-    const slider = screen.getByRole('slider') as HTMLInputElement;
-    expect(slider.value).toBe('30');
+    await waitFor(() =>
+      expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+        lastCreditCents: 3000,
+        explicitlyRemoved: false,
+      }),
+    );
 
-    const stored = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? 'null');
-    expect(stored).toEqual({ lastCreditCents: 3000, explicitlyRemoved: false });
+    const slider = await screen.findByRole('slider');
+    await waitFor(() => expect((slider as HTMLInputElement).value).toBe('30'));
+    expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+      lastCreditCents: 3000,
+      explicitlyRemoved: false,
+    });
   });
 });

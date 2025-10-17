@@ -924,6 +924,8 @@ export default function PaymentConfirmation({
     onCreditsAccordionToggle?.(next);
   }, [creditsAccordionIsExpanded, isCreditsExpandedControlled, onCreditsAccordionToggle]);
   const creditsAppliedLabel = useMemo(() => `Using $${appliedCreditDollars.toFixed(2)}`, [appliedCreditDollars]);
+  const previewAppliedCreditCents = Math.max(0, pricingPreview?.credit_applied_cents ?? 0);
+  const collapsedHasCredits = !creditsAccordionIsExpanded && previewAppliedCreditCents > 0;
 
   useEffect(() => {
     setPromoActive(promoApplied);
@@ -1418,32 +1420,32 @@ export default function PaymentConfirmation({
         {/* Available Credits Section - with interactive toggle and slider */}
         {availableCredits > 0 && (
           <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
-            <div
-              className="flex items-center justify-between cursor-pointer"
-              onClick={handleCreditsAccordionToggle}
-              role="button"
-              tabIndex={0}
-              aria-expanded={creditsAccordionIsExpanded}
-              aria-controls={creditsAccordionPanelId}
-              onKeyDown={(event) => {
-                if (event.key === ' ' || event.key === 'Enter') {
-                  event.preventDefault();
-                  handleCreditsAccordionToggle();
-                }
-              }}
-            >
-              <div className="flex-1">
-                <h4 className="font-bold text-xl">Available Credits</h4>
-                <p className="text-sm text-gray-600">
-                  Balance: ${availableCredits.toFixed(2)}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">{creditsAppliedLabel}</p>
-              </div>
-              <ChevronDown
-                className={`h-5 w-5 text-gray-500 transition-transform ${
-                  creditsAccordionIsExpanded ? 'rotate-180' : ''
-                }`}
-              />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 cursor-pointer select-none"
+                onClick={handleCreditsAccordionToggle}
+                aria-expanded={creditsAccordionIsExpanded}
+                aria-controls={creditsAccordionPanelId}
+              >
+                <div className="flex-1 text-left">
+                  <h4 className="font-bold text-xl">Available Credits</h4>
+                  <p className="text-sm text-gray-600">
+                    Balance: ${availableCredits.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{creditsAppliedLabel}</p>
+                  {collapsedHasCredits && (
+                    <span className="sr-only">
+                      Using {formatCentsToDisplay(previewAppliedCreditCents)}
+                    </span>
+                  )}
+                </div>
+                <ChevronDown
+                  className={`h-5 w-5 text-gray-500 transition-transform ${
+                    creditsAccordionIsExpanded ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
             </div>
 
             {creditsAccordionIsExpanded && (
