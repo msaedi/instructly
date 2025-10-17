@@ -20,6 +20,7 @@ from app.repositories.referral_repository import (
     ReferralRewardRepository,
 )
 from app.repositories.user_repository import UserRepository
+from app.routes.referrals import _normalize_referral_landing_url
 from app.schemas.referrals import AdminReferralsHealthOut, CheckoutApplyRequest
 from app.services.referral_checkout_service import ReferralCheckoutError
 from app.services.referral_service import ReferralService
@@ -54,7 +55,8 @@ def test_referral_redirect_records_click(db, client, referral_service):
     response = client.get(f"/r/{code.vanity_slug}", follow_redirects=False)
 
     assert response.status_code == status.HTTP_302_FOUND
-    assert response.headers["location"] == settings.frontend_referral_landing_url
+    expected_url = _normalize_referral_landing_url(settings.frontend_referral_landing_url)
+    assert response.headers["location"] == expected_url
     assert response.cookies.get("instainstru_ref") == code.code
 
     click_repo = ReferralClickRepository(db)
@@ -71,7 +73,8 @@ def test_referral_redirect_json_mode(db, client, referral_service):
     payload = response.json()
     assert payload["ok"] is True
     assert payload["code"] == code.code
-    assert payload["redirect"] == settings.frontend_referral_landing_url
+    expected_url = _normalize_referral_landing_url(settings.frontend_referral_landing_url)
+    assert payload["redirect"] == expected_url
     assert response.cookies.get("instainstru_ref") == code.code
 
 
@@ -104,6 +107,46 @@ def test_claim_authenticated_user(db, client, referral_service):
     response_conflict = client.post("/api/referrals/claim", json={"code": code.code}, headers=headers)
     assert response_conflict.status_code == status.HTTP_409_CONFLICT
     assert response_conflict.json()["reason"] == "already_attributed"
+
+
+def test_slug_redirects_to_referral_landing_html(db, client, referral_service, monkeypatch):
+    referrer = _create_user(db, "referrer_html@example.com")
+    code = referral_service.issue_code(referrer_user_id=referrer.id)
+
+    monkeypatch.setattr(
+        settings,
+        "frontend_referral_landing_url",
+        "https://preview.instainstru.com/referrals/",
+    )
+
+    response = client.get(f"/r/{code.code}", follow_redirects=False)
+
+    assert response.status_code == status.HTTP_302_FOUND
+    assert response.headers["location"] == "https://preview.instainstru.com/referral"
+    assert "instainstru_ref" in (response.headers.get("set-cookie") or "")
+
+
+def test_slug_redirects_to_referral_landing_json(db, client, referral_service, monkeypatch):
+    referrer = _create_user(db, "referrer_json_redirect@example.com")
+    code = referral_service.issue_code(referrer_user_id=referrer.id)
+
+    monkeypatch.setattr(
+        settings,
+        "frontend_referral_landing_url",
+        "https://preview.instainstru.com/referrals",
+    )
+
+    response = client.get(
+        f"/r/{code.code}",
+        headers={"accept": "application/json"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()
+    assert payload["redirect"] == "https://preview.instainstru.com/referral"
+    assert payload["code"] == code.code
+    assert "instainstru_ref" in (response.headers.get("set-cookie") or "")
 
 
 def test_get_my_referral_ledger(db, client, referral_service):
