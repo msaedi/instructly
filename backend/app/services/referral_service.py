@@ -11,7 +11,6 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 import ulid
 
-from app.core.config import settings
 from app.events.referral_events import (
     emit_first_booking_completed,
     emit_referral_code_issued,
@@ -37,6 +36,7 @@ from app.schemas.referrals import (
 )
 from app.services import referral_fraud
 from app.services.base import BaseService
+from app.services.referrals_config_service import ReferralsConfigService, ReferralsEffectiveConfig
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -62,6 +62,7 @@ class ReferralService(BaseService):
             RepositoryFactory.create_referral_reward_repository(db)
         )
         self.booking_repo: BookingRepository = RepositoryFactory.create_booking_repository(db)
+        self._config_service = ReferralsConfigService(db, cache=self.cache)
 
     @staticmethod
     def _normalize_user_id(user_id: UserID) -> str:
@@ -208,7 +209,7 @@ class ReferralService(BaseService):
     ) -> None:
         """Handle first booking completion for a referred student."""
 
-        self._assert_enabled()
+        config = self._assert_enabled()
         student_id = self._normalize_user_id(user_id)
         booking_id_str = self._normalize_user_id(booking_id)
         completed_ts = self._ensure_timezone(completed_at)
@@ -234,7 +235,7 @@ class ReferralService(BaseService):
 
             inviter_id = code_row.referrer_user_id
 
-            if self._beyond_student_cap(inviter_id):
+            if self._beyond_student_cap(inviter_id, config):
                 logger.warning("Referrer %s reached student reward cap", inviter_id)
                 return
 
@@ -249,14 +250,14 @@ class ReferralService(BaseService):
                 signup_ip_hash=fingerprints.get("signup_ip"),
             )
 
-            unlock_ts = completed_ts + timedelta(days=settings.referrals_hold_days)
-            expire_ts = self._add_months(unlock_ts, settings.referrals_expiry_months)
+            unlock_ts = completed_ts + timedelta(days=config["hold_days"])
+            expire_ts = self._add_months(unlock_ts, config["expiry_months"])
             booking_prefix = booking_id_str.replace("-", "")[:12]
 
             student_reward, referrer_reward = self.referral_reward_repo.create_student_pair(
                 student_user_id=student_id,
                 inviter_user_id=inviter_id,
-                amount_cents=settings.referrals_student_amount_cents,
+                amount_cents=config["student_amount_cents"],
                 unlock_ts=unlock_ts,
                 expire_ts=expire_ts,
                 rule_version_student=f"S1-{booking_prefix}",
@@ -292,7 +293,7 @@ class ReferralService(BaseService):
     ) -> None:
         """Gate instructor-side rewards on rolling lesson completions."""
 
-        self._assert_enabled()
+        config = self._assert_enabled()
         instructor_id = self._normalize_user_id(instructor_user_id)
         completed_ts = self._ensure_timezone(completed_at)
 
@@ -317,14 +318,14 @@ class ReferralService(BaseService):
             if lesson_count < 3:
                 return
 
-            unlock_ts = completed_ts + timedelta(days=settings.referrals_hold_days)
-            expire_ts = self._add_months(unlock_ts, settings.referrals_expiry_months)
+            unlock_ts = completed_ts + timedelta(days=config["hold_days"])
+            expire_ts = self._add_months(unlock_ts, config["expiry_months"])
             lesson_prefix = self._normalize_user_id(lesson_id).replace("-", "")[:12]
 
             reward = self.referral_reward_repo.create_instructor_referrer_reward(
                 referrer_user_id=inviter_id,
                 referred_user_id=instructor_id,
-                amount_cents=settings.referrals_instructor_amount_cents,
+                amount_cents=config["instructor_amount_cents"],
                 unlock_ts=unlock_ts,
                 expire_ts=expire_ts,
                 rule_version=f"I1-{lesson_prefix}",
@@ -364,14 +365,17 @@ class ReferralService(BaseService):
     def get_admin_config(self) -> AdminReferralsConfigOut:
         """Return program configuration for admin dashboards."""
 
+        config = self._get_config()
         return AdminReferralsConfigOut(
-            student_amount_cents=settings.referrals_student_amount_cents,
-            instructor_amount_cents=settings.referrals_instructor_amount_cents,
-            min_basket_cents=settings.referrals_min_basket_cents,
-            hold_days=settings.referrals_hold_days,
-            expiry_months=settings.referrals_expiry_months,
-            global_cap=settings.referrals_student_global_cap,
-            flags={"enabled": bool(settings.referrals_enabled)},
+            student_amount_cents=config["student_amount_cents"],
+            instructor_amount_cents=config["instructor_amount_cents"],
+            min_basket_cents=config["min_basket_cents"],
+            hold_days=config["hold_days"],
+            expiry_months=config["expiry_months"],
+            global_cap=config["student_global_cap"],
+            version=config["version"],
+            source=config["source"],
+            flags={"enabled": bool(config["enabled"])},
         )
 
     @BaseService.measure_operation("referrals.admin.summary")
@@ -379,7 +383,8 @@ class ReferralService(BaseService):
         """Return aggregated referral metrics for admins."""
 
         counts = self.referral_reward_repo.counts_by_status()
-        cap = settings.referrals_student_global_cap
+        config = self._get_config()
+        cap = config["student_global_cap"]
         total_student_rewards = self.referral_reward_repo.total_student_rewards()
         cap_utilization_percent = 0.0
         if cap:
@@ -442,9 +447,14 @@ class ReferralService(BaseService):
             void_total=void_total,
         )
 
-    def _assert_enabled(self) -> None:
-        if not settings.referrals_enabled:
+    def _assert_enabled(self) -> ReferralsEffectiveConfig:
+        config = self._config_service.get_effective_config()
+        if not config["enabled"]:
             raise RuntimeError("Referral program currently disabled")
+        return config
+
+    def _get_config(self) -> ReferralsEffectiveConfig:
+        return self._config_service.get_effective_config()
 
     def _add_months(self, base: datetime, months: int) -> datetime:
         year = base.year + (base.month - 1 + months) // 12
@@ -456,9 +466,14 @@ class ReferralService(BaseService):
     def _days_in_month(year: int, month: int) -> int:
         return calendar.monthrange(year, month)[1]
 
-    def _beyond_student_cap(self, referrer_user_id: str) -> bool:
+    def _beyond_student_cap(
+        self,
+        referrer_user_id: str,
+        config: ReferralsEffectiveConfig | None = None,
+    ) -> bool:
         total: int = self.referral_reward_repo.count_student_rewards_for_cap(referrer_user_id)
-        cap = settings.referrals_student_global_cap
+        cfg = config or self._get_config()
+        cap = cfg["student_global_cap"]
         return total >= cap
 
     def _is_velocity_abuse(self, referrer_user_id: str) -> bool:

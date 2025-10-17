@@ -216,10 +216,6 @@ async def apply_referral_credit(
     current_user: User = Depends(get_current_active_user),
     checkout_service: ReferralCheckoutService = Depends(get_referral_checkout_service),
 ) -> Response:
-    if not settings.referrals_enabled:
-        response.status_code = status.HTTP_409_CONFLICT
-        return ReferralErrorResponse(reason="disabled")
-
     try:
         applied = checkout_service.apply_student_credit(
             user_id=current_user.id,

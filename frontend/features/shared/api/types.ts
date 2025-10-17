@@ -13,7 +13,7 @@ import type { components } from '@/types/generated/api';
 export type { components };
 
 // Canonical aliases for commonly used models (import these, not from Gen.* directly)
-export type User = components['schemas']['UserWithPermissionsResponse'];
+export type User = components['schemas']['AuthUserWithPermissionsResponse'];
 export type Booking = components['schemas']['BookingResponse'];
 export type InstructorProfile = components['schemas']['InstructorProfileResponse'];
 

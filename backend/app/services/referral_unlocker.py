@@ -10,12 +10,12 @@ from typing import Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.database import SessionLocal
 from app.events.referral_events import emit_reward_unlocked, emit_reward_voided
 from app.repositories.factory import RepositoryFactory
 from app.repositories.referral_repository import ReferralRewardRepository
 from app.services.base import BaseService
+from app.services.referrals_config_service import ReferralsConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +37,16 @@ class ReferralUnlocker(BaseService):
             RepositoryFactory.create_referral_reward_repository(db)
         )
         self.payment_repository = RepositoryFactory.create_payment_repository(db)
+        self._config_service = ReferralsConfigService(db, cache=self.cache)
 
     @BaseService.measure_operation("referrals.unlocker.run")
     def run(self, *, limit: int = 200, dry_run: bool = False) -> UnlockerResult:
-        if not settings.referrals_enabled:
-            logger.info("Referral unlocker skipped: REFERRALS_ENABLED=false")
+        config = self._config_service.get_effective_config()
+        if not config["enabled"]:
+            logger.info(
+                "Referral unlocker skipped: config disabled",
+                extra={"source": config["source"], "version": config["version"]},
+            )
             return UnlockerResult(processed=0, unlocked=0, voided=0, expired=0)
 
         now = datetime.now(timezone.utc)

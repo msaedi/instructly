@@ -287,10 +287,15 @@ def test_admin_referral_config(db, client, referral_service, monkeypatch):
         "hold_days",
         "expiry_months",
         "global_cap",
+        "version",
+        "source",
         "flags",
     } == set(payload.keys())
     assert isinstance(payload["flags"], dict)
     assert payload["flags"].get("enabled") == bool(settings.referrals_enabled)
+    assert payload["source"] in {"defaults", "db"}
+    if payload["source"] == "defaults":
+        assert payload["version"] is None
 
 
 def test_admin_referral_summary(db, client, referral_service, monkeypatch):

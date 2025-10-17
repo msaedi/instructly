@@ -1,7 +1,7 @@
 """Schemas for referral-related endpoints and primitives."""
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, EmailStr, Field
@@ -139,6 +139,8 @@ class AdminReferralsConfigOut(BaseModel):
     hold_days: int
     expiry_months: int
     global_cap: int
+    version: Optional[int]
+    source: Literal["db", "defaults"]
     flags: Dict[str, bool]
 
 

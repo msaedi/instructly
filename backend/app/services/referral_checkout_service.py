@@ -9,12 +9,12 @@ from typing import Optional
 from fastapi import status
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.models.booking import Booking
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.factory import RepositoryFactory
 from app.repositories.payment_repository import PaymentRepository
 from app.services.base import BaseService
+from app.services.referrals_config_service import ReferralsConfigService
 from app.services.wallet_service import WalletService
 
 
@@ -45,6 +45,7 @@ class ReferralCheckoutService(BaseService):
         self.payment_repository: PaymentRepository = RepositoryFactory.create_payment_repository(db)
         self.booking_repository: BookingRepository = RepositoryFactory.create_booking_repository(db)
         self.wallet_service = wallet_service
+        self._config_service = ReferralsConfigService(db, cache=self.cache)
 
     @BaseService.measure_operation("referrals.checkout.state")
     def get_order_state(self, *, order_id: str, user_id: str) -> OrderState:
@@ -72,18 +73,22 @@ class ReferralCheckoutService(BaseService):
     def apply_student_credit(self, *, user_id: str, order_id: str) -> int:
         """Apply referral student credits at checkout."""
 
+        config = self._config_service.get_effective_config()
+        if not config["enabled"]:
+            raise ReferralCheckoutError("disabled")
+
         state = self.get_order_state(order_id=order_id, user_id=user_id)
 
         if state.has_promo:
             raise ReferralCheckoutError("promo_conflict")
 
-        if state.subtotal_cents < settings.referrals_min_basket_cents:
+        if state.subtotal_cents < config["min_basket_cents"]:
             raise ReferralCheckoutError("below_min_basket")
 
         txn = self.wallet_service.consume_student_credit(
             user_id=user_id,
             order_id=str(order_id),
-            amount_cents=settings.referrals_student_amount_cents,
+            amount_cents=config["student_amount_cents"],
         )
         if not txn:
             raise ReferralCheckoutError("no_unlocked_credit")
