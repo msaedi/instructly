@@ -62,7 +62,7 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
     setIsProcessing('share');
     try {
       const payload: ShareData = {
-        title: 'Give $20, Get $20 on Instainstru',
+        title: 'Give $20, Get $20 on iNSTAiNSTRU',
         text: `Your first $75+ lesson is ${CREDIT_DISPLAY} off. Use my code ${code}`,
         url: shareUrl,
       };
@@ -89,7 +89,7 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
     >
       <div className="space-y-6">
         <p className="text-sm text-gray-600">
-          Invite a friend and you each earn {CREDIT_DISPLAY} in Instainstru credits when they book their first $75+ lesson within 30 days.
+          Invite a friend and you each earn {CREDIT_DISPLAY} in iNSTAiNSTRU credits when they book their first $75+ lesson within 30 days.
         </p>
 
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
@@ -133,8 +133,8 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
         </div>
 
         <p className="text-xs leading-5 text-gray-500">
-          If your friend books, you both receive Instainstru credits.{' '}
-          <Link href="/legal/referrals-terms" className="font-medium text-[#7E22CE] underline" onClick={onClose}>
+          If your friend books, you both receive iNSTAiNSTRU credits.{' '}
+          <Link href="/referrals-terms" className="font-medium text-[#7E22CE] underline" onClick={onClose}>
             Terms apply
           </Link>
           .
