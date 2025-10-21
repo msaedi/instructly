@@ -1,4 +1,4 @@
-import { API_BASE as apiBaseUrl } from '@/lib/publicEnv';
+import { withApiBase } from '@/lib/apiBase';
 import type {
   components,
   ReferralLedgerResponse,
@@ -24,9 +24,7 @@ interface ReferralSummary {
 }
 
 function buildUrl(path: string): string {
-  const base = apiBaseUrl?.replace(/\/+$/, '') ?? '';
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${base}${cleanPath}`;
+  return withApiBase(path);
 }
 
 function isReferralError(data: unknown): data is ReferralErrorResponse {

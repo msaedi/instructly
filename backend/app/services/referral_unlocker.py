@@ -15,7 +15,7 @@ from app.events.referral_events import emit_reward_unlocked, emit_reward_voided
 from app.repositories.factory import RepositoryFactory
 from app.repositories.referral_repository import ReferralRewardRepository
 from app.services.base import BaseService
-from app.services.referrals_config_service import ReferralsConfigService
+from app.services.referrals_config_service import get_effective_config
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +63,10 @@ class ReferralUnlocker(BaseService):
             RepositoryFactory.create_referral_reward_repository(db)
         )
         self.payment_repository = RepositoryFactory.create_payment_repository(db)
-        self._config_service = ReferralsConfigService(db, cache=self.cache)
 
     @BaseService.measure_operation("referrals.unlocker.run")
     def run(self, *, limit: int = 200, dry_run: bool = False) -> UnlockerResult:
-        config = self._config_service.get_effective_config()
+        config = get_effective_config(self.db)
         if not config["enabled"]:
             logger.info(
                 "Referral unlocker skipped: config disabled",

@@ -37,7 +37,7 @@ from app.schemas.referrals import (
 from app.services import referral_fraud
 from app.services.base import BaseService
 from app.services.referral_unlocker import get_last_success_timestamp
-from app.services.referrals_config_service import ReferralsConfigService, ReferralsEffectiveConfig
+from app.services.referrals_config_service import ReferralsEffectiveConfig, get_effective_config
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,6 @@ class ReferralService(BaseService):
         )
         self.booking_repo: BookingRepository = RepositoryFactory.create_booking_repository(db)
         self.referral_limit_repo = RepositoryFactory.create_referral_limit_repository(db)
-        self._config_service = ReferralsConfigService(db, cache=self.cache)
 
     @staticmethod
     def _normalize_user_id(user_id: UserID) -> str:
@@ -458,13 +457,13 @@ class ReferralService(BaseService):
         )
 
     def _assert_enabled(self) -> ReferralsEffectiveConfig:
-        config = self._config_service.get_effective_config()
+        config = get_effective_config(self.db)
         if not config["enabled"]:
             raise RuntimeError("Referral program currently disabled")
         return config
 
     def _get_config(self) -> ReferralsEffectiveConfig:
-        return self._config_service.get_effective_config()
+        return get_effective_config(self.db)
 
     def _add_months(self, base: datetime, months: int) -> datetime:
         year = base.year + (base.month - 1 + months) // 12

@@ -5,17 +5,16 @@ import uuid
 import pytest
 from sqlalchemy import text
 
-from app.services.referrals_config_service import ReferralsConfigService
+from app.services.referrals_config_service import get_effective_config, invalidate_cache
 
 
 @pytest.fixture(autouse=True)
 def _clear_referral_config(db):
-    service = ReferralsConfigService(db)
-    service.invalidate()
+    invalidate_cache()
     db.execute(text("DELETE FROM referral_config"))
     db.commit()
     yield
-    service.invalidate()
+    invalidate_cache()
     db.execute(text("DELETE FROM referral_config"))
     db.commit()
 
@@ -82,9 +81,7 @@ def _insert_config(
 
 
 def test_returns_defaults_when_table_empty(db):
-    service = ReferralsConfigService(db)
-
-    config = service.get_effective_config()
+    config = get_effective_config(db)
 
     assert config["source"] == "defaults"
     assert config["version"] is None
@@ -112,8 +109,7 @@ def test_returns_database_row_when_present(db):
         note="seeded",
     )
 
-    service = ReferralsConfigService(db)
-    config = service.get_effective_config()
+    config = get_effective_config(db)
 
     assert config["source"] == "db"
     assert config["version"] == 1
@@ -128,23 +124,22 @@ def test_returns_database_row_when_present(db):
 
 def test_cache_and_invalidate_flow(db):
     _insert_config(db, version=1, student_amount_cents=2100, student_global_cap=30)
-    service = ReferralsConfigService(db)
-    service.invalidate()
+    invalidate_cache()
 
-    first = service.get_effective_config()
+    first = get_effective_config(db)
     assert first["version"] == 1
     assert first["student_amount_cents"] == 2100
     assert first["student_global_cap"] == 30
 
     _insert_config(db, version=2, student_amount_cents=2400, student_global_cap=100)
 
-    second = service.get_effective_config()
+    second = get_effective_config(db)
     assert second["version"] == 1
     assert second["student_amount_cents"] == 2100
 
-    service.invalidate()
+    invalidate_cache()
 
-    third = service.get_effective_config()
+    third = get_effective_config(db)
     assert third["version"] == 2
     assert third["student_amount_cents"] == 2400
     assert third["student_global_cap"] == 100
