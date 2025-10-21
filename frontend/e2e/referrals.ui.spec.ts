@@ -107,6 +107,88 @@ test.describe('Referral surfaces', () => {
     });
 
     await bypassGateIfPresent(page, base, process.env.GATE_CODE);
+
+    const studentEmail = process.env.E2E_STUDENT_EMAIL || 'john.smith@example.com';
+    const studentPassword = process.env.E2E_STUDENT_PASSWORD || 'TestPassword123!';
+
+    await page.route('**/auth/login', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: {
+            'set-cookie': 'access_token=playwright-token; Path=/; HttpOnly; SameSite=Lax',
+          },
+          body: JSON.stringify({
+            access_token: 'playwright-token',
+            token_type: 'bearer',
+            requires_2fa: false,
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.route('**/auth/login-with-session', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: {
+            'set-cookie': 'access_token=playwright-token; Path=/; HttpOnly; SameSite=Lax',
+          },
+          body: JSON.stringify({
+            access_token: 'playwright-token',
+            token_type: 'bearer',
+            requires_2fa: false,
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    const authMeResponse = {
+      id: 'playwright-student',
+      email: studentEmail,
+      first_name: 'Playwright',
+      last_name: 'Student',
+      roles: ['student'],
+      permissions: [],
+      credits_balance: 2000,
+    };
+
+    await page.route('**/auth/me', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(authMeResponse),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.route('**/api/auth/me', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(authMeResponse),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
+    await page.getByLabel(/email/i).fill(studentEmail);
+    await page.getByLabel(/password/i).fill(studentPassword);
+    await page.getByRole('button', { name: /log in|sign in|submit/i }).click();
+    await page.waitForTimeout(500);
+
     await page.goto(`${base}/rewards`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Your rewards' })).toBeVisible();
 
