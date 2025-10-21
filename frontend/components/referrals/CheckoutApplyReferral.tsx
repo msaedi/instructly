@@ -62,7 +62,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
       return (
         <span>
           You don’t have unlocked referral credit yet.{' '}
-          <Link href="/account/rewards" className="font-semibold text-[#7E22CE] underline-offset-2 hover:underline">
+          <Link href="/rewards" className="font-semibold text-[#7E22CE] underline-offset-2 hover:underline">
             Invite friends
           </Link>{' '}
           to earn rewards.

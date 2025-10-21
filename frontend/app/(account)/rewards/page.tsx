@@ -6,6 +6,7 @@ import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchMyReferrals, type RewardOut } from '@/features/shared/referrals/api';
 import { shareOrCopy } from '@/features/shared/referrals/share';
+import Guard from './Guard';
 
 type TabKey = 'unlocked' | 'pending' | 'redeemed';
 
@@ -135,7 +136,7 @@ export default function RewardsPage() {
     setIsProcessing('share');
     try {
       const payload: ShareData = {
-        title: 'Give $20, Get $20 on Instainstru',
+        title: 'Give $20, Get $20 on iNSTAiNSTRU',
         text: `Book your first $75+ lesson and get ${CREDIT_DISPLAY} off. Use my code ${summary.code}`,
         url: summary.shareUrl,
       };
@@ -154,12 +155,14 @@ export default function RewardsPage() {
   }, [summary]);
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+    <>
+      <Guard />
+      <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
       <header className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Your rewards</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Share your link and you both receive Instainstru credits when a friend books their first lesson.
+            Share your link and you both receive iNSTAiNSTRU credits when a friend books their first lesson.
           </p>
         </div>
       </header>
@@ -292,12 +295,13 @@ export default function RewardsPage() {
       </section>
 
       <p className="mt-8 text-xs text-gray-500">
-        If your friend books, you both receive Instainstru credits. Credits expire if unused.{' '}
-        <Link href="/legal/referrals-terms" className="text-[#7E22CE] underline">
+        If your friend books, you both receive iNSTAiNSTRU credits. Credits expire if unused.{' '}
+        <Link href="/referrals-terms" className="text-[#7E22CE] underline">
           Terms apply
         </Link>
         .
       </p>
-    </main>
+      </main>
+    </>
   );
 }

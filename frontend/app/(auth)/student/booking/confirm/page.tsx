@@ -392,8 +392,8 @@ export default function BookingConfirmationPage() {
 
               {referralShare && (
                 <p className="mt-5 text-xs text-gray-500">
-                  If your friend books their first $75+ lesson within 30 days, you both receive Instainstru credits.{' '}
-                  <Link href="/legal/referrals-terms" className="text-[#7E22CE] underline" onClick={() => setShareModalOpen(false)}>
+                  If your friend books their first $75+ lesson within 30 days, you both receive iNSTAiNSTRU credits.{' '}
+                  <Link href="/referrals-terms" className="text-[#7E22CE] underline" onClick={() => setShareModalOpen(false)}>
                     Terms apply
                   </Link>
                   .

@@ -111,6 +111,6 @@ describe('CheckoutApplyReferral', () => {
 
     const inviteLink = await screen.findByRole('link', { name: /invite friends/i });
 
-    expect(inviteLink).toHaveAttribute('href', '/account/rewards');
+    expect(inviteLink).toHaveAttribute('href', '/rewards');
   });
 });

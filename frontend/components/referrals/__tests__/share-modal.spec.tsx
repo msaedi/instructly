@@ -52,7 +52,7 @@ describe('ReferralShareModal', () => {
 
     await waitFor(() => {
       expect(shareMock).toHaveBeenCalledWith({
-        title: 'Give $20, Get $20 on Instainstru',
+        title: 'Give $20, Get $20 on iNSTAiNSTRU',
         text: `Your first $75+ lesson is $20 off. Use my code ${code}`,
         url: shareUrl,
       });
@@ -96,8 +96,8 @@ describe('ReferralShareModal', () => {
     );
 
     expect(
-      screen.getByText(/If your friend books, you both receive Instainstru credits/i)
+      screen.getByText(/If your friend books, you both receive iNSTAiNSTRU credits/i)
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Terms apply/i })).toHaveAttribute('href', '/legal/referrals-terms');
+    expect(screen.getByRole('link', { name: /Terms apply/i })).toHaveAttribute('href', '/referrals-terms');
   });
 });
