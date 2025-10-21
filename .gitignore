@@ -98,3 +98,6 @@ frontend/app/(auth)/instructor/profile/page.tsx.backup
 
 # Local temp venv
 .tmpvenv/
+
+# Local patch artifacts
+scripts/patches/
