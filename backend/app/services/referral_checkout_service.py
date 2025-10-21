@@ -14,7 +14,7 @@ from app.repositories.booking_repository import BookingRepository
 from app.repositories.factory import RepositoryFactory
 from app.repositories.payment_repository import PaymentRepository
 from app.services.base import BaseService
-from app.services.referrals_config_service import ReferralsConfigService
+from app.services.referrals_config_service import get_effective_config
 from app.services.wallet_service import WalletService
 
 
@@ -45,7 +45,6 @@ class ReferralCheckoutService(BaseService):
         self.payment_repository: PaymentRepository = RepositoryFactory.create_payment_repository(db)
         self.booking_repository: BookingRepository = RepositoryFactory.create_booking_repository(db)
         self.wallet_service = wallet_service
-        self._config_service = ReferralsConfigService(db, cache=self.cache)
 
     @BaseService.measure_operation("referrals.checkout.state")
     def get_order_state(self, *, order_id: str, user_id: str) -> OrderState:
@@ -73,7 +72,7 @@ class ReferralCheckoutService(BaseService):
     def apply_student_credit(self, *, user_id: str, order_id: str) -> int:
         """Apply referral student credits at checkout."""
 
-        config = self._config_service.get_effective_config()
+        config = get_effective_config(self.db)
         if not config["enabled"]:
             raise ReferralCheckoutError("disabled")
 

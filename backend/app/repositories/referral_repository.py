@@ -8,8 +8,9 @@ from typing import Dict, List, Optional, Tuple, cast
 import uuid
 from uuid import UUID
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import RepositoryException
@@ -52,37 +53,61 @@ class ReferralCodeRepository(BaseRepository[ReferralCode]):
             query = query.with_for_update()
         return cast(Optional[ReferralCode], query.first())
 
-    def get_or_create_for_user(self, user_id: str) -> ReferralCode:
-        """Fetch existing active code or create a new unique code."""
-
-        existing = (
+    def _get_by_user_id(self, user_id: str) -> Optional[ReferralCode]:
+        result = (
             self.db.query(ReferralCode)
             .filter(
                 ReferralCode.referrer_user_id == user_id,
                 ReferralCode.status == ReferralCodeStatus.ACTIVE,
             )
-            .with_for_update()
             .first()
         )
+        return cast(Optional[ReferralCode], result)
+
+    def get_or_create_for_user(self, user_id: str) -> ReferralCode:
+        """Fetch existing active code or create a new unique code."""
+
+        existing = self._get_by_user_id(user_id)
         if existing:
-            return cast(ReferralCode, existing)
+            return existing
+
+        insert_stmt = text(
+            """
+            INSERT INTO referral_codes (id, referrer_user_id, code, status, created_at)
+            VALUES (:id, :uid, :code, 'active', NOW())
+            ON CONFLICT (referrer_user_id) WHERE status='active'
+            DO NOTHING
+            """
+        )
 
         attempts = 0
         while attempts < 10:
             candidate = referral_utils.gen_code()
-            if (self.db.query(ReferralCode).filter(ReferralCode.code == candidate).first()) is None:
-                code = ReferralCode(
-                    id=uuid.uuid4(),
-                    referrer_user_id=user_id,
-                    code=candidate,
-                    status=ReferralCodeStatus.ACTIVE,
-                )
-                self.db.add(code)
-                self.db.flush()
-                return code
-            attempts += 1
+            if self.db.query(ReferralCode).filter(ReferralCode.code == candidate).first():
+                attempts += 1
+                continue
 
-        raise RepositoryException("Unable to generate unique referral code")
+            try:
+                with self.db.begin_nested():
+                    result = self.db.execute(
+                        insert_stmt,
+                        {"id": uuid.uuid4(), "uid": user_id, "code": candidate},
+                    )
+            except IntegrityError:
+                attempts += 1
+                continue
+
+            if result.rowcount and result.rowcount > 0:
+                break
+            break
+        else:
+            raise RepositoryException("Unable to generate unique referral code")
+
+        code = self._get_by_user_id(user_id)
+        if not code:
+            raise RepositoryException("Unable to load referral code after upsert")
+
+        return code
 
 
 class ReferralClickRepository(BaseRepository[ReferralClick]):

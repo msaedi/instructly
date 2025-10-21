@@ -1,15 +1,12 @@
-"""Read-only service for referral program configuration."""
-
 from __future__ import annotations
 
-from threading import RLock
+import threading
 import time
-from typing import Any, Literal, Mapping, Optional, TypedDict, cast
+from typing import Any, Literal, Mapping, TypedDict, cast
 
-import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from .base import BaseService, CacheInvalidationProtocol
+from app.repositories.referral_config_repository import ReferralConfigRepository
 
 
 class ReferralsEffectiveConfig(TypedDict):
@@ -24,7 +21,12 @@ class ReferralsEffectiveConfig(TypedDict):
     source: Literal["db", "defaults"]
 
 
-def _new_defaults() -> ReferralsEffectiveConfig:
+_CACHE_TTL_SECONDS = 45.0
+_cache_lock = threading.Lock()
+_cached_config: tuple[ReferralsEffectiveConfig, float] | None = None
+
+
+def _defaults() -> ReferralsEffectiveConfig:
     return cast(
         ReferralsEffectiveConfig,
         {
@@ -41,29 +43,32 @@ def _new_defaults() -> ReferralsEffectiveConfig:
     )
 
 
-class ReferralsConfigService(BaseService):
-    """Expose effective referral configuration with short-lived caching."""
+def _fetch_latest(db: Session) -> Mapping[str, Any] | None:
+    return ReferralConfigRepository.read_latest(db)
 
-    _CACHE_TTL_SECONDS = 45
-    _cache_lock = RLock()
-    _cached_config: ReferralsEffectiveConfig | None = None
-    _cache_expires_at: float = 0.0
 
-    def __init__(self, db: Session, cache: CacheInvalidationProtocol | None = None):
-        super().__init__(db, cache)
+def get_effective_config(db: Session) -> ReferralsEffectiveConfig:
+    global _cached_config
 
-    @BaseService.measure_operation("referrals.config.get_effective")
-    def get_effective_config(self) -> ReferralsEffectiveConfig:
-        now = time.monotonic()
-        cls = type(self)
+    now = time.monotonic()
+    cached = _cached_config
+    if cached and cached[1] > now:
+        return cast(ReferralsEffectiveConfig, dict(cached[0]))
 
-        with cls._cache_lock:
-            if cls._cached_config is not None and now < cls._cache_expires_at:
-                return self._clone(cls._cached_config)
+    if not _cache_lock.acquire(timeout=1.0):
+        cached = _cached_config
+        if cached and cached[1] > time.monotonic():
+            return cast(ReferralsEffectiveConfig, dict(cached[0]))
+        return _defaults()
 
-        row = self._fetch_latest()
+    try:
+        cached = _cached_config
+        if cached and cached[1] > time.monotonic():
+            return cast(ReferralsEffectiveConfig, dict(cached[0]))
+
+        row = _fetch_latest(db)
         if row is None:
-            config = _new_defaults()
+            config = _defaults()
         else:
             config = cast(
                 ReferralsEffectiveConfig,
@@ -80,43 +85,19 @@ class ReferralsConfigService(BaseService):
                 },
             )
 
-        with cls._cache_lock:
-            cls._cached_config = self._clone(config)
-            cls._cache_expires_at = now + cls._CACHE_TTL_SECONDS
-
-        return self._clone(config)
-
-    @BaseService.measure_operation("referrals.config.invalidate")
-    def invalidate(self) -> None:
-        cls = type(self)
-        with cls._cache_lock:
-            cls._cached_config = None
-            cls._cache_expires_at = 0.0
-
-    def _fetch_latest(self) -> Mapping[str, Any] | None:
-        stmt = sa.text(
-            """
-            SELECT
-                enabled,
-                student_amount_cents,
-                instructor_amount_cents,
-                min_basket_cents,
-                hold_days,
-                expiry_months,
-                student_global_cap,
-                version
-            FROM referral_config
-            ORDER BY version DESC
-            LIMIT 1
-            """
-        )
-        # repo-pattern-migrate: TODO: migrate referral config reads to repository
-        result = self.db.execute(stmt).mappings().first()
-        return cast(Optional[Mapping[str, Any]], result)
-
-    @staticmethod
-    def _clone(payload: ReferralsEffectiveConfig) -> ReferralsEffectiveConfig:
-        return cast(ReferralsEffectiveConfig, dict(payload))
+        expires_at = time.monotonic() + _CACHE_TTL_SECONDS
+        snapshot = cast(ReferralsEffectiveConfig, dict(config))
+        _cached_config = (snapshot, expires_at)
+        return cast(ReferralsEffectiveConfig, dict(snapshot))
+    finally:
+        _cache_lock.release()
 
 
-__all__ = ["ReferralsConfigService", "ReferralsEffectiveConfig"]
+def invalidate_cache() -> None:
+    global _cached_config
+
+    with _cache_lock:
+        _cached_config = None
+
+
+__all__ = ["ReferralsEffectiveConfig", "get_effective_config", "invalidate_cache"]
