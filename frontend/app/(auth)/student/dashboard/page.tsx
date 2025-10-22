@@ -68,8 +68,6 @@ function StudentDashboardContent() {
   const [showDelete, setShowDelete] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showTfaModal, setShowTfaModal] = useState(false);
-  const [referralEmails, setReferralEmails] = useState('');
-  const [referralStatus, setReferralStatus] = useState('');
   const [addresses, setAddresses] = useState<SavedAddress[] | null>(null);
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState<null | { mode: 'create' } | { mode: 'edit'; address: SavedAddress }>(null);
@@ -608,177 +606,9 @@ function StudentDashboardContent() {
                     )}
                   </div>
 
-                  {/* Referral Program (mock) */}
-                  <div className="border-b border-gray-200 mb-6"></div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Referral Program</h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Help your friends learn! They get $20 off their first lesson. You get $20 credit when they complete it.
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <style dangerouslySetInnerHTML={{
-                        __html: `
-                          .referral-input::selection {
-                            background-color: #e9d5ff !important;
-                            color: #581c87 !important;
-                          }
-                          .referral-input::-moz-selection {
-                            background-color: #e9d5ff !important;
-                            color: #581c87 !important;
-                          }
-                          .referral-input::-webkit-selection {
-                            background-color: #e9d5ff !important;
-                            color: #581c87 !important;
-                          }
-                          .referral-input:-webkit-autofill,
-                          .referral-input:-webkit-autofill:hover,
-                          .referral-input:-webkit-autofill:focus,
-                          .referral-input:-webkit-autofill:active {
-                            -webkit-box-shadow: 0 0 0 1000px white inset !important;
-                            -webkit-text-fill-color: #1f2937 !important;
-                            background-color: white !important;
-                            caret-color: #1f2937 !important;
-                            transition: background-color 5000s ease-in-out 0s;
-                          }
-                          .referral-input:autofill {
-                            background-color: white !important;
-                            color: #1f2937 !important;
-                          }
-                          input.referral-input {
-                            background-color: white !important;
-                          }
-                        `
-                      }} />
-                      <input
-                        type="email"
-                        placeholder="Enter email addresses..."
-                        className="referral-input h-10 w-full rounded-md px-3 text-sm"
-                        style={{
-                          outline: 'none',
-                          border: '1px solid #d1d5db',
-                          boxShadow: 'none',
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'none',
-                          backgroundColor: 'white'
-                        }}
-                        onFocus={(e) => {
-                          const target = e.target as HTMLInputElement;
-                          // Force remove any outline
-                          target.style.setProperty('outline', 'none', 'important');
-                          target.style.setProperty('outline-width', '0', 'important');
-                          target.style.setProperty('outline-color', 'transparent', 'important');
-                          // Set purple border
-                          target.style.setProperty('border', '2px solid #a855f7', 'important');
-                          target.style.setProperty('box-shadow', 'none', 'important');
-                          target.style.setProperty('-webkit-box-shadow', 'none', 'important');
-                          // Adjust padding for border width change
-                          target.style.paddingLeft = '11px';
-                          target.style.paddingRight = '11px';
-                        }}
-                        onBlur={(e) => {
-                          const target = e.target as HTMLInputElement;
-                          target.style.setProperty('outline', 'none', 'important');
-                          target.style.setProperty('border', '1px solid #d1d5db', 'important');
-                          target.style.setProperty('box-shadow', 'none', 'important');
-                          // Reset padding
-                          target.style.paddingLeft = '12px';
-                          target.style.paddingRight = '12px';
-                        }}
-                        onChange={(e) => setReferralEmails(e.target.value)}
-                        value={referralEmails}
-                      />
-                      <button
-                        className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-[#7E22CE] px-4 text-sm font-medium text-white hover:bg-[#7E22CE] cursor-pointer"
-                        onClick={async () => {
-                          const emails = referralEmails
-                            .split(/[\s,;]+/)
-                            .map((e) => e.trim())
-                            .filter((e) => e.length > 0);
-                          if (emails.length === 0) {
-                            toast.error('Please enter at least one email', {
-                              style: {
-                                background: '#fbbf24',
-                                color: '#000000',
-                                border: 'none',
-                              },
-                            });
-                            return;
-                          }
-                          const invalid = emails.filter((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
-                          if (invalid.length > 0) {
-                            toast.error(`Invalid email: ${invalid[0]}`, {
-                              style: {
-                                background: '#fbbf24',
-                                color: '#000000',
-                                border: 'none',
-                              },
-                            });
-                            return;
-                          }
-                          const link = `https://instainstru.com/ref/${(userData?.first_name || 'USER').toUpperCase().slice(0, 3)}${(userData?.id || '').slice(-3)}`;
-                          try {
-                            const res = await fetchAPI('/api/public/referrals/send', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ emails, referral_link: link, from_name: userData?.first_name || 'A friend' }),
-                            });
-                            if (!res.ok) {
-                              const body = await res.json().catch(() => ({}));
-                              toast.error(body.detail || 'Failed to send invites', {
-                                style: {
-                                  background: '#fbbf24',
-                                  color: '#000000',
-                                  border: 'none',
-                                },
-                              });
-                              return;
-                            }
-                            const data = await res.json().catch(() => ({}));
-                            toast.success(`Invites sent to ${data.count || emails.length} recipient(s)`, {
-                              style: {
-                                background: '#6b21a8',
-                                color: 'white',
-                                border: 'none',
-                                boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-                              },
-                            });
-                            setReferralEmails('');
-                          } catch {
-                            toast.error('Network error while sending invites', {
-                              style: {
-                                background: '#fbbf24',
-                                color: '#000000',
-                                border: 'none',
-                              },
-                            });
-                          }
-                        }}
-                      >
-                        Send Invite
-                      </button>
-                    </div>
-                    <div className="mt-3 flex items-center gap-3">
-                      <input
-                        readOnly
-                        className="h-10 w-full rounded-md appearance-none shadow-none ring-1 ring-gray-300/70 border-0 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-0"
-                        value={`https://instainstru.com/ref/${(userData?.first_name || 'USER').toUpperCase().slice(0, 3)}${(userData?.id || '').slice(-3)}`}
-                      />
-                      <button
-                        className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-[#7E22CE] px-4 text-sm font-medium text-white hover:bg-[#7E22CE] cursor-pointer"
-                        onClick={() => {
-                          const link = `https://instainstru.com/ref/${(userData?.first_name || 'USER').toUpperCase().slice(0, 3)}${(userData?.id || '').slice(-3)}`;
-                          void navigator.clipboard.writeText(link);
-                          setReferralStatus('Referral link copied');
-                          setTimeout(() => setReferralStatus(''), 2000);
-                        }}
-                      >
-                        Copy Link
-                      </button>
-                    </div>
-                    {referralStatus && (
-                      <p className="mt-2 text-sm text-[#7E22CE] font-medium">{referralStatus}</p>
-                    )}
-                  </div>
+                  <p className="mt-6 text-sm text-gray-600">
+                    Manage your link, invites, and rewards in the Rewards tab.
+                  </p>
 
                   {/* Account Management (placeholder) */}
                   <div className="border-b border-gray-200 mb-6"></div>
@@ -922,7 +752,7 @@ function StudentDashboardContent() {
               )}
 
               {activeTab === 'rewards' && (
-                <RewardsPanel />
+                <RewardsPanel {...(userData?.first_name ? { inviterName: userData.first_name } : {})} />
               )}
 
               {activeTab !== 'profile' && activeTab !== 'favorites' && activeTab !== 'billing' && activeTab !== 'notifications' && activeTab !== 'rewards' && (

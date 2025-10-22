@@ -215,6 +215,7 @@ test.describe('Referral surfaces', () => {
 
     await page.goto(`${base}/student/dashboard?tab=rewards`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Your rewards' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /send invites/i })).toBeVisible();
 
     const axe = new AxeBuilder({ page }).include('main');
     const results = await axe.analyze();

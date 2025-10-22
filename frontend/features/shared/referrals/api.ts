@@ -1,4 +1,5 @@
 import { withApiBase } from '@/lib/apiBase';
+import { fetchAPI } from '@/lib/api';
 import type {
   components,
   ReferralLedgerResponse,
@@ -98,4 +99,43 @@ export async function applyReferralCredit(orderId: string): Promise<ReferralChec
   }
 
   return payload as ReferralCheckoutApplyResponse;
+}
+
+interface SendReferralInvitesArgs {
+  emails: string[];
+  shareUrl: string;
+  fromName?: string;
+}
+
+export async function sendReferralInvites({ emails, shareUrl, fromName }: SendReferralInvitesArgs): Promise<number> {
+  if (!emails.length) {
+    throw new Error('At least one email address is required.');
+  }
+
+  if (!shareUrl) {
+    throw new Error('Referral link not available. Please try again.');
+  }
+
+  const response = await fetchAPI('/api/public/referrals/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      emails,
+      referral_link: shareUrl,
+      ...(fromName ? { from_name: fromName } : {}),
+    }),
+  });
+
+  let payload: { count?: number; detail?: string } | null = null;
+  try {
+    payload = (await response.json()) as { count?: number; detail?: string };
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(payload?.detail || 'Failed to send invites');
+  }
+
+  return payload?.count ?? emails.length;
 }

@@ -6,6 +6,7 @@ import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchMyReferrals, type RewardOut } from '@/features/shared/referrals/api';
 import { shareOrCopy } from '@/features/shared/referrals/share';
+import InviteByEmail from '@/features/referrals/InviteByEmail';
 
 type TabKey = 'unlocked' | 'pending' | 'redeemed';
 
@@ -54,7 +55,11 @@ const emptyCopy: Record<TabKey, string> = {
   redeemed: 'Redeemed rewards will show here once used at checkout.',
 };
 
-export default function RewardsPanel() {
+type RewardsPanelProps = {
+  inviterName?: string;
+};
+
+export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
   const [summary, setSummary] = useState<ReferralSummaryState | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('unlocked');
   const [isLoading, setIsLoading] = useState(true);
@@ -203,6 +208,18 @@ export default function RewardsPanel() {
           </div>
         </div>
       </section>
+
+      {summary && (
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <InviteByEmail
+            shareUrl={summary.shareUrl}
+            {...(inviterName ? { fromName: inviterName } : {})}
+          />
+          <p className="mt-3 text-xs text-gray-500">
+            Your friends get $20 off their first lesson. You get $20 after they complete it.
+          </p>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4">
