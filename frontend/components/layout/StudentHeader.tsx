@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Home, Search, Calendar, User, LogOut, ChevronDown, Gift } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { BRAND } from '@/app/config/brand';
@@ -13,6 +13,7 @@ import { UserAvatar } from '@/components/user/UserAvatar';
 export function StudentHeader() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, logout } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -46,7 +47,7 @@ export function StudentHeader() {
     { href: '/', label: 'Home', icon: Home },
     { href: '/search', label: 'Search', icon: Search },
     { href: '/student/lessons', label: 'My Lessons', icon: Calendar },
-    { href: '/rewards', label: 'Rewards', icon: Gift },
+    { href: '/student/dashboard?tab=rewards', label: 'Rewards', icon: Gift },
   ].filter(item => {
     // Hide search button when user is on My Lessons page
     if (item.href === '/search' && pathname.startsWith('/student/lessons')) {
@@ -68,10 +69,11 @@ export function StudentHeader() {
           <nav className="hidden md:flex items-center gap-6">
             {navItems.map((item) => {
               const Icon = item.icon;
+              const isRewardsNav = item.href.startsWith('/student/dashboard');
               const isActive =
                 pathname === item.href ||
                 (item.href === '/student/lessons' && pathname.startsWith('/student/lessons')) ||
-                (item.href === '/rewards' && pathname.startsWith('/rewards'));
+                (isRewardsNav && pathname === '/student/dashboard' && searchParams?.get('tab') === 'rewards');
 
               return (
                 <Link
@@ -173,10 +175,11 @@ export function StudentHeader() {
           <div className="md:hidden border-t border-gray-200 py-2">
             {navItems.map((item) => {
               const Icon = item.icon;
+              const isRewardsNav = item.href.startsWith('/student/dashboard');
               const isActive =
                 pathname === item.href ||
                 (item.href === '/student/lessons' && pathname.startsWith('/student/lessons')) ||
-                (item.href === '/rewards' && pathname.startsWith('/rewards'));
+                (isRewardsNav && pathname === '/student/dashboard' && searchParams?.get('tab') === 'rewards');
 
               return (
                 <Link

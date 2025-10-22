@@ -6,7 +6,6 @@ import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchMyReferrals, type RewardOut } from '@/features/shared/referrals/api';
 import { shareOrCopy } from '@/features/shared/referrals/share';
-import Guard from './Guard';
 
 type TabKey = 'unlocked' | 'pending' | 'redeemed';
 
@@ -55,7 +54,7 @@ const emptyCopy: Record<TabKey, string> = {
   redeemed: 'Redeemed rewards will show here once used at checkout.',
 };
 
-export default function RewardsPage() {
+export default function RewardsPanel() {
   const [summary, setSummary] = useState<ReferralSummaryState | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('unlocked');
   const [isLoading, setIsLoading] = useState(true);
@@ -155,10 +154,8 @@ export default function RewardsPage() {
   }, [summary]);
 
   return (
-    <>
-      <Guard />
-      <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-      <header className="mb-8 flex items-center justify-between">
+    <main className="space-y-8">
+      <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Your rewards</h1>
           <p className="mt-2 text-sm text-gray-600">
@@ -167,7 +164,7 @@ export default function RewardsPage() {
         </div>
       </header>
 
-      <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#7E22CE]/10 text-[#7E22CE]">
@@ -294,14 +291,13 @@ export default function RewardsPage() {
         </div>
       </section>
 
-      <p className="mt-8 text-xs text-gray-500">
+      <p className="text-xs text-gray-500">
         If your friend books, you both receive iNSTAiNSTRU credits. Credits expire if unused.{' '}
         <Link href="/referrals-terms" className="text-[#7E22CE] underline">
           Terms apply
         </Link>
         .
       </p>
-      </main>
-    </>
+    </main>
   );
 }

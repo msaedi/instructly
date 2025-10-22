@@ -4,7 +4,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, User, CreditCard, Bell, Eye, EyeOff, X, Award, Zap, Star, BookOpen, Calendar, Target, Globe, Lock, CheckCircle } from 'lucide-react';
+import { Heart, User, CreditCard, Bell, Eye, EyeOff, X, Award, Zap, Star, BookOpen, Calendar, Target, Globe, Lock, CheckCircle, Gift } from 'lucide-react';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { useQuery } from '@tanstack/react-query';
@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
 import type { FavoritesListResponse } from '@/features/shared/api/types';
 import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
+import RewardsPanel from '@/features/referrals/RewardsPanel';
 // Use dashboard-specific saved address shape (differs from common Address)
 type SavedAddress = {
   id: string;
@@ -83,6 +84,7 @@ function StudentDashboardContent() {
       { key: 'billing', label: 'Billing', icon: CreditCard },
       { key: 'notifications', label: 'Notifications', icon: Bell },
       { key: 'favorites', label: 'Favorites', icon: Heart },
+      { key: 'rewards', label: 'Rewards', icon: Gift },
     ] as const,
     []
   );
@@ -919,7 +921,11 @@ function StudentDashboardContent() {
                 </div>
               )}
 
-              {activeTab !== 'profile' && activeTab !== 'favorites' && activeTab !== 'billing' && activeTab !== 'notifications' && (
+              {activeTab === 'rewards' && (
+                <RewardsPanel />
+              )}
+
+              {activeTab !== 'profile' && activeTab !== 'favorites' && activeTab !== 'billing' && activeTab !== 'notifications' && activeTab !== 'rewards' && (
                 <div className="text-sm text-gray-600">
                   <p>Settings for <span className="font-medium">{tabs.find(t => t.key === activeTab)?.label}</span> will appear here.</p>
                 </div>

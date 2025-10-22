@@ -55,7 +55,7 @@ export default function ReferralLandingPage() {
             </ul>
 
             <div className="mt-8 rounded-2xl bg-purple-50 p-4 text-sm text-purple-900">
-              Already booked with iNSTAiNSTRU? Share your link from the <Link href="/rewards" className="font-semibold underline">rewards page</Link> and keep the lessons going.
+              Already booked with iNSTAiNSTRU? Share your link from the <Link href="/student/dashboard?tab=rewards" className="font-semibold underline">rewards page</Link> and keep the lessons going.
             </div>
           </div>
         </section>

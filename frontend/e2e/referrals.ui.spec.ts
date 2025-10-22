@@ -183,13 +183,37 @@ test.describe('Referral surfaces', () => {
       await route.continue();
     });
 
+    await page.route('**/api/addresses/me', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items: [] }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.route('**/api/auth/2fa/status', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ enabled: false, verified_at: null, last_used_at: null }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
     await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
     await page.getByLabel(/email/i).fill(studentEmail);
     await page.getByLabel(/password/i).fill(studentPassword);
     await page.getByRole('button', { name: /log in|sign in|submit/i }).click();
     await page.waitForTimeout(500);
 
-    await page.goto(`${base}/rewards`, { waitUntil: 'networkidle' });
+    await page.goto(`${base}/student/dashboard?tab=rewards`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Your rewards' })).toBeVisible();
 
     const axe = new AxeBuilder({ page }).include('main');
@@ -197,7 +221,7 @@ test.describe('Referral surfaces', () => {
     expect(results.violations).toEqual([]);
 
     await page.waitForLoadState('domcontentloaded');
-    await expect(page).toHaveURL(/\/rewards/);
+    await expect(page).toHaveURL(/\/student\/dashboard\?tab=rewards$/);
 
     const shareButton = page.getByRole('button', { name: /^share$/i }).first();
     await expect(shareButton).toBeVisible();
