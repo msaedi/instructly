@@ -517,7 +517,10 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
                     ReferralReward.referrer_user_id == user_id,
                     ReferralReward.status == status,
                 )
-                .order_by(ReferralReward.created_at.desc())
+                .order_by(
+                    ReferralReward.created_at.desc(),
+                    ReferralReward.id.desc(),
+                )
                 .limit(limit)
                 .all()
             ),

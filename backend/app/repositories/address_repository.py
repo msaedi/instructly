@@ -17,7 +17,11 @@ class UserAddressRepository(BaseRepository[UserAddress]):
         if active_only:
             query = query.filter(UserAddress.is_active.is_(True))
         return self._execute_query(
-            query.order_by(UserAddress.is_default.desc(), UserAddress.created_at.desc())
+            query.order_by(
+                UserAddress.is_default.desc(),
+                UserAddress.created_at.desc(),
+                UserAddress.id.asc(),
+            )
         )
 
     def unset_default(self, user_id: str) -> int:
@@ -120,6 +124,10 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
             .filter(
                 InstructorServiceArea.instructor_id.in_(instructor_ids),
                 InstructorServiceArea.is_active.is_(True),
+            )
+            .order_by(
+                InstructorServiceArea.instructor_id.asc(),
+                InstructorServiceArea.neighborhood_id.asc(),
             )
             .all(),
         )

@@ -5,6 +5,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+try:  # pragma: no cover - pytest may run from backend/ directory
+    from backend.tests.helpers.assertions import sort_by_dict_key
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.helpers.assertions import sort_by_dict_key
 from fastapi import status
 import pytest
 
@@ -206,6 +210,14 @@ def test_get_my_referral_ledger(db, client, referral_service):
     assert len(payload["unlocked"]) == 1
     assert len(payload["redeemed"]) == 1
     assert payload["expiry_notice_days"] == [14, 3]
+
+    pending_payload = sort_by_dict_key(payload["pending"], "id")
+    unlocked_payload = sort_by_dict_key(payload["unlocked"], "id")
+    redeemed_payload = sort_by_dict_key(payload["redeemed"], "id")
+
+    assert pending_payload[0]["id"] == str(pending.id)
+    assert unlocked_payload[0]["id"] == str(unlocked.id)
+    assert redeemed_payload[0]["id"] == str(redeemed.id)
 
 
 def _stub_checkout_service(

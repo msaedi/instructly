@@ -219,9 +219,11 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
             filtered_query = self._apply_area_filters(base_query, area)
 
+            ordered_query = filtered_query.order_by(InstructorProfile.id.asc())
+
             return cast(
                 List[InstructorProfile],
-                filtered_query.options(
+                ordered_query.options(
                     selectinload(InstructorProfile.user),
                     selectinload(InstructorProfile.user)
                     .selectinload(User.service_areas)
@@ -230,6 +232,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                         Service.catalog_entry
                     ),
                 )
+                .order_by(InstructorProfile.id.asc())
                 .distinct()
                 .offset(skip)
                 .limit(limit)
@@ -272,6 +275,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                         ),
                     )
                     .filter(InstructorProfile.years_experience >= min_years)
+                    .order_by(InstructorProfile.id.asc())
                     .distinct()
                     .offset(skip)
                     .limit(limit)
@@ -653,7 +657,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                     self.model.bgc_valid_until >= now,
                     self.model.bgc_valid_until <= end,
                 )
-                .order_by(self.model.bgc_valid_until.asc())
+                .order_by(
+                    self.model.bgc_valid_until.asc(),
+                    self.model.id.asc(),
+                )
                 .limit(limit)
                 .all()
             )
@@ -679,7 +686,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                     self.model.bgc_valid_until < now,
                     self.model.is_live.is_(True),
                 )
-                .order_by(self.model.bgc_valid_until.asc())
+                .order_by(
+                    self.model.bgc_valid_until.asc(),
+                    self.model.id.asc(),
+                )
                 .limit(limit)
                 .all()
             )
@@ -952,6 +962,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
             # Remove duplicates (since joins can create multiple rows per profile)
             # and apply pagination
+            query = query.order_by(InstructorProfile.id.asc())
+
             profiles = cast(
                 List[InstructorProfile],
                 query.distinct().offset(skip).limit(limit).all(),
