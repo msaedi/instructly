@@ -60,10 +60,12 @@ codebase_audit.json
 scripts/*.txt
 scripts/*.json
 .coverage
+.coverage.*
 htmlcov/
 backend/coverage.xml
 backend/coverage.json
 backend/.coverage
+backend/.coverage.*
 backend/htmlcov/
 project_overview.txt
 backend/certs/
