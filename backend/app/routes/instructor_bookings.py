@@ -26,6 +26,7 @@ from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.base_responses import PaginatedResponse
 from app.schemas.booking import BookingResponse
+from app.services.badge_award_service import BadgeAwardService
 from app.services.permission_service import PermissionService
 
 router = APIRouter(
@@ -124,6 +125,28 @@ async def mark_lesson_complete(
             "notes": notes,
             "payment_capture_scheduled_for": (now + timedelta(hours=24)).isoformat(),
         },
+    )
+
+    # Trigger badge checks before commit
+    badge_service = BadgeAwardService(db)
+    booked_at = booking.confirmed_at or booking.created_at or now
+    category_slug = None
+    try:
+        instructor_service = booking.instructor_service
+        if instructor_service and instructor_service.catalog_entry:
+            category = instructor_service.catalog_entry.category
+            if category:
+                category_slug = category.slug
+    except AttributeError:
+        category_slug = None
+
+    badge_service.check_and_award_on_lesson_completed(
+        student_id=booking.student_id,
+        lesson_id=booking.id,
+        instructor_id=booking.instructor_id,
+        category_slug=category_slug,
+        booked_at_utc=booked_at,
+        completed_at_utc=now,
     )
 
     db.commit()

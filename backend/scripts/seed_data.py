@@ -17,8 +17,11 @@ Notes:
 """
 
 import argparse
+import copy
 from datetime import datetime, timezone
 from pathlib import Path
+import random
+import re
 import sys
 from typing import Tuple
 import uuid
@@ -26,12 +29,14 @@ import uuid
 # Ensure backend/ is importable when called directly
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import sqlalchemy as sa  # noqa: E402
 from sqlalchemy import create_engine, select, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app.auth import get_password_hash  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.enums import RoleName  # noqa: E402
+from app.core.ulid_helper import generate_ulid  # noqa: E402
 from app.models.beta import BetaAccess  # noqa: E402
 from app.models.rbac import Role  # noqa: E402
 from app.models.user import User  # noqa: E402
@@ -44,6 +49,181 @@ DEFAULT_ADMIN_PASSWORD = "Test1234!"
 DEFAULT_ADMIN_ZIP = "10001"
 
 
+BADGE_SEED_DEFINITIONS = [
+    {
+        "slug": "welcome_aboard",
+        "name": "Welcome Aboard",
+        "criteria_type": "milestone",
+        "description": "Complete your first lesson on InstaInstru.",
+        "criteria_config": {
+            "counts": "completed_lessons",
+            "goal": 1,
+            "require_completion": True,
+            "require_instructor_confirmation": True,
+            "hold_hours": 24,
+            "instant": True,
+        },
+        "display_order": 1,
+    },
+    {
+        "slug": "foundation_builder",
+        "name": "Foundation Builder",
+        "criteria_type": "milestone",
+        "description": "Reach 3 completed lessons to build early momentum.",
+        "criteria_config": {
+            "counts": "completed_lessons",
+            "goal": 3,
+            "require_completion": True,
+            "require_instructor_confirmation": True,
+            "hold_hours": 0,
+            "instant": True,
+        },
+        "display_order": 2,
+    },
+    {
+        "slug": "first_steps",
+        "name": "First Steps",
+        "criteria_type": "milestone",
+        "description": "You earned this by completing 5 lessons.",
+        "criteria_config": {
+            "counts": "completed_lessons",
+            "goal": 5,
+            "require_completion": True,
+            "require_instructor_confirmation": True,
+            "hold_hours": 0,
+            "instant": True,
+        },
+        "display_order": 3,
+    },
+    {
+        "slug": "dedicated_learner",
+        "name": "Dedicated Learner",
+        "criteria_type": "milestone",
+        "description": "Complete 10 lessons to unlock this milestone.",
+        "criteria_config": {
+            "counts": "completed_lessons",
+            "goal": 10,
+            "require_completion": True,
+            "require_instructor_confirmation": True,
+            "hold_hours": 0,
+            "instant": True,
+            "public": True,
+        },
+        "display_order": 4,
+    },
+    {
+        "slug": "momentum_starter",
+        "name": "Momentum Starter",
+        "criteria_type": "velocity",
+        "description": "Book your next lesson within 7 days and complete it within 21 days with the same instructor.",
+        "criteria_config": {
+            "window_days_to_book": 7,
+            "window_days_to_complete": 21,
+            "same_instructor_required": True,
+            "require_completion": True,
+            "require_instructor_confirmation": True,
+            "hold_hours": 0,
+            "instant": True,
+        },
+        "display_order": 5,
+    },
+    {
+        "slug": "consistent_learner",
+        "name": "Consistent Learner",
+        "criteria_type": "streak",
+        "description": "Complete at least one lesson each week for 3 consecutive weeks (with a 1-day grace window).",
+        "criteria_config": {
+            "unit": "week",
+            "consecutive_weeks": 3,
+            "grace_days": 1,
+            "grace_type": "fixed",
+            "require_completion": True,
+            "require_instructor_confirmation": True,
+            "hold_hours": 0,
+            "instant": True,
+        },
+        "display_order": 6,
+    },
+    {
+        "slug": "top_student",
+        "name": "Top Student",
+        "criteria_type": "quality",
+        "description": "Earn outstanding feedback: high average rating with multiple reviews and reliable attendance.",
+        "criteria_config": {
+            "min_total_lessons": 10,
+            "min_avg_rating": 4.8,
+            "min_reviews": 3,
+            "distinct_instructors_min": 2,
+            "or_single_instructor_min_lessons": 8,
+            "max_cancel_noshow_rate_pct_60d": 10,
+            "hide_progress": True,
+            "hold_hours": 336,
+        },
+        "display_order": 7,
+    },
+    {
+        "slug": "explorer",
+        "name": "Explorer",
+        "criteria_type": "exploration",
+        "description": "Take lessons across 3 different categories and rebook at least once in any category.",
+        "criteria_config": {
+            "distinct_categories": 3,
+            "min_rebook_in_any_category": 1,
+            "min_overall_avg_rating": 4.3,
+            "show_after_total_lessons": 5,
+            "require_completion": True,
+            "require_instructor_confirmation": True,
+            "hold_hours": 0,
+            "instant": True,
+        },
+        "display_order": 8,
+    },
+    {
+        "slug": "favorite_partnership",
+        "name": "Favorite Partnership",
+        "criteria_type": "relationship",
+        "description": "Complete 10 lessons with the same instructor.",
+        "criteria_config": {
+            "same_instructor_lessons": 10,
+            "require_completion": True,
+            "require_instructor_confirmation": True,
+            "hold_hours": 0,
+            "instant": True,
+            "public": True,
+        },
+        "display_order": 9,
+    },
+    {
+        "slug": "year_one_learner",
+        "name": "Year-One Learner",
+        "criteria_type": "loyalty",
+        "description": "Be an active student for 12 months with 20+ total lessons and a recent lesson in the last 60 days.",
+        "criteria_config": {
+            "min_days_since_first_lesson": 365,
+            "min_total_lessons": 20,
+            "active_within_days": 60,
+            "award_via_cron": True,
+            "hold_hours": 0,
+        },
+        "display_order": 10,
+    },
+]
+
+BADGE_SEED_LOOKUP = {entry["slug"]: entry for entry in BADGE_SEED_DEFINITIONS}
+
+DEMO_BADGE_SLUGS = [
+    "first_steps",
+    "momentum_starter",
+    "top_student",
+    "dedicated_learner",
+    "explorer",
+    "consistent_learner",
+]
+
+DEMO_BADGE_SAMPLE_LIMIT = 15
+
+
+
 def _get_admin_seed_credentials() -> Tuple[str, str, str]:
     site_mode = (settings.site_mode or "").strip().lower()
     email = (settings.admin_email or "admin@instainstru.com").strip().lower()
@@ -54,6 +234,327 @@ def _get_admin_seed_credentials() -> Tuple[str, str, str]:
     if not password:
         password = DEFAULT_ADMIN_PASSWORD
     return email, password, name
+
+
+def _normalize_slug(raw_slug: str) -> str:
+    cleaned = (raw_slug or "").strip().lower()
+    if not cleaned:
+        return cleaned
+    cleaned = re.sub(r"[^a-z0-9_-]+", "_", cleaned)
+    cleaned = cleaned.replace("-", "_")
+    cleaned = re.sub(r"_+", "_", cleaned)
+    return cleaned.strip("_")
+
+
+def seed_badge_definitions(engine, verbose: bool = True) -> None:
+    if verbose:
+        print("\n▶ Seeding badge definitions…")
+
+    metadata = sa.MetaData()
+    badge_definitions = sa.Table(
+        "badge_definitions",
+        metadata,
+        sa.Column("id", sa.String(26)),
+        sa.Column("slug", sa.String(100)),
+        sa.Column("name", sa.String(200)),
+        sa.Column("description", sa.Text()),
+        sa.Column("criteria_type", sa.String(50)),
+        sa.Column("criteria_config", sa.JSON()),
+        sa.Column("icon_key", sa.String(100)),
+        sa.Column("display_order", sa.Integer()),
+        sa.Column("is_active", sa.Boolean()),
+    )
+
+    with Session(engine) as session:
+        table_exists = session.execute(sa.text("SELECT to_regclass('public.badge_definitions')")).scalar()
+        if table_exists is None:
+            if verbose:
+                print("  ⚠ badge_definitions table not found; skipping badge seed")
+            return
+
+        # Normalize any legacy slugs to snake_case
+        normalize_count = 0
+        existing_rows = session.execute(
+            sa.select(badge_definitions.c.id, badge_definitions.c.slug)
+        ).all()
+        for row in existing_rows:
+            normalized = _normalize_slug(row.slug)
+            if normalized and normalized != row.slug:
+                conflict = session.execute(
+                    sa.select(badge_definitions.c.id)
+                    .where(badge_definitions.c.slug == normalized)
+                    .where(badge_definitions.c.id != row.id)
+                ).first()
+                if conflict:
+                    if verbose:
+                        print(
+                            f"  ⚠ Skipping slug normalization for '{row.slug}' -> '{normalized}' due to conflict"
+                        )
+                    continue
+                session.execute(
+                    badge_definitions.update()
+                    .where(badge_definitions.c.id == row.id)
+                    .values(slug=normalized)
+                )
+                normalize_count += 1
+
+        created = 0
+        updated = 0
+        unchanged = 0
+
+        for seed in BADGE_SEED_DEFINITIONS:
+            slug = _normalize_slug(seed["slug"])
+            seed_payload = {
+                "name": seed["name"],
+                "description": seed.get("description"),
+                "criteria_type": seed["criteria_type"],
+                "criteria_config": copy.deepcopy(seed["criteria_config"]),
+                "icon_key": seed.get("icon_key"),
+                "display_order": seed.get("display_order"),
+                "is_active": seed.get("is_active", True),
+            }
+
+            existing = session.execute(
+                sa.select(
+                    badge_definitions.c.id,
+                    badge_definitions.c.name,
+                    badge_definitions.c.description,
+                    badge_definitions.c.criteria_type,
+                    badge_definitions.c.criteria_config,
+                    badge_definitions.c.icon_key,
+                    badge_definitions.c.display_order,
+                    badge_definitions.c.is_active,
+                ).where(badge_definitions.c.slug == slug)
+            ).mappings().first()
+
+            if existing is None:
+                session.execute(
+                    badge_definitions.insert().values(
+                        id=generate_ulid(),
+                        slug=slug,
+                        name=seed_payload["name"],
+                        criteria_type=seed_payload["criteria_type"],
+                        criteria_config=seed_payload["criteria_config"],
+                        icon_key=seed_payload["icon_key"],
+                        display_order=seed_payload["display_order"],
+                        is_active=seed_payload["is_active"],
+                    )
+                )
+                created += 1
+                continue
+
+            updates: dict[str, object] = {}
+            for field, new_value in seed_payload.items():
+                current_value = existing.get(field)
+                if field == "criteria_config":
+                    current_value = current_value or {}
+                    if current_value != new_value:
+                        updates[field] = new_value
+                else:
+                    if current_value != new_value:
+                        updates[field] = new_value
+
+            if updates:
+                session.execute(
+                    badge_definitions.update()
+                    .where(badge_definitions.c.id == existing["id"])
+                    .values(**updates)
+                )
+                updated += 1
+            else:
+                unchanged += 1
+
+        session.commit()
+
+        if verbose:
+            print(
+                f"  → Badges normalized={normalize_count}, created={created}, "
+                f"updated={updated}, unchanged={unchanged}"
+            )
+
+
+def seed_demo_student_badges(
+    engine,
+    *,
+    verbose: bool = True,
+    sample_limit: int = DEMO_BADGE_SAMPLE_LIMIT,
+) -> None:
+    if verbose:
+        print("\n▶ Awarding demo student badges for UI smoke tests…")
+
+    metadata = sa.MetaData()
+    badge_definitions = sa.Table(
+        "badge_definitions",
+        metadata,
+        sa.Column("id", sa.String(26)),
+        sa.Column("slug", sa.String(100)),
+        sa.Column("criteria_config", sa.JSON()),
+    )
+    student_badges = sa.Table(
+        "student_badges",
+        metadata,
+        sa.Column("id", sa.String(26)),
+        sa.Column("student_id", sa.String(26)),
+        sa.Column("badge_id", sa.String(26)),
+        sa.Column("awarded_at", sa.DateTime(timezone=True)),
+        sa.Column("progress_snapshot", sa.JSON()),
+        sa.Column("status", sa.String(16)),
+        sa.Column("confirmed_at", sa.DateTime(timezone=True)),
+        sa.Column("hold_until", sa.DateTime(timezone=True)),
+        sa.Column("revoked_at", sa.DateTime(timezone=True)),
+    )
+
+    with Session(engine) as session:
+        student_badges_present = session.execute(
+            sa.text("SELECT to_regclass('public.student_badges')")
+        ).scalar()
+        if student_badges_present is None:
+            if verbose:
+                print("  ⚠ student_badges table not found; skipping demo badge awards")
+            return
+
+        badge_rows = session.execute(
+            sa.select(
+                badge_definitions.c.id,
+                badge_definitions.c.slug,
+                badge_definitions.c.criteria_config,
+            ).where(badge_definitions.c.slug.in_(DEMO_BADGE_SLUGS))
+        ).all()
+
+        badge_lookup = {
+            row.slug: {"id": row.id, "criteria_config": row.criteria_config}
+            for row in badge_rows
+        }
+
+        missing_slugs = sorted(set(DEMO_BADGE_SLUGS) - set(badge_lookup.keys()))
+        if missing_slugs and verbose:
+            print(
+                "  ⚠ Missing badge definitions for: "
+                + ", ".join(missing_slugs)
+                + " (skipping those awards)"
+            )
+
+        if not badge_lookup:
+            if verbose:
+                print("  ⚠ No badge definitions available for demo awards; skipping")
+            return
+
+        student_role = session.execute(
+            select(Role).where(Role.name == RoleName.STUDENT.value)
+        ).scalar_one_or_none()
+        if student_role is None:
+            if verbose:
+                print("  ⚠ Student role not found; skipping demo badge awards")
+            return
+
+        students = (
+            session.execute(
+                select(User)
+                .join(User.roles)
+                .where(Role.id == student_role.id)
+            )
+            .scalars()
+            .unique()
+            .all()
+        )
+
+        if not students:
+            if verbose:
+                print("  ⚠ No student users found for demo badge awards")
+            return
+
+        target_email = "emma.johnson@example.com"
+        emma_user = next(
+            (user for user in students if (user.email or "").lower() == target_email),
+            None,
+        )
+        if emma_user is None and verbose:
+            print("  ⚠ emma.johnson@example.com not found among students; continuing without")
+
+        other_students = [user for user in students if emma_user is None or user.id != emma_user.id]
+        approx_sample = int(len(other_students) * 0.1)
+        if approx_sample == 0 and other_students:
+            approx_sample = 1
+        sample_size = min(sample_limit, approx_sample)
+        if sample_size > len(other_students):
+            sample_size = len(other_students)
+
+        sampled_students = random.sample(other_students, sample_size) if sample_size else []
+
+        selected_students = []
+        if emma_user is not None:
+            selected_students.append(emma_user)
+        selected_students.extend(sampled_students)
+
+        if not selected_students:
+            if verbose:
+                print("  ⚠ No students selected for demo badge awards")
+            return
+
+        badge_ids = [info["id"] for info in badge_lookup.values()]
+        existing_pairs = session.execute(
+            sa.select(student_badges.c.student_id, student_badges.c.badge_id)
+            .where(student_badges.c.student_id.in_([student.id for student in selected_students]))
+            .where(student_badges.c.badge_id.in_(badge_ids))
+        ).all()
+        existing_set = {(row.student_id, row.badge_id) for row in existing_pairs}
+
+        awarded = 0
+        skipped_existing = 0
+
+        for student in selected_students:
+            available_slugs = list(badge_lookup.keys())
+            if not available_slugs:
+                break
+
+            desired_count = 3 if emma_user and student.id == emma_user.id else random.randint(2, 3)
+            desired_count = max(2, min(desired_count, len(available_slugs)))
+            chosen_slugs = random.sample(available_slugs, desired_count)
+
+            for slug in chosen_slugs:
+                badge_info = badge_lookup.get(slug)
+                if not badge_info:
+                    continue
+                pair = (student.id, badge_info["id"])
+                if pair in existing_set:
+                    skipped_existing += 1
+                    continue
+
+                criteria_config = badge_info.get("criteria_config") or {}
+                goal_value = None
+                if isinstance(criteria_config, dict):
+                    goal_value = criteria_config.get("goal")
+                if isinstance(goal_value, (int, float)):
+                    snapshot = {"current": goal_value, "goal": goal_value}
+                else:
+                    snapshot = {"status": "complete"}
+
+                timestamp = datetime.now(timezone.utc)
+
+                session.execute(
+                    student_badges.insert().values(
+                        id=generate_ulid(),
+                        student_id=student.id,
+                        badge_id=badge_info["id"],
+                        awarded_at=timestamp,
+                        progress_snapshot=snapshot,
+                        status="confirmed",
+                        hold_until=None,
+                        confirmed_at=timestamp,
+                        revoked_at=None,
+                    )
+                )
+                existing_set.add(pair)
+                awarded += 1
+
+        session.commit()
+
+        if verbose:
+            print(
+                f"  → Demo badge awards: students={len(selected_students)}, "
+                f"created={awarded}, skipped_existing={skipped_existing}"
+            )
+
 
 
 def _split_name(full_name: str) -> tuple[str, str]:
@@ -204,10 +705,11 @@ def seed_system_data(verbose: bool = True) -> None:
     except Exception as e:
         print(f"  ⚠ Skipping region boundaries load: {e}")
 
+    engine = create_engine(settings.get_database_url())
+    seed_badge_definitions(engine, verbose=verbose)
+
     # Seed baseline admin account
     admin_email, admin_password, admin_name = _get_admin_seed_credentials()
-
-    engine = create_engine(settings.get_database_url())
     with Session(engine) as session:
         seed_admin_user(
             session,
@@ -258,6 +760,7 @@ def seed_mock_data(verbose: bool = True) -> None:
     seeder.print_summary()
 
     engine = create_engine(settings.get_database_url())
+    seed_demo_student_badges(engine, verbose=verbose)
     admin_email, admin_password, admin_name = _get_admin_seed_credentials()
     with Session(engine) as session:
         seed_admin_user(

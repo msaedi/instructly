@@ -63,6 +63,11 @@ from app.models import SearchEvent, SearchHistory
 # Ensure address and region models are registered so Base.metadata.create_all creates their tables
 from app.models.address import InstructorServiceArea, NYCNeighborhood, UserAddress  # noqa: F401
 from app.models.availability import AvailabilitySlot
+from app.models.badge import (  # noqa: F401 ensures badge tables
+    BadgeDefinition,
+    BadgeProgress,
+    StudentBadge,
+)
 from app.models.beta import BetaAccess, BetaInvite  # noqa: F401 ensure beta tables are registered
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -592,6 +597,10 @@ def db():
         cleanup_db.query(AvailabilitySlot).delete()
         cleanup_db.query(Service).delete()  # This is InstructorService
 
+        # Clean badge-related data (will cascade when users are deleted, but explicit is better)
+        cleanup_db.query(StudentBadge).delete()
+        cleanup_db.query(BadgeProgress).delete()
+
         # Clean up service catalog test data
         # Only delete services with test patterns - preserve all seeded catalog data
         from app.models.service_catalog import ServiceAnalytics
@@ -1097,6 +1106,38 @@ def auth_headers(test_student: User) -> dict:
     from app.auth import create_access_token
 
     token = create_access_token(data={"sub": test_student.email})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def admin_user(db: Session, test_password: str) -> User:
+    existing = db.query(User).filter(User.email == "test.admin@example.com").first()
+    if existing:
+        return existing
+
+    user = User(
+        email="test.admin@example.com",
+        hashed_password=get_password_hash(test_password),
+        first_name="Test",
+        last_name="Admin",
+        zip_code="10001",
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+
+    permission_service = PermissionService(db)
+    permission_service.assign_role(user.id, RoleName.ADMIN)
+    db.refresh(user)
+    db.commit()
+    return user
+
+
+@pytest.fixture
+def auth_headers_admin(admin_user: User) -> dict:
+    from app.auth import create_access_token
+
+    token = create_access_token(data={"sub": admin_user.email})
     return {"Authorization": f"Bearer {token}"}
 
 

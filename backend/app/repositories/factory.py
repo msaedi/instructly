@@ -20,6 +20,7 @@ ModelT = TypeVar("ModelT")
 if TYPE_CHECKING:
     from .address_repository import InstructorServiceAreaRepository
     from .availability_repository import AvailabilityRepository
+    from .badge_repository import BadgeRepository
     from .booking_repository import BookingRepository
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
@@ -193,6 +194,13 @@ class RepositoryFactory:
         from .search_history_repository import SearchHistoryRepository
 
         return SearchHistoryRepository(db)
+
+    @staticmethod
+    def create_badge_repository(db: Session) -> "BadgeRepository":
+        """Create repository for student badge operations."""
+        from .badge_repository import BadgeRepository
+
+        return BadgeRepository(db)
 
     @staticmethod
     def create_payment_repository(db: Session) -> "PaymentRepository":
