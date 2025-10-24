@@ -9,6 +9,7 @@ from typing import List, Optional
 from urllib.parse import urlparse, urlunparse
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.api.dependencies.auth import (
@@ -20,6 +21,7 @@ from app.api.dependencies.services import (
     get_referral_service,
 )
 from app.core.config import settings
+from app.core.exceptions import ServiceException
 from app.models.referrals import ReferralReward, RewardStatus
 from app.models.user import User
 from app.schemas.referrals import (
@@ -197,8 +199,34 @@ async def get_my_referral_ledger(
     current_user: User = Depends(get_current_active_user),
     referral_service: ReferralService = Depends(get_referral_service),
 ) -> ReferralLedgerResponse:
-    code_obj = referral_service.ensure_code_for_user(current_user.id)
-    rewards_by_status = referral_service.get_rewards_by_status(user_id=current_user.id)
+    try:
+        code_obj = await run_in_threadpool(referral_service.ensure_code_for_user, current_user.id)
+    except ServiceException as exc:
+        if exc.code == "REFERRAL_CODE_ISSUANCE_TIMEOUT":
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "message": "Referral code issuance is temporarily unavailable",
+                    "code": exc.code,
+                },
+            ) from exc
+        raise exc.to_http_exception()
+
+    if code_obj is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "message": "Referral codes are not available yet",
+                "code": "REFERRAL_CODES_DISABLED",
+            },
+        )
+
+    try:
+        rewards_by_status = await run_in_threadpool(
+            referral_service.get_rewards_by_status, user_id=current_user.id
+        )
+    except ServiceException as exc:
+        raise exc.to_http_exception()
 
     def _to_reward_out(rewards: List[ReferralReward]) -> List[RewardOut]:
         return [

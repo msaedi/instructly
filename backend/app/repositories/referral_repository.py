@@ -8,9 +8,10 @@ from typing import Dict, List, Optional, Tuple, cast
 import uuid
 from uuid import UUID
 
-from sqlalchemy import func, text
-from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import IntegrityError
+import sqlalchemy as sa
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import RepositoryException
@@ -54,15 +55,20 @@ class ReferralCodeRepository(BaseRepository[ReferralCode]):
         return cast(Optional[ReferralCode], query.first())
 
     def _get_by_user_id(self, user_id: str) -> Optional[ReferralCode]:
-        result = (
-            self.db.query(ReferralCode)
-            .filter(
+        stmt = (
+            sa.select(ReferralCode)
+            .where(
                 ReferralCode.referrer_user_id == user_id,
                 ReferralCode.status == ReferralCodeStatus.ACTIVE,
             )
-            .first()
+            .limit(1)
         )
-        return cast(Optional[ReferralCode], result)
+        return cast(Optional[ReferralCode], self.db.execute(stmt).scalar_one_or_none())
+
+    def get_active_for_user(self, user_id: str) -> Optional[ReferralCode]:
+        """Return active referral code for the user if one exists."""
+
+        return self._get_by_user_id(user_id)
 
     def get_or_create_for_user(self, user_id: str) -> ReferralCode:
         """Fetch existing active code or create a new unique code."""
@@ -71,43 +77,51 @@ class ReferralCodeRepository(BaseRepository[ReferralCode]):
         if existing:
             return existing
 
-        insert_stmt = text(
-            """
-            INSERT INTO referral_codes (id, referrer_user_id, code, status, created_at)
-            VALUES (:id, :uid, :code, 'active', NOW())
-            ON CONFLICT (referrer_user_id) WHERE status='active'
-            DO NOTHING
-            """
-        )
+        try:
+            self.db.execute(sa.text("SET LOCAL lock_timeout = '1500ms'"))
+            self.db.execute(sa.text("SET LOCAL statement_timeout = '3000ms'"))
+        except SQLAlchemyError as exc:  # pragma: no cover - defensive guard
+            raise RepositoryException("Failed to configure referral code timeouts") from exc
 
+        max_attempts = 6
         attempts = 0
-        while attempts < 10:
+        while attempts < max_attempts:
             candidate = referral_utils.gen_code()
-            if self.db.query(ReferralCode).filter(ReferralCode.code == candidate).first():
-                attempts += 1
-                continue
+
+            insert_stmt = (
+                pg_insert(ReferralCode)
+                .values(
+                    id=uuid.uuid4(),
+                    referrer_user_id=user_id,
+                    code=candidate,
+                    status=ReferralCodeStatus.ACTIVE,
+                )
+                .on_conflict_do_nothing()
+                .returning(ReferralCode.id)
+            )
 
             try:
-                with self.db.begin_nested():
-                    result = self.db.execute(
-                        insert_stmt,
-                        {"id": uuid.uuid4(), "uid": user_id, "code": candidate},
-                    )
-            except IntegrityError:
-                attempts += 1
-                continue
+                inserted = self.db.execute(insert_stmt).first()
+            except SQLAlchemyError as exc:
+                raise RepositoryException("Unable to issue referral code") from exc
 
-            if result.rowcount and result.rowcount > 0:
-                break
-            break
-        else:
-            raise RepositoryException("Unable to generate unique referral code")
+            if inserted:
+                inserted_id = inserted[0]
+                created_stmt = sa.select(ReferralCode).where(ReferralCode.id == inserted_id)
+                created = self.db.execute(created_stmt).scalar_one_or_none()
+                if created:
+                    return created
+                raise RepositoryException(
+                    "Referral code insert succeeded but could not be reloaded"
+                )
 
-        code = self._get_by_user_id(user_id)
-        if not code:
-            raise RepositoryException("Unable to load referral code after upsert")
+            existing = self.get_active_for_user(user_id)
+            if existing:
+                return existing
 
-        return code
+            attempts += 1
+
+        raise RepositoryException("Unable to generate unique referral code after retries")
 
 
 class ReferralClickRepository(BaseRepository[ReferralClick]):
@@ -214,7 +228,7 @@ class ReferralAttributionRepository(BaseRepository[ReferralAttribution]):
         ts: datetime,
     ) -> bool:
         stmt = (
-            insert(ReferralAttribution)
+            pg_insert(ReferralAttribution)
             .values(
                 id=uuid.uuid4(),
                 code_id=code_id,

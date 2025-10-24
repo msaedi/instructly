@@ -16,6 +16,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -685,6 +686,13 @@ def upgrade() -> None:
         ["referrer_user_id"],
     )
 
+    op.execute(
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_referral_codes_user_active "
+            "ON referral_codes(referrer_user_id) WHERE status = 'active';"
+        )
+    )
+
     op.create_table(
         "referral_clicks",
         sa.Column("id", UUID(as_uuid=True), nullable=False),
@@ -932,6 +940,7 @@ def downgrade() -> None:
     op.drop_index("idx_referral_clicks_code_ts", table_name="referral_clicks")
     op.drop_table("referral_clicks")
 
+    op.execute(text("DROP INDEX IF EXISTS idx_referral_codes_user_active;"))
     op.drop_index("idx_referral_codes_referrer_user_id", table_name="referral_codes")
     op.drop_table("referral_codes")
 

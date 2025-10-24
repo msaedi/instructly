@@ -1,23 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchMyReferrals, type RewardOut } from '@/features/shared/referrals/api';
+import useSWR from 'swr';
+import {
+  REFERRALS_ME_KEY,
+  fetchReferralLedger,
+  toReferralSummary,
+  type ReferralLedger,
+  type ReferralSummary,
+  type RewardOut,
+} from '@/features/shared/referrals/api';
 import { shareOrCopy } from '@/features/shared/referrals/share';
 import InviteByEmail from '@/features/referrals/InviteByEmail';
 
 type TabKey = 'unlocked' | 'pending' | 'redeemed';
-
-type ReferralSummaryState = {
-  code: string;
-  shareUrl: string;
-  pending: RewardOut[];
-  unlocked: RewardOut[];
-  redeemed: RewardOut[];
-  expiryNoticeDays?: number[];
-};
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
 const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -60,54 +59,61 @@ type RewardsPanelProps = {
 };
 
 export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
-  const [summary, setSummary] = useState<ReferralSummaryState | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('unlocked');
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<'share' | 'copy' | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      try {
-        const data = await fetchMyReferrals();
-        if (!active) return;
-        setSummary({
-          code: data.code,
-          shareUrl: data.share_url,
-          pending: data.pending,
-          unlocked: data.unlocked,
-          redeemed: data.redeemed,
-          expiryNoticeDays: data.expiry_notice_days ?? [],
-        });
-      } catch (error) {
-        if (!active) return;
-        setLoadError(error instanceof Error ? error.message : 'Failed to load rewards');
-      } finally {
-        if (active) setIsLoading(false);
-      }
-    };
-
-    void load();
-    return () => {
-      active = false;
-    };
+  const referralsFetcher = useCallback(async (_url: string) => {
+    const controller = new AbortController();
+    try {
+      return await fetchReferralLedger(controller.signal);
+    } finally {
+      controller.abort();
+    }
   }, []);
 
+  const { data, error, isLoading } = useSWR<ReferralLedger>(REFERRALS_ME_KEY, referralsFetcher, {
+    dedupingInterval: 2000,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    shouldRetryOnError: false,
+  });
+
+  const loadError = error ? (error instanceof Error ? error.message : 'Failed to load rewards') : null;
+
+  const summary = useMemo<ReferralSummary | null>(() => {
+    if (!data) {
+      return null;
+    }
+    return toReferralSummary(data);
+  }, [data]);
+
+  const shareUrl = summary?.share_url ?? '';
+
   const formattedSlug = useMemo(() => {
-    if (!summary) return '';
+    if (!summary || !shareUrl) return '';
     try {
-      const url = new URL(summary.shareUrl);
+      const url = new URL(shareUrl);
       const slug = url.pathname.split('/').filter(Boolean).pop();
       return slug ? `/r/${slug}` : `/r/${summary.code}`;
     } catch {
       return `/r/${summary?.code ?? ''}`;
     }
-  }, [summary]);
+  }, [shareUrl, summary]);
 
   const rewardsForTab = useMemo<RewardOut[]>(() => {
-    if (!summary) return [];
-    return summary[activeTab] ?? [];
+    if (!summary) {
+      return [];
+    }
+
+    switch (activeTab) {
+      case 'pending':
+        return summary.pending;
+      case 'redeemed':
+        return summary.redeemed;
+      case 'unlocked':
+      default:
+        return summary.unlocked;
+    }
   }, [activeTab, summary]);
 
   const handleCopy = useCallback(async () => {
@@ -115,10 +121,10 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
     setIsProcessing('copy');
     try {
       if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        await navigator.clipboard.writeText(summary.shareUrl);
+        await navigator.clipboard.writeText(shareUrl);
       } else {
         const textarea = document.createElement('textarea');
-        textarea.value = summary.shareUrl;
+        textarea.value = shareUrl;
         textarea.setAttribute('readonly', '');
         textarea.style.position = 'absolute';
         textarea.style.left = '-9999px';
@@ -133,7 +139,7 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
     } finally {
       setIsProcessing((state) => (state === 'copy' ? null : state));
     }
-  }, [summary]);
+  }, [shareUrl, summary]);
 
   const handleShare = useCallback(async () => {
     if (!summary) return;
@@ -142,9 +148,9 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
       const payload: ShareData = {
         title: 'Give $20, Get $20 on iNSTAiNSTRU',
         text: `Book your first $75+ lesson and get ${CREDIT_DISPLAY} off. Use my code ${summary.code}`,
-        url: summary.shareUrl,
+        url: shareUrl,
       };
-      const outcome = await shareOrCopy(payload, summary.shareUrl);
+      const outcome = await shareOrCopy(payload, shareUrl);
 
       if (outcome === 'shared') {
         toast.success('Share sheet opened');
@@ -156,7 +162,7 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
     } finally {
       setIsProcessing((state) => (state === 'share' ? null : state));
     }
-  }, [summary]);
+  }, [shareUrl, summary]);
 
   return (
     <main className="space-y-8">
@@ -178,7 +184,7 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
             <div>
               <p className="text-sm font-medium text-gray-500">Share your link</p>
               <p className="text-lg font-semibold text-gray-900" aria-label="Referral link">
-                {summary?.shareUrl ?? 'Loading…'}
+                {summary ? shareUrl : 'Loading…'}
               </p>
               {summary && (
                 <p className="mt-1 text-xs text-gray-500">Direct shortcut: {formattedSlug}</p>
@@ -211,10 +217,7 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
 
       {summary && (
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <InviteByEmail
-            shareUrl={summary.shareUrl}
-            {...(inviterName ? { fromName: inviterName } : {})}
-          />
+          <InviteByEmail shareUrl={shareUrl} {...(inviterName ? { fromName: inviterName } : {})} />
           <p className="mt-3 text-xs text-gray-500">
             Your friends get $20 off their first lesson. You get $20 after they complete it.
           </p>

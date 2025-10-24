@@ -5,12 +5,14 @@ from __future__ import annotations
 import calendar
 from datetime import datetime, timedelta, timezone
 import logging
+import os
 from typing import Dict, Iterable, List, Optional, cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 import ulid
 
+from app.core.exceptions import RepositoryException, ServiceException
 from app.events.referral_events import (
     emit_first_booking_completed,
     emit_referral_code_issued,
@@ -106,8 +108,25 @@ class ReferralService(BaseService):
         return self.referral_code_repo.get_by_code(identifier)
 
     @BaseService.measure_operation("referrals.ensure_code_for_user")
-    def ensure_code_for_user(self, user_id: str) -> ReferralCode:
-        return self.referral_code_repo.get_or_create_for_user(user_id)
+    def ensure_code_for_user(self, user_id: str) -> Optional[ReferralCode]:
+        step = int(os.getenv("REFERRALS_UNSAFE_STEP", "0") or 0)
+
+        existing = self.referral_code_repo.get_active_for_user(user_id)
+        if existing:
+            return existing
+
+        if step < 2:
+            return None
+
+        try:
+            with self.transaction():
+                code = self.referral_code_repo.get_or_create_for_user(user_id)
+            return code
+        except RepositoryException as exc:
+            raise ServiceException(
+                "Referral code issuance is temporarily unavailable",
+                code="REFERRAL_CODE_ISSUANCE_TIMEOUT",
+            ) from exc
 
     @BaseService.measure_operation("referrals.has_attribution")
     def has_attribution(self, user_id: str) -> bool:

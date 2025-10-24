@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+import time
 from typing import Any
 
 try:  # pragma: no cover - pytest may run from backend/ directory
@@ -153,12 +155,14 @@ def test_slug_redirects_to_referral_landing_json(db, client, referral_service, m
     assert "instainstru_ref" in (response.headers.get("set-cookie") or "")
 
 
-def test_get_my_referral_ledger(db, client, referral_service):
+def test_get_my_referral_ledger(db, client, referral_service, monkeypatch):
+    monkeypatch.setenv("REFERRALS_UNSAFE_STEP", "4")
     user = _create_user(db, "ledger_user@example.com")
     token = create_access_token(data={"sub": user.email})
     headers = {"Authorization": f"Bearer {token}"}
 
     code = referral_service.ensure_code_for_user(user.id)
+    assert code is not None
 
     reward_repo = ReferralRewardRepository(db)
     unlock_ts = datetime.now(timezone.utc) + timedelta(days=7)
@@ -218,6 +222,36 @@ def test_get_my_referral_ledger(db, client, referral_service):
     assert pending_payload[0]["id"] == str(pending.id)
     assert unlocked_payload[0]["id"] == str(unlocked.id)
     assert redeemed_payload[0]["id"] == str(redeemed.id)
+
+
+def test_referral_ledger_concurrent_requests(db, client, monkeypatch):
+    monkeypatch.setenv("REFERRALS_UNSAFE_STEP", "4")
+
+    user = _create_user(db, "concurrent_user@example.com")
+    token = create_access_token(data={"sub": user.email})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    def _fetch():
+        return client.get("/api/referrals/me", headers=headers)
+
+    start = time.perf_counter()
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(_fetch)
+        second = executor.submit(_fetch)
+        response_one = first.result(timeout=2)
+        response_two = second.result(timeout=2)
+
+    elapsed = time.perf_counter() - start
+
+    assert elapsed < 2.0, f"requests took too long ({elapsed:.3f}s)"
+    assert response_one.status_code == status.HTTP_200_OK
+    assert response_two.status_code == status.HTTP_200_OK
+
+    payload_one = response_one.json()
+    payload_two = response_two.json()
+
+    assert payload_one["code"]
+    assert payload_one["code"] == payload_two["code"]
 
 
 def _stub_checkout_service(
@@ -356,6 +390,7 @@ def test_admin_referral_config(db, client, referral_service, monkeypatch):
 def test_admin_referral_summary(db, client, referral_service, monkeypatch):
     admin = _create_user(db, "admin_summary@example.com")
     monkeypatch.setattr(User, "is_admin", property(lambda self: True))
+    monkeypatch.setenv("REFERRALS_UNSAFE_STEP", "4")
 
     token = create_access_token(data={"sub": admin.email})
     headers = {"Authorization": f"Bearer {token}"}
@@ -363,6 +398,7 @@ def test_admin_referral_summary(db, client, referral_service, monkeypatch):
     referrer = _create_user(db, "summary_referrer@example.com")
     referred = _create_user(db, "summary_referred@example.com")
     code = referral_service.ensure_code_for_user(referrer.id)
+    assert code is not None
 
     reward_repo = ReferralRewardRepository(db)
     student_reward, inviter_reward = reward_repo.create_student_pair(

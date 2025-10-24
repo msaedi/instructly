@@ -7,7 +7,10 @@ import type {
   ReferralErrorResponse,
 } from '@/features/shared/api/types';
 
+export const REFERRALS_ME_KEY = '/api/referrals/me';
+
 export type RewardOut = components['schemas']['RewardOut'];
+export type ReferralLedger = ReferralLedgerResponse;
 
 export type ApplyReferralErrorType = 'promo_conflict' | 'below_min_basket' | 'no_unlocked_credit' | 'disabled';
 export interface ApplyReferralError {
@@ -15,7 +18,7 @@ export interface ApplyReferralError {
   message?: string;
 }
 
-interface ReferralSummary {
+export interface ReferralSummary {
   code: string;
   share_url: string;
   pending: RewardOut[];
@@ -43,20 +46,33 @@ function normalizeError(reason: string, fallbackMessage?: string): ApplyReferral
   };
 }
 
-export async function fetchMyReferrals(): Promise<ReferralSummary> {
-  const response = await fetch(buildUrl('/api/referrals/me'), {
+export async function fetchMyReferrals({ signal }: { signal?: AbortSignal } = {}): Promise<ReferralSummary> {
+  const data = await fetchReferralLedger(signal);
+  return toReferralSummary(data);
+}
+
+export async function fetchReferralLedger(signal?: AbortSignal): Promise<ReferralLedgerResponse> {
+  const requestInit: RequestInit = {
     method: 'GET',
     credentials: 'include',
     headers: { Accept: 'application/json' },
     cache: 'no-store',
-  });
+  };
+
+  if (signal) {
+    requestInit.signal = signal;
+  }
+
+  const response = await fetch(buildUrl(REFERRALS_ME_KEY), requestInit);
 
   if (!response.ok) {
     throw new Error('Failed to load referral summary');
   }
 
-  const data = (await response.json()) as ReferralLedgerResponse;
+  return (await response.json()) as ReferralLedgerResponse;
+}
 
+export function toReferralSummary(data: ReferralLedgerResponse): ReferralSummary {
   return {
     code: data.code,
     share_url: data.share_url,
