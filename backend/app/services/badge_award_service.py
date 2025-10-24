@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 
 from ..core.timezone_utils import get_user_timezone
+from ..notifications.policy import can_send_now, record_send
 from ..repositories.badge_repository import BadgeRepository
 from ..repositories.factory import RepositoryFactory
 from ..services.cache_service import CacheService
@@ -158,6 +159,7 @@ class BadgeAwardService:
         for award, definition in pending_rows:
             if self._is_student_currently_eligible(award.student_id, definition, now_utc):
                 self.repository.mark_award_confirmed(award, confirmed_at=now_utc)
+                self._maybe_notify_badge_awarded(award.student_id, definition, now_utc)
                 confirmed += 1
             else:
                 self.repository.mark_award_revoked(award, revoked_at=now_utc)
@@ -199,6 +201,8 @@ class BadgeAwardService:
                 masked_student,
                 status,
             )
+            if hold_hours <= 0:
+                self._maybe_notify_badge_awarded(student_id, badge_definition, now_utc)
 
     def _get_latest_completed_lesson_time(
         self,
@@ -391,6 +395,28 @@ class BadgeAwardService:
         completions_local = [dt.astimezone(user_tz) for dt in completion_times]
         now_local = completion_times[0].astimezone(user_tz)
         return compute_week_streak_local(completions_local, now_local, grace_days=grace_days)
+
+    def _maybe_notify_badge_awarded(
+        self, student_id: str, badge_definition, now_utc: datetime
+    ) -> None:
+        if not self.notification_service:
+            return
+
+        user = self.user_repository.get_by_id(student_id)
+        if not user or not getattr(user, "email", None):
+            return
+
+        allowed, reason, key = can_send_now(user, now_utc, self.cache_service)
+        if not allowed:
+            logger.info(
+                "Badge notification skipped for %s (%s)",
+                student_id,
+                reason,
+            )
+            return
+
+        if self.notification_service.send_badge_awarded_email(user, badge_definition.name):
+            record_send(key, self.cache_service)
 
     def _is_momentum_criteria_currently_met(self, definition, student_id: str) -> bool:
         criteria = definition.criteria_config or {}
