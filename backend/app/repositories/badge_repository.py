@@ -351,6 +351,25 @@ class BadgeRepository:
         avg_rating = float(rows[1]) if rows and rows[1] is not None else 0.0
         return {"count": total, "avg_rating": avg_rating}
 
+    def get_review_stats_since(self, student_id: str, since_utc: datetime) -> Dict[str, float]:
+        """Return review count/avg rating for reviews created on/after since_utc."""
+
+        rows = (
+            self.db.query(
+                func.count(Review.id),
+                func.avg(Review.rating * 1.0),
+            )
+            .filter(
+                Review.student_id == student_id,
+                Review.status.in_([ReviewStatus.PUBLISHED.value, ReviewStatus.FLAGGED.value]),
+                Review.created_at >= since_utc,
+            )
+            .first()
+        )
+        total = int(rows[0] or 0) if rows else 0
+        avg_rating = float(rows[1]) if rows and rows[1] is not None else 0.0
+        return {"count": total, "avg_rating": avg_rating}
+
     def count_distinct_instructors_for_student(self, student_id: str) -> int:
         result = (
             self.db.query(func.count(func.distinct(Booking.instructor_id)))
@@ -378,7 +397,21 @@ class BadgeRepository:
         return int(row[0]) if row else 0
 
     def get_cancel_noshow_rate_pct_60d(self, student_id: str, now_utc: datetime) -> float:
-        window_start = now_utc - timedelta(days=60)
+        return self.get_cancel_noshow_rate_pct_window(student_id, now_utc, 60)
+
+    def get_cancel_noshow_rate_pct_window(
+        self,
+        student_id: str,
+        now_utc: datetime,
+        window_days: int,
+    ) -> float:
+        """Return cancel/no-show rate (percent) inside the requested rolling window."""
+
+        window_days = int(window_days or 0)
+        if window_days <= 0:
+            return 0.0
+
+        window_start = now_utc - timedelta(days=window_days)
         relevant_statuses = [
             BookingStatus.COMPLETED,
             BookingStatus.CANCELLED,

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 from sqlalchemy.orm import Session
 
@@ -182,6 +182,7 @@ class BadgeAwardService:
         badge_definition,
         progress_snapshot: Dict[str, Any],
         now_utc: datetime,
+        send_notifications: bool = True,
     ) -> None:
         criteria = badge_definition.criteria_config or {}
         hold_hours = int(criteria.get("hold_hours", 0))
@@ -201,7 +202,7 @@ class BadgeAwardService:
                 masked_student,
                 status,
             )
-            if hold_hours <= 0:
+            if hold_hours <= 0 and send_notifications:
                 self._maybe_notify_badge_awarded(student_id, badge_definition, now_utc)
 
     def _get_latest_completed_lesson_time(
@@ -238,6 +239,265 @@ class BadgeAwardService:
                 "review_id": review_id,
             }
             self._award_according_to_hold(student_id, definition, snapshot, created_at_utc)
+
+    def backfill_user_badges(
+        self,
+        student_id: str,
+        now_utc: datetime,
+        *,
+        quality_window_days: int = 90,
+        send_notifications: bool = False,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Idempotently recompute and (optionally) award badges for one student from current DB state.
+
+        Returns a summary dict:
+          {
+            "milestones": int,
+            "streak": int,
+            "explorer": int,
+            "quality_pending": int,
+            "skipped_existing": int,
+            "dry_run": bool,
+          }
+        """
+
+        summary: Dict[str, Any] = {
+            "milestones": 0,
+            "streak": 0,
+            "explorer": 0,
+            "quality_pending": 0,
+            "skipped_existing": 0,
+            "dry_run": dry_run,
+        }
+
+        definitions = {
+            definition.slug: definition
+            for definition in self.repository.list_active_badge_definitions()
+        }
+        if not definitions:
+            return summary
+
+        award_rows = self.repository.list_student_badge_awards(student_id)
+        existing_award_ids: Set[str] = {
+            row["badge_id"]
+            for row in award_rows
+            if row.get("badge_id") and row.get("status") in {"pending", "confirmed"}
+        }
+
+        total_completed = self.repository.count_completed_lessons(student_id)
+
+        def _record_award(
+            definition,
+            summary_field: str,
+            progress_snapshot: Dict[str, Any],
+        ) -> None:
+            if not definition:
+                return
+
+            if definition.id in existing_award_ids:
+                summary["skipped_existing"] += 1
+                return
+
+            summary[summary_field] += 1
+            if dry_run:
+                return
+
+            self._award_according_to_hold(
+                student_id,
+                definition,
+                progress_snapshot,
+                now_utc,
+                send_notifications=send_notifications,
+            )
+            existing_award_ids.add(definition.id)
+
+        # ------------------------
+        # Milestone badges
+        # ------------------------
+        for slug in self.MILESTONE_SLUGS:
+            definition = definitions.get(slug)
+            if not definition:
+                continue
+            criteria = definition.criteria_config or {}
+            goal = int(criteria.get("goal", 0) or 0)
+            if goal <= 0:
+                continue
+
+            percent = min(100, int((total_completed * 100) / goal)) if goal else 0
+            progress_snapshot = {
+                "current": total_completed,
+                "goal": goal,
+                "percent": percent,
+            }
+            if not dry_run:
+                self.repository.upsert_progress(
+                    student_id,
+                    definition.id,
+                    progress_snapshot,
+                    now_utc=now_utc,
+                )
+
+            if total_completed >= goal:
+                award_snapshot = {
+                    "current": total_completed,
+                    "goal": goal,
+                }
+                _record_award(definition, "milestones", award_snapshot)
+
+        # ------------------------
+        # Consistent learner (streak)
+        # ------------------------
+        consistent_definition = definitions.get(self.CONSISTENT_SLUG)
+        if consistent_definition:
+            criteria = consistent_definition.criteria_config or {}
+            goal = int(criteria.get("goal", 0) or 3)
+            goal = goal if goal > 0 else 3
+            grace_days = int(criteria.get("grace_days", 1) or 1)
+
+            streak = 0
+            student = self.user_repository.get_by_id(student_id)
+            user_tz = None
+            if student:
+                try:
+                    user_tz = get_user_timezone(student)
+                except Exception:
+                    user_tz = None
+
+            if user_tz:
+                completion_times = self.repository.list_completed_lesson_times(student_id)
+                if completion_times:
+                    completions_local = [dt.astimezone(user_tz) for dt in completion_times]
+                    now_local = now_utc.astimezone(user_tz)
+                    streak = compute_week_streak_local(
+                        completions_local,
+                        now_local,
+                        grace_days=grace_days,
+                    )
+
+            percent = min(100, int((min(streak, goal) / goal) * 100)) if goal else 0
+            streak_progress = {
+                "current": streak,
+                "goal": goal,
+                "percent": percent,
+            }
+            if not dry_run:
+                self.repository.upsert_progress(
+                    student_id,
+                    consistent_definition.id,
+                    streak_progress,
+                    now_utc=now_utc,
+                )
+
+            if streak >= goal:
+                award_snapshot = {
+                    "streak": streak,
+                    "goal": goal,
+                    "grace_days": grace_days,
+                }
+                _record_award(consistent_definition, "streak", award_snapshot)
+                # If there was no existing award and we were eligible, summary["streak"] increments
+
+        # ------------------------
+        # Explorer badge
+        # ------------------------
+        explorer_definition = definitions.get("explorer")
+        if explorer_definition:
+            criteria = explorer_definition.criteria_config or {}
+            show_threshold = int(criteria.get("show_after_total_lessons", 0) or 0)
+            goal_categories = int(criteria.get("distinct_categories", 0) or 0)
+            min_avg_rating = float(criteria.get("min_overall_avg_rating", 0.0) or 0.0)
+
+            distinct_categories = self.repository.count_distinct_completed_categories(student_id)
+            has_rebook = self.repository.has_rebook_in_any_category(student_id)
+            avg_rating = self.repository.get_overall_student_avg_rating(student_id)
+
+            goal = goal_categories if goal_categories > 0 else max(distinct_categories, 1)
+            percent = min(100, int((min(distinct_categories, goal) / goal) * 100)) if goal else 0
+            explorer_progress = {
+                "current": distinct_categories,
+                "goal": goal,
+                "percent": percent,
+                "has_rebook": has_rebook,
+                "avg_rating": round(avg_rating, 2),
+            }
+            if not dry_run:
+                self.repository.upsert_progress(
+                    student_id,
+                    explorer_definition.id,
+                    explorer_progress,
+                    now_utc=now_utc,
+                )
+
+            if total_completed >= show_threshold:
+                goal_met = goal_categories <= 0 or distinct_categories >= goal_categories
+                rating_met = avg_rating >= min_avg_rating
+                if goal_met and has_rebook and rating_met:
+                    snapshot = {
+                        "distinct_categories": distinct_categories,
+                        "has_rebook": has_rebook,
+                        "avg_rating": round(avg_rating, 2),
+                    }
+                    _record_award(explorer_definition, "explorer", snapshot)
+
+        # ------------------------
+        # Quality badge (top student)
+        # ------------------------
+        quality_definition = definitions.get("top_student")
+        if quality_definition:
+            criteria = quality_definition.criteria_config or {}
+            min_total_lessons = int(criteria.get("min_total_lessons", 0) or 0)
+            min_reviews = int(criteria.get("min_reviews", 0) or 0)
+            min_avg_rating = float(criteria.get("min_avg_rating", 0.0) or 0.0)
+            max_cancel_rate = float(criteria.get("max_cancel_noshow_rate_pct_60d", 100.0) or 100.0)
+            distinct_required = int(criteria.get("distinct_instructors_min", 0) or 0)
+            single_instructor_goal = int(criteria.get("or_single_instructor_min_lessons", 0) or 0)
+
+            if total_completed >= min_total_lessons:
+                window_days = int(quality_window_days or 0)
+                if window_days <= 0:
+                    window_days = 90
+                window_start = now_utc - timedelta(days=window_days)
+
+                review_stats = self.repository.get_review_stats_since(student_id, window_start)
+                if (
+                    review_stats["count"] >= min_reviews
+                    and review_stats["avg_rating"] >= min_avg_rating
+                ):
+                    cancel_window_days = min(window_days, 60) if window_days > 0 else 60
+                    cancel_rate = self.repository.get_cancel_noshow_rate_pct_window(
+                        student_id, now_utc, cancel_window_days
+                    )
+                    if cancel_rate <= max_cancel_rate:
+                        distinct_instructors = (
+                            self.repository.count_distinct_instructors_for_student(student_id)
+                        )
+                        max_lessons_single = self.repository.get_max_lessons_with_single_instructor(
+                            student_id
+                        )
+                        depth_met = False
+                        if distinct_required > 0 and distinct_instructors >= distinct_required:
+                            depth_met = True
+                        elif (
+                            single_instructor_goal > 0
+                            and max_lessons_single >= single_instructor_goal
+                        ):
+                            depth_met = True
+
+                        if depth_met:
+                            snapshot = {
+                                "window_start": window_start.isoformat(),
+                                "review_count": review_stats["count"],
+                                "avg_rating": round(review_stats["avg_rating"], 2),
+                                "cancel_rate_pct": round(cancel_rate, 2),
+                                "distinct_instructors": distinct_instructors,
+                                "max_lessons_single_instructor": max_lessons_single,
+                                "quality_window_days": window_days,
+                            }
+                            _record_award(quality_definition, "quality_pending", snapshot)
+
+        return summary
 
     def _is_student_currently_eligible(
         self, student_id: str, definition, now_utc: datetime

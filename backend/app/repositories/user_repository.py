@@ -6,6 +6,7 @@ Handles all User data access operations, fixing 30+ repository pattern violation
 Provides methods for basic lookups, role checks, and user counts.
 """
 
+from datetime import datetime
 import logging
 from typing import Any, Optional, Sequence, cast
 
@@ -293,4 +294,39 @@ class UserRepository(BaseRepository[User]):
             )
         except Exception as e:
             self.logger.error(f"Error getting all active users: {str(e)}")
+            return []
+
+    def list_students_paginated(
+        self,
+        *,
+        limit: int,
+        offset: int = 0,
+        since: Optional[datetime] = None,
+        only_active: bool = True,
+    ) -> list[User]:
+        """
+        Return paginated student users ordered by creation time.
+
+        Args:
+            limit: Maximum rows to return (required).
+            offset: Number of rows to skip before returning results.
+            since: Optional created_at lower bound (UTC).
+            only_active: Restrict to active accounts when True.
+        """
+
+        from ..core.enums import RoleName
+
+        try:
+            query = self.db.query(User).filter(User.roles.any(Role.name == RoleName.STUDENT))
+
+            if only_active:
+                query = query.filter(User.is_active.is_(True))
+            if since:
+                query = query.filter(User.created_at >= since)
+
+            query = query.order_by(User.created_at.asc(), User.id.asc())
+            rows = query.offset(max(offset, 0)).limit(max(limit, 0)).all()
+            return cast(list[User], rows)
+        except Exception as exc:
+            self.logger.error("Error listing student users: %s", exc)
             return []
