@@ -4,7 +4,8 @@ import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import useSWR from 'swr';
+// Use project-local SWR helper to avoid missing type dep on swr
+import { useSWRCustom as useSWR } from '@/features/shared/hooks/useSWRCustom';
 import {
   REFERRALS_ME_KEY,
   fetchReferralLedger,
@@ -73,9 +74,6 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
 
   const { data, error, isLoading } = useSWR<ReferralLedger>(REFERRALS_ME_KEY, referralsFetcher, {
     dedupingInterval: 2000,
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    shouldRetryOnError: false,
   });
 
   const loadError = error ? (error instanceof Error ? error.message : 'Failed to load rewards') : null;

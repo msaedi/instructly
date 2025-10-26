@@ -44,23 +44,23 @@ export default function InstructorDashboardNew() {
   const [activePanel, setActivePanel] = useState<'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability'>('dashboard');
 
   const ProfilePanel = useMemo(
-    () => dynamic(() => import('../profile/page').then((m) => m.default), { ssr: false }),
+    () => dynamic(() => import('../profile/embedded').then((m) => m.default), { ssr: false }),
     []
   );
   const BookingsPanel = useMemo(
-    () => dynamic(() => import('../bookings/page').then((m) => m.default), { ssr: false }),
+    () => dynamic(() => import('../bookings/embedded').then((m) => m.default), { ssr: false }),
     []
   );
   const EarningsPanel = useMemo(
-    () => dynamic(() => import('../earnings/page').then((m) => m.default), { ssr: false }),
+    () => dynamic(() => import('../earnings/embedded').then((m) => m.default), { ssr: false }),
     []
   );
   const ReviewsPanel = useMemo(
-    () => dynamic(() => import('../reviews/page').then((m) => m.default), { ssr: false }),
+    () => dynamic(() => import('../reviews/embedded').then((m) => m.default), { ssr: false }),
     []
   );
   const AvailabilityPanel = useMemo(
-    () => dynamic(() => import('../availability/page').then((m) => m.default), { ssr: false }),
+    () => dynamic(() => import('../availability/embedded').then((m) => m.default), { ssr: false }),
     []
   );
 
@@ -132,14 +132,23 @@ export default function InstructorDashboardNew() {
 
   // Freeze sidebar offset briefly when switching to embedded panels to avoid visible reflow
   useEffect(() => {
-    if (activePanel === 'profile' || activePanel === 'bookings' || activePanel === 'earnings' || activePanel === 'reviews' || activePanel === 'availability') {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    if (
+      activePanel === 'profile' ||
+      activePanel === 'bookings' ||
+      activePanel === 'earnings' ||
+      activePanel === 'reviews' ||
+      activePanel === 'availability'
+    ) {
       setIsOffsetFrozen(true);
-      const t = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         setIsOffsetFrozen(false);
         computeSidebarOffset();
       }, 280);
-      return () => clearTimeout(t);
     }
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [activePanel, computeSidebarOffset]);
 
   // No overlay animations; keep load simple and stable
@@ -1116,27 +1125,27 @@ export default function InstructorDashboardNew() {
             )}
             {activePanel === 'profile' && (
               <div className="min-h-[60vh] overflow-visible">
-                <ProfilePanel embedded />
+                <ProfilePanel />
               </div>
             )}
             {activePanel === 'bookings' && (
               <div className="min-h-[60vh] overflow-visible">
-                <BookingsPanel embedded />
+                <BookingsPanel />
               </div>
             )}
             {activePanel === 'earnings' && (
               <div className="min-h-[60vh] overflow-visible">
-                <EarningsPanel embedded />
+                <EarningsPanel />
               </div>
             )}
             {activePanel === 'reviews' && (
               <div className="min-h-[60vh] overflow-visible">
-                <ReviewsPanel embedded />
+                <ReviewsPanel />
               </div>
             )}
             {activePanel === 'availability' && (
               <div className="min-h-[60vh] overflow-visible">
-                <AvailabilityPanel embedded />
+                <AvailabilityPanel />
               </div>
             )}
       </section>

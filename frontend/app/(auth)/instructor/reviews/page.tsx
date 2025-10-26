@@ -5,8 +5,10 @@ import Link from 'next/link';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ArrowLeft, ChevronDown, Star } from 'lucide-react';
 
-export default function InstructorReviewsPage(props?: { embedded?: boolean }) {
-  const embedded = Boolean(props?.embedded);
+import { useEmbedded } from '../_embedded/EmbeddedContext';
+
+function ReviewsPageImpl() {
+  const embedded = useEmbedded();
   const [filter, setFilter] = useState<'all' | 5 | 4 | 3 | 2 | 1>('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement | null>(null);
@@ -142,4 +144,8 @@ export default function InstructorReviewsPage(props?: { embedded?: boolean }) {
       </div>
     </div>
   );
+}
+
+export default function InstructorReviewsPage() {
+  return <ReviewsPageImpl />;
 }

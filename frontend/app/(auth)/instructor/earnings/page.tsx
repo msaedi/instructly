@@ -8,8 +8,10 @@ import { protectedApi } from '@/features/shared/api/client';
 import Modal from '@/components/Modal';
 import { Download, DollarSign, Info, ArrowLeft } from 'lucide-react';
 
-export default function InstructorEarningsPage(props?: { embedded?: boolean }) {
-  const embedded = Boolean(props?.embedded);
+import { useEmbedded } from '../_embedded/EmbeddedContext';
+
+function EarningsPageImpl() {
+  const embedded = useEmbedded();
   function SimpleDropdown({
     value,
     onChange,
@@ -379,4 +381,8 @@ export default function InstructorEarningsPage(props?: { embedded?: boolean }) {
       </Modal>
     </div>
   );
+}
+
+export default function InstructorEarningsPage() {
+  return <EarningsPageImpl />;
 }

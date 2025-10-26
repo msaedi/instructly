@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -119,8 +120,8 @@ function toTitle(s: string): string {
     .join(' ');
 }
 
-export default function InstructorProfileSettingsPage(props?: { embedded?: boolean }) {
-  const embedded = Boolean(props?.embedded);
+function ProfilePageImpl() {
+  const embedded = useEmbedded();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1376,4 +1377,8 @@ export default function InstructorProfileSettingsPage(props?: { embedded?: boole
       </div>
     </div>
   );
+}
+
+export default function InstructorProfileSettingsPage() {
+  return <ProfilePageImpl />;
 }

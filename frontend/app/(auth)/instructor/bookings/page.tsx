@@ -5,8 +5,10 @@ import { useState } from 'react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ArrowLeft, Calendar } from 'lucide-react';
 
-export default function InstructorBookingsPage(props?: { embedded?: boolean }) {
-  const embedded = Boolean(props?.embedded);
+import { useEmbedded } from '../_embedded/EmbeddedContext';
+
+function BookingsPageImpl() {
+  const embedded = useEmbedded();
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   return (
     <div className="min-h-screen">
@@ -96,4 +98,8 @@ export default function InstructorBookingsPage(props?: { embedded?: boolean }) {
       </div>
     </div>
   );
+}
+
+export default function InstructorBookingsPage() {
+  return <BookingsPageImpl />;
 }

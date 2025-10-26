@@ -13,6 +13,7 @@ import { AVAILABILITY_CONSTANTS } from '@/types/availability';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
 import { Calendar, ArrowLeft } from 'lucide-react';
+import { useEmbedded } from '../_embedded/EmbeddedContext';
 import {
   Select,
   SelectTrigger,
@@ -22,8 +23,8 @@ import {
 } from '@/components/ui/select';
 
 
-export default function InstructorAvailabilityPage(props?: { embedded?: boolean }) {
-  const embedded = Boolean(props?.embedded);
+function AvailabilityPageImpl() {
+  const embedded = useEmbedded();
   const { user } = useAuth();
   const userData = user as unknown as UserData;
   const {
@@ -393,3 +394,9 @@ export default function InstructorAvailabilityPage(props?: { embedded?: boolean 
     </div>
   );
 }
+
+export default function InstructorAvailabilityPage() {
+  return <AvailabilityPageImpl />;
+}
+
+// Do not export additional symbols from route module to satisfy Next page typing
