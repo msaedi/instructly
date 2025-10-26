@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
-from typing import Any, Dict, Optional, Set, cast
+from typing import Any, ContextManager, Dict, Optional, Protocol, Set, cast
 
 from sqlalchemy.orm import Session
 
@@ -173,7 +173,8 @@ class BadgeAwardService:
         confirmed = revoked = 0
         pending_rows = list(self.repository.get_pending_awards_due(now_utc))
 
-        with self.db.begin():
+        transactional_repo = cast(_TransactionalRepository, self.repository)
+        with transactional_repo.transaction():
             for award, definition in pending_rows:
                 if self._is_student_currently_eligible(award.student_id, definition, now_utc):
                     self.repository.mark_award_confirmed(award, confirmed_at=now_utc)
@@ -923,3 +924,8 @@ class BadgeAwardService:
 
 
 __all__ = ["BadgeAwardService"]
+
+
+class _TransactionalRepository(Protocol):
+    def transaction(self) -> ContextManager[Session]:
+        ...

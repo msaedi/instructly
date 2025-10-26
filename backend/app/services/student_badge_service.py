@@ -5,15 +5,24 @@ Service layer for exposing student badge state to the API.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional, TypedDict
 
 from sqlalchemy.orm import Session
 
-from ..repositories.badge_repository import (
-    BadgeRepository,
-)
+from ..repositories.badge_repository import BadgeRepository
 from ..repositories.factory import RepositoryFactory
-from ..schemas.badge import StudentBadgeView
+
+
+class StudentBadgePayload(TypedDict, total=False):
+    slug: str
+    name: str
+    description: Optional[str]
+    earned: bool
+    status: Optional[str]
+    awarded_at: Optional[datetime]
+    confirmed_at: Optional[datetime]
+    progress: Optional[Dict[str, Any]]
 
 
 class StudentBadgeService:
@@ -25,7 +34,7 @@ class StudentBadgeService:
         self.db = db
         self.repository: BadgeRepository = RepositoryFactory.create_badge_repository(db)
 
-    def get_student_badges(self, student_id: str) -> List[StudentBadgeView]:
+    def get_student_badges(self, student_id: str) -> List[StudentBadgePayload]:
         """
         Return badge state for the requested student in display order.
         """
@@ -37,7 +46,7 @@ class StudentBadgeService:
         awards_by_slug = {row["slug"]: row for row in award_rows}
         progress_by_slug = {row["slug"]: row for row in progress_rows}
 
-        response: List[StudentBadgeView] = []
+        response: List[StudentBadgePayload] = []
         for definition in definitions:
             slug = definition.slug
             criteria_config = definition.criteria_config or {}
@@ -49,7 +58,7 @@ class StudentBadgeService:
 
             earned = award_status in self.EARNED_STATUSES
 
-            badge_payload: Dict[str, Any] = {
+            badge_payload: StudentBadgePayload = {
                 "slug": slug,
                 "name": definition.name,
                 "description": definition.description,
@@ -84,7 +93,7 @@ class StudentBadgeService:
                         progress_payload = _format_progress_snapshot(award.get("progress_snapshot"))
                     badge_payload["progress"] = progress_payload
 
-            response.append(StudentBadgeView.model_validate(badge_payload))
+            response.append(badge_payload)
 
         return response
 
@@ -112,4 +121,4 @@ def _format_progress_snapshot(snapshot: Optional[Dict[str, Any]]) -> Optional[Di
     return progress
 
 
-__all__ = ["StudentBadgeService"]
+__all__ = ["StudentBadgeService", "StudentBadgePayload"]
