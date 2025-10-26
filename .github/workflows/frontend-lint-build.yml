@@ -16,11 +16,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
         working-directory: frontend
-      - name: ESLint (no warnings allowed)
+      - name: ESLint (full project)
+        run: npm run lint
+        working-directory: frontend
+      - name: ESLint (CI guardrail)
         run: npm run lint:ci
+        working-directory: frontend
+      - name: Typecheck (default config)
+        run: npm run typecheck
         working-directory: frontend
       - name: Typecheck (strict)
         run: npm run typecheck:strict
+        working-directory: frontend
+      - name: Typecheck (strict-all)
+        run: npm run typecheck:strict-all
         working-directory: frontend
       - name: Next build (capture warnings)
         run: |

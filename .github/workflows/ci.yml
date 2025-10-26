@@ -80,7 +80,11 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Lint
+      - name: Lint (full project)
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Lint (CI guardrail)
         working-directory: frontend
         run: npm run lint:ci
 
@@ -88,9 +92,17 @@ jobs:
         working-directory: frontend
         run: npm run verify:public-env
 
-      - name: Typecheck
+      - name: Typecheck (default config)
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Typecheck (strict)
         working-directory: frontend
         run: npm run typecheck:strict
+
+      - name: Typecheck (strict-all)
+        working-directory: frontend
+        run: npm run typecheck:strict-all
 
       - name: Response-model strict audit (hard)
         run: python tools/audit_response_model_strict.py
