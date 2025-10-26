@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { Search, Server, Code, FlaskConical, Gift, ShieldCheck, SlidersHorizontal } from 'lucide-react';
+import { Search, Server, Code, FlaskConical, Gift, ShieldCheck, SlidersHorizontal, Award } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useBGCCounts } from './bgc-review/hooks';
@@ -76,6 +76,13 @@ function AdminSidebar() {
       href: '/admin/bgc-review',
       icon: ShieldCheck,
       items: [{ name: 'Review Queue', href: '/admin/bgc-review' }],
+    },
+    {
+      key: 'badges',
+      label: 'Badges',
+      href: '/admin/badges/pending',
+      icon: Award,
+      items: [{ name: 'Reviews', href: '/admin/badges/pending' }],
     },
     {
       key: 'referrals',

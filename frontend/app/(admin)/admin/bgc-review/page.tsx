@@ -251,24 +251,22 @@ export default function AdminBGCReviewPage() {
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  size="icon"
                   onClick={handleRefresh}
                   disabled={isRefreshing || isLoading}
                   aria-label="Refresh review queue"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/70 disabled:opacity-50"
                 >
                   {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                </Button>
-                <Button
+                </button>
+                <button
                   type="button"
-                  variant="outline"
                   onClick={() => void logout()}
-                  className="rounded-full"
+                  className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60"
                 >
                   Log out
-                </Button>
+                </button>
               </div>
             </div>
           </div>
@@ -299,20 +297,30 @@ export default function AdminBGCReviewPage() {
                   </label>
                 </div>
                 <div className="flex items-center gap-2">
-                  {statusOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      size="sm"
-                      variant={statusFilter === option.value ? 'default' : 'outline'}
-                      onClick={() => setStatusFilter(option.value)}
-                    >
-                      {option.label}
-                      <span className="ml-2 text-xs font-medium text-gray-600 dark:text-gray-300">
-                        ({option.count})
-                      </span>
-                    </Button>
-                  ))}
+                  {statusOptions.map((option) => {
+                    const active = statusFilter === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setStatusFilter(option.value)}
+                        className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-indigo-500/60 ${
+                          active
+                            ? 'bg-gradient-to-r from-indigo-600 to-purple-500 text-white shadow-sm'
+                            : 'text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/40'
+                        }`}
+                      >
+                        {option.label}
+                        <span
+                          className={`ml-2 text-xs font-medium ${
+                            active ? 'text-white/80' : 'text-gray-600 dark:text-gray-300'
+                          }`}
+                        >
+                          ({option.count})
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">

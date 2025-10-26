@@ -2,6 +2,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, ShieldCheck, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
@@ -150,20 +151,37 @@ export default function AdminPendingBadgesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b border-gray-200 bg-white/80 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-gray-900">Badge Reviews</h1>
-            {isFetching && <Loader2 className="h-4 w-4 animate-spin text-purple-600" aria-hidden="true" />}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="border-b border-gray-200/70 dark:border-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <Link
+                href="/"
+                className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400 mr-8"
+              >
+                iNSTAiNSTRU
+              </Link>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Badge Reviews</h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Review badges before they are confirmed for students.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              {isFetching && (
+                <Loader2 className="h-4 w-4 animate-spin text-purple-600" aria-label="Refreshing badge data" />
+              )}
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60"
+              >
+                Log out
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => logout()}
-            className="text-sm font-medium text-gray-600 hover:text-gray-900"
-          >
-            Log out
-          </button>
         </div>
       </header>
 
@@ -174,7 +192,7 @@ export default function AdminPendingBadgesPage() {
           </aside>
 
           <section className="col-span-12 md:col-span-9">
-            <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
+            <div className="rounded-2xl bg-white/60 dark:bg-gray-900/40 backdrop-blur p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60">
               <div className="flex flex-wrap items-center gap-4 mb-4">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Pending Awards</h2>
@@ -189,7 +207,10 @@ export default function AdminPendingBadgesPage() {
                       Status
                     </label>
                     <Select value={statusFilter} onValueChange={(value: StatusFilter) => handleStatusChange(value)}>
-                      <SelectTrigger id="status-filter" className="w-40">
+                      <SelectTrigger
+                        id="status-filter"
+                        className="inline-flex items-center justify-between w-40 rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800"
+                      >
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -208,7 +229,7 @@ export default function AdminPendingBadgesPage() {
                       type="date"
                       value={beforeFilter}
                       onChange={handleBeforeChange}
-                      className="rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                      className="rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-200"
                     />
                   </div>
                 </div>

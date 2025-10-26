@@ -85,6 +85,24 @@ describe('AdminPendingBadgesPage', () => {
     global.fetch = originalFetch;
   });
 
+  it('renders shared admin header with brand and logout', async () => {
+    listPendingAwards.mockResolvedValue({
+      items: [],
+      total: 0,
+      next_offset: null,
+    });
+
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Pending Awards' });
+    expect(screen.getByRole('link', { name: /instainstru/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Badge Reviews' })).toBeInTheDocument();
+    expect(
+      screen.getAllByText('Review badges before they are confirmed for students.').length
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument();
+  });
+
   it('renders rows and confirms an award', async () => {
     const pendingAward = createAward();
     listPendingAwards.mockResolvedValue({
