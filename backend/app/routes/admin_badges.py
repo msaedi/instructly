@@ -35,14 +35,15 @@ def list_pending_awards(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     service: BadgeAdminService = Depends(get_admin_service),
-):
+) -> AdminAwardListResponse:
     normalized_status = (status or "pending").strip().lower()
-    return service.list_awards(
+    payload = service.list_awards(
         status=normalized_status,
         before=before,
         limit=limit,
         offset=offset,
     )
+    return AdminAwardListResponse.model_validate(payload)
 
 
 @router.post(
@@ -53,9 +54,11 @@ def list_pending_awards(
 def confirm_award(
     award_id: str,
     service: BadgeAdminService = Depends(get_admin_service),
-):
+) -> AdminAwardSchema:
     try:
-        return service.confirm_award(award_id, datetime.now(timezone.utc))
+        return AdminAwardSchema.model_validate(
+            service.confirm_award(award_id, datetime.now(timezone.utc))
+        )
     except NotFoundException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -68,8 +71,10 @@ def confirm_award(
 def revoke_award(
     award_id: str,
     service: BadgeAdminService = Depends(get_admin_service),
-):
+) -> AdminAwardSchema:
     try:
-        return service.revoke_award(award_id, datetime.now(timezone.utc))
+        return AdminAwardSchema.model_validate(
+            service.revoke_award(award_id, datetime.now(timezone.utc))
+        )
     except NotFoundException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

@@ -3,22 +3,30 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
+from ..models.user import User
 from ..notifications.policy import can_send_now, record_send
+from ..repositories.badge_repository import BadgeRepository
+from ..services.cache_service import CacheService
+from ..services.notification_service import NotificationService
 
 
 def build_weekly_badge_progress_digest(
-    user_id: str, now_utc: datetime, repository
+    user_id: str,
+    now_utc: datetime,
+    repository: BadgeRepository,
 ) -> Dict[str, Any]:
     definitions = repository.list_active_badge_definitions()
     awards = repository.list_student_badge_awards(user_id)
     progress_rows = repository.list_student_badge_progress(user_id)
 
     earned = {row["slug"] for row in awards if row.get("status") == "confirmed"}
-    progress_map = {row["slug"]: row.get("current_progress") or {} for row in progress_rows}
+    progress_map: Dict[str, Dict[str, Any]] = {
+        row["slug"]: row.get("current_progress") or {} for row in progress_rows
+    }
 
-    candidates: List[dict] = []
+    candidates: List[Dict[str, Any]] = []
     for definition in definitions:
         slug = definition.slug
         if slug in earned:
@@ -57,10 +65,10 @@ def build_weekly_badge_progress_digest(
 
 def send_weekly_digest(
     now_utc: datetime,
-    users: Iterable,
-    repository,
-    notification_service,
-    cache_service,
+    users: Iterable[User],
+    repository: BadgeRepository,
+    notification_service: Optional[NotificationService],
+    cache_service: Optional[CacheService],
 ) -> Dict[str, int]:
     summary = {"scanned": 0, "sent": 0}
     for user in users:

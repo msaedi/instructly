@@ -19,7 +19,7 @@ import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
 import logging
-from typing import Any, Awaitable, Callable, List, Optional, ParamSpec, Sequence, TypeVar
+from typing import Any, Awaitable, Callable, Dict, List, Optional, ParamSpec, Sequence, TypeVar
 
 from jinja2.exceptions import TemplateNotFound
 from sqlalchemy.orm import Session
@@ -891,7 +891,7 @@ class NotificationService(BaseService):
             return False
 
     @BaseService.measure_operation("send_badge_digest_email")
-    def send_badge_digest_email(self, user: User, items: Sequence[dict]) -> bool:
+    def send_badge_digest_email(self, user: User, items: Sequence[Dict[str, Any]]) -> bool:
         try:
             subject = "You're close to unlocking new badges"
             if not items:

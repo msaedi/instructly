@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import logging
-from typing import Dict
+from typing import Any, Callable, Dict, TypeVar, cast
 
 from sqlalchemy.orm import Session
 
@@ -14,8 +14,18 @@ from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
+TaskFunc = TypeVar("TaskFunc", bound=Callable[..., Dict[str, int]])
 
-@celery_app.task(name="badges.finalize_pending")
+
+def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskFunc], TaskFunc]:
+    def decorator(func: TaskFunc) -> TaskFunc:
+        task = celery_app.task(*task_args, **task_kwargs)(func)
+        return cast(TaskFunc, task)
+
+    return decorator
+
+
+@typed_task(name="badges.finalize_pending")
 def finalize_pending_badges_task() -> Dict[str, int]:
     """
     Re-evaluate pending badge holds and finalize them.

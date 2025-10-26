@@ -13,6 +13,7 @@ from ..repositories.badge_repository import (
     BadgeRepository,
 )
 from ..repositories.factory import RepositoryFactory
+from ..schemas.badge import StudentBadgeView
 
 
 class StudentBadgeService:
@@ -24,7 +25,7 @@ class StudentBadgeService:
         self.db = db
         self.repository: BadgeRepository = RepositoryFactory.create_badge_repository(db)
 
-    def get_student_badges(self, student_id: str) -> List[Dict[str, Any]]:
+    def get_student_badges(self, student_id: str) -> List[StudentBadgeView]:
         """
         Return badge state for the requested student in display order.
         """
@@ -36,7 +37,7 @@ class StudentBadgeService:
         awards_by_slug = {row["slug"]: row for row in award_rows}
         progress_by_slug = {row["slug"]: row for row in progress_rows}
 
-        response: List[Dict[str, Any]] = []
+        response: List[StudentBadgeView] = []
         for definition in definitions:
             slug = definition.slug
             criteria_config = definition.criteria_config or {}
@@ -83,19 +84,19 @@ class StudentBadgeService:
                         progress_payload = _format_progress_snapshot(award.get("progress_snapshot"))
                     badge_payload["progress"] = progress_payload
 
-            response.append(badge_payload)
+            response.append(StudentBadgeView.model_validate(badge_payload))
 
         return response
 
 
-def _format_progress_snapshot(snapshot: Optional[dict]) -> Optional[Dict[str, Any]]:
+def _format_progress_snapshot(snapshot: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
     Normalize a stored progress snapshot and compute percent (capped at 100).
     """
     if not isinstance(snapshot, dict) or not snapshot:
         return None
 
-    progress = dict(snapshot)
+    progress: Dict[str, Any] = dict(snapshot)
     current = progress.get("current")
     goal = progress.get("goal")
 

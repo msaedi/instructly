@@ -72,7 +72,7 @@ class MapboxProvider(GeocodingProvider):
                     types=[t for t in (f.get("place_type") or [])],
                 )
             )
-            return results
+        return results
 
     async def get_place_details(self, place_id: str) -> Optional[GeocodedAddress]:
         # Mapbox allows fetching by feature id using the same geocoding endpoint

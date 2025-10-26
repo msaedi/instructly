@@ -8,7 +8,7 @@ All functions in this module are database-only and free of business logic.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -26,11 +26,11 @@ class StudentBadgeAwardRow(TypedDict, total=False):
     slug: str
     name: str
     description: Optional[str]
-    criteria_config: Optional[dict]
+    criteria_config: Optional[Dict[str, Any]]
     status: str
     awarded_at: Any
     confirmed_at: Optional[Any]
-    progress_snapshot: Optional[dict]
+    progress_snapshot: Optional[Dict[str, Any]]
 
 
 class StudentBadgeProgressRow(TypedDict, total=False):
@@ -38,9 +38,14 @@ class StudentBadgeProgressRow(TypedDict, total=False):
     slug: str
     name: str
     description: Optional[str]
-    criteria_config: Optional[dict]
-    current_progress: Optional[dict]
+    criteria_config: Optional[Dict[str, Any]]
+    current_progress: Optional[Dict[str, Any]]
     last_updated: Any
+
+
+class ReviewStats(TypedDict):
+    count: int
+    avg_rating: float
 
 
 class BadgeRepository(BaseRepository[BadgeDefinition]):
@@ -56,7 +61,7 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
     def list_active_badge_definitions(self) -> List[BadgeDefinition]:
         """Return active badge definitions ordered for display."""
 
-        return (
+        rows = (
             self.db.query(BadgeDefinition)
             .filter(BadgeDefinition.is_active.is_(True))
             .order_by(
@@ -65,18 +70,23 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
             )
             .all()
         )
+        return cast(List[BadgeDefinition], rows)
 
     def get_badge_definition_by_slug(self, slug: str) -> Optional[BadgeDefinition]:
-        return self.db.query(BadgeDefinition).filter(BadgeDefinition.slug == slug).first()
+        return cast(
+            Optional[BadgeDefinition],
+            self.db.query(BadgeDefinition).filter(BadgeDefinition.slug == slug).first(),
+        )
 
     def list_student_badge_awards(self, student_id: str) -> List[StudentBadgeAwardRow]:
         """Return badge award rows joined with definitions for a student."""
 
-        rows = (
+        rows = cast(
+            List[Tuple[StudentBadge, BadgeDefinition]],
             self.db.query(StudentBadge, BadgeDefinition)
             .join(BadgeDefinition, StudentBadge.badge_id == BadgeDefinition.id)
             .filter(StudentBadge.student_id == student_id)
-            .all()
+            .all(),
         )
 
         awards: List[StudentBadgeAwardRow] = []
@@ -99,11 +109,12 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
     def list_student_badge_progress(self, student_id: str) -> List[StudentBadgeProgressRow]:
         """Return badge progress rows joined with definitions for a student."""
 
-        rows = (
+        rows = cast(
+            List[Tuple[BadgeProgress, BadgeDefinition]],
             self.db.query(BadgeProgress, BadgeDefinition)
             .join(BadgeDefinition, BadgeProgress.badge_id == BadgeDefinition.id)
             .filter(BadgeProgress.student_id == student_id)
-            .all()
+            .all(),
         )
 
         progress_rows: List[StudentBadgeProgressRow] = []
@@ -258,14 +269,15 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
     ) -> Optional[str]:
         """Insert (or revive) a badge award obeying the unique constraint."""
 
-        existing = (
+        existing = cast(
+            Optional[StudentBadge],
             self.db.query(StudentBadge)
             .filter(
                 StudentBadge.student_id == student_id,
                 StudentBadge.badge_id == badge_id,
             )
             .with_for_update(of=StudentBadge)
-            .first()
+            .first(),
         )
 
         hold_delta = timedelta(hours=max(hold_hours, 0))
@@ -273,7 +285,7 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
 
         if existing:
             if existing.status in {"pending", "confirmed"}:
-                return existing.id
+                return cast(str, existing.id)
 
             existing.status = "pending" if hold_hours > 0 else "confirmed"
             existing.awarded_at = now_utc
@@ -281,7 +293,7 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
             existing.confirmed_at = now_utc if hold_hours <= 0 else None
             existing.revoked_at = None
             existing.progress_snapshot = progress_snapshot
-            return existing.id
+            return cast(str, existing.id)
 
         award = StudentBadge(
             student_id=student_id,
@@ -294,14 +306,15 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
         )
         self.db.add(award)
         self.db.flush()
-        return award.id
+        return cast(str, award.id)
 
     def get_pending_awards_due(
         self, now_utc: datetime
     ) -> List[tuple[StudentBadge, BadgeDefinition]]:
         """Return (award, definition) pairs for pending awards whose holds elapsed."""
 
-        rows = (
+        rows = cast(
+            List[Tuple[StudentBadge, BadgeDefinition]],
             self.db.query(StudentBadge, BadgeDefinition)
             .join(BadgeDefinition, StudentBadge.badge_id == BadgeDefinition.id)
             .filter(
@@ -309,7 +322,7 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
                 StudentBadge.hold_until.isnot(None),
                 StudentBadge.hold_until <= now_utc,
             )
-            .all()
+            .all(),
         )
         return rows
 
@@ -325,7 +338,7 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
 
     def list_completed_lesson_times(self, student_id: str) -> List[datetime]:
         """Return all completion timestamps (UTC) for the student ordered descending."""
-        rows = (
+        rows: Sequence[Tuple[Optional[datetime]]] = (
             self.db.query(Booking.completed_at)
             .filter(
                 Booking.student_id == student_id,
@@ -335,10 +348,11 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
             .order_by(Booking.completed_at.desc())
             .all()
         )
-        return [row[0] for row in rows if row[0] is not None]
+        return [completed_at for completed_at, in rows if completed_at is not None]
 
-    def get_review_stats(self, student_id: str) -> Dict[str, float]:
-        rows = (
+    def get_review_stats(self, student_id: str) -> ReviewStats:
+        row = cast(
+            Optional[Tuple[Optional[int], Optional[float]]],
             self.db.query(
                 func.count(Review.id),
                 func.avg(Review.rating * 1.0),
@@ -347,16 +361,17 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
                 Review.student_id == student_id,
                 Review.status.in_([ReviewStatus.PUBLISHED.value, ReviewStatus.FLAGGED.value]),
             )
-            .first()
+            .first(),
         )
-        total = int(rows[0] or 0) if rows else 0
-        avg_rating = float(rows[1]) if rows and rows[1] is not None else 0.0
-        return {"count": total, "avg_rating": avg_rating}
+        total = int(row[0] or 0) if row else 0
+        avg_rating = float(row[1]) if row and row[1] is not None else 0.0
+        return ReviewStats(count=total, avg_rating=avg_rating)
 
-    def get_review_stats_since(self, student_id: str, since_utc: datetime) -> Dict[str, float]:
+    def get_review_stats_since(self, student_id: str, since_utc: datetime) -> ReviewStats:
         """Return review count/avg rating for reviews created on/after since_utc."""
 
-        rows = (
+        row = cast(
+            Optional[Tuple[Optional[int], Optional[float]]],
             self.db.query(
                 func.count(Review.id),
                 func.avg(Review.rating * 1.0),
@@ -366,11 +381,11 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
                 Review.status.in_([ReviewStatus.PUBLISHED.value, ReviewStatus.FLAGGED.value]),
                 Review.created_at >= since_utc,
             )
-            .first()
+            .first(),
         )
-        total = int(rows[0] or 0) if rows else 0
-        avg_rating = float(rows[1]) if rows and rows[1] is not None else 0.0
-        return {"count": total, "avg_rating": avg_rating}
+        total = int(row[0] or 0) if row else 0
+        avg_rating = float(row[1]) if row and row[1] is not None else 0.0
+        return ReviewStats(count=total, avg_rating=avg_rating)
 
     def count_distinct_instructors_for_student(self, student_id: str) -> int:
         result = (
@@ -420,7 +435,7 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
             BookingStatus.NO_SHOW,
         ]
 
-        rows = (
+        rows: Sequence[Tuple[str, int]] = (
             self.db.query(Booking.status, func.count(Booking.id))
             .filter(
                 Booking.student_id == student_id,
@@ -431,7 +446,7 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
             .all()
         )
 
-        totals = {status: count for status, count in rows}
+        totals: Dict[str, int] = {status: int(count) for status, count in rows}
         total = sum(totals.values())
         if total == 0:
             return 0.0
@@ -508,25 +523,33 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
         else:
             base = base.filter(StudentBadge.awarded_at <= before)
 
-        total = base.order_by(None).with_entities(func.count()).scalar() or 0
+        total = int(
+            cast(
+                Optional[int],
+                base.order_by(None).with_entities(func.count()).scalar(),
+            )
+            or 0
+        )
 
-        rows = (
+        rows = cast(
+            List[Tuple[StudentBadge, BadgeDefinition, User]],
             base.order_by(StudentBadge.awarded_at.desc(), StudentBadge.id.desc())
             .offset(offset)
             .limit(limit)
-            .all()
+            .all(),
         )
-        return rows, int(total)
+        return rows, total
 
     def get_award_with_details(
         self, award_id: str
     ) -> Optional[tuple[StudentBadge, BadgeDefinition, User]]:
-        return (
+        return cast(
+            Optional[Tuple[StudentBadge, BadgeDefinition, User]],
             self.db.query(StudentBadge, BadgeDefinition, User)
             .join(BadgeDefinition, StudentBadge.badge_id == BadgeDefinition.id)
             .join(User, StudentBadge.student_id == User.id)
             .filter(StudentBadge.id == award_id)
-            .first()
+            .first(),
         )
 
     def update_award_status(

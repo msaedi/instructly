@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Optional, Tuple
+from datetime import datetime, tzinfo
+from typing import Any, Optional, Tuple
 
 QUIET_HOURS_START = 22  # 10 PM local
 QUIET_HOURS_END = 8  # 8 AM local
 DAILY_CAP = 2
 
 
-def _resolve_timezone(user):
+def _resolve_timezone(user: Any) -> Optional[tzinfo]:
     from app.core.timezone_utils import get_user_timezone
 
     return get_user_timezone(user)
@@ -22,7 +22,7 @@ def _build_local_day_key(user_id: str, local_dt: Optional[datetime]) -> str:
     return f"notif:{user_id}:{local_dt.strftime('%Y%m%d')}"
 
 
-def _read_counter(cache_service, key: str) -> int:
+def _read_counter(cache_service: Any, key: str) -> int:
     if not cache_service or not key:
         return 0
     cached = cache_service.get(key)
@@ -33,7 +33,7 @@ def _read_counter(cache_service, key: str) -> int:
     return 0
 
 
-def can_send_now(user, now_utc: datetime, cache_service) -> Tuple[bool, str, str]:
+def can_send_now(user: Any, now_utc: datetime, cache_service: Any) -> Tuple[bool, str, str]:
     """Return (allowed, reason, local_day_key)."""
 
     try:
@@ -57,7 +57,7 @@ def can_send_now(user, now_utc: datetime, cache_service) -> Tuple[bool, str, str
     return True, "ok", key
 
 
-def record_send(local_day_key: str, cache_service, ttl_hours: int = 36) -> None:
+def record_send(local_day_key: str, cache_service: Any, ttl_hours: int = 36) -> None:
     """Increment the per-user local-day counter."""
 
     if not cache_service or not local_day_key:

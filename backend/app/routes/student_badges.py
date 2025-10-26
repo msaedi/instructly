@@ -37,7 +37,7 @@ def list_earned_student_badges(
     service: StudentBadgeService = Depends(get_student_badge_service),
 ) -> List[StudentBadgeView]:
     badges = service.get_student_badges(current_user.id)
-    return [badge for badge in badges if badge.get("earned")]
+    return [badge for badge in badges if badge.earned]
 
 
 @router.get("/progress", response_model=List[StudentBadgeView])
@@ -46,9 +46,7 @@ def list_in_progress_student_badges(
     service: StudentBadgeService = Depends(get_student_badge_service),
 ) -> List[StudentBadgeView]:
     badges = service.get_student_badges(current_user.id)
-    return [
-        badge for badge in badges if not badge.get("earned") and badge.get("progress") is not None
-    ]
+    return [badge for badge in badges if not badge.earned and badge.progress is not None]
 
 
 __all__ = ["router"]

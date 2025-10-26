@@ -108,7 +108,10 @@ class ReferralCodeRepository(BaseRepository[ReferralCode]):
             if inserted:
                 inserted_id = inserted[0]
                 created_stmt = sa.select(ReferralCode).where(ReferralCode.id == inserted_id)
-                created = self.db.execute(created_stmt).scalar_one_or_none()
+                created = cast(
+                    Optional[ReferralCode],
+                    self.db.execute(created_stmt).scalar_one_or_none(),
+                )
                 if created:
                     return created
                 raise RepositoryException(

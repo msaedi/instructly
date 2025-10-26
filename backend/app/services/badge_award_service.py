@@ -5,11 +5,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Set, cast
 
 from sqlalchemy.orm import Session
 
 from ..core.timezone_utils import get_user_timezone
+from ..models.badge import BadgeDefinition
 from ..notifications.policy import can_send_now, record_send
 from ..repositories.badge_repository import BadgeRepository
 from ..repositories.factory import RepositoryFactory
@@ -73,7 +74,7 @@ class BadgeAwardService:
     ) -> None:
         """Evaluate milestone and momentum badges after a lesson is completed."""
 
-        definitions = {
+        definitions: Dict[str, BadgeDefinition] = {
             definition.slug: definition
             for definition in self.repository.list_active_badge_definitions()
         }
@@ -172,7 +173,7 @@ class BadgeAwardService:
         confirmed = revoked = 0
         pending_rows = list(self.repository.get_pending_awards_due(now_utc))
 
-        with self.repository.transaction():
+        with self.db.begin():
             for award, definition in pending_rows:
                 if self._is_student_currently_eligible(award.student_id, definition, now_utc):
                     self.repository.mark_award_confirmed(award, confirmed_at=now_utc)
@@ -191,7 +192,7 @@ class BadgeAwardService:
     def _award_according_to_hold(
         self,
         student_id: str,
-        badge_definition,
+        badge_definition: BadgeDefinition,
         progress_snapshot: Dict[str, Any],
         now_utc: datetime,
         send_notifications: bool = True,
@@ -234,7 +235,7 @@ class BadgeAwardService:
 
     def _build_momentum_progress_snapshot(
         self,
-        definition,
+        definition: BadgeDefinition,
         student_id: str,
         instructor_id: str,
         lesson_id: str,
@@ -373,7 +374,7 @@ class BadgeAwardService:
         total_completed = self.repository.count_completed_lessons(student_id)
 
         def _record_award(
-            definition,
+            definition: Optional[BadgeDefinition],
             summary_field: str,
             progress_snapshot: Dict[str, Any],
         ) -> None:
@@ -570,21 +571,24 @@ class BadgeAwardService:
                             depth_met = True
 
                         if depth_met:
-                            snapshot = {
-                                "window_start": window_start.isoformat(),
-                                "review_count": review_stats["count"],
-                                "avg_rating": round(review_stats["avg_rating"], 2),
-                                "cancel_rate_pct": round(cancel_rate, 2),
-                                "distinct_instructors": distinct_instructors,
-                                "max_lessons_single_instructor": max_lessons_single,
-                                "quality_window_days": window_days,
-                            }
+                            snapshot = cast(
+                                Dict[str, Any],
+                                {
+                                    "window_start": window_start.isoformat(),
+                                    "review_count": review_stats["count"],
+                                    "avg_rating": round(review_stats["avg_rating"], 2),
+                                    "cancel_rate_pct": round(cancel_rate, 2),
+                                    "distinct_instructors": distinct_instructors,
+                                    "max_lessons_single_instructor": max_lessons_single,
+                                    "quality_window_days": window_days,
+                                },
+                            )
                             _record_award(quality_definition, "quality_pending", snapshot)
 
         return summary
 
     def _is_student_currently_eligible(
-        self, student_id: str, definition, now_utc: datetime
+        self, student_id: str, definition: BadgeDefinition, now_utc: datetime
     ) -> bool:
         criteria_type = (definition.criteria_type or "").lower()
         criteria = definition.criteria_config or {}
@@ -619,7 +623,7 @@ class BadgeAwardService:
 
     def _is_momentum_criteria_met_on_completion(
         self,
-        definition,
+        definition: BadgeDefinition,
         student_id: str,
         instructor_id: str,
         lesson_id: str,
@@ -663,7 +667,7 @@ class BadgeAwardService:
 
     def _evaluate_consistent_learner(
         self,
-        definition,
+        definition: BadgeDefinition,
         *,
         student_id: str,
         completed_at_utc: datetime,
@@ -718,7 +722,9 @@ class BadgeAwardService:
             }
             self._award_according_to_hold(student_id, definition, snapshot, completed_at_utc)
 
-    def _current_streak_length(self, student_id: str, definition, goal: int) -> int:
+    def _current_streak_length(
+        self, student_id: str, definition: BadgeDefinition, goal: int
+    ) -> int:
         criteria = definition.criteria_config or {}
         grace_days = int(criteria.get("grace_days", 1) or 1)
 
@@ -741,7 +747,7 @@ class BadgeAwardService:
         return compute_week_streak_local(completions_local, now_local, grace_days=grace_days)
 
     def _maybe_notify_badge_awarded(
-        self, student_id: str, badge_definition, now_utc: datetime
+        self, student_id: str, badge_definition: BadgeDefinition, now_utc: datetime
     ) -> None:
         if not self.notification_service:
             return
@@ -762,7 +768,9 @@ class BadgeAwardService:
         if self.notification_service.send_badge_awarded_email(user, badge_definition.name):
             record_send(key, self.cache_service)
 
-    def _is_momentum_criteria_currently_met(self, definition, student_id: str) -> bool:
+    def _is_momentum_criteria_currently_met(
+        self, definition: BadgeDefinition, student_id: str
+    ) -> bool:
         criteria = definition.criteria_config or {}
         window_days_to_book = int(criteria.get("window_days_to_book", 0) or 0)
         window_days_to_complete = int(criteria.get("window_days_to_complete", 0) or 0)
@@ -804,7 +812,7 @@ class BadgeAwardService:
         self,
         student_id: str,
         now_utc: datetime,
-        definition,
+        definition: BadgeDefinition,
     ) -> bool:
         criteria = definition.criteria_config or {}
 
@@ -842,7 +850,7 @@ class BadgeAwardService:
 
     def _evaluate_explorer(
         self,
-        definition,
+        definition: BadgeDefinition,
         *,
         student_id: str,
         completed_at_utc: datetime,
@@ -890,7 +898,7 @@ class BadgeAwardService:
             }
             self._award_according_to_hold(student_id, definition, snapshot, completed_at_utc)
 
-    def _is_explorer_eligible_now(self, student_id: str, definition) -> bool:
+    def _is_explorer_eligible_now(self, student_id: str, definition: BadgeDefinition) -> bool:
         criteria = definition.criteria_config or {}
         total_completed = self.repository.count_completed_lessons(student_id)
         show_threshold = int(criteria.get("show_after_total_lessons", 0) or 0)

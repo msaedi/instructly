@@ -11,15 +11,17 @@ from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import NotFoundException
+from ..models.badge import BadgeDefinition, StudentBadge
+from ..models.user import User
 from ..repositories.badge_repository import BadgeRepository
 from ..repositories.factory import RepositoryFactory
 
 
-def _student_display_name(user) -> str:
+def _student_display_name(user: User) -> str:
     first = (user.first_name or "").strip()
     last = (user.last_name or "").strip()
     if not first and not last:
-        return user.email or user.id
+        return str(user.email or user.id)
     last_initial = f"{last[:1]}." if last else ""
     return f"{first} {last_initial}".strip()
 
@@ -72,7 +74,12 @@ class BadgeAdminService:
             raise NotFoundException("Award not found")
         return self._serialize_award(*row)
 
-    def _serialize_award(self, award, badge, user) -> Dict[str, Any]:
+    def _serialize_award(
+        self,
+        award: StudentBadge,
+        badge: BadgeDefinition,
+        user: User,
+    ) -> Dict[str, Any]:
         return {
             "award_id": award.id,
             "status": award.status,
