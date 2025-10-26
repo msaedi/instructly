@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class BadgeProgressView(BaseModel):
@@ -16,8 +16,7 @@ class BadgeProgressView(BaseModel):
     goal: Optional[float] = None
     percent: Optional[float] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class StudentBadgeView(BaseModel):
@@ -30,8 +29,7 @@ class StudentBadgeView(BaseModel):
     confirmed_at: Optional[datetime] = None
     progress: Optional[BadgeProgressView | Dict[str, Any]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AdminAwardBadgeSchema(BaseModel):

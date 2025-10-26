@@ -156,19 +156,15 @@ class BadgeAwardService:
         confirmed = revoked = 0
         pending_rows = list(self.repository.get_pending_awards_due(now_utc))
 
-        for award, definition in pending_rows:
-            if self._is_student_currently_eligible(award.student_id, definition, now_utc):
-                self.repository.mark_award_confirmed(award, confirmed_at=now_utc)
-                self._maybe_notify_badge_awarded(award.student_id, definition, now_utc)
-                confirmed += 1
-            else:
-                self.repository.mark_award_revoked(award, revoked_at=now_utc)
-                revoked += 1
-
-        # repo-pattern-migrate: TODO: migrate to repository (unit-of-work/commit)
-        self.db.flush()
-        # repo-pattern-migrate: TODO: migrate to repository (unit-of-work/commit)
-        self.db.commit()
+        with self.repository.transaction():
+            for award, definition in pending_rows:
+                if self._is_student_currently_eligible(award.student_id, definition, now_utc):
+                    self.repository.mark_award_confirmed(award, confirmed_at=now_utc)
+                    self._maybe_notify_badge_awarded(award.student_id, definition, now_utc)
+                    confirmed += 1
+                else:
+                    self.repository.mark_award_revoked(award, revoked_at=now_utc)
+                    revoked += 1
 
         return {"confirmed": confirmed, "revoked": revoked}
 

@@ -18,6 +18,7 @@ from ..models.booking import Booking, BookingStatus
 from ..models.review import Review, ReviewStatus
 from ..models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from ..models.user import User
+from .base_repository import BaseRepository
 
 
 class StudentBadgeAwardRow(TypedDict, total=False):
@@ -42,11 +43,11 @@ class StudentBadgeProgressRow(TypedDict, total=False):
     last_updated: Any
 
 
-class BadgeRepository:
+class BadgeRepository(BaseRepository[BadgeDefinition]):
     """Data access helpers for badge definitions, awards, and progress."""
 
     def __init__(self, db: Session):
-        self.db = db
+        super().__init__(db, BadgeDefinition)
 
     # ------------------------------------------------------------------
     # Definition + student lookups

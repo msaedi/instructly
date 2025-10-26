@@ -12,9 +12,11 @@ import argparse
 from datetime import datetime, timezone
 import json
 import logging
+import os
 from pathlib import Path
 import sys
-from typing import Any, Dict, Iterable, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional
+from urllib.parse import urlsplit, urlunsplit
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -26,15 +28,67 @@ try:
     load_dotenv(BACKEND_DIR / ".env")
     load_dotenv(BACKEND_DIR / ".env.render", override=False)
 except Exception:  # pragma: no cover - dotenv is optional in tests
-    pass
+    def load_dotenv(*_args: Any, **_kwargs: Any) -> bool:  # type: ignore
+        return False
 
-from app.database import SessionLocal
-from app.repositories.factory import RepositoryFactory
-from app.repositories.user_repository import UserRepository
-from app.services.badge_award_service import BadgeAwardService
+if TYPE_CHECKING:
+    from app.repositories.user_repository import UserRepository
+    from app.services.badge_award_service import BadgeAwardService
 
 SUMMARY_FIELDS = ("milestones", "streak", "explorer", "quality_pending", "skipped_existing")
 logger = logging.getLogger("backfill_badges")
+
+
+def _mask_dsn(dsn: str) -> str:
+    try:
+        parsed = urlsplit(dsn)
+    except Exception:
+        return "***"
+
+    username = parsed.username or ""
+    password = parsed.password or ""
+    netloc = parsed.netloc
+
+    if username or password:
+        host_port = netloc.split("@")[-1]
+        masked_auth = "***" if not password else "***:***"
+        netloc = f"{masked_auth}@{host_port}"
+
+    return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+
+
+def _apply_dsn_override(dsn: str) -> None:
+    target_vars = [
+        "DATABASE_URL",
+        "TEST_DATABASE_URL",
+        "STG_DATABASE_URL",
+        "PREVIEW_DATABASE_URL",
+    ]
+    for var in target_vars:
+        os.environ[var] = dsn
+    logger.info("Using DSN override: %s", _mask_dsn(dsn))
+
+
+def _import_dependencies():
+    from app.database import SessionLocal
+    from app.repositories.factory import RepositoryFactory
+    from app.services.badge_award_service import BadgeAwardService
+
+    return SessionLocal, RepositoryFactory, BadgeAwardService
+
+
+def bootstrap_environment(args) -> None:
+    env_file = getattr(args, "env_file", None)
+    if env_file:
+        env_path = Path(env_file).expanduser()
+        if load_dotenv(env_path, override=True):
+            logger.info("Loaded additional env file: %s", env_path)
+        else:
+            logger.warning("Failed to load env file: %s", env_path)
+
+    dsn = getattr(args, "dsn", None)
+    if dsn:
+        _apply_dsn_override(dsn)
 
 
 def _positive_int(value: str) -> int:
@@ -110,6 +164,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional hard cap on processed users.",
     )
+    parser.add_argument(
+        "--env-file",
+        dest="env_file",
+        help="Optional dotenv file to load before bootstrap.",
+    )
+    parser.add_argument(
+        "--dsn",
+        dest="dsn",
+        help="Override database connection string for this run.",
+    )
     return parser
 
 
@@ -127,7 +191,7 @@ def _process_users_chunk(
     chunk_index: int,
     chunk_offset: int,
     summary: Dict[str, Any],
-    badge_service: BadgeAwardService,
+    badge_service: "BadgeAwardService",
     args,
 ) -> Dict[str, int]:
     chunk_totals: Dict[str, int] = {field: 0 for field in SUMMARY_FIELDS}
@@ -164,9 +228,8 @@ def _process_users_chunk(
 
 def _process_single_user(
     *,
-    user_repo: UserRepository,
-    badge_service: BadgeAwardService,
-    session,
+    user_repo: "UserRepository",
+    badge_service: "BadgeAwardService",
     args,
 ) -> Dict[str, Any]:
     summary = _init_summary(args.dry_run, args.send_notifications)
@@ -174,25 +237,26 @@ def _process_single_user(
     if not student:
         raise ValueError(f"User {args.user_id} not found")
 
-    _process_users_chunk(
-        [student],
+    process_kwargs = dict(
+        students=[student],
         chunk_index=1,
         chunk_offset=0,
         summary=summary,
         badge_service=badge_service,
         args=args,
     )
-    if not args.dry_run:
-        # repo-pattern-migrate: TODO: migrate to repository (unit-of-work/commit)
-        session.commit()
+    if args.dry_run:
+        _process_users_chunk(**process_kwargs)
+    else:
+        with badge_service.repository.transaction():
+            _process_users_chunk(**process_kwargs)
     return summary
 
 
 def _process_batches(
     *,
-    user_repo: UserRepository,
-    badge_service: BadgeAwardService,
-    session,
+    user_repo: "UserRepository",
+    badge_service: "BadgeAwardService",
     args,
 ) -> Dict[str, Any]:
     summary = _init_summary(args.dry_run, args.send_notifications)
@@ -215,8 +279,8 @@ def _process_batches(
         if not students:
             break
 
-        _process_users_chunk(
-            students,
+        chunk_kwargs = dict(
+            students=students,
             chunk_index=chunk_index,
             chunk_offset=current_offset,
             summary=summary,
@@ -224,9 +288,11 @@ def _process_batches(
             args=args,
         )
 
-        if not args.dry_run:
-            # repo-pattern-migrate: TODO: migrate to repository (unit-of-work/commit)
-            session.commit()
+        if args.dry_run:
+            _process_users_chunk(**chunk_kwargs)
+        else:
+            with badge_service.repository.transaction():
+                _process_users_chunk(**chunk_kwargs)
 
         processed = len(students)
         current_offset += processed
@@ -240,8 +306,13 @@ def _process_batches(
 
 
 def run(args) -> Dict[str, Any]:
+    SessionLocal, RepositoryFactory, BadgeAwardService = _import_dependencies()
     session = SessionLocal()
     try:
+        bind = getattr(session, "bind", None)
+        if bind is not None and getattr(bind, "url", None):
+            logger.info("Connected to database: %s", _mask_dsn(str(bind.url)))
+
         user_repo = RepositoryFactory.create_user_repository(session)
         badge_service = BadgeAwardService(session)
 
@@ -249,14 +320,12 @@ def run(args) -> Dict[str, Any]:
             summary = _process_single_user(
                 user_repo=user_repo,
                 badge_service=badge_service,
-                session=session,
                 args=args,
             )
         else:
             summary = _process_batches(
                 user_repo=user_repo,
                 badge_service=badge_service,
-                session=session,
                 args=args,
             )
     finally:
@@ -269,6 +338,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
+        bootstrap_environment(args)
         summary = run(args)
     except ValueError as exc:
         logger.error("%s", exc)

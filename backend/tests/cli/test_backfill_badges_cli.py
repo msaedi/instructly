@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import json
 from types import SimpleNamespace
 
@@ -9,6 +10,7 @@ class DummySession:
     def __init__(self):
         self.commit_calls = 0
         self.closed = False
+        self.bind = SimpleNamespace(url="postgres://user:pass@localhost:5432/test_db")
 
     def commit(self):
         self.commit_calls += 1
@@ -17,20 +19,65 @@ class DummySession:
         self.closed = True
 
 
-@pytest.fixture
-def session_holder(monkeypatch):
-    holder: dict[str, DummySession] = {}
+class FakeBadgeRepository:
+    def __init__(self, holder: dict):
+        self.holder = holder
+        self.transaction_calls = 0
 
-    def factory():
+    def transaction(self):
+        @contextmanager
+        def _ctx():
+            self.transaction_calls += 1
+            yield
+            session = self.holder.get("session")
+            if session:
+                session.commit()
+
+        return _ctx()
+
+
+@pytest.fixture
+def cli_setup(monkeypatch):
+    holder: dict[str, object] = {
+        "badge_return": lambda _sid: {field: 0 for field in cli.SUMMARY_FIELDS},
+    }
+
+    def session_factory():
         session = DummySession()
         holder["session"] = session
         return session
 
-    monkeypatch.setattr(cli, "SessionLocal", factory)
+    class FakeFactory:
+        def __init__(self):
+            self.user_repo = None
+
+        def create_user_repository(self, db):
+            return self.user_repo
+
+    factory = FakeFactory()
+    badge_repo = FakeBadgeRepository(holder)
+    holder["badge_repo"] = badge_repo
+
+    class FakeBadgeService:
+        def __init__(self, db):
+            self.repository = badge_repo
+            self.calls = []
+            holder["service_instance"] = self
+
+        def backfill_user_badges(self, student_id, now_utc, **kwargs):
+            result = holder["badge_return"](student_id)
+            self.calls.append({"student_id": student_id, **kwargs})
+            return result
+
+    def import_stub():
+        return session_factory, factory, FakeBadgeService
+
+    monkeypatch.setattr(cli, "_import_dependencies", import_stub)
+    holder["factory"] = factory
     return holder
 
 
-def test_single_user_dry_run(monkeypatch, session_holder, capsys):
+def test_single_user_dry_run(monkeypatch, cli_setup, capsys):
     fake_user = SimpleNamespace(id="user-1")
 
     class FakeRepo:
@@ -42,26 +89,14 @@ def test_single_user_dry_run(monkeypatch, session_holder, capsys):
             return []
 
     repo = FakeRepo()
-    monkeypatch.setattr(cli.RepositoryFactory, "create_user_repository", lambda db: repo)
-
-    service_calls = {}
-
-    class FakeBadgeService:
-        def __init__(self, db):
-            service_calls["instance"] = self
-            self.calls = []
-
-        def backfill_user_badges(self, student_id, now_utc, **kwargs):
-            self.calls.append({"student_id": student_id, **kwargs})
-            return {
-                "milestones": 2,
-                "streak": 1,
-                "explorer": 0,
-                "quality_pending": 0,
-                "skipped_existing": 3,
-            }
-
-    monkeypatch.setattr(cli, "BadgeAwardService", FakeBadgeService)
+    cli_setup["factory"].user_repo = repo
+    cli_setup["badge_return"] = lambda _sid: {
+        "milestones": 2,
+        "streak": 1,
+        "explorer": 0,
+        "quality_pending": 0,
+        "skipped_existing": 3,
+    }
 
     exit_code = cli.main(["--user-id", "user-1"])
     assert exit_code == 0
@@ -76,14 +111,14 @@ def test_single_user_dry_run(monkeypatch, session_holder, capsys):
     assert final_summary["dry_run"] is True
     assert final_summary["send_notifications"] is False
 
-    service = service_calls["instance"]
+    service = cli_setup["service_instance"]
     assert service.calls[0]["student_id"] == "user-1"
     assert service.calls[0]["dry_run"] is True
     assert service.calls[0]["send_notifications"] is False
-    assert session_holder["session"].commit_calls == 0
+    assert cli_setup["session"].commit_calls == 0
 
 
-def test_paginated_run_with_max_users(monkeypatch, session_holder, capsys):
+def test_paginated_run_with_max_users(monkeypatch, cli_setup, capsys):
     students = [SimpleNamespace(id=f"user-{idx}") for idx in range(5)]
 
     class FakeRepo:
@@ -98,25 +133,14 @@ def test_paginated_run_with_max_users(monkeypatch, session_holder, capsys):
             return students[offset : offset + limit]
 
     repo = FakeRepo()
-    monkeypatch.setattr(cli.RepositoryFactory, "create_user_repository", lambda db: repo)
-
-    call_log = []
-
-    class FakeBadgeService:
-        def __init__(self, db):
-            self.calls = call_log
-
-        def backfill_user_badges(self, student_id, now_utc, **kwargs):
-            self.calls.append({"student_id": student_id, **kwargs})
-            return {
-                "milestones": 1,
-                "streak": 0,
-                "explorer": 0,
-                "quality_pending": 0,
-                "skipped_existing": 0,
-            }
-
-    monkeypatch.setattr(cli, "BadgeAwardService", FakeBadgeService)
+    cli_setup["factory"].user_repo = repo
+    cli_setup["badge_return"] = lambda _sid: {
+        "milestones": 1,
+        "streak": 0,
+        "explorer": 0,
+        "quality_pending": 0,
+        "skipped_existing": 0,
+    }
 
     exit_code = cli.main(["--limit", "2", "--max-users", "3", "--no-dry-run"])
     assert exit_code == 0
@@ -130,12 +154,12 @@ def test_paginated_run_with_max_users(monkeypatch, session_holder, capsys):
     assert summary["dry_run"] is False
 
     assert repo.calls == [{"limit": 2, "offset": 0}, {"limit": 1, "offset": 2}]
-    processed_ids = [call["student_id"] for call in call_log]
+    processed_ids = [call["student_id"] for call in cli_setup["service_instance"].calls]
     assert processed_ids == ["user-0", "user-1", "user-2"]
-    assert session_holder["session"].commit_calls == 2
+    assert cli_setup["session"].commit_calls == 2
 
 
-def test_send_notifications_flag(monkeypatch, session_holder, capsys):
+def test_send_notifications_flag(monkeypatch, cli_setup, capsys):
     fake_user = SimpleNamespace(id="student-77")
 
     class FakeRepo:
@@ -145,23 +169,44 @@ def test_send_notifications_flag(monkeypatch, session_holder, capsys):
         def list_students_paginated(self, **kwargs):
             return []
 
-    monkeypatch.setattr(cli.RepositoryFactory, "create_user_repository", lambda db: FakeRepo())
-
-    captured_kwargs = {}
-
-    class FakeBadgeService:
-        def __init__(self, db):
-            pass
-
-        def backfill_user_badges(self, student_id, now_utc, **kwargs):
-            captured_kwargs.update(kwargs)
-            return {field: 0 for field in cli.SUMMARY_FIELDS}
-
-    monkeypatch.setattr(cli, "BadgeAwardService", FakeBadgeService)
+    cli_setup["factory"].user_repo = FakeRepo()
+    cli_setup["badge_return"] = lambda _sid: {field: 0 for field in cli.SUMMARY_FIELDS}
 
     exit_code = cli.main(["--user-id", "student-77", "--send-notifications"])
     assert exit_code == 0
 
     summary = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert summary["send_notifications"] is True
-    assert captured_kwargs["send_notifications"] is True
+    service = cli_setup["service_instance"]
+    assert service.calls[0]["send_notifications"] is True
+
+
+def test_env_file_and_dsn_flags(monkeypatch, capsys):
+    loaded_paths = []
+    monkeypatch.setattr(
+        cli,
+        "load_dotenv",
+        lambda path, override=True: loaded_paths.append((str(path), override)) or True,
+    )
+    applied = []
+    monkeypatch.setattr(cli, "_apply_dsn_override", lambda dsn: applied.append(dsn))
+
+    summary_payload = {"processed_users": 0, "dry_run": True, "send_notifications": False}
+    for field in cli.SUMMARY_FIELDS:
+        summary_payload[field] = 0
+
+    monkeypatch.setattr(cli, "run", lambda args: summary_payload)
+
+    exit_code = cli.main(
+        [
+            "--user-id",
+            "abc",
+            "--env-file",
+            "/tmp/custom.env",
+            "--dsn",
+            "postgres://user:pass@db.example.com/db",
+        ]
+    )
+    assert exit_code == 0
+    assert loaded_paths[-1][0].endswith("custom.env")
+    assert applied == ["postgres://user:pass@db.example.com/db"]
