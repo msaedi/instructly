@@ -12,7 +12,7 @@ import { useAuth } from '@/hooks/queries/useAuth';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
-import { Calendar } from 'lucide-react';
+import { Calendar, ArrowLeft } from 'lucide-react';
 import {
   Select,
   SelectTrigger,
@@ -22,7 +22,8 @@ import {
 } from '@/components/ui/select';
 
 
-export default function InstructorAvailabilityPage() {
+export default function InstructorAvailabilityPage(props?: { embedded?: boolean }) {
+  const embedded = Boolean(props?.embedded);
   const { user } = useAuth();
   const userData = user as unknown as UserData;
   const {
@@ -147,29 +148,50 @@ export default function InstructorAvailabilityPage() {
 
   return (
     <div className="min-h-screen">
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-full">
-          <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-          </Link>
-          <div className="pr-4"><UserProfileDropdown /></div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-[#7E22CE]" />
-            </div>
-            <div>
-              <h2 className="text-3xl font-bold text-gray-600 mb-2">Set Availability</h2>
-              <p className="text-gray-600">Set the times you’re available to teach.</p>
+      {/* Header hidden when embedded */}
+      {!embedded && (
+        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between max-w-full">
+            <Link href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            </Link>
+            <div className="pr-4"><UserProfileDropdown /></div>
+          </div>
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 hidden sm:block">
+            <div className="container mx-auto px-8 lg:px-32 max-w-6xl pointer-events-none">
+              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-[#7E22CE] pointer-events-auto">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                <span>Back to dashboard</span>
+              </Link>
             </div>
           </div>
-        </div>
+        </header>
+      )}
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className={embedded ? 'max-w-none px-0 lg:px-0 py-0' : 'container mx-auto px-8 lg:px-32 py-8 max-w-6xl'}>
+        {!embedded && (
+          <div className="sm:hidden mb-2">
+            <Link href="/instructor/dashboard" aria-label="Back to dashboard" className="inline-flex items-center gap-1 text-[#7E22CE]">
+              <ArrowLeft className="w-5 h-5" />
+              <span className="sr-only">Back to dashboard</span>
+            </Link>
+          </div>
+        )}
+        {!embedded && (
+          <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-[#7E22CE]" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-bold text-gray-600 mb-2">Set Availability</h2>
+                <p className="text-gray-600">Set the times you’re available to teach.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div id={embedded ? 'availability-first-card' : undefined} className="bg-white rounded-lg border border-gray-200 p-6">
         {header}
 
       {/* Tip below the week navigator */}

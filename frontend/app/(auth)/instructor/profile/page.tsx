@@ -119,7 +119,8 @@ function toTitle(s: string): string {
     .join(' ');
 }
 
-export default function InstructorProfileSettingsPage() {
+export default function InstructorProfileSettingsPage(props?: { embedded?: boolean }) {
+  const embedded = Boolean(props?.embedded);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -152,6 +153,10 @@ export default function InstructorProfileSettingsPage() {
   const inFlightServiceAreasRef = useRef(false);
   const [savingServiceAreas, setSavingServiceAreas] = useState(false);
   const [hasProfilePicture, setHasProfilePicture] = useState<boolean>(false);
+  const [openPersonal, setOpenPersonal] = useState(false);
+  const [openDetails, setOpenDetails] = useState(false);
+  const [openServiceAreas, setOpenServiceAreas] = useState(false);
+  const [openPreferences, setOpenPreferences] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -166,37 +171,7 @@ export default function InstructorProfileSettingsPage() {
     })();
   }, []);
 
-  // Paint step 1 circle/line on mount and whenever prerequisites change
-  useEffect(() => {
-    const circle = document.getElementById('progress-step-1');
-    const line = document.getElementById('progress-line-1');
-    if (!circle || !line) return;
-    const ok = (
-      (profile.bio?.trim()?.length || 0) >= 400 &&
-      Boolean(profile.first_name?.trim()) &&
-      Boolean(profile.last_name?.trim()) &&
-      Boolean(profile.postal_code?.trim()) &&
-      selectedNeighborhoods.size > 0 &&
-      (hasProfilePicture || false)
-    );
-    const check = circle.querySelector('.icon-check') as HTMLElement | null;
-    const cross = circle.querySelector('.icon-cross') as HTMLElement | null;
-    if (ok) {
-      circle.classList.remove('border-gray-300', 'bg-purple-100');
-      circle.classList.add('border-[#7E22CE]', 'bg-[#7E22CE]');
-      if (check) check.classList.remove('hidden');
-      if (cross) cross.classList.add('hidden');
-      line.classList.remove('bg-gray-300');
-      line.classList.add('bg-[#7E22CE]');
-    } else {
-      circle.classList.remove('border-gray-300', 'bg-purple-100');
-      circle.classList.add('border-[#7E22CE]', 'bg-[#7E22CE]');
-      if (check) check.classList.add('hidden');
-      if (cross) cross.classList.remove('hidden');
-      line.classList.remove('bg-[#7E22CE]');
-      line.classList.add('bg-gray-300');
-    }
-  }, [hasProfilePicture, profile.first_name, profile.last_name, profile.postal_code, profile.bio, selectedNeighborhoods.size]);
+  // Onboarding progress UI removed
   // Derived completion flag (reserved for future server-driven rendering)
   // const isStep1Complete = useMemo(() => {
   //   const hasProfilePic = Boolean(userId);
@@ -714,144 +689,75 @@ export default function InstructorProfileSettingsPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header - matching onboarding pages */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between max-w-full relative">
-          <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
-          </Link>
+      {/* Header hidden in embedded mode */}
+      {!embedded && (
+        <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between max-w-full relative">
+            <Link href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
+            </Link>
+            {/* Onboarding progress removed for standalone page */}
 
-          {/* Progress Bar - 4 Steps - Absolutely centered */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
-            {/* Walking Stick Figure - profile page variant */}
-            <div className="absolute inst-anim-walk-profile" style={{ top: '-12px', left: '4px' }}>
-              <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-                {/* Head */}
-                <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
-                {/* Body */}
-                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
-                {/* Left arm */}
-                <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm-fast" />
-                {/* Right arm */}
-                <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm-fast" />
-                {/* Left leg */}
-                <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg-fast" />
-                {/* Right leg */}
-                <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg-fast" />
-              </svg>
-            </div>
-
-            {/* Step 1 - Current (Profile) */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => {/* Already on this page */}}
-                  id="progress-step-1"
-                  className="w-6 h-6 rounded-full border-2 border-[#7E22CE] bg-[#7E22CE] transition-colors cursor-pointer flex items-center justify-center"
-                  title="Step 1: Account Setup (Current)"
-                >
-                  <svg className="icon-check hidden w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <svg className="icon-cross w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
-              </div>
-              <div id="progress-line-1" className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            {/* Step 2 - Upcoming */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/skill-selection'}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
-                  title="Step 2: Skills & Pricing"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
-              </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            {/* Step 3 - Upcoming */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/verification'}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
-                  title="Step 3: Verification"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
-              </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            {/* Step 4 - Upcoming */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/payment-setup'}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
-                  title="Step 4: Payment Setup"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Payment Setup</span>
-              </div>
+            <div className="pr-4">
+              <UserProfileDropdown />
             </div>
           </div>
+        </header>
+      )}
 
-          <div className="pr-4">
-            <UserProfileDropdown />
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        {loading && (
+      <div className={embedded ? 'max-w-none px-0 lg:px-0 py-0' : 'container mx-auto px-8 lg:px-32 py-8 max-w-6xl'}>
+        {embedded && loading && (
+          <div style={{ height: 1 }} />
+        )}
+        {!embedded && loading && (
           <div className="p-8 text-sm text-gray-500">Loading…</div>
         )}
-        {/* Page Header - mobile: no card chrome; desktop: card */}
-        <div className="mb-2 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-800 mb-1 sm:mb-2 whitespace-nowrap">Set up your profile</h1>
-                <p className="text-gray-600 hidden sm:block">Complete your instructor profile to start teaching</p>
+        {/* Page Header hidden in embedded mode */}
+        {!embedded && (
+          <>
+            {/* Page Header - mobile: no card chrome; desktop: card */}
+            <div className="mb-2 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <h1 className="text-3xl font-bold text-gray-800 mb-1 sm:mb-2 whitespace-nowrap">Profile</h1>
+                    <p className="text-gray-600 hidden sm:block">Manage your instructor profile information</p>
+                  </div>
+                </div>
+                {/* Desktop: keep upload in header */}
+                <div className="hidden sm:block">
+                  <ProfilePictureUpload
+                    ariaLabel="Upload profile photo"
+                    trigger={
+                      <div className="flex flex-col items-center">
+                        <div className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
+                          <Camera className="w-6 h-6 text-[#7E22CE]" />
+                        </div>
+                        <span className="mt-1 text-[10px] text-[#7E22CE]">Upload photo</span>
+                      </div>
+                    }
+                  />
+                </div>
               </div>
             </div>
-            {/* Desktop: keep upload in header */}
-            <div className="hidden sm:block">
-              <ProfilePictureUpload
-                ariaLabel="Upload profile photo"
-                trigger={
-                  <div className="flex flex-col items-center">
-                    <div className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
+            {/* Mobile: move upload below header */}
+            <div className="p-4 pt-0 sm:hidden">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-gray-600 text-base leading-snug flex-1">Manage your instructor profile information</p>
+                <ProfilePictureUpload
+                  ariaLabel="Upload profile photo"
+                  trigger={
+                    <div className="w-24 h-24 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
                       <Camera className="w-6 h-6 text-[#7E22CE]" />
                     </div>
-                    <span className="mt-1 text-[10px] text-[#7E22CE]">Upload photo</span>
-                  </div>
-                }
-              />
+                  }
+                />
+              </div>
             </div>
-          </div>
-        </div>
-        {/* Mobile: move upload below header */}
-        <div className="p-4 pt-0 sm:hidden">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-gray-600 text-base leading-snug flex-1">Complete your instructor profile to start teaching</p>
-            <ProfilePictureUpload
-              ariaLabel="Upload profile photo"
-              trigger={
-                <div className="w-24 h-24 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
-                  <Camera className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-              }
-            />
-          </div>
-        </div>
-        {/* Mobile divider before Personal Information */}
-        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+      {/* Mobile divider before Personal Information */}
+      {!embedded && <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />}
+          </>
+        )}
 
       {error && (
         <div className="mb-6 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3">{error}</div>
@@ -859,19 +765,24 @@ export default function InstructorProfileSettingsPage() {
       {/* Success toast is shown as a floating element; banner removed for cleaner UI */}
 
       {/* Mobile: stacked white sections with mobile-only dividers; Desktop: spaced cards */}
-      <div className="mt-0 sm:mt-6 sm:space-y-6">
+      <div className={embedded ? 'mt-0 sm:mt-0 sm:space-y-6' : 'mt-0 sm:mt-6 sm:space-y-6'}>
         {/* Personal Information Section */}
-        <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
-                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <UserIcon className="w-6 h-6 text-[#7E22CE]" />
-                  </div>
-                  <span>Personal Information</span>
+        <div id={embedded ? 'profile-first-card' : undefined} className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between mb-4 text-left"
+              onClick={() => setOpenPersonal((v) => !v)}
+              aria-expanded={openPersonal}
+            >
+              <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
+                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <UserIcon className="w-6 h-6 text-[#7E22CE]" />
                 </div>
+                <span>Personal Information</span>
               </div>
-            </div>
+              <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPersonal ? 'rotate-180' : ''}`} />
+            </button>
+            {openPersonal && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="py-2">
                   <label htmlFor="first_name" className="text-gray-600 mb-2 block">First Name</label>
@@ -917,24 +828,28 @@ export default function InstructorProfileSettingsPage() {
                   />
                 </div>
             </div>
+            )}
         </div>
         {/* Mobile divider before Profile Details */}
         <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
         {/* Professional Information Section */}
         <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <span>Profile Details</span>
+          <button
+            type="button"
+            className="w-full flex items-center justify-between mb-4 text-left"
+            onClick={() => setOpenDetails((v) => !v)}
+            aria-expanded={openDetails}
+          >
+            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <BookOpen className="w-6 h-6 text-[#7E22CE]" />
               </div>
+              <span>Profile Details</span>
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => { if (userId) router.push(`/instructors/${userId}`); }}
+                onClick={(e) => { e.stopPropagation(); if (userId) router.push(`/instructors/${userId}`); }}
                 aria-label="View public profile"
                 title="View public profile"
                 className="inline-flex items-center px-2.5 py-1.5 text-xs rounded-md border border-purple-200 bg-purple-50 text-[#7E22CE] hover:bg-purple-100 transition-colors disabled:opacity-50"
@@ -943,8 +858,10 @@ export default function InstructorProfileSettingsPage() {
                 <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
                 <span className="hidden sm:inline">View public profile</span>
               </button>
+              <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openDetails ? 'rotate-180' : ''}`} />
             </div>
-          </div>
+          </button>
+          {openDetails && (
           <div className="py-2">
             <div className="mb-2">
               <p className="text-gray-600 mt-1">Introduce Yourself</p>
@@ -966,6 +883,27 @@ export default function InstructorProfileSettingsPage() {
               {bioTooShort && (
                 <div className="mt-1 text-xs text-red-600">Your bio is under 400 characters. You can still save and complete it later.</div>
               )}
+              {/* Years of experience (duplicate access here for convenience) */}
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label htmlFor="details_years_experience" className="block text-sm text-gray-600 mb-1">Years of Experience</label>
+                  <input
+                    id="details_years_experience"
+                    type="number"
+                    min={1}
+                    max={70}
+                    step={1}
+                    inputMode="numeric"
+                    value={profile.years_experience}
+                    onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
+                    onChange={(e) => {
+                      const n = Math.max(1, Math.min(70, parseInt(e.target.value || '0', 10)));
+                      setProfile((p) => ({ ...p, years_experience: isNaN(n) ? 1 : n }));
+                    }}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 no-spinner"
+                  />
+                </div>
+              </div>
               <div className="mt-3 flex justify-end">
                 <button
                   type="button"
@@ -1007,185 +945,190 @@ export default function InstructorProfileSettingsPage() {
               </div>
             </div>
           </div>
+          )}
         </div>
         {/* Mobile divider before Service Areas */}
         <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
         {/* Service Areas Section */}
         <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <MapPin className="w-6 h-6 text-[#7E22CE]" />
+          <button
+            type="button"
+            className="w-full flex items-center justify-between mb-4 text-left"
+            onClick={() => setOpenServiceAreas((v) => !v)}
+            aria-expanded={openServiceAreas}
+          >
+            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <MapPin className="w-6 h-6 text-[#7E22CE]" />
+              </div>
+              <span>Service Areas</span>
+            </div>
+            <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openServiceAreas ? 'rotate-180' : ''}`} />
+          </button>
+          {openServiceAreas && (
+            <>
+              <p className="text-gray-600 mt-1 mb-2">Select the neighborhoods where you teach</p>
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={globalNeighborhoodFilter}
+                  onChange={(e) => setGlobalNeighborhoodFilter(e.target.value)}
+                  placeholder="Search neighborhoods..."
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+                />
+              </div>
+              {globalNeighborhoodFilter.trim().length > 0 && (
+                <div className="mb-3">
+                  <div className="text-sm text-gray-700 mb-2">Results</div>
+                  <div className="flex flex-wrap gap-2">
+                    {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
+                      .filter((n) => (n['name'] || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()))
+                      .map((n) => {
+                        const nid = n['neighborhood_id'] || (n as Record<string, unknown>)['id'] as string;
+                        if (!nid) return null;
+                        const checked = selectedNeighborhoods.has(nid);
+                        return (
+                          <button
+                            key={`global-${nid}`}
+                            type="button"
+                            onClick={() => toggleNeighborhood(nid)}
+                            aria-pressed={checked}
+                            className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                              checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            <span className="truncate text-left">{n['name'] || nid}</span>
+                            <span className="ml-2">{checked ? '✓' : '+'}</span>
+                          </button>
+                        );
+                      })
+                      .filter(Boolean)
+                      .slice(0, 200)}
+                    {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
+                      .filter((n) => (n['name'] || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase())).length === 0 && (
+                        <div className="text-sm text-gray-500">No matches found</div>
+                    )}
+                  </div>
                 </div>
-                <span>Service Areas</span>
-              </div>
-            </div>
-          </div>
-          <p className="text-gray-600 mt-1 mb-2">Select the neighborhoods where you teach</p>
-          {/* Global neighborhood search (no card wrapper) */}
-          <div className="mb-3">
-            <input
-              type="text"
-              value={globalNeighborhoodFilter}
-              onChange={(e) => setGlobalNeighborhoodFilter(e.target.value)}
-              placeholder="Search neighborhoods..."
-              className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
-            />
-          </div>
-          {globalNeighborhoodFilter.trim().length > 0 && (
-            <div className="mb-3">
-              <div className="text-sm text-gray-700 mb-2">Results</div>
-              <div className="flex flex-wrap gap-2">
-                  {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
-                    .filter((n) => (n['name'] || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()))
-                    .map((n) => {
-                      const nid = n['neighborhood_id'] || (n as Record<string, unknown>)['id'] as string;
-                      if (!nid) return null;
-                      const checked = selectedNeighborhoods.has(nid);
-                      return (
+              )}
+              {selectedNeighborhoods.size > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {Array.from(selectedNeighborhoods).map((nid) => {
+                    const name = toTitle(idToItem[nid]?.['name'] || String(nid));
+                    return (
+                      <span key={`sel-${nid}`} className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0">
+                        <span className="truncate max-w-[14rem]" title={name}>{name}</span>
                         <button
-                          key={`global-${nid}`}
                           type="button"
+                          aria-label={`Remove ${name}`}
+                          className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
                           onClick={() => toggleNeighborhood(nid)}
-                          aria-pressed={checked}
-                        className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
-                          checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
                         >
-                          <span className="truncate text-left">{n['name'] || nid}</span>
-                          <span className="ml-2">{checked ? '✓' : '+'}</span>
+                          &times;
                         </button>
-                      );
-                    })
-                    .filter(Boolean)
-                    .slice(0, 200)}
-                  {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
-                    .filter((n) => (n['name'] || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase())).length === 0 && (
-                      <div className="text-sm text-gray-500">No matches found</div>
-                  )}
-              </div>
-            </div>
-          )}
-          {selectedNeighborhoods.size > 0 && (
-            <div className="mb-3 flex flex-wrap gap-2">
-              {Array.from(selectedNeighborhoods).map((nid) => {
-                const name = toTitle(idToItem[nid]?.['name'] || String(nid));
-                return (
-                  <span key={`sel-${nid}`} className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0">
-                    <span className="truncate max-w-[14rem]" title={name}>{name}</span>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${name}`}
-                      className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
-                      onClick={() => toggleNeighborhood(nid)}
-                    >
-                      &times;
-                    </button>
-                  </span>
-                );
-              })}
-            </div>
-          )}
-          {isNYC ? (
-          <div className="space-y-3">
-              {/* Removed top borough pills row */}
-              {/* Per-borough accordions like screenshot */}
-              <div className="mt-3 space-y-3">
-                {NYC_BOROUGHS.map((borough) => {
-                  const isOpen = openBoroughsMain.has(borough);
-                  const list = boroughNeighborhoods[borough] || [];
-                  return (
-                    <div
-                      key={`accordion-${borough}`}
-                      ref={(el) => { boroughAccordionRefs.current[borough] = el; }}
-                      className="rounded-xl bg-white shadow-sm overflow-hidden"
-                    >
-                      <div
-                        className="flex items-center justify-between cursor-pointer w-full pl-4 pr-3 md:pl-5 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
-                        onClick={async () => { await toggleMainBoroughOpen(borough); }}
-                        aria-expanded={isOpen}
-                        role="button"
-                        tabIndex={0}
-                        data-testid={`service-area-borough-${borough.toLowerCase().replace(/\s+/g, '-')}`}
-                        onKeyDown={async (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); await toggleMainBoroughOpen(borough); } }}
-                      >
-                        <div className="flex items-center gap-2 text-gray-800 dark:text-gray-100 font-medium">
-                          <span className="tracking-wide text-xs sm:text-sm whitespace-nowrap">{borough}</span>
-                          <ChevronDown
-                            className={`h-4 w-4 text-gray-600 dark:text-gray-300 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                            aria-hidden="true"
-                          />
-                        </div>
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className="text-sm px-3 py-1 rounded-md bg-purple-100 text-[#7E22CE] hover:bg-purple-200"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
-                              toggleBoroughAll(borough, true, listNow);
-                            }}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {isNYC ? (
+                <div className="space-y-3">
+                  <div className="mt-3 space-y-3">
+                    {NYC_BOROUGHS.map((borough) => {
+                      const isOpen = openBoroughsMain.has(borough);
+                      const list = boroughNeighborhoods[borough] || [];
+                      return (
+                        <div
+                          key={`accordion-${borough}`}
+                          ref={(el) => { boroughAccordionRefs.current[borough] = el; }}
+                          className="rounded-xl bg-white shadow-sm overflow-hidden"
+                        >
+                          <div
+                            className="flex items-center justify-between cursor-pointer w-full pl-4 pr-3 md:pl-5 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
+                            onClick={async () => { await toggleMainBoroughOpen(borough); }}
+                            aria-expanded={isOpen}
+                            role="button"
+                            tabIndex={0}
+                            data-testid={`service-area-borough-${borough.toLowerCase().replace(/\s+/g, '-')}`}
+                            onKeyDown={async (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); await toggleMainBoroughOpen(borough); } }}
                           >
-                            Select all
-                          </button>
-                          <button
-                            type="button"
-                            className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
-                              toggleBoroughAll(borough, false, listNow);
-                            }}
-                          >
-                            Clear all
-                          </button>
-                        </div>
-                      </div>
-                      {isOpen && (
-                        <div className="px-3 pb-3 mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
-                          {(list || []).map((n) => {
-                            const nid = n['neighborhood_id'] || (n as Record<string, unknown>)['id'] as string;
-                            if (!nid) return null;
-                            const checked = selectedNeighborhoods.has(nid);
-                            const label = toTitle(n['name'] || String(nid));
-                            const regionCode = String(n.code || n.ntacode || idToItem[nid]?.ntacode || nid);
-                            return (
+                            <div className="flex items-center gap-2 text-gray-800 dark:text-gray-100 font-medium">
+                              <span className="tracking-wide text-xs sm:text-sm whitespace-nowrap">{borough}</span>
+                              <ChevronDown
+                                className={`h-4 w-4 text-gray-600 dark:text-gray-300 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                                aria-hidden="true"
+                              />
+                            </div>
+                            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                               <button
-                                key={`${borough}-${nid}`}
                                 type="button"
-                                onClick={() => toggleNeighborhood(nid)}
-                                aria-pressed={checked}
-                                data-testid={`service-area-chip-${regionCode}`}
-                                data-state={checked ? 'selected' : 'idle'}
-                                className={`inline-flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
-                                  checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
+                                className="text-sm px-3 py-1 rounded-md bg-purple-100 text-[#7E22CE] hover:bg-purple-200"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
+                                  toggleBoroughAll(borough, true, listNow);
+                                }}
                               >
-                                <span className="truncate text-left">{label}</span>
-                                <span className="ml-2">{checked ? '✓' : '+'}</span>
+                                Select all
                               </button>
-                            );
-                          })}
-                          {list.length === 0 && (
-                            <div className="col-span-full text-sm text-gray-500">Loading…</div>
+                              <button
+                                type="button"
+                                className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
+                                  toggleBoroughAll(borough, false, listNow);
+                                }}
+                              >
+                                Clear all
+                              </button>
+                            </div>
+                          </div>
+                          {isOpen && (
+                            <div className="px-3 pb-3 mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
+                              {(list || []).map((n) => {
+                                const nid = n['neighborhood_id'] || (n as Record<string, unknown>)['id'] as string;
+                                if (!nid) return null;
+                                const checked = selectedNeighborhoods.has(nid);
+                                const label = toTitle(n['name'] || String(nid));
+                                const regionCode = String(n.code || n.ntacode || idToItem[nid]?.ntacode || nid);
+                                return (
+                                  <button
+                                    key={`${borough}-${nid}`}
+                                    type="button"
+                                    onClick={() => toggleNeighborhood(nid)}
+                                    aria-pressed={checked}
+                                    data-testid={`service-area-chip-${regionCode}`}
+                                    data-state={checked ? 'selected' : 'idle'}
+                                    className={`inline-flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                                      checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                  >
+                                    <span className="truncate text-left">{label}</span>
+                                    <span className="ml-2">{checked ? '✓' : '+'}</span>
+                                  </button>
+                                );
+                              })}
+                              {list.length === 0 && (
+                                <div className="col-span-full text-sm text-gray-500">Loading…</div>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-
-            </div>
-          ) : (
-            <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600">
-              Your city is not yet supported for granular neighborhoods. We’ll add it soon.
-            </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600">
+                  Your city is not yet supported for granular neighborhoods. We’ll add it soon.
+                </div>
+              )}
+            </>
           )}
           {/* Preferred Teaching Location */}
+          {openServiceAreas && (
           <div className="mt-6">
             <p className="text-gray-600 mt-1 mb-2">Preferred Teaching Location</p>
             <p className="text-xs text-gray-600 mb-2">Add a studio, gym, or home address if you teach from a fixed location.</p>
@@ -1248,8 +1191,10 @@ export default function InstructorProfileSettingsPage() {
               </div>
             </div>
           </div>
+          )}
 
           {/* Preferred Public Spaces */}
+          {openServiceAreas && (
           <div className="mt-6">
             <p className="text-gray-600 mt-1 mb-2">Preferred Public Spaces</p>
             <p className="text-xs text-gray-600 mb-2">Suggest public spaces where you’re comfortable teaching<br />(e.g., library, park, coffee shop).</p>
@@ -1303,22 +1248,29 @@ export default function InstructorProfileSettingsPage() {
               </div>
             </div>
           </div>
+          )}
         </div>
         {/* Mobile divider before Booking Preferences */}
         <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
         {/* Experience Settings Section */}
         <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
+          <button
+            type="button"
+            className="w-full flex items-center justify-between mb-4 text-left"
+            onClick={() => setOpenPreferences((v) => !v)}
+            aria-expanded={openPreferences}
+          >
             <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <SettingsIcon className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <span>Booking Preferences</span>
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <SettingsIcon className="w-6 h-6 text-[#7E22CE]" />
               </div>
+              <span>Booking Preferences</span>
             </div>
-          </div>
+            <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
+          </button>
+          {openPreferences && (
+          <>
           <p className="text-gray-600 mt-1 mb-3">Control availability and booking preferences</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-white rounded-lg">
@@ -1403,24 +1355,19 @@ export default function InstructorProfileSettingsPage() {
                 />
               </div>
           </div>
+          </>
+          )}
         </div>
 
-        {/* Inline actions */}
+        {/* Inline actions - standalone save */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
             type="button"
-            onClick={() => { window.location.href = '/instructor/onboarding/skill-selection'; }}
-            className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
-          >
-            Skip for now
-          </button>
-          <button
-            type="button"
-            onClick={() => { if (!saving && !savingServiceAreas) { void save({ redirectTo: '/instructor/onboarding/skill-selection' }); } }}
+            onClick={() => { if (!saving && !savingServiceAreas) { void save(); } }}
             disabled={saving || savingServiceAreas}
-            className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm justify-center"
+            className="w-40 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm justify-center"
           >
-            {saving || savingServiceAreas ? 'Saving...' : 'Save & Continue'}
+            {saving || savingServiceAreas ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>

@@ -1,11 +1,12 @@
 // frontend/app/(auth)/instructor/dashboard/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import Modal from '@/components/Modal';
-import { Calendar, Eye, Trash2, Camera, SquareArrowDownLeft, ListTodo, Clock } from 'lucide-react';
+import { Calendar, Eye, Trash2, Camera, SquareArrowDownLeft, ListTodo, User, MessageSquare, Bell, Star, DollarSign } from 'lucide-react';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 import { getCurrentWeekRange } from '@/types/common';
@@ -35,6 +36,113 @@ export default function InstructorDashboardNew() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editVariant, setEditVariant] = useState<'full' | 'about' | 'areas' | 'services'>('full');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const titleCardRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [sidebarOffset, setSidebarOffset] = useState<number>(0);
+  const lastStableOffsetRef = useRef<number>(0);
+  const [isOffsetFrozen, setIsOffsetFrozen] = useState(false);
+  const [activePanel, setActivePanel] = useState<'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability'>('dashboard');
+
+  const ProfilePanel = useMemo(
+    () => dynamic(() => import('../profile/page').then((m) => m.default), { ssr: false }),
+    []
+  );
+  const BookingsPanel = useMemo(
+    () => dynamic(() => import('../bookings/page').then((m) => m.default), { ssr: false }),
+    []
+  );
+  const EarningsPanel = useMemo(
+    () => dynamic(() => import('../earnings/page').then((m) => m.default), { ssr: false }),
+    []
+  );
+  const ReviewsPanel = useMemo(
+    () => dynamic(() => import('../reviews/page').then((m) => m.default), { ssr: false }),
+    []
+  );
+  const AvailabilityPanel = useMemo(
+    () => dynamic(() => import('../availability/page').then((m) => m.default), { ssr: false }),
+    []
+  );
+
+  const computeSidebarOffset = useCallback(() => {
+    try {
+      if (isOffsetFrozen) return;
+      const grid = gridRef.current;
+      // If profile/bookings is embedded, align to its first card element; otherwise align to dashboard title card
+      const profileAnchor = typeof document !== 'undefined' ? document.getElementById('profile-first-card') : null;
+      const bookingsAnchor = typeof document !== 'undefined' ? document.getElementById('bookings-first-card') : null;
+      const earningsAnchor = typeof document !== 'undefined' ? document.getElementById('earnings-first-card') : null;
+      const reviewsAnchor = typeof document !== 'undefined' ? document.getElementById('reviews-first-card') : null;
+      const availabilityAnchor = typeof document !== 'undefined' ? document.getElementById('availability-first-card') : null;
+      const firstCard = activePanel === 'profile'
+        ? (profileAnchor as HTMLElement | null)
+        : activePanel === 'bookings'
+          ? (bookingsAnchor as HTMLElement | null)
+          : activePanel === 'earnings'
+            ? (earningsAnchor as HTMLElement | null)
+            : activePanel === 'reviews'
+              ? (reviewsAnchor as HTMLElement | null)
+              : activePanel === 'availability'
+                ? (availabilityAnchor as HTMLElement | null)
+          : titleCardRef.current;
+      if (!grid || !firstCard) {
+        // If profile is switching, use the last stable dashboard offset to avoid initial drop
+        if (activePanel === 'profile' && lastStableOffsetRef.current > 0) {
+          setSidebarOffset(lastStableOffsetRef.current);
+        }
+        return;
+      }
+      const gridTop = grid.getBoundingClientRect().top;
+      const cardTop = firstCard.getBoundingClientRect().top;
+      const delta = Math.max(0, Math.round(cardTop - gridTop));
+      // Replicate Home behavior exactly: set absolute offset with minimal snapping (1px)
+      const next = Math.abs(delta - lastStableOffsetRef.current) <= 1 ? lastStableOffsetRef.current : delta;
+      lastStableOffsetRef.current = next;
+      setSidebarOffset((prev) => (prev !== next ? next : prev));
+    } catch {
+      // Ignore measure errors; retain previous offset
+    }
+  }, [activePanel, isOffsetFrozen]);
+
+  useEffect(() => {
+    computeSidebarOffset();
+    const onResize = () => computeSidebarOffset();
+    const onLoad = () => computeSidebarOffset();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('load', onLoad);
+    // Match home behavior: single early recompute
+    const t1 = setTimeout(computeSidebarOffset, 0);
+    let mo: MutationObserver | null = null;
+    if (gridRef.current && typeof MutationObserver !== 'undefined') {
+      mo = new MutationObserver(() => computeSidebarOffset());
+      mo.observe(gridRef.current, { childList: true, subtree: true });
+    }
+    try {
+      // Recompute after font loading as it can shift layout
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (document as any).fonts?.ready?.then?.(() => computeSidebarOffset());
+    } catch {}
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('load', onLoad);
+      clearTimeout(t1);
+      if (mo) mo.disconnect();
+    };
+  }, [computeSidebarOffset, activePanel]);
+
+  // Freeze sidebar offset briefly when switching to embedded panels to avoid visible reflow
+  useEffect(() => {
+    if (activePanel === 'profile' || activePanel === 'bookings' || activePanel === 'earnings' || activePanel === 'reviews' || activePanel === 'availability') {
+      setIsOffsetFrozen(true);
+      const t = setTimeout(() => {
+        setIsOffsetFrozen(false);
+        computeSidebarOffset();
+      }, 280);
+      return () => clearTimeout(t);
+    }
+  }, [activePanel, computeSidebarOffset]);
+
+  // No overlay animations; keep load simple and stable
   const [connectStatus, setConnectStatus] = useState<{
     charges_enabled?: boolean;
     payouts_enabled?: boolean;
@@ -48,20 +156,13 @@ export default function InstructorDashboardNew() {
   const [preferredTeachingLocations, setPreferredTeachingLocations] = useState<PreferredTeachingLocation[]>([]);
   const [preferredPublicSpaces, setPreferredPublicSpaces] = useState<PreferredPublicSpace[]>([]);
   const [bookedMinutes, setBookedMinutes] = useState(0);
-  const [hasAnyBookings, setHasAnyBookings] = useState<boolean | null>(null);
   const [hasUpcomingBookings, setHasUpcomingBookings] = useState<boolean | null>(null);
-  // TEMP: Force mocked empty/upcoming state for preview
-  const FORCE_UPCOMING_MOCK = true;
-  const [suggestionChecks, setSuggestionChecks] = useState({
-    bio: false,
-    refer: false,
-    bring: false,
-    photos: false,
-    elite: false,
-  });
+  const [completedBookingsCount, setCompletedBookingsCount] = useState<number>(0);
+  // Suggestions state removed; no longer used
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
   const [bgFileInfo, setBgFileInfo] = useState<{ name: string; size: number } | null>(null);
+  // Optional items removed; no longer used
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -185,6 +286,8 @@ export default function InstructorDashboardNew() {
     })();
   }, [router, fetchProfile]);
 
+  // Left sidebar is inline with content; no fixed positioning logic
+
   // Weekly range for availability/bookings (Mon–Sun)
   const weekRange = getCurrentWeekRange(1);
   const { data: availability } = useInstructorAvailability(profile?.user_id || '', weekRange.start_date);
@@ -195,6 +298,22 @@ export default function InstructorDashboardNew() {
     const h = parseInt(parts[0] || '0', 10);
     const m = parseInt(parts[1] || '0', 10);
     return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+  }, []);
+
+  // Total completed bookings count (uses paginated total)
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      try {
+        const res = await protectedApi.getBookings({ status: 'completed', limit: 1 });
+        const raw = res.data as unknown as { total?: number; items?: unknown[] } | undefined;
+        const total = typeof raw?.total === 'number' ? raw!.total : Array.isArray(raw?.items) ? raw!.items!.length : 0;
+        if (!ignore) setCompletedBookingsCount(Math.max(0, total));
+      } catch {
+        if (!ignore) setCompletedBookingsCount(0);
+      }
+    })();
+    return () => { ignore = true; };
   }, []);
   const diffMinutes = useCallback((start: string, end: string): number => {
     const s = parseTimeToMinutes(start);
@@ -241,15 +360,9 @@ export default function InstructorDashboardNew() {
   const availableHours = Math.round(availableMinutes / 60);
   const bookedHours = Math.round(bookedMinutes / 60);
 
-  // Fetch booking presence (ever and upcoming)
+  // Fetch upcoming booking presence
   useEffect(() => {
     (async () => {
-      try {
-        const all = await protectedApi.getBookings({ limit: 1 });
-        setHasAnyBookings((all.data?.items?.length || 0) > 0);
-      } catch {
-        setHasAnyBookings(false);
-      }
       try {
         const up = await protectedApi.getBookings({ upcoming: true, limit: 1 });
         setHasUpcomingBookings((up.data?.items?.length || 0) > 0);
@@ -369,15 +482,125 @@ export default function InstructorDashboardNew() {
           <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
-          <div className="pr-0 sm:pr-4">
+          <div className="flex items-center gap-2 pr-0 sm:pr-4">
+            <Link href="/instructor/messages" className="inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] group select-none" aria-label="Messages" title="Messages">
+              <MessageSquare className="w-6 h-6 fill-transparent transition-colors group-hover:fill-current group-active:fill-current group-focus:fill-current" />
+            </Link>
+            <Link href="/instructor/notifications" className="inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] group select-none" aria-label="Notifications" title="Notifications">
+              <Bell className="w-6 h-6 fill-transparent transition-colors group-hover:fill-current group-active:fill-current group-focus:fill-current" />
+            </Link>
             <UserProfileDropdown />
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
+      {/* Sidebar placed inline next to title card, matching student layout */}
+      {/* Removed duplicate standalone sidebar to avoid layout duplication */}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Removed extra top header and snapshot cards to avoid duplicates */}
+
+        {/* Main content as 2-column grid: sidebar + content (match student dashboard) */}
+        <div ref={gridRef} className="grid grid-cols-12 gap-6">
+          {/* Sidebar (duplicate for small screens hidden above) */}
+          <aside className="hidden md:block col-span-12 md:col-span-3" style={{ marginTop: sidebarOffset }}>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <nav>
+                <ul className="space-y-1">
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel('dashboard')}
+                      aria-current={activePanel === 'dashboard' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'dashboard'
+                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
+                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                      }`}
+                    >
+                      Home
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel('profile')}
+                      aria-current={activePanel === 'profile' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'profile'
+                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
+                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                      }`}
+                    >
+                      Profile
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel('bookings')}
+                      aria-current={activePanel === 'bookings' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'bookings'
+                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
+                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                      }`}
+                    >
+                      Bookings
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel('earnings')}
+                      aria-current={activePanel === 'earnings' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'earnings'
+                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
+                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                      }`}
+                    >
+                      Earnings
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel('reviews')}
+                      aria-current={activePanel === 'reviews' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'reviews'
+                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
+                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                      }`}
+                    >
+                      Reviews
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel('availability')}
+                      aria-current={activePanel === 'availability' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'availability'
+                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
+                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                      }`}
+                    >
+                      Availability
+                    </button>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          </aside>
+          <section className="col-span-12 md:col-span-9">
+            {activePanel === 'dashboard' && (
+              <>
+
         {/* Page Header with subtle purple accent */}
-        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
+        <div ref={titleCardRef} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
             <div className="flex items-center gap-3 min-w-0">
               <div
@@ -388,6 +611,7 @@ export default function InstructorDashboardNew() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
+
               <div className="min-w-0">
                 <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
                 <p className="text-gray-600 text-sm">Your profile, schedule, and earnings at a glance</p>
@@ -414,32 +638,55 @@ export default function InstructorDashboardNew() {
                   </button>
                 );
               })()}
-            </div>
           </div>
+        </div>
         </div>
 
         {/* Action items card removed per request */}
 
         {/* Snapshot Cards directly under header */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Bookings</h3>
-            <p className="text-3xl font-bold text-[#7E22CE]">0</p>
-            <p className="text-sm text-gray-500 mt-1">Coming soon</p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Rating</h3>
-            <p className="text-3xl font-bold text-[#7E22CE]">-</p>
-            <p className="text-sm text-gray-500 mt-1">Not yet available</p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Earnings</h3>
-            <p className="text-3xl font-bold text-[#7E22CE]">$0</p>
-            <p className="text-sm text-gray-500 mt-1">Payment integration pending</p>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* Bookings card - clickable with outline icon */}
+          <button onClick={() => setActivePanel('bookings')} className="group block w-full text-left bg-white rounded-lg border border-gray-200 p-5 sm:p-6 hover:shadow-md h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]" aria-label="Open bookings">
+            <div className="flex items-start justify-between h-full">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-700 mb-2 group-hover:text-[#7E22CE]">Bookings</h3>
+                <p className="text-3xl font-bold text-gray-900">{completedBookingsCount}</p>
+                <p className="text-sm text-gray-500 mt-1">{hasUpcomingBookings === false ? 'No booking today' : '\u00A0'}</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-[#7E22CE]" />
+              </div>
+            </div>
+          </button>
+
+          {/* Earnings card - clickable with outline icon */}
+          <button onClick={() => setActivePanel('earnings')} className="group block w-full text-left bg-white rounded-lg border border-gray-200 p-5 sm:p-6 hover:shadow-md h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]" aria-label="Open earnings">
+            <div className="flex items-start justify-between h-full">
+              <div>
+            <h3 className="text-lg font-semibold text-gray-700 mb-2 group-hover:text-[#7E22CE]">Earnings</h3>
+                <p className="text-3xl font-bold text-gray-900">$0</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-[#7E22CE]" />
+              </div>
+            </div>
+          </button>
+          {/* Reviews card - clickable with outline icon */}
+          <button onClick={() => setActivePanel('reviews')} className="group block w-full text-left bg-white rounded-lg border border-gray-200 p-5 sm:p-6 hover:shadow-md h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]" aria-label="Open reviews">
+            <div className="flex items-start justify-between h-full">
+              <div>
+            <h3 className="text-lg font-semibold text-gray-700 mb-2 group-hover:text-[#7E22CE]">Reviews</h3>
+                <p className="text-3xl font-bold text-gray-900">-</p>
+                <p className="text-sm text-gray-500 mt-1">Not yet available</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Star className="w-6 h-6 text-[#7E22CE]" />
+              </div>
+            </div>
+          </button>
+          {/* Messages and Notifications stat cards removed per request */}
         </div>
-
-
 
         {/* Quick Actions (removed; Delete Profile moved into Profile card) */}
 
@@ -587,7 +834,7 @@ export default function InstructorDashboardNew() {
               )}
               {/* Payouts and Instant Payout */}
               <div className="mt-auto border-t border-gray-200 pt-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-1">Stripe Payouts</h3>
+                <h3 className="text-lg font-semibold text-gray-700 mb-1">Stripe Payouts</h3>
                 <p className="text-gray-600 text-xs mb-2">Access your Stripe Express dashboard to view payouts and account settings.</p>
                 <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:justify-end">
                   <button
@@ -639,20 +886,19 @@ export default function InstructorDashboardNew() {
         </div>
           </div>
 
-          {/* Manage Availability card (only icon is clickable) */}
+        {/* Manage Availability card (only icon is clickable) */}
           <div className="p-5 sm:p-6 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow h-full flex flex-col relative">
             <div className="flex items-start gap-4 w-full">
-              <Link
-                href="/instructor/availability"
-                onClick={() => logger.debug('Navigating to availability management')}
+              <button
+                onClick={() => setActivePanel('availability')}
                 aria-label="Manage Availability"
                 className="group relative w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] transition shrink-0 overflow-hidden"
               >
                 <span className="absolute inset-0 rounded-full bg-gray-100 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
                 <Calendar className="relative w-6 h-6 text-[#7E22CE] transition-transform duration-150 ease-out group-hover:scale-110" />
-              </Link>
+              </button>
               <div>
-                <h3 className="text-lg font-semibold text-gray-700">Availability</h3>
+                <h3 className="text-lg font-semibold text-gray-700">Manage Availability</h3>
                 <p className="text-gray-600 text-sm">Set your weekly schedule and available hours</p>
               </div>
             </div>
@@ -672,13 +918,13 @@ export default function InstructorDashboardNew() {
           </div>
             <div className="mt-auto border-t border-gray-200 pt-4">
             <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:justify-end">
-              <Link
-                href="/instructor/availability"
+              <button
+                type="button"
                 className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg bg-[#7E22CE] text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
-                onClick={() => logger.debug('Open Calendar button clicked')}
+                onClick={() => setActivePanel('availability')}
               >
                 Open Calendar
-              </Link>
+              </button>
             </div>
           </div>
           </div>
@@ -686,227 +932,51 @@ export default function InstructorDashboardNew() {
 
 
 
-        {/* Tasks & Upcoming */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8">
+        {/* Tasks */}
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-8">
           {/* Tasks checklist */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm ring-1 ring-purple-100">
+          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6 shadow-sm ring-1 ring-purple-100">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <ListTodo className="w-6 h-6 text-[#7E22CE]" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-gray-800">Action items</h3>
+                <h3 className="text-lg font-semibold text-gray-700">Action items</h3>
                 <p className="text-xs text-gray-600 mt-0.5">Complete these steps to go live</p>
               </div>
             </div>
-            <ul className="space-y-2">
-              <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-                role="button"
-                tabIndex={0}
-                onClick={() => { const el = document.getElementById('profile-photo-upload'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const el = document.getElementById('profile-photo-upload'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } }}
-              >
-                <span className="text-gray-700">Upload a profile photo</span>
-              </li>
-
-              <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-                role="button"
-                tabIndex={0}
-                onClick={() => { setEditVariant('areas'); setShowEditModal(true); }}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEditVariant('areas'); setShowEditModal(true); } }}
-              >
-                <span className="text-gray-700">Set your service area (where you can teach)</span>
-              </li>
-              <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-                role="button"
-                tabIndex={0}
-                onClick={() => { setEditVariant('services'); setShowEditModal(true); }}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEditVariant('services'); setShowEditModal(true); } }}
-              >
-                <span className="text-gray-700">Set your skills</span>
-              </li>
-              <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-                role="button"
-                tabIndex={0}
-                onClick={() => setShowVerifyModal(true)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowVerifyModal(true); }}
-              >
-                <span className="text-gray-700">Verify your identity</span>
-              </li>
-              <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-                role="button"
-                tabIndex={0}
-                onClick={() => { const el = document.getElementById('payments-setup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const el = document.getElementById('payments-setup'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } }}
-              >
-                <span className="text-gray-700">Set payment details (so you can get paid)</span>
-              </li>
-              <li
-                className="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 clickable hover:bg-gray-50 cursor-pointer"
-                role="button"
-                tabIndex={0}
-                onClick={() => router.push('/instructor/availability')}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push('/instructor/availability'); }}
-              >
-                <span className="text-gray-700">Set your availability</span>
-              </li>
-            </ul>
-          </div>
-          {/* Upcoming lessons list (placeholder) */}
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6 h-full flex flex-col min-h-[24rem] sm:min-h-[26rem]">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-800">{(FORCE_UPCOMING_MOCK || hasAnyBookings === false) ? 'Let\'s get your first booking' : 'Upcoming lessons'}</h3>
-              </div>
-              <Link href="/instructor/bookings" className="text-[#7E22CE] hover:underline text-sm">View all</Link>
-            </div>
-            {/* Removed small header loader */}
-            {(FORCE_UPCOMING_MOCK || hasAnyBookings === false) ? (
-              <div className="flex-1 flex items-center justify-center py-6">
-                <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 rounded-full bg-gray-300 animate-pulse" style={{ animationDelay: '0ms' }} />
-                  <span className="w-3 h-3 rounded-full bg-gray-300 animate-pulse" style={{ animationDelay: '200ms' }} />
-                  <span className="w-3 h-3 rounded-full bg-gray-300 animate-pulse" style={{ animationDelay: '400ms' }} />
-                </div>
-              </div>
-            ) : (
-              <div className="flex-1"></div>
-            )}
-            <div className="rounded-lg bg-white pr-4 pl-0 py-4">
-              {(FORCE_UPCOMING_MOCK || hasUpcomingBookings === false) && (
-                <>
-                  <div className="h-px bg-gray-200 mb-3"></div>
-                  <p className="text-sm text-gray-800 font-medium">No upcoming lessons scheduled</p>
-                  <p className="text-xs text-gray-600 mb-3">Here&apos;s how to fill your calendar</p>
-                </>
-              )}
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <li className="flex items-center gap-1.5 rounded-md py-1.5 text-xs">
-                  <button
-                    type="button"
-                    aria-pressed={suggestionChecks.bio}
-                    onClick={() => setSuggestionChecks((p) => ({ ...p, bio: !p.bio }))}
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.bio ? 'bg-[#7E22CE] border-[#7E22CE] text-white hover:!bg-[#7E22CE] hover:!border-[#7E22CE]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
-                    title="Mark as done"
+            <div className="space-y-3">
+              <section>
+                <h4 className="text-xs font-semibold text-gray-800 mb-1">Required</h4>
+                <ul className="space-y-1">
+                  <li
+                    className="flex items-center justify-between border border-gray-100 rounded-md px-2 py-1 clickable hover:bg-gray-50 cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => router.push('/instructor/availability')}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push('/instructor/availability'); }}
                   >
-                    {suggestionChecks.bio && (
-                      <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF">
-                        <path strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setEditVariant('about'); setShowEditModal(true); }}
-                    className={`${suggestionChecks.bio ? 'text-[#7E22CE]' : 'text-gray-700'} hover:underline`}
-                  >
-                    Polish your profile bio
-                  </button>
-                </li>
-                <li className="flex items-center gap-1.5 rounded-md py-1.5 text-xs">
-                  <button
-                    type="button"
-                    aria-pressed={suggestionChecks.refer}
-                    onClick={() => setSuggestionChecks((p) => ({ ...p, refer: !p.refer }))}
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.refer ? 'bg-[#7E22CE] border-[#7E22CE] text-white hover:!bg-[#7E22CE] hover:!border-[#7E22CE]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
-                    title="Mark as done"
-                  >
-                    {suggestionChecks.refer && (
-                      <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF">
-                        <path strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/instructor/join')}
-                    className={`${suggestionChecks.refer ? 'text-[#7E22CE]' : 'text-gray-700'} hover:underline`}
-                  >
-                    Refer your colleagues
-                  </button>
-                </li>
-                <li className="flex items-center gap-1.5 rounded-md py-1.5 text-xs">
-                  <button
-                    type="button"
-                    aria-pressed={suggestionChecks.bring}
-                    onClick={() => setSuggestionChecks((p) => ({ ...p, bring: !p.bring }))}
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.bring ? 'bg-[#7E22CE] border-[#7E22CE] text-white hover:!bg-[#7E22CE] hover:!border-[#7E22CE]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
-                    title="Mark as done"
-                  >
-                    {suggestionChecks.bring && (
-                      <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF">
-                        <path strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { if (profile?.user_id) window.open(`/instructors/${profile.user_id}`, '_blank'); }}
-                    className={`${suggestionChecks.bring ? 'text-[#7E22CE]' : 'text-gray-700'} hover:underline`}
-                  >
-                    Bring your students
-                  </button>
-                </li>
-                <li className="flex items-center gap-1.5 rounded-md py-1.5 text-xs">
-                  <button
-                    type="button"
-                    aria-pressed={suggestionChecks.photos}
-                    onClick={() => setSuggestionChecks((p) => ({ ...p, photos: !p.photos }))}
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.photos ? 'bg-[#7E22CE] border-[#7E22CE] text-white hover:!bg-[#7E22CE] hover:!border-[#7E22CE]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
-                    title="Mark as done"
-                  >
-                    {suggestionChecks.photos && (
-                      <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF">
-                        <path strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/instructor/profile')}
-                    className={`${suggestionChecks.photos ? 'text-[#7E22CE]' : 'text-gray-700'} hover:underline`}
-                  >
-                    Add related skill pictures
-                  </button>
-                </li>
-                <li className="flex items-center gap-1.5 rounded-md py-1.5 text-xs">
-                  <button
-                    type="button"
-                    aria-pressed={suggestionChecks.elite}
-                    onClick={() => setSuggestionChecks((p) => ({ ...p, elite: !p.elite }))}
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 leading-none ${suggestionChecks.elite ? 'bg-[#7E22CE] border-[#7E22CE] text-white hover:!bg-[#7E22CE] hover:!border-[#7E22CE]' : 'border-gray-300 bg-white hover:border-gray-400'} focus:outline-none`}
-                    title="Mark as done"
-                  >
-                    {suggestionChecks.elite && (
-                      <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF">
-                        <path strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/instructor/welcome')}
-                    className={`${suggestionChecks.elite ? 'text-[#7E22CE]' : 'text-gray-700'} hover:underline`}
-                  >
-                    Earn Elite status
-                  </button>
-                </li>
-              </ul>
+                    <span className="text-gray-700 text-sm">Set your availability</span>
+                  </li>
+                </ul>
+              </section>
+              {/* Optional section removed; will be shown as announcement banner elsewhere */}
             </div>
           </div>
+          {/* Settings card removed per request */}
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
           <div className="flex justify-between items-start mb-6">
-            <h2 className="text-xl font-semibold text-gray-700">Profile Information</h2>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                <User className="w-5 h-5 text-[#7E22CE]" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-700">Profile Information</h2>
+        </div>
+
+
+
           </div>
 
           <div className="space-y-6">
@@ -921,7 +991,7 @@ export default function InstructorDashboardNew() {
                       </div>
                     }
                   />
-                  <h3 className="text-base font-semibold text-gray-800">About You</h3>
+                  <h3 className="text-lg font-semibold text-gray-700">About You</h3>
                 </div>
                 <button onClick={() => { setEditVariant('about'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
               </div>
@@ -931,7 +1001,7 @@ export default function InstructorDashboardNew() {
 
             <div className="rounded-lg border border-gray-200 p-5">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-semibold text-gray-800">Skills & Pricing</h3>
+                <h3 className="text-lg font-semibold text-gray-700">Skills & Pricing</h3>
                 <button onClick={() => { setEditVariant('services'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
               </div>
               <div className="space-y-2">
@@ -963,7 +1033,7 @@ export default function InstructorDashboardNew() {
 
             <div className="rounded-lg border border-gray-200 p-5">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-semibold text-gray-800">Service Areas</h3>
+                <h3 className="text-lg font-semibold text-gray-700">Service Areas</h3>
                 <button onClick={() => { setEditVariant('areas'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
               </div>
               {(() => {
@@ -1023,7 +1093,7 @@ export default function InstructorDashboardNew() {
                   </div>
                 );
               })()}
-            </div>
+        </div>
 
 
           </div>
@@ -1042,6 +1112,35 @@ export default function InstructorDashboardNew() {
         </div>
 
 
+      </>
+            )}
+            {activePanel === 'profile' && (
+              <div className="min-h-[60vh] overflow-visible">
+                <ProfilePanel embedded />
+              </div>
+            )}
+            {activePanel === 'bookings' && (
+              <div className="min-h-[60vh] overflow-visible">
+                <BookingsPanel embedded />
+              </div>
+            )}
+            {activePanel === 'earnings' && (
+              <div className="min-h-[60vh] overflow-visible">
+                <EarningsPanel embedded />
+              </div>
+            )}
+            {activePanel === 'reviews' && (
+              <div className="min-h-[60vh] overflow-visible">
+                <ReviewsPanel embedded />
+              </div>
+            )}
+            {activePanel === 'availability' && (
+              <div className="min-h-[60vh] overflow-visible">
+                <AvailabilityPanel embedded />
+              </div>
+            )}
+      </section>
+      </div>
       </div>
 
       {showEditModal && (
@@ -1065,7 +1164,7 @@ export default function InstructorDashboardNew() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-gray-900 self-center">Identity Verification</h2>
+            <h2 className="text-lg font-semibold text-gray-700 self-center">Identity Verification</h2>
             <p className="text-gray-600 mt-2 col-span-2">Verify your identity with a government-issued ID and a selfie</p>
 
             <div className="mt-2 col-span-2 grid grid-cols-[1fr_auto] gap-4 items-end">
@@ -1121,7 +1220,7 @@ export default function InstructorDashboardNew() {
                 </svg>
               </div>
               <div className="flex-1">
-                <h2 className="text-base font-semibold text-gray-900">Background Check</h2>
+                <h2 className="text-lg font-semibold text-gray-700">Background Check</h2>
                 <p className="text-gray-600 mt-1 text-sm">Upload your background check document</p>
 
                 <div className="mt-2 grid grid-cols-[1fr_auto] items-end gap-4">

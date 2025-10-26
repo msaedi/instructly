@@ -11,7 +11,7 @@ import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { BGCStep } from '@/components/instructor/BGCStep';
 import { ShieldCheck } from 'lucide-react';
-import { ProgressSteps } from '@/components/instructor/ProgressSteps';
+// ProgressSteps temporarily removed during rollback
 import { BackgroundCheckDisclosureModal } from '@/components/consent/BackgroundCheckDisclosureModal';
 import { bgcConsent, type BGCConsentPayload } from '@/lib/api/bgc';
 import { DISCLOSURE_VERSION } from '@/config/constants';
@@ -196,7 +196,7 @@ export default function Step4Verification() {
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
 
-          <ProgressSteps currentStep={3} />
+          {/* ProgressSteps removed */}
           <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '284px' }}>
             <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
               <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />

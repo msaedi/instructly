@@ -6,7 +6,7 @@ import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { ProgressSteps } from '@/components/instructor/ProgressSteps';
+// ProgressSteps temporarily removed during rollback
 
 export default function Step3PaymentSetup() {
   const [connectLoading, setConnectLoading] = useState(false);
@@ -109,7 +109,7 @@ export default function Step3PaymentSetup() {
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
 
-          <ProgressSteps currentStep={4} />
+          {/* ProgressSteps removed */}
           {/* Walking Stick Figure Animation - positioned between step 3 and 4 */}
           <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '544px' }}>
             <svg width="16" height="20" viewBox="0 0 16 20" fill="none">

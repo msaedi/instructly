@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, Calendar, LogOut, ChevronDown, AlertCircle, Gift, Menu } from 'lucide-react';
+import { User, Calendar, LogOut, ChevronDown, AlertCircle, Gift } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { createPortal } from 'react-dom';
 import { RoleName } from '@/types/enums';
@@ -15,45 +15,19 @@ export default function UserProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
-  // kept for potential future offset adjustments when headers vary in height
-  const [, setMobileTop] = useState(0);
-  const [mobileSlotEl, setMobileSlotEl] = useState<HTMLElement | null>(null);
-  const [mobileMenuHeight, setMobileMenuHeight] = useState<number>(0);
+  const [isMobileViewport] = useState(false);
   const [instructorOnboardingComplete, setInstructorOnboardingComplete] = useState(true);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const mobileTriggerRef = useRef<HTMLDivElement>(null);
+
+
 
   // Ensure component only renders on client
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Track viewport for mobile-specific dropdown behavior
-  useEffect(() => {
-    const update = () => {
-      const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
-      setIsMobileViewport(isMobile);
-      const header = typeof document !== 'undefined' ? document.querySelector('header') : null;
-      const headerHeight = header ? (header as HTMLElement).getBoundingClientRect().height : 56;
-      setMobileTop(headerHeight);
-      // Create or fetch a slot right after the header for mobile accordion pushdown
-      if (typeof document !== 'undefined') {
-        let slot = document.getElementById('mobile-dropdown-slot');
-        if (!slot) {
-          slot = document.createElement('div');
-          slot.id = 'mobile-dropdown-slot';
-          // Insert at very top so it covers the header and pushes content down via body padding
-          document.body.prepend(slot);
-        }
-        setMobileSlotEl(slot);
-      }
-    };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
+  // No-op viewport effect (reverted to desktop-style dropdown only)
 
   // Check instructor onboarding status
   useEffect(() => {
@@ -85,48 +59,22 @@ export default function UserProfileDropdown() {
   useEffect(() => {
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const isMobile = vw < 640;
-      if (isMobile) {
-        // Mobile: pin to top of the page (just under status bar), right-aligned with 8px margin
-        const width = 180; // keep same width as menu
-        const left = window.scrollX + Math.max(8, vw - (width + 8));
-        setDropdownPosition({
-          top: window.scrollY + 8,
-          left,
-        });
-      } else {
-        // Desktop: position under trigger, right-aligned
-        setDropdownPosition({
-          top: rect.bottom + window.scrollY + 8,
-          left: rect.right - 180 + window.scrollX,
-        });
-      }
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.right - 180 + window.scrollX,
+      });
     }
-    if (isMobileViewport) {
-      if (isOpen) {
-        // Defer to next frame to ensure content is mounted before measuring
-        requestAnimationFrame(() => {
-          const h = dropdownRef.current?.scrollHeight || 0;
-          setMobileMenuHeight(h);
-          document.body.style.paddingTop = `${h}px`;
-        });
-      } else {
-        // Closing: collapse and remove top padding
-        setMobileMenuHeight(0);
-        document.body.style.paddingTop = '';
-      }
-    }
-  }, [isOpen, isMobileViewport]);
+  }, [isOpen]);
+
+  // Remove ResizeObserver/spacer logic to restore stable behavior
 
   // Handle clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const targetNode = event.target as Node;
       const clickedInsideDesktop = buttonRef.current ? buttonRef.current.contains(targetNode) : false;
-      const clickedInsideMobile = mobileTriggerRef.current ? mobileTriggerRef.current.contains(targetNode) : false;
       const clickedInsideDropdown = dropdownRef.current ? dropdownRef.current.contains(targetNode) : false;
-      if (!clickedInsideDesktop && !clickedInsideMobile && !clickedInsideDropdown) {
+      if (!clickedInsideDesktop && !clickedInsideDropdown) {
         setIsOpen(false);
       }
     };
@@ -173,18 +121,7 @@ export default function UserProfileDropdown() {
 
   return (
     <>
-      {/* Mobile trigger: div to avoid iOS button tap overlay */}
-      <div
-        ref={mobileTriggerRef}
-        className="sm:hidden no-tap-highlight inline-flex items-center justify-center rounded-full pr-0 pl-1 py-1 mr-0 select-none"
-        role="button"
-        tabIndex={0}
-        aria-label={isOpen ? 'Close user menu' : 'Open user menu'}
-        onClick={() => setIsOpen(!isOpen)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(!isOpen); } }}
-      >
-        <Menu className="h-6 w-6 text-[#7E22CE] pointer-events-none select-none" aria-hidden="true" />
-      </div>
+      {/* Mobile trigger removed during rollback */}
 
       {/* Desktop trigger */}
       <button
@@ -205,8 +142,8 @@ export default function UserProfileDropdown() {
       {isOpen && typeof window !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
-          className={`bg-white border border-gray-200 ${isMobileViewport ? 'w-full rounded-none border-b shadow-md overflow-hidden transition-[max-height,opacity] duration-500 ease-in-out' : 'py-2 w-[180px] rounded-lg shadow-xl animate-fadeIn'}`}
-          style={isMobileViewport ? { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000, maxHeight: mobileMenuHeight } : { position: 'absolute', top: dropdownPosition.top, left: dropdownPosition.left, zIndex: 10000 }}
+          className={`bg-white border border-gray-200 py-2 w-[180px] rounded-lg shadow-xl animate-fadeIn`}
+          style={{ position: 'absolute', top: dropdownPosition.top, left: dropdownPosition.left, zIndex: 10000 }}
         >
           {/* Menu items */}
           <div className={`${isMobileViewport ? 'py-2' : 'py-1'}`}>
@@ -301,7 +238,7 @@ export default function UserProfileDropdown() {
             </button>
           </div>
         </div>,
-        isMobileViewport && mobileSlotEl ? mobileSlotEl : document.body
+        document.body
       )}
 
       <style jsx>{`
