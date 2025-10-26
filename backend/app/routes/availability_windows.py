@@ -59,6 +59,13 @@ from ..core.constants import ERROR_INSTRUCTOR_ONLY
 from ..core.enums import RoleName
 from ..core.exceptions import DomainException
 from ..models.user import User
+from ..monitoring.availability_perf import (
+    COPY_WEEK_ENDPOINT,
+    WEEK_GET_ENDPOINT,
+    WEEK_SAVE_ENDPOINT,
+    availability_perf_span,
+    estimate_payload_size_bytes,
+)
 from ..schemas.availability_responses import (
     ApplyToDateRangeResponse,
     BookedSlotsResponse,
@@ -124,35 +131,41 @@ async def get_week_availability(
     """
     verify_instructor(current_user)
 
-    try:
-        week_map = cast(
-            Dict[str, List[TimeRange]],
-            availability_service.get_week_availability(
-                instructor_id=current_user.id, start_date=start_date
-            ),
-        )
-        # Compute version and attach as header
-        version = availability_service.compute_week_version(
-            current_user.id, start_date, start_date + timedelta(days=6)
-        )
-        response.headers["ETag"] = version
-        # Compute Last-Modified from server data for cross-tab consistency
-        last_mod = availability_service.get_week_last_modified(
-            current_user.id, start_date, start_date + timedelta(days=6)
-        )
-        if last_mod:
-            # RFC 1123 format via http-date: use strftime with GMT
-            response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
-                "%a, %d %b %Y %H:%M:%S GMT"
+    with availability_perf_span(
+        "handler.get_week_availability",
+        endpoint=WEEK_GET_ENDPOINT,
+        instructor_id=current_user.id,
+        payload_size_bytes=0,
+    ):
+        try:
+            week_map = cast(
+                Dict[str, List[TimeRange]],
+                availability_service.get_week_availability(
+                    instructor_id=current_user.id, start_date=start_date
+                ),
             )
-        # Allow browsers to read ETag and Last-Modified via CORS
-        response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
-        return WeekAvailabilityResponse(week_map)
-    except DomainException as e:
-        raise e.to_http_exception()
-    except Exception as e:
-        logger.error(f"Unexpected error getting week availability: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+            # Compute version and attach as header
+            version = availability_service.compute_week_version(
+                current_user.id, start_date, start_date + timedelta(days=6)
+            )
+            response.headers["ETag"] = version
+            # Compute Last-Modified from server data for cross-tab consistency
+            last_mod = availability_service.get_week_last_modified(
+                current_user.id, start_date, start_date + timedelta(days=6)
+            )
+            if last_mod:
+                # RFC 1123 format via http-date: use strftime with GMT
+                response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
+                    "%a, %d %b %Y %H:%M:%S GMT"
+                )
+            # Allow browsers to read ETag and Last-Modified via CORS
+            response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+            return WeekAvailabilityResponse(week_map)
+        except DomainException as e:
+            raise e.to_http_exception()
+        except Exception as e:
+            logger.error(f"Unexpected error getting week availability: {str(e)}")
+            raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post(
@@ -173,81 +186,92 @@ async def save_week_availability(
     Clean implementation with proper cache warming.
     """
     verify_instructor(current_user)
+    payload_size = estimate_payload_size_bytes(payload)
 
-    try:
-        # Inject cache service if needed
-        if not availability_service.cache_service and cache_service:
-            availability_service.cache_service = cache_service
+    with availability_perf_span(
+        "handler.save_week_availability",
+        endpoint=WEEK_SAVE_ENDPOINT,
+        instructor_id=current_user.id,
+        payload_size_bytes=payload_size,
+    ):
+        try:
+            # Inject cache service if needed
+            if not availability_service.cache_service and cache_service:
+                availability_service.cache_service = cache_service
 
-        # Compute week start/end (Monday..Sunday)
-        from datetime import date as _date, timedelta as _timedelta
+            # Compute week start/end (Monday..Sunday)
+            from datetime import date as _date, timedelta as _timedelta
 
-        from app.core.timezone_utils import get_user_today_by_id
+            from app.core.timezone_utils import get_user_today_by_id
 
-        if payload.week_start:
-            monday = payload.week_start
-        else:
-            # Derive from the earliest schedule date
-            dates = []
-            for item in payload.schedule:
-                try:
-                    dates.append(_date.fromisoformat(str(item["date"])))
-                except Exception:
-                    continue
-            # Use user's timezone-aware 'today' when deriving default week
-            monday = (
-                min(dates)
-                if dates
-                else get_user_today_by_id(current_user.id, availability_service.db)
+            if payload.week_start:
+                monday = payload.week_start
+            else:
+                # Derive from the earliest schedule date
+                dates = []
+                for item in payload.schedule:
+                    try:
+                        dates.append(_date.fromisoformat(str(item["date"])))
+                    except Exception:
+                        continue
+                # Use user's timezone-aware 'today' when deriving default week
+                monday = (
+                    min(dates)
+                    if dates
+                    else get_user_today_by_id(current_user.id, availability_service.db)
+                )
+                monday = monday - _timedelta(days=monday.weekday())
+            week_end = monday + _timedelta(days=6)
+
+            # Get pre-save summary
+            pre_summary = availability_service.get_availability_summary(
+                current_user.id, monday, week_end
             )
-            monday = monday - _timedelta(days=monday.weekday())
-        week_end = monday + _timedelta(days=6)
+            pre_total = sum(pre_summary.values())
 
-        # Get pre-save summary
-        pre_summary = availability_service.get_availability_summary(
-            current_user.id, monday, week_end
-        )
-        pre_total = sum(pre_summary.values())
-
-        await availability_service.save_week_availability(
-            instructor_id=current_user.id, week_data=payload
-        )
-
-        # Get post-save summary
-        post_summary = availability_service.get_availability_summary(
-            current_user.id, monday, week_end
-        )
-        post_total = sum(post_summary.values())
-
-        created = max(0, post_total - pre_total)
-        deleted = max(0, pre_total - post_total)
-        updated = 0  # Not tracked precisely in this endpoint
-
-        # Compute and attach new version
-        new_version = availability_service.compute_week_version(current_user.id, monday, week_end)
-        response.headers["ETag"] = new_version
-        # Compute and attach Last-Modified after save
-        last_mod = availability_service.get_week_last_modified(current_user.id, monday, week_end)
-        if last_mod:
-            response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
-                "%a, %d %b %Y %H:%M:%S GMT"
+            await availability_service.save_week_availability(
+                instructor_id=current_user.id, week_data=payload
             )
-        response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
 
-        return WeekAvailabilityUpdateResponse(
-            message="Saved weekly availability",
-            week_start=monday,
-            week_end=week_end,
-            windows_created=created,
-            windows_updated=updated,
-            windows_deleted=deleted,
-        )
+            # Get post-save summary
+            post_summary = availability_service.get_availability_summary(
+                current_user.id, monday, week_end
+            )
+            post_total = sum(post_summary.values())
 
-    except DomainException as e:
-        raise e.to_http_exception()
-    except Exception as e:
-        logger.error(f"Unexpected error saving week availability: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+            created = max(0, post_total - pre_total)
+            deleted = max(0, pre_total - post_total)
+            updated = 0  # Not tracked precisely in this endpoint
+
+            # Compute and attach new version
+            new_version = availability_service.compute_week_version(
+                current_user.id, monday, week_end
+            )
+            response.headers["ETag"] = new_version
+            # Compute and attach Last-Modified after save
+            last_mod = availability_service.get_week_last_modified(
+                current_user.id, monday, week_end
+            )
+            if last_mod:
+                response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
+                    "%a, %d %b %Y %H:%M:%S GMT"
+                )
+            response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+
+            return WeekAvailabilityUpdateResponse(
+                message="Saved weekly availability",
+                week_start=monday,
+                week_end=week_end,
+                windows_created=created,
+                windows_updated=updated,
+                windows_deleted=deleted,
+            )
+
+        except DomainException as e:
+            raise e.to_http_exception()
+        except Exception as e:
+            logger.error(f"Unexpected error saving week availability: {str(e)}")
+            raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post(
@@ -263,28 +287,35 @@ async def copy_week_availability(
 ) -> CopyWeekResponse:
     """Copy availability from one week to another."""
     verify_instructor(current_user)
+    payload_size = estimate_payload_size_bytes(payload)
 
-    try:
-        if not week_operation_service.cache_service and cache_service:
-            week_operation_service.cache_service = cache_service
+    with availability_perf_span(
+        "handler.copy_week_availability",
+        endpoint=COPY_WEEK_ENDPOINT,
+        instructor_id=current_user.id,
+        payload_size_bytes=payload_size,
+    ):
+        try:
+            if not week_operation_service.cache_service and cache_service:
+                week_operation_service.cache_service = cache_service
 
-        result = await week_operation_service.copy_week_availability(
-            instructor_id=current_user.id,
-            from_week_start=payload.from_week_start,
-            to_week_start=payload.to_week_start,
-        )
-        metadata = cast(dict[str, object], result.get("_metadata", {}))
-        return CopyWeekResponse(
-            message=str(metadata.get("message", "Week copied successfully")),
-            source_week_start=payload.from_week_start,
-            target_week_start=payload.to_week_start,
-            windows_copied=int(cast(int | str | None, metadata.get("slots_created", 0)) or 0),
-        )
-    except DomainException as e:
-        raise e.to_http_exception()
-    except Exception as e:
-        logger.error(f"Unexpected error copying week: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+            result = await week_operation_service.copy_week_availability(
+                instructor_id=current_user.id,
+                from_week_start=payload.from_week_start,
+                to_week_start=payload.to_week_start,
+            )
+            metadata = cast(dict[str, object], result.get("_metadata", {}))
+            return CopyWeekResponse(
+                message=str(metadata.get("message", "Week copied successfully")),
+                source_week_start=payload.from_week_start,
+                target_week_start=payload.to_week_start,
+                windows_copied=int(cast(int | str | None, metadata.get("slots_created", 0)) or 0),
+            )
+        except DomainException as e:
+            raise e.to_http_exception()
+        except Exception as e:
+            logger.error(f"Unexpected error copying week: {str(e)}")
+            raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post(

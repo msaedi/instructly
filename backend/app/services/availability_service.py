@@ -15,6 +15,12 @@ from sqlalchemy.orm import Session
 from ..core.exceptions import ConflictException, NotFoundException, RepositoryException
 from ..core.timezone_utils import get_user_today_by_id
 from ..models.availability import AvailabilitySlot, BlackoutDate
+from ..monitoring.availability_perf import (
+    WEEK_GET_ENDPOINT,
+    WEEK_SAVE_ENDPOINT,
+    availability_perf_span,
+    estimate_payload_size_bytes,
+)
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BlackoutDateCreate,
@@ -241,53 +247,79 @@ class AvailabilityService(BaseService):
         Returns:
             Dict mapping date strings to time slot lists
         """
+        endpoint = WEEK_GET_ENDPOINT
         self.log_operation(
             "get_week_availability", instructor_id=instructor_id, start_date=start_date
         )
 
-        # Try cache first with enhanced caching
-        if self.cache_service:
+        with availability_perf_span(
+            "service.get_week_availability",
+            endpoint=endpoint,
+            instructor_id=instructor_id,
+        ) as perf:
+            cache_used = "n"
+
+            # Try cache first with enhanced caching
+            if self.cache_service:
+                try:
+                    cached_data = self.cache_service.get_week_availability(
+                        instructor_id, start_date
+                    )
+                    if cached_data is not None:
+                        cache_used = "y"
+                        if perf:
+                            perf(cache_used=cache_used)
+                        return cached_data
+                except Exception as cache_error:
+                    logger.warning(f"Cache error for week availability: {cache_error}")
+
+            # Calculate week dates (Monday to Sunday)
+            week_dates = self._calculate_week_dates(start_date)
+            end_date = week_dates[-1]
+
+            # Get all slots for the week
             try:
-                cached_data = self.cache_service.get_week_availability(instructor_id, start_date)
-                if cached_data is not None:
-                    return cached_data
-            except Exception as cache_error:
-                logger.warning(f"Cache error for week availability: {cache_error}")
+                with availability_perf_span(
+                    "repository.get_week_availability",
+                    endpoint=endpoint,
+                    instructor_id=instructor_id,
+                ):
+                    all_slots = self.repository.get_week_availability(
+                        instructor_id, start_date, end_date
+                    )
+            except RepositoryException as e:
+                logger.error(f"Error getting week availability: {e}")
+                if perf:
+                    perf(cache_used=cache_used)
+                return {}
 
-        # Calculate week dates (Monday to Sunday)
-        week_dates = self._calculate_week_dates(start_date)
-        end_date = week_dates[-1]
+            # Group slots by date
+            week_schedule: Dict[str, List[TimeSlotResponse]] = {}
+            for slot in all_slots:
+                date_str = slot.specific_date.isoformat()
 
-        # Get all slots for the week
-        try:
-            all_slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
-        except RepositoryException as e:
-            logger.error(f"Error getting week availability: {e}")
-            return {}
+                if date_str not in week_schedule:
+                    week_schedule[date_str] = []
 
-        # Group slots by date
-        week_schedule: Dict[str, List[TimeSlotResponse]] = {}
-        for slot in all_slots:
-            date_str = slot.specific_date.isoformat()
-
-            if date_str not in week_schedule:
-                week_schedule[date_str] = []
-
-            week_schedule[date_str].append(
-                TimeSlotResponse(
-                    start_time=time_to_string(slot.start_time),
-                    end_time=time_to_string(slot.end_time),
+                week_schedule[date_str].append(
+                    TimeSlotResponse(
+                        start_time=time_to_string(slot.start_time),
+                        end_time=time_to_string(slot.end_time),
+                    )
                 )
-            )
 
-        # Cache the result with optimized TTL (5 minutes for current/future weeks)
-        if self.cache_service:
-            try:
-                self.cache_service.cache_week_availability(instructor_id, start_date, week_schedule)
-            except Exception as cache_error:
-                logger.warning(f"Failed to cache week availability: {cache_error}")
+            # Cache the result with optimized TTL (5 minutes for current/future weeks)
+            if self.cache_service:
+                try:
+                    self.cache_service.cache_week_availability(
+                        instructor_id, start_date, week_schedule
+                    )
+                except Exception as cache_error:
+                    logger.warning(f"Failed to cache week availability: {cache_error}")
 
-        return week_schedule
+            if perf:
+                perf(cache_used=cache_used)
+            return week_schedule
 
     @BaseService.measure_operation("get_instructor_availability_for_date_range")
     def get_instructor_availability_for_date_range(
@@ -496,9 +528,14 @@ class AvailabilityService(BaseService):
                     instructor_today = get_user_today_by_id(instructor_id, self.db)
                     future_or_today_dates = [d for d in week_dates if d >= instructor_today]
                     if future_or_today_dates:
-                        deleted_count = self.repository.delete_slots_by_dates(
-                            instructor_id, future_or_today_dates
-                        )
+                        with availability_perf_span(
+                            "repository.delete_slots_by_dates",
+                            endpoint=WEEK_SAVE_ENDPOINT,
+                            instructor_id=instructor_id,
+                        ):
+                            deleted_count = self.repository.delete_slots_by_dates(
+                                instructor_id, future_or_today_dates
+                            )
                     else:
                         deleted_count = 0
                     logger.info(
@@ -507,7 +544,12 @@ class AvailabilityService(BaseService):
 
                 # Bulk create all slots at once
                 if slots_to_create:
-                    created_slots = self.bulk_repository.bulk_create_slots(slots_to_create)
+                    with availability_perf_span(
+                        "repository.bulk_create_slots",
+                        endpoint=WEEK_SAVE_ENDPOINT,
+                        instructor_id=instructor_id,
+                    ):
+                        created_slots = self.bulk_repository.bulk_create_slots(slots_to_create)
                     logger.info(
                         f"Created {len(created_slots)} new slots for instructor {instructor_id}"
                     )
@@ -590,6 +632,8 @@ class AvailabilityService(BaseService):
         Returns:
             Updated week availability
         """
+        endpoint = WEEK_SAVE_ENDPOINT
+        payload_size = estimate_payload_size_bytes(week_data)
         self.log_operation(
             "save_week_availability",
             instructor_id=instructor_id,
@@ -597,43 +641,49 @@ class AvailabilityService(BaseService):
             schedule_count=len(week_data.schedule),
         )
 
-        # 1. Validate and parse
-        monday, week_dates, schedule_by_date = self._validate_and_parse_week_data(
-            week_data, instructor_id
-        )
+        with availability_perf_span(
+            "service.save_week_availability",
+            endpoint=endpoint,
+            instructor_id=instructor_id,
+            payload_size_bytes=payload_size,
+        ):
+            # 1. Validate and parse
+            monday, week_dates, schedule_by_date = self._validate_and_parse_week_data(
+                week_data, instructor_id
+            )
 
-        # Optional optimistic concurrency check
-        try:
-            if week_data.version:
-                expected = self.compute_week_version(
-                    instructor_id, monday, monday + timedelta(days=6)
-                )
-                if week_data.version != expected:
-                    raise ConflictException("Week has changed; please refresh and retry")
-        except ConflictException:
-            raise
-        except Exception as _e:
-            logger.debug(f"Version check skipped: {_e}")
+            # Optional optimistic concurrency check
+            try:
+                if week_data.version:
+                    expected = self.compute_week_version(
+                        instructor_id, monday, monday + timedelta(days=6)
+                    )
+                    if week_data.version != expected:
+                        raise ConflictException("Week has changed; please refresh and retry")
+            except ConflictException:
+                raise
+            except Exception as _e:
+                logger.debug(f"Version check skipped: {_e}")
 
-        # 2. Prepare slots for creation
-        slots_to_create = self._prepare_slots_for_creation(
-            instructor_id,
-            week_dates,
-            schedule_by_date,
-            ignore_existing=bool(week_data.clear_existing),
-        )
+            # 2. Prepare slots for creation
+            slots_to_create = self._prepare_slots_for_creation(
+                instructor_id,
+                week_dates,
+                schedule_by_date,
+                ignore_existing=bool(week_data.clear_existing),
+            )
 
-        # 3. Save to database
-        slot_count = await self._save_week_slots_transaction(
-            instructor_id, week_data, week_dates, slots_to_create
-        )
+            # 3. Save to database
+            slot_count = await self._save_week_slots_transaction(
+                instructor_id, week_data, week_dates, slots_to_create
+            )
 
-        # 4. Warm cache and return response
-        updated_availability = await self._warm_cache_after_save(
-            instructor_id, monday, week_dates, slot_count
-        )
+            # 4. Warm cache and return response
+            updated_availability = await self._warm_cache_after_save(
+                instructor_id, monday, week_dates, slot_count
+            )
 
-        return updated_availability
+            return updated_availability
 
     @BaseService.measure_operation("add_specific_date")
     def add_specific_date_availability(

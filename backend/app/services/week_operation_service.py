@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 from sqlalchemy.orm import Session
 
 from ..core.constants import DAYS_OF_WEEK
+from ..monitoring.availability_perf import COPY_WEEK_ENDPOINT, availability_perf_span
 from ..repositories.factory import RepositoryFactory
 from ..utils.time_helpers import string_to_time
 from .base import BaseService
@@ -108,28 +109,35 @@ class WeekOperationService(BaseService):
             to_week=to_week_start,
         )
 
-        # Validate dates are Mondays
-        self._validate_week_dates(from_week_start, to_week_start)
+        with availability_perf_span(
+            "service.copy_week_availability",
+            endpoint=COPY_WEEK_ENDPOINT,
+            instructor_id=instructor_id,
+        ):
+            # Validate dates are Mondays
+            self._validate_week_dates(from_week_start, to_week_start)
 
-        with self.transaction():
-            # Get target week dates
-            target_week_dates = self.calculate_week_dates(to_week_start)
+            with self.transaction():
+                # Get target week dates
+                target_week_dates = self.calculate_week_dates(to_week_start)
 
-            # Clear existing slots
-            self._clear_week_slots(instructor_id, target_week_dates)
+                # Clear existing slots
+                self._clear_week_slots(instructor_id, target_week_dates)
 
-            # Copy slots from source to target
-            created_count = self._copy_slots_between_weeks(
-                instructor_id, from_week_start, to_week_start
+                # Copy slots from source to target
+                created_count = self._copy_slots_between_weeks(
+                    instructor_id, from_week_start, to_week_start
+                )
+
+            # Ensure SQLAlchemy session is fresh
+            self.db.expire_all()
+
+            # Warm cache with new data
+            result = await self._warm_cache_and_get_result(
+                instructor_id, to_week_start, created_count
             )
 
-        # Ensure SQLAlchemy session is fresh
-        self.db.expire_all()
-
-        # Warm cache with new data
-        result = await self._warm_cache_and_get_result(instructor_id, to_week_start, created_count)
-
-        return result
+            return result
 
     @BaseService.measure_operation("apply_pattern")  # METRICS ADDED
     async def apply_pattern_to_date_range(
@@ -232,9 +240,14 @@ class WeekOperationService(BaseService):
 
     def _clear_week_slots(self, instructor_id: str, week_dates: List[date]) -> int:
         """Clear all existing slots from a week."""
-        deleted_count: int = self.availability_repository.delete_slots_by_dates(
-            instructor_id, week_dates
-        )
+        with availability_perf_span(
+            "repository.delete_slots_by_dates",
+            endpoint=COPY_WEEK_ENDPOINT,
+            instructor_id=instructor_id,
+        ):
+            deleted_count = self.availability_repository.delete_slots_by_dates(
+                instructor_id, week_dates
+            )
         self.logger.debug(f"Deleted {deleted_count} existing slots from target week")
         return deleted_count
 
@@ -243,9 +256,14 @@ class WeekOperationService(BaseService):
     ) -> int:
         """Copy slots from source week to target week."""
         # Get source week slots
-        source_slots = self.repository.get_week_slots(
-            instructor_id, from_week_start, from_week_start + timedelta(days=6)
-        )
+        with availability_perf_span(
+            "repository.get_week_slots",
+            endpoint=COPY_WEEK_ENDPOINT,
+            instructor_id=instructor_id,
+        ):
+            source_slots = self.repository.get_week_slots(
+                instructor_id, from_week_start, from_week_start + timedelta(days=6)
+            )
 
         # Prepare new slots with updated dates
         new_slots: List[Dict[str, Any]] = []
@@ -265,7 +283,12 @@ class WeekOperationService(BaseService):
 
         # Bulk create new slots
         if new_slots:
-            created_count: int = self.repository.bulk_create_slots(new_slots)
+            with availability_perf_span(
+                "repository.bulk_create_slots",
+                endpoint=COPY_WEEK_ENDPOINT,
+                instructor_id=instructor_id,
+            ):
+                created_count = self.repository.bulk_create_slots(new_slots)
             self.logger.info(f"Created {created_count} slots in target week")
             return created_count
         else:
