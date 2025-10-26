@@ -203,6 +203,15 @@ CELERYBEAT_SCHEDULE = {
         },
         # Note: Generate weekly search behavior insights
     },
+    # Finalize pending badges daily (after quality holds expire)
+    "badges-finalize-pending": {
+        "task": "badges.finalize_pending",
+        "schedule": crontab(hour=7, minute=0),  # Daily at 07:00 UTC
+        "options": {
+            "queue": "analytics",
+            "priority": 4,
+        },
+    },
     "referrals-unlock-every-15m": {
         "task": "app.tasks.referrals.run_unlocker",
         "schedule": crontab(minute="*/15"),  # Every 15 minutes

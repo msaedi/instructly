@@ -265,6 +265,102 @@ def upgrade() -> None:
     op.create_index("idx_user_roles_user_id", "user_roles", ["user_id"])
     op.create_index("idx_user_roles_role_id", "user_roles", ["role_id"])
 
+    # Badge definitions catalog
+    op.create_table(
+        "badge_definitions",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("slug", sa.String(100), nullable=False),
+        sa.Column("name", sa.String(200), nullable=False),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("criteria_type", sa.String(50), nullable=True),
+        sa.Column("criteria_config", postgresql.JSONB(), nullable=True),
+        sa.Column("icon_key", sa.String(100), nullable=True),
+        sa.Column("display_order", sa.Integer(), nullable=True),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("slug", name="uq_badge_definitions_slug"),
+        comment="Catalog of badge definition metadata",
+    )
+
+    # Student badge awards
+    op.create_table(
+        "student_badges",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("student_id", sa.String(26), nullable=False),
+        sa.Column("badge_id", sa.String(26), nullable=False),
+        sa.Column(
+            "awarded_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("progress_snapshot", postgresql.JSONB(), nullable=True),
+        sa.Column("status", sa.String(16), nullable=False, server_default="pending"),
+        sa.Column("hold_until", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("confirmed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["student_id"],
+            ["users.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["badge_id"],
+            ["badge_definitions.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("student_id", "badge_id", name="uq_student_badges_student_badge"),
+        sa.CheckConstraint(
+            "status IN ('pending','confirmed','revoked')",
+            name="ck_student_badges_status",
+        ),
+        comment="Badge instances awarded to students",
+    )
+    op.create_index("idx_student_badges_student_id", "student_badges", ["student_id"])
+    op.create_index("idx_student_badges_badge_id", "student_badges", ["badge_id"])
+    op.create_index(
+        "idx_student_badges_status_hold_until",
+        "student_badges",
+        ["status", "hold_until"],
+    )
+
+    # Badge progress tracking
+    op.create_table(
+        "badge_progress",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("student_id", sa.String(26), nullable=False),
+        sa.Column("badge_id", sa.String(26), nullable=False),
+        sa.Column("current_progress", postgresql.JSONB(), nullable=False),
+        sa.Column(
+            "last_updated",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.ForeignKeyConstraint(
+            ["student_id"],
+            ["users.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["badge_id"],
+            ["badge_definitions.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("student_id", "badge_id", name="uq_badge_progress_student_badge"),
+        comment="Progress snapshots toward earning badges",
+    )
+    op.create_index("idx_badge_progress_student_id", "badge_progress", ["student_id"])
+    op.create_index("idx_badge_progress_badge_id", "badge_progress", ["badge_id"])
+
     # NOTE: Seed data removed from migration
     # Roles and permissions need to be seeded with ULIDs by the application
     print("Skipping seed data - will be handled by application seeding script")
@@ -966,6 +1062,18 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS user_roles CASCADE")
     op.execute("DROP TABLE IF EXISTS permissions CASCADE")
     op.execute("DROP TABLE IF EXISTS roles CASCADE")
+
+    # Drop badge tracking tables
+    op.drop_index("idx_badge_progress_badge_id", table_name="badge_progress")
+    op.drop_index("idx_badge_progress_student_id", table_name="badge_progress")
+    op.drop_table("badge_progress")
+
+    op.drop_index("idx_student_badges_status_hold_until", table_name="student_badges")
+    op.drop_index("idx_student_badges_badge_id", table_name="student_badges")
+    op.drop_index("idx_student_badges_student_id", table_name="student_badges")
+    op.drop_table("student_badges")
+
+    op.drop_table("badge_definitions")
 
     # Drop check constraints first
     op.drop_constraint("ck_users_account_status", "users", type_="check")

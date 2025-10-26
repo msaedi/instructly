@@ -17,6 +17,7 @@ import pytest
 from app.api.dependencies.services import get_referral_checkout_service
 from app.auth import create_access_token
 from app.core.config import settings
+from app.core.exceptions import ServiceException
 from app.main import app as fastapi_app
 from app.models.referrals import RewardStatus
 from app.models.user import User
@@ -222,6 +223,73 @@ def test_get_my_referral_ledger(db, client, referral_service, monkeypatch):
     assert pending_payload[0]["id"] == str(pending.id)
     assert unlocked_payload[0]["id"] == str(unlocked.id)
     assert redeemed_payload[0]["id"] == str(redeemed.id)
+
+
+def test_referral_ledger_returns_code_when_step_enabled(db, client, monkeypatch):
+    monkeypatch.setenv("REFERRALS_UNSAFE_STEP", "4")
+    user = _create_user(db, "ledger_enabled@example.com")
+    token = create_access_token(data={"sub": user.email})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.get("/api/referrals/me", headers=headers)
+
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()
+    assert payload["code"]
+
+
+def test_referral_ledger_reads_existing_code_when_step_disabled(
+    db, client, referral_service, monkeypatch
+):
+    user = _create_user(db, "ledger_existing@example.com")
+    monkeypatch.setenv("REFERRALS_UNSAFE_STEP", "4")
+    code = referral_service.ensure_code_for_user(user.id)
+    assert code is not None
+
+    monkeypatch.setenv("REFERRALS_UNSAFE_STEP", "1")
+    token = create_access_token(data={"sub": user.email})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.get("/api/referrals/me", headers=headers)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["code"] == code.code
+
+
+def test_referral_ledger_returns_503_when_issuance_disabled(db, client, monkeypatch):
+    monkeypatch.setenv("REFERRALS_UNSAFE_STEP", "1")
+    user = _create_user(db, "ledger_disabled@example.com")
+    token = create_access_token(data={"sub": user.email})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.get("/api/referrals/me", headers=headers)
+
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert response.headers["X-Referrals-Reason"] == "issuance_disabled(step=1)"
+    payload = response.json()
+    assert payload["code"] == "REFERRAL_CODES_DISABLED"
+
+
+def test_referral_ledger_reports_db_timeout_reason(db, client, monkeypatch):
+    monkeypatch.setenv("REFERRALS_UNSAFE_STEP", "4")
+    user = _create_user(db, "ledger_timeout@example.com")
+    token = create_access_token(data={"sub": user.email})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    def _raise_timeout(self, user_id: str):
+        raise ServiceException(
+            "Referral code issuance is temporarily unavailable",
+            code="REFERRAL_CODE_ISSUANCE_TIMEOUT",
+        )
+
+    monkeypatch.setattr(ReferralService, "ensure_code_for_user", _raise_timeout)
+
+    response = client.get("/api/referrals/me", headers=headers)
+
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert (
+        response.headers["X-Referrals-Reason"] == "db_timeout(lock_timeout/statement_timeout)"
+    )
 
 
 def test_referral_ledger_concurrent_requests(db, client, monkeypatch):

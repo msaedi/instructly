@@ -130,6 +130,7 @@ class TestRepositoryRefactoring:
             "flush",
             "commit",
             "rollback",
+            "transaction",
         }
 
         # Also remove any Python magic methods that might be inherited

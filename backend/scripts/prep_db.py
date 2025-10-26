@@ -187,6 +187,12 @@ def _mode_env(mode: str) -> dict:
 def seed_system_data(db_url: str, dry_run: bool, mode: str, seed_db_url: Optional[str] = None):
     if dry_run:
         info("dry", f"(dry-run) Would seed SYSTEM data on {redact(db_url)}")
+        info(
+            "dry",
+            "(dry-run) Would upsert 10 badge definitions: "
+            "welcome_aboard, foundation_builder, first_steps, dedicated_learner, momentum_starter, "
+            "consistent_learner, top_student, explorer, favorite_partnership, year_one_learner",
+        )
         return
     info("seed", "Seeding SYSTEM data…")
     # Roles/permissions and catalog + regions

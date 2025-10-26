@@ -4,7 +4,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, User, CreditCard, Bell, Eye, EyeOff, X, Award, Zap, Star, BookOpen, Calendar, Target, Globe, Lock, CheckCircle, Gift } from 'lucide-react';
+import { Heart, User, CreditCard, Bell, Eye, EyeOff, X, Gift } from 'lucide-react';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { useQuery } from '@tanstack/react-query';
@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
 import type { FavoritesListResponse } from '@/features/shared/api/types';
 import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
+import { StudentBadgesSection } from '@/features/student/badges/StudentBadgesSection';
 import RewardsPanel from '@/features/referrals/RewardsPanel';
 // Use dashboard-specific saved address shape (differs from common Address)
 type SavedAddress = {
@@ -74,7 +75,6 @@ function StudentDashboardContent() {
   const [tfaStatus, setTfaStatus] = useState<{ enabled: boolean; verified_at?: string | null; last_used_at?: string | null } | null>(null);
   const [, setProfilePhoto] = useState<string | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [showAchievementsModal, setShowAchievementsModal] = useState(false);
 
   const tabs = useMemo(
     () => [
@@ -418,80 +418,8 @@ function StudentDashboardContent() {
                   </div>
 
                   {/* Achievements & Badges */}
-                  <div className="border-b border-gray-200 mb-6"></div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="text-lg font-semibold text-gray-900">Achievements & Badges</h3>
-                      <button
-                        onClick={() => setShowAchievementsModal(true)}
-                        className="text-sm font-medium text-[#7E22CE] hover:text-[#7E22CE] cursor-pointer"
-                      >
-                        Explore
-                      </button>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-4">Earn badges as you learn and teach!</p>
-                    <div className="flex gap-6">
-                      {/* Badge 1: 5 Lessons */}
-                      <div className="group relative flex flex-col items-center cursor-pointer">
-                        <Award
-                          size={32}
-                          strokeWidth={1.5}
-                          className="mb-2 text-yellow-500 transition-colors"
-                        />
-                        <p className="text-sm font-medium text-gray-700 whitespace-nowrap">5 Lessons</p>
-
-                        {/* Tooltip */}
-                        <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                          <div className="bg-white text-[#7E22CE] text-xs rounded-lg py-2 px-3 whitespace-nowrap border border-purple-200 shadow-lg">
-                            5 Lessons – Completed your first 5 lessons!
-                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-px">
-                              <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Badge 2: Quick Learner */}
-                      <div className="group relative flex flex-col items-center cursor-pointer">
-                        <Zap
-                          size={32}
-                          strokeWidth={1.5}
-                          className="mb-2 text-yellow-500 transition-colors"
-                        />
-                        <p className="text-sm font-medium text-gray-700 whitespace-nowrap">Quick Learner</p>
-
-                        {/* Tooltip */}
-                        <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                          <div className="bg-white text-[#7E22CE] text-xs rounded-lg py-2 px-3 whitespace-nowrap border border-purple-200 shadow-lg">
-                            Quick Learner – Finished 3 lessons in the first week.
-                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-px">
-                              <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Badge 3: Top Student */}
-                      <div className="group relative flex flex-col items-center cursor-pointer">
-                        <Star
-                          size={32}
-                          strokeWidth={1.5}
-                          className="mb-2 text-yellow-500 transition-colors"
-                        />
-                        <p className="text-sm font-medium text-gray-700 whitespace-nowrap">Top Student</p>
-
-                        {/* Tooltip */}
-                        <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                          <div className="bg-white text-[#7E22CE] text-xs rounded-lg py-2 px-3 whitespace-nowrap border border-purple-200 shadow-lg">
-                            Top Student – Rated 5 stars by 3 instructors.
-                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-px">
-                              <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <div className="border-b border-gray-200 my-6"></div>
+                  <StudentBadgesSection />
 
                   {/* Addresses */}
                   <div className="border-b border-gray-200 mb-6"></div>
@@ -821,152 +749,8 @@ function StudentDashboardContent() {
           }}
         />
       )}
-
-      {/* Achievements Modal */}
-      {showAchievementsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/30"
-            onClick={() => setShowAchievementsModal(false)}
-          />
-          <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-lg bg-white shadow-lg">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-900">Explore Achievements</h2>
-                <button
-                  onClick={() => setShowAchievementsModal(false)}
-                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-                  aria-label="Close achievements modal"
-                >
-                  <X className="h-5 w-5 text-gray-500" aria-hidden="true" />
-                </button>
-              </div>
-              <p className="mt-1 text-sm text-gray-600">
-                Here are all the badges you can earn. You&apos;ve unlocked 3 so far — keep going!
-              </p>
-            </div>
-
-            <div className="p-6 space-y-8">
-              {/* Earned Badges */}
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <CheckCircle className="h-5 w-5 text-yellow-500" />
-                  <h3 className="text-lg font-semibold text-gray-900">Earned</h3>
-                </div>
-
-                <div className="space-y-4">
-                  {/* 5 Lessons Badge */}
-                  <div className="flex items-start gap-4 p-4 rounded-lg bg-purple-50 border border-purple-200">
-                    <div className="shrink-0">
-                      <Award size={32} strokeWidth={1.5} className="text-yellow-500" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">5 Lessons</h4>
-                      <p className="text-sm text-gray-600 mt-1">
-                        You earned this by completing 5 lessons.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Quick Learner Badge */}
-                  <div className="flex items-start gap-4 p-4 rounded-lg bg-purple-50 border border-purple-200">
-                    <div className="shrink-0">
-                      <Zap size={32} strokeWidth={1.5} className="text-yellow-500" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Quick Learner</h4>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Awarded for finishing 3 lessons in your first week.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Top Student Badge */}
-                  <div className="flex items-start gap-4 p-4 rounded-lg bg-purple-50 border border-purple-200">
-                    <div className="shrink-0">
-                      <Star size={32} strokeWidth={1.5} className="text-yellow-500" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Top Student</h4>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Earned by receiving 3 five-star reviews.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Locked Badges */}
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <Lock className="h-5 w-5 text-gray-500" />
-                  <h3 className="text-lg font-semibold text-gray-900">Locked (How to Unlock)</h3>
-                </div>
-
-                <div className="space-y-4">
-                  {/* 10 Lessons Badge */}
-                  <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 border border-gray-200 opacity-75">
-                    <div className="shrink-0 relative">
-                      <BookOpen size={32} strokeWidth={1.5} className="text-gray-400" />
-                      <Lock className="h-3 w-3 text-gray-600 absolute -bottom-1 -right-1" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-700">10 Lessons</h4>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Complete 10 lessons to unlock.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Consistent Learner Badge */}
-                  <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 border border-gray-200 opacity-75">
-                    <div className="shrink-0 relative">
-                      <Calendar size={32} strokeWidth={1.5} className="text-gray-400" />
-                      <Lock className="h-3 w-3 text-gray-600 absolute -bottom-1 -right-1" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-700">Consistent Learner</h4>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Book lessons 3 weeks in a row to unlock.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Anniversary Badge */}
-                  <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 border border-gray-200 opacity-75">
-                    <div className="shrink-0 relative">
-                      <Target size={32} strokeWidth={1.5} className="text-gray-400" />
-                      <Lock className="h-3 w-3 text-gray-600 absolute -bottom-1 -right-1" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-700">Anniversary Badge</h4>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Stay active for 1 year to unlock.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Explorer Badge */}
-                  <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 border border-gray-200 opacity-75">
-                    <div className="shrink-0 relative">
-                      <Globe size={32} strokeWidth={1.5} className="text-gray-400" />
-                      <Lock className="h-3 w-3 text-gray-600 absolute -bottom-1 -right-1" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-700">Explorer</h4>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Take lessons in 3 different subjects to unlock.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      </div>
     </div>
+  </div>
   );
 }
 

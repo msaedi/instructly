@@ -82,7 +82,12 @@ def register_error_handlers(app: FastAPI) -> None:
             code=code,
             errors=jsonable_encoder(errors) if errors is not None else None,
         )
-        return JSONResponse(problem, status_code=exc.status_code, media_type=default_media_type)
+        return JSONResponse(
+            problem,
+            status_code=exc.status_code,
+            media_type=default_media_type,
+            headers=exc.headers,
+        )
 
     @app.exception_handler(StarletteHTTPException)
     async def starlette_http_exception_handler(
@@ -96,7 +101,12 @@ def register_error_handlers(app: FastAPI) -> None:
             code=code,
             errors=jsonable_encoder(errors) if errors is not None else None,
         )
-        return JSONResponse(problem, status_code=exc.status_code, media_type=default_media_type)
+        return JSONResponse(
+            problem,
+            status_code=exc.status_code,
+            media_type=default_media_type,
+            headers=exc.headers,
+        )
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_exception_handler(

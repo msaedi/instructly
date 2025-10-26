@@ -27,6 +27,7 @@ from ..repositories.review_repository import (
     ReviewResponseRepository,
     ReviewTipRepository,
 )
+from .badge_award_service import BadgeAwardService
 from .base import BaseService
 from .cache_service import CacheService
 from .ratings_config import DEFAULT_RATINGS_CONFIG, RatingsConfig
@@ -195,6 +196,13 @@ class ReviewService(BaseService):
 
         # Invalidate caches
         self._invalidate_instructor_caches(booking.instructor_id)
+
+        badge_service = BadgeAwardService(self.db)
+        badge_service.check_and_award_on_review_received(
+            student_id=student_id,
+            review_id=review.id,
+            created_at_utc=review.created_at,
+        )
 
         return review
 

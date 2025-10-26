@@ -7,6 +7,7 @@ import hashlib
 import logging
 from typing import List, Optional
 from urllib.parse import urlparse, urlunparse
+from uuid import uuid4
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
@@ -20,7 +21,7 @@ from app.api.dependencies.services import (
     get_referral_checkout_service,
     get_referral_service,
 )
-from app.core.config import settings
+from app.core.config import resolve_referrals_step, settings
 from app.core.exceptions import ServiceException
 from app.models.referrals import ReferralReward, RewardStatus
 from app.models.user import User
@@ -52,6 +53,7 @@ public_router = APIRouter(tags=["referrals"])
 COOKIE_NAME = "instainstru_ref"
 COOKIE_MAX_AGE = 30 * 24 * 60 * 60  # 30 days
 EXPIRY_NOTICE_DAYS = [14, 3]
+REFERRALS_REASON_HEADER = "X-Referrals-Reason"
 
 
 def _hash_value(value: Optional[str]) -> Optional[str]:
@@ -196,64 +198,93 @@ async def claim_referral_code(
 
 @router.get("/me", response_model=ReferralLedgerResponse)
 async def get_my_referral_ledger(
+    request: Request,
     current_user: User = Depends(get_current_active_user),
     referral_service: ReferralService = Depends(get_referral_service),
 ) -> ReferralLedgerResponse:
+    request_id = str(uuid4())
+    issuance_step = resolve_referrals_step()
+    logger.info(
+        "referral.api.ledger.start",
+        extra={
+            "request_id": request_id,
+            "user_id": current_user.id,
+            "referrals_step": issuance_step,
+            "path": request.url.path,
+        },
+    )
+
     try:
-        code_obj = await run_in_threadpool(referral_service.ensure_code_for_user, current_user.id)
-    except ServiceException as exc:
-        if exc.code == "REFERRAL_CODE_ISSUANCE_TIMEOUT":
+        try:
+            code_obj = await run_in_threadpool(
+                referral_service.ensure_code_for_user, current_user.id
+            )
+        except ServiceException as exc:
+            if exc.code == "REFERRAL_CODE_ISSUANCE_TIMEOUT":
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail={
+                        "message": "Referral code issuance is temporarily unavailable",
+                        "code": exc.code,
+                    },
+                    headers={REFERRALS_REASON_HEADER: "db_timeout(lock_timeout/statement_timeout)"},
+                ) from exc
+            raise exc.to_http_exception()
+
+        if code_obj is None:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail={
-                    "message": "Referral code issuance is temporarily unavailable",
-                    "code": exc.code,
+                    "message": "Referral codes are not available yet",
+                    "code": "REFERRAL_CODES_DISABLED",
                 },
-            ) from exc
-        raise exc.to_http_exception()
-
-    if code_obj is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "message": "Referral codes are not available yet",
-                "code": "REFERRAL_CODES_DISABLED",
-            },
-        )
-
-    try:
-        rewards_by_status = await run_in_threadpool(
-            referral_service.get_rewards_by_status, user_id=current_user.id
-        )
-    except ServiceException as exc:
-        raise exc.to_http_exception()
-
-    def _to_reward_out(rewards: List[ReferralReward]) -> List[RewardOut]:
-        return [
-            RewardOut(
-                id=reward.id,
-                side=reward.side,
-                status=reward.status,
-                amount_cents=reward.amount_cents,
-                unlock_ts=reward.unlock_ts,
-                expire_ts=reward.expire_ts,
-                created_at=reward.created_at,
+                headers={REFERRALS_REASON_HEADER: f"issuance_disabled(step={issuance_step})"},
             )
-            for reward in rewards
-        ]
 
-    slug = code_obj.vanity_slug or code_obj.code
-    share_base = settings.frontend_url.rstrip("/")
-    share_url = f"{share_base}/r/{slug}"
+        try:
+            rewards_by_status = await run_in_threadpool(
+                referral_service.get_rewards_by_status, user_id=current_user.id
+            )
+        except ServiceException as exc:
+            raise exc.to_http_exception()
 
-    return ReferralLedgerResponse(
-        code=code_obj.code,
-        share_url=share_url,
-        pending=_to_reward_out(rewards_by_status[RewardStatus.PENDING]),
-        unlocked=_to_reward_out(rewards_by_status[RewardStatus.UNLOCKED]),
-        redeemed=_to_reward_out(rewards_by_status[RewardStatus.REDEEMED]),
-        expiry_notice_days=EXPIRY_NOTICE_DAYS,
-    )
+        def _to_reward_out(rewards: List[ReferralReward]) -> List[RewardOut]:
+            return [
+                RewardOut(
+                    id=reward.id,
+                    side=reward.side,
+                    status=reward.status,
+                    amount_cents=reward.amount_cents,
+                    unlock_ts=reward.unlock_ts,
+                    expire_ts=reward.expire_ts,
+                    created_at=reward.created_at,
+                )
+                for reward in rewards
+            ]
+
+        slug = code_obj.vanity_slug or code_obj.code
+        share_base = settings.frontend_url.rstrip("/")
+        share_url = f"{share_base}/r/{slug}"
+
+        return ReferralLedgerResponse(
+            code=code_obj.code,
+            share_url=share_url,
+            pending=_to_reward_out(rewards_by_status[RewardStatus.PENDING]),
+            unlocked=_to_reward_out(rewards_by_status[RewardStatus.UNLOCKED]),
+            redeemed=_to_reward_out(rewards_by_status[RewardStatus.REDEEMED]),
+            expiry_notice_days=EXPIRY_NOTICE_DAYS,
+        )
+    except HTTPException as http_exc:
+        if http_exc.status_code == status.HTTP_503_SERVICE_UNAVAILABLE:
+            headers = dict(http_exc.headers or {})
+            if REFERRALS_REASON_HEADER not in headers:
+                headers[REFERRALS_REASON_HEADER] = "unexpected"
+                raise HTTPException(
+                    status_code=http_exc.status_code,
+                    detail=http_exc.detail,
+                    headers=headers,
+                ) from http_exc
+        raise
 
 
 @router.post(

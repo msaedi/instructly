@@ -14,8 +14,9 @@ making the code more testable and maintainable.
 """
 
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 import logging
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+from typing import Any, Dict, Generic, Iterator, List, Optional, Type, TypeVar
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Query, Session
@@ -156,6 +157,20 @@ class BaseRepository(IRepository[T]):
         self.db = db
         self.model = model
         self.logger = logging.getLogger(f"{__name__}.{model.__name__}")
+
+    @contextmanager
+    def transaction(self) -> Iterator[Session]:
+        """Context manager that commits/rolls back the underlying session."""
+        try:
+            yield self.db
+            self.db.commit()
+        except SQLAlchemyError as exc:
+            self.logger.error("Repository transaction failed: %s", exc)
+            self.db.rollback()
+            raise
+        except Exception:
+            self.db.rollback()
+            raise
 
     def get_by_id(self, id: int, load_relationships: bool = True) -> Optional[T]:
         """

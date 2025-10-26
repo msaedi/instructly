@@ -66,6 +66,7 @@ from .routes import (
     account_management,
     addresses,
     admin_background_checks,
+    admin_badges,
     admin_config,
     admin_instructors,
     alerts,
@@ -99,6 +100,7 @@ from .routes import (
     search_history,
     services,
     stripe_webhooks,
+    student_badges,
     two_factor_auth,
     uploads,
     users_profile_picture,
@@ -752,6 +754,7 @@ app.include_router(services.router)
 app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
 app.include_router(bookings.router)
+app.include_router(student_badges.router)
 app.include_router(pricing_preview.router)
 app.include_router(pricing_config_public.router)
 app.include_router(favorites.router)
@@ -780,6 +783,7 @@ app.include_router(uploads.router)
 app.include_router(users_profile_picture.router)
 app.include_router(beta.router)
 app.include_router(reviews.router)
+app.include_router(admin_badges.router)
 app.include_router(gated.router)
 app.include_router(internal.router)
 app.include_router(admin_background_checks.router)

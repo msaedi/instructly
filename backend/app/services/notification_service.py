@@ -19,7 +19,7 @@ import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
 import logging
-from typing import Any, Awaitable, Callable, List, Optional, ParamSpec, TypeVar
+from typing import Any, Awaitable, Callable, List, Optional, ParamSpec, Sequence, TypeVar
 
 from jinja2.exceptions import TemplateNotFound
 from sqlalchemy.orm import Session
@@ -868,4 +868,56 @@ class NotificationService(BaseService):
 
         except Exception as e:
             self.logger.error(f"Error sending message notification: {str(e)}")
+            return False
+
+    @BaseService.measure_operation("send_badge_awarded_email")
+    def send_badge_awarded_email(self, user: User, badge_name: str) -> bool:
+        try:
+            subject = f"You earned the {badge_name} badge!"
+            html_content = (
+                f"<p>Congratulations {user.first_name or user.email},</p>"
+                f"<p>You just unlocked the <strong>{badge_name}</strong> badge. Keep up the great work!</p>"
+            )
+            text_content = f"Congratulations {user.first_name or user.email}, you just unlocked the {badge_name} badge!"
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content,
+            )
+            return True
+        except Exception as exc:
+            self.logger.error("Failed to send badge award email: %s", exc)
+            return False
+
+    @BaseService.measure_operation("send_badge_digest_email")
+    def send_badge_digest_email(self, user: User, items: Sequence[dict]) -> bool:
+        try:
+            subject = "You're close to unlocking new badges"
+            if not items:
+                return False
+            list_items = "".join(
+                f"<li><strong>{item.get('name')}</strong>: {int(item.get('percent', 0))}% complete, "
+                f"{item.get('remaining')} remaining</li>"
+                for item in items
+            )
+            html_content = (
+                f"<p>Hi {user.first_name or user.email},</p>"
+                "<p>You're making great progress. Here are the badges you're closest to earning:</p>"
+                f"<ul>{list_items}</ul>"
+                "<p>Finish a lesson this week to keep the streak going!</p>"
+            )
+            text_content = "\n".join(
+                f"- {item.get('name')}: {int(item.get('percent', 0))}% complete, {item.get('remaining')} remaining"
+                for item in items
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content,
+            )
+            return True
+        except Exception as exc:
+            self.logger.error("Failed to send badge digest email: %s", exc)
             return False
