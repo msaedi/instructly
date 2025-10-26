@@ -128,4 +128,10 @@ export const queryKeys = {
     current: ['notifications', 'current'] as const,
     unread: ['notifications', 'unread'] as const,
   },
+
+  // Badge queries
+  badges: {
+    student: ['badges', 'student'] as const,
+    admin: (params: Record<string, unknown>) => ['badges', 'admin', params] as const,
+  },
 } as const;
