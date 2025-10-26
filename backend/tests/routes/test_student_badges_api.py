@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import importlib
 from typing import Dict, Tuple
 
@@ -174,3 +174,44 @@ def test_student_badges_filters(client, emma_with_badges):
     progress_items = progress_response.json()
     assert {badge["slug"] for badge in progress_items} == {"momentum_starter"}
     assert progress_items[0]["progress"] is not None
+
+
+def test_revoked_award_not_earned(client, db, emma_with_badges):
+    (student, headers) = emma_with_badges
+    definitions = _refresh_definition_map(db)
+    revoked_definition = definitions["welcome_aboard"]
+
+    now = datetime.now(timezone.utc)
+    db.add(
+        StudentBadge(
+            student_id=student.id,
+            badge_id=revoked_definition.id,
+            status="revoked",
+            awarded_at=now - timedelta(days=14),
+            revoked_at=now - timedelta(days=7),
+            progress_snapshot={"current": 1, "goal": 1},
+        )
+    )
+    db.add(
+        BadgeProgress(
+            student_id=student.id,
+            badge_id=revoked_definition.id,
+            current_progress={"current": 1, "goal": 1, "percent": 100},
+        )
+    )
+    db.commit()
+
+    response = client.get("/api/students/badges", headers=headers)
+    assert response.status_code == 200
+
+    payload = response.json()
+    revoked_entry = next(item for item in payload if item["slug"] == "welcome_aboard")
+    assert revoked_entry["earned"] is False
+    assert revoked_entry["status"] == "revoked"
+    assert revoked_entry["progress"]["current"] == 1
+    assert revoked_entry["progress"]["goal"] == 1
+
+    earned_response = client.get("/api/students/badges/earned", headers=headers)
+    assert earned_response.status_code == 200
+    earned_slugs = {badge["slug"] for badge in earned_response.json()}
+    assert "welcome_aboard" not in earned_slugs

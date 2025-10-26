@@ -245,6 +245,7 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
                 last_updated=now,
             )
             self.db.add(progress)
+        self.db.flush()
 
     def insert_award_pending_or_confirmed(
         self,

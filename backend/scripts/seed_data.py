@@ -250,6 +250,14 @@ def seed_badge_definitions(engine, verbose: bool = True) -> None:
     if verbose:
         print("\n▶ Seeding badge definitions…")
 
+    # Check if badge_definitions table exists (database-agnostic)
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    if 'badge_definitions' not in inspector.get_table_names():
+        if verbose:
+            print("  ⚠ badge_definitions table not found; skipping badge seed")
+        return
+
     metadata = sa.MetaData()
     badge_definitions = sa.Table(
         "badge_definitions",
@@ -266,11 +274,6 @@ def seed_badge_definitions(engine, verbose: bool = True) -> None:
     )
 
     with Session(engine) as session:
-        table_exists = session.execute(sa.text("SELECT to_regclass('public.badge_definitions')")).scalar()
-        if table_exists is None:
-            if verbose:
-                print("  ⚠ badge_definitions table not found; skipping badge seed")
-            return
 
         # Normalize any legacy slugs to snake_case
         normalize_count = 0
@@ -333,6 +336,7 @@ def seed_badge_definitions(engine, verbose: bool = True) -> None:
                         id=generate_ulid(),
                         slug=slug,
                         name=seed_payload["name"],
+                        description=seed_payload["description"],
                         criteria_type=seed_payload["criteria_type"],
                         criteria_config=seed_payload["criteria_config"],
                         icon_key=seed_payload["icon_key"],

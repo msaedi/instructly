@@ -115,6 +115,22 @@ class BadgeAwardService:
         # Momentum starter check
         momentum_definition = definitions.get(self.MOMENTUM_SLUG)
         if momentum_definition:
+            progress_snapshot = self._build_momentum_progress_snapshot(
+                momentum_definition,
+                student_id,
+                instructor_id,
+                lesson_id,
+                booked_at_utc,
+                completed_at_utc,
+            )
+            if progress_snapshot:
+                self.repository.upsert_progress(
+                    student_id,
+                    momentum_definition.id,
+                    progress_snapshot,
+                    now_utc=now,
+                )
+
             if self._is_momentum_criteria_met_on_completion(
                 momentum_definition,
                 student_id,
@@ -215,6 +231,78 @@ class BadgeAwardService:
         if not info:
             return None
         return info["completed_at"].isoformat() if info["completed_at"] else None
+
+    def _build_momentum_progress_snapshot(
+        self,
+        definition,
+        student_id: str,
+        instructor_id: str,
+        lesson_id: str,
+        booked_at_utc: Optional[datetime],
+        completed_at_utc: datetime,
+    ) -> Dict[str, Any]:
+        criteria = definition.criteria_config or {}
+        goal = int(criteria.get("goal", 2) or 2)
+        goal = goal if goal > 0 else 2
+        booked_at = booked_at_utc or completed_at_utc
+
+        snapshot: Dict[str, Any] = {
+            "current": 1,
+            "goal": goal,
+            "percent": min(100, int((1 / goal) * 100)) if goal else 0,
+            "same_instructor": False,
+            "booked_within_window": False,
+            "completed_within_window": False,
+            "eligible_pair": False,
+        }
+        previous = self.repository.get_latest_completed_lesson(
+            student_id,
+            before=completed_at_utc,
+            exclude_booking_id=lesson_id,
+        )
+        snapshot["last_booked_at"] = booked_at.isoformat()
+        snapshot["last_completed_at"] = completed_at_utc.isoformat()
+
+        if not previous:
+            return snapshot
+
+        first_completed_at = previous.get("completed_at")
+        if first_completed_at:
+            snapshot["first_completed_at"] = first_completed_at.isoformat()
+
+        same_instructor = previous.get("instructor_id") == instructor_id
+        snapshot["same_instructor"] = bool(same_instructor)
+
+        window_days_to_book = int(criteria.get("window_days_to_book", 0) or 0)
+        booked_within_window = False
+        if first_completed_at and booked_at >= first_completed_at:
+            if window_days_to_book <= 0:
+                booked_within_window = True
+            else:
+                booked_within_window = booked_at - first_completed_at <= timedelta(
+                    days=window_days_to_book
+                )
+        snapshot["booked_within_window"] = booked_within_window
+
+        window_days_to_complete = int(criteria.get("window_days_to_complete", 0) or 0)
+        completed_within_window = False
+        if booked_at and completed_at_utc >= booked_at:
+            if window_days_to_complete <= 0:
+                completed_within_window = True
+            else:
+                completed_within_window = completed_at_utc - booked_at <= timedelta(
+                    days=window_days_to_complete
+                )
+        snapshot["completed_within_window"] = completed_within_window
+
+        eligible_pair = bool(same_instructor and booked_within_window and completed_within_window)
+        snapshot["eligible_pair"] = eligible_pair
+        snapshot["current"] = goal if eligible_pair else 1
+        if goal:
+            snapshot["percent"] = min(100, int((snapshot["current"] / goal) * 100))
+        else:
+            snapshot["percent"] = 100 if snapshot["current"] else 0
+        return snapshot
 
     def check_and_award_on_review_received(
         self,

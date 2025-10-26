@@ -308,6 +308,65 @@ def test_momentum_starter_award(db, core_badges_seeded):
     assert momentum["status"] == "confirmed"
 
 
+def test_momentum_progress_first_and_second_lesson(db, core_badges_seeded):
+    student = _create_user(db, "momentum_progress@example.com")
+    instructor = _create_user(db, "momentum_progress_instr@example.com")
+    instructor_service, category_slug = _create_instructor_service(db, instructor)
+
+    badge_service = BadgeAwardService(db)
+    repo = BadgeRepository(db)
+
+    first_completed = datetime(2024, 4, 1, 15, 0, tzinfo=timezone.utc)
+    first_booked = first_completed - timedelta(days=2)
+    first_booking = _create_booking(db, student, instructor, instructor_service, first_booked, first_completed)
+
+    badge_service.check_and_award_on_lesson_completed(
+        student_id=student.id,
+        lesson_id=first_booking.id,
+        instructor_id=instructor.id,
+        category_slug=category_slug,
+        booked_at_utc=first_booked,
+        completed_at_utc=first_completed,
+    )
+
+    progress_rows = repo.list_student_badge_progress(student.id)
+    momentum_progress = next(p for p in progress_rows if p["slug"] == "momentum_starter")
+    current_progress = momentum_progress["current_progress"]
+    assert current_progress["current"] == 1
+    assert current_progress["goal"] == 2
+    assert current_progress["percent"] == 50
+    assert current_progress["same_instructor"] is False
+    assert current_progress["booked_within_window"] is False
+    assert current_progress["completed_within_window"] is False
+
+    second_booked = first_completed + timedelta(days=3)
+    second_completed = second_booked + timedelta(days=2)
+    second_booking = _create_booking(db, student, instructor, instructor_service, second_booked, second_completed)
+
+    badge_service.check_and_award_on_lesson_completed(
+        student_id=student.id,
+        lesson_id=second_booking.id,
+        instructor_id=instructor.id,
+        category_slug=category_slug,
+        booked_at_utc=second_booked,
+        completed_at_utc=second_completed,
+    )
+
+    progress_rows = repo.list_student_badge_progress(student.id)
+    momentum_progress = next(p for p in progress_rows if p["slug"] == "momentum_starter")
+    current_progress = momentum_progress["current_progress"]
+    assert current_progress["current"] == 2
+    assert current_progress["goal"] == 2
+    assert current_progress["percent"] == 100
+    assert current_progress["same_instructor"] is True
+    assert current_progress["booked_within_window"] is True
+    assert current_progress["completed_within_window"] is True
+
+    awards = repo.list_student_badge_awards(student.id)
+    momentum_award = next(a for a in awards if a["slug"] == "momentum_starter")
+    assert momentum_award["status"] == "confirmed"
+
+
 def test_momentum_starter_not_awarded_when_outside_window(db, core_badges_seeded):
     student = _create_user(db, "momentum_late@example.com")
     instructor = _create_user(db, "momentum_late_instr@example.com")
@@ -357,6 +416,13 @@ def test_momentum_starter_not_awarded_when_outside_window(db, core_badges_seeded
 
     awards = repo.list_student_badge_awards(student.id)
     assert all(award["slug"] != "momentum_starter" for award in awards)
+    progress_rows = repo.list_student_badge_progress(student.id)
+    momentum_progress = next(p for p in progress_rows if p["slug"] == "momentum_starter")
+    current_progress = momentum_progress["current_progress"]
+    assert current_progress["current"] == 1
+    assert current_progress["goal"] == 2
+    assert current_progress["booked_within_window"] is False
+    assert current_progress["completed_within_window"] is True
 
 
 def test_finalize_pending_badges_revokes_when_criteria_fail(db, core_badges_seeded):

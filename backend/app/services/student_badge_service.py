@@ -18,6 +18,8 @@ from ..repositories.factory import RepositoryFactory
 class StudentBadgeService:
     """Business logic for querying student badge data."""
 
+    EARNED_STATUSES = {"pending", "confirmed"}
+
     def __init__(self, db: Session):
         self.db = db
         self.repository: BadgeRepository = RepositoryFactory.create_badge_repository(db)
@@ -42,8 +44,9 @@ class StudentBadgeService:
 
             award = awards_by_slug.get(slug)
             progress_entry = progress_by_slug.get(slug)
+            award_status = award.get("status") if award else None
 
-            earned = award is not None
+            earned = award_status in self.EARNED_STATUSES
 
             badge_payload: Dict[str, Any] = {
                 "slug": slug,
@@ -51,6 +54,8 @@ class StudentBadgeService:
                 "description": definition.description,
                 "earned": earned,
             }
+            if award_status:
+                badge_payload["status"] = award_status
 
             show_threshold = int(criteria_config.get("show_after_total_lessons", 0) or 0)
             limited_visibility = (
@@ -58,7 +63,6 @@ class StudentBadgeService:
             )
 
             if earned and award:
-                badge_payload["status"] = award["status"]
                 badge_payload["awarded_at"] = award["awarded_at"]
                 badge_payload["confirmed_at"] = award.get("confirmed_at")
 
@@ -71,9 +75,13 @@ class StudentBadgeService:
             else:
                 badge_payload["progress"] = None
                 if not hide_progress and not limited_visibility:
-                    badge_payload["progress"] = _format_progress_snapshot(
+                    snapshot_source = (
                         progress_entry.get("current_progress") if progress_entry else None
                     )
+                    progress_payload = _format_progress_snapshot(snapshot_source)
+                    if progress_payload is None and award:
+                        progress_payload = _format_progress_snapshot(award.get("progress_snapshot"))
+                    badge_payload["progress"] = progress_payload
 
             response.append(badge_payload)
 
