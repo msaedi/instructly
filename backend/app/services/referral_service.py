@@ -5,13 +5,13 @@ from __future__ import annotations
 import calendar
 from datetime import datetime, timedelta, timezone
 import logging
-import os
 from typing import Dict, Iterable, List, Optional, cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 import ulid
 
+from app.core.config import resolve_referrals_step
 from app.core.exceptions import RepositoryException, ServiceException
 from app.events.referral_events import (
     emit_first_booking_completed,
@@ -109,7 +109,7 @@ class ReferralService(BaseService):
 
     @BaseService.measure_operation("referrals.ensure_code_for_user")
     def ensure_code_for_user(self, user_id: str) -> Optional[ReferralCode]:
-        step = int(os.getenv("REFERRALS_UNSAFE_STEP", "0") or 0)
+        step = resolve_referrals_step()
 
         existing = self.referral_code_repo.get_active_for_user(user_id)
         if existing:

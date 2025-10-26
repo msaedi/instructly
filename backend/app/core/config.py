@@ -9,6 +9,7 @@ from typing import (
     Any,
     Callable,
     Literal,
+    Mapping,
     NotRequired,
     Optional,
     Set,
@@ -67,6 +68,40 @@ def _classify_site_mode(raw_site_mode: str | None) -> tuple[str, bool, bool]:
     is_prod = normalized in PROD_SITE_MODES
     is_non_prod = normalized in NON_PROD_SITE_MODES
     return normalized, is_prod, is_non_prod
+
+
+def resolve_referrals_step(
+    *,
+    raw_value: str | None = None,
+    site_mode: str | None = None,
+    env: Mapping[str, str] | None = None,
+) -> int:
+    """
+    Resolve REFERRALS_UNSAFE_STEP with safe defaults for non-production environments.
+
+    When the env var is unset, return 4 for local/dev/stg-like modes so referral issuance
+    remains enabled by default. Production defaults remain unchanged.
+    """
+
+    env_map = env or os.environ
+    value = raw_value if raw_value is not None else env_map.get("REFERRALS_UNSAFE_STEP")
+    cleaned = (value or "").strip()
+    if cleaned:
+        try:
+            return max(0, int(cleaned))
+        except ValueError:
+            logger.warning("Invalid REFERRALS_UNSAFE_STEP=%s; defaulting to 0", cleaned)
+            return 0
+
+    normalized_mode, is_prod, is_non_prod = _classify_site_mode(
+        site_mode or env_map.get("SITE_MODE")
+    )
+    if is_prod:
+        return 0
+    if is_non_prod or not normalized_mode:
+        return 4
+    # Treat everything outside explicit prod bucket as non-prod for safety.
+    return 4
 
 
 class SenderProfile(TypedDict):
@@ -301,6 +336,11 @@ class Settings(BaseSettings):
         if is_prod:
             return "prod"
         return "local"
+
+    @property
+    def referrals_step(self) -> int:
+        """Return resolved referrals issuance step honoring environment defaults."""
+        return resolve_referrals_step(site_mode=self.site_mode)
 
     @property
     def metrics_basic_auth_enabled(self) -> bool:
