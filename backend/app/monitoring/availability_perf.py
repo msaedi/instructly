@@ -1,13 +1,12 @@
 # backend/app/monitoring/availability_perf.py
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import logging
 import os
 import time
-from contextlib import contextmanager
 from typing import Any, Callable, Dict, Optional
-
 
 WEEK_GET_ENDPOINT = "GET /instructors/availability/week"
 WEEK_SAVE_ENDPOINT = "POST /instructors/availability/week"
