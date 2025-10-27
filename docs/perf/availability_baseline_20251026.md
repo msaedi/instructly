@@ -67,6 +67,15 @@ These counters reset per request through `PerfCounterMiddleware`, so headers ref
 
 > Note: This sandbox cannot connect to the shared Postgres instance, so query-count figures will appear in CI / local dev where the integration DB is available.
 
+## Week GET – Repo vs Route Query Counts
+
+| Layer | availability_slots queries | Other queries (auth/beta/service-area) | Notes |
+| --- | --- | --- | --- |
+| Repository (`AvailabilityRepository.get_week_availability`) | 1 | 0 | Enforced via `backend/tests/repositories/test_week_get_query_count_repo.py` with `count_sql(engine)`. |
+| Route (`GET /instructors/availability/week`) | 1 | ~10 | `backend/tests/integration/test_week_get_query_count.py` now inspects `x-db-table-availability_slots` (must stay ≤1) and logs extra statements via `x-debug-sql: 1`. Recomputing the week ETag/Last-Modified no longer reissues slot queries—they reuse the fetched rows. Remaining queries are from auth token verification, beta-phase lookups, and instructor service-area joins. |
+
+- Header `x-db-table-availability_slots` now surfaces the per-table count whenever `x-debug-sql: 1` is present, making per-endpoint SQL budgets easier to audit without digging into raw logs.
+
 ### Running the lightweight perf-counters test (without heavy conftest)
 
 We keep the isolated middleware test under `backend/tests/perf/` but execute it with `--confcutdir` so pytest does not load the integration `conftest.py`:

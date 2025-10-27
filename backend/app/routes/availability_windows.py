@@ -138,20 +138,26 @@ async def get_week_availability(
         payload_size_bytes=0,
     ):
         try:
-            week_map = cast(
-                Dict[str, List[TimeRange]],
-                availability_service.get_week_availability(
-                    instructor_id=current_user.id, start_date=start_date
-                ),
+            result = availability_service.get_week_availability_with_slots(
+                instructor_id=current_user.id,
+                start_date=start_date,
             )
+            week_map = cast(Dict[str, List[TimeRange]], result.week_map)
+            slot_rows = result.slots
             # Compute version and attach as header
             version = availability_service.compute_week_version(
-                current_user.id, start_date, start_date + timedelta(days=6)
+                current_user.id,
+                start_date,
+                start_date + timedelta(days=6),
+                slots=slot_rows,
             )
             response.headers["ETag"] = version
             # Compute Last-Modified from server data for cross-tab consistency
             last_mod = availability_service.get_week_last_modified(
-                current_user.id, start_date, start_date + timedelta(days=6)
+                current_user.id,
+                start_date,
+                start_date + timedelta(days=6),
+                slots=slot_rows,
             )
             if last_mod:
                 # RFC 1123 format via http-date: use strftime with GMT

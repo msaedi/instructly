@@ -6,9 +6,11 @@ This service handles all availability-related business logic.
 
 """
 
+from __future__ import annotations
+
 from datetime import date, datetime, time, timedelta, timezone
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, TypedDict
 
 from sqlalchemy.orm import Session
 
@@ -63,6 +65,11 @@ class TimeSlotResponse(TypedDict):
     end_time: str
 
 
+class WeekAvailabilityResult(NamedTuple):
+    week_map: dict[str, list[TimeSlotResponse]]
+    slots: list[AvailabilitySlot]
+
+
 class AvailabilityService(BaseService):
     """
     Service layer for availability operations.
@@ -94,7 +101,7 @@ class AvailabilityService(BaseService):
     @BaseService.measure_operation("get_availability_for_date")
     def get_availability_for_date(
         self, instructor_id: str, target_date: date
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """
         Get availability for a specific date using cache-aside pattern.
 
@@ -152,7 +159,7 @@ class AvailabilityService(BaseService):
     @BaseService.measure_operation("get_availability_summary")
     def get_availability_summary(
         self, instructor_id: str, start_date: date, end_date: date
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """
         Get summary of availability (slot counts) for date range.
 
@@ -171,17 +178,25 @@ class AvailabilityService(BaseService):
             return {}
 
     @BaseService.measure_operation("compute_week_version")
-    def compute_week_version(self, instructor_id: str, start_date: date, end_date: date) -> str:
+    def compute_week_version(
+        self,
+        instructor_id: str,
+        start_date: date,
+        end_date: date,
+        slots: Optional[list[AvailabilitySlot]] = None,
+    ) -> str:
         """Compute a robust week version/etag by hashing slot contents.
 
         Includes every slot's date/start/end to detect any change beyond counts.
         Fallbacks to a simple count hash if repository errors occur.
         """
         try:
-            slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
+            slot_rows = slots or self.repository.get_week_availability(
+                instructor_id, start_date, end_date
+            )
             # Collect normalized strings for deterministic hashing
             parts = []
-            for s in slots:
+            for s in slot_rows:
                 parts.append(
                     f"{s.specific_date.isoformat()}|{s.start_time.isoformat()}|{s.end_time.isoformat()}"
                 )
@@ -202,7 +217,11 @@ class AvailabilityService(BaseService):
 
     @BaseService.measure_operation("get_week_last_modified")
     def get_week_last_modified(
-        self, instructor_id: str, start_date: date, end_date: date
+        self,
+        instructor_id: str,
+        start_date: date,
+        end_date: date,
+        slots: Optional[list[AvailabilitySlot]] = None,
     ) -> Optional[datetime]:
         """Compute a server-sourced last-modified timestamp for a week's availability.
 
@@ -210,16 +229,18 @@ class AvailabilityService(BaseService):
         Returns None if no slots are present for the week.
         """
         try:
-            slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
+            slot_rows = slots or self.repository.get_week_availability(
+                instructor_id, start_date, end_date
+            )
         except RepositoryException as e:
             logger.error(f"Error computing last-modified for week availability: {e}")
             return None
 
-        if not slots:
+        if not slot_rows:
             return None
 
         latest: Optional[datetime] = None
-        for s in slots:
+        for s in slot_rows:
             # Some rows may not have updated_at set; fall back to created_at
             candidates = [getattr(s, "updated_at", None), getattr(s, "created_at", None)]
             for dt in candidates:
@@ -236,17 +257,31 @@ class AvailabilityService(BaseService):
     @BaseService.measure_operation("get_week_availability")
     def get_week_availability(
         self, instructor_id: str, start_date: date
-    ) -> Dict[str, List[TimeSlotResponse]]:
-        """
-        Get availability for a specific week using enhanced cache-aside pattern.
+    ) -> dict[str, list[TimeSlotResponse]]:
+        result = self._get_week_availability_common(
+            instructor_id,
+            start_date,
+            allow_cache_read=True,
+        )
+        return result.week_map
 
-        Args:
-            instructor_id: The instructor's user ID
-            start_date: Monday of the week to retrieve
+    @BaseService.measure_operation("get_week_availability_with_slots")
+    def get_week_availability_with_slots(
+        self, instructor_id: str, start_date: date
+    ) -> WeekAvailabilityResult:
+        return self._get_week_availability_common(
+            instructor_id,
+            start_date,
+            allow_cache_read=False,
+        )
 
-        Returns:
-            Dict mapping date strings to time slot lists
-        """
+    def _get_week_availability_common(
+        self,
+        instructor_id: str,
+        start_date: date,
+        *,
+        allow_cache_read: bool,
+    ) -> WeekAvailabilityResult:
         endpoint = WEEK_GET_ENDPOINT
         self.log_operation(
             "get_week_availability", instructor_id=instructor_id, start_date=start_date
@@ -259,8 +294,7 @@ class AvailabilityService(BaseService):
         ) as perf:
             cache_used = "n"
 
-            # Try cache first with enhanced caching
-            if self.cache_service:
+            if allow_cache_read and self.cache_service:
                 try:
                     cached_data = self.cache_service.get_week_availability(
                         instructor_id, start_date
@@ -269,15 +303,13 @@ class AvailabilityService(BaseService):
                         cache_used = "y"
                         if perf:
                             perf(cache_used=cache_used)
-                        return cached_data
+                        return WeekAvailabilityResult(week_map=cached_data, slots=[])
                 except Exception as cache_error:
                     logger.warning(f"Cache error for week availability: {cache_error}")
 
-            # Calculate week dates (Monday to Sunday)
             week_dates = self._calculate_week_dates(start_date)
             end_date = week_dates[-1]
 
-            # Get all slots for the week
             try:
                 with availability_perf_span(
                     "repository.get_week_availability",
@@ -291,24 +323,10 @@ class AvailabilityService(BaseService):
                 logger.error(f"Error getting week availability: {e}")
                 if perf:
                     perf(cache_used=cache_used)
-                return {}
+                return WeekAvailabilityResult(week_map={}, slots=[])
 
-            # Group slots by date
-            week_schedule: Dict[str, List[TimeSlotResponse]] = {}
-            for slot in all_slots:
-                date_str = slot.specific_date.isoformat()
+            week_schedule = self._slots_to_week_map(all_slots)
 
-                if date_str not in week_schedule:
-                    week_schedule[date_str] = []
-
-                week_schedule[date_str].append(
-                    TimeSlotResponse(
-                        start_time=time_to_string(slot.start_time),
-                        end_time=time_to_string(slot.end_time),
-                    )
-                )
-
-            # Cache the result with optimized TTL (5 minutes for current/future weeks)
             if self.cache_service:
                 try:
                     self.cache_service.cache_week_availability(
@@ -319,12 +337,30 @@ class AvailabilityService(BaseService):
 
             if perf:
                 perf(cache_used=cache_used)
-            return week_schedule
+
+            return WeekAvailabilityResult(week_map=week_schedule, slots=all_slots)
+
+    @staticmethod
+    def _slots_to_week_map(slots: list[AvailabilitySlot]) -> dict[str, list[TimeSlotResponse]]:
+        week_schedule: dict[str, list[TimeSlotResponse]] = {}
+        for slot in slots:
+            date_str = slot.specific_date.isoformat()
+
+            if date_str not in week_schedule:
+                week_schedule[date_str] = []
+
+            week_schedule[date_str].append(
+                TimeSlotResponse(
+                    start_time=time_to_string(slot.start_time),
+                    end_time=time_to_string(slot.end_time),
+                )
+            )
+        return week_schedule
 
     @BaseService.measure_operation("get_instructor_availability_for_date_range")
     def get_instructor_availability_for_date_range(
         self, instructor_id: str, start_date: date, end_date: date
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get instructor availability for a date range using enhanced caching.
 
@@ -355,7 +391,7 @@ class AvailabilityService(BaseService):
             return []
 
         # Group slots by date
-        availability_by_date: Dict[str, List[Dict[str, Any]]] = {}
+        availability_by_date: dict[str, list[dict[str, Any]]] = {}
         for slot in slots:
             date_str = slot.specific_date.isoformat()
             if date_str not in availability_by_date:
@@ -390,7 +426,7 @@ class AvailabilityService(BaseService):
     @BaseService.measure_operation("get_all_availability")
     def get_all_instructor_availability(
         self, instructor_id: str, start_date: Optional[date] = None, end_date: Optional[date] = None
-    ) -> List[AvailabilitySlot]:
+    ) -> list[AvailabilitySlot]:
         """
         Get all availability slots for an instructor with optional date filtering.
 
@@ -428,7 +464,7 @@ class AvailabilityService(BaseService):
 
     def _validate_and_parse_week_data(
         self, week_data: WeekSpecificScheduleCreate, instructor_id: str
-    ) -> Tuple[date, List[date], Dict[date, List[ProcessedSlot]]]:
+    ) -> tuple[date, list[date], dict[date, list[ProcessedSlot]]]:
         """
         Validate week data and parse into organized structure.
 
@@ -450,10 +486,10 @@ class AvailabilityService(BaseService):
     def _prepare_slots_for_creation(
         self,
         instructor_id: str,
-        week_dates: List[date],
-        schedule_by_date: Dict[date, List[ProcessedSlot]],
+        week_dates: list[date],
+        schedule_by_date: dict[date, list[ProcessedSlot]],
         ignore_existing: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Convert time slots to database-ready format.
 
@@ -503,8 +539,8 @@ class AvailabilityService(BaseService):
         self,
         instructor_id: str,
         week_data: WeekSpecificScheduleCreate,
-        week_dates: List[date],
-        slots_to_create: List[Dict[str, Any]],
+        week_dates: list[date],
+        slots_to_create: list[dict[str, Any]],
     ) -> int:
         """
         Execute the database transaction to save slots.
@@ -568,8 +604,8 @@ class AvailabilityService(BaseService):
             raise
 
     async def _warm_cache_after_save(
-        self, instructor_id: str, monday: date, week_dates: List[date], slot_count: int
-    ) -> Dict[str, List[TimeSlotResponse]]:
+        self, instructor_id: str, monday: date, week_dates: list[date], slot_count: int
+    ) -> dict[str, list[TimeSlotResponse]]:
         """
         Warm cache with new availability data.
 
@@ -621,7 +657,7 @@ class AvailabilityService(BaseService):
     @BaseService.measure_operation("save_week_availability")
     async def save_week_availability(
         self, instructor_id: str, week_data: WeekSpecificScheduleCreate
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Save availability for specific dates in a week - NOW UNDER 50 LINES!
 
@@ -723,7 +759,7 @@ class AvailabilityService(BaseService):
             return slot  # Just return the model object
 
     @BaseService.measure_operation("get_blackout_dates")
-    def get_blackout_dates(self, instructor_id: str) -> List[BlackoutDate]:
+    def get_blackout_dates(self, instructor_id: str) -> list[BlackoutDate]:
         """
         Get instructor's future blackout dates.
 
@@ -794,7 +830,7 @@ class AvailabilityService(BaseService):
     @BaseService.measure_operation("compute_public_availability")
     def compute_public_availability(
         self, instructor_id: str, start_date: date, end_date: date
-    ) -> Dict[str, List[Tuple[time, time]]]:
+    ) -> dict[str, list[tuple[time, time]]]:
         """
         Compute per-date availability intervals merged and with booked times subtracted.
 
@@ -804,14 +840,14 @@ class AvailabilityService(BaseService):
         slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
 
         # Group by date
-        by_date: Dict[date, List[Tuple[time, time]]] = {}
+        by_date: dict[date, list[tuple[time, time]]] = {}
         for s in slots:
             by_date.setdefault(s.specific_date, []).append((s.start_time, s.end_time))
 
         # Helpers
         from datetime import time as dtime
 
-        def merge_intervals(intervals: List[Tuple[time, time]]) -> List[Tuple[time, time]]:
+        def merge_intervals(intervals: list[tuple[time, time]]) -> list[tuple[time, time]]:
             if not intervals:
                 return []
             mins = sorted(
@@ -830,8 +866,8 @@ class AvailabilityService(BaseService):
             return [(dtime(m // 60, m % 60), dtime(n // 60, n % 60)) for m, n in merged]
 
         def subtract(
-            bases: List[Tuple[time, time]], cuts: List[Tuple[time, time]]
-        ) -> List[Tuple[time, time]]:
+            bases: list[tuple[time, time]], cuts: list[tuple[time, time]]
+        ) -> list[tuple[time, time]]:
             if not bases:
                 return []
             if not cuts:
@@ -862,7 +898,7 @@ class AvailabilityService(BaseService):
             return merge_intervals(out)
 
         # Build result
-        result: Dict[str, List[Tuple[time, time]]] = {}
+        result: dict[str, list[tuple[time, time]]] = {}
         cur = start_date
         while cur <= end_date:
             bases = merge_intervals(by_date.get(cur, []))
@@ -877,7 +913,7 @@ class AvailabilityService(BaseService):
 
     # Private helper methods
 
-    def _calculate_week_dates(self, monday: date) -> List[date]:
+    def _calculate_week_dates(self, monday: date) -> list[date]:
         """Calculate all dates for a week starting from Monday."""
         return [monday + timedelta(days=i) for i in range(7)]
 
@@ -897,8 +933,8 @@ class AvailabilityService(BaseService):
             return instructor_today - timedelta(days=instructor_today.weekday())
 
     def _group_schedule_by_date(
-        self, schedule: List[Dict[str, str]], instructor_id: str
-    ) -> Dict[date, List[ProcessedSlot]]:
+        self, schedule: list[dict[str, str]], instructor_id: str
+    ) -> dict[date, list[ProcessedSlot]]:
         """
         Group schedule entries by date.
 
@@ -908,7 +944,7 @@ class AvailabilityService(BaseService):
         Returns:
             Dictionary mapping dates to lists of ProcessedSlot dictionaries
         """
-        schedule_by_date: Dict[date, List[ProcessedSlot]] = {}
+        schedule_by_date: dict[date, list[ProcessedSlot]] = {}
 
         for slot in schedule:
             # Skip past dates based on instructor's timezone
@@ -935,7 +971,7 @@ class AvailabilityService(BaseService):
 
         return schedule_by_date
 
-    def _invalidate_availability_caches(self, instructor_id: str, dates: List[date]) -> None:
+    def _invalidate_availability_caches(self, instructor_id: str, dates: list[date]) -> None:
         """Invalidate caches for affected dates using enhanced cache service."""
         if self.cache_service:
             try:
