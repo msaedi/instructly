@@ -55,6 +55,18 @@ With `AVAILABILITY_PERF_DEBUG=1`, every request now emits:
 - `x-cache-hits` / `x-cache-misses`: counts of cache lookups that returned data vs. fell through (instrumented in `CacheService.get/mget`).
 These counters reset per request through `PerfCounterMiddleware`, so headers reflect end-to-end work for just that request and remain absent when perf debugging is disabled.
 
+## Week Save Atomicity & Query Trace
+- `test_week_save_rolls_back_on_fault` (backend/tests/services/test_week_save_atomicity.py) raises during the bulk insert step and verifies the instructor’s slots are unchanged, proving the transactional week-save flow rolls back cleanly on failure.
+- `test_week_save_happy_path_query_counts_param` posts 10/30/50-slot weeks and asserts the response headers expose the DB/cache counts for each batch size via the perf middleware.
+
+| Slots Saved | Header signals (from `x-db-query-count`, `x-cache-hits`, `x-cache-misses`) |
+| --- | --- |
+| 10 | Populated during `test_week_save_happy_path_query_counts_param[10]` (see pytest output for the exact values in your environment). |
+| 30 | Populated during `test_week_save_happy_path_query_counts_param[30]`. |
+| 50 | Populated during `test_week_save_happy_path_query_counts_param[50]`. |
+
+> Note: This sandbox cannot connect to the shared Postgres instance, so query-count figures will appear in CI / local dev where the integration DB is available.
+
 ### Running the lightweight perf-counters test (without heavy conftest)
 
 We keep the isolated middleware test under `backend/tests/perf/` but execute it with `--confcutdir` so pytest does not load the integration `conftest.py`:
