@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..database import get_db
+from ..middleware.perf_counters import record_cache_hit, record_cache_miss
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -298,6 +299,7 @@ class CacheService(BaseService):
                 value = self.circuit_breaker.call(_get_from_redis)
                 if value is not None:
                     self._stats["hits"] += 1
+                    record_cache_hit()
                     return value
             elif redis_client is None:
                 # In-memory fallback
@@ -305,6 +307,7 @@ class CacheService(BaseService):
                     expires_at = self._memory_expiry.get(key)
                     if expires_at is None or datetime.now() < expires_at:
                         self._stats["hits"] += 1
+                        record_cache_hit()
                         return self._memory_cache[key]
                     else:
                         # Expired
@@ -312,6 +315,7 @@ class CacheService(BaseService):
                         del self._memory_expiry[key]
 
             self._stats["misses"] += 1
+            record_cache_miss()
             return None
 
         except Exception as e:
@@ -454,8 +458,10 @@ class CacheService(BaseService):
                     if value is not None:
                         result[key] = json.loads(value)
                         self._stats["hits"] += 1
+                        record_cache_hit()
                     else:
                         self._stats["misses"] += 1
+                        record_cache_miss()
             else:
                 # In-memory
                 for key in keys:

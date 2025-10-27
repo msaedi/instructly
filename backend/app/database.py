@@ -9,6 +9,7 @@ from sqlalchemy.orm import DeclarativeMeta, Session, declarative_base, sessionma
 from sqlalchemy.pool import QueuePool
 
 from .core.config import settings
+from .middleware.perf_counters import increment_db_queries
 
 # Import production config if in production
 if settings.environment == "production":
@@ -37,6 +38,14 @@ else:
         echo_pool=False,  # Set to True for pool debugging
         connect_args={"connect_timeout": 10, "application_name": "instainstru_backend"},
     )
+
+
+@event.listens_for(engine, "after_cursor_execute")
+def _track_query(
+    conn: Engine, cursor: Any, statement: str, parameters: Any, context: Any, executemany: bool
+) -> None:
+    """Track executed queries for perf instrumentation."""
+    increment_db_queries()
 
 
 # Log pool events for monitoring

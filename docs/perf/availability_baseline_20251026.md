@@ -48,3 +48,24 @@
 1. Restart the backend on this branch (or deploy elsewhere) with `AVAILABILITY_PERF_DEBUG=1` and grab a 1–2 min log sample so we can confirm handler/service/repository splits.
 2. Validate the DB query counter middleware; the zero counts observed today suggest it is not wired into SQLAlchemy sessions used by these services.
 3. Proceed to Task 8 load test only after Step 1 completes so we can correlate high-percentile latency back to the new span logs.
+
+## Header Semantics
+With `AVAILABILITY_PERF_DEBUG=1`, every request now emits:
+- `x-db-query-count`: total SQL statements observed (via SQLAlchemy `after_cursor_execute`).
+- `x-cache-hits` / `x-cache-misses`: counts of cache lookups that returned data vs. fell through (instrumented in `CacheService.get/mget`).
+These counters reset per request through `PerfCounterMiddleware`, so headers reflect end-to-end work for just that request and remain absent when perf debugging is disabled.
+
+### Running the lightweight perf-counters test (without heavy conftest)
+
+We keep the isolated middleware test under `backend/tests/perf/` but execute it with `--confcutdir` so pytest does not load the integration `conftest.py`:
+
+```bash
+backend/scripts/dev/run_pytest_light.sh
+```
+
+Equivalent manual command:
+
+```bash
+cd backend
+pytest --confcutdir=backend/tests/perf backend/tests/perf/test_perf_counters_headers.py -q
+```

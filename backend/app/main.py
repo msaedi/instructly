@@ -52,6 +52,7 @@ from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
 from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
+from .middleware.perf_counters import PerfCounterMiddleware, perf_counters_enabled
 from .middleware.performance import PerformanceMiddleware
 from .middleware.prometheus_middleware import PrometheusMiddleware
 
@@ -713,6 +714,9 @@ logger.info("CORS allow_origins=%s allow_credentials=%s", _DYN_ALLOWED_ORIGINS, 
 
 # Keep MonitoringMiddleware (pure ASGI-style) below CORS
 app.add_middleware(MonitoringMiddleware)
+
+if perf_counters_enabled():
+    app.add_middleware(PerfCounterMiddleware)
 
 # Performance and metrics middleware with SSE support
 # These middlewares now properly detect and bypass SSE endpoints
