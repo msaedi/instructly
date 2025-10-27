@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Iterator, Optional
 
 WEEK_GET_ENDPOINT = "GET /instructors/availability/week"
 WEEK_SAVE_ENDPOINT = "POST /instructors/availability/week"
@@ -24,9 +24,10 @@ def _serialize_value(value: Any) -> Any:
     """Serialize values for structured logging."""
     if value is None:
         return None
-    if hasattr(value, "isoformat"):
+    iso_formatter = getattr(value, "isoformat", None)
+    if callable(iso_formatter):
         try:
-            return value.isoformat()  # type: ignore[no-any-return]
+            return iso_formatter()
         except Exception:  # pragma: no cover - defensive
             return str(value)
     return value
@@ -37,11 +38,12 @@ def _emit_payload(payload: Dict[str, Any]) -> None:
     _logger.info("availability_perf %s", json.dumps(payload, default=str))
 
 
-PerfSetter = Optional[Callable[..., None]]
+PerfSetter = Callable[..., None]
+OptionalPerfSetter = Optional[PerfSetter]
 
 
 @contextmanager
-def availability_perf_span(span: str, **fields: Any) -> PerfSetter:
+def availability_perf_span(span: str, **fields: Any) -> Iterator[OptionalPerfSetter]:
     """
     Measure the elapsed time for a code block when perf debugging is enabled.
 

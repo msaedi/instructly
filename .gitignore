@@ -103,3 +103,6 @@ frontend/app/(auth)/instructor/profile/page.tsx.backup
 
 # Local patch artifacts
 scripts/patches/
+
+# mypy bisect logs
+backend/.mypy_bisect_logs/
