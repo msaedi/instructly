@@ -6,20 +6,17 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Modal from '@/components/Modal';
-import { Calendar, Eye, Trash2, Camera, SquareArrowDownLeft, ListTodo, User, MessageSquare, Bell, Star, DollarSign } from 'lucide-react';
-import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
+import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Bell } from 'lucide-react';
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 import { getCurrentWeekRange } from '@/types/common';
 import { protectedApi } from '@/features/shared/api/client';
 import EditProfileModal from '@/components/modals/EditProfileModal';
-import DeleteProfileModal from '@/components/modals/DeleteProfileModal';
 import { fetchWithAuth, API_ENDPOINTS, getConnectStatus, createStripeIdentitySession, createSignedUpload } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import { InstructorProfile } from '@/types/instructor';
-import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
+import { normalizeInstructorServices } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { httpPut } from '@/features/shared/api/http';
 
@@ -29,19 +26,38 @@ type PreferredPublicSpace = { address: string };
 
 export default function InstructorDashboardNew() {
   const router = useRouter();
-  const { logout } = useAuth();
   const [profile, setProfile] = useState<InstructorProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editVariant, setEditVariant] = useState<'full' | 'about' | 'areas' | 'services'>('full');
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [editVariant] = useState<'about' | 'areas' | 'services' | 'full'>('full');
+  // Delete profile modal removed
   const titleCardRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [sidebarOffset, setSidebarOffset] = useState<number>(0);
   const lastStableOffsetRef = useRef<number>(0);
   const [isOffsetFrozen, setIsOffsetFrozen] = useState(false);
-  const [activePanel, setActivePanel] = useState<'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability'>('dashboard');
+  const [activePanel, setActivePanel] = useState<'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability' | 'account'>('dashboard');
+
+  // Notifications dropdown state (declare before any conditional returns)
+  const notifRef = useRef<HTMLDivElement | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  // Messages dropdown state
+  const msgRef = useRef<HTMLDivElement | null>(null);
+  const [showMessages, setShowMessages] = useState(false);
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const outsideNotif = notifRef.current ? !notifRef.current.contains(target) : true;
+      const outsideMsg = msgRef.current ? !msgRef.current.contains(target) : true;
+      if (outsideNotif && outsideMsg) {
+        setShowNotifications(false);
+        setShowMessages(false);
+      }
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, []);
 
   const ProfilePanel = useMemo(
     () => dynamic(() => import('../profile/embedded').then((m) => m.default), { ssr: false }),
@@ -61,6 +77,10 @@ export default function InstructorDashboardNew() {
   );
   const AvailabilityPanel = useMemo(
     () => dynamic(() => import('../availability/embedded').then((m) => m.default), { ssr: false }),
+    []
+  );
+  const AccountPanel = useMemo(
+    () => dynamic(() => import('../settings/embedded').then((m) => m.default), { ssr: false }),
     []
   );
 
@@ -160,7 +180,6 @@ export default function InstructorDashboardNew() {
 
   const [isStartingStripeOnboarding, setIsStartingStripeOnboarding] = useState(false);
   const [isRefreshingConnect, setIsRefreshingConnect] = useState(false);
-  const [serviceAreaNames, setServiceAreaNames] = useState<string[] | null>(null);
   const [serviceAreaSelections, setServiceAreaSelections] = useState<NeighborhoodSelection[]>([]);
   const [preferredTeachingLocations, setPreferredTeachingLocations] = useState<PreferredTeachingLocation[]>([]);
   const [preferredPublicSpaces, setPreferredPublicSpaces] = useState<PreferredPublicSpace[]>([]);
@@ -261,14 +280,13 @@ export default function InstructorDashboardNew() {
           }
           const selections = Array.from(selectionMap.values());
           setServiceAreaSelections(selections);
-          const names = selections.map((selection) => selection.name).filter((name) => name.length > 0);
-          setServiceAreaNames(names.length > 0 ? names : null);
+          // no-op: names previously displayed; now removed
         } else {
-          setServiceAreaNames(null);
+          // no-op
           setServiceAreaSelections([]);
         }
       } catch {
-        setServiceAreaNames(null);
+        // no-op
         setServiceAreaSelections([]);
       }
     } catch (err) {
@@ -419,26 +437,14 @@ export default function InstructorDashboardNew() {
       setServiceAreaSelections(payload.neighborhoods);
       setPreferredTeachingLocations(payload.preferredTeaching);
       setPreferredPublicSpaces(payload.preferredPublic);
-      const names = payload.neighborhoods.map((item) => item.name).filter((name) => name.length > 0);
-      setServiceAreaNames(names.length > 0 ? names : null);
+      // no-op
     } catch (err) {
       logger.error('Failed to save service areas from dashboard', err);
       throw err;
     }
   }, []);
 
-  const handleProfileDelete = () => {
-    logger.info('Instructor profile deleted, logging out and redirecting home');
-    logout();
-    router.push('/');
-  };
-
-  const handleViewPublicProfile = () => {
-    if (profile) {
-      logger.debug('Navigating to public profile', { userId: profile.user_id });
-      router.push(`/instructors/${profile.user_id}`);
-    }
-  };
+  // Public profile view button removed with title bar
 
   // After mount, show a client-rendered spinner while loading
   if (isLoading) {
@@ -481,8 +487,6 @@ export default function InstructorDashboardNew() {
 
   if (!profile) return null;
 
-
-
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
@@ -492,12 +496,54 @@ export default function InstructorDashboardNew() {
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="flex items-center gap-2 pr-0 sm:pr-4">
-            <Link href="/instructor/messages" className="inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] group select-none" aria-label="Messages" title="Messages">
-              <MessageSquare className="w-6 h-6 fill-transparent transition-colors group-hover:fill-current group-active:fill-current group-focus:fill-current" />
-            </Link>
-            <Link href="/instructor/notifications" className="inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] group select-none" aria-label="Notifications" title="Notifications">
-              <Bell className="w-6 h-6 fill-transparent transition-colors group-hover:fill-current group-active:fill-current group-focus:fill-current" />
-            </Link>
+            <div className="relative" ref={msgRef}>
+              <button
+                type="button"
+                onClick={() => { setShowMessages((v) => !v); setShowNotifications(false); }}
+                aria-expanded={showMessages}
+                aria-haspopup="menu"
+                className={`group inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors duration-150 focus:outline-none select-none`}
+                title="Messages"
+              >
+                <MessageSquare className="w-6 h-6 transition-colors group-hover:fill-current" style={{ fill: showMessages ? 'currentColor' : undefined }} />
+              </button>
+              {showMessages && (
+                <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                  <div className="p-3 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900">Messages</p>
+                  </div>
+                  <ul className="max-h-80 overflow-auto p-2 space-y-2">
+                    <li>
+                      <button className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded" onClick={() => router.push('/instructor/messages')}>
+                        No new messages
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="relative" ref={notifRef}>
+              <button
+                type="button"
+                onClick={() => setShowNotifications((v) => !v)}
+                aria-expanded={showNotifications}
+                aria-haspopup="menu"
+                className={`group inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors duration-150 focus:outline-none select-none`}
+                title="Notifications"
+              >
+                <Bell className="w-6 h-6 transition-colors group-hover:fill-current" style={{ fill: showNotifications ? 'currentColor' : undefined }} />
+              </button>
+              {showNotifications && (
+                <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                  <div className="p-3 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900">Notifications</p>
+                  </div>
+                  <ul className="max-h-80 overflow-auto p-2 space-y-2">
+                    <li className="text-sm text-gray-600 px-2 py-2">No new notifications</li>
+                  </ul>
+                </div>
+              )}
+            </div>
             <UserProfileDropdown />
           </div>
         </div>
@@ -527,7 +573,21 @@ export default function InstructorDashboardNew() {
                           : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
                       }`}
                     >
-                      Home
+                      Dashboard
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel('account')}
+                      aria-current={activePanel === 'account' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'account'
+                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
+                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                      }`}
+                    >
+                      Account
                     </button>
                   </li>
                   <li>
@@ -541,7 +601,7 @@ export default function InstructorDashboardNew() {
                           : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
                       }`}
                     >
-                      Profile
+                      Instructor Profile
                     </button>
                   </li>
                   <li>
@@ -575,20 +635,6 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('reviews')}
-                      aria-current={activePanel === 'reviews' ? 'page' : undefined}
-                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
-                        activePanel === 'reviews'
-                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
-                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
-                      }`}
-                    >
-                      Reviews
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
                       onClick={() => setActivePanel('availability')}
                       aria-current={activePanel === 'availability' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
@@ -600,6 +646,20 @@ export default function InstructorDashboardNew() {
                       Availability
                     </button>
                   </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel('reviews')}
+                      aria-current={activePanel === 'reviews' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'reviews'
+                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
+                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                      }`}
+                    >
+                      Reviews
+                    </button>
+                  </li>
                 </ul>
               </nav>
             </div>
@@ -608,19 +668,15 @@ export default function InstructorDashboardNew() {
             {activePanel === 'dashboard' && (
               <>
 
-        {/* Page Header with subtle purple accent */}
+        {/* Welcome bar */}
         <div ref={titleCardRef} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
             <div className="flex items-center gap-3 min-w-0">
-              <div
-                aria-hidden="true"
-                className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center select-none"
-              >
+              <div aria-hidden="true" className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center select-none">
                 <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
-
               <div className="min-w-0">
                 <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
                 <p className="text-gray-600 text-sm">Your profile, schedule, and earnings at a glance</p>
@@ -628,30 +684,24 @@ export default function InstructorDashboardNew() {
             </div>
             <div className="sm:ml-auto">
               {(() => {
-                const releaseTs = Date.UTC(2025, 11, 1, 0, 0, 0); // Dec 1, 2025 (UTC)
+                const releaseTs = Date.UTC(2025, 11, 1, 0, 0, 0);
                 const isEnabled = Date.now() >= releaseTs;
                 return (
                   <button
-                    onClick={handleViewPublicProfile}
+                    onClick={() => { if (profile) router.push(`/instructors/${profile.user_id}`); }}
                     disabled={!isEnabled}
                     aria-disabled={!isEnabled}
                     title={isEnabled ? 'View your public instructor page' : 'Public profile available Dec 1, 2025'}
-                    className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
-                      isEnabled
-                        ? 'bg-white border border-purple-200 text-[#7E22CE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-1'
-                        : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
-                    }`}
+                    className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${isEnabled ? 'bg-white border border-purple-200 text-[#7E22CE]' : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'}`}
                   >
                     <Eye className="h-4 w-4" />
                     <span>Public profile</span>
                   </button>
                 );
               })()}
+            </div>
           </div>
         </div>
-        </div>
-
-        {/* Action items card removed per request */}
 
         {/* Snapshot Cards directly under header */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -661,7 +711,7 @@ export default function InstructorDashboardNew() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-700 mb-2 group-hover:text-[#7E22CE]">Bookings</h3>
                 <p className="text-3xl font-bold text-gray-900">{completedBookingsCount}</p>
-                <p className="text-sm text-gray-500 mt-1">{hasUpcomingBookings === false ? 'No booking today' : '\u00A0'}</p>
+                <p className="text-sm text-gray-500 mt-1">{(hasUpcomingBookings === false || completedBookingsCount === 0) ? 'No lessons scheduled today' : '\u00A0'}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <Calendar className="w-6 h-6 text-[#7E22CE]" />
@@ -690,7 +740,9 @@ export default function InstructorDashboardNew() {
                 <p className="text-sm text-gray-500 mt-1">Not yet available</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Star className="w-6 h-6 text-[#7E22CE]" />
+                <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
               </div>
             </div>
           </button>
@@ -941,187 +993,14 @@ export default function InstructorDashboardNew() {
 
 
 
-        {/* Tasks */}
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-8">
-          {/* Tasks checklist */}
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6 shadow-sm ring-1 ring-purple-100">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <ListTodo className="w-6 h-6 text-[#7E22CE]" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-700">Action items</h3>
-                <p className="text-xs text-gray-600 mt-0.5">Complete these steps to go live</p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <section>
-                <h4 className="text-xs font-semibold text-gray-800 mb-1">Required</h4>
-                <ul className="space-y-1">
-                  <li
-                    className="flex items-center justify-between border border-gray-100 rounded-md px-2 py-1 clickable hover:bg-gray-50 cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => router.push('/instructor/availability')}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push('/instructor/availability'); }}
-                  >
-                    <span className="text-gray-700 text-sm">Set your availability</span>
-                  </li>
-                </ul>
-              </section>
-              {/* Optional section removed; will be shown as announcement banner elsewhere */}
-            </div>
-          </div>
-          {/* Settings card removed per request */}
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
-          <div className="flex justify-between items-start mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                <User className="w-5 h-5 text-[#7E22CE]" />
-              </div>
-              <h2 className="text-lg font-semibold text-gray-700">Profile Information</h2>
-        </div>
-
-
-
-          </div>
-
-          <div className="space-y-6">
-            <div className="rounded-lg border border-gray-200 p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex flex-col items-start gap-2">
-                  <ProfilePictureUpload
-                    ariaLabel="Upload profile photo"
-                    trigger={
-                      <div id="profile-photo-upload" className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
-                        <Camera className="w-6 h-6 text-[#7E22CE]" />
-                      </div>
-                    }
-                  />
-                  <h3 className="text-lg font-semibold text-gray-700">About You</h3>
-                </div>
-                <button onClick={() => { setEditVariant('about'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
-              </div>
-              <p className="text-gray-600 text-xs">Experience: {profile.years_experience} years</p>
-              <p className="text-gray-700 text-sm mt-2">{profile.bio}</p>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-gray-700">Skills & Pricing</h3>
-                <button onClick={() => { setEditVariant('services'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
-              </div>
-              <div className="space-y-2">
-                {profile.services.map((service) => {
-                  const displayName = displayServiceName(service, hydrateCatalogNameById);
-
-                  if (
-                    process.env.NODE_ENV !== 'production' &&
-                    !service.service_catalog_name &&
-                    !hydrateCatalogNameById(service.service_catalog_id || '')
-                  ) {
-                    logger.warn('[service-name] missing catalog name (dashboard)', {
-                      serviceCatalogId: service.service_catalog_id,
-                    });
-                  }
-
-                  return (
-                  <div key={service.id} className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-100">
-                    <div>
-                      <span className="font-medium text-gray-700">{displayName}</span>
-                      {service.description && <p className="text-sm text-gray-600 mt-1">{service.description}</p>}
-                    </div>
-                    <span className="font-bold text-[#7E22CE] text-lg">${service.hourly_rate}/hr</span>
-                  </div>
-                );
-                })}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-gray-700">Service Areas</h3>
-                <button onClick={() => { setEditVariant('areas'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
-              </div>
-              {(() => {
-                const derivedBoroughs = profile ? getServiceAreaBoroughs(profile) : [];
-                const areaSource = serviceAreaSelections.length > 0
-                  ? serviceAreaSelections.map((item) => item.name)
-                  : (serviceAreaNames && serviceAreaNames.length > 0
-                    ? serviceAreaNames
-                    : derivedBoroughs);
-                const hasAreas = areaSource && areaSource.length > 0;
-                return (
-                  <div className="space-y-4">
-                    {hasAreas ? (
-                      <div className="flex flex-wrap gap-2">
-                        {areaSource.map((area) => (
-                          <span key={area} className="px-2 py-1 text-xs rounded-full bg-purple-50 text-[#7E22CE] border border-purple-200">{area}</span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-gray-500 text-sm">No service areas selected.</p>
-                    )}
-                    {preferredTeachingLocations.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Preferred Teaching Locations</p>
-                        <div className="flex flex-wrap gap-2">
-                          {preferredTeachingLocations.map((location) => {
-                            const label = location.label?.trim() || location.address;
-                            return (
-                              <span
-                                key={`teaching-${location.address}`}
-                                className="px-2 py-1 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-200"
-                                data-testid="preferred-teaching-chip"
-                              >
-                                {label}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    {preferredPublicSpaces.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Preferred Public Spaces</p>
-                        <div className="flex flex-wrap gap-2">
-                          {preferredPublicSpaces.map((location) => (
-                            <span
-                              key={`public-${location.address}`}
-                              className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-200"
-                              data-testid="preferred-public-chip"
-                            >
-                              {location.address}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-        </div>
-
-
-          </div>
-          <div className="mt-6 flex justify-end">
-          <button
-            onClick={() => {
-              logger.debug('Opening delete profile modal');
-              setShowDeleteModal(true);
-            }}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
-          >
-              <Trash2 className="h-4 w-4" />
-              <span>Delete Profile</span>
-          </button>
-          </div>
-        </div>
-
+        {/* Action row removed per request */}
 
       </>
+            )}
+            {activePanel === 'account' && (
+              <div className="min-h-[60vh] overflow-visible">
+                <AccountPanel />
+              </div>
             )}
             {activePanel === 'profile' && (
               <div className="min-h-[60vh] overflow-visible">
@@ -1297,9 +1176,7 @@ export default function InstructorDashboardNew() {
           </div>
         </div>
       </Modal>
-      {showDeleteModal && (
-        <DeleteProfileModal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} onSuccess={handleProfileDelete} />
-      )}
+      {/* Delete profile modal removed per request */}
     </div>
   );
 }
