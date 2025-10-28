@@ -42,7 +42,12 @@ class MockGeocodingProvider(GeocodingProvider):
         )
 
     async def autocomplete(
-        self, query: str, session_token: Optional[str] = None
+        self,
+        query: str,
+        session_token: Optional[str] = None,
+        *,
+        country: Optional[str] = None,
+        location_bias: Optional[dict[str, float]] = None,
     ) -> List[AutocompleteResult]:
         base = [
             AutocompleteResult(

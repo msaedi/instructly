@@ -174,8 +174,17 @@ def list_my_service_areas(
     return ServiceAreasResponse(items=items, total=len(items))
 
 
+NYC_AUTOCOMPLETE_BIAS = {
+    "lat": 40.7128,
+    "lng": -74.0060,
+    "radius_m": 45000,
+}
+
+
 @router.get("/places/autocomplete", response_model=AutocompleteResponse)
-def places_autocomplete(q: str, provider: str | None = None) -> AutocompleteResponse:
+def places_autocomplete(
+    q: str, provider: str | None = None, scope: str | None = None
+) -> AutocompleteResponse:
     """Provider-agnostic autocomplete passthrough.
 
     Uses the configured provider to retrieve suggestions.
@@ -187,8 +196,28 @@ def places_autocomplete(q: str, provider: str | None = None) -> AutocompleteResp
 
     requested_provider = (provider or settings.geocoding_provider or "google").lower()
 
+    scope_normalized = (scope or "").strip().lower()
+    country_filter: str | None
+    location_bias: dict[str, float] | None = None
+
+    if scope_normalized == "global":
+        country_filter = None
+    elif scope_normalized == "us":
+        country_filter = "US"
+    else:
+        country_filter = "US"
+        location_bias = NYC_AUTOCOMPLETE_BIAS
+
     geocoder = create_geocoding_provider(requested_provider)
-    results: list[AutocompleteResult] = anyio.run(geocoder.autocomplete, q)
+
+    async def _run_autocomplete() -> list[AutocompleteResult]:
+        return await geocoder.autocomplete(
+            q,
+            country=country_filter,
+            location_bias=location_bias,
+        )
+
+    results: list[AutocompleteResult] = anyio.run(_run_autocomplete)
 
     items: list[dict[str, Any]] = [
         {

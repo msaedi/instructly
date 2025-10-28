@@ -43,12 +43,29 @@ class GoogleMapsProvider(GeocodingProvider):
             return self._parse_result(data["results"][0])
 
     async def autocomplete(
-        self, query: str, session_token: Optional[str] = None
+        self,
+        query: str,
+        session_token: Optional[str] = None,
+        *,
+        country: Optional[str] = None,
+        location_bias: Optional[dict[str, float]] = None,
     ) -> List[AutocompleteResult]:
         async with httpx.AsyncClient(timeout=10) as client:
             params = {"input": query, "key": self.api_key, "types": "address"}
             if session_token:
                 params["sessiontoken"] = session_token
+            if country:
+                params["components"] = f"country:{country.lower()}"
+            if location_bias:
+                lat = location_bias.get("lat")
+                lng = location_bias.get("lng")
+                radius = location_bias.get("radius_m") or 50000
+                if isinstance(lat, (int, float)) and isinstance(lng, (int, float)):
+                    try:
+                        radius_int = int(radius)
+                    except (TypeError, ValueError):
+                        radius_int = 50000
+                    params["locationbias"] = f"circle:{max(radius_int, 1000)}@{lat},{lng}"
             resp = await client.get(f"{self.base_url}/place/autocomplete/json", params=params)
             if resp.status_code != 200:
                 return []
@@ -73,7 +90,12 @@ class GoogleMapsProvider(GeocodingProvider):
             )
             if settings.mapbox_access_token:
                 fallback = MapboxProvider()
-                return await fallback.autocomplete(query, session_token)
+                return await fallback.autocomplete(
+                    query,
+                    session_token=session_token,
+                    country=country,
+                    location_bias=location_bias,
+                )
             return []
 
     async def get_place_details(self, place_id: str) -> Optional[GeocodedAddress]:

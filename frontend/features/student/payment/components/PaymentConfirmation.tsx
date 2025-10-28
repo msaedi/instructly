@@ -1581,6 +1581,7 @@ export default function PaymentConfirmation({
                   placeholder={ADDRESS_PLACEHOLDER}
                   disabled={inputsDisabled}
                   autoComplete="off"
+                  suggestionScope="global"
                   containerClassName="w-full"
                   inputClassName={`rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder-gray-400 transition-colors ${
                     inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'

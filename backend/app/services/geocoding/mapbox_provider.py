@@ -47,17 +47,30 @@ class MapboxProvider(GeocodingProvider):
             return self._parse_feature(features[0])
 
     async def autocomplete(
-        self, query: str, session_token: Optional[str] = None
+        self,
+        query: str,
+        session_token: Optional[str] = None,
+        *,
+        country: Optional[str] = None,
+        location_bias: Optional[dict[str, float]] = None,
     ) -> List[AutocompleteResult]:
         async with httpx.AsyncClient(timeout=10) as client:
             encoded = quote(query, safe="")
+            params = {
+                "access_token": self.access_token,
+                "autocomplete": "true",
+                "types": "address,poi,place",
+            }
+            if isinstance(country, str) and country:
+                params["country"] = country.lower()
+            if location_bias:
+                lat = location_bias.get("lat")
+                lng = location_bias.get("lng")
+                if isinstance(lat, (int, float)) and isinstance(lng, (int, float)):
+                    params["proximity"] = f"{lng},{lat}"
             resp = await client.get(
                 f"{self.base_url}/geocoding/v5/mapbox.places/{encoded}.json",
-                params={
-                    "access_token": self.access_token,
-                    "autocomplete": "true",
-                    "types": "address,poi,place",
-                },
+                params=params,
             )
             if resp.status_code != 200:
                 return []
