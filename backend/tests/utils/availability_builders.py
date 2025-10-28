@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from typing import Dict
+from typing import Dict, Iterable, List
 
 
 def next_monday(today: date | None = None) -> date:
@@ -51,3 +51,55 @@ def build_week_payload(week_start: date, slot_count: int, clear_existing: bool =
         "clear_existing": clear_existing,
         "schedule": schedule,
     }
+
+
+def slot_entry(target_date: date, start_time: str, end_time: str) -> Dict[str, str]:
+    """Return a minimal schedule entry for the given date."""
+    return {
+        "date": target_date.isoformat(),
+        "start_time": start_time,
+        "end_time": end_time,
+    }
+
+
+def build_week_payload_from_slots(
+    week_start: date,
+    slots: Iterable[Dict[str, str]],
+    *,
+    clear_existing: bool = True,
+) -> Dict[str, object]:
+    """Construct a payload from pre-built slot dictionaries."""
+    return {
+        "week_start": week_start.isoformat(),
+        "clear_existing": clear_existing,
+        "schedule": list(slots),
+    }
+
+
+def fan_out_day_slots(
+    day: date,
+    *,
+    start: time,
+    occurrences: int,
+    step_minutes: int,
+) -> List[Dict[str, str]]:
+    """
+    Generate a series of fixed-width slots for a single day.
+
+    Useful for bulk-tests (e.g., thousands of slots). Slots use the provided
+    start time and repeat every ``step_minutes``.
+    """
+    slots: list[Dict[str, str]] = []
+    base_dt = datetime.combine(day, start)
+    step = timedelta(minutes=step_minutes)
+    for i in range(occurrences):
+        begin = (base_dt + step * i).time()
+        end = (datetime.combine(day, begin) + step).time()
+        slots.append(
+            {
+                "date": day.isoformat(),
+                "start_time": begin.strftime("%H:%M"),
+                "end_time": end.strftime("%H:%M"),
+            }
+        )
+    return slots
