@@ -192,7 +192,7 @@ export default function MessagesPage() {
       <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
-            <Link href="/" className="inline-block">
+            <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
             </Link>
           </div>

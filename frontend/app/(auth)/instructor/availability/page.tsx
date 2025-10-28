@@ -153,7 +153,7 @@ function AvailabilityPageImpl() {
       {!embedded && (
         <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <Link href="/" className="inline-block">
+            <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4"><UserProfileDropdown /></div>

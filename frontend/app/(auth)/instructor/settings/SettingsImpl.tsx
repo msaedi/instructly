@@ -156,7 +156,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       {!embedded && (
         <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <Link href="/" className="inline-block">
+            <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">
                 iNSTAiNSTRU
               </h1>
@@ -352,18 +352,12 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   </div>
                   <div>
                     <span className="block text-lg font-semibold text-gray-900">Refer instructors</span>
-                    <span className="block text-sm text-gray-600">
-                      Invite other instructors and earn rewards when they complete their first lesson.
-                    </span>
                   </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openRefer ? 'rotate-180' : ''}`} />
               </button>
               {openRefer && (
                 <div className="mt-4">
-                  <p className="mb-3 text-sm text-gray-700">
-                    Your friends get $20 off their first lesson. You get $20 after they complete it.
-                  </p>
                   <RewardsPanel
                     inviterName={fullName}
                     hideHeader
@@ -378,26 +372,20 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             </>
           ) : (
             <>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Gift className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Refer instructors</h2>
-                  <p className="text-sm text-gray-600">
-                    Invite other instructors and earn rewards when they complete their first lesson.
-                  </p>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Gift className="w-6 h-6 text-[#7E22CE]" />
               </div>
-              <div className="mt-4">
-                <p className="mb-3 text-sm text-gray-700">
-                  Your friends get $20 off their first lesson. You get $20 after they complete it.
-                </p>
-                <RewardsPanel
-                  inviterName={fullName}
-                  hideHeader
-                  compactShare
-                  hideShareIcon
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Refer instructors</h2>
+              </div>
+            </div>
+            <div className="mt-4">
+              <RewardsPanel
+                inviterName={fullName}
+                hideHeader
+                compactShare
+                hideShareIcon
                   minimalTabs
                   compactInvite
                   compactTabs

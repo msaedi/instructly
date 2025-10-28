@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Modal from '@/components/Modal';
-import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Bell } from 'lucide-react';
+import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Bell, Menu, X } from 'lucide-react';
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 import { getCurrentWeekRange } from '@/types/common';
 import { protectedApi } from '@/features/shared/api/client';
@@ -23,6 +23,17 @@ import { httpPut } from '@/features/shared/api/http';
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
 type PreferredPublicSpace = { address: string };
+type DashboardPanel = 'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability' | 'account';
+
+const MOBILE_NAV_ITEMS: Array<{ key: DashboardPanel; label: string }> = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'account', label: 'Account' },
+  { key: 'profile', label: 'Profile' },
+  { key: 'bookings', label: 'Bookings' },
+  { key: 'earnings', label: 'Earnings' },
+  { key: 'reviews', label: 'Reviews' },
+  { key: 'availability', label: 'Availability' },
+];
 
 export default function InstructorDashboardNew() {
   const router = useRouter();
@@ -37,7 +48,7 @@ export default function InstructorDashboardNew() {
   const [sidebarOffset, setSidebarOffset] = useState<number>(0);
   const lastStableOffsetRef = useRef<number>(0);
   const [isOffsetFrozen, setIsOffsetFrozen] = useState(false);
-  const [activePanel, setActivePanel] = useState<'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability' | 'account'>('dashboard');
+  const [activePanel, setActivePanel] = useState<DashboardPanel>('dashboard');
 
   // Notifications dropdown state (declare before any conditional returns)
   const notifRef = useRef<HTMLDivElement | null>(null);
@@ -45,6 +56,7 @@ export default function InstructorDashboardNew() {
   // Messages dropdown state
   const msgRef = useRef<HTMLDivElement | null>(null);
   const [showMessages, setShowMessages] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -460,7 +472,7 @@ export default function InstructorDashboardNew() {
       <div className="min-h-screen">
         <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <Link href="/" className="inline-block">
+            <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
@@ -492,14 +504,18 @@ export default function InstructorDashboardNew() {
       {/* Header - matching other pages */}
       <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
-          <Link href="/" className="inline-block">
+          <Link href="/instructor/dashboard" className="inline-block">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="flex items-center gap-2 pr-0 sm:pr-4">
             <div className="relative" ref={msgRef}>
               <button
                 type="button"
-                onClick={() => { setShowMessages((v) => !v); setShowNotifications(false); }}
+                onClick={() => {
+                  setShowMessages((v) => !v);
+                  setShowNotifications(false);
+                  setIsMobileMenuOpen(false);
+                }}
                 aria-expanded={showMessages}
                 aria-haspopup="menu"
                 className={`group inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors duration-150 focus:outline-none select-none`}
@@ -525,7 +541,11 @@ export default function InstructorDashboardNew() {
             <div className="relative" ref={notifRef}>
               <button
                 type="button"
-                onClick={() => setShowNotifications((v) => !v)}
+                onClick={() => {
+                  setShowNotifications((v) => !v);
+                  setShowMessages(false);
+                  setIsMobileMenuOpen(false);
+                }}
                 aria-expanded={showNotifications}
                 aria-haspopup="menu"
                 className={`group inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors duration-150 focus:outline-none select-none`}
@@ -545,8 +565,43 @@ export default function InstructorDashboardNew() {
               )}
             </div>
             <UserProfileDropdown />
+            <button
+              type="button"
+              className="md:hidden p-2 rounded-lg text-[#7E22CE] border border-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 hover:bg-transparent active:bg-transparent"
+              aria-label={isMobileMenuOpen ? 'Close dashboard navigation menu' : 'Open dashboard navigation menu'}
+              aria-expanded={isMobileMenuOpen}
+              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
           </div>
         </div>
+        {isMobileMenuOpen && (
+          <nav className="mt-4 border-t border-gray-200 pt-4 md:hidden" aria-label="Instructor navigation">
+            <ul className="space-y-2">
+              {MOBILE_NAV_ITEMS.map((item) => (
+                <li key={item.key}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActivePanel(item.key);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      activePanel === item.key
+                        ? 'bg-purple-50 text-[#7E22CE] border border-purple-200'
+                        : 'text-gray-700 hover:bg-purple-50 hover:text-[#7E22CE]'
+                    }`}
+                    aria-current={activePanel === item.key ? 'page' : undefined}
+                  >
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
       </header>
 
       {/* Sidebar placed inline next to title card, matching student layout */}
@@ -704,43 +759,57 @@ export default function InstructorDashboardNew() {
         </div>
 
         {/* Snapshot Cards directly under header */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-8">
           {/* Bookings card - clickable with outline icon */}
-          <button onClick={() => setActivePanel('bookings')} className="group block w-full text-left bg-white rounded-lg border border-gray-200 p-5 sm:p-6 hover:shadow-md h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]" aria-label="Open bookings">
+          <button
+            onClick={() => setActivePanel('bookings')}
+            className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            aria-label="Open bookings"
+          >
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-lg font-semibold text-gray-700 mb-2 group-hover:text-[#7E22CE]">Bookings</h3>
-                <p className="text-3xl font-bold text-gray-900">{completedBookingsCount}</p>
-                <p className="text-sm text-gray-500 mt-1">{(hasUpcomingBookings === false || completedBookingsCount === 0) ? 'No lessons scheduled today' : '\u00A0'}</p>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Bookings</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{completedBookingsCount}</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                  {(hasUpcomingBookings === false || completedBookingsCount === 0) ? 'No lessons scheduled today' : '\u00A0'}
+                </p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-[#7E22CE]" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
               </div>
             </div>
           </button>
 
           {/* Earnings card - clickable with outline icon */}
-          <button onClick={() => setActivePanel('earnings')} className="group block w-full text-left bg-white rounded-lg border border-gray-200 p-5 sm:p-6 hover:shadow-md h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]" aria-label="Open earnings">
+          <button
+            onClick={() => setActivePanel('earnings')}
+            className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            aria-label="Open earnings"
+          >
             <div className="flex items-start justify-between h-full">
               <div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 group-hover:text-[#7E22CE]">Earnings</h3>
-                <p className="text-3xl font-bold text-gray-900">$0</p>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Earnings</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">$0</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-[#7E22CE]" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
               </div>
             </div>
           </button>
           {/* Reviews card - clickable with outline icon */}
-          <button onClick={() => setActivePanel('reviews')} className="group block w-full text-left bg-white rounded-lg border border-gray-200 p-5 sm:p-6 hover:shadow-md h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]" aria-label="Open reviews">
+          <button
+            onClick={() => setActivePanel('reviews')}
+            className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            aria-label="Open reviews"
+          >
             <div className="flex items-start justify-between h-full">
               <div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 group-hover:text-[#7E22CE]">Reviews</h3>
-                <p className="text-3xl font-bold text-gray-900">-</p>
-                <p className="text-sm text-gray-500 mt-1">Not yet available</p>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Reviews</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">-</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">Not yet available</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                 </svg>
               </div>
