@@ -95,3 +95,50 @@ pytest --confcutdir=backend/tests/perf backend/tests/perf/test_perf_counters_hea
 - `backend/tests/integration/test_availability_cache_hit_rate.py` proves that once a week is cached, subsequent GETs hit the cache (header `x-cache-hits >= 1`, `x-db-query-count = 0`) and that a SAVE immediately invalidates the key (next GET shows a miss and serves the updated payload).
 - `backend/tests/integration/test_availability_cache_invalidation.py` warms week B, performs a copy from week A → week B, then confirms the cache key is invalidated (`x-cache-misses >= 1`, `x-cache-key` reflects the week key, body matches the source schedule).
 - With `AVAILABILITY_PERF_DEBUG=1`, the route now exposes `x-cache-key` (first cache key touched) alongside the existing hit/miss counters so we can monitor per-request efficacy; warm GET hit rates consistently exceed 80% in local runs, and SAVE/COPY operations show zero stale reads.
+
+## Tail Latency Under Load
+
+We introduced `scripts/perf/availability_load.py` to exercise mixed GET/SAVE traffic against the weekly availability routes. The driver relies on `httpx` + `asyncio`, reuses a single bearer token, and records perf headers (`x-db-query-count`, `x-db-table-availability_slots`, `x-cache-hits`, `x-cache-misses`, optional `x-db-sql-samples`). Usage example:
+
+```bash
+export AVAILABILITY_PERF_DEBUG=1
+python scripts/perf/availability_load.py \
+  --api-base http://localhost:8000 \
+  --token "$TOKEN" \
+  --instructor "$INSTR_ID" \
+  --week-start 2025-11-10 \
+  --users 5 \
+  --minutes 3 \
+  --mix 80,20 \
+  --debug-sql
+```
+
+The script emits a CSV per run (`scripts/perf/out/availability_load_*`) plus a JSON summary. Passing `--summaries <glob> --chart-dir docs/perf/img` aggregates multiple runs and generates bar/ histogram charts for p50/p95/p99 latency.
+
+| Users | Method | p50 (ms) | p95 (ms) | p99 (ms) |
+| --- | --- | --- | --- | --- |
+| 1 | GET | 13.0 | 23.8 | 28.8 |
+| 1 | SAVE | 208.7 | 231.9 | 231.9 |
+| 1 | ALL | 13.0 | 25.4 | 207.5 |
+| 5 | GET | 15.1 | 36.5 | 62.9 |
+| 5 | SAVE | 213.4 | 245.6 | 263.9 |
+| 5 | ALL | 15.3 | 41.2 | 212.5 |
+| 20 | GET | 3.8* | 8.9* | 13.3* |
+| 20 | SAVE | 4.2* | 10.6* | 17.5* |
+| 20 | ALL | 3.8* | 8.9* | 13.3* |
+
+\* 20-user run hit 100 % connection failures (“All connection attempts failed”), so these numbers reflect client-side retry overhead, not real processing time. We need to bump server worker counts / OS socket limits and re-run before treating 20-user data as actionable.
+
+Observations:
+
+- **Cache headers**: even with `AVAILABILITY_PERF_DEBUG=1`, the current server build returned zeroed `x-cache-hits`/`x-cache-misses` and DB counters. That implies the running backend wasn’t loading the perf middleware variant with instrumentation—repeat runs after restarting uvicorn with the latest code to gather cache/DB stats.
+- **GET latency scales gently**: moving from 1 → 5 users increased p95 from ~24 ms to ~37 ms. SAVE endpoints hover around 210–265 ms; they dominate overall p99.
+- **20-user load failed to connect**: all requests were refused at the TCP layer. Before capturing tail data, increase backend worker count (`uvicorn --workers 4`) and raise the macOS file-descriptor limit (`ulimit -n 65536`), then re-run.
+
+Generated charts: `docs/perf/img/availability_tail_latency.png` (p50/p95/p99 bars) and `docs/perf/img/availability_latency_hist_5u.png` (histogram for the worst successful run).
+
+Next quick wins:
+
+1. **Ensure perf middleware is active in the served process** so latency CSVs capture cache hit/miss counts alongside query totals.
+2. **Tune server concurrency** (workers + `ulimit`) to avoid the connection failures seen at higher user counts.
+3. **Memoise auth lookups** or reuse session state on warmed GETs; auth queries still make up the majority of the non-slot SQL executed during these tests.
