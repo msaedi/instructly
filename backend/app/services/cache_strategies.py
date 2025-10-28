@@ -13,6 +13,9 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 from sqlalchemy.orm import Session
 
+from ..core.timezone_utils import get_user_today_by_id
+from ..models.availability import AvailabilitySlot
+
 if TYPE_CHECKING:
     from .cache_service import CacheService
 
@@ -54,7 +57,7 @@ class CacheWarmingStrategy:
         from .availability_service import AvailabilityService
 
         retry_count = 0
-        last_result: Dict[str, Any] | None = None
+        last_result: tuple[Dict[str, Any], list[Any]] | None = None
 
         while retry_count < self.max_retries:
             # Small exponential backoff: 50ms, 100ms, 200ms
@@ -65,18 +68,20 @@ class CacheWarmingStrategy:
 
             # Get fresh data directly from DB (bypass cache)
             service = AvailabilityService(self.db, None)  # No cache
-            fresh_data = cast(
-                Dict[str, Any],
-                service.get_week_availability(instructor_id, week_start),
-            )
+            fresh_result = service.get_week_availability_with_slots(instructor_id, week_start)
+            fresh_data = cast(Dict[str, Any], dict(fresh_result.week_map))
+            slots_for_cache = list(fresh_result.slots)
 
             # If we have expected slot count, verify it
             if expected_slot_count is not None:
                 actual_count = sum(len(slots) for slots in fresh_data.values())
                 if actual_count == expected_slot_count:
                     # Data is fresh! Cache it and return
-                    self.cache_service.cache_week_availability(
-                        instructor_id, week_start, fresh_data
+                    self._write_week_cache_bundle(
+                        instructor_id,
+                        week_start,
+                        fresh_data,
+                        slots_for_cache,
                     )
                     self.logger.info(f"Cache warmed successfully after {retry_count} retries")
                     return fresh_data
@@ -84,20 +89,64 @@ class CacheWarmingStrategy:
                     self.logger.debug(f"Expected {expected_slot_count} slots, got {actual_count}")
             else:
                 # No verification needed, just cache and return
-                self.cache_service.cache_week_availability(instructor_id, week_start, fresh_data)
+                self._write_week_cache_bundle(
+                    instructor_id,
+                    week_start,
+                    fresh_data,
+                    slots_for_cache,
+                )
                 return fresh_data
 
-            last_result = fresh_data
+            last_result = (fresh_data, slots_for_cache)
             retry_count += 1
 
         # Max retries reached, log warning but return what we have
         self.logger.warning(f"Cache warming verification failed after {self.max_retries} retries")
 
         # Cache what we have anyway
-        if last_result and self.cache_service:
-            self.cache_service.cache_week_availability(instructor_id, week_start, last_result)
+        if last_result:
+            cached_map, cached_slots = last_result
+            self._write_week_cache_bundle(
+                instructor_id,
+                week_start,
+                cached_map,
+                cached_slots,
+            )
 
-        return last_result or {}
+        return last_result[0] if last_result else {}
+
+    def _write_week_cache_bundle(
+        self,
+        instructor_id: str,
+        week_start: date,
+        week_map: Dict[str, Any],
+        slots: list[Any],
+    ) -> None:
+        if not self.cache_service:
+            return
+
+        map_key = self.cache_service.key_builder.build(
+            "availability", "week", instructor_id, week_start
+        )
+        composite_key = f"{map_key}:with_slots"
+        ttl_seconds = self._week_cache_ttl_seconds(instructor_id, week_start)
+
+        from .availability_service import AvailabilityService
+
+        slot_models = cast(list[AvailabilitySlot], slots)
+        payload = {
+            "map": week_map,
+            "slots": AvailabilityService._serialize_slot_meta(slot_models),
+            "_metadata": [],
+        }
+        self.cache_service.set_json(composite_key, payload, ttl=ttl_seconds)
+        self.cache_service.set_json(map_key, payload["map"], ttl=ttl_seconds)
+
+    def _week_cache_ttl_seconds(self, instructor_id: str, week_start: date) -> int:
+        assert self.cache_service is not None
+        today = get_user_today_by_id(instructor_id, self.db)
+        tier = "hot" if week_start >= today else "warm"
+        return self.cache_service.TTL_TIERS.get(tier, self.cache_service.TTL_TIERS["warm"])
 
     async def invalidate_and_warm(
         self,

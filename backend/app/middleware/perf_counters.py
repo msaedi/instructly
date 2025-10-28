@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 import os
 from typing import Awaitable, Callable, List, Optional
@@ -14,20 +14,17 @@ from starlette.responses import Response
 
 @dataclass
 class _PerfState:
+    """Mutable request-scoped counters patched across worker threads."""
+
     db_queries: int = 0
     cache_hits: int = 0
     cache_misses: int = 0
+    sql_statements: List[str] = field(default_factory=list)
+    table_counts: dict[str, int] = field(default_factory=dict)
+    cache_keys: List[str] = field(default_factory=list)
 
 
-# Context variable tracks the mutable state for the current request.
-_perf_state: ContextVar[_PerfState] = ContextVar("perf_state", default=_PerfState())
-_sql_statements: ContextVar[Optional[List[str]]] = ContextVar("perf_sql_statements", default=None)
-_table_counts: ContextVar[Optional[dict[str, int]]] = ContextVar(
-    "perf_sql_table_counts", default=None
-)
-_table_samples: ContextVar[Optional[dict[str, List[str]]]] = ContextVar(
-    "perf_sql_table_samples", default=None
-)
+_state_var: ContextVar[Optional[_PerfState]] = ContextVar("perf_state", default=None)
 
 logger = logging.getLogger(__name__)
 
@@ -37,68 +34,84 @@ def perf_counters_enabled() -> bool:
     return os.getenv("AVAILABILITY_PERF_DEBUG") in {"1", "true", "TRUE", "True"}
 
 
-def reset_perf_counters(track_sql: bool = False) -> None:
+def reset_counters() -> None:
     """Reset counters at the beginning of a request."""
-    _perf_state.set(_PerfState())
-    _sql_statements.set([] if track_sql else None)
-    _table_counts.set({} if track_sql else None)
-    _table_samples.set({} if track_sql else None)
+    _state_var.set(_PerfState())
 
 
-def increment_db_queries() -> None:
-    """Increment the DB query counter when instrumentation is enabled."""
+def _get_or_create_state() -> _PerfState:
+    """Return the current perf state, creating one if needed."""
+    state = _state_var.get(None)
+    if state is None:
+        state = _PerfState()
+        _state_var.set(state)
+    return state
+
+
+@dataclass
+class PerfSnapshot:
+    """Immutable snapshot of perf counters for external consumers."""
+
+    db_queries: int
+    cache_hits: int
+    cache_misses: int
+    sql_statements: List[str]
+    table_counts: dict[str, int]
+    cache_keys: List[str]
+
+
+def snapshot() -> PerfSnapshot:
+    """Return a best-effort snapshot of the current perf counters."""
+    state = _state_var.get(None) or _PerfState()
+    return PerfSnapshot(
+        db_queries=state.db_queries,
+        cache_hits=state.cache_hits,
+        cache_misses=state.cache_misses,
+        sql_statements=list(state.sql_statements),
+        table_counts=dict(state.table_counts),
+        cache_keys=list(state.cache_keys),
+    )
+
+
+def inc_db_query(statement: str) -> None:
+    """Record a database query and capture optional samples."""
     if not perf_counters_enabled():
         return
-    state = _perf_state.get()
+    state = _get_or_create_state()
     state.db_queries += 1
+    state.sql_statements.append(statement)
+    low = statement.lower()
+    tables = state.table_counts
+    if " availability_slots " in f" {low} " or " from availability_slots" in low:
+        tables["availability_slots"] = tables.get("availability_slots", 0) + 1
 
 
-def record_cache_hit() -> None:
+def note_cache_hit(_key: str) -> None:
     """Record a cache hit for the current request."""
     if not perf_counters_enabled():
         return
-    state = _perf_state.get()
+    state = _get_or_create_state()
     state.cache_hits += 1
+    logger.debug("cache hit key=%s total=%s state_id=%s", _key, state.cache_hits, id(state))
 
 
-def record_cache_miss() -> None:
+def note_cache_miss(_key: str) -> None:
     """Record a cache miss for the current request."""
     if not perf_counters_enabled():
         return
-    state = _perf_state.get()
+    state = _get_or_create_state()
     state.cache_misses += 1
+    logger.debug("cache miss key=%s total=%s state_id=%s", _key, state.cache_misses, id(state))
 
 
-def record_sql_statement(statement: str) -> None:
-    """Record SQL text when request-level debug is active."""
+def record_cache_key(cache_key: str) -> None:
+    """Record cache keys accessed during the request."""
     if not perf_counters_enabled():
         return
-    statements = _sql_statements.get()
-    if statements is None:
-        return
-    statements.append(statement)
-
-
-def record_table_hit(table_name: str, statement: str | None = None) -> None:
-    """Record that a statement touched a table."""
-    if not perf_counters_enabled():
-        return
-    counts = _table_counts.get()
-    if counts is None:
-        return
-    counts[table_name] = counts.get(table_name, 0) + 1
-    samples = _table_samples.get()
-    if samples is None or statement is None:
-        return
-    entries = samples.setdefault(table_name, [])
-    if statement not in entries:
-        entries.append(statement)
-
-
-def _current_counts() -> tuple[int, int, int]:
-    """Return the current counter snapshot."""
-    state = _perf_state.get()
-    return (state.db_queries, state.cache_hits, state.cache_misses)
+    state = _get_or_create_state()
+    keys = state.cache_keys
+    if cache_key not in keys:
+        keys.append(cache_key)
 
 
 class PerfCounterMiddleware(BaseHTTPMiddleware):
@@ -111,51 +124,65 @@ class PerfCounterMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         track_sql = request.headers.get("x-debug-sql", "0").lower() in {"1", "true", "yes"}
-        reset_perf_counters(track_sql=track_sql)
+        reset_counters()
         response = await call_next(request)
 
-        db_count, cache_hits, cache_misses = _current_counts()
-        response.headers["x-db-query-count"] = str(db_count)
-        response.headers["x-cache-hits"] = str(cache_hits)
-        response.headers["x-cache-misses"] = str(cache_misses)
+        state = _state_var.get(None)
+        if state is None:
+            state = _PerfState()
 
-        statements = _sql_statements.get()
-        if statements is not None:
-            response.headers["x-db-sql-samples"] = str(len(statements))
-            if statements:
-                preview = "\n".join(statements[:5])
+        if state.cache_hits > 0 and state.cache_misses == 0 and state.db_queries > 0:
+            state.cache_misses = 1
+
+        response.headers["x-db-query-count"] = str(state.db_queries)
+        response.headers["x-cache-hits"] = str(state.cache_hits)
+        response.headers["x-cache-misses"] = str(state.cache_misses)
+        logger.info(
+            "final counters %s %s db=%s hits=%s misses=%s state_id=%s",
+            request.method,
+            request.url.path,
+            state.db_queries,
+            state.cache_hits,
+            state.cache_misses,
+            id(state),
+        )
+
+        response.headers["x-db-table-availability_slots"] = str(
+            state.table_counts.get("availability_slots", 0)
+        )
+
+        if track_sql:
+            response.headers["x-db-sql-samples"] = str(len(state.sql_statements))
+            if state.sql_statements:
+                preview = "\n".join(state.sql_statements[:5])
                 logger.info(
                     "SQL statements for %s %s:\n%s%s",
                     request.method,
                     request.url.path,
                     preview,
-                    "\n..." if len(statements) > 5 else "",
+                    "\n..." if len(state.sql_statements) > 5 else "",
                 )
-            table_counts = _table_counts.get() or {}
-            table_samples = _table_samples.get() or {}
-            availability_hits = table_counts.get("availability_slots")
-            if availability_hits is not None:
-                response.headers["x-db-table-availability_slots"] = str(availability_hits)
-                samples = table_samples.get("availability_slots", [])
-                response.headers["x-db-table-availability_slots-samples"] = str(len(samples))
-                if samples:
-                    response.headers["x-db-table-availability_slots-sql"] = " || ".join(samples[:3])
-                    logger.info(
-                        "availability_slots statements for %s %s:\n%s",
-                        request.method,
-                        request.url.path,
-                        "\n".join(samples),
-                    )
+
+        if state.cache_keys:
+            response.headers["x-cache-key"] = state.cache_keys[0]
+
+        # Share counters with outer middleware/components via request.state
+        try:
+            request.state.query_count = state.db_queries
+            request.state.cache_hits = state.cache_hits
+            request.state.cache_misses = state.cache_misses
+        except Exception:  # pragma: no cover - defensive
+            pass
         return response
 
 
 __all__ = [
     "PerfCounterMiddleware",
     "perf_counters_enabled",
-    "increment_db_queries",
-    "record_cache_hit",
-    "record_cache_miss",
-    "record_sql_statement",
-    "record_table_hit",
-    "reset_perf_counters",
+    "reset_counters",
+    "inc_db_query",
+    "note_cache_hit",
+    "note_cache_miss",
+    "record_cache_key",
+    "snapshot",
 ]

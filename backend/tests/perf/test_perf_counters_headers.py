@@ -12,9 +12,9 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from app.middleware.perf_counters import (
     PerfCounterMiddleware,
-    increment_db_queries,
-    record_cache_hit,
-    record_cache_miss,
+    inc_db_query,
+    note_cache_hit,
+    note_cache_miss,
 )
 
 
@@ -25,15 +25,15 @@ def _build_client(monkeypatch, include_cache_route: bool = False) -> TestClient:
 
     @app.get("/ping")
     def ping() -> dict[str, str]:
-        increment_db_queries()
+        inc_db_query("SELECT 1")
         return {"status": "ok"}
 
     if include_cache_route:
 
         @app.get("/simulate-cache")
         def simulate_cache() -> dict[str, str]:
-            record_cache_miss()
-            record_cache_hit()
+            note_cache_miss("cache:test-key")
+            note_cache_hit("cache:test-key")
             return {"status": "cached"}
 
     return TestClient(app)

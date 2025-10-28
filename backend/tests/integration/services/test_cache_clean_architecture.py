@@ -20,6 +20,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from app.services.availability_service import WeekAvailabilityResult
 from app.services.cache_service import CacheKeyBuilder, CacheService
 
 
@@ -261,7 +262,8 @@ class TestCacheWarmingStrategies:
 
         # Mock cache service
         mock_cache = Mock()
-        mock_cache.cache_week_availability.return_value = True
+        mock_cache.key_builder = CacheKeyBuilder()
+        mock_cache.TTL_TIERS = CacheService.TTL_TIERS
 
         # Create warming strategy
         strategy = CacheWarmingStrategy(mock_cache, db)
@@ -270,9 +272,17 @@ class TestCacheWarmingStrategies:
         with patch("app.services.availability_service.AvailabilityService") as mock_service_class:
             # Mock the availability service
             mock_service = Mock()
-            mock_service.get_week_availability.return_value = {
-                "2025-07-14": [{"id": 1, "start_time": "09:00", "end_time": "10:00"}]
-            }
+            mock_service.get_week_availability_with_slots.return_value = WeekAvailabilityResult(
+                week_map={
+                    "2025-07-14": [
+                        {
+                            "start_time": "09:00",
+                            "end_time": "10:00",
+                        }
+                    ]
+                },
+                slots=[],
+            )
             mock_service_class.return_value = mock_service
 
             # Warm cache
@@ -282,7 +292,7 @@ class TestCacheWarmingStrategies:
 
             # Verify it used service layer
             mock_service_class.assert_called_with(strategy.db, None)  # No cache passed
-            mock_service.get_week_availability.assert_called_with(123, date(2025, 7, 14))
+            mock_service.get_week_availability_with_slots.assert_called_with(123, date(2025, 7, 14))
 
     @pytest.mark.asyncio
     async def test_cache_warming_handles_clean_data(self, db):
@@ -290,6 +300,8 @@ class TestCacheWarmingStrategies:
         from app.services.cache_strategies import CacheWarmingStrategy
 
         mock_cache = Mock()
+        mock_cache.key_builder = CacheKeyBuilder()
+        mock_cache.TTL_TIERS = CacheService.TTL_TIERS
         strategy = CacheWarmingStrategy(mock_cache, db)
 
         # Mock availability data (clean format)
@@ -310,14 +322,34 @@ class TestCacheWarmingStrategies:
         # FIXED: Patch at the source location
         with patch("app.services.availability_service.AvailabilityService") as mock_service_class:
             mock_service = Mock()
-            mock_service.get_week_availability.return_value = clean_data
+            mock_service.get_week_availability_with_slots.return_value = WeekAvailabilityResult(
+                week_map=clean_data,
+                slots=[],
+            )
             mock_service_class.return_value = mock_service
 
             # Warm cache
             result = await strategy.warm_with_verification(instructor_id=123, week_start=date(2025, 7, 14))
 
-            # Verify clean data was cached
-            mock_cache.cache_week_availability.assert_called_with(123, date(2025, 7, 14), clean_data)
+            # Verify clean data was cached via JSON helpers
+            base_key = "avail:week:123:2025-07-14"
+            ttl = (
+                CacheService.TTL_TIERS["hot"]
+                if date(2025, 7, 14) >= date.today()
+                else CacheService.TTL_TIERS["warm"]
+            )
+            assert mock_cache.set_json.call_count == 2
+            composite_call = mock_cache.set_json.call_args_list[0]
+            assert composite_call.args[0] == f"{base_key}:with_slots"
+            assert composite_call.args[1]["map"] == clean_data
+            assert composite_call.args[1]["slots"] == []
+            assert composite_call.args[1]["_metadata"] == []
+            assert composite_call.kwargs["ttl"] == ttl
+
+            map_call = mock_cache.set_json.call_args_list[1]
+            assert map_call.args[0] == base_key
+            assert map_call.args[1] == clean_data
+            assert map_call.kwargs["ttl"] == ttl
 
             # Result should be clean
             assert result == clean_data

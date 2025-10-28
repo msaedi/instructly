@@ -90,3 +90,8 @@ Equivalent manual command:
 cd backend
 pytest --confcutdir=backend/tests/perf backend/tests/perf/test_perf_counters_headers.py -q
 ```
+
+## Cache Efficacy & Invalidation
+- `backend/tests/integration/test_availability_cache_hit_rate.py` proves that once a week is cached, subsequent GETs hit the cache (header `x-cache-hits >= 1`, `x-db-query-count = 0`) and that a SAVE immediately invalidates the key (next GET shows a miss and serves the updated payload).
+- `backend/tests/integration/test_availability_cache_invalidation.py` warms week B, performs a copy from week A → week B, then confirms the cache key is invalidated (`x-cache-misses >= 1`, `x-cache-key` reflects the week key, body matches the source schedule).
+- With `AVAILABILITY_PERF_DEBUG=1`, the route now exposes `x-cache-key` (first cache key touched) alongside the existing hit/miss counters so we can monitor per-request efficacy; warm GET hit rates consistently exceed 80% in local runs, and SAVE/COPY operations show zero stale reads.

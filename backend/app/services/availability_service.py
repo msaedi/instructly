@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 import logging
-from typing import TYPE_CHECKING, Any, NamedTuple, Optional, TypedDict
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, TypedDict, cast
 
 from sqlalchemy.orm import Session
 
@@ -65,9 +65,17 @@ class TimeSlotResponse(TypedDict):
     end_time: str
 
 
+class SlotSnapshot(NamedTuple):
+    specific_date: date
+    start_time: time
+    end_time: time
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+
 class WeekAvailabilityResult(NamedTuple):
     week_map: dict[str, list[TimeSlotResponse]]
-    slots: list[AvailabilitySlot]
+    slots: list[AvailabilitySlot | SlotSnapshot]
 
 
 class AvailabilityService(BaseService):
@@ -183,7 +191,7 @@ class AvailabilityService(BaseService):
         instructor_id: str,
         start_date: date,
         end_date: date,
-        slots: Optional[list[AvailabilitySlot]] = None,
+        slots: Optional[list[AvailabilitySlot | SlotSnapshot]] = None,
     ) -> str:
         """Compute a robust week version/etag by hashing slot contents.
 
@@ -221,7 +229,7 @@ class AvailabilityService(BaseService):
         instructor_id: str,
         start_date: date,
         end_date: date,
-        slots: Optional[list[AvailabilitySlot]] = None,
+        slots: Optional[list[AvailabilitySlot | SlotSnapshot]] = None,
     ) -> Optional[datetime]:
         """Compute a server-sourced last-modified timestamp for a week's availability.
 
@@ -262,6 +270,7 @@ class AvailabilityService(BaseService):
             instructor_id,
             start_date,
             allow_cache_read=True,
+            include_slots=False,
         )
         return result.week_map
 
@@ -272,7 +281,8 @@ class AvailabilityService(BaseService):
         return self._get_week_availability_common(
             instructor_id,
             start_date,
-            allow_cache_read=False,
+            allow_cache_read=True,
+            include_slots=True,
         )
 
     def _get_week_availability_common(
@@ -281,6 +291,7 @@ class AvailabilityService(BaseService):
         start_date: date,
         *,
         allow_cache_read: bool,
+        include_slots: bool,
     ) -> WeekAvailabilityResult:
         endpoint = WEEK_GET_ENDPOINT
         self.log_operation(
@@ -293,17 +304,34 @@ class AvailabilityService(BaseService):
             instructor_id=instructor_id,
         ) as perf:
             cache_used = "n"
+            cache_keys: Optional[tuple[str, str]] = None
+            cache_service = self.cache_service
+            if cache_service:
+                cache_keys = self._week_cache_keys(instructor_id, start_date)
 
-            if allow_cache_read and self.cache_service:
+            if allow_cache_read and cache_service and cache_keys:
+                map_key, composite_key = cache_keys
                 try:
-                    cached_data = self.cache_service.get_week_availability(
-                        instructor_id, start_date
+                    cached_payload = cache_service.get_json(composite_key)
+                    cached_result = self._extract_cached_week_result(
+                        cached_payload,
+                        include_slots=include_slots,
                     )
-                    if cached_data is not None:
+                    if cached_result:
                         cache_used = "y"
                         if perf:
                             perf(cache_used=cache_used)
-                        return WeekAvailabilityResult(week_map=cached_data, slots=[])
+                        return cached_result
+
+                    if not include_slots:
+                        cached_map = cache_service.get_json(map_key)
+                        week_map = self._sanitize_week_map(cached_map)
+                        if week_map is not None:
+                            cache_used = "y"
+                            if perf:
+                                perf(cache_used=cache_used)
+                            return WeekAvailabilityResult(week_map=week_map, slots=[])
+
                 except Exception as cache_error:
                     logger.warning(f"Cache error for week availability: {cache_error}")
 
@@ -327,10 +355,14 @@ class AvailabilityService(BaseService):
 
             week_schedule = self._slots_to_week_map(all_slots)
 
-            if self.cache_service:
+            if cache_service and cache_keys:
                 try:
-                    self.cache_service.cache_week_availability(
-                        instructor_id, start_date, week_schedule
+                    self._persist_week_cache(
+                        instructor_id=instructor_id,
+                        week_start=start_date,
+                        week_map=week_schedule,
+                        slots=list(all_slots),
+                        cache_keys=cache_keys,
                     )
                 except Exception as cache_error:
                     logger.warning(f"Failed to cache week availability: {cache_error}")
@@ -338,7 +370,125 @@ class AvailabilityService(BaseService):
             if perf:
                 perf(cache_used=cache_used)
 
-            return WeekAvailabilityResult(week_map=week_schedule, slots=all_slots)
+            slots_union = cast(list[AvailabilitySlot | SlotSnapshot], list(all_slots))
+            return WeekAvailabilityResult(week_map=week_schedule, slots=slots_union)
+
+    def _persist_week_cache(
+        self,
+        *,
+        instructor_id: str,
+        week_start: date,
+        week_map: dict[str, list[TimeSlotResponse]],
+        slots: list[AvailabilitySlot],
+        cache_keys: Optional[tuple[str, str]] = None,
+    ) -> None:
+        if not self.cache_service:
+            return
+
+        map_key: str
+        composite_key: str
+        if cache_keys:
+            map_key, composite_key = cache_keys
+        else:
+            map_key, composite_key = self._week_cache_keys(instructor_id, week_start)
+
+        ttl_seconds = self._week_cache_ttl_seconds(instructor_id, week_start)
+        payload = {
+            "map": week_map,
+            "slots": self._serialize_slot_meta(slots),
+            "_metadata": [],
+        }
+        self.cache_service.set_json(composite_key, payload, ttl=ttl_seconds)
+        self.cache_service.set_json(map_key, payload["map"], ttl=ttl_seconds)
+
+    def _week_cache_keys(self, instructor_id: str, week_start: date) -> tuple[str, str]:
+        assert self.cache_service is not None
+        base_key = self.cache_service.key_builder.build(
+            "availability", "week", instructor_id, week_start
+        )
+        return base_key, f"{base_key}:with_slots"
+
+    def _week_cache_ttl_seconds(self, instructor_id: str, week_start: date) -> int:
+        assert self.cache_service is not None
+        today = get_user_today_by_id(instructor_id, self.db)
+        tier = "hot" if week_start >= today else "warm"
+        return self.cache_service.TTL_TIERS.get(tier, self.cache_service.TTL_TIERS["warm"])
+
+    def _extract_cached_week_result(
+        self,
+        payload: Any,
+        *,
+        include_slots: bool,
+    ) -> Optional[WeekAvailabilityResult]:
+        if payload is None:
+            return None
+
+        map_candidate: Any = payload
+        slots_payload: Any = None
+
+        if isinstance(payload, dict):
+            payload["_metadata"] = self._coerce_metadata_list(payload.get("_metadata"))
+            if "map" in payload:
+                map_candidate = payload.get("map")
+            elif "week_map" in payload:
+                map_candidate = payload.get("week_map")
+
+            if "slots" in payload:
+                slots_payload = payload.get("slots")
+            elif "slot_meta" in payload:
+                slots_payload = payload.get("slot_meta")
+
+        week_map = self._sanitize_week_map(map_candidate)
+        if week_map is None:
+            return None
+
+        if not include_slots:
+            return WeekAvailabilityResult(week_map=week_map, slots=[])
+
+        if isinstance(slots_payload, list):
+            slots = self._deserialize_slot_meta(slots_payload)
+            slots_union = cast(list[AvailabilitySlot | SlotSnapshot], slots)
+            return WeekAvailabilityResult(week_map=week_map, slots=slots_union)
+
+        return None
+
+    @staticmethod
+    def _coerce_metadata_list(metadata: Any) -> list[Any]:
+        if isinstance(metadata, list):
+            return metadata
+        if isinstance(metadata, dict):
+            return [metadata]
+        return []
+
+    def _sanitize_week_map(self, payload: Any) -> Optional[dict[str, list[TimeSlotResponse]]]:
+        if not isinstance(payload, dict):
+            return None
+
+        clean_map: dict[str, list[TimeSlotResponse]] = {}
+        for iso_date, slots in payload.items():
+            if iso_date == "_metadata":
+                continue
+            if not isinstance(iso_date, str) or not isinstance(slots, list):
+                return None
+
+            normalized: list[TimeSlotResponse] = []
+            for slot in slots:
+                if not isinstance(slot, dict):
+                    return None
+                start = slot.get("start_time")
+                end = slot.get("end_time")
+                if start is None or end is None:
+                    return None
+                normalized.append(
+                    TimeSlotResponse(
+                        start_time=str(start),
+                        end_time=str(end),
+                    )
+                )
+
+            clean_map[iso_date] = normalized
+
+        return clean_map
 
     @staticmethod
     def _slots_to_week_map(slots: list[AvailabilitySlot]) -> dict[str, list[TimeSlotResponse]]:
@@ -356,6 +506,49 @@ class AvailabilityService(BaseService):
                 )
             )
         return week_schedule
+
+    @staticmethod
+    def _serialize_slot_meta(slots: list[AvailabilitySlot]) -> list[dict[str, Optional[str]]]:
+        meta: list[dict[str, Optional[str]]] = []
+        for slot in slots:
+            meta.append(
+                {
+                    "specific_date": slot.specific_date.isoformat(),
+                    "start_time": slot.start_time.isoformat(),
+                    "end_time": slot.end_time.isoformat(),
+                    "created_at": slot.created_at.isoformat() if slot.created_at else None,
+                    "updated_at": slot.updated_at.isoformat() if slot.updated_at else None,
+                }
+            )
+        return meta
+
+    @staticmethod
+    def _deserialize_slot_meta(meta: list[dict[str, Optional[str]]]) -> list[SlotSnapshot]:
+        slots: list[SlotSnapshot] = []
+        for item in meta:
+            specific_date = date.fromisoformat(cast(str, item.get("specific_date")))
+            start_time_obj = time.fromisoformat(cast(str, item.get("start_time")))
+            end_time_obj = time.fromisoformat(cast(str, item.get("end_time")))
+            created_at = (
+                datetime.fromisoformat(cast(str, item.get("created_at")))
+                if item.get("created_at")
+                else None
+            )
+            updated_at = (
+                datetime.fromisoformat(cast(str, item.get("updated_at")))
+                if item.get("updated_at")
+                else None
+            )
+            slots.append(
+                SlotSnapshot(
+                    specific_date=specific_date,
+                    start_time=start_time_obj,
+                    end_time=end_time_obj,
+                    created_at=created_at,
+                    updated_at=updated_at,
+                )
+            )
+        return slots
 
     @BaseService.measure_operation("get_instructor_availability_for_date_range")
     def get_instructor_availability_for_date_range(
@@ -992,6 +1185,16 @@ class AvailabilityService(BaseService):
         for target_date in dates:
             monday = target_date - timedelta(days=target_date.weekday())
             weeks.add(monday)
+
+        if self.cache_service:
+            for week_start in weeks:
+                try:
+                    map_key, composite_key = self._week_cache_keys(instructor_id, week_start)
+                    self.invalidate_cache(map_key, composite_key)
+                except Exception as cache_error:
+                    logger.warning(
+                        f"Failed to invalidate availability cache keys for week {week_start}: {cache_error}"
+                    )
 
         for week_start in weeks:
             self.invalidate_cache(f"week_availability:{instructor_id}:{week_start}")

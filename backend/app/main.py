@@ -30,6 +30,8 @@ from starlette.status import (
 )
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.middleware.perf_counters import PerfCounterMiddleware, perf_counters_enabled
+
 from .core.config import assert_env, settings
 from .core.constants import (
     ALLOWED_ORIGINS,
@@ -52,7 +54,6 @@ from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
 from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
-from .middleware.perf_counters import PerfCounterMiddleware, perf_counters_enabled
 from .middleware.performance import PerformanceMiddleware
 from .middleware.prometheus_middleware import PrometheusMiddleware
 

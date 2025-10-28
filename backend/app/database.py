@@ -8,12 +8,9 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeMeta, Session, declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool
 
+from app.middleware.perf_counters import inc_db_query
+
 from .core.config import settings
-from .middleware.perf_counters import (
-    increment_db_queries,
-    record_sql_statement,
-    record_table_hit,
-)
 
 # Import production config if in production
 if settings.environment == "production":
@@ -44,17 +41,17 @@ else:
     )
 
 
-@event.listens_for(engine, "after_cursor_execute")
-def _track_query(
-    conn: Engine, cursor: Any, statement: str, parameters: Any, context: Any, executemany: bool
+@event.listens_for(Engine, "after_cursor_execute", retval=False)
+def _perf_after_cursor_execute(
+    conn: Engine,
+    cursor: Any,
+    statement: str,
+    params: Any,
+    context: Any,
+    executemany: bool,
 ) -> None:
     """Track executed queries for perf instrumentation."""
-    increment_db_queries()
-    normalized = " ".join(statement.split())
-    record_sql_statement(normalized)
-    lowered = normalized.lower()
-    if "availability_slots" in lowered:
-        record_table_hit("availability_slots", normalized)
+    inc_db_query(statement)
 
 
 # Log pool events for monitoring

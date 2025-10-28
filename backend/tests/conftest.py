@@ -19,6 +19,8 @@ from typing import Sequence
 # CRITICAL: Set testing mode BEFORE any app imports!
 os.environ["is_testing"] = "true"
 os.environ["rate_limit_enabled"] = "false"
+os.environ.setdefault("AVAILABILITY_PERF_DEBUG", "1")
+os.environ.setdefault("AVAILABILITY_TEST_MEMORY_CACHE", "1")
 
 # CRITICAL: Mock Resend API globally to prevent real emails in ANY test
 import unittest.mock
