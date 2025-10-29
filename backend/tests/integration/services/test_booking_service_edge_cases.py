@@ -26,7 +26,9 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
+from app.schemas.availability_window import WeekSpecificScheduleCreate
 from app.schemas.booking import BookingCreate, BookingUpdate
+from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
 from app.services.notification_service import NotificationService
 
@@ -585,16 +587,45 @@ class TestStudentDoubleBookingPrevention:
             )
             db.add(piano_service)
 
-        # Add availability for second instructor
-        tomorrow = date.today() + timedelta(days=1)
-        piano_slot = AvailabilitySlot(
-            instructor_id=second_instructor.id,
-            specific_date=tomorrow,
-            start_time=time(9, 0),  # Available from 9 AM
-            end_time=time(17, 0),  # to 5 PM
+        # Add availability for both instructors using service-level week save
+        availability_service = AvailabilityService(db)
+        tomorrow = date.today() + timedelta(days=7)  # ensure future week to avoid fixture data collisions
+        monday = tomorrow - timedelta(days=tomorrow.weekday())
+        # Seed future schedules so both instructors have non-overlapping windows
+        schedule_second = [
+            {
+                "date": tomorrow.isoformat(),
+                "start_time": "09:00",
+                "end_time": "12:00",
+            },
+            {
+                "date": tomorrow.isoformat(),
+                "start_time": "13:00",
+                "end_time": "17:00",
+            },
+        ]
+        week_payload_second = WeekSpecificScheduleCreate(
+            week_start=monday,
+            clear_existing=True,
+            schedule=schedule_second,
         )
-        db.add(piano_slot)
-        db.commit()
+        await availability_service.save_week_availability(second_instructor.id, week_payload_second)
+
+        schedule_first = [
+            {
+                "date": tomorrow.isoformat(),
+                "start_time": "10:00",
+                "end_time": "11:00",
+            }
+        ]
+        week_payload_first = WeekSpecificScheduleCreate(
+            week_start=monday,
+            clear_existing=True,
+            schedule=schedule_first,
+        )
+        await availability_service.save_week_availability(
+            test_instructor_with_availability.id, week_payload_first
+        )
 
         booking_service = BookingService(db, mock_notification_service)
 
@@ -727,16 +758,31 @@ class TestStudentDoubleBookingPrevention:
             )
             db.add(piano_service)
 
-        # Add availability for second instructor
+        # Add availability for both instructors using the service layer to avoid overlaps
+        availability_service = AvailabilityService(db)
         tomorrow = date.today() + timedelta(days=1)
-        piano_slot = AvailabilitySlot(
-            instructor_id=second_instructor.id,
-            specific_date=tomorrow,
-            start_time=time(9, 0),  # Available from 9 AM
-            end_time=time(17, 0),  # to 5 PM
+        monday = tomorrow - timedelta(days=tomorrow.weekday())
+
+        schedule_second = [
+            {
+                "date": tomorrow.isoformat(),
+                "start_time": "09:00",
+                "end_time": "12:00",
+            },
+            {
+                "date": tomorrow.isoformat(),
+                "start_time": "13:00",
+                "end_time": "17:00",
+            },
+        ]
+        week_payload_second = WeekSpecificScheduleCreate(
+            week_start=monday,
+            clear_existing=True,
+            schedule=schedule_second,
         )
-        db.add(piano_slot)
-        db.commit()
+        await availability_service.save_week_availability(second_instructor.id, week_payload_second)
+
+        db.expire_all()
 
         booking_service = BookingService(db, mock_notification_service)
 

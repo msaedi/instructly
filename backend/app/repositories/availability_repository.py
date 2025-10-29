@@ -340,6 +340,9 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
         Raises:
             RepositoryException: If creation fails
         """
+        if not self._is_valid_interval(start_time, end_time):
+            raise RepositoryException("End time must be after start time")
+
         try:
             slot = AvailabilitySlot(
                 instructor_id=instructor_id,
@@ -357,6 +360,15 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
         except SQLAlchemyError as e:
             self.logger.error(f"Error creating slot: {str(e)}")
             raise RepositoryException(f"Failed to create slot: {str(e)}")
+
+    @staticmethod
+    def _is_valid_interval(start_time: time, end_time: time) -> bool:
+        """Validate intervals using the half-open [start, end) rule with 24:00 support."""
+        start_minutes = start_time.hour * 60 + start_time.minute
+        end_minutes = end_time.hour * 60 + end_time.minute
+        if end_time == time(0, 0) and start_time != time(0, 0):
+            end_minutes = 24 * 60
+        return end_minutes > start_minutes
 
     # Delete Operations
 

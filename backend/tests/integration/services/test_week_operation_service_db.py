@@ -252,16 +252,6 @@ class TestWeekOperationWithBookings:
         # Create booking in target week with single-table design
         target_date = to_week + timedelta(days=1)  # Tuesday
 
-        # Create slot
-        slot = AvailabilitySlot(
-            instructor_id=instructor.id,
-            specific_date=target_date,  # Fixed: use specific_date
-            start_time=time(9, 0),
-            end_time=time(11, 0),  # 2-hour slot
-        )
-        db.add(slot)
-        db.flush()
-
         # Book the slot
         service_obj = (
             db.query(Service).filter(Service.instructor_profile_id == instructor.instructor_profile.id).first()

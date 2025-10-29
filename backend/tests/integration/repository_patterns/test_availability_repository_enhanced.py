@@ -8,6 +8,7 @@ in the basic query pattern tests.
 
 from datetime import date, time, timedelta
 
+import pytest
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
@@ -124,22 +125,15 @@ class TestAvailabilityRepositoryBulkOperations:
         instructor_id = test_instructor.id
         target_date = date.today() + timedelta(days=15)
 
-        # Create test slots with various overlap scenarios
+        # Create test slots that exercise overlap detection without violating
+        # the database exclusion constraint (touching edges only).
         test_slots = [
-            # Non-overlapping before
-            {"start_time": time(8, 0), "end_time": time(9, 0)},
-            # Partial overlap at start
-            {"start_time": time(9, 30), "end_time": time(10, 30)},
-            # Contained within
-            {"start_time": time(10, 15), "end_time": time(10, 45)},
-            # Exact match
-            {"start_time": time(10, 0), "end_time": time(11, 0)},
-            # Contains the check range
-            {"start_time": time(9, 0), "end_time": time(12, 0)},
-            # Partial overlap at end
-            {"start_time": time(10, 30), "end_time": time(11, 30)},
-            # Non-overlapping after
-            {"start_time": time(12, 0), "end_time": time(13, 0)},
+            {"start_time": time(8, 0), "end_time": time(9, 0)},   # Non-overlap
+            {"start_time": time(9, 0), "end_time": time(10, 0)},  # Non-overlap touching boundary
+            {"start_time": time(10, 0), "end_time": time(10, 30)},  # Overlaps check start
+            {"start_time": time(10, 30), "end_time": time(11, 0)},  # Fully inside check range
+            {"start_time": time(11, 0), "end_time": time(11, 30)},  # Overlaps check end
+            {"start_time": time(11, 30), "end_time": time(13, 0)},  # Non-overlap after
         ]
 
         # Create all test slots
@@ -148,20 +142,21 @@ class TestAvailabilityRepositoryBulkOperations:
             db.add(slot)
         db.commit()
 
-        # Check for overlaps with 10:00-11:00
+        # Check for overlaps with 10:00-11:15
         check_start = time(10, 0)
-        check_end = time(11, 0)
+        check_end = time(11, 15)
 
         # Use repository's find_time_conflicts method
         conflicts = repository.find_time_conflicts(instructor_id, target_date, check_start, check_end)
 
-        # Should find 5 overlapping slots (all except first and last)
-        assert len(conflicts) == 5
+        # Should find the three slots that intersect with the range
+        assert len(conflicts) == 3
 
         # Verify no false positives
-        for conflict in conflicts:
-            # Either starts before check_end and ends after check_start
-            assert conflict.start_time < check_end and conflict.end_time > check_start
+        conflict_windows = {(c.start_time, c.end_time) for c in conflicts}
+        assert (time(10, 0), time(10, 30)) in conflict_windows
+        assert (time(10, 30), time(11, 0)) in conflict_windows
+        assert (time(11, 0), time(11, 30)) in conflict_windows
 
 
 class TestAvailabilityRepositoryEdgeCases:
@@ -217,17 +212,19 @@ class TestAvailabilityRepositoryEdgeCases:
         instructor_id = test_instructor.id
         target_date = date.today() + timedelta(days=25)
 
-        # Test 1: End time before start time - repository allows this, validation is at service layer
-        slot1 = repository.create_slot(
-            instructor_id, target_date, time(15, 0), time(14, 0)  # Invalid but allowed by repository
-        )
-        assert slot1 is not None
+        # Test 1: End time before start time - repository should reject
+        with pytest.raises(RepositoryException):
+            repository.create_slot(
+                instructor_id, target_date, time(15, 0), time(14, 0)  # Invalid interval
+            )
+        db.rollback()
 
-        # Test 2: Zero duration slot - also allowed by repository
-        slot2 = repository.create_slot(
-            instructor_id, target_date, time(14, 0), time(14, 0)  # Zero duration but allowed
-        )
-        assert slot2 is not None
+        # Test 2: Zero duration slot - also invalid under half-open interval rules
+        with pytest.raises(RepositoryException):
+            repository.create_slot(
+                instructor_id, target_date, time(14, 0), time(14, 0)
+            )
+        db.rollback()
 
     def test_maximum_slots_per_day(self, db: Session, test_instructor: User):
         """Test behavior with maximum slots per day."""

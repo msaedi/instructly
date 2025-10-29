@@ -112,6 +112,7 @@ class TestCacheDataStructures:
     @pytest.fixture
     def cache_service(self, db):
         """Create cache service with mocked Redis."""
+        import os
         # Mock Redis client
         mock_redis = Mock()
         mock_redis.get.return_value = None
@@ -119,7 +120,15 @@ class TestCacheDataStructures:
         mock_redis.delete.return_value = 1
         mock_redis.ping.return_value = True
 
-        return CacheService(db, redis_client=mock_redis)
+        previous_flag = os.environ.get("AVAILABILITY_TEST_MEMORY_CACHE")
+        os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = "0"
+        try:
+            return CacheService(db, redis_client=mock_redis)
+        finally:
+            if previous_flag is None:
+                os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = "1"
+            else:
+                os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = previous_flag
 
     def test_cache_week_availability_uses_clean_data(self, cache_service):
         """Test caching week availability doesn't store removed fields."""
@@ -269,30 +278,29 @@ class TestCacheWarmingStrategies:
         strategy = CacheWarmingStrategy(mock_cache, db)
 
         # FIXED: Patch AvailabilityService at its source location
-        with patch("app.services.availability_service.AvailabilityService") as mock_service_class:
-            # Mock the availability service
-            mock_service = Mock()
-            mock_service.get_week_availability_with_slots.return_value = WeekAvailabilityResult(
-                week_map={
-                    "2025-07-14": [
-                        {
-                            "start_time": "09:00",
-                            "end_time": "10:00",
-                        }
-                    ]
-                },
-                slots=[],
-            )
-            mock_service_class.return_value = mock_service
+        with patch("app.services.cache_strategies.get_user_today_by_id", return_value=date(2025, 7, 14)):
+            with patch(
+                "app.services.availability_service.AvailabilityService.get_week_availability_with_slots"
+            ) as mock_get_week:
+                mock_get_week.return_value = WeekAvailabilityResult(
+                    week_map={
+                        "2025-07-14": [
+                            {
+                                "start_time": "09:00",
+                                "end_time": "10:00",
+                            }
+                        ]
+                    },
+                    slots=[],
+                )
 
-            # Warm cache
-            _result = await strategy.warm_with_verification(
-                instructor_id=123, week_start=date(2025, 7, 14), expected_slot_count=1
-            )
+                # Warm cache
+                _result = await strategy.warm_with_verification(
+                    instructor_id=123, week_start=date(2025, 7, 14), expected_slot_count=1
+                )
 
-            # Verify it used service layer
-            mock_service_class.assert_called_with(strategy.db, None)  # No cache passed
-            mock_service.get_week_availability_with_slots.assert_called_with(123, date(2025, 7, 14))
+                # Verify it used service layer method
+                mock_get_week.assert_called_with(123, date(2025, 7, 14))
 
     @pytest.mark.asyncio
     async def test_cache_warming_handles_clean_data(self, db):
@@ -320,24 +328,21 @@ class TestCacheWarmingStrategies:
         }
 
         # FIXED: Patch at the source location
-        with patch("app.services.availability_service.AvailabilityService") as mock_service_class:
-            mock_service = Mock()
-            mock_service.get_week_availability_with_slots.return_value = WeekAvailabilityResult(
-                week_map=clean_data,
-                slots=[],
-            )
-            mock_service_class.return_value = mock_service
+        with patch("app.services.cache_strategies.get_user_today_by_id", return_value=date(2025, 7, 14)):
+            with patch(
+                "app.services.availability_service.AvailabilityService.get_week_availability_with_slots"
+            ) as mock_get_week:
+                mock_get_week.return_value = WeekAvailabilityResult(
+                    week_map=clean_data,
+                    slots=[],
+                )
 
-            # Warm cache
-            result = await strategy.warm_with_verification(instructor_id=123, week_start=date(2025, 7, 14))
+                # Warm cache
+                result = await strategy.warm_with_verification(instructor_id=123, week_start=date(2025, 7, 14))
 
-            # Verify clean data was cached via JSON helpers
-            base_key = "avail:week:123:2025-07-14"
-            ttl = (
-                CacheService.TTL_TIERS["hot"]
-                if date(2025, 7, 14) >= date.today()
-                else CacheService.TTL_TIERS["warm"]
-            )
+                # Verify clean data was cached via JSON helpers
+                base_key = "avail:week:123:2025-07-14"
+            ttl = CacheService.TTL_TIERS["hot"]
             assert mock_cache.set_json.call_count == 2
             composite_call = mock_cache.set_json.call_args_list[0]
             assert composite_call.args[0] == f"{base_key}:with_slots"

@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import AvailabilityOverlapException
 from app.models.availability import AvailabilitySlot
 from app.models.user import User
 from app.schemas.availability_window import (
@@ -269,24 +270,13 @@ class TestAvailabilityServiceTransactions:
         # Add first slot
         _result1 = service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot1)
 
-        # Adding overlapping slot should work (service allows overlaps)
-        result2 = service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot2)
+        # Adding overlapping slot should now raise AvailabilityOverlapException
+        with pytest.raises(AvailabilityOverlapException):
+            service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot2)
 
-        # Verify second slot was added (assuming service returns AvailabilitySlot object)
-        assert result2.start_time == time(10, 0)
-        assert result2.end_time == time(12, 0)
-
-        # Document actual behavior: service allows overlapping slots
-        slots = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor.id,
-                AvailabilitySlot.specific_date == test_date,  # Changed from date to specific_date
-            )
-            .all()
-        )
-
-        assert len(slots) == 2  # Both slots exist
+        # Document actual behavior: overlapping slots are rejected
+        slots = service.repository.get_slots_by_date(test_instructor.id, test_date)
+        assert len(slots) == 1
 
 
 class TestAvailabilityServiceCacheIntegration:

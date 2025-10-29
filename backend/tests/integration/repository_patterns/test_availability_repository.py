@@ -240,9 +240,9 @@ class TestAvailabilityRepositoryQueries:
         # Create existing slots
         existing_slots = [
             (time(9, 0), time(10, 0)),  # No conflict
-            (time(10, 30), time(11, 30)),  # Partial overlap at start
-            (time(11, 0), time(12, 0)),  # Fully contained
-            (time(11, 30), time(13, 0)),  # Partial overlap at end
+            (time(10, 30), time(11, 15)),  # Overlaps proposed start
+            (time(11, 15), time(12, 0)),  # Fully contained overlap
+            (time(12, 0), time(12, 45)),  # Overlaps proposed end
             (time(13, 0), time(14, 0)),  # No conflict
         ]
 
@@ -263,9 +263,9 @@ class TestAvailabilityRepositoryQueries:
 
         # Verify the conflicting slots
         conflict_times = [(c.start_time, c.end_time) for c in conflicts]
-        assert (time(10, 30), time(11, 30)) in conflict_times
-        assert (time(11, 0), time(12, 0)) in conflict_times
-        assert (time(11, 30), time(13, 0)) in conflict_times
+        assert (time(10, 30), time(11, 15)) in conflict_times
+        assert (time(11, 15), time(12, 0)) in conflict_times
+        assert (time(12, 0), time(12, 45)) in conflict_times
 
     def test_get_availability_summary(self, db, test_instructor):
         """Test aggregation query for availability summary."""

@@ -243,7 +243,7 @@ class SlotManager(BaseService):
 
         # Merge slots
         merged_count = 0
-        merged_slots = []
+        merged_slots: list[AvailabilitySlot] = []
         current = slots[0]
 
         for next_slot in slots[1:]:
@@ -254,15 +254,16 @@ class SlotManager(BaseService):
                     f"with {next_slot.start_time}-{next_slot.end_time}"
                 )
 
-                # Extend current slot
-                if next_slot.end_time > current.end_time:
-                    # Use repository to update the slot
-                    self.repository.update(current.id, end_time=next_slot.end_time)
-                    # Update the current reference
-                    current.end_time = next_slot.end_time
+                new_end = max(current.end_time, next_slot.end_time)
 
-                # Delete the merged slot
+                # Delete the merged slot first to avoid transient overlaps
                 self.repository.delete(next_slot.id)
+
+                # Extend current slot after removal
+                if new_end != current.end_time:
+                    self.repository.update(current.id, end_time=new_end)
+                    current.end_time = new_end
+
                 merged_count += 1
             else:
                 # Slots are not adjacent
@@ -311,19 +312,21 @@ class SlotManager(BaseService):
         if split_time <= slot.start_time or split_time >= slot.end_time:
             raise ValidationException("Split time must be between slot start and end times")
 
-        with self.transaction():
-            # Create second slot
-            second_slot = self.repository.create(
-                instructor_id=slot.instructor_id,
-                specific_date=slot.specific_date,
-                start_time=split_time,
-                end_time=slot.end_time,
-            )
+        original_end = slot.end_time
 
+        with self.transaction():
             # Update first slot using repository
             self.repository.update(slot.id, end_time=split_time)
             # Update the local reference for the return value
             slot.end_time = split_time
+
+            # Create second slot after shortening the original slot
+            second_slot = self.repository.create(
+                instructor_id=slot.instructor_id,
+                specific_date=slot.specific_date,
+                start_time=split_time,
+                end_time=original_end,
+            )
 
             # Get fresh objects from repository
             self.repository.refresh_slots([slot, second_slot])

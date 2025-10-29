@@ -1020,6 +1020,26 @@ class AvailabilityService(BaseService):
             ):
                 raise ConflictException("This time slot already exists")
 
+            # Ensure the new slot does not overlap existing slots on that date
+            existing_for_date = self.repository.get_slots_by_date(
+                instructor_id, availability_data.specific_date
+            )
+            candidate_slots: list[ProcessedSlot] = [
+                ProcessedSlot(start_time=slot.start_time, end_time=slot.end_time)
+                for slot in existing_for_date
+            ]
+            candidate_slots.append(
+                ProcessedSlot(
+                    start_time=availability_data.start_time,
+                    end_time=availability_data.end_time,
+                )
+            )
+            self._validate_no_overlaps(
+                instructor_id,
+                {availability_data.specific_date: candidate_slots},
+                ignore_existing=True,
+            )
+
             # Create new slot
             slot = self.repository.create_slot(
                 instructor_id=instructor_id,

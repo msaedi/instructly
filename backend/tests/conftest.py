@@ -21,6 +21,11 @@ os.environ["is_testing"] = "true"
 os.environ["rate_limit_enabled"] = "false"
 os.environ.setdefault("AVAILABILITY_PERF_DEBUG", "1")
 os.environ.setdefault("AVAILABILITY_TEST_MEMORY_CACHE", "1")
+os.environ.setdefault("DB_DIALECT", "postgresql")
+if "sqlite" in os.getenv("TEST_DATABASE_URL", "").lower() or "sqlite" in os.getenv(
+    "DATABASE_URL", ""
+).lower():
+    os.environ["DB_DIALECT"] = "sqlite"
 
 # CRITICAL: Mock Resend API globally to prevent real emails in ANY test
 import unittest.mock
@@ -57,7 +62,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.auth import get_password_hash
 
 # Now we can import from app
-from app.core.enums import RoleName
+from app.core.enums import PermissionName, RoleName
 from app.database import Base, get_db
 from app.main import fastapi_app as app  # Use FastAPI instance for tests
 from app.models import SearchEvent, SearchHistory
@@ -356,54 +361,55 @@ def _prepare_database() -> None:
     Base.metadata.create_all(bind=test_engine)
 
     with test_engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
-        conn.execute(
-            text(
-                """
-                ALTER TABLE availability_slots
-                ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ
-                """
-            )
-        )
-        conn.execute(
-            text(
-                "ALTER TABLE availability_slots "
-                "DROP CONSTRAINT IF EXISTS availability_no_overlap"
-            )
-        )
-        conn.execute(
-            text(
-                """
-                ALTER TABLE availability_slots
-                ADD COLUMN IF NOT EXISTS slot_span tsrange
-                GENERATED ALWAYS AS (
-                    tsrange(
-                        (specific_date::timestamp + start_time),
-                        CASE
-                            WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00'
-                                THEN (specific_date::timestamp + interval '1 day')
-                            ELSE (specific_date::timestamp + end_time)
-                        END,
-                        '[)'
-                    )
-                ) STORED
-                """
-            )
-        )
-        conn.execute(
-            text(
-                """
-                ALTER TABLE availability_slots
-                ADD CONSTRAINT availability_no_overlap
-                EXCLUDE USING gist (
-                    instructor_id WITH =,
-                    specific_date WITH =,
-                    slot_span WITH &&
+        if conn.dialect.name != "sqlite":
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE availability_slots
+                    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ
+                    """
                 )
-                WHERE (deleted_at IS NULL)
-                """
             )
-        )
+            conn.execute(
+                text(
+                    "ALTER TABLE availability_slots "
+                    "DROP CONSTRAINT IF EXISTS availability_no_overlap"
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE availability_slots
+                    ADD COLUMN IF NOT EXISTS slot_span tsrange
+                    GENERATED ALWAYS AS (
+                        tsrange(
+                            (specific_date::timestamp + start_time),
+                            CASE
+                                WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00'
+                                    THEN (specific_date::timestamp + interval '1 day')
+                                ELSE (specific_date::timestamp + end_time)
+                            END,
+                            '[)'
+                        )
+                    ) STORED
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE availability_slots
+                    ADD CONSTRAINT availability_no_overlap
+                    EXCLUDE USING gist (
+                        instructor_id WITH =,
+                        specific_date WITH =,
+                        slot_span WITH &&
+                    )
+                    WHERE (deleted_at IS NULL)
+                    """
+                )
+            )
         conn.execute(
             text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS ck_bookings_location_type")
         )
@@ -781,6 +787,7 @@ def test_student(db: Session, test_password: str) -> User:
     # Assign student role
     permission_service = PermissionService(db)
     permission_service.assign_role(student.id, RoleName.STUDENT)
+    permission_service.grant_permission(student.id, PermissionName.CREATE_BOOKINGS.value)
     db.refresh(student)
     db.commit()
     return student

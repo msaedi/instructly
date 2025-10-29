@@ -15,18 +15,7 @@ Classes:
 
 import logging
 
-from sqlalchemy import (
-    Column,
-    Computed,
-    Date,
-    DateTime,
-    ForeignKey,
-    Index,
-    String,
-    Time,
-    UniqueConstraint,
-)
-from sqlalchemy.dialects.postgresql import TSRANGE
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Index, String, Time, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import ulid
@@ -72,15 +61,6 @@ class AvailabilitySlot(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
-    slot_span = Column(
-        TSRANGE(),
-        Computed(
-            "tsrange((specific_date::timestamp + start_time::interval), "
-            "(specific_date::timestamp + end_time::interval), '[)')",
-            persisted=True,
-        ),
-        nullable=True,
-    )
 
     # Relationships
     instructor = relationship("User", back_populates="availability_slots")
