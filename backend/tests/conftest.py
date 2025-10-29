@@ -356,7 +356,57 @@ def _prepare_database() -> None:
     Base.metadata.create_all(bind=test_engine)
 
     with test_engine.connect() as conn:
-        conn.execute(text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS ck_bookings_location_type"))
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
+        conn.execute(
+            text(
+                """
+                ALTER TABLE availability_slots
+                ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ
+                """
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE availability_slots "
+                "DROP CONSTRAINT IF EXISTS availability_no_overlap"
+            )
+        )
+        conn.execute(
+            text(
+                """
+                ALTER TABLE availability_slots
+                ADD COLUMN IF NOT EXISTS slot_span tsrange
+                GENERATED ALWAYS AS (
+                    tsrange(
+                        (specific_date::timestamp + start_time),
+                        CASE
+                            WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00'
+                                THEN (specific_date::timestamp + interval '1 day')
+                            ELSE (specific_date::timestamp + end_time)
+                        END,
+                        '[)'
+                    )
+                ) STORED
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                ALTER TABLE availability_slots
+                ADD CONSTRAINT availability_no_overlap
+                EXCLUDE USING gist (
+                    instructor_id WITH =,
+                    specific_date WITH =,
+                    slot_span WITH &&
+                )
+                WHERE (deleted_at IS NULL)
+                """
+            )
+        )
+        conn.execute(
+            text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS ck_bookings_location_type")
+        )
         conn.execute(
             text(
                 "ALTER TABLE bookings ADD CONSTRAINT ck_bookings_location_type "

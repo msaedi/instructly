@@ -27,19 +27,19 @@ def test_slot_ending_at_midnight_round_trips(db, test_instructor) -> None:
     service = AvailabilityService(db)
     result = service.get_week_availability(test_instructor.id, monday)
 
-    entry = result[slot_day.isoformat()][0]
+    day_entries = result[slot_day.isoformat()]
+    assert len(day_entries) == 1
+    entry = day_entries[0]
     assert entry["start_time"] == "22:30:00"
     assert entry["end_time"] == "00:00:00"
 
+    next_day = slot_day + timedelta(days=1)
+    assert next_day.isoformat() not in result
+
 
 @pytest.mark.asyncio
-async def test_overnight_slot_retains_cross_midnight_semantics(db, test_instructor) -> None:
-    """
-    Overnight slots (start > end) currently persist as-is.
-
-    Documenting this behaviour guards against silent changes—frontend logic must
-    continue splitting or flagging these transitions explicitly.
-    """
+async def test_overnight_slot_splits_across_midnight(db, test_instructor) -> None:
+    """Overnight inputs split into two segments across the boundary."""
     service = AvailabilityService(db)
     monday = future_week_start()
     payload = WeekSpecificScheduleCreate(
@@ -52,9 +52,16 @@ async def test_overnight_slot_retains_cross_midnight_semantics(db, test_instruct
 
     await service.save_week_availability(test_instructor.id, payload)
     result = service.get_week_availability(test_instructor.id, monday)
-    entry = result[monday.isoformat()][0]
-    assert entry["start_time"] == "22:00:00"
-    assert entry["end_time"] == "01:00:00"
+    day_entry = result[monday.isoformat()]
+    assert len(day_entry) == 1
+    assert day_entry[0]["start_time"] == "22:00:00"
+    assert day_entry[0]["end_time"] == "00:00:00"
+
+    tuesday = monday + timedelta(days=1)
+    spill_entry = result[tuesday.isoformat()]
+    assert len(spill_entry) == 1
+    assert spill_entry[0]["start_time"] == "00:00:00"
+    assert spill_entry[0]["end_time"] == "01:00:00"
 
 
 def test_week_rollover_aligns_with_requested_monday(db, test_instructor) -> None:

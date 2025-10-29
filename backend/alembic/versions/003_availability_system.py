@@ -13,6 +13,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "003_availability_system"
@@ -25,6 +26,8 @@ def upgrade() -> None:
     """Create availability management tables."""
     print("Creating availability system tables...")
 
+    op.execute("CREATE EXTENSION IF NOT EXISTS btree_gist")
+
     # Create availability_slots table with single-table design
     op.create_table(
         "availability_slots",
@@ -33,6 +36,7 @@ def upgrade() -> None:
         sa.Column("specific_date", sa.Date(), nullable=False),
         sa.Column("start_time", sa.Time(), nullable=False),
         sa.Column("end_time", sa.Time(), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -43,6 +47,23 @@ def upgrade() -> None:
             "updated_at",
             sa.DateTime(timezone=True),
             onupdate=sa.func.now(),
+            nullable=True,
+        ),
+        sa.Column(
+            "slot_span",
+            postgresql.TSRANGE(),
+            sa.Computed(
+                "tsrange("
+                "(specific_date::timestamp + start_time), "
+                "CASE "
+                "WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00' "
+                "THEN (specific_date::timestamp + interval '1 day') "
+                "ELSE (specific_date::timestamp + end_time) "
+                "END, "
+                "'[)'"
+                ")",
+                persisted=True,
+            ),
             nullable=True,
         ),
         sa.ForeignKeyConstraint(
@@ -77,6 +98,16 @@ def upgrade() -> None:
         "availability_slots",
         ["instructor_id", "specific_date", "start_time", "end_time"],
         unique=True,
+    )
+
+    op.create_exclude_constraint(
+        "availability_no_overlap",
+        "availability_slots",
+        ("instructor_id", "="),
+        ("specific_date", "="),
+        ("slot_span", "&&"),
+        where=sa.text("deleted_at IS NULL"),
+        using="gist",
     )
 
     # Create blackout_dates table (UNCHANGED from original)
@@ -128,6 +159,9 @@ def downgrade() -> None:
     op.drop_table("blackout_dates")
 
     # Drop availability_slots indexes and table
+    op.drop_constraint("availability_no_overlap", "availability_slots", type_="exclude")
+    op.drop_column("availability_slots", "slot_span")
+    op.drop_column("availability_slots", "deleted_at")
     op.drop_index("unique_instructor_date_time_slot", table_name="availability_slots")
     op.drop_index("idx_availability_instructor_id", table_name="availability_slots")
     op.drop_index("idx_availability_date", table_name="availability_slots")

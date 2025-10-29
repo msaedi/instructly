@@ -134,18 +134,23 @@ class TestCrossTimezoneBookings:
                 mock_repo.slot_exists.return_value = False
 
                 # This should skip the past date
-                slots = availability_service._prepare_slots_for_creation(
+                prepared = availability_service._prepare_slots_for_creation(
                     instructor_id=generate_ulid(),
                     week_dates=[date(2024, 1, 15), date(2024, 1, 16)],
                     schedule_by_date={
-                        date(2024, 1, 15): [{"start_time": "09:00", "end_time": "10:00"}],
-                        date(2024, 1, 16): [{"start_time": "09:00", "end_time": "10:00"}],
+                        date(2024, 1, 15): [
+                            {"start_time": time.fromisoformat("09:00"), "end_time": time.fromisoformat("10:00")}
+                        ],
+                        date(2024, 1, 16): [
+                            {"start_time": time.fromisoformat("09:00"), "end_time": time.fromisoformat("10:00")}
+                        ],
                     },
                 )
 
                 # Should only create slot for Jan 16 (today for instructor)
-                assert len(slots) == 1
-                assert slots[0]["specific_date"] == date(2024, 1, 16)
+                assert len(prepared.slots) == 1
+                assert prepared.slots[0]["specific_date"] == date(2024, 1, 16)
+                assert prepared.affected_dates == {date(2024, 1, 16)}
 
 
 class TestDSTTransitions:

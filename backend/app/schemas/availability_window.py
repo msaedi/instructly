@@ -20,6 +20,17 @@ DateType = datetime.date
 TimeType = datetime.time
 DateTimeType = datetime.datetime
 
+_MIDNIGHT = datetime.time(0, 0)
+
+
+def _is_half_open_interval(start: TimeType | None, end: TimeType | None) -> bool:
+    """Allow [start, end) intervals with midnight treated as 24:00."""
+    if start is None or end is None:
+        return True
+    if end > start:
+        return True
+    return end == _MIDNIGHT and start != _MIDNIGHT
+
 
 class TimeSlot(BaseModel):
     """Time slot for availability."""
@@ -42,11 +53,9 @@ class AvailabilityWindowBase(StrictRequestModel):
     @classmethod
     def validate_time_order(cls, v: TimeType, info: Any) -> TimeType:
         """Ensure end time is after start time."""
-        if (
-            isinstance(getattr(info, "data", None), dict)
-            and info.data.get("start_time")
-            and v <= info.data["start_time"]
-        ):
+        data = getattr(info, "data", None)
+        start = data.get("start_time") if isinstance(data, dict) else None
+        if not _is_half_open_interval(start, v):
             raise ValueError("End time must be after start time")
         return v
 
@@ -67,11 +76,9 @@ class SpecificDateAvailabilityCreate(StrictRequestModel):
     @classmethod
     def validate_time_order(cls, v: TimeType, info: Any) -> TimeType:
         """Ensure end time is after start time."""
-        if (
-            isinstance(getattr(info, "data", None), dict)
-            and info.data.get("start_time")
-            and v <= info.data["start_time"]
-        ):
+        data = getattr(info, "data", None)
+        start = data.get("start_time") if isinstance(data, dict) else None
+        if not _is_half_open_interval(start, v):
             raise ValueError("End time must be after start time")
         return v
 
@@ -87,12 +94,11 @@ class AvailabilityWindowUpdate(StrictRequestModel):
     @classmethod
     def validate_time_order(cls, v: Optional[TimeType], info: Any) -> Optional[TimeType]:
         """Ensure end time is after start time if both provided."""
-        if (
-            v
-            and isinstance(getattr(info, "data", None), dict)
-            and info.data.get("start_time")
-            and v <= info.data["start_time"]
-        ):
+        if not v:
+            return v
+        data = getattr(info, "data", None)
+        start = data.get("start_time") if isinstance(data, dict) else None
+        if not _is_half_open_interval(start, v):
             raise ValueError("End time must be after start time")
         return v
 
@@ -148,11 +154,9 @@ class TimeRange(BaseModel):
     @classmethod
     def validate_time_order(cls, v: TimeType, info: Any) -> TimeType:
         """Ensure end time is after start time."""
-        if (
-            isinstance(getattr(info, "data", None), dict)
-            and info.data.get("start_time")
-            and v <= info.data["start_time"]
-        ):
+        data = getattr(info, "data", None)
+        start = data.get("start_time") if isinstance(data, dict) else None
+        if not _is_half_open_interval(start, v):
             raise ValueError("End time must be after start time")
         return v
 
@@ -289,12 +293,11 @@ class SlotOperation(BaseModel):
     @classmethod
     def validate_time_order(cls, v: Optional[TimeType], info: Any) -> Optional[TimeType]:
         """Ensure end time is after start time for add/update."""
-        if (
-            v
-            and isinstance(getattr(info, "data", None), dict)
-            and info.data.get("start_time")
-            and v <= info.data["start_time"]
-        ):
+        if not v:
+            return v
+        data = getattr(info, "data", None)
+        start = data.get("start_time") if isinstance(data, dict) else None
+        if not _is_half_open_interval(start, v):
             raise ValueError("End time must be after start time")
         return v
 

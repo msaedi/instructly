@@ -163,6 +163,28 @@ class InsufficientNoticeException(BusinessRuleException):
         )
 
 
+class AvailabilityOverlapException(ConflictException):
+    """Raised when an availability slot overlaps with an existing slot."""
+
+    def __init__(
+        self,
+        specific_date: str,
+        new_range: str,
+        conflicting_range: str,
+    ):
+        super().__init__(
+            message=(
+                f"Overlapping slot on {specific_date}: {new_range} conflicts with {conflicting_range}"
+            ),
+            code="AVAILABILITY_OVERLAP",
+            details={
+                "date": specific_date,
+                "new_slot": new_range,
+                "conflicting_slot": conflicting_range,
+            },
+        )
+
+
 class RepositoryException(Exception):
     """
     Exception raised for repository layer errors.

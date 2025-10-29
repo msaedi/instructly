@@ -14,7 +14,12 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Optional, TypedDict, cast
 
 from sqlalchemy.orm import Session
 
-from ..core.exceptions import ConflictException, NotFoundException, RepositoryException
+from ..core.exceptions import (
+    AvailabilityOverlapException,
+    ConflictException,
+    NotFoundException,
+    RepositoryException,
+)
 from ..core.timezone_utils import get_user_today_by_id
 from ..models.availability import AvailabilitySlot, BlackoutDate
 from ..monitoring.availability_perf import (
@@ -58,6 +63,15 @@ class ProcessedSlot(TypedDict):
     end_time: time
 
 
+class AvailabilitySlotInput(TypedDict):
+    """Normalized slot ready for persistence."""
+
+    instructor_id: str
+    specific_date: date
+    start_time: time
+    end_time: time
+
+
 class TimeSlotResponse(TypedDict):
     """Response format for time slots."""
 
@@ -76,6 +90,11 @@ class SlotSnapshot(NamedTuple):
 class WeekAvailabilityResult(NamedTuple):
     week_map: dict[str, list[TimeSlotResponse]]
     slots: list[AvailabilitySlot | SlotSnapshot]
+
+
+class PreparedWeek(NamedTuple):
+    slots: list[AvailabilitySlotInput]
+    affected_dates: set[date]
 
 
 class AvailabilityService(BaseService):
@@ -682,7 +701,7 @@ class AvailabilityService(BaseService):
         week_dates: list[date],
         schedule_by_date: dict[date, list[ProcessedSlot]],
         ignore_existing: bool = False,
-    ) -> list[dict[str, Any]]:
+    ) -> PreparedWeek:
         """
         Convert time slots to database-ready format.
 
@@ -692,48 +711,44 @@ class AvailabilityService(BaseService):
             schedule_by_date: Schedule data grouped by date
 
         Returns:
-            List of slot dictionaries ready for creation
+            PreparedWeek containing normalized slots and affected dates
         """
-        slots_to_create = []
+        # Only validate for internal conflicts; existing slots are handled later.
+        self._validate_no_overlaps(instructor_id, schedule_by_date, ignore_existing=True)
 
-        for week_date in week_dates:
-            # Skip past dates based on instructor's timezone
-            instructor_today = get_user_today_by_id(instructor_id, self.db)
-            if week_date < instructor_today:
+        slots_to_create: list[AvailabilitySlotInput] = []
+        instructor_today = get_user_today_by_id(instructor_id, self.db)
+
+        affected_dates: set[date] = set()
+
+        for target_date in sorted(schedule_by_date.keys()):
+            if target_date < instructor_today:
                 continue
 
-            if week_date in schedule_by_date:
-                # Prepare slots for bulk creation
-                for slot in schedule_by_date[week_date]:
-                    if ignore_existing:
-                        should_create = True
-                    else:
-                        # Check if slot already exists prior to creation
-                        should_create = not self.repository.slot_exists(
-                            instructor_id,
-                            target_date=week_date,
-                            start_time=slot["start_time"],
-                            end_time=slot["end_time"],
-                        )
+            slots = schedule_by_date.get(target_date, [])
+            if not slots:
+                continue
 
-                    if should_create:
-                        slots_to_create.append(
-                            {
-                                "instructor_id": instructor_id,
-                                "specific_date": week_date,
-                                "start_time": slot["start_time"],
-                                "end_time": slot["end_time"],
-                            }
-                        )
+            affected_dates.add(target_date)
+            for slot in slots:
+                slot_input = cast(
+                    AvailabilitySlotInput,
+                    {
+                        "instructor_id": instructor_id,
+                        "specific_date": target_date,
+                        "start_time": slot["start_time"],
+                        "end_time": slot["end_time"],
+                    },
+                )
+                slots_to_create.append(slot_input)
 
-        return slots_to_create
+        return PreparedWeek(slots=slots_to_create, affected_dates=affected_dates)
 
     async def _save_week_slots_transaction(
         self,
         instructor_id: str,
         week_data: WeekSpecificScheduleCreate,
-        week_dates: list[date],
-        slots_to_create: list[dict[str, Any]],
+        prepared: PreparedWeek,
     ) -> int:
         """
         Execute the database transaction to save slots.
@@ -741,8 +756,7 @@ class AvailabilityService(BaseService):
         Args:
             instructor_id: The instructor ID
             week_data: Original week data for clear_existing flag
-            week_dates: List of dates in the week
-            slots_to_create: Prepared slots for creation
+            prepared: Normalized slots and affected dates ready for persistence
 
         Returns:
             Number of slots created
@@ -750,12 +764,27 @@ class AvailabilityService(BaseService):
         Raises:
             RepositoryException: If database operation fails
         """
+        affected_dates = sorted(prepared.affected_dates)
+
+        slots_by_date: dict[date, list[ProcessedSlot]] = {}
+        for slot in prepared.slots:
+            target_date = slot["specific_date"]
+            normalized_slot: ProcessedSlot = {
+                "start_time": slot["start_time"],
+                "end_time": slot["end_time"],
+            }
+            slots_by_date.setdefault(target_date, []).append(normalized_slot)
+
+        for slot_list in slots_by_date.values():
+            slot_list.sort(key=lambda s: (s["start_time"], s["end_time"]))
+
         try:
             with self.transaction():
+                instructor_today = get_user_today_by_id(instructor_id, self.db)
+
                 # If clearing existing, delete only slots for TODAY and future within this week
                 if week_data.clear_existing:
-                    instructor_today = get_user_today_by_id(instructor_id, self.db)
-                    future_or_today_dates = [d for d in week_dates if d >= instructor_today]
+                    future_or_today_dates = [d for d in affected_dates if d >= instructor_today]
                     if future_or_today_dates:
                         with availability_perf_span(
                             "repository.delete_slots_by_dates",
@@ -770,6 +799,36 @@ class AvailabilityService(BaseService):
                     logger.info(
                         f"Deleted {deleted_count} existing slots for instructor {instructor_id}"
                     )
+
+                existing_by_date: dict[date, list[AvailabilitySlot]] | None = None
+                if not week_data.clear_existing and slots_by_date:
+                    existing_by_date = {}
+                    for target_date in affected_dates:
+                        existing_by_date[target_date] = self.repository.get_slots_by_date(
+                            instructor_id, target_date
+                        )
+
+                if slots_by_date:
+                    self._validate_no_overlaps(
+                        instructor_id,
+                        slots_by_date,
+                        ignore_existing=bool(week_data.clear_existing),
+                        existing_by_date=existing_by_date,
+                    )
+
+                slots_to_create: list[dict[str, Any]] = []
+                for target_date in sorted(slots_by_date.keys()):
+                    if target_date < instructor_today:
+                        continue
+                    for processed_slot in slots_by_date[target_date]:
+                        slots_to_create.append(
+                            {
+                                "instructor_id": instructor_id,
+                                "specific_date": target_date,
+                                "start_time": processed_slot["start_time"],
+                                "end_time": processed_slot["end_time"],
+                            }
+                        )
 
                 # Bulk create all slots at once
                 if slots_to_create:
@@ -797,7 +856,11 @@ class AvailabilityService(BaseService):
             raise
 
     async def _warm_cache_after_save(
-        self, instructor_id: str, monday: date, week_dates: list[date], slot_count: int
+        self,
+        instructor_id: str,
+        monday: date,
+        affected_dates: set[date],
+        slot_count: int,
     ) -> dict[str, list[TimeSlotResponse]]:
         """
         Warm cache with new availability data.
@@ -805,7 +868,7 @@ class AvailabilityService(BaseService):
         Args:
             instructor_id: The instructor ID
             monday: Monday of the week
-            week_dates: List of dates affected
+            affected_dates: Dates touched by the operation (including spillover)
             slot_count: Number of slots created
 
         Returns:
@@ -818,34 +881,53 @@ class AvailabilityService(BaseService):
         # This is necessary after bulk operations to prevent stale data issues
         self.db.expire_all()
 
+        cache_dates = set(affected_dates)
+        cache_dates.add(monday)
+        cache_dates_sorted = sorted(cache_dates)
+
+        week_starts = {day - timedelta(days=day.weekday()) for day in cache_dates_sorted} | {monday}
+        week_starts_sorted = sorted(week_starts)
+
         # Handle cache warming
         if self.cache_service:
             try:
                 from .cache_strategies import CacheWarmingStrategy
 
                 warmer = CacheWarmingStrategy(self.cache_service, self.db)
-                updated_availability = await warmer.warm_with_verification(
-                    instructor_id, monday, expected_slot_count=slot_count
-                )
+                updated_availability: dict[str, list[TimeSlotResponse]] | None = None
+
+                for week_start in week_starts_sorted:
+                    warmed = await warmer.warm_with_verification(
+                        instructor_id, week_start, expected_slot_count=None
+                    )
+                    if week_start == monday:
+                        updated_availability = warmed
+
                 logger.debug(
-                    f"Cache warmed successfully for instructor {instructor_id}, week {monday}"
+                    "Cache warmed successfully for instructor %s across %d week(s), slot_count=%d",
+                    instructor_id,
+                    len(week_starts_sorted),
+                    slot_count,
                 )
-                return updated_availability
+
+                if updated_availability is not None:
+                    return updated_availability
+                return self.get_week_availability(instructor_id, monday)
             except ImportError:
                 logger.warning("Cache strategies not available, using direct fetch")
-                self._invalidate_availability_caches(instructor_id, week_dates)
-                return self.get_week_availability(instructor_id, monday)
             except Exception as cache_error:
                 logger.warning(
                     f"Cache warming failed for instructor {instructor_id}: {cache_error}"
                 )
-                self._invalidate_availability_caches(instructor_id, week_dates)
-                return self.get_week_availability(instructor_id, monday)
-        else:
-            logger.debug(
-                f"No cache service available, fetching availability directly for instructor {instructor_id}"
-            )
+
+            self._invalidate_availability_caches(instructor_id, cache_dates_sorted)
             return self.get_week_availability(instructor_id, monday)
+
+        logger.debug(
+            "No cache service available, fetching availability directly for instructor %s",
+            instructor_id,
+        )
+        return self.get_week_availability(instructor_id, monday)
 
     @BaseService.measure_operation("save_week_availability")
     async def save_week_availability(
@@ -895,7 +977,7 @@ class AvailabilityService(BaseService):
                 logger.debug(f"Version check skipped: {_e}")
 
             # 2. Prepare slots for creation
-            slots_to_create = self._prepare_slots_for_creation(
+            prepared_week = self._prepare_slots_for_creation(
                 instructor_id,
                 week_dates,
                 schedule_by_date,
@@ -904,12 +986,12 @@ class AvailabilityService(BaseService):
 
             # 3. Save to database
             slot_count = await self._save_week_slots_transaction(
-                instructor_id, week_data, week_dates, slots_to_create
+                instructor_id, week_data, prepared_week
             )
 
             # 4. Warm cache and return response
             updated_availability = await self._warm_cache_after_save(
-                instructor_id, monday, week_dates, slot_count
+                instructor_id, monday, prepared_week.affected_dates, slot_count
             )
 
             return updated_availability
@@ -1110,6 +1192,128 @@ class AvailabilityService(BaseService):
         """Calculate all dates for a week starting from Monday."""
         return [monday + timedelta(days=i) for i in range(7)]
 
+    def _validate_no_overlaps(
+        self,
+        instructor_id: str,
+        schedule_by_date: dict[date, list[ProcessedSlot]],
+        *,
+        ignore_existing: bool,
+        existing_by_date: dict[date, list[AvailabilitySlot]] | None = None,
+    ) -> None:
+        """Ensure proposed slots obey the half-open interval rules."""
+
+        for target_date, slots in list(schedule_by_date.items()):
+            if not slots:
+                continue
+
+            slots.sort(key=lambda s: (s["start_time"], s["end_time"]))
+            schedule_by_date[target_date] = slots
+
+            active_start: time | None = None
+            active_end: time | None = None
+            active_end_min = None
+            for slot in slots:
+                start = slot["start_time"]
+                end = slot["end_time"]
+                self._ensure_valid_interval(target_date, start, end)
+                start_min, end_min = self._minutes_range(start, end)
+                if active_end_min is not None and start_min < active_end_min:
+                    self._raise_overlap(target_date, (start, end), (active_start, active_end))
+                if active_end_min is None or end_min > active_end_min:
+                    active_start, active_end = start, end
+                    active_end_min = end_min
+
+            if ignore_existing:
+                continue
+
+            if existing_by_date is not None:
+                existing_slots = existing_by_date.get(target_date, [])
+            else:
+                existing_slots = self.repository.get_slots_by_date(instructor_id, target_date)
+            existing_ranges = {(slot.start_time, slot.end_time) for slot in existing_slots}
+
+            filtered: list[ProcessedSlot] = []
+            for slot in slots:
+                key = (slot["start_time"], slot["end_time"])
+                if key not in existing_ranges:
+                    filtered.append(slot)
+            schedule_by_date[target_date] = filtered
+
+            intervals: list[tuple[time, time, str]] = [
+                (slot.start_time, slot.end_time, "existing") for slot in existing_slots
+            ]
+            intervals.extend((slot["start_time"], slot["end_time"], "new") for slot in filtered)
+
+            if not intervals:
+                continue
+
+            intervals.sort(key=lambda item: (item[0], item[1]))
+            active_start, active_end, active_origin = intervals[0]
+            self._ensure_valid_interval(target_date, active_start, active_end)
+            _, active_end_min = self._minutes_range(active_start, active_end)
+
+            for start, end, origin in intervals[1:]:
+                self._ensure_valid_interval(target_date, start, end)
+                start_min, end_min = self._minutes_range(start, end)
+                if start_min < active_end_min:
+                    if origin == "new":
+                        new_range = (start, end)
+                        conflict = (active_start, active_end)
+                    elif active_origin == "new":
+                        new_range = (active_start, active_end)
+                        conflict = (start, end)
+                    else:
+                        new_range = (start, end)
+                        conflict = (active_start, active_end)
+                    self._raise_overlap(target_date, new_range, conflict)
+                if end_min > active_end_min or (
+                    end_min == active_end_min and origin == "new" and active_origin != "new"
+                ):
+                    active_start, active_end, active_origin = start, end, origin
+                    active_end_min = end_min
+
+    @staticmethod
+    def _minutes_range(start: time, end: time) -> tuple[int, int]:
+        start_min = start.hour * 60 + start.minute
+        end_min = end.hour * 60 + end.minute
+        if end == time(0, 0) and start != time(0, 0):
+            end_min = 24 * 60
+        return start_min, end_min
+
+    @staticmethod
+    def _format_interval(start: time, end: time) -> str:
+        return f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
+
+    def _ensure_valid_interval(self, target_date: date, start: time, end: time) -> None:
+        start_min, end_min = self._minutes_range(start, end)
+        if start_min >= end_min:
+            formatted = self._format_interval(start, end)
+            raise AvailabilityOverlapException(
+                specific_date=target_date.isoformat(),
+                new_range=formatted,
+                conflicting_range=formatted,
+            )
+
+    def _raise_overlap(
+        self,
+        target_date: date,
+        new_range: tuple[time | None, time | None],
+        conflict_range: tuple[time | None, time | None],
+    ) -> None:
+        new_start, new_end = new_range
+        conflict_start, conflict_end = conflict_range
+        if new_start is None or new_end is None or conflict_start is None or conflict_end is None:
+            raise AvailabilityOverlapException(
+                specific_date=target_date.isoformat(),
+                new_range="unknown",
+                conflicting_range="unknown",
+            )
+        raise AvailabilityOverlapException(
+            specific_date=target_date.isoformat(),
+            new_range=self._format_interval(new_start, new_end),
+            conflicting_range=self._format_interval(conflict_start, conflict_end),
+        )
+
     def _determine_week_start(
         self, week_data: WeekSpecificScheduleCreate, instructor_id: str
     ) -> date:
@@ -1128,41 +1332,64 @@ class AvailabilityService(BaseService):
     def _group_schedule_by_date(
         self, schedule: list[dict[str, str]], instructor_id: str
     ) -> dict[date, list[ProcessedSlot]]:
-        """
-        Group schedule entries by date.
+        """Group schedule entries by date, normalizing overnight spans."""
 
-        Args:
-            schedule: List of schedule slot dictionaries with date, start_time, end_time as strings
-
-        Returns:
-            Dictionary mapping dates to lists of ProcessedSlot dictionaries
-        """
         schedule_by_date: dict[date, list[ProcessedSlot]] = {}
+        instructor_today = get_user_today_by_id(instructor_id, self.db)
 
         for slot in schedule:
-            # Skip past dates based on instructor's timezone
             slot_date = date.fromisoformat(slot["date"])
-            instructor_today = get_user_today_by_id(instructor_id, self.db)
+            start_time_obj = time.fromisoformat(slot["start_time"])
+            end_time_obj = time.fromisoformat(slot["end_time"])
+
             if slot_date < instructor_today:
                 logger.warning(
                     f"Skipping past date: {slot_date} (instructor today: {instructor_today})"
                 )
                 continue
 
-            if slot_date not in schedule_by_date:
-                schedule_by_date[slot_date] = []
-
-            # Convert string times to time objects
-            from datetime import time as dt_time
-
-            schedule_by_date[slot_date].append(
-                ProcessedSlot(
-                    start_time=dt_time.fromisoformat(slot["start_time"]),
-                    end_time=dt_time.fromisoformat(slot["end_time"]),
-                )
+            self._append_normalized_slot(
+                schedule_by_date, slot_date, start_time_obj, end_time_obj, instructor_today
             )
 
         return schedule_by_date
+
+    def _append_normalized_slot(
+        self,
+        schedule_by_date: dict[date, list[ProcessedSlot]],
+        target_date: date,
+        start_time_obj: time,
+        end_time_obj: time,
+        instructor_today: date,
+    ) -> None:
+        if start_time_obj == end_time_obj:
+            self._ensure_valid_interval(target_date, start_time_obj, end_time_obj)
+            return
+
+        is_midnight_close = end_time_obj == time(0, 0) and start_time_obj != time(0, 0)
+
+        if start_time_obj > end_time_obj and not is_midnight_close:
+            self._append_normalized_slot(
+                schedule_by_date, target_date, start_time_obj, time(0, 0), instructor_today
+            )
+            self._append_normalized_slot(
+                schedule_by_date,
+                target_date + timedelta(days=1),
+                time(0, 0),
+                end_time_obj,
+                instructor_today,
+            )
+            return
+
+        if target_date < instructor_today:
+            logger.warning(
+                f"Skipping past date: {target_date} (instructor today: {instructor_today})"
+            )
+            return
+
+        schedule_by_date.setdefault(target_date, []).append(
+            ProcessedSlot(start_time=start_time_obj, end_time=end_time_obj)
+        )
 
     def _invalidate_availability_caches(self, instructor_id: str, dates: list[date]) -> None:
         """Invalidate caches for affected dates using enhanced cache service."""

@@ -79,6 +79,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                         AvailabilitySlot.instructor_id == instructor_id,
                         AvailabilitySlot.specific_date >= start_date,
                         AvailabilitySlot.specific_date <= end_date,
+                        AvailabilitySlot.deleted_at.is_(None),
                     )
                 )
                 .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
@@ -109,6 +110,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                     and_(
                         AvailabilitySlot.instructor_id == instructor_id,
                         AvailabilitySlot.specific_date == target_date,
+                        AvailabilitySlot.deleted_at.is_(None),
                     )
                 )
                 .order_by(AvailabilitySlot.start_time)
@@ -236,7 +238,9 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
         """
         try:
             slot: AvailabilitySlot | None = (
-                self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
+                self.db.query(AvailabilitySlot)
+                .filter(AvailabilitySlot.id == slot_id, AvailabilitySlot.deleted_at.is_(None))
+                .first()
             )
             return slot
         except SQLAlchemyError as e:
@@ -269,6 +273,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                         AvailabilitySlot.specific_date == target_date,
                         AvailabilitySlot.start_time == start_time,
                         AvailabilitySlot.end_time == end_time,
+                        AvailabilitySlot.deleted_at.is_(None),
                     )
                 )
                 .first()
@@ -306,6 +311,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                         # Time overlap check
                         AvailabilitySlot.start_time < end_time,
                         AvailabilitySlot.end_time > start_time,
+                        AvailabilitySlot.deleted_at.is_(None),
                     )
                 )
                 .all(),
