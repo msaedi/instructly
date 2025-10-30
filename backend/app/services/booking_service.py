@@ -153,8 +153,7 @@ class BookingService(BaseService):
 
     def _enqueue_booking_outbox_event(self, booking: Booking, event_type: str) -> None:
         """Persist an outbox entry for the given booking event inside the current transaction."""
-        # repo-pattern-migrate: TODO: move flush into booking repository
-        self.db.flush()  # Ensure timestamps are populated before computing identity
+        self.repository.flush()  # Ensure timestamps are populated before computing identity
         idempotency_key, version = self._booking_event_identity(booking, event_type)
         payload = self._serialize_booking_event_payload(booking, event_type, version)
         self.event_outbox_repository.enqueue(

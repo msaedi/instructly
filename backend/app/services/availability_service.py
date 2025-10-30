@@ -144,8 +144,7 @@ class AvailabilityService(BaseService):
         clear_existing: bool,
     ) -> None:
         """Persist outbox entry describing week availability save operation."""
-        # repo-pattern-migrate: TODO: move flush into availability repository
-        self.db.flush()
+        self.repository.flush()
         week_end = week_start + timedelta(days=6)
         version = self.compute_week_version(instructor_id, week_start, week_end)
         affected = {d.isoformat() for d in prepared.affected_dates}

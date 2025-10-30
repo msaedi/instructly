@@ -421,8 +421,7 @@ class WeekOperationService(BaseService):
             build_availability_idempotency_key,  # Lazy import to avoid cycle
         )
 
-        # repo-pattern-migrate: TODO: move flush into week operation repository
-        self.db.flush()
+        self.repository.flush()
         week_end = to_week_start + timedelta(days=6)
         version = self.availability_service.compute_week_version(
             instructor_id, to_week_start, week_end
