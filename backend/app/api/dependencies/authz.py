@@ -11,10 +11,9 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from functools import wraps
-from inspect import isawaitable
 import logging
 import os
-from typing import Any, Optional, Sequence, Set, Tuple, cast
+from typing import Optional, ParamSpec, Sequence, Set, Tuple, TypeVar, cast
 
 from fastapi import Depends, HTTPException, Request, status
 import jwt
@@ -70,6 +69,9 @@ _PREVIEW_OPEN_PATHS = {"/bookings", "/bookings/"}
 _PREVIEW_OPEN_PREFIXES = ("/bookings", "/api/search")
 _OPEN_PHASE_OPEN_PREFIXES = ("/bookings", "/api/search")
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
 
 def require_roles(*roles: str) -> PermissionDependency:
     """Ensure the current user possesses at least one of the provided roles."""
@@ -119,40 +121,34 @@ def require_scopes(*scopes: str) -> PermissionDependency:
 
 def requires_roles(
     *roles: str,
-) -> Callable[[Callable[..., Any]], Callable[..., Awaitable[Any]]]:
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
     """Decorator that annotates the endpoint with required roles."""
 
-    def decorator(func: Callable[..., Any]) -> Callable[..., Awaitable[Any]]:
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         setattr(func, "_required_roles", list(roles))
 
         @wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            result = func(*args, **kwargs)
-            if isawaitable(result):
-                return await result
-            return result
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            return await func(*args, **kwargs)
 
-        return wrapper
+        return cast(Callable[P, Awaitable[R]], wrapper)
 
     return decorator
 
 
 def requires_scopes(
     *scopes: str,
-) -> Callable[[Callable[..., Any]], Callable[..., Awaitable[Any]]]:
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
     """Decorator that annotates the endpoint with required scopes."""
 
-    def decorator(func: Callable[..., Any]) -> Callable[..., Awaitable[Any]]:
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         setattr(func, "_required_scopes", list(scopes))
 
         @wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            result = func(*args, **kwargs)
-            if isawaitable(result):
-                return await result
-            return result
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            return await func(*args, **kwargs)
 
-        return wrapper
+        return cast(Callable[P, Awaitable[R]], wrapper)
 
     return decorator
 

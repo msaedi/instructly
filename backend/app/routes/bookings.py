@@ -441,13 +441,13 @@ async def get_bookings(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_beta_phase_access())],
 )
+@requires_roles("student")
+@requires_scopes("booking:create")
 @rate_limit(
     f"{settings.rate_limit_booking_per_minute}/minute",
     key_type=RateLimitKeyType.USER,
     error_message="Too many booking attempts. Please wait a moment and try again.",
 )
-@requires_roles("student")
-@requires_scopes("booking:create")
 async def create_booking(
     request: Request,  # Required for rate limiting
     booking_data: BookingCreate = Body(...),

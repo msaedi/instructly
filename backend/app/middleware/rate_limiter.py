@@ -17,7 +17,7 @@ import hashlib
 import inspect
 import logging
 import time
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, cast
 
 from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -27,6 +27,8 @@ from ..core.config import settings
 from ..services.cache_service import CacheService, get_cache_service
 
 logger = logging.getLogger(__name__)
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 class RateLimitKeyType(Enum):
@@ -305,7 +307,7 @@ def rate_limit(
             ...
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         # Check if the function is async
         import asyncio
 
@@ -425,7 +427,7 @@ def rate_limit(
             wrapper.__signature__ = inspect.signature(func)
         except Exception:
             pass
-        return wrapper
+        return cast(F, wrapper)
 
     return decorator
 
