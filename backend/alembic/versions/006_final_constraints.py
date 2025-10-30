@@ -175,6 +175,68 @@ def upgrade() -> None:
     op.create_index("ix_alert_history_alert_type", "alert_history", ["alert_type"])
     op.create_index("ix_alert_history_severity", "alert_history", ["severity"])
 
+    print("Creating notification outbox tables...")
+    event_outbox_payload_default = sa.text("'{}'::jsonb") if is_postgres else sa.text("'{}'")
+    notification_payload_default = sa.text("'{}'::jsonb") if is_postgres else sa.text("'{}'")
+
+    op.create_table(
+        "event_outbox",
+        sa.Column("id", sa.String(length=26), primary_key=True, nullable=False),
+        sa.Column("event_type", sa.String(length=100), nullable=False),
+        sa.Column("aggregate_id", sa.String(length=64), nullable=False),
+        sa.Column("idempotency_key", sa.String(length=255), nullable=False),
+        sa.Column("payload", json_type, nullable=False, server_default=event_outbox_payload_default),
+        sa.Column("status", sa.String(length=20), nullable=False, server_default=sa.text("'PENDING'")),
+        sa.Column("attempt_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column(
+            "next_attempt_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("last_error", sa.Text(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
+        sa.UniqueConstraint("idempotency_key", name="uq_event_outbox_idempotency_key"),
+    )
+    op.create_index("ix_event_outbox_event_type", "event_outbox", ["event_type"])
+    op.create_index("ix_event_outbox_status_next_attempt", "event_outbox", ["status", "next_attempt_at"])
+
+    op.create_table(
+        "notification_delivery",
+        sa.Column("id", sa.String(length=26), primary_key=True, nullable=False),
+        sa.Column("idempotency_key", sa.String(length=255), nullable=False),
+        sa.Column("event_type", sa.String(length=100), nullable=False),
+        sa.Column("payload", json_type, nullable=False, server_default=notification_payload_default),
+        sa.Column("attempt_count", sa.Integer(), nullable=False, server_default="1"),
+        sa.Column(
+            "delivered_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
+        sa.UniqueConstraint("idempotency_key", name="uq_notification_delivery_idempotency"),
+    )
+    op.create_index(
+        "ix_notification_delivery_event_type_delivered_at",
+        "notification_delivery",
+        ["event_type", "delivered_at"],
+    )
+
     # Background check guard rails on instructor profiles
     print("Adding background check fields to instructor_profiles...")
     op.add_column(
@@ -904,6 +966,16 @@ def downgrade() -> None:
 
     print("Dropping platform_config table...")
     op.drop_table("platform_config")
+
+    print("Dropping notification outbox tables...")
+    op.drop_index(
+        "ix_notification_delivery_event_type_delivered_at",
+        table_name="notification_delivery",
+    )
+    op.drop_table("notification_delivery")
+    op.drop_index("ix_event_outbox_status_next_attempt", table_name="event_outbox")
+    op.drop_index("ix_event_outbox_event_type", table_name="event_outbox")
+    op.drop_table("event_outbox")
 
     print("Dropping instructor_preferred_places table...")
     if is_postgres:

@@ -16,6 +16,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import ColumnElement, func
 
+from app.database.session_utils import resolve_session_bind
+
 from .base_repository import BaseRepository  # re-use transaction helper
 
 
@@ -25,11 +27,15 @@ class RetentionRepository(BaseRepository[object]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, object)  # model unused; BaseRepository needs a placeholder
         self._metadata = MetaData()
-        self._inspector = inspect(db.bind)
+        bind = resolve_session_bind(db)
+        self._bind = bind
+        self._inspector = inspect(bind) if bind is not None else None
 
     def has_table(self, table_name: str) -> bool:
         """Check if the target table exists in the current database."""
         try:
+            if self._inspector is None:
+                return False
             return bool(self._inspector.has_table(table_name))
         except SQLAlchemyError:
             return False
@@ -37,7 +43,9 @@ class RetentionRepository(BaseRepository[object]):
     def reflect_table(self, table_name: str) -> Optional[Table]:
         """Reflect the table definition for the given name."""
         try:
-            return Table(table_name, self._metadata, autoload_with=self.db.bind)
+            if self._bind is None:
+                return None
+            return Table(table_name, self._metadata, autoload_with=self._bind)
         except SQLAlchemyError:
             return None
 

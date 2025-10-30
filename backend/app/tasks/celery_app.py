@@ -136,6 +136,7 @@ def create_celery_app() -> Celery:
             "app.tasks.retention_tasks",
             # Include legacy cleanup module for completeness
             "app.tasks.search_history_cleanup",
+            "app.tasks.notification_tasks",
         }
     )
 
@@ -147,6 +148,7 @@ def create_celery_app() -> Celery:
         "app.tasks.search_analytics.*": {"queue": "analytics"},
         "app.tasks.cleanup.*": {"queue": "maintenance"},
         "app.tasks.payment_tasks.*": {"queue": "payments"},  # Critical payment tasks
+        "outbox.*": {"queue": "notifications"},
     }
 
     # Set up task autodiscovery (search for 'tasks' in the 'app' package)

@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.booking_repository import BookingRepository
     from ..repositories.conflict_checker_repository import ConflictCheckerRepository
+    from ..repositories.event_outbox_repository import EventOutboxRepository
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ class BookingService(BaseService):
     conflict_checker_repository: "ConflictCheckerRepository"
     cache_service: Optional["CacheService"]
     notification_service: NotificationService
+    event_outbox_repository: "EventOutboxRepository"
 
     def __init__(
         self,
@@ -106,6 +108,60 @@ class BookingService(BaseService):
         self.cache_service = cache_service
         self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
             db
+        )
+        self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
+
+    def _booking_event_identity(self, booking: Booking, event_type: str) -> tuple[str, str]:
+        """Return idempotency key and version for a booking domain event."""
+        timestamp: datetime | None = None
+        if event_type == "booking.cancelled" and booking.cancelled_at:
+            timestamp = booking.cancelled_at
+        elif event_type == "booking.completed" and booking.completed_at:
+            timestamp = booking.completed_at
+        elif booking.updated_at:
+            timestamp = booking.updated_at
+        else:
+            timestamp = booking.created_at or datetime.now(timezone.utc)
+
+        ts = timestamp.astimezone(timezone.utc)
+        version = ts.isoformat()
+        key = f"booking:{booking.id}:{event_type}:{version}"
+        return key, version
+
+    def _serialize_booking_event_payload(
+        self, booking: Booking, event_type: str, version: str
+    ) -> dict[str, Any]:
+        """Build JSON-safe payload for outbox events."""
+        return {
+            "booking_id": booking.id,
+            "event_type": event_type,
+            "version": version,
+            "status": booking.status.value
+            if isinstance(booking.status, BookingStatus)
+            else str(booking.status),
+            "student_id": booking.student_id,
+            "instructor_id": booking.instructor_id,
+            "booking_date": booking.booking_date.isoformat() if booking.booking_date else None,
+            "start_time": booking.start_time.isoformat() if booking.start_time else None,
+            "end_time": booking.end_time.isoformat() if booking.end_time else None,
+            "total_price": str(booking.total_price),
+            "created_at": booking.created_at.isoformat() if booking.created_at else None,
+            "updated_at": booking.updated_at.isoformat() if booking.updated_at else None,
+            "cancelled_at": booking.cancelled_at.isoformat() if booking.cancelled_at else None,
+            "completed_at": booking.completed_at.isoformat() if booking.completed_at else None,
+        }
+
+    def _enqueue_booking_outbox_event(self, booking: Booking, event_type: str) -> None:
+        """Persist an outbox entry for the given booking event inside the current transaction."""
+        # repo-pattern-migrate: TODO: move flush into booking repository
+        self.db.flush()  # Ensure timestamps are populated before computing identity
+        idempotency_key, version = self._booking_event_identity(booking, event_type)
+        payload = self._serialize_booking_event_payload(booking, event_type, version)
+        self.event_outbox_repository.enqueue(
+            event_type=event_type,
+            aggregate_id=booking.id,
+            payload=payload,
+            idempotency_key=idempotency_key,
         )
 
     def _calculate_and_validate_end_time(
@@ -236,6 +292,7 @@ class BookingService(BaseService):
                 booking = await self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
+                self._enqueue_booking_outbox_event(booking, "booking.created")
         except IntegrityError as exc:
             message, scope = self._resolve_integrity_conflict_message(exc)
             conflict_details = self._build_conflict_details(booking_data, student.id)
@@ -329,6 +386,7 @@ class BookingService(BaseService):
                 # Override status to PENDING until payment confirmed
                 booking.status = BookingStatus.PENDING
                 booking.payment_status = "pending_payment_method"
+                self._enqueue_booking_outbox_event(booking, "booking.created")
 
                 # 6. Create Stripe SetupIntent (with safe fallback for CI/mock environments)
                 stripe_service = StripeService(
@@ -728,6 +786,7 @@ class BookingService(BaseService):
 
             # Cancel the booking
             booking.cancel(user.id, reason)
+            self._enqueue_booking_outbox_event(booking, "booking.cancelled")
 
         # Send notifications
         try:
@@ -979,6 +1038,7 @@ class BookingService(BaseService):
             if completed_booking is None:
                 raise NotFoundException("Booking not found")
             booking = completed_booking
+            self._enqueue_booking_outbox_event(booking, "booking.completed")
 
         # External operations outside transaction
         # Reload booking with details for cache invalidation

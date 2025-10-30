@@ -636,7 +636,7 @@ class TestBookingRepositoryEdgeCases:
     ):
         """Test booking queries with cancellation time windows."""
         BookingRepository(db)
-        now = datetime.now(timezone.utc).replace(second=0, microsecond=0, tzinfo=None)
+        now = datetime.now(timezone.utc).replace(hour=9, minute=0, second=0, microsecond=0, tzinfo=None)
 
         # Create bookings at various times relative to now
         bookings_data = [

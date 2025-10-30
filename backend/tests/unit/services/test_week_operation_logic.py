@@ -9,7 +9,6 @@ from datetime import date, time, timedelta
 from unittest.mock import Mock
 
 import pytest
-from sqlalchemy.orm import Session
 
 from app.repositories.availability_repository import AvailabilityRepository
 from app.repositories.week_operation_repository import WeekOperationRepository
@@ -22,9 +21,8 @@ from app.services.week_operation_service import WeekOperationService
 class TestWeekOperationInitialization:
     """Test service initialization and dependency injection."""
 
-    def test_initialization_with_dependencies(self):
+    def test_initialization_with_dependencies(self, unit_db):
         """Test initialization with provided dependencies."""
-        mock_db = Mock(spec=Session)
         mock_availability = Mock(spec=AvailabilityService)
         mock_conflict = Mock(spec=ConflictChecker)
         mock_cache = Mock(spec=CacheService)
@@ -32,25 +30,23 @@ class TestWeekOperationInitialization:
         mock_availability_repository = Mock(spec=AvailabilityRepository)
 
         service = WeekOperationService(
-            mock_db, mock_availability, mock_conflict, mock_cache, mock_repository, mock_availability_repository
+            unit_db, mock_availability, mock_conflict, mock_cache, mock_repository, mock_availability_repository
         )
 
-        assert service.db == mock_db
+        assert service.db is unit_db
         assert service.availability_service == mock_availability
         assert service.conflict_checker == mock_conflict
         assert service.cache_service == mock_cache
         assert service.repository == mock_repository
         assert service.availability_repository == mock_availability_repository
 
-    def test_initialization_lazy_dependencies(self):
+    def test_initialization_lazy_dependencies(self, unit_db):
         """Test lazy loading of dependencies."""
-        mock_db = Mock(spec=Session)
-
         # Just test that service initializes with defaults
-        service = WeekOperationService(mock_db)
+        service = WeekOperationService(unit_db)
 
         # These should be initialized (not None)
-        assert service.db == mock_db
+        assert service.db is unit_db
         assert service.availability_service is not None
         assert service.conflict_checker is not None
         assert service.cache_service is None  # This one is None by default
@@ -62,14 +58,15 @@ class TestWeekCalculations:
     """Test week calculation business logic."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mock dependencies."""
-        mock_db = Mock(spec=Session)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
-        return WeekOperationService(
-            mock_db, repository=mock_repository, availability_repository=mock_availability_repository
+        service = WeekOperationService(
+            unit_db, repository=mock_repository, availability_repository=mock_availability_repository
         )
+        service.event_outbox_repository = Mock()
+        return service
 
     def test_calculate_week_dates_from_monday(self, service):
         """Test calculating week dates starting from Monday."""
@@ -100,15 +97,19 @@ class TestWeekPatternExtraction:
     """Test week pattern extraction logic."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mock dependencies."""
-        mock_db = Mock(spec=Session)
         mock_availability = Mock(spec=AvailabilityService)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
-        return WeekOperationService(
-            mock_db, mock_availability, repository=mock_repository, availability_repository=mock_availability_repository
+        service = WeekOperationService(
+            unit_db,
+            mock_availability,
+            repository=mock_repository,
+            availability_repository=mock_availability_repository,
         )
+        service.event_outbox_repository = Mock()
+        return service
 
     def test_extract_week_pattern_full_week(self, service):
         """Test extracting pattern from full week data.
@@ -188,13 +189,8 @@ class TestCopyWeekLogic:
     """Test week copying business logic with single-table design."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mock dependencies."""
-        mock_db = Mock(spec=Session)
-        mock_db.transaction = Mock()
-        mock_db.expire_all = Mock()
-        mock_db.flush = Mock()
-
         mock_availability = Mock(spec=AvailabilityService)
         mock_conflict = Mock(spec=ConflictChecker)
         mock_cache = Mock(spec=CacheService)
@@ -202,8 +198,9 @@ class TestCopyWeekLogic:
         mock_availability_repository = Mock(spec=AvailabilityRepository)
 
         service = WeekOperationService(
-            mock_db, mock_availability, mock_conflict, mock_cache, mock_repository, mock_availability_repository
+            unit_db, mock_availability, mock_conflict, mock_cache, mock_repository, mock_availability_repository
         )
+        service.event_outbox_repository = Mock()
         return service
 
     @pytest.mark.asyncio
@@ -284,23 +281,17 @@ class TestApplyPatternLogic:
     """Test pattern application business logic with single-table design."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mock dependencies."""
-        mock_db = Mock(spec=Session)
-        mock_db.query = Mock()
-        mock_db.bulk_save_objects = Mock()
-        mock_db.bulk_update_mappings = Mock()
-        mock_db.bulk_insert_mappings = Mock()
-        mock_db.flush = Mock()
-        mock_db.expire_all = Mock()
-
         mock_availability = Mock(spec=AvailabilityService)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
 
-        return WeekOperationService(
-            mock_db, mock_availability, repository=mock_repository, availability_repository=mock_availability_repository
+        service = WeekOperationService(
+            unit_db, mock_availability, repository=mock_repository, availability_repository=mock_availability_repository
         )
+        service.event_outbox_repository = Mock()
+        return service
 
     @pytest.mark.asyncio
     async def test_apply_pattern_date_range_calculation(self, service):
@@ -374,14 +365,15 @@ class TestBulkOperationLogic:
     """Test bulk operation business logic."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mock db and repository."""
-        mock_db = Mock(spec=Session)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
-        return WeekOperationService(
-            mock_db, repository=mock_repository, availability_repository=mock_availability_repository
+        service = WeekOperationService(
+            unit_db, repository=mock_repository, availability_repository=mock_availability_repository
         )
+        service.event_outbox_repository = Mock()
+        return service
 
     def test_bulk_create_slots_empty_list(self, service):
         """Test bulk create with empty list."""
@@ -411,21 +403,22 @@ class TestCacheIntegrationLogic:
     """Test cache integration business logic."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mock cache and repository."""
-        mock_db = Mock(spec=Session)
         mock_cache = Mock(spec=CacheService)
         mock_availability = Mock(spec=AvailabilityService)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
 
-        return WeekOperationService(
-            mock_db,
+        service = WeekOperationService(
+            unit_db,
             mock_availability,
             cache_service=mock_cache,
             repository=mock_repository,
             availability_repository=mock_availability_repository,
         )
+        service.event_outbox_repository = Mock()
+        return service
 
     # REMOVED: test_get_cached_week_pattern_cache_hit - method doesn't exist
     # REMOVED: test_get_cached_week_pattern_cache_miss - method doesn't exist
@@ -455,14 +448,15 @@ class TestProgressCallbackLogic:
     """Test progress callback functionality."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service instance."""
-        mock_db = Mock(spec=Session)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
-        return WeekOperationService(
-            mock_db, repository=mock_repository, availability_repository=mock_availability_repository
+        service = WeekOperationService(
+            unit_db, repository=mock_repository, availability_repository=mock_availability_repository
         )
+        service.event_outbox_repository = Mock()
+        return service
 
     # REMOVED: test_apply_pattern_with_progress_callback - method doesn't exist
 
@@ -471,14 +465,14 @@ class TestPerformanceMonitoring:
     """Test performance monitoring in week operations."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with monitoring."""
-        mock_db = Mock(spec=Session)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
         service = WeekOperationService(
-            mock_db, repository=mock_repository, availability_repository=mock_availability_repository
+            unit_db, repository=mock_repository, availability_repository=mock_availability_repository
         )
+        service.event_outbox_repository = Mock()
         return service
 
     # REMOVED: test_performance_logging_slow_operations - methods don't exist

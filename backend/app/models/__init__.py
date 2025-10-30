@@ -18,6 +18,7 @@ Note: The Service model has been replaced with a three-table catalog system:
 from .address import InstructorServiceArea, NYCNeighborhood, UserAddress
 from .availability import AvailabilitySlot, BlackoutDate
 from .booking import Booking, BookingStatus
+from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
 from .favorite import UserFavorite
 from .instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
 from .message import Message, MessageNotification
@@ -69,6 +70,10 @@ __all__ = [
     "Booking",
     "BookingStatus",
     "PlatformConfig",
+    # Notification outbox
+    "EventOutbox",
+    "EventOutboxStatus",
+    "NotificationDelivery",
     # Payment models
     "PaymentIntent",
     "PaymentMethod",

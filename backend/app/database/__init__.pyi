@@ -19,16 +19,15 @@ class _PoolStatus(TypedDict):
     total: int
     overflow: int
 
+
 class Base(DeclarativeBase):
     def __init__(self, **kwargs: Any) -> None: ...
 
 
-def get_db() -> Generator[Session, None, None]:
-    ...
+def get_db() -> Generator[Session, None, None]: ...
 
 
-def get_db_pool_status() -> _PoolStatus:
-    ...
+def get_db_pool_status() -> _PoolStatus: ...
 
 
 engine: Engine

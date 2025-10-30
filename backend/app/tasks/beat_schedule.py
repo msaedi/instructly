@@ -17,6 +17,14 @@ from app.core.config import settings
 
 # Main beat schedule configuration
 CELERYBEAT_SCHEDULE = {
+    "notifications-dispatch-pending": {
+        "task": "outbox.dispatch_pending",
+        "schedule": timedelta(seconds=30),
+        "options": {
+            "queue": "notifications",
+            "priority": 6,
+        },
+    },
     # Analytics calculation - runs at 2:30 AM and 2:30 PM (consistent across envs)
     "calculate-service-analytics": {
         "task": "app.tasks.analytics.calculate_analytics",

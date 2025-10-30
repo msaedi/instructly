@@ -47,6 +47,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def build_availability_idempotency_key(
+    instructor_id: str, week_start: date, event_type: str, version: str
+) -> str:
+    """Compose a deterministic idempotency key for availability events."""
+    return f"avail:{instructor_id}:{week_start.isoformat()}:{event_type}:{version}"
+
+
 # Type definitions for better type safety
 class ScheduleSlotInput(TypedDict):
     """Input format for schedule slots from API."""
@@ -123,6 +130,46 @@ class AvailabilityService(BaseService):
         )
         self.conflict_repository = (
             conflict_repository or RepositoryFactory.create_conflict_checker_repository(db)
+        )
+        self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
+
+    def _enqueue_week_save_event(
+        self,
+        instructor_id: str,
+        week_start: date,
+        week_dates: list[date],
+        prepared: PreparedWeek,
+        created_count: int,
+        deleted_count: int,
+        clear_existing: bool,
+    ) -> None:
+        """Persist outbox entry describing week availability save operation."""
+        # repo-pattern-migrate: TODO: move flush into availability repository
+        self.db.flush()
+        week_end = week_start + timedelta(days=6)
+        version = self.compute_week_version(instructor_id, week_start, week_end)
+        affected = {d.isoformat() for d in prepared.affected_dates}
+        if clear_existing and not affected:
+            affected = {d.isoformat() for d in week_dates}
+
+        payload = {
+            "instructor_id": instructor_id,
+            "week_start": week_start.isoformat(),
+            "affected_dates": sorted(affected),
+            "clear_existing": bool(clear_existing),
+            "created_slots": created_count,
+            "deleted_slots": deleted_count,
+            "version": version,
+        }
+        aggregate_id = f"{instructor_id}:{week_start.isoformat()}"
+        key = build_availability_idempotency_key(
+            instructor_id, week_start, "availability.week_saved", version
+        )
+        self.event_outbox_repository.enqueue(
+            event_type="availability.week_saved",
+            aggregate_id=aggregate_id,
+            payload=payload,
+            idempotency_key=key,
         )
 
     @BaseService.measure_operation("get_availability_for_date")
@@ -747,6 +794,8 @@ class AvailabilityService(BaseService):
     async def _save_week_slots_transaction(
         self,
         instructor_id: str,
+        week_start: date,
+        week_dates: list[date],
         week_data: WeekSpecificScheduleCreate,
         prepared: PreparedWeek,
     ) -> int:
@@ -765,6 +814,9 @@ class AvailabilityService(BaseService):
             RepositoryException: If database operation fails
         """
         affected_dates = sorted(prepared.affected_dates)
+        deleted_count = 0
+        created_count = 0
+        change_detected = False
 
         slots_by_date: dict[date, list[ProcessedSlot]] = {}
         for slot in prepared.slots:
@@ -794,6 +846,7 @@ class AvailabilityService(BaseService):
                             deleted_count = self.repository.delete_slots_by_dates(
                                 instructor_id, future_or_today_dates
                             )
+                            change_detected = change_detected or deleted_count > 0
                     else:
                         deleted_count = 0
                     logger.info(
@@ -838,12 +891,22 @@ class AvailabilityService(BaseService):
                         instructor_id=instructor_id,
                     ):
                         created_slots = self.bulk_repository.bulk_create_slots(slots_to_create)
-                    logger.info(
-                        f"Created {len(created_slots)} new slots for instructor {instructor_id}"
-                    )
-                    return len(created_slots)
+                    created_count = len(created_slots)
+                    change_detected = change_detected or created_count > 0
+                    logger.info(f"Created {created_count} new slots for instructor {instructor_id}")
 
-                return 0
+                if change_detected or week_data.clear_existing:
+                    self._enqueue_week_save_event(
+                        instructor_id=instructor_id,
+                        week_start=week_start,
+                        week_dates=week_dates,
+                        prepared=prepared,
+                        created_count=created_count,
+                        deleted_count=deleted_count,
+                        clear_existing=bool(week_data.clear_existing),
+                    )
+
+                return created_count
         except RepositoryException as e:
             logger.error(
                 f"Database error saving week availability for instructor {instructor_id}: {e}"
@@ -986,7 +1049,11 @@ class AvailabilityService(BaseService):
 
             # 3. Save to database
             slot_count = await self._save_week_slots_transaction(
-                instructor_id, week_data, prepared_week
+                instructor_id,
+                monday,
+                week_dates,
+                week_data,
+                prepared_week,
             )
 
             # 4. Warm cache and return response

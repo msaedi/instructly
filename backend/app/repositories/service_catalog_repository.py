@@ -378,7 +378,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             )
 
             # Postgres: use array_position for membership; fallback: LIKE for JSON/text storage
-            if hasattr(self.db.bind, "dialect") and self.db.bind.dialect.name == "postgresql":
+            if self.dialect_name == "postgresql":
                 query = query.filter(
                     func.array_position(InstructorService.age_groups, "kids").isnot(None)
                 )

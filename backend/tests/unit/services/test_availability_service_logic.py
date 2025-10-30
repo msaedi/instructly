@@ -16,7 +16,6 @@ from datetime import date, time, timedelta
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
-from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.ulid_helper import generate_ulid
@@ -33,10 +32,9 @@ class TestAvailabilityServiceBusinessLogic:
     """Test business logic that will remain in service layer."""
 
     @pytest.fixture
-    def service(self):
-        """Create service with mocked repository."""
-        db = Mock(spec=Session)
-        service = AvailabilityService(db)
+    def service(self, unit_db):
+        """Create service with mocked repository and real session."""
+        service = AvailabilityService(unit_db)
 
         # Mock the repository
         mock_repository = Mock(spec=AvailabilityRepository)
@@ -135,10 +133,9 @@ class TestAvailabilityServiceQueryHelpers:
     """Test repository interaction patterns."""
 
     @pytest.fixture
-    def service(self):
-        """Create service with mocked repository."""
-        db = Mock(spec=Session)
-        service = AvailabilityService(db)
+    def service(self, unit_db):
+        """Create service with mocked repository and real session."""
+        service = AvailabilityService(unit_db)
 
         # Mock the repository
         mock_repository = Mock(spec=AvailabilityRepository)
@@ -211,10 +208,9 @@ class TestAvailabilityServiceCacheHandling:
     """Test cache handling in availability service."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mocked repository."""
-        db = Mock(spec=Session)
-        service = AvailabilityService(db)
+        service = AvailabilityService(unit_db)
 
         # Mock the repository
         mock_repository = Mock(spec=AvailabilityRepository)
@@ -226,21 +222,19 @@ class TestAvailabilityServiceCacheHandling:
         """Test service behavior without cache."""
         assert service.cache_service is None
 
-    def test_service_with_cache(self):
+    def test_service_with_cache(self, unit_db):
         """Test service behavior with cache."""
-        db = Mock(spec=Session)
         cache_service = Mock()
-        service = AvailabilityService(db, cache_service=cache_service)
+        service = AvailabilityService(unit_db, cache_service=cache_service)
 
         assert service.cache_service is not None
 
-    def test_cache_fallback_on_error(self):
+    def test_cache_fallback_on_error(self, unit_db):
         """Test that service continues working when cache fails."""
-        db = Mock(spec=Session)
         cache_service = Mock()
         cache_service.get_week_availability.side_effect = Exception("Cache error")
 
-        service = AvailabilityService(db, cache_service=cache_service)
+        service = AvailabilityService(unit_db, cache_service=cache_service)
 
         # Mock repository
         mock_repository = Mock(spec=AvailabilityRepository)
@@ -270,10 +264,9 @@ class TestAvailabilityServiceErrorHandling:
     """Test error handling that should remain in service."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mocked repository."""
-        db = Mock(spec=Session)
-        service = AvailabilityService(db)
+        service = AvailabilityService(unit_db)
 
         # Mock the repository
         mock_repository = Mock(spec=AvailabilityRepository)
@@ -322,10 +315,9 @@ class TestAvailabilityServiceNoBackwardCompatibility:
     """Test that the service follows Work Stream #10 - no backward compatibility."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mocked repository."""
-        db = Mock(spec=Session)
-        service = AvailabilityService(db)
+        service = AvailabilityService(unit_db)
 
         # Mock the repository
         mock_repository = Mock(spec=AvailabilityRepository)

@@ -115,6 +115,29 @@ preview_bypass_total = Counter(
     registry=REGISTRY,
 )
 
+# Notification outbox instrumentation
+notifications_outbox_total = Counter(
+    "instainstru_notifications_outbox_total",
+    "Total notification outbox events by terminal status",
+    ["status", "event_type"],
+    registry=REGISTRY,
+)
+
+notifications_outbox_attempt_total = Counter(
+    "instainstru_notifications_outbox_attempt_total",
+    "Number of notification outbox delivery attempts",
+    ["event_type"],
+    registry=REGISTRY,
+)
+
+notifications_dispatch_seconds = Histogram(
+    "instainstru_notifications_dispatch_seconds",
+    "Notification provider dispatch duration in seconds",
+    ["event_type"],
+    registry=REGISTRY,
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
+)
+
 # Storage for tracking active operations
 active_operations: Dict[str, int] = defaultdict(int)
 
@@ -184,6 +207,24 @@ class PrometheusMetrics:
         # Record error if applicable
         if status == "error" and error_type:
             errors_total.labels(service=service, operation=operation, error_type=error_type).inc()
+        PrometheusMetrics._invalidate_cache()
+
+    @staticmethod
+    def record_notification_attempt(event_type: str) -> None:
+        """Increment attempt counter for notification outbox delivery."""
+        notifications_outbox_attempt_total.labels(event_type=event_type).inc()
+        PrometheusMetrics._invalidate_cache()
+
+    @staticmethod
+    def record_notification_outcome(event_type: str, status: str) -> None:
+        """Record terminal outcome for notification outbox delivery."""
+        notifications_outbox_total.labels(status=status, event_type=event_type).inc()
+        PrometheusMetrics._invalidate_cache()
+
+    @staticmethod
+    def observe_notification_dispatch(event_type: str, duration: float) -> None:
+        """Observe provider dispatch duration."""
+        notifications_dispatch_seconds.labels(event_type=event_type).observe(max(duration, 0.0))
         PrometheusMetrics._invalidate_cache()
 
     @staticmethod

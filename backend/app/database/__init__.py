@@ -1,4 +1,9 @@
-# backend/app/database.py
+"""
+Database engine, session factory, and metadata shared across the application.
+"""
+
+from __future__ import annotations
+
 from datetime import datetime
 import logging
 from typing import Any, Generator
@@ -8,13 +13,12 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeMeta, Session, declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool
 
+from app.core.config import settings
 from app.middleware.perf_counters import inc_db_query
-
-from .core.config import settings
 
 # Import production config if in production
 if settings.environment == "production":
-    from .core.config_production import DATABASE_POOL_CONFIG
+    from app.core.config_production import DATABASE_POOL_CONFIG
 else:
     DATABASE_POOL_CONFIG = None
 
@@ -82,7 +86,7 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
         db.commit()
-    except:
+    except Exception:
         db.rollback()
         raise
     finally:
@@ -99,3 +103,12 @@ def get_db_pool_status() -> dict[str, int]:
         "total": pool.size() + pool.overflow(),
         "overflow": pool.overflow(),
     }
+
+
+__all__ = [
+    "Base",
+    "SessionLocal",
+    "engine",
+    "get_db",
+    "get_db_pool_status",
+]

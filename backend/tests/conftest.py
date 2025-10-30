@@ -77,6 +77,7 @@ from app.models.badge import (  # noqa: F401 ensures badge tables
 )
 from app.models.beta import BetaAccess, BetaInvite  # noqa: F401 ensure beta tables are registered
 from app.models.booking import Booking, BookingStatus
+from app.models.event_outbox import EventOutbox, NotificationDelivery  # noqa: F401
 from app.models.instructor import InstructorProfile
 from app.models.referrals import (  # noqa: F401 ensures tables are registered
     ReferralAttribution,
@@ -362,6 +363,12 @@ def _prepare_database() -> None:
     with test_engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.commit()
+
+    with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
+            conn.execute(text("DROP TABLE IF EXISTS notification_delivery CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS event_outbox CASCADE"))
+            conn.commit()
 
     Base.metadata.create_all(bind=test_engine)
 
@@ -732,6 +739,8 @@ def db():
         # Clean badge-related data (will cascade when users are deleted, but explicit is better)
         cleanup_db.query(StudentBadge).delete()
         cleanup_db.query(BadgeProgress).delete()
+        cleanup_db.query(NotificationDelivery).delete()
+        cleanup_db.query(EventOutbox).delete()
 
         # Clean up service catalog test data
         # Only delete services with test patterns - preserve all seeded catalog data

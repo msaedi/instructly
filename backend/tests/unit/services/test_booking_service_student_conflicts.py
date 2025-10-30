@@ -7,7 +7,6 @@ from datetime import date, time, timedelta
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
-from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
 from app.core.exceptions import ConflictException
@@ -38,11 +37,6 @@ def _mock_pricing_service(monkeypatch):
 
 class TestStudentConflictValidation:
     """Test student conflict validation in BookingService."""
-
-    @pytest.fixture
-    def mock_db(self):
-        """Create a mock database session."""
-        return Mock(spec=Session)
 
     @pytest.fixture
     def mock_repository(self):
@@ -135,18 +129,16 @@ class TestStudentConflictValidation:
         return instructor
 
     @pytest.fixture
-    def booking_service(self, mock_db, mock_repository, mock_availability_repository, mock_conflict_checker_repository):
+    def booking_service(self, unit_db, mock_repository, mock_availability_repository, mock_conflict_checker_repository):
         """Create a BookingService with mocked dependencies."""
         service = BookingService(
-            db=mock_db, repository=mock_repository, conflict_checker_repository=mock_conflict_checker_repository
+            db=unit_db, repository=mock_repository, conflict_checker_repository=mock_conflict_checker_repository
         )
         service.availability_repository = mock_availability_repository
         service.notification_service = AsyncMock()
-        service.transaction = MagicMock()
-        service.transaction().__enter__ = Mock()
-        service.transaction().__exit__ = Mock()
         service.invalidate_cache = Mock()
         service.log_operation = Mock()
+        service.event_outbox_repository = Mock()
 
         service_area_repo = Mock()
         service_area_repo.list_for_instructor.return_value = []

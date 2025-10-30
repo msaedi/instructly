@@ -83,6 +83,7 @@ class WeekOperationService(BaseService):
         self.availability_service = availability_service
         self.conflict_checker = conflict_checker
         self.cache_service = cache_service
+        self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
 
     @BaseService.measure_operation("copy_week")  # METRICS ADDED
     async def copy_week_availability(
@@ -127,7 +128,7 @@ class WeekOperationService(BaseService):
                 )
 
                 # Clear existing slots
-                self._clear_week_slots(instructor_id, target_week_dates)
+                deleted_count = self._clear_week_slots(instructor_id, target_week_dates)
 
                 # Copy slots from source to target
                 created_count = self._copy_slots_between_weeks(
@@ -135,6 +136,14 @@ class WeekOperationService(BaseService):
                     from_week_start,
                     to_week_start,
                     existing_target_slots=existing_target_slots,
+                )
+                self._enqueue_week_copy_event(
+                    instructor_id,
+                    from_week_start,
+                    to_week_start,
+                    target_week_dates,
+                    created_count,
+                    deleted_count,
                 )
 
             # Ensure SQLAlchemy session is fresh
@@ -397,6 +406,46 @@ class WeekOperationService(BaseService):
             return created_count
         else:
             return 0
+
+    def _enqueue_week_copy_event(
+        self,
+        instructor_id: str,
+        from_week_start: date,
+        to_week_start: date,
+        target_week_dates: List[date],
+        created_count: int,
+        deleted_count: int,
+    ) -> None:
+        """Record outbox entry for a week copy operation."""
+        from .availability_service import (
+            build_availability_idempotency_key,  # Lazy import to avoid cycle
+        )
+
+        # repo-pattern-migrate: TODO: move flush into week operation repository
+        self.db.flush()
+        week_end = to_week_start + timedelta(days=6)
+        version = self.availability_service.compute_week_version(
+            instructor_id, to_week_start, week_end
+        )
+        payload = {
+            "instructor_id": instructor_id,
+            "from_week_start": from_week_start.isoformat(),
+            "to_week_start": to_week_start.isoformat(),
+            "affected_dates": [d.isoformat() for d in target_week_dates],
+            "created_slots": created_count,
+            "deleted_slots": deleted_count,
+            "version": version,
+        }
+        aggregate_id = f"{instructor_id}:{to_week_start.isoformat()}"
+        key = build_availability_idempotency_key(
+            instructor_id, to_week_start, "availability.week_copied", version
+        )
+        self.event_outbox_repository.enqueue(
+            event_type="availability.week_copied",
+            aggregate_id=aggregate_id,
+            payload=payload,
+            idempotency_key=key,
+        )
 
     async def _warm_cache_and_get_result(
         self, instructor_id: str, week_start: date, created_count: int

@@ -21,6 +21,8 @@ from typing import Any, Dict, Generic, Iterator, List, Optional, Type, TypeVar
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Query, Session
 
+from app.database.session_utils import get_dialect_name
+
 from ..core.exceptions import RepositoryException
 
 # Type variable for generic model support
@@ -157,6 +159,10 @@ class BaseRepository(IRepository[T]):
         self.db = db
         self.model = model
         self.logger = logging.getLogger(f"{__name__}.{model.__name__}")
+
+    @property
+    def dialect_name(self) -> str:
+        return get_dialect_name(self.db)
 
     @contextmanager
     def transaction(self) -> Iterator[Session]:

@@ -926,7 +926,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
                 # Only use array_to_string for PostgreSQL
                 # Check if we're using PostgreSQL by looking at the dialect
-                if hasattr(self.db.bind, "dialect") and self.db.bind.dialect.name == "postgresql":
+                if self.dialect_name == "postgresql":
                     search_conditions.append(
                         func.array_to_string(ServiceCatalog.search_terms, " ").ilike(search_term)
                     )
@@ -947,7 +947,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             # Apply age group filter if provided
             if age_group:
                 # Use PostgreSQL array_position for reliable membership check on arrays
-                if hasattr(self.db.bind, "dialect") and self.db.bind.dialect.name == "postgresql":
+                if self.dialect_name == "postgresql":
                     query = query.filter(
                         func.array_position(Service.age_groups, age_group).isnot(None)
                     )
