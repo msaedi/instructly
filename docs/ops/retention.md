@@ -25,6 +25,26 @@ python scripts/retention/purge_soft_deleted.py --dry-run
 
 Use `--json` if you need structured output (for dashboards or observability hooks).
 
+## Scheduled via Celery Beat
+
+- The Celery task `retention.purge_soft_deleted` runs nightly (default `0 4 * * *`, 04:00 UTC) via Beat.
+- Configuration knobs (environment variables):
+  - `RETENTION_PURGE_DAYS` (default `30`)
+  - `RETENTION_PURGE_CHUNK` (default `1000`)
+  - `RETENTION_PURGE_DRY_RUN` (default `false`)
+  - `RETENTION_PURGE_CRON` (default `0 4 * * *`)
+  - `CELERY_RETENTION_QUEUE` (default `maintenance`)
+- Example Beat entry (applied automatically):
+  ```python
+  "nightly-retention-purge": {
+      "task": "retention.purge_soft_deleted",
+      "schedule": crontab(hour=4, minute=0),
+      "options": {"queue": "maintenance"},
+  }
+  ```
+- To run a dry run for a single night, set `RETENTION_PURGE_DRY_RUN=true` (or override via the task kwargs) and monitor the logs before resetting the env var.
+- The task logs per-table counts and metadata to the Celery worker logs (look for `Retention purge completed`). Failures emit an exception trace and are retried up to three times.
+
 ## Safety notes
 
 - **Chunked deletes**: each table is processed in independent transactions and capped at `--chunk` rows per commit. Increase `--chunk` for larger batches if the database can tolerate it.

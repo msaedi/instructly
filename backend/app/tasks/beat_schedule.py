@@ -7,6 +7,8 @@ Tasks are scheduled using crontab expressions for precise timing control.
 """
 
 from datetime import timedelta
+import logging
+import os
 from typing import Any
 
 from celery.schedules import crontab
@@ -315,6 +317,25 @@ SCHEDULE_CONFIG = {
 }
 
 
+def _parse_cron_expression(cron_expr: str) -> Any:
+    """Convert a five-field cron expression into a Celery crontab schedule."""
+    parts = cron_expr.strip().split()
+    if len(parts) != 5:
+        logging.getLogger(__name__).warning(
+            "Invalid RETENTION_PURGE_CRON expression '%s'; falling back to 0 4 * * *",
+            cron_expr,
+        )
+        parts = ["0", "4", "*", "*", "*"]
+    minute, hour, day_of_month, month_of_year, day_of_week = parts
+    return crontab(
+        minute=minute,
+        hour=hour,
+        day_of_month=day_of_month,
+        month_of_year=month_of_year,
+        day_of_week=day_of_week,
+    )
+
+
 def get_beat_schedule(environment: str = "production") -> dict[str, dict[str, Any]]:
     """
     Get the beat schedule for the specified environment.
@@ -330,4 +351,16 @@ def get_beat_schedule(environment: str = "production") -> dict[str, dict[str, An
     overrides = SCHEDULE_CONFIG.get(environment)
     if overrides:
         base.update(overrides)
+    retention_cron = os.getenv("RETENTION_PURGE_CRON", "0 4 * * *")
+    retention_queue = os.getenv("CELERY_RETENTION_QUEUE", "maintenance")
+    base["nightly-retention-purge"] = {
+        "task": "retention.purge_soft_deleted",
+        "schedule": _parse_cron_expression(retention_cron),
+        "args": [],
+        "kwargs": {},
+        "options": {
+            "queue": retention_queue,
+            "priority": 2,
+        },
+    }
     return base

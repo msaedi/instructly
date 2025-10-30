@@ -30,7 +30,7 @@ class RetentionRepository(BaseRepository[object]):
     def has_table(self, table_name: str) -> bool:
         """Check if the target table exists in the current database."""
         try:
-            return self._inspector.has_table(table_name)
+            return bool(self._inspector.has_table(table_name))
         except SQLAlchemyError:
             return False
 
