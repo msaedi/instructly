@@ -89,7 +89,7 @@ class ProductionStartup:
         try:
             from sqlalchemy import text
 
-            from .. import database as database_module
+            from app import database as database_module
 
             engine_obj = cast(Any, getattr(database_module, "engine"))
 
@@ -120,7 +120,7 @@ class ProductionStartup:
         try:
             from sqlalchemy import text
 
-            from .. import database as database_module
+            from app import database as database_module
 
             engine_obj = cast(Any, getattr(database_module, "engine"))
 
@@ -153,14 +153,14 @@ class ProductionStartup:
             return
 
         # Start periodic health check task
-        from ..monitoring.production_monitor import periodic_health_check
+        from app.monitoring.production_monitor import periodic_health_check
 
         # Create background task for monitoring
         asyncio.create_task(periodic_health_check())
         logger.info("✓ Background monitoring task started")
 
         # Log initial metrics
-        from ..monitoring.production_monitor import monitor
+        from app.monitoring.production_monitor import monitor
 
         summary: dict[str, Any] = monitor.get_performance_summary()
         logger.info(f"Initial system state: {summary['memory']['rss_mb']}MB RSS")
