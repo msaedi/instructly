@@ -244,7 +244,12 @@ class TestBookingPaymentRoutes:
         async def mock_get_user():
             return student_user
 
+        async def mock_get_user_optional():
+            return student_user
+
         client.app.dependency_overrides[get_current_active_user] = mock_get_user
+        from app.api.dependencies.auth import get_current_active_user_optional
+        client.app.dependency_overrides[get_current_active_user_optional] = mock_get_user_optional
         return client
 
     # ========== POST /bookings/ Tests (Create with SetupIntent) ==========
