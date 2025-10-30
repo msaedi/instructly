@@ -23,6 +23,7 @@ from sqlalchemy import Table
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
+from ..metrics import retention_metrics
 from ..repositories.retention_repository import RetentionRepository
 from .base import BaseService
 from .cache_service import CacheService
@@ -248,10 +249,17 @@ class RetentionService(BaseService):
             if not ids:
                 break
 
-            with self.transaction():
-                deleted_rows = self.retention_repository.delete_rows(table, pk_column, ids)
-                total_deleted += deleted_rows
-                chunks += 1
+            try:
+                with retention_metrics.time_chunk(table.name):
+                    with self.transaction():
+                        deleted_rows = self.retention_repository.delete_rows(table, pk_column, ids)
+                retention_metrics.inc_total(table.name, deleted_rows)
+            except Exception:
+                retention_metrics.inc_error(table.name)
+                raise
+
+            total_deleted += deleted_rows
+            chunks += 1
 
             logger.info(
                 "Purged %s rows from %s (chunk %s)",

@@ -815,6 +815,8 @@ app.include_router(favorites.router)
 app.include_router(payments.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(messages.router)
 app.include_router(metrics.router)
+if os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}:
+    app.include_router(metrics.metrics_lite_router, include_in_schema=False)
 app.include_router(monitoring.router)
 app.include_router(alerts.router)
 app.include_router(analytics.router, prefix="/api", tags=["analytics"])
