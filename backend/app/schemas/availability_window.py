@@ -388,3 +388,10 @@ class ValidateWeekRequest(StrictRequestModel):
     current_week: Dict[str, List[TimeSlot]]  # What's currently shown in UI
     saved_week: Dict[str, List[TimeSlot]]  # What's saved in database
     week_start: DateType
+
+
+try:
+    WeekSpecificScheduleCreate.model_rebuild(force=True)
+    ValidateWeekRequest.model_rebuild(force=True)
+except Exception:  # pragma: no cover - defensive initialization
+    pass

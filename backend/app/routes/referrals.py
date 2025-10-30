@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import hashlib
+import inspect
 import logging
-from typing import List, Optional
+from typing import Awaitable, List, Optional, cast
 from urllib.parse import urlparse, urlunparse
 from uuid import uuid4
 
@@ -316,7 +317,10 @@ async def get_referral_config(
 ) -> AdminReferralsConfigOut:
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return referral_service.get_admin_config()
+    config_result = referral_service.get_admin_config()
+    if inspect.isawaitable(config_result):
+        return await cast(Awaitable[AdminReferralsConfigOut], config_result)
+    return config_result
 
 
 @admin_router.get("/summary", response_model=AdminReferralsSummaryOut)
@@ -326,7 +330,10 @@ async def get_referral_summary(
 ) -> AdminReferralsSummaryOut:
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return referral_service.get_admin_summary()
+    summary_result = referral_service.get_admin_summary()
+    if inspect.isawaitable(summary_result):
+        return await cast(Awaitable[AdminReferralsSummaryOut], summary_result)
+    return summary_result
 
 
 @admin_router.get("/health", response_model=AdminReferralsHealthOut)
@@ -336,7 +343,10 @@ async def get_referral_health(
 ) -> AdminReferralsHealthOut:
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return referral_service.get_admin_health()
+    health_result = referral_service.get_admin_health()
+    if inspect.isawaitable(health_result):
+        return await cast(Awaitable[AdminReferralsHealthOut], health_result)
+    return health_result
 
 
 __all__ = ["router", "admin_router", "public_router"]

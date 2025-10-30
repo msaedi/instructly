@@ -10,20 +10,34 @@ explicitly marked as open.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Optional, Sequence, Set, Tuple
+from functools import wraps
+from inspect import isawaitable
+import logging
+import os
+from typing import Any, Optional, Sequence, Set, Tuple, cast
 
 from fastapi import Depends, HTTPException, Request, status
+import jwt
+from jwt import PyJWTError
+from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import (
     get_current_active_user_optional,
     get_current_user,
 )
+from app.auth import (
+    oauth2_scheme_optional,
+)
+from app.core.config import settings
+from app.database import get_db
 from app.dependencies.permissions import (
     PermissionDependency,
     get_permission_service,
 )
 from app.models.user import User
 from app.services.permission_service import PermissionService
+
+logger = logging.getLogger(__name__)
 
 OPTIONAL_AUTH_CALLS = {
     get_current_active_user_optional,
@@ -42,6 +56,19 @@ AUTH_REQUIRED_NAMES = {
     "get_current_student",
     "require_admin",
 }
+
+_OPEN_PHASE_HINTS = {
+    "open",
+    "open_beta",
+    "openbeta",
+    "ga",
+    "general_availability",
+    "public",
+}
+
+_PREVIEW_OPEN_PATHS = {"/bookings", "/bookings/"}
+_PREVIEW_OPEN_PREFIXES = ("/bookings", "/api/search")
+_OPEN_PHASE_OPEN_PREFIXES = ("/bookings", "/api/search")
 
 
 def require_roles(*roles: str) -> PermissionDependency:
@@ -90,6 +117,46 @@ def require_scopes(*scopes: str) -> PermissionDependency:
     return checker
 
 
+def requires_roles(
+    *roles: str,
+) -> Callable[[Callable[..., Any]], Callable[..., Awaitable[Any]]]:
+    """Decorator that annotates the endpoint with required roles."""
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Awaitable[Any]]:
+        setattr(func, "_required_roles", list(roles))
+
+        @wraps(func)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            result = func(*args, **kwargs)
+            if isawaitable(result):
+                return await result
+            return result
+
+        return wrapper
+
+    return decorator
+
+
+def requires_scopes(
+    *scopes: str,
+) -> Callable[[Callable[..., Any]], Callable[..., Awaitable[Any]]]:
+    """Decorator that annotates the endpoint with required scopes."""
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Awaitable[Any]]:
+        setattr(func, "_required_scopes", list(scopes))
+
+        @wraps(func)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            result = func(*args, **kwargs)
+            if isawaitable(result):
+                return await result
+            return result
+
+        return wrapper
+
+    return decorator
+
+
 def _dependency_requires_auth(callable_obj: object) -> bool:
     if (
         getattr(callable_obj, "__module__", "") == __name__
@@ -119,10 +186,34 @@ def public_guard(
     async def guard(
         request: Request,
         current_user: Optional[User] = Depends(get_current_active_user_optional),
+        db: Session = Depends(get_db),
     ) -> Optional[User]:
         path = request.url.path
+        normalized_path = path.rstrip("/") or "/"
 
-        if path in open_path_set or any(path.startswith(prefix) for prefix in open_prefix_tuple):
+        site_mode_raw = (os.getenv("SITE_MODE", "") or "").strip().lower()
+        site_mode = site_mode_raw or "prod"
+        phase_env = (os.getenv("PHASE", "") or "").strip().lower()
+        beta_phase_env = (os.getenv("BETA_PHASE", "") or "").strip().lower()
+        phase_hint = phase_env or beta_phase_env
+
+        dynamic_paths: set[str] = set()
+        dynamic_prefixes: list[str] = []
+
+        if site_mode == "preview":
+            dynamic_paths.update(_PREVIEW_OPEN_PATHS)
+            dynamic_prefixes.extend(_PREVIEW_OPEN_PREFIXES)
+
+        if phase_hint and phase_hint in _OPEN_PHASE_HINTS:
+            dynamic_prefixes.extend(_OPEN_PHASE_OPEN_PREFIXES)
+
+        effective_path_set = open_path_set.union(dynamic_paths)
+        if normalized_path in effective_path_set:
+            return current_user
+
+        effective_prefixes = open_prefix_tuple + tuple(dynamic_prefixes)
+
+        if any(path.startswith(prefix) for prefix in effective_prefixes):
             return current_user
 
         route = request.scope.get("route")
@@ -136,6 +227,48 @@ def public_guard(
                     break
 
         if requires_auth and current_user is None:
+            candidate: Optional[User] = None
+            auth_header = request.headers.get("authorization")
+            if auth_header:
+                try:
+                    token = await oauth2_scheme_optional(request)
+                except Exception:
+                    token = None
+                email: Optional[str] = None
+                if token:
+                    try:
+                        payload = jwt.decode(
+                            token,
+                            settings.secret_key.get_secret_value(),
+                            algorithms=[settings.algorithm],
+                            options={"verify_aud": False},
+                        )
+                        extracted = payload.get("sub")
+                        email = extracted if isinstance(extracted, str) else None
+                    except (PyJWTError, Exception) as exc:
+                        logger.debug("public_guard_token_decode_failed error=%s", exc)
+                        email = None
+                logger.debug(
+                    "public_guard_token_debug token_present=%s email=%s",
+                    bool(token),
+                    email,
+                )
+                if email:
+                    candidate = cast(
+                        Optional[User],
+                        db.query(User).filter(User.email == email).first(),
+                    )
+                    if candidate and not candidate.is_active:
+                        candidate = None
+            if candidate:
+                return candidate
+            logger.debug(
+                "public_guard_missing_user path=%s auth_header=%s site_mode=%s phase=%s",
+                path,
+                bool(auth_header),
+                site_mode,
+                phase_hint,
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication required",

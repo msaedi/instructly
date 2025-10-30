@@ -40,6 +40,8 @@ from typing import Any, NoReturn, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 
+from app.api.dependencies.authz import requires_roles, requires_scopes
+
 from ..api.dependencies import get_booking_service, get_current_active_user
 from ..api.dependencies.auth import require_beta_phase_access
 from ..core.config import settings
@@ -444,6 +446,8 @@ async def get_bookings(
     key_type=RateLimitKeyType.USER,
     error_message="Too many booking attempts. Please wait a moment and try again.",
 )
+@requires_roles("student")
+@requires_scopes("booking:create")
 async def create_booking(
     request: Request,  # Required for rate limiting
     booking_data: BookingCreate = Body(...),

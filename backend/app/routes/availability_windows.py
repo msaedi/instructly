@@ -37,13 +37,13 @@ Router Endpoints:
     POST /blackout-dates - Add a blackout date
     DELETE /blackout-dates/{id} - Remove a blackout date
 """
-from __future__ import annotations
-
 from datetime import date, timedelta
 import logging
 from typing import Dict, List, Optional, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
+
+from app.api.dependencies.authz import requires_roles
 
 from ..api.dependencies.auth import get_current_active_user, require_beta_access
 from ..api.dependencies.services import (
@@ -179,6 +179,7 @@ async def get_week_availability(
     response_model=WeekAvailabilityUpdateResponse,
     dependencies=[Depends(require_beta_access("instructor"))],
 )
+@requires_roles("instructor")
 async def save_week_availability(
     response: Response,
     payload: WeekSpecificScheduleCreate = Body(...),

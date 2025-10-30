@@ -14,7 +14,7 @@ import os
 import threading
 from time import monotonic
 from types import ModuleType
-from typing import TYPE_CHECKING, AsyncGenerator, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, Optional, Tuple, cast
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,6 +57,18 @@ from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
 from .middleware.prometheus_middleware import PrometheusMiddleware
+from .schemas.availability_window import (
+    ValidateWeekRequest,
+    WeekSpecificScheduleCreate,
+)
+
+#
+# Ensure Pydantic forward references for availability schemas are resolved before router setup
+for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest):
+    try:
+        _model.model_rebuild(force=True)
+    except Exception:  # pragma: no cover - defensive init
+        pass
 
 # Use the new ASGI middleware to avoid "No response returned" errors
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
@@ -109,11 +121,7 @@ from .routes import (
     users_profile_picture,
     webhooks_checkr,
 )
-from .schemas.main_responses import (
-    HealthLiteResponse,
-    HealthResponse,
-    RootResponse,
-)
+from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
     FINAL_ADVERSE_JOB_TYPE,
     BackgroundCheckWorkflowService,
@@ -413,6 +421,21 @@ app = FastAPI(
 from .errors import register_error_handlers  # noqa: E402
 
 register_error_handlers(app)
+
+_original_openapi = cast(Callable[[], Dict[str, Any]], getattr(app, "openapi"))
+
+
+def _availability_safe_openapi() -> Dict[str, Any]:
+    """Ensure availability schemas are rebuilt before generating OpenAPI."""
+    for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest):
+        try:
+            _model.model_rebuild(force=True)
+        except Exception:
+            pass
+    return _original_openapi()
+
+
+setattr(app, "openapi", _availability_safe_openapi)
 
 
 def _next_expiry_run(now: datetime | None = None) -> datetime:
