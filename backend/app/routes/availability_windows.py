@@ -38,12 +38,13 @@ Router Endpoints:
     DELETE /blackout-dates/{id} - Remove a blackout date
 """
 from datetime import date, timedelta
+from functools import wraps
 import logging
-from typing import Dict, List, Optional, cast
+from typing import Awaitable, Callable, Dict, List, Optional, ParamSpec, TypeVar, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 
-from app.api.dependencies.authz import requires_roles
+from app.api.dependencies.authz import requires_roles as _requires_roles
 
 from ..api.dependencies.auth import get_current_active_user, require_beta_access
 from ..api.dependencies.services import (
@@ -97,6 +98,30 @@ from ..services.conflict_checker import ConflictChecker
 from ..services.presentation_service import PresentationService
 from ..services.slot_manager import SlotManager
 from ..services.week_operation_service import WeekOperationService
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def requires_roles(
+    *roles: str,
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
+    """Typed shim around authz.requires_roles for mypy route slice."""
+    real_decorator = _requires_roles(*roles)
+
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+        setattr(func, "_required_roles", list(roles))
+        decorated: Callable[P, Awaitable[R]] = real_decorator(func)
+
+        @wraps(func)
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            return await decorated(*args, **kwargs)
+
+        setattr(wrapper, "_required_roles", getattr(decorated, "_required_roles", list(roles)))
+        return wrapper
+
+    return decorator
+
 
 logger = logging.getLogger(__name__)
 

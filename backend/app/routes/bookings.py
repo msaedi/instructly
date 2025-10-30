@@ -35,12 +35,16 @@ Router Endpoints:
 """
 
 from datetime import datetime, timedelta
+from functools import wraps
 import logging
-from typing import Any, NoReturn, Optional
+from typing import Any, Awaitable, Callable, NoReturn, Optional, ParamSpec, TypeVar
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 
-from app.api.dependencies.authz import requires_roles, requires_scopes
+from app.api.dependencies.authz import (
+    requires_roles as _requires_roles,
+    requires_scopes as _requires_scopes,
+)
 
 from ..api.dependencies import get_booking_service, get_current_active_user
 from ..api.dependencies.auth import require_beta_phase_access
@@ -68,6 +72,50 @@ from ..schemas.booking import (
 )
 from ..schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
 from ..services.booking_service import BookingService
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def requires_roles(
+    *roles: str,
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
+    """Typed shim around authz.requires_roles for mypy route slice."""
+    real_decorator = _requires_roles(*roles)
+
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+        setattr(func, "_required_roles", list(roles))
+        decorated: Callable[P, Awaitable[R]] = real_decorator(func)
+
+        @wraps(func)
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            return await decorated(*args, **kwargs)
+
+        setattr(wrapper, "_required_roles", getattr(decorated, "_required_roles", list(roles)))
+        return wrapper
+
+    return decorator
+
+
+def requires_scopes(
+    *scopes: str,
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
+    """Typed shim around authz.requires_scopes for mypy route slice."""
+    real_decorator = _requires_scopes(*scopes)
+
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+        setattr(func, "_required_scopes", list(scopes))
+        decorated: Callable[P, Awaitable[R]] = real_decorator(func)
+
+        @wraps(func)
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            return await decorated(*args, **kwargs)
+
+        setattr(wrapper, "_required_scopes", getattr(decorated, "_required_scopes", list(scopes)))
+        return wrapper
+
+    return decorator
+
 
 logger = logging.getLogger(__name__)
 
