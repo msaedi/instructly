@@ -83,6 +83,11 @@ def instructor_setup(db):
 
 
 def _create_completed_booking(db, student, instructor_service, instructor_id: str, index: int) -> Booking:
+    base_date = datetime.now(timezone.utc).date()
+    start_hour = 14 + index  # stagger bookings per index to prevent overlaps
+    start_time = time(start_hour % 24, 0)
+    end_time = (datetime.combine(base_date, start_time) + timedelta(minutes=60)).time()
+
     booking = Booking(
         id=str(ulid.ULID()),
         student_id=student.id,
@@ -92,9 +97,9 @@ def _create_completed_booking(db, student, instructor_service, instructor_id: st
         hourly_rate=50.0,
         total_price=50.0,
         duration_minutes=60,
-        booking_date=datetime.now(timezone.utc).date(),
-        start_time=time(14, 0),
-        end_time=time(15, 0),
+        booking_date=base_date,
+        start_time=start_time,
+        end_time=end_time,
         status=BookingStatus.COMPLETED,
         completed_at=datetime.now(timezone.utc) + timedelta(minutes=index),
     )
@@ -104,6 +109,7 @@ def _create_completed_booking(db, student, instructor_service, instructor_id: st
 
 
 def test_milestone_issuance_cycle(db, student, instructor_setup):
+    db.query(Booking).delete()
     instructor_user, instructor_service = instructor_setup
     service = StudentCreditService(db)
     payment_repo = PaymentRepository(db)
@@ -139,6 +145,7 @@ def test_milestone_issuance_cycle(db, student, instructor_setup):
 
 
 def test_revoke_milestone_credit(db, student, instructor_setup):
+    db.query(Booking).delete()
     instructor_user, instructor_service = instructor_setup
     service = StudentCreditService(db)
     payment_repo = PaymentRepository(db)
@@ -165,6 +172,7 @@ def test_revoke_milestone_credit(db, student, instructor_setup):
 
 
 def test_reinstate_used_credits(db, student, instructor_setup):
+    db.query(Booking).delete()
     instructor_user, instructor_service = instructor_setup
     service = StudentCreditService(db)
     payment_repo = PaymentRepository(db)

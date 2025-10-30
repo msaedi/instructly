@@ -7,6 +7,11 @@ from app.auth import create_access_token, get_password_hash
 from app.models.booking import Booking, BookingStatus
 from app.services.review_service import ReviewService
 
+try:  # pragma: no cover - allow running from backend/ or repo root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
+
 
 @pytest.fixture
 def student_client_and_db(client: TestClient, db):
@@ -18,7 +23,8 @@ def _create_completed_booking(db, student_id: str, instructor_id: str, service_i
     today = datetime.now(timezone.utc).date()
     start_dt = datetime(today.year, today.month, today.day, 14, 0, 0, tzinfo=timezone.utc)
     end_dt = start_dt + timedelta(hours=1)
-    b = Booking(
+    booking = create_booking_pg_safe(
+        db,
         student_id=student_id,
         instructor_id=instructor_id,
         instructor_service_id=service_id,
@@ -30,11 +36,11 @@ def _create_completed_booking(db, student_id: str, instructor_id: str, service_i
         total_price=50,
         duration_minutes=60,
         status=BookingStatus.COMPLETED,
-        completed_at=end_dt,
+        offset_index=0,
     )
-    db.add(b)
+    booking.completed_at = end_dt
     db.flush()
-    return b
+    return booking
 
 
 def test_ratings_batch_endpoint_returns_expected_shape(client: TestClient, db):

@@ -23,6 +23,7 @@ import logging
 from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy import and_, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query, Session, joinedload
 
 from ..core.enums import RoleName
@@ -49,6 +50,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         super().__init__(db, Booking)
         self.logger = logging.getLogger(__name__)
         self.init_cache(cache_service)
+
+    def create(self, **kwargs: Any) -> Booking:
+        """Create a booking, exposing integrity errors for conflict handling."""
+        try:
+            return super().create(**kwargs)
+        except RepositoryException as exc:
+            if isinstance(exc.__cause__, IntegrityError):
+                raise exc.__cause__
+            raise
 
     # Time-based Booking Queries (NEW)
 

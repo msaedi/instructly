@@ -7,6 +7,7 @@ filter combinations with a real database.
 """
 
 from datetime import datetime, timezone
+import os
 
 import pytest
 from sqlalchemy import create_engine
@@ -32,12 +33,18 @@ class TestInstructorProfileRepositoryFiltering:
     def test_db(self):
         """Create a test database and session."""
         # Use in-memory SQLite for tests
+        previous_dialect = os.environ.get("DB_DIALECT")
+        os.environ["DB_DIALECT"] = "sqlite"
         engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(engine)
         TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         db = TestSessionLocal()
         yield db
         db.close()
+        if previous_dialect is not None:
+            os.environ["DB_DIALECT"] = previous_dialect
+        else:
+            os.environ.pop("DB_DIALECT", None)
 
     @pytest.fixture
     def repository(self, test_db):

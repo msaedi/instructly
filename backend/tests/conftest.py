@@ -93,6 +93,11 @@ from app.services.config_service import ConfigService
 from app.services.permission_service import PermissionService
 from app.services.template_service import TemplateService
 
+try:  # pragma: no cover - allow tests to run from repo root or backend/
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
+
 BOROUGH_ABBR: dict[str, str] = {
     "Manhattan": "MN",
     "Brooklyn": "BK",
@@ -413,6 +418,75 @@ def _prepare_database() -> None:
         conn.execute(
             text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS ck_bookings_location_type")
         )
+        if conn.dialect.name != "sqlite":
+            conn.execute(
+                text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_no_overlap_per_instructor")
+            )
+            conn.execute(
+                text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_no_overlap_per_student")
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE bookings
+                    ADD COLUMN IF NOT EXISTS booking_span tsrange
+                    GENERATED ALWAYS AS (
+                        tsrange(
+                            (booking_date::timestamp + start_time),
+                            CASE
+                                WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00'
+                                    THEN (booking_date::timestamp + interval '1 day')
+                                ELSE (booking_date::timestamp + end_time)
+                            END,
+                            '[)'
+                        )
+                    ) STORED
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE bookings
+                    ADD CONSTRAINT bookings_no_overlap_per_instructor
+                    EXCLUDE USING gist (
+                        instructor_id WITH =,
+                        booking_span WITH &&
+                    )
+                    WHERE (cancelled_at IS NULL)
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE bookings
+                    ADD CONSTRAINT bookings_no_overlap_per_student
+                    EXCLUDE USING gist (
+                        student_id WITH =,
+                        booking_span WITH &&
+                    )
+                    WHERE (cancelled_at IS NULL)
+                    """
+                )
+            )
+            conn.execute(
+                text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS check_time_order")
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE bookings
+                    ADD CONSTRAINT check_time_order
+                    CHECK (
+                        CASE
+                            WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00' THEN TRUE
+                            ELSE start_time < end_time
+                        END
+                    )
+                    """
+                )
+            )
         conn.execute(
             text(
                 "ALTER TABLE bookings ADD CONSTRAINT ck_bookings_location_type "
@@ -1110,25 +1184,24 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
     catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.id == service.service_catalog_id).first()
     service_name = catalog_service.name if catalog_service else "Test Service"
 
-    # Create booking with self-contained time data (no slot reference!)
-    booking = Booking(
+    booking = create_booking_pg_safe(
+        db,
         student_id=test_student.id,
         instructor_id=test_instructor_with_availability.id,
         instructor_service_id=service.id,
-        # NO availability_slot_id - this field no longer exists!
         booking_date=tomorrow,
-        start_time=time(9, 0),  # Self-contained time
-        end_time=time(12, 0),  # Self-contained time
-        service_name=service_name,  # From catalog
+        start_time=time(9, 0),
+        end_time=time(12, 0),
+        service_name=service_name,
         hourly_rate=service.hourly_rate,
-        total_price=service.hourly_rate * 3,  # 3 hour booking
+        total_price=service.hourly_rate * 3,
         duration_minutes=180,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test Location",
         service_area="Manhattan",
+        offset_index=0,
+        cancel_duplicate=True,
     )
-    db.add(booking)
-    db.flush()
     return booking
 
 
@@ -1225,26 +1298,25 @@ def test_instructor_with_bookings(db: Session, test_instructor_with_availability
     catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.id == service.service_catalog_id).first()
     service_name = catalog_service.name if catalog_service else "Test Service"
 
-    # Create a booking for tomorrow (self-contained, no slot reference)
     tomorrow = date.today() + timedelta(days=1)
 
-    booking = Booking(
+    create_booking_pg_safe(
+        db,
         student_id=test_student.id,
         instructor_id=test_instructor_with_availability.id,
         instructor_service_id=service.id,
-        # NO availability_slot_id!
         booking_date=tomorrow,
-        start_time=time(9, 0),  # Direct time specification
-        end_time=time(12, 0),  # Direct time specification
-        service_name=service_name,  # From catalog
+        start_time=time(9, 0),
+        end_time=time(12, 0),
+        service_name=service_name,
         hourly_rate=service.hourly_rate,
-        total_price=service.hourly_rate * 3,  # 3 hour booking
+        total_price=service.hourly_rate * 3,
         duration_minutes=180,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test Location",
+        offset_index=0,
+        cancel_duplicate=True,
     )
-    db.add(booking)
-    db.flush()
 
     return test_instructor_with_availability
 

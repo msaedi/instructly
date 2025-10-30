@@ -137,6 +137,9 @@ class BookingCreate(StrictRequestModel):
             self.end_time = end_datetime.time()
 
         if self.start_time and self.end_time:
+            midnight = time(0, 0)
+            if self.end_time == midnight and self.start_time != midnight:
+                return self
             if self.end_time <= self.start_time:
                 raise ValueError("End time must be after start time")
 

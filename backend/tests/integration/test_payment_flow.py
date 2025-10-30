@@ -20,11 +20,15 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
-from app.repositories.factory import RepositoryFactory
 from app.services.config_service import ConfigService
 from app.services.permission_service import PermissionService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
+
+try:  # pragma: no cover - allow execution from backend/ or repo root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
 
 
 @pytest.fixture(autouse=True)
@@ -132,12 +136,10 @@ class TestPaymentIntegration:
     def test_booking(self, db: Session, student_user: User, instructor_setup: tuple) -> Booking:
         """Create a test booking using repository."""
         instructor_user, instructor_profile, instructor_service = instructor_setup
-        booking_repo = RepositoryFactory.create_booking_repository(db)
-
-        booking = booking_repo.create(
-            id=str(ulid.ULID()),
+        booking = create_booking_pg_safe(
+            db,
             student_id=student_user.id,
-            instructor_id=instructor_user.id,  # User ID of instructor
+            instructor_id=instructor_user.id,
             instructor_service_id=instructor_service.id,
             booking_date=date.today(),
             start_time=time(14, 0),
@@ -149,6 +151,7 @@ class TestPaymentIntegration:
             location_type="student_home",
             status=BookingStatus.CONFIRMED,
         )
+        db.flush()
         return booking
 
     @patch("stripe.Customer.create")
@@ -604,13 +607,11 @@ class TestPaymentAnalytics:
         fee_ratio = (student_fee_pct + default_tier_pct) / (Decimal(1) + student_fee_pct)
 
         # Create test bookings and payments using repository
-        booking_repo = RepositoryFactory.create_booking_repository(db)
         booking_ids = []
         recorded_fees: list[int] = []
         for i in range(3):
-            # Create actual booking first using repository
-            booking = booking_repo.create(
-                id=str(ulid.ULID()),
+            booking = create_booking_pg_safe(
+                db,
                 student_id=student_user.id,
                 instructor_id=instructor_user.id,
                 instructor_service_id=instructor_service.id,
@@ -618,11 +619,12 @@ class TestPaymentAnalytics:
                 start_time=time(14, 0),
                 end_time=time(15, 0),
                 duration_minutes=60,
-                total_price=Decimal(str((i + 1) * 20)),  # $20, $40, $60
+                total_price=Decimal(str((i + 1) * 20)),
                 service_name="Piano Lessons",
-                hourly_rate=Decimal(str((i + 1) * 20)),  # $20, $40, $60 per hour
+                hourly_rate=Decimal(str((i + 1) * 20)),
                 location_type="student_home",
                 status=BookingStatus.CONFIRMED,
+                offset_index=i,
             )
             booking_ids.append(booking.id)
 
@@ -665,13 +667,10 @@ class TestPaymentAnalytics:
         fee_ratio = (student_fee_pct + default_tier_pct) / (Decimal(1) + student_fee_pct)
 
         # Create test payments for this instructor using repository
-        booking_repo = RepositoryFactory.create_booking_repository(db)
-
         recorded_fees: list[int] = []
         for i in range(2):
-            # Create actual booking first using repository
-            booking = booking_repo.create(
-                id=str(ulid.ULID()),
+            booking = create_booking_pg_safe(
+                db,
                 student_id=student_user.id,
                 instructor_id=instructor_user.id,
                 instructor_service_id=instructor_service.id,
@@ -679,11 +678,12 @@ class TestPaymentAnalytics:
                 start_time=time(14, 0),
                 end_time=time(15, 0),
                 duration_minutes=60,
-                total_price=Decimal(str((i + 1) * 30)),  # $30, $60
+                total_price=Decimal(str((i + 1) * 30)),
                 service_name="Piano Lessons",
-                hourly_rate=Decimal(str((i + 1) * 30)),  # $30, $60 per hour
+                hourly_rate=Decimal(str((i + 1) * 30)),
                 location_type="student_home",
                 status=BookingStatus.CONFIRMED,
+                offset_index=i,
             )
 
             amount = (i + 1) * 3000  # $30, $60

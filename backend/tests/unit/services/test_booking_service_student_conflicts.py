@@ -58,6 +58,10 @@ class TestStudentConflictValidation:
             )
         )
         repository.get_booking_with_details = Mock(return_value=None)
+        transaction_cm = MagicMock()
+        transaction_cm.__enter__.return_value = None
+        transaction_cm.__exit__.return_value = None
+        repository.transaction = Mock(return_value=transaction_cm)
         return repository
 
     @pytest.fixture
@@ -189,7 +193,7 @@ class TestStudentConflictValidation:
                 student, booking_data, selected_duration=booking_data.selected_duration
             )
 
-        assert str(exc_info.value) == "You already have a booking scheduled at this time"
+        assert str(exc_info.value) == "Student already has a booking that overlaps this time"
 
         # Verify student conflict check was called
         mock_repository.check_student_time_conflict.assert_called_once_with(
@@ -348,7 +352,7 @@ class TestStudentConflictValidation:
                 student2, booking_data2, selected_duration=booking_data2.selected_duration
             )
 
-        assert str(exc_info.value) == "This time slot conflicts with an existing booking"
+        assert str(exc_info.value) == "Instructor already has a booking that overlaps this time"
 
     @pytest.mark.asyncio
     async def test_student_conflict_edge_case_one_minute_overlap(
@@ -389,7 +393,7 @@ class TestStudentConflictValidation:
                 student, booking_data, selected_duration=booking_data.selected_duration
             )
 
-        assert str(exc_info.value) == "You already have a booking scheduled at this time"
+        assert str(exc_info.value) == "Student already has a booking that overlaps this time"
 
     @pytest.mark.asyncio
     async def test_cancelled_bookings_not_considered_conflicts(

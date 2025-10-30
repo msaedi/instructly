@@ -18,7 +18,8 @@ FIXED IN THIS VERSION:
 - Service now achieves 9/10 quality
 """
 
-from datetime import date, timedelta
+from collections import defaultdict
+from datetime import date, time, timedelta
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
@@ -31,6 +32,7 @@ from ..utils.time_helpers import string_to_time
 from .base import BaseService
 
 if TYPE_CHECKING:
+    from ..models.availability import AvailabilitySlot
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.week_operation_repository import WeekOperationRepository
     from .availability_service import AvailabilityService, TimeSlotResponse
@@ -118,15 +120,21 @@ class WeekOperationService(BaseService):
             self._validate_week_dates(from_week_start, to_week_start)
 
             with self.transaction():
-                # Get target week dates
+                # Get target week dates and existing slots (before clearing)
                 target_week_dates = self.calculate_week_dates(to_week_start)
+                existing_target_slots = self.repository.get_week_slots(
+                    instructor_id, to_week_start, to_week_start + timedelta(days=6)
+                )
 
                 # Clear existing slots
                 self._clear_week_slots(instructor_id, target_week_dates)
 
                 # Copy slots from source to target
                 created_count = self._copy_slots_between_weeks(
-                    instructor_id, from_week_start, to_week_start
+                    instructor_id,
+                    from_week_start,
+                    to_week_start,
+                    existing_target_slots=existing_target_slots,
                 )
 
             # Ensure SQLAlchemy session is fresh
@@ -252,7 +260,11 @@ class WeekOperationService(BaseService):
         return deleted_count
 
     def _copy_slots_between_weeks(
-        self, instructor_id: str, from_week_start: date, to_week_start: date
+        self,
+        instructor_id: str,
+        from_week_start: date,
+        to_week_start: date,
+        existing_target_slots: Optional[List["AvailabilitySlot"]] = None,
     ) -> int:
         """Copy slots from source week to target week."""
         # Get source week slots
@@ -265,30 +277,122 @@ class WeekOperationService(BaseService):
                 instructor_id, from_week_start, from_week_start + timedelta(days=6)
             )
 
+        existing_by_date: Dict[date, List["AvailabilitySlot"]] = defaultdict(list)
+        if existing_target_slots:
+            for slot in existing_target_slots:
+                existing_by_date[slot.specific_date].append(slot)
+
+        def _duration_minutes(start_time: time, end_time: time) -> int:
+            return (end_time.hour * 60 + end_time.minute) - (
+                start_time.hour * 60 + start_time.minute
+            )
+
         # Prepare new slots with updated dates
-        new_slots: List[Dict[str, Any]] = []
+        candidate_slots: List[Dict[str, Any]] = []
         for slot in source_slots:
             # Calculate the day offset
             day_offset = (slot.specific_date - from_week_start).days
             new_date = to_week_start + timedelta(days=day_offset)
 
-            new_slots.append(
+            candidate_slots.append(
                 {
                     "instructor_id": instructor_id,
                     "specific_date": new_date,
                     "start_time": slot.start_time,
                     "end_time": slot.end_time,
+                    "_duration": _duration_minutes(slot.start_time, slot.end_time),
                 }
             )
 
+        # Sort so that longer slots are evaluated first per date to prevent contained duplicates
+        candidate_slots.sort(
+            key=lambda slot: (slot["specific_date"], slot["start_time"], -slot["_duration"])
+        )
+
+        preserved_slots: List[Dict[str, Any]] = []
+        preserved_seen: Set[Tuple[date, time, time]] = set()
+        accepted_by_date: Dict[date, List[Dict[str, Any]]] = defaultdict(list)
+        final_new_slots: List[Dict[str, Any]] = []
+
+        for candidate in candidate_slots:
+            candidate_date = candidate["specific_date"]
+            start_time = candidate["start_time"]
+            end_time = candidate["end_time"]
+
+            # Skip if contained by existing slot (preserve existing instead of inserting)
+            containing_existing = next(
+                (
+                    slot
+                    for slot in existing_by_date.get(candidate_date, [])
+                    if slot.start_time <= start_time and end_time <= slot.end_time
+                ),
+                None,
+            )
+            if containing_existing:
+                key = (
+                    containing_existing.specific_date,
+                    containing_existing.start_time,
+                    containing_existing.end_time,
+                )
+                if key not in preserved_seen:
+                    preserved_seen.add(key)
+                    preserved_slots.append(
+                        {
+                            "instructor_id": containing_existing.instructor_id,
+                            "specific_date": containing_existing.specific_date,
+                            "start_time": containing_existing.start_time,
+                            "end_time": containing_existing.end_time,
+                        }
+                    )
+                continue
+
+            # Remove any existing slots fully contained by this new slot (they will be replaced)
+            if existing_by_date.get(candidate_date):
+                remaining = []
+                for slot in existing_by_date[candidate_date]:
+                    if start_time <= slot.start_time and slot.end_time <= end_time:
+                        continue
+                    remaining.append(slot)
+                existing_by_date[candidate_date] = remaining
+
+            # Skip if another candidate already covers this interval
+            if any(
+                accepted["start_time"] <= start_time and end_time <= accepted["end_time"]
+                for accepted in accepted_by_date[candidate_date]
+            ):
+                continue
+
+            accepted_by_date[candidate_date].append(candidate)
+            final_new_slots.append(candidate)
+
+        slots_to_create: List[Dict[str, Any]] = []
+        slots_to_create.extend(
+            {
+                "instructor_id": slot_data["instructor_id"],
+                "specific_date": slot_data["specific_date"],
+                "start_time": slot_data["start_time"],
+                "end_time": slot_data["end_time"],
+            }
+            for slot_data in preserved_slots
+        )
+        slots_to_create.extend(
+            {
+                "instructor_id": slot_data["instructor_id"],
+                "specific_date": slot_data["specific_date"],
+                "start_time": slot_data["start_time"],
+                "end_time": slot_data["end_time"],
+            }
+            for slot_data in final_new_slots
+        )
+
         # Bulk create new slots
-        if new_slots:
+        if slots_to_create:
             with availability_perf_span(
                 "repository.bulk_create_slots",
                 endpoint=COPY_WEEK_ENDPOINT,
                 instructor_id=instructor_id,
             ):
-                created_count = self.repository.bulk_create_slots(new_slots)
+                created_count = self.repository.bulk_create_slots(slots_to_create)
             self.logger.info(f"Created {created_count} slots in target week")
             return created_count
         else:

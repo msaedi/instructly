@@ -19,14 +19,15 @@ import logging
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import stripe
 
 from ..core.bgc_policy import is_verified, must_be_verified_for_public
 from ..core.enums import RoleName
 from ..core.exceptions import (
+    BookingConflictException,
     BusinessRuleException,
-    ConflictException,
     NotFoundException,
     ValidationException,
 )
@@ -50,6 +51,10 @@ if TYPE_CHECKING:
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
+
+INSTRUCTOR_CONFLICT_MESSAGE = "Instructor already has a booking that overlaps this time"
+STUDENT_CONFLICT_MESSAGE = "Student already has a booking that overlaps this time"
+GENERIC_CONFLICT_MESSAGE = "This time slot conflicts with an existing booking"
 
 
 class BookingService(BaseService):
@@ -103,6 +108,74 @@ class BookingService(BaseService):
             db
         )
 
+    def _calculate_and_validate_end_time(
+        self,
+        booking_date: date,
+        start_time: time,
+        selected_duration: int,
+    ) -> time:
+        """
+        Calculate the booking end time and enforce the half-open [start, end) rule.
+
+        Allows bookings that end exactly at midnight (treated as 24:00) but rejects
+        any ranges that otherwise wrap past the booking date.
+        """
+        start_datetime = datetime.combine(booking_date, start_time)
+        end_datetime = start_datetime + timedelta(minutes=selected_duration)
+        end_time = end_datetime.time()
+        midnight = time(0, 0)
+
+        if end_datetime.date() == booking_date:
+            if end_time <= start_time:
+                raise ValidationException("Booking end time must be after the start time")
+            return end_time
+
+        next_day = booking_date + timedelta(days=1)
+        if end_datetime.date() == next_day and end_time == midnight and start_time != midnight:
+            return end_time
+
+        raise ValidationException("Bookings must start and end on the same calendar day")
+
+    def _build_conflict_details(
+        self, booking_data: BookingCreate, student_id: Optional[str]
+    ) -> dict[str, str]:
+        """Construct structured conflict metadata for error responses."""
+        end_time_value = booking_data.end_time
+        return {
+            "instructor_id": booking_data.instructor_id,
+            "student_id": student_id or "",
+            "booking_date": booking_data.booking_date.isoformat(),
+            "start_time": booking_data.start_time.isoformat(),
+            "end_time": end_time_value.isoformat() if end_time_value else "",
+        }
+
+    def _resolve_integrity_conflict_message(
+        self, integrity_error: IntegrityError
+    ) -> Tuple[str, Optional[str]]:
+        """
+        Determine the appropriate conflict message and scope from a database IntegrityError.
+        """
+        constraint_name: str = ""
+        orig = getattr(integrity_error, "orig", None)
+        diag = getattr(orig, "diag", None)
+
+        if diag is not None:
+            constraint_name = getattr(diag, "constraint_name", "") or ""
+
+        if not constraint_name and orig is not None:
+            text = str(orig)
+            if "bookings_no_overlap_per_instructor" in text:
+                constraint_name = "bookings_no_overlap_per_instructor"
+            elif "bookings_no_overlap_per_student" in text:
+                constraint_name = "bookings_no_overlap_per_student"
+
+        if constraint_name == "bookings_no_overlap_per_instructor":
+            return INSTRUCTOR_CONFLICT_MESSAGE, "instructor"
+        if constraint_name == "bookings_no_overlap_per_student":
+            return STUDENT_CONFLICT_MESSAGE, "student"
+
+        return GENERIC_CONFLICT_MESSAGE, None
+
     @BaseService.measure_operation("create_booking")
     async def create_booking(
         self, student: User, booking_data: BookingCreate, selected_duration: int
@@ -146,21 +219,32 @@ class BookingService(BaseService):
             )
 
         # 3. Calculate end time for conflict checking
-        start_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
-        end_datetime = start_datetime + timedelta(minutes=selected_duration)
-        calculated_end_time = end_datetime.time()
-
-        # Update booking_data end_time for conflict checking
+        calculated_end_time = self._calculate_and_validate_end_time(
+            booking_data.booking_date,
+            booking_data.start_time,
+            selected_duration,
+        )
         booking_data.end_time = calculated_end_time
 
         # 4. Check conflicts and apply business rules
         await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
         # 5. Create the booking with transaction
-        with self.transaction():
-            booking = await self._create_booking_record(
-                student, booking_data, service, instructor_profile, selected_duration
-            )
+        transactional_repo = cast(Any, self.repository)
+        try:
+            with transactional_repo.transaction():
+                booking = await self._create_booking_record(
+                    student, booking_data, service, instructor_profile, selected_duration
+                )
+        except IntegrityError as exc:
+            message, scope = self._resolve_integrity_conflict_message(exc)
+            conflict_details = self._build_conflict_details(booking_data, student.id)
+            if scope:
+                conflict_details["conflict_scope"] = scope
+            raise BookingConflictException(
+                message=message,
+                details=conflict_details,
+            ) from exc
 
         # 6. Handle post-creation tasks
         await self._handle_post_booking_tasks(booking)
@@ -212,95 +296,107 @@ class BookingService(BaseService):
             )
 
         # 3. Calculate end time
-        start_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
-        end_datetime = start_datetime + timedelta(minutes=selected_duration)
-        calculated_end_time = end_datetime.time()
+        calculated_end_time = self._calculate_and_validate_end_time(
+            booking_data.booking_date,
+            booking_data.start_time,
+            selected_duration,
+        )
         booking_data.end_time = calculated_end_time
 
         # 4. Check conflicts and apply business rules
         await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
         # 5. Create booking with PENDING status initially
-        with self.transaction():
-            booking = await self._create_booking_record(
-                student, booking_data, service, instructor_profile, selected_duration
-            )
+        transactional_repo = cast(Any, self.repository)
+        try:
+            with transactional_repo.transaction():
+                booking = await self._create_booking_record(
+                    student, booking_data, service, instructor_profile, selected_duration
+                )
 
-            # If this booking was created via reschedule, persist linkage for analytics
-            if rescheduled_from_booking_id:
+                # If this booking was created via reschedule, persist linkage for analytics
+                if rescheduled_from_booking_id:
+                    try:
+                        updated_booking = self.repository.update(
+                            booking.id, rescheduled_from_booking_id=rescheduled_from_booking_id
+                        )
+                        if updated_booking is not None:
+                            booking = updated_booking
+                    except Exception:
+                        # Non-fatal; linkage is analytics-only
+                        pass
+
+                # Override status to PENDING until payment confirmed
+                booking.status = BookingStatus.PENDING
+                booking.payment_status = "pending_payment_method"
+
+                # 6. Create Stripe SetupIntent (with safe fallback for CI/mock environments)
+                stripe_service = StripeService(
+                    self.db,
+                    config_service=ConfigService(self.db),
+                    pricing_service=PricingService(self.db),
+                )
+
+                # Ensure customer exists (uses mock customer in non-configured environments)
+                stripe_customer = stripe_service.get_or_create_customer(student.id)
+
+                setup_intent: Any = None
                 try:
-                    # Use repository to persist linkage (repository handles flush within transaction)
-                    updated_booking = self.repository.update(
-                        booking.id, rescheduled_from_booking_id=rescheduled_from_booking_id
+                    # Attempt real Stripe call; tests patch this in CI
+                    setup_intent = stripe.SetupIntent.create(
+                        customer=stripe_customer.stripe_customer_id,
+                        payment_method_types=["card"],
+                        usage="off_session",  # Will be used for future off-session payments
+                        metadata={
+                            "booking_id": booking.id,
+                            "student_id": student.id,
+                            "instructor_id": booking_data.instructor_id,
+                            "amount_cents": int(booking.total_price * 100),
+                        },
                     )
-                    if updated_booking is not None:
-                        booking = updated_booking
-                except Exception:
-                    # Non-fatal; linkage is analytics-only
-                    pass
+                except Exception as e:
+                    # Any Stripe error – fall back to mock (non-network CI path)
+                    logger.warning(
+                        f"SetupIntent creation failed for booking {booking.id}: {e}. Falling back to mock.",
+                    )
+                    setup_intent = SimpleNamespace(
+                        id=f"seti_mock_{booking.id}",
+                        client_secret=f"seti_mock_secret_{booking.id}",
+                        status="requires_payment_method",
+                    )
 
-            # Override status to PENDING until payment confirmed
-            booking.status = BookingStatus.PENDING
-            booking.payment_status = "pending_payment_method"
+                # Store setup intent details
+                assert setup_intent is not None
+                booking.payment_intent_id = setup_intent.id
+                setattr(
+                    booking,
+                    "setup_intent_client_secret",
+                    getattr(setup_intent, "client_secret", None),
+                )
 
-            # 6. Create Stripe SetupIntent (with safe fallback for CI/mock environments)
-            stripe_service = StripeService(
-                self.db,
-                config_service=ConfigService(self.db),
-                pricing_service=PricingService(self.db),
-            )
+                # Create payment event using repository
+                from ..repositories.payment_repository import PaymentRepository
 
-            # Ensure customer exists (uses mock customer in non-configured environments)
-            stripe_customer = stripe_service.get_or_create_customer(student.id)
-
-            setup_intent: Any = None
-            try:
-                # Attempt real Stripe call; tests patch this in CI
-                setup_intent = stripe.SetupIntent.create(
-                    customer=stripe_customer.stripe_customer_id,
-                    payment_method_types=["card"],
-                    usage="off_session",  # Will be used for future off-session payments
-                    metadata={
-                        "booking_id": booking.id,
-                        "student_id": student.id,
-                        "instructor_id": booking_data.instructor_id,
-                        "amount_cents": int(booking.total_price * 100),
+                payment_repo = PaymentRepository(self.db)
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="setup_intent_created",
+                    event_data={
+                        "setup_intent_id": setup_intent.id,
+                        "status": setup_intent.status,
                     },
                 )
-            except Exception as e:
-                # Any Stripe error – fall back to mock (non-network CI path)
-                logger.warning(
-                    f"SetupIntent creation failed for booking {booking.id}: {e}. Falling back to mock.",
-                )
-                setup_intent = SimpleNamespace(
-                    id=f"seti_mock_{booking.id}",
-                    client_secret=f"seti_mock_secret_{booking.id}",
-                    status="requires_payment_method",
-                )
 
-            # Store setup intent details
-            assert setup_intent is not None
-            booking.payment_intent_id = setup_intent.id
-            setattr(
-                booking,
-                "setup_intent_client_secret",
-                getattr(setup_intent, "client_secret", None),
-            )
-
-            # Create payment event using repository
-            from ..repositories.payment_repository import PaymentRepository
-
-            payment_repo = PaymentRepository(self.db)
-            payment_repo.create_payment_event(
-                booking_id=booking.id,
-                event_type="setup_intent_created",
-                event_data={
-                    "setup_intent_id": setup_intent.id,
-                    "status": setup_intent.status,
-                },
-            )
-
-            # Transaction handles flush/commit automatically
+                # Transaction handles flush/commit automatically
+        except IntegrityError as exc:
+            message, scope = self._resolve_integrity_conflict_message(exc)
+            conflict_details = self._build_conflict_details(booking_data, student.id)
+            if scope:
+                conflict_details["conflict_scope"] = scope
+            raise BookingConflictException(
+                message=message,
+                details=conflict_details,
+            ) from exc
 
         self.log_operation("create_booking_with_payment_setup_completed", booking_id=booking.id)
         return booking
@@ -1139,7 +1235,14 @@ class BookingService(BaseService):
         )
 
         if existing_conflicts:
-            raise ConflictException("This time slot conflicts with an existing booking")
+            conflict_details = self._build_conflict_details(
+                booking_data, getattr(student, "id", None)
+            )
+            conflict_details["conflict_scope"] = "instructor"
+            raise BookingConflictException(
+                message=INSTRUCTOR_CONFLICT_MESSAGE,
+                details=conflict_details,
+            )
 
         # Check for student time conflicts
         if student:
@@ -1152,7 +1255,12 @@ class BookingService(BaseService):
             )
 
             if student_conflicts:
-                raise ConflictException("You already have a booking scheduled at this time")
+                conflict_details = self._build_conflict_details(booking_data, student.id)
+                conflict_details["conflict_scope"] = "student"
+                raise BookingConflictException(
+                    message=STUDENT_CONFLICT_MESSAGE,
+                    details=conflict_details,
+                )
 
         # Check minimum advance booking time
         # For instructors with >=24 hour min advance, enforce on date granularity to avoid HH:MM boundary flakiness
@@ -1196,10 +1304,9 @@ class BookingService(BaseService):
         Returns:
             Created booking instance
         """
-        # Calculate end time based on selected duration
-        start_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
-        end_datetime = start_datetime + timedelta(minutes=selected_duration)
-        calculated_end_time = end_datetime.time()
+        if booking_data.end_time is None:
+            raise ValidationException("End time must be calculated before creating a booking")
+        end_time_value = booking_data.end_time
 
         # Calculate pricing based on selected duration
         total_price = service.session_price(selected_duration)
@@ -1214,7 +1321,7 @@ class BookingService(BaseService):
             instructor_service_id=service.id,
             booking_date=booking_data.booking_date,
             start_time=booking_data.start_time,
-            end_time=calculated_end_time,
+            end_time=end_time_value,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=total_price,

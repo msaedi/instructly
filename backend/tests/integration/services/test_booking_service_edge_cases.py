@@ -678,9 +678,7 @@ class TestStudentDoubleBookingPrevention:
             )
 
         # Verify the error message
-        assert "already have a booking" in str(exc_info.value) or "conflicts with an existing booking" in str(
-            exc_info.value
-        )
+        assert "Student already has a booking that overlaps this time" in str(exc_info.value)
 
         # Verify only the first booking exists
         student_bookings = booking_service.get_bookings_for_user(test_student)

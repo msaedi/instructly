@@ -32,13 +32,38 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.services.booking_service import BookingService
+from app.services.cache_service import CacheService
 from app.services.instructor_service import InstructorService
 from app.services.permission_service import PermissionService
+
+try:  # pragma: no cover - support running from backend/ or repo root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
 
 try:  # pragma: no cover - fallback for direct backend/ test runs
     from backend.tests.conftest import seed_service_areas_from_legacy
 except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import seed_service_areas_from_legacy
+
+
+@pytest.fixture(autouse=True)
+def _clear_service_cache_namespace(db: Session) -> None:
+    cache = CacheService(db)
+    prefixes = [
+        "catalog:services:",
+        "catalog:top-services:",
+        "catalog:all-services",
+        "catalog:kids-available",
+        "instructor:profile:",
+        "instructors:list:",
+    ]
+    for prefix in prefixes:
+        try:
+            cache.clear_prefix(prefix)
+        except Exception:
+            # Ignore cache backends that do not support the operation
+            pass
 
 
 class TestCircularDependencyEdgeCases:
@@ -88,7 +113,8 @@ class TestCircularDependencyEdgeCases:
             db.commit()
 
         # Create booking using time-based approach (Work Stream #9)
-        booking = Booking(
+        booking = create_booking_pg_safe(
+            db,
             student_id=student_user.id,
             instructor_id=instructor_user.id,
             instructor_service_id=service.id,
@@ -103,7 +129,6 @@ class TestCircularDependencyEdgeCases:
             location_type="neutral",
             meeting_location="Online",
         )
-        db.add(booking)
         db.commit()
 
         # Verify booking was created successfully
@@ -125,7 +150,8 @@ class TestCircularDependencyEdgeCases:
 
         # Create a booking at the same time (not referencing the slot)
         service = instructor_user.instructor_profile.instructor_services[0]
-        booking = Booking(
+        booking = create_booking_pg_safe(
+            db,
             student_id=student_user.id,
             instructor_id=instructor_user.id,
             instructor_service_id=service.id,
@@ -138,7 +164,6 @@ class TestCircularDependencyEdgeCases:
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
         )
-        db.add(booking)
         db.commit()
 
         slot_id = slot.id
@@ -246,7 +271,8 @@ class TestCircularDependencyEdgeCases:
         # Create multiple bookings at the same time (one confirmed, one cancelled)
         service = instructor_user.instructor_profile.instructor_services[0]
 
-        booking1 = Booking(
+        booking1 = create_booking_pg_safe(
+            db,
             student_id=student_user.id,
             instructor_id=instructor_user.id,
             instructor_service_id=service.id,
@@ -260,7 +286,8 @@ class TestCircularDependencyEdgeCases:
             status=BookingStatus.CONFIRMED,
         )
 
-        booking2 = Booking(
+        create_booking_pg_safe(
+            db,
             student_id=student_user.id,
             instructor_id=instructor_user.id,
             instructor_service_id=service.id,
@@ -274,7 +301,6 @@ class TestCircularDependencyEdgeCases:
             status=BookingStatus.CANCELLED,
         )
 
-        db.add_all([booking1, booking2])
         db.commit()
 
         # Query active bookings by time (not by slot_id)

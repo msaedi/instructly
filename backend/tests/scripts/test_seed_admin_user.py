@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import os
 
 from scripts.seed_data import DEFAULT_ADMIN_PASSWORD, seed_admin_user
 from sqlalchemy import create_engine, select
@@ -12,11 +13,17 @@ from app.models.user import User
 
 
 def _setup_session():
+    previous_dialect = os.environ.get("DB_DIALECT")
+    os.environ["DB_DIALECT"] = "sqlite"
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with Session(engine) as session:
         session.add(Role(name=RoleName.ADMIN.value, description="Admin role"))
         session.commit()
+    if previous_dialect is not None:
+        os.environ["DB_DIALECT"] = previous_dialect
+    else:
+        os.environ.pop("DB_DIALECT", None)
     return engine
 
 

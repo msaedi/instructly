@@ -11,6 +11,7 @@ Tests complex scenarios including:
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, time, timedelta, timezone
+from typing import Any, Dict
 
 import pytest
 from sqlalchemy import and_
@@ -23,6 +24,11 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
+
+try:  # pragma: no cover - allow execution from repo root or backend/
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
 
 try:  # pragma: no cover - fallback for running tests from backend/
     from backend.tests.conftest import add_service_areas_for_boroughs
@@ -41,6 +47,45 @@ def _safe_start_end(base: datetime, duration_minutes: int = 60) -> tuple[time, t
         start_dt = start_dt.replace(hour=21, minute=0)
         end_dt = start_dt + timedelta(minutes=duration_minutes)
     return start_dt.time(), end_dt.time(), start_dt.date()
+
+
+def _create_test_booking(
+    session: Session,
+    *,
+    instructor_id: str,
+    student_id: str,
+    service_id: str,
+    booking_date: date,
+    start_time: time,
+    end_time: time,
+    status: BookingStatus = BookingStatus.CONFIRMED,
+    allow_overlap: bool = False,
+    cancel_duplicate: bool = False,
+    **extra_fields: Any,
+) -> Booking:
+    defaults: Dict[str, Any] = {
+        "service_name": extra_fields.pop("service_name", "Test Service"),
+        "hourly_rate": extra_fields.pop("hourly_rate", 50.0),
+        "total_price": extra_fields.pop("total_price", 50.0),
+        "duration_minutes": extra_fields.pop("duration_minutes", 60),
+        "location_type": extra_fields.pop("location_type", "neutral"),
+        "meeting_location": extra_fields.pop("meeting_location", "Online"),
+    }
+    defaults.update(extra_fields)
+
+    return create_booking_pg_safe(
+        session,
+        student_id=student_id,
+        instructor_id=instructor_id,
+        instructor_service_id=service_id,
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        status=status,
+        allow_overlap=allow_overlap,
+        cancel_duplicate=cancel_duplicate,
+        **defaults,
+    )
 
 
 @pytest.fixture
@@ -137,20 +182,15 @@ class TestBookingRepositoryConcurrency:
             BookingRepository(new_session)
 
             try:
-                booking = Booking(
+                _create_test_booking(
+                    new_session,
                     instructor_id=test_instructor.id,
                     student_id=student_id,
+                    service_id=test_service.id,
                     booking_date=booking_date,
                     start_time=start_time,
                     end_time=end_time,
-                    status=BookingStatus.CONFIRMED,
-                    instructor_service_id=test_service.id,
-                    service_name="Test Service",
-                    hourly_rate=50.0,
-                    total_price=50.0,
-                    duration_minutes=60,
                 )
-                new_session.add(booking)
                 new_session.commit()
                 return True, attempt_num
             except Exception:
@@ -188,20 +228,15 @@ class TestBookingRepositoryConcurrency:
         booking_date = date.today() + timedelta(days=15)
 
         # Create base booking
-        base_booking = Booking(
+        _create_test_booking(
+            db,
             instructor_id=test_instructor.id,
             student_id=test_student.id,
+            service_id=test_service.id,
             booking_date=booking_date,
             start_time=time(10, 0),
             end_time=time(11, 0),
-            status=BookingStatus.CONFIRMED,
-            instructor_service_id=test_service.id,
-            service_name="Test Service",
-            hourly_rate=50.0,
-            total_price=50.0,
-            duration_minutes=60,
         )
-        db.add(base_booking)
         db.commit()
 
         # Test cases for overlap detection
@@ -237,20 +272,16 @@ class TestBookingRepositoryConcurrency:
         bookings = []
 
         for i, status in enumerate(BookingStatus):
-            booking = Booking(
+            booking = _create_test_booking(
+                db,
                 instructor_id=test_instructor.id,
                 student_id=test_student.id,
+                service_id=test_service.id,
                 booking_date=booking_date,
                 start_time=time(9 + i, 0),
                 end_time=time(10 + i, 0),
                 status=status,
-                instructor_service_id=test_service.id,
-                service_name="Test Service",
-                hourly_rate=50.0,
-                total_price=50.0,
-                duration_minutes=60,
             )
-            db.add(booking)
             bookings.append(booking)
 
         db.commit()
@@ -327,20 +358,15 @@ class TestBookingRepositoryEdgeCases:
         current_hour = 6  # Start at 6 AM
 
         while current_hour < 22:  # Until 10 PM
-            booking = Booking(
+            _create_test_booking(
+                db,
                 instructor_id=test_instructor.id,
                 student_id=test_student.id,
+                service_id=test_service.id,
                 booking_date=booking_date,
                 start_time=time(current_hour, 0),
                 end_time=time(current_hour + 1, 0),
-                status=BookingStatus.CONFIRMED,
-                instructor_service_id=test_service.id,
-                service_name="Test Service",
-                hourly_rate=50.0,
-                total_price=50.0,
-                duration_minutes=60,
             )
-            db.add(booking)
             bookings_created += 1
             current_hour += 1
 
@@ -371,36 +397,27 @@ class TestBookingRepositoryEdgeCases:
         booking_date = date.today() + timedelta(days=30)
 
         # Test midnight booking
-        midnight_booking = Booking(
+        _create_test_booking(
+            db,
             instructor_id=test_instructor.id,
             student_id=test_student.id,
+            service_id=test_service.id,
             booking_date=booking_date,
             start_time=time(0, 0),
             end_time=time(1, 0),
-            status=BookingStatus.CONFIRMED,
-            instructor_service_id=test_service.id,
-            service_name="Test Service",
-            hourly_rate=50.0,
-            total_price=50.0,
-            duration_minutes=60,
         )
-        db.add(midnight_booking)
 
         # Test late night booking
-        late_booking = Booking(
+        _create_test_booking(
+            db,
             instructor_id=test_instructor.id,
             student_id=test_student.id,
+            service_id=test_service.id,
             booking_date=booking_date,
             start_time=time(23, 0),
             end_time=time(23, 59),
-            status=BookingStatus.CONFIRMED,
-            instructor_service_id=test_service.id,
-            service_name="Test Service",
-            hourly_rate=50.0,
-            total_price=50.0,
             duration_minutes=59,
         )
-        db.add(late_booking)
         db.commit()
 
         # Verify both bookings
@@ -426,20 +443,19 @@ class TestBookingRepositoryEdgeCases:
         ]
 
         for start, end in time_intervals:
-            booking = Booking(
+            duration_minutes = int(
+                (datetime.combine(date.today(), end) - datetime.combine(date.today(), start)).total_seconds() // 60
+            )
+            _create_test_booking(
+                db,
                 instructor_id=test_instructor.id,
                 student_id=test_student.id,
+                service_id=test_service.id,
                 booking_date=booking_date,
                 start_time=start,
                 end_time=end,
-                status=BookingStatus.CONFIRMED,
-                instructor_service_id=test_service.id,
-                service_name="Test Service",
-                hourly_rate=50.0,
-                total_price=50.0,
-                duration_minutes=60,
+                duration_minutes=duration_minutes,
             )
-            db.add(booking)
 
         db.commit()
 
@@ -463,54 +479,42 @@ class TestBookingRepositoryEdgeCases:
 
         # Past bookings
         for i in range(5):
-            booking = Booking(
+            _create_test_booking(
+                db,
                 instructor_id=test_instructor.id,
                 student_id=test_student.id,
+                service_id=test_service.id,
                 booking_date=today - timedelta(days=i + 1),
                 start_time=time(10, 0),
                 end_time=time(11, 0),
                 status=BookingStatus.COMPLETED,
-                instructor_service_id=test_service.id,
-                service_name="Test Service",
-                hourly_rate=50.0,
-                total_price=50.0,
-                duration_minutes=60,
             )
-            db.add(booking)
 
         # Future bookings
         for i in range(3):
-            booking = Booking(
+            _create_test_booking(
+                db,
                 instructor_id=test_instructor.id,
                 student_id=test_student.id,
+                service_id=test_service.id,
                 booking_date=today + timedelta(days=i + 1),
                 start_time=time(14, 0),
                 end_time=time(15, 0),
                 status=BookingStatus.CONFIRMED,
-                instructor_service_id=test_service.id,
-                service_name="Test Service",
-                hourly_rate=50.0,
-                total_price=50.0,
-                duration_minutes=60,
             )
-            db.add(booking)
 
         # Cancelled bookings (should not appear in stats)
         for i in range(2):
-            booking = Booking(
+            _create_test_booking(
+                db,
                 instructor_id=test_instructor.id,
                 student_id=test_student.id,
+                service_id=test_service.id,
                 booking_date=today,
                 start_time=time(16 + i, 0),
                 end_time=time(17 + i, 0),
                 status=BookingStatus.CANCELLED,
-                instructor_service_id=test_service.id,
-                service_name="Test Service",
-                hourly_rate=50.0,
-                total_price=50.0,
-                duration_minutes=60,
             )
-            db.add(booking)
 
         db.commit()
 
@@ -539,20 +543,22 @@ class TestBookingRepositoryEdgeCases:
         ]
 
         for start, end in existing_bookings:
-            booking = Booking(
+            duration_minutes = int(
+                (datetime.combine(booking_date, end) - datetime.combine(booking_date, start)).total_seconds() // 60
+            )
+            _create_test_booking(
+                db,
                 instructor_id=test_instructor.id,
                 student_id=test_student.id,
+                service_id=test_service.id,
                 booking_date=booking_date,
                 start_time=start,
                 end_time=end,
                 status=BookingStatus.CONFIRMED,
-                instructor_service_id=test_service.id,
-                service_name="Test Service",
-                hourly_rate=50.0,
-                total_price=50.0,
-                duration_minutes=60,
+                duration_minutes=duration_minutes,
+                allow_overlap=False,
+                cancel_duplicate=False,
             )
-            db.add(booking)
 
         db.commit()
 
@@ -597,20 +603,18 @@ class TestBookingRepositoryEdgeCases:
                 if end_minutes >= 60:
                     end = time(9 + end_minutes // 60, end_minutes % 60, 0)
 
-                booking = Booking(
+                _create_test_booking(
+                    db,
                     instructor_id=test_instructor.id,
                     student_id=test_student.id,
+                    service_id=test_service.id,
                     booking_date=booking_date,
                     start_time=start,
                     end_time=end,
                     status=BookingStatus.CONFIRMED if day_offset < 5 else BookingStatus.PENDING,
-                    instructor_service_id=test_service.id,
-                    service_name="Test Service",
-                    hourly_rate=50.0,
-                    total_price=50.0,
                     duration_minutes=15,
+                    offset_index=(day_offset * 100) + minutes,
                 )
-                db.add(booking)
 
         db.commit()
 
@@ -646,24 +650,25 @@ class TestBookingRepositoryEdgeCases:
         ]
 
         created_bookings = []
-        for hours_from_now, _ in bookings_data:
+        for idx, (hours_from_now, _) in enumerate(bookings_data):
             booking_datetime = now + timedelta(hours=hours_from_now)
             start_time, end_time, booking_date = _safe_start_end(booking_datetime, duration_minutes=60)
 
-            booking = Booking(
-                instructor_id=test_instructor.id,
+            booking = create_booking_pg_safe(
+                db,
                 student_id=test_student.id,
+                instructor_id=test_instructor.id,
+                instructor_service_id=test_service.id,
                 booking_date=booking_date,
                 start_time=start_time,
                 end_time=end_time,
                 status=BookingStatus.CONFIRMED,
-                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
                 duration_minutes=60,
+                offset_index=idx,
             )
-            db.add(booking)
             created_bookings.append((booking, hours_from_now))
 
         db.commit()

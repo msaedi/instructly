@@ -221,10 +221,12 @@ class BaseRepository(IRepository[T]):
             self.db.add(entity)
             self.db.flush()  # Get ID without committing
             return entity
-        except IntegrityError as e:
-            self.logger.error(f"Integrity error creating {self.model.__name__}: {str(e)}")
+        except IntegrityError as exc:
+            self.logger.error(
+                "Integrity error creating %s: %s", self.model.__name__, exc, exc_info=True
+            )
             self.db.rollback()
-            raise RepositoryException(f"Integrity constraint violated: {str(e)}")
+            raise RepositoryException(f"Integrity constraint violated: {exc}") from exc
         except SQLAlchemyError as e:
             self.logger.error(f"Error creating {self.model.__name__}: {str(e)}")
             self.db.rollback()

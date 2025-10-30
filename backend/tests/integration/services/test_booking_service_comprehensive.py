@@ -206,7 +206,9 @@ class TestBookingServiceCreation:
             location_type="neutral",
         )
 
-        with pytest.raises(ConflictException, match="time slot conflicts"):
+        with pytest.raises(
+            ConflictException, match="Instructor already has a booking that overlaps this time"
+        ):
             await booking_service.create_booking(
                 another_student, booking_data, selected_duration=booking_data.selected_duration
             )

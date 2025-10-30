@@ -77,6 +77,10 @@ class TestBookingServiceUnit:
         repository.get_instructor_bookings.return_value = []
         repository.get_instructor_bookings_for_stats.return_value = []
         repository.get_bookings_for_date.return_value = []
+        transaction_cm = MagicMock()
+        transaction_cm.__enter__.return_value = None
+        transaction_cm.__exit__.return_value = None
+        repository.transaction = MagicMock(return_value=transaction_cm)
         return repository
 
     @pytest.fixture
@@ -350,7 +354,7 @@ class TestBookingServiceUnit:
             return_value=(mock_service, mock_instructor_profile)
         )
 
-        with pytest.raises(ConflictException, match="This time slot conflicts with an existing booking"):
+        with pytest.raises(ConflictException, match="Instructor already has a booking that overlaps this time"):
             await booking_service.create_booking(
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )

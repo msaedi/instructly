@@ -821,7 +821,10 @@ def upgrade() -> None:
     op.create_check_constraint(
         "check_time_order",
         "bookings",
-        "start_time < end_time",
+        "CASE "
+        "WHEN end_time = TIME '00:00:00' AND start_time <> TIME '00:00:00' THEN TRUE "
+        "ELSE start_time < end_time "
+        "END",
     )
 
     # Add check constraint for message content length

@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from typing import Optional
 
 import pytest
 
@@ -13,6 +14,11 @@ from app.models.booking import Booking, BookingStatus
 from app.schemas.pricing_preview import PricingPreviewIn
 from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 from app.services.pricing_service import PricingService
+
+try:  # pragma: no cover - allow running from backend/ root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
 
 
 def _create_booking(
@@ -26,6 +32,7 @@ def _create_booking(
     location_type: str = "student_home",
     status: BookingStatus = BookingStatus.CONFIRMED,
     completed_at: datetime | None = None,
+    offset_index: Optional[int] = None,
 ) -> Booking:
     """Persist and return a booking tailored for pricing tests."""
 
@@ -36,9 +43,10 @@ def _create_booking(
         hourly_rate_decimal * Decimal(duration_minutes) / Decimal(60)
     ).quantize(Decimal("0.01"))
 
-    booking = Booking(
+    booking = create_booking_pg_safe(
+        db,
         student_id=student.id,
-        instructor_id=instructor.id,
+       instructor_id=instructor.id,
         instructor_service_id=service.id,
         booking_date=date.today(),
         start_time=start_time,
@@ -47,15 +55,15 @@ def _create_booking(
         hourly_rate=hourly_rate_decimal,
         total_price=total_price,
         duration_minutes=duration_minutes,
-        status=status.value,
+        status=status,
         location_type=location_type,
+        offset_index=offset_index,
     )
 
     if status is BookingStatus.COMPLETED:
         booking.completed_at = completed_at or datetime.now(timezone.utc)
+        db.flush()
 
-    db.add(booking)
-    db.flush()
     db.refresh(booking)
     return booking
 
@@ -99,6 +107,7 @@ def test_pricing_service_enforces_price_floor(db, pricing_service, test_instruct
         student=test_student,
         service=instructor_service,
         hourly_rate=Decimal("80.00"),
+        offset_index=1,
     )
 
     result = pricing_service.compute_booking_pricing(valid_booking.id)
@@ -134,6 +143,7 @@ def test_pricing_service_enforces_prorated_in_person_floor(
         service=instructor_service,
         hourly_rate=Decimal("80.00"),
         duration_minutes=45,
+        offset_index=1,
     )
 
     result = pricing_service.compute_booking_pricing(valid_booking.id)
@@ -171,6 +181,7 @@ def test_pricing_service_enforces_remote_floor(
         hourly_rate=Decimal("60.00"),
         duration_minutes=30,
         location_type="online",
+        offset_index=1,
     )
 
     result = pricing_service.compute_booking_pricing(valid_remote.id)
@@ -232,6 +243,7 @@ def test_pricing_service_tier_pct_at_five_completed_sessions(
             hourly_rate=Decimal("90.00"),
             status=BookingStatus.COMPLETED,
             completed_at=datetime.now(timezone.utc) - timedelta(days=offset),
+            offset_index=offset * 70,
         )
 
     upcoming_booking = _create_booking(
@@ -240,6 +252,7 @@ def test_pricing_service_tier_pct_at_five_completed_sessions(
         student=test_student,
         service=instructor_service,
         hourly_rate=Decimal("90.00"),
+        offset_index=400,
     )
 
     result = pricing_service.compute_booking_pricing(upcoming_booking.id)
@@ -269,6 +282,7 @@ def test_pricing_service_tier_pct_at_eleven_completed_sessions(
             hourly_rate=Decimal("95.00"),
             status=BookingStatus.COMPLETED,
             completed_at=datetime.now(timezone.utc) - timedelta(days=offset),
+            offset_index=offset * 70,
         )
 
     upcoming_booking = _create_booking(
@@ -277,6 +291,7 @@ def test_pricing_service_tier_pct_at_eleven_completed_sessions(
         student=test_student,
         service=instructor_service,
         hourly_rate=Decimal("95.00"),
+        offset_index=900,
     )
 
     result = pricing_service.compute_booking_pricing(upcoming_booking.id)
@@ -391,6 +406,7 @@ def test_pricing_service_respects_config_overrides(
         service=instructor_service,
         hourly_rate=Decimal("64.99"),
         location_type="online",
+        offset_index=10,
     )
 
     with pytest.raises(BusinessRuleException) as exc:
@@ -406,6 +422,7 @@ def test_pricing_service_respects_config_overrides(
         service=instructor_service,
         hourly_rate=Decimal("65.00"),
         location_type="online",
+        offset_index=11,
     )
 
     result = pricing_service.compute_booking_pricing(meets_new_floor.id)
@@ -433,6 +450,7 @@ def test_pricing_service_promotes_to_lower_tier(db, pricing_service, test_instru
             hourly_rate=Decimal("90.00"),
             status=BookingStatus.COMPLETED,
             completed_at=completed_at,
+            offset_index=offset * 70,
         )
 
     pending_booking = _create_booking(
@@ -441,6 +459,7 @@ def test_pricing_service_promotes_to_lower_tier(db, pricing_service, test_instru
         student=test_student,
         service=instructor_service,
         hourly_rate=Decimal("90.00"),
+        offset_index=450,
     )
 
     result = pricing_service.compute_booking_pricing(pending_booking.id)
@@ -465,6 +484,7 @@ def test_pricing_service_limits_tier_demotion(db, pricing_service, test_instruct
             hourly_rate=Decimal("100.00"),
             status=BookingStatus.COMPLETED,
             completed_at=completed_at,
+            offset_index=offset * 70,
         )
 
     upcoming_booking = _create_booking(
@@ -473,6 +493,7 @@ def test_pricing_service_limits_tier_demotion(db, pricing_service, test_instruct
         student=test_student,
         service=instructor_service,
         hourly_rate=Decimal("100.00"),
+        offset_index=420,
     )
 
     result = pricing_service.compute_booking_pricing(upcoming_booking.id)

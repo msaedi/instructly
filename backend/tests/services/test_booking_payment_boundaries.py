@@ -10,12 +10,17 @@ from tests.utils.time import (
 import ulid
 
 from app.core.enums import RoleName
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.rbac import Role
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.services.booking_service import BookingService
+
+try:  # pragma: no cover - allow running from backend/ root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
 
 
 @pytest.mark.asyncio
@@ -105,8 +110,8 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
     # 23h59m ⇒ authorizing
     start1 = start_just_under_24h()
     bd1, st1, et1 = booking_fields_from_start(start1)
-    b1 = Booking(
-        id=str(ulid.ULID()),
+    b1 = create_booking_pg_safe(
+        db,
         student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=instr_service.id,
@@ -119,17 +124,16 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         duration_minutes=60,
         status=BookingStatus.PENDING,
         payment_status="pending_payment_method",
+        offset_index=0,
     )
-    db.add(b1)
-    db.flush()
     c1 = await svc.confirm_booking_payment(b1.id, student, "pm_x", False)
     assert c1.payment_status == "authorizing"
 
     # 24h01m ⇒ scheduled
     start2 = start_just_over_24h()
     bd2, st2, et2 = booking_fields_from_start(start2)
-    b2 = Booking(
-        id=str(ulid.ULID()),
+    b2 = create_booking_pg_safe(
+        db,
         student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=instr_service.id,
@@ -142,8 +146,7 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         duration_minutes=60,
         status=BookingStatus.PENDING,
         payment_status="pending_payment_method",
+        offset_index=1,
     )
-    db.add(b2)
-    db.flush()
     c2 = await svc.confirm_booking_payment(b2.id, student, "pm_x", False)
     assert c2.payment_status == "scheduled"

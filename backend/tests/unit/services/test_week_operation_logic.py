@@ -265,7 +265,13 @@ class TestCopyWeekLogic:
 
         # Verify calls with single-table design
         service.availability_repository.delete_slots_by_dates.assert_called_once()
-        service.repository.get_week_slots.assert_called_once()
+        assert service.repository.get_week_slots.call_count == 2
+        service.repository.get_week_slots.assert_any_call(
+            instructor_id, from_week, from_week + timedelta(days=6)
+        )
+        service.repository.get_week_slots.assert_any_call(
+            instructor_id, to_week, to_week + timedelta(days=6)
+        )
         service.repository.bulk_create_slots.assert_called_once()
 
         # Result should have slot information

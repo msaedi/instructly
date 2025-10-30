@@ -273,7 +273,7 @@ class TestStudentConflictValidationIntegration:
                 student_user, booking2_data, selected_duration=booking2_data.selected_duration
             )
 
-        assert str(exc_info.value) == "You already have a booking scheduled at this time"
+        assert str(exc_info.value) == "Student already has a booking that overlaps this time"
 
     @pytest.mark.asyncio
     async def test_student_can_book_adjacent_sessions_integration(
@@ -426,7 +426,7 @@ class TestStudentConflictValidationIntegration:
                 student2, booking2_data, selected_duration=booking2_data.selected_duration
             )
 
-        assert str(exc_info.value) == "This time slot conflicts with an existing booking"
+        assert str(exc_info.value) == "Instructor already has a booking that overlaps this time"
 
     @pytest.mark.asyncio
     async def test_student_can_book_after_cancellation_integration(

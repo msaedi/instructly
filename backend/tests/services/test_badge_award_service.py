@@ -14,6 +14,11 @@ from app.repositories.badge_repository import BadgeRepository
 from app.services.badge_award_service import BadgeAwardService
 from app.services.student_badge_service import StudentBadgeService
 
+try:  # pragma: no cover - allow running from backend/ or repo root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
+
 
 @pytest.fixture(scope="function")
 def core_badges_seeded(db):
@@ -151,6 +156,9 @@ def _create_instructor_service(db, instructor: User, category_slug: str = "music
     return service, category.slug
 
 
+_BOOKING_OFFSET_COUNTER = 0
+
+
 def _create_booking(
     db,
     student: User,
@@ -159,7 +167,12 @@ def _create_booking(
     booked_at: datetime,
     completed_at: datetime,
 ) -> Booking:
-    booking = Booking(
+    global _BOOKING_OFFSET_COUNTER
+    offset_minutes = (_BOOKING_OFFSET_COUNTER * 3) % 180
+    _BOOKING_OFFSET_COUNTER += 1
+
+    booking = create_booking_pg_safe(
+        db,
         student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=instructor_service.id,
@@ -171,14 +184,13 @@ def _create_booking(
         total_price=50,
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
-        confirmed_at=booked_at,
+        offset_index=offset_minutes,
     )
-    db.add(booking)
-    db.flush()
 
     booking.status = BookingStatus.COMPLETED
+    booking.confirmed_at = booked_at
     booking.completed_at = completed_at
-    db.flush()  # Flush the COMPLETED status so queries can see it
+    db.flush()
     return booking
 
 

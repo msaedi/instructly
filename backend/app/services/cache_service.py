@@ -512,6 +512,23 @@ class CacheService(BaseService):
             self._stats["errors"] += 1
             return 0
 
+    @BaseService.measure_operation("cache_clear_prefix")
+    def clear_prefix(self, prefix: str) -> int:
+        """
+        Delete all keys that begin with the supplied prefix.
+
+        Args:
+            prefix: Cache key prefix (e.g., "catalog:services:")
+
+        Returns:
+            Number of keys removed.
+        """
+        if not prefix:
+            return 0
+
+        pattern = prefix if prefix.endswith("*") else f"{prefix}*"
+        return self.delete_pattern(pattern)
+
     def _delete_pattern_redis(self, pattern: str) -> int:
         """Delete pattern from Redis using SCAN."""
         count = 0

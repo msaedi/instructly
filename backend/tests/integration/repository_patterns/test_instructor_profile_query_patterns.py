@@ -22,6 +22,11 @@ from app.models.region_boundary import RegionBoundary
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 
+try:  # pragma: no cover - allow execution from backend/ or repo root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
+
 try:  # pragma: no cover - fallback when tests run from backend/
     from backend.tests.conftest import add_service_areas_for_boroughs  # noqa: I001
     from backend.tests.conftest import seed_service_areas_from_legacy  # noqa: I001
@@ -420,20 +425,21 @@ class TestInstructorProfileQueryPatterns:
             )
 
             for j in range(i + 1):  # Different number of bookings
-                booking = Booking(
+                create_booking_pg_safe(
+                    db,
                     instructor_id=instructor_id,
                     student_id=test_student.id,
+                    instructor_service_id=service.id,
                     booking_date=date.today() - timedelta(days=j),
                     start_time=time(10, 0),
                     end_time=time(11, 0),
                     status=BookingStatus.COMPLETED,
-                    instructor_service_id=service.id,
                     service_name="Test Service",
                     hourly_rate=50.0,
                     total_price=50.0,
                     duration_minutes=60,
+                    offset_index=j,
                 )
-                db.add(booking)
         db.commit()
 
         # Query with booking statistics

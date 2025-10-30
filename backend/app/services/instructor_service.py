@@ -11,6 +11,7 @@ Now tracks timing for all instructor operations to earn those MEGAWATTS! ⚡
 
 from datetime import datetime, timezone
 import logging
+import os
 from typing import Any, Dict, List, Optional, Sequence, Set, cast
 
 import anyio
@@ -807,6 +808,10 @@ class InstructorService(BaseService):
 
         # Clear any listing caches
         self.cache_service.delete_pattern("instructors:list:*")
+        self.cache_service.clear_prefix("catalog:services:")
+        self.cache_service.clear_prefix("catalog:top-services:")
+        self.cache_service.clear_prefix("catalog:all-services")
+        self.cache_service.clear_prefix("catalog:kids-available")
 
         logger.debug(f"Invalidated caches for instructor {user_id}")
 
@@ -829,10 +834,12 @@ class InstructorService(BaseService):
         """
         # Try cache first (5-minute TTL for analytics freshness)
         cache_key = f"catalog:services:{category_slug or 'all'}"
+        debug_mode = os.getenv("AVAILABILITY_PERF_DEBUG") == "1"
         if self.cache_service:
             cached_result = self.cache_service.get(cache_key)
             if cached_result:
-                logger.debug(f"Cache hit for catalog services: {cache_key}")
+                if debug_mode:
+                    logger.debug("[catalog] cache hit for %s", cache_key)
                 return cast(JsonList, cached_result)
 
         # Get category ID if slug provided
@@ -851,10 +858,14 @@ class InstructorService(BaseService):
         # Convert to dictionaries (no N+1 queries since categories are loaded)
         result = [self._catalog_service_to_dict(service) for service in services]
 
+        if debug_mode:
+            logger.debug("[catalog] cache miss for %s; storing %d entries", cache_key, len(result))
+
         # Cache for 5 minutes (300 seconds)
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=300)
-            logger.debug(f"Cached {len(result)} catalog services for 5 minutes")
+            if debug_mode:
+                logger.debug("[catalog] cached %d entries for 5 minutes", len(result))
 
         return result
 

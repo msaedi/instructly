@@ -83,15 +83,27 @@ class TestWeekOperationServiceTransactions:
         # Create a booking in target week (single-table design)
         target_date = to_week + timedelta(days=2)  # Wednesday
 
-        # First create slot for target
-        target_slot = AvailabilitySlot(
-            instructor_id=instructor.id,
-            specific_date=target_date,  # Fixed: use specific_date
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+        # Ensure there is an availability slot covering the booking window; reuse existing when contained
+        target_slot = (
+            db.query(AvailabilitySlot)
+            .filter(
+                AvailabilitySlot.instructor_id == instructor.id,
+                AvailabilitySlot.specific_date == target_date,
+                AvailabilitySlot.start_time <= time(14, 0),
+                AvailabilitySlot.end_time >= time(15, 0),
+            )
+            .first()
         )
-        db.add(target_slot)
-        db.flush()
+
+        if not target_slot:
+            target_slot = AvailabilitySlot(
+                instructor_id=instructor.id,
+                specific_date=target_date,  # Fixed: use specific_date
+                start_time=time(14, 0),
+                end_time=time(15, 0),
+            )
+            db.add(target_slot)
+            db.flush()
 
         # Get service
         service_obj = (

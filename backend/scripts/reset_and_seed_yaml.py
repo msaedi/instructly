@@ -784,7 +784,7 @@ class DatabaseSeeder:
                     if end_datetime.time() > slot.end_time:
                         continue
 
-                    # Check if this time is already booked
+                    # Check if this time is already booked for instructor
                     existing = (
                         session.query(Booking)
                         .filter(
@@ -792,11 +792,40 @@ class DatabaseSeeder:
                             Booking.booking_date == slot.specific_date,
                             Booking.start_time < end_datetime.time(),
                             Booking.end_time > slot.start_time,
+                            Booking.status.in_(
+                                [
+                                    BookingStatus.PENDING,
+                                    BookingStatus.CONFIRMED,
+                                    BookingStatus.COMPLETED,
+                                ]
+                            ),
                         )
                         .first()
                     )
 
                     if existing:
+                        continue
+
+                    # Prevent the student from having overlapping bookings
+                    student_conflict = (
+                        session.query(Booking)
+                        .filter(
+                            Booking.student_id == student.id,
+                            Booking.booking_date == slot.specific_date,
+                            Booking.start_time < end_datetime.time(),
+                            Booking.end_time > slot.start_time,
+                            Booking.status.in_(
+                                [
+                                    BookingStatus.PENDING,
+                                    BookingStatus.CONFIRMED,
+                                    BookingStatus.COMPLETED,
+                                ]
+                            ),
+                        )
+                        .first()
+                    )
+
+                    if student_conflict:
                         continue
 
                     # Get service details from catalog
@@ -892,6 +921,49 @@ class DatabaseSeeder:
                 start_time = time(hour, 0)
                 end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
 
+                # Skip if this student already has a booking overlapping this window
+                student_overlap = (
+                    session.query(Booking)
+                    .filter(
+                        Booking.student_id == student.id,
+                        Booking.booking_date == booking_date,
+                        Booking.start_time < end_time,
+                        Booking.end_time > start_time,
+                        Booking.status.in_(
+                            [
+                                BookingStatus.PENDING,
+                                BookingStatus.CONFIRMED,
+                                BookingStatus.COMPLETED,
+                            ]
+                        ),
+                    )
+                    .first()
+                )
+
+                if student_overlap:
+                    continue
+
+                instructor_overlap = (
+                    session.query(Booking)
+                    .filter(
+                        Booking.instructor_id == instructor.id,
+                        Booking.booking_date == booking_date,
+                        Booking.start_time < end_time,
+                        Booking.end_time > start_time,
+                        Booking.status.in_(
+                            [
+                                BookingStatus.PENDING,
+                                BookingStatus.CONFIRMED,
+                                BookingStatus.COMPLETED,
+                            ]
+                        ),
+                    )
+                    .first()
+                )
+
+                if instructor_overlap:
+                    continue
+
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor.id,
@@ -984,6 +1056,49 @@ class DatabaseSeeder:
 
                 # Get service details from catalog
                 catalog_service = session.query(ServiceCatalog).filter_by(id=service.service_catalog_id).first()
+
+                # Prevent overlaps with the student's existing bookings
+                student_overlap = (
+                    session.query(Booking)
+                    .filter(
+                        Booking.student_id == student.id,
+                        Booking.booking_date == booking_date,
+                        Booking.start_time < end_time,
+                        Booking.end_time > start_time,
+                        Booking.status.in_(
+                            [
+                                BookingStatus.PENDING,
+                                BookingStatus.CONFIRMED,
+                                BookingStatus.COMPLETED,
+                            ]
+                        ),
+                    )
+                    .first()
+                )
+
+                if student_overlap:
+                    continue
+
+                instructor_overlap = (
+                    session.query(Booking)
+                    .filter(
+                        Booking.instructor_id == instructor.id,
+                        Booking.booking_date == booking_date,
+                        Booking.start_time < end_time,
+                        Booking.end_time > start_time,
+                        Booking.status.in_(
+                            [
+                                BookingStatus.PENDING,
+                                BookingStatus.CONFIRMED,
+                                BookingStatus.COMPLETED,
+                            ]
+                        ),
+                    )
+                    .first()
+                )
+
+                if instructor_overlap:
+                    continue
 
                 booking = Booking(
                     student_id=student.id,

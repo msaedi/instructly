@@ -14,6 +14,7 @@ availability changes ("Rug and Person" principle).
 from datetime import date, datetime, timezone
 from enum import Enum
 import logging
+import os
 from typing import Any, Callable, Optional, cast
 
 from sqlalchemy import (
@@ -36,6 +37,8 @@ import ulid
 from ..database import Base
 
 logger = logging.getLogger(__name__)
+
+IS_SQLITE = os.getenv("DB_DIALECT", "").lower().startswith("sqlite")
 
 
 class BookingStatus(str, Enum):
@@ -138,7 +141,7 @@ class Booking(Base):
     rescheduled_from = relationship("Booking", remote_side=[id], uselist=False, post_update=True)
 
     # Data integrity constraints
-    __table_args__ = (
+    _table_constraints = [
         CheckConstraint(
             "status IN ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW')",
             name="ck_bookings_status",
@@ -150,8 +153,20 @@ class Booking(Base):
         CheckConstraint("duration_minutes > 0", name="check_duration_positive"),
         CheckConstraint("total_price >= 0", name="check_price_non_negative"),
         CheckConstraint("hourly_rate > 0", name="check_rate_positive"),
-        CheckConstraint("start_time < end_time", name="check_time_order"),
-    )
+    ]
+
+    if not IS_SQLITE:
+        _table_constraints.append(
+            CheckConstraint(
+                "CASE "
+                "WHEN end_time = '00:00:00' AND start_time <> '00:00:00' THEN TRUE "
+                "ELSE start_time < end_time "
+                "END",
+                name="check_time_order",
+            )
+        )
+
+    __table_args__ = tuple(_table_constraints)
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize with instant confirmation by default."""
