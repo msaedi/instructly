@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { WeekDateInfo, WeekSchedule, TimeSlot } from '@/types/availability';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
 import { at } from '@/lib/ts/safe';
+import { Slot } from '@/components/calendar/Slot';
 
 type BookedPreview = {
   date: string; // YYYY-MM-DD
@@ -212,7 +213,13 @@ export default function InteractiveGrid({
     onScheduleChange({ ...weekSchedule, [date]: nextSlots });
   }, [weekSchedule, onScheduleChange, startHour, endHour]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, dayIdx: number, rowIdx: number, date: string) => {
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLDivElement>,
+    dayIdx: number,
+    rowIdx: number,
+    date: string,
+    disabled: boolean
+  ) => {
     let nextDay = dayIdx;
     let nextRow = rowIdx;
     if (e.key === 'ArrowRight') {
@@ -227,7 +234,7 @@ export default function InteractiveGrid({
     } else if (e.key === 'ArrowUp') {
       nextRow = Math.max(0, rowIdx - 1);
       e.preventDefault();
-    } else if (e.key === ' ' || e.key === 'Enter') {
+    } else if ((e.key === ' ' || e.key === 'Enter') && !disabled) {
       toggleSingleCell(date, rowIdx);
       e.preventDefault();
     }
@@ -394,27 +401,41 @@ export default function InteractiveGrid({
             const labelHour = Math.floor(r / HALF_HOURS_PER_HOUR) + startHour;
             const labelMin = r % 2 === 1 ? '30' : '00';
             const ariaLabel = `${dateInfo.date.toLocaleDateString('en-US', { weekday: 'long' })} ${labelHour.toString().padStart(2, '0')}:${labelMin}`;
+            const disabled = booked || past;
+            const conflictMessage = booked
+              ? 'Lesson booked. Cancel from Bookings to free this slot.'
+              : undefined;
             return (
-              <div
+              <Slot
                 key={r}
-                onMouseDown={() => handleMouseDown(date, r)}
-                onMouseEnter={() => handleMouseEnter(date, r)}
-                onMouseUp={handleMouseUp}
-                title={bookedTooltip}
+                data-cell={`${colIndex}-${r}`}
                 role="gridcell"
                 aria-selected={isSelected}
-                aria-label={ariaLabel}
                 tabIndex={isFocused ? 0 : -1}
-                onFocus={() => { setFocusDay(colIndex); setFocusRow(r); }}
-                onKeyDown={(e) => handleKeyDown(e, colIndex, r, date)}
-                data-cell={`${colIndex}-${r}`}
-                className={`relative ${isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8'} border-l ${isLastColumn ? 'border-r' : ''} ${isFirst ? 'border-t border-gray-200' : ''} ${bottomBorder} ${isSelected ? 'bg-[#EDE3FA]' : (past ? 'bg-gray-50' : 'bg-white')} ${inDragRange ? 'ring-2 ring-[#D4B5F0] ring-inset' : ''} ${past ? 'opacity-70' : ''} cursor-pointer`}
-              >
-                {/* booked overlay */}
-                {booked && (
-                  <div className="h-full w-full bg-[repeating-linear-gradient(45deg,rgba(156,163,175,0.35),rgba(156,163,175,0.35)_6px,rgba(156,163,175,0.2)_6px,rgba(156,163,175,0.2)_12px)]"></div>
-                )}
-              </div>
+                onFocus={() => {
+                  setFocusDay(colIndex);
+                  setFocusRow(r);
+                }}
+                onKeyDown={(e) => handleKeyDown(e, colIndex, r, date, disabled)}
+                onMouseDown={
+                  disabled ? undefined : () => handleMouseDown(date, r)
+                }
+                onMouseEnter={
+                  disabled ? undefined : () => handleMouseEnter(date, r)
+                }
+                onMouseUp={handleMouseUp}
+                title={bookedTooltip}
+                isSelected={isSelected}
+                isConflict={booked}
+                isPast={past}
+                isDragging={inDragRange}
+                isMobile={isMobile}
+                conflictMessage={conflictMessage}
+                label={ariaLabel}
+                className={`border-l ${isLastColumn ? 'border-r' : ''} ${
+                  isFirst ? 'border-t border-gray-200' : ''
+                } ${bottomBorder}`}
+              />
             );
           })}
           {bottomSpacer}
@@ -501,6 +522,9 @@ export default function InteractiveGrid({
 }
 
 function formatHour(h: number): string {
+  if (h === 24) {
+    return '12:00 AM (+1d)';
+  }
   const period = h >= 12 ? 'PM' : 'AM';
   const disp = h % 12 || 12;
   return `${disp}:00 ${period}`;

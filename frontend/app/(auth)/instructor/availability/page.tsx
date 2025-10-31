@@ -1,15 +1,16 @@
 'use client';
 
 import WeekNavigator from '@/components/availability/WeekNavigator';
-import InteractiveGrid from '@/components/availability/InteractiveGrid';
+import WeekView from '@/components/calendar/WeekView';
 import Link from 'next/link';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useAvailability } from '@/hooks/availability/useAvailability';
 import { useBookedSlots } from '@/hooks/availability/useBookedSlots';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/queries/useAuth';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
+import type { WeekSchedule } from '@/types/availability';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
 import { Calendar, ArrowLeft } from 'lucide-react';
@@ -21,6 +22,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 
 
 function AvailabilityPageImpl() {
@@ -30,7 +32,8 @@ function AvailabilityPageImpl() {
   const {
     currentWeekStart,
     weekSchedule,
-    // hasUnsavedChanges, // autosave flow no longer uses this flag here
+    savedWeekSchedule,
+    hasUnsavedChanges,
     isLoading,
     navigateWeek,
     setWeekSchedule,
@@ -52,7 +55,7 @@ function AvailabilityPageImpl() {
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [lastUpdatedLocal, setLastUpdatedLocal] = useState<string | null>(null);
   const [modalFocusTrap, setModalFocusTrap] = useState<HTMLDivElement | null>(null);
-  const saveDebounceRef = useRef<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const mq = () => window.matchMedia('(max-width: 640px)').matches;
@@ -124,6 +127,9 @@ function AvailabilityPageImpl() {
 
 
   function formatHour(h: number): string {
+    if (h === 24) {
+      return '12:00 AM (+1d)';
+    }
     const period = h >= 12 ? 'PM' : 'AM';
     const disp = h % 12 || 12;
     return `${disp}:00 ${period}`;
@@ -136,6 +142,60 @@ function AvailabilityPageImpl() {
     }
     return undefined;
   }, [message, setMessage]);
+
+  useEffect(() => {
+    if (!message) return;
+    if (message.type === 'error') {
+      toast.error(message.text, {
+        description: 'Please try again or refresh.',
+        action: {
+          label: 'Retry',
+          onClick: () => {
+            void refreshSchedule();
+          },
+        },
+      });
+    } else if (message.type === 'success') {
+      toast.success(message.text);
+    } else {
+      toast(message.text);
+    }
+  }, [message, refreshSchedule]);
+
+  const handleScheduleChange = useCallback((next: WeekSchedule) => {
+    setWeekSchedule(next);
+    setMessage(null);
+  }, [setWeekSchedule, setMessage]);
+
+  const handleDiscardChanges = useCallback(() => {
+    setWeekSchedule(savedWeekSchedule);
+    setMessage(null);
+    toast.info('Reverted to last saved schedule.');
+  }, [savedWeekSchedule, setWeekSchedule, setMessage]);
+
+  const handleSaveWeek = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      const result = await saveWeek({ clearExisting: true, scheduleOverride: weekSchedule });
+      if (!result?.success) {
+        if (result?.code === 409) {
+          setShowConflictModal(true);
+        } else {
+          toast.error(result?.message || 'Failed to save availability');
+        }
+        return;
+      }
+      await refreshSchedule();
+      toast.success('Availability saved');
+      setMessage(null);
+    } catch (err) {
+      toast.error('Failed to save availability', {
+        description: err instanceof Error ? err.message : 'Check your connection and try again.',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [saveWeek, weekSchedule, refreshSchedule, setMessage, setShowConflictModal]);
 
   const header = useMemo(() => (
     <WeekNavigator
@@ -278,7 +338,7 @@ function AvailabilityPageImpl() {
             <Select value={String(startHour)} onValueChange={(v) => {
               const sv = parseInt(v, 10);
               setStartHour(sv);
-              if (sv >= endHour) setEndHour(Math.min(sv + 1, 23));
+              if (sv >= endHour) setEndHour(Math.min(sv + 1, 24));
             }}>
               <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -297,7 +357,7 @@ function AvailabilityPageImpl() {
             }}>
               <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {Array.from({ length: 24 }, (_, h) => h).map((h) => (
+                {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => (
                   <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
                 ))}
               </SelectContent>
@@ -355,43 +415,55 @@ function AvailabilityPageImpl() {
 
       {/* Interactive Grid */}
       <div className="mt-2">
-        <InteractiveGrid
-          weekDates={weekDateInfo}
-          weekSchedule={weekSchedule}
-          bookedSlots={bookedSlots}
-          onScheduleChange={(s) => {
-            setWeekSchedule(s);
-            if (typeof window !== 'undefined') {
-              if (saveDebounceRef.current) window.clearTimeout(saveDebounceRef.current);
-              saveDebounceRef.current = window.setTimeout(async () => {
-                try {
-                  const result = await saveWeek({ clearExisting: true, scheduleOverride: s });
-                  if (!result.success) {
-                    if (result.code === 409) {
-                      setShowConflictModal(true);
-                    } else {
-                      toast.error(result.message || 'Failed to save availability');
-                    }
-                    return;
-                  }
-                  setMessage(null);
-                } catch {
-                  toast.error('Failed to save availability');
-                }
-              }, 700);
-            }
-          }}
-          isMobile={isMobile}
-          activeDayIndex={activeDay}
-          onActiveDayChange={setActiveDay}
-          {...(userData?.timezone && { timezone: userData.timezone })}
-          startHour={startHour}
-          endHour={endHour}
-        />
+        {isLoading ? (
+          <div className="space-y-2" aria-hidden="true">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-[420px] w-full" />
+          </div>
+        ) : (
+          <WeekView
+            weekDates={weekDateInfo}
+            schedule={weekSchedule}
+            bookedSlots={bookedSlots}
+            onScheduleChange={handleScheduleChange}
+            isMobile={isMobile}
+            activeDayIndex={activeDay}
+            onActiveDayChange={setActiveDay}
+            {...(userData?.timezone && { timezone: userData.timezone })}
+            startHour={startHour}
+            endHour={endHour}
+          />
+        )}
       </div>
-      </div>
-      </div>
+      <div className="pb-16" />
     </div>
+  </div>
+
+  {hasUnsavedChanges && (
+      <div className="fixed bottom-4 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 px-4">
+        <div className="flex items-center justify-between gap-4 rounded-full border border-gray-200 bg-white px-6 py-3 shadow-lg">
+          <div className="text-sm font-medium text-gray-800">Unsaved changes</div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleDiscardChanges}
+              className="rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveWeek}
+              disabled={isSaving}
+              className="rounded-full bg-[#7E22CE] px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#6b1ebe] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSaving ? 'Saving…' : 'Save Week'}
+            </button>
+          </div>
+        </div>
+      </div>
+  )}
+</div>
   );
 }
 

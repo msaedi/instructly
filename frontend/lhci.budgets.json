@@ -1,11 +1,21 @@
-{
-  "resourceSizes": [
-    { "resourceType": "script", "budget": 170 },
-    { "resourceType": "total",  "budget": 300 }
-  ],
-  "timings": [
-    { "metric": "largest-contentful-paint", "budget": 2500 },
-    { "metric": "interactive",              "budget": 5000 },
-    { "metric": "cumulative-layout-shift",  "budget": 0.1 }
-  ]
-}
+[
+  {
+    "path": "/*",
+    "resourceSizes": [
+      { "resourceType": "script", "budget": 170 },
+      { "resourceType": "total",  "budget": 300 }
+    ],
+    "timings": [
+      { "metric": "largest-contentful-paint", "budget": 2500 },
+      { "metric": "interactive",              "budget": 5000 },
+      { "metric": "cumulative-layout-shift",  "budget": 0.1 }
+    ]
+  },
+  {
+    "path": "/instructor/availability",
+    "timings": [
+      { "metric": "largest-contentful-paint", "budget": 2500 },
+      { "metric": "total-blocking-time", "budget": 150 }
+    ]
+  }
+]

@@ -26,6 +26,7 @@ import {
   getPreviousMonday,
   getNextMonday,
 } from '@/lib/availability/dateHelpers';
+import { normalizeSchedule } from '@/lib/calendar/normalize';
 import { logger } from '@/lib/logger';
 
 /**
@@ -247,13 +248,15 @@ export function useWeekSchedule(
         }
       });
 
+      const normalizedData = normalizeSchedule(cleanedData);
+
       logger.info('Week schedule loaded successfully', {
         weekStart: mondayDate,
-        daysWithAvailability: Object.keys(cleanedData).length,
+        daysWithAvailability: Object.keys(normalizedData).length,
       });
 
-      setWeekSchedule(cleanedData);
-      setSavedWeekSchedule(cleanedData);
+      setWeekSchedule(normalizedData);
+      setSavedWeekSchedule(normalizedData);
     } catch (error) {
       logger.error('Failed to load availability', error);
       setMessage({
