@@ -30,7 +30,12 @@ function schedulesEqual(a: WeekSchedule, b: WeekSchedule): boolean {
     for (let i = 0; i < aSlots.length; i += 1) {
       const aSlot = aSlots[i];
       const bSlot = bSlots[i];
-      if (!bSlot || aSlot.start_time !== bSlot.start_time || aSlot.end_time !== bSlot.end_time) {
+      if (
+        !aSlot ||
+        !bSlot ||
+        aSlot.start_time !== bSlot.start_time ||
+        aSlot.end_time !== bSlot.end_time
+      ) {
         return false;
       }
     }
@@ -67,13 +72,13 @@ export function WeekView({
     <InteractiveGrid
       weekDates={weekDates}
       weekSchedule={normalizedSchedule}
-      bookedSlots={bookedSlots}
-      startHour={startHour}
-      endHour={endHour}
-      timezone={timezone}
-      isMobile={isMobile}
-      activeDayIndex={activeDayIndex}
-      onActiveDayChange={onActiveDayChange}
+      {...(bookedSlots ? { bookedSlots } : {})}
+      {...(startHour !== undefined ? { startHour } : {})}
+      {...(endHour !== undefined ? { endHour } : {})}
+      {...(timezone ? { timezone } : {})}
+      {...(isMobile !== undefined ? { isMobile } : {})}
+      {...(activeDayIndex !== undefined ? { activeDayIndex } : {})}
+      {...(onActiveDayChange ? { onActiveDayChange } : {})}
       onScheduleChange={handleScheduleChange}
     />
   );

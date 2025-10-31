@@ -71,11 +71,14 @@ function formatIsoDate(date: Date, timeZone: string): string {
     if (part.type === 'literal') continue;
     map[part.type] = part.value;
   }
-  return `${map.year}-${map.month}-${map.day}`;
+  return `${map['year']}-${map['month']}-${map['day']}`;
 }
 
 function addDays(date: string, days: number): string {
-  const [year, month, day] = date.split('-').map(Number);
+  const [yearStr, monthStr, dayStr] = date.split('-');
+  const year = Number(yearStr ?? '0');
+  const month = Number(monthStr ?? '1');
+  const day = Number(dayStr ?? '1');
   const utc = Date.UTC(year, month - 1, day);
   const adjusted = new Date(utc + days * 24 * 60 * 60 * 1000);
   const y = adjusted.getUTCFullYear();
@@ -147,9 +150,9 @@ function compareLocal(
  */
 function makeZonedDate(date: string, time: string, timeZone: string): Date {
   const [yearStr, monthStr, dayStr] = date.split('-');
-  const year = Number(yearStr);
-  const month = Number(monthStr);
-  const day = Number(dayStr);
+  const year = Number(yearStr ?? '0');
+  const month = Number(monthStr ?? '1');
+  const day = Number(dayStr ?? '1');
   const { hour, minute, second } = parseTime(time);
   const desired = { year, month, day, hour, minute, second };
 
@@ -189,9 +192,9 @@ function formatTimeOfDay(date: Date, timeZone: string): string {
   const formatter = getFormatter(timeZone);
   const parts = formatter.formatToParts(date);
   const map = partsToObject(parts);
-  const hour = String(map.hour).padStart(2, '0');
-  const minute = String(map.minute).padStart(2, '0');
-  const second = String(map.second).padStart(2, '0');
+  const hour = String(map['hour']).padStart(2, '0');
+  const minute = String(map['minute']).padStart(2, '0');
+  const second = String(map['second']).padStart(2, '0');
   return `${hour}:${minute}:${second}`;
 }
 
@@ -298,25 +301,33 @@ export function suppressContained(segments: DailySegment[]): DailySegment[] {
  * Merge adjacent segments when the end of one exactly matches the start of the next.
  */
 export function mergeAdjacent(segments: DailySegment[]): DailySegment[] {
-  if (segments.length <= 1) {
-    return segments.slice();
+  if (segments.length === 0) {
+    return [];
   }
 
   const sorted = [...segments].sort((a, b) => a.start.getTime() - b.start.getTime());
-  const merged: DailySegment[] = [sorted[0]];
+  const merged: DailySegment[] = [];
+  let current: DailySegment | null = null;
 
-  for (let i = 1; i < sorted.length; i += 1) {
-    const current = sorted[i];
-    const last = merged[merged.length - 1];
+  for (const segment of sorted) {
+    if (!current) {
+      current = segment;
+      continue;
+    }
 
-    if (last.end.getTime() === current.start.getTime()) {
-      merged[merged.length - 1] = {
-        ...last,
-        end: current.end,
+    if (current.end.getTime() === segment.start.getTime()) {
+      current = {
+        ...current,
+        end: segment.end,
       };
       continue;
     }
 
+    merged.push(current);
+    current = segment;
+  }
+
+  if (current) {
     merged.push(current);
   }
 
@@ -342,7 +353,12 @@ export function buildDaySegments(
 
   const grouped: Record<string, DailySegment[]> = {};
   for (const segment of initial) {
-    grouped[segment.date] = grouped[segment.date] ? [...grouped[segment.date], segment] : [segment];
+    const existing = grouped[segment.date];
+    if (existing) {
+      existing.push(segment);
+    } else {
+      grouped[segment.date] = [segment];
+    }
   }
 
   const result: DayDisplaySegment[] = [];
@@ -382,12 +398,15 @@ export function buildWeekSegments(
       if (!output[segment.date]) {
         output[segment.date] = [];
       }
-      output[segment.date].push(segment);
+      output[segment.date]!.push(segment);
     }
   }
 
   for (const day of Object.keys(output)) {
-    output[day].sort((a, b) => a.startMinutes - b.startMinutes);
+    const segmentsForDay = output[day];
+    if (segmentsForDay) {
+      segmentsForDay.sort((a, b) => a.startMinutes - b.startMinutes);
+    }
   }
 
   return output;
@@ -401,7 +420,10 @@ function segmentsToTimeSlots(
   if (segments.length === 0) return slots;
 
   const day = segments[0]?.date;
-  const dayLength = day ? getDayLengthMinutes(day, timeZone) : 24 * 60;
+  if (!day) {
+    return slots;
+  }
+  const dayLength = getDayLengthMinutes(day, timeZone);
 
   for (const segment of segments) {
     const start = formatTimeOfDay(segment.start, timeZone);

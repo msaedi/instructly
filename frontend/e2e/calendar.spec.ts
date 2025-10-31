@@ -27,11 +27,11 @@ test.describe('Instructor availability calendar', () => {
     },
   ];
 
+  type ScheduleEntry = { date: string; start_time: string; end_time: string };
+
   test('desktop edit + save', async ({ page }) => {
-    let latestPostBody: {
-      schedule?: Array<{ date: string; start_time: string; end_time: string }>;
-    } | null = null;
     let currentSchedule = structuredClone(initialSchedule);
+    const postedSchedules: ScheduleEntry[][] = [];
 
     const fulfillJson = async (
       route: import('@playwright/test').Route,
@@ -73,9 +73,15 @@ test.describe('Instructor availability calendar', () => {
 
     await page.route('**/instructors/availability/week', async (route, request) => {
       if (request.method() === 'POST') {
-        latestPostBody = await request.postDataJSON();
+        const payload = (await request.postDataJSON()) as { schedule?: ScheduleEntry[] };
+        const schedulePayload = payload?.schedule;
+        if (!schedulePayload) {
+          await fulfillJson(route, { ok: false }, 400);
+          return;
+        }
+        postedSchedules.push(schedulePayload);
         const grouped: typeof currentSchedule = {};
-        for (const entry of latestPostBody.schedule as Array<{ date: string; start_time: string; end_time: string }>) {
+        for (const entry of schedulePayload) {
           grouped[entry.date] = grouped[entry.date] || [];
           grouped[entry.date]!.push({ start_time: entry.start_time, end_time: entry.end_time });
         }
@@ -107,8 +113,10 @@ test.describe('Instructor availability calendar', () => {
 
     await expect(page.getByText('Unsaved changes')).toBeHidden();
 
-    expect(latestPostBody?.schedule).toBeDefined();
-    const scheduleEntries = latestPostBody?.schedule ?? [];
+    const scheduleEntries = postedSchedules.at(-1);
+    if (!scheduleEntries) {
+      throw new Error('Expected a schedule to be posted');
+    }
     const mondayEntries = scheduleEntries.filter((entry) => entry.date === '2025-05-05');
     expect(mondayEntries).toEqual([
       { date: '2025-05-05', start_time: '08:00:00', end_time: '09:30:00' },

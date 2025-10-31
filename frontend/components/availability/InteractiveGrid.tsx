@@ -5,17 +5,12 @@ import type { WeekDateInfo, WeekSchedule, TimeSlot } from '@/types/availability'
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
 import { at } from '@/lib/ts/safe';
 import { Slot } from '@/components/calendar/Slot';
-
-type BookedPreview = {
-  date: string; // YYYY-MM-DD
-  start_time: string; // HH:MM:SS
-  end_time: string; // HH:MM:SS
-};
+import type { BookedSlotPreview } from '@/types/booking';
 
 export interface InteractiveGridProps {
   weekDates: WeekDateInfo[];
   weekSchedule: WeekSchedule;
-  bookedSlots?: BookedPreview[];
+  bookedSlots?: BookedSlotPreview[];
   startHour?: number;
   endHour?: number;
   isMobile?: boolean;
@@ -97,7 +92,7 @@ function cellsToSlots(cells: Set<number>, startHour: number): TimeSlot[] {
   return result;
 }
 
-function isCellBooked(booked: BookedPreview[] | undefined, date: string, cellIdx: number, startHour: number) {
+function isCellBooked(booked: BookedSlotPreview[] | undefined, date: string, cellIdx: number, startHour: number) {
   if (!booked || booked.length === 0) return false;
   const startH = Math.floor(cellIdx / HALF_HOURS_PER_HOUR) + startHour;
   const startM = cellIdx % 2 === 1 ? 30 : 0;
@@ -214,7 +209,7 @@ export default function InteractiveGrid({
   }, [weekSchedule, onScheduleChange, startHour, endHour]);
 
   const handleKeyDown = (
-    e: React.KeyboardEvent<HTMLDivElement>,
+    e: React.KeyboardEvent<HTMLButtonElement>,
     dayIdx: number,
     rowIdx: number,
     date: string,
@@ -430,11 +425,11 @@ export default function InteractiveGrid({
                 isPast={past}
                 isDragging={inDragRange}
                 isMobile={isMobile}
-                conflictMessage={conflictMessage}
                 label={ariaLabel}
                 className={`border-l ${isLastColumn ? 'border-r' : ''} ${
                   isFirst ? 'border-t border-gray-200' : ''
                 } ${bottomBorder}`}
+                {...(conflictMessage ? { conflictMessage } : {})}
               />
             );
           })}
