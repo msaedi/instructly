@@ -1,0 +1,33 @@
+groups:
+  - name: audit-rates
+    interval: 30s
+    rules:
+      - record: audit:write_rate_5m
+        expr: sum(rate(audit_log_write_total[5m]))
+
+      - record: audit:write_rate_5m_by_entity
+        expr: sum by (entity_type) (rate(audit_log_write_total[5m]))
+
+      - record: audit:write_rate_5m_by_entity_action
+        expr: sum by (entity_type, action) (rate(audit_log_write_total[5m]))
+
+      - record: audit:read_rate_5m
+        expr: sum(rate(audit_log_read_total[5m]))
+
+  - name: audit-latency
+    interval: 30s
+    rules:
+      - record: audit:list_latency_avg_5m
+        expr: |
+          sum(rate(audit_log_list_seconds_sum[5m]))
+          /
+          sum(rate(audit_log_list_seconds_count[5m]))
+
+      - record: audit:list_latency_p50_5m
+        expr: histogram_quantile(0.50, sum by (le) (rate(audit_log_list_seconds_bucket[5m])))
+
+      - record: audit:list_latency_p95_5m
+        expr: histogram_quantile(0.95, sum by (le) (rate(audit_log_list_seconds_bucket[5m])))
+
+      - record: audit:list_latency_p99_5m
+        expr: histogram_quantile(0.99, sum by (le) (rate(audit_log_list_seconds_bucket[5m])))

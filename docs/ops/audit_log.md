@@ -68,3 +68,17 @@ Sample response excerpt:
 
 - Only admins can call the endpoint (`requires_roles("admin")`). Non-admin requests receive `403`.
 - Responses are never cached; every request hits the database to surface the most recent events.
+
+## Observability
+
+Prometheus records the following derived metrics (rule file `infra/observability/prometheus/rules/audit.yml`):
+
+- `audit:write_rate_5m`, `audit:write_rate_5m_by_entity`, `audit:write_rate_5m_by_entity_action` – 5-minute rate of audit writes, aggregated at different dimensionalities.
+- `audit:read_rate_5m` – 5-minute rate of admin audit fetches.
+- `audit:list_latency_avg_5m`, `audit:list_latency_p50_5m`, `audit:list_latency_p95_5m`, `audit:list_latency_p99_5m` – rolling average and latency quantiles built from the histogram exported by the API.
+
+A provisioned Grafana dashboard called **Audit Overview** (see `infra/observability/grafana/dashboards/audit.json`) visualizes these metrics, including write/read overview stats, latency percentiles, action mix heatmap, top actors, and drill-down tables. The dashboard lives in the *Instainstru* folder once Grafana reloads provisioning.
+
+### Operational SLO
+
+- Target: `audit:list_latency_p95_5m < 0.3s` (p95 list latency under 300 ms based on the recording rule). Investigate if the panel breaches for more than two consecutive intervals.
