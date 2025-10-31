@@ -13,7 +13,8 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import LargeBinary
+from sqlalchemy.dialects.postgresql import BYTEA, JSONB
 
 
 def _get_public_tables(exclude: list[str]) -> list[str]:
@@ -235,6 +236,27 @@ def upgrade() -> None:
         "ix_notification_delivery_event_type_delivered_at",
         "notification_delivery",
         ["event_type", "delivered_at"],
+    )
+
+    print("Creating availability_days table...")
+    bits_type = BYTEA if is_postgres else LargeBinary  # 6 bytes (48 half-hours)
+    op.create_table(
+        "availability_days",
+        sa.Column("instructor_id", sa.String(length=26), nullable=False),
+        sa.Column("day_date", sa.Date(), nullable=False),
+        sa.Column("bits", bits_type, nullable=False),  # expect len=6 (30-min res)
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.PrimaryKeyConstraint("instructor_id", "day_date"),
+    )
+    op.create_index(
+        "ix_avail_days_instructor_date",
+        "availability_days",
+        ["instructor_id", "day_date"],
     )
 
     print("Creating audit_log table...")
@@ -1012,6 +1034,10 @@ def downgrade() -> None:
 
     print("Dropping platform_config table...")
     op.drop_table("platform_config")
+
+    print("Dropping availability_days table...")
+    op.drop_index("ix_avail_days_instructor_date", table_name="availability_days")
+    op.drop_table("availability_days")
 
     print("Dropping audit_log table...")
     if is_postgres:

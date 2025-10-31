@@ -21,6 +21,7 @@ os.environ["is_testing"] = "true"
 os.environ["rate_limit_enabled"] = "false"
 os.environ.setdefault("AVAILABILITY_PERF_DEBUG", "1")
 os.environ.setdefault("AVAILABILITY_TEST_MEMORY_CACHE", "1")
+os.environ.setdefault("AVAILABILITY_ALLOW_PAST", "false")
 os.environ.setdefault("DB_DIALECT", "postgresql")
 if "sqlite" in os.getenv("TEST_DATABASE_URL", "").lower() or "sqlite" in os.getenv(
     "DATABASE_URL", ""
@@ -71,6 +72,7 @@ from app.models import SearchEvent, SearchHistory
 from app.models.address import InstructorServiceArea, NYCNeighborhood, UserAddress  # noqa: F401
 from app.models.audit_log import AuditLog
 from app.models.availability import AvailabilitySlot
+from app.models.availability_day import AvailabilityDay  # noqa: F401
 from app.models.badge import (  # noqa: F401 ensures badge tables
     BadgeDefinition,
     BadgeProgress,
