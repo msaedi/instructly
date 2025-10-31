@@ -183,6 +183,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                         Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                     )
                 )
+                .order_by(Booking.start_time, Booking.end_time)
                 .all()
             )
 

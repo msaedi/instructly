@@ -6,28 +6,38 @@ standard Prometheus practices. It exposes metrics collected from
 the @measure_operation decorators throughout the application.
 """
 
+import os
 from time import monotonic
 from typing import Optional, Tuple
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
+from prometheus_client import Counter
 
 from ..core.config import settings
-from ..monitoring.prometheus_metrics import prometheus_metrics
+from ..monitoring.prometheus_metrics import REGISTRY, prometheus_metrics
 
 router = APIRouter()
 
 
 _METRICS_CACHE_TTL_SECONDS = 1.0
-_METRICS_FORCE_REFRESH_WINDOW_SECONDS = 0.75
 _metrics_cache: Optional[Tuple[float, bytes]] = None
+_scrape_counter = Counter(
+    "instainstru_prometheus_scrapes_total",
+    "Total number of Prometheus metrics scrapes",
+    registry=REGISTRY,
+)
 
 
 def _cache_enabled() -> bool:
+    if os.getenv("PROMETHEUS_DISABLE_CACHE", "0").lower() in {"1", "true", "yes"}:
+        return False
     env = (settings.environment or "").strip().lower()
-    return env != "test"
+    if env == "test":
+        return os.getenv("PROMETHEUS_CACHE_IN_TESTS", "1").lower() in {"1", "true", "yes"}
+    return True
 
 
-def _get_cached_metrics_payload() -> bytes:
+def _get_cached_metrics_payload(*, force_refresh: bool = False) -> bytes:
     """Return cached metrics payload with fresh-if-recent bypass for rapid scrapes."""
 
     global _metrics_cache
@@ -36,13 +46,10 @@ def _get_cached_metrics_payload() -> bytes:
         return prometheus_metrics.get_metrics()
 
     now = monotonic()
-    if _metrics_cache is not None:
+
+    if not force_refresh and _metrics_cache is not None:
         cached_ts, cached_payload = _metrics_cache
         elapsed = now - cached_ts
-
-        if elapsed < _METRICS_FORCE_REFRESH_WINDOW_SECONDS:
-            # Allow counters to advance when a second scrape follows immediately.
-            return prometheus_metrics.get_metrics()
 
         if elapsed < _METRICS_CACHE_TTL_SECONDS:
             return cached_payload
@@ -58,6 +65,10 @@ def warm_prometheus_metrics_response_cache() -> None:
     global _metrics_cache
 
     if not _cache_enabled():
+        try:
+            prometheus_metrics.get_metrics()
+        except Exception:
+            return
         return
 
     try:
@@ -72,7 +83,7 @@ def warm_prometheus_metrics_response_cache() -> None:
 @router.get(
     "/metrics/prometheus", include_in_schema=False, response_class=Response, response_model=None
 )
-async def get_prometheus_metrics() -> Response:
+async def get_prometheus_metrics(request: Request) -> Response:
     """
     Expose Prometheus metrics for scraping.
 
@@ -83,7 +94,12 @@ async def get_prometheus_metrics() -> Response:
     Returns:
         Response with Prometheus exposition format (text/plain)
     """
-    metrics_data = _get_cached_metrics_payload()
+    refresh_flag = request.query_params.get("refresh", "").lower() in {"1", "true", "yes"}
+    _scrape_counter.inc()
+    if _cache_enabled():
+        global _metrics_cache
+        _metrics_cache = None
+    metrics_data = _get_cached_metrics_payload(force_refresh=refresh_flag)
     content_type = prometheus_metrics.get_content_type()
 
     return Response(

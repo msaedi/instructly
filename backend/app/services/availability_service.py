@@ -170,8 +170,10 @@ class AvailabilityService(BaseService):
         if not bits_by_day:
             concat = new_empty_bits() * 7
         else:
-            ordered_days = sorted(bits_by_day.keys())
-            concat = b"".join(bits_by_day[day] for day in ordered_days)
+            anchor = min(bits_by_day.keys())
+            monday = anchor - timedelta(days=anchor.weekday())
+            ordered_days = [monday + timedelta(days=i) for i in range(7)]
+            concat = b"".join(bits_by_day.get(day, new_empty_bits()) for day in ordered_days)
         return hashlib.sha1(concat).hexdigest()
 
     @BaseService.measure_operation("get_week_bitmap_last_modified")

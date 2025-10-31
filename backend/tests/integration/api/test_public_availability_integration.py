@@ -16,6 +16,14 @@ from app.core.config import settings
 from app.models.availability import AvailabilitySlot
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
+from app.repositories.availability_day_repository import AvailabilityDayRepository
+from app.utils.bitset import bits_from_windows
+
+
+def _seed_bitmap_bits(db: Session, instructor_id: str, target_day: date, windows: list[tuple[str, str]]) -> None:
+    repo = AvailabilityDayRepository(db)
+    repo.upsert_week(instructor_id, [(target_day, bits_from_windows(windows))])
+    db.commit()
 
 
 @pytest.fixture(autouse=True)
@@ -83,6 +91,8 @@ class TestPublicAvailabilityIntegration:
 
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.json()}"
 
+        _seed_bitmap_bits(db, instructor_id, tomorrow, [("09:00:00", "12:00:00")])
+
         # Step 2: Student books morning slot
         booking_data = {
             "instructor_id": instructor_id,
@@ -146,6 +156,16 @@ class TestPublicAvailabilityIntegration:
             )
             assert response.status_code == 200
 
+        _seed_bitmap_bits(
+            db,
+            instructor_id,
+            tomorrow,
+            [
+                ("09:00:00", "12:00:00"),
+                ("14:00:00", "17:00:00"),
+            ],
+        )
+
         # Step 5: Check public availability again
         response = client.get(
             f"/api/public/instructors/{instructor_id}/availability",
@@ -181,6 +201,8 @@ class TestPublicAvailabilityIntegration:
             "/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
         )
         assert response.status_code == 200
+
+        _seed_bitmap_bits(db, instructor_id, next_week, [("09:00:00", "17:00:00")])
 
         # Add blackout date
         blackout_data = {"date": next_week.isoformat(), "reason": "Conference attendance"}
@@ -238,6 +260,12 @@ class TestPublicAvailabilityIntegration:
             "/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
         )
         assert response.status_code == 200
+
+        AvailabilityDayRepository(db).upsert_week(
+            test_instructor.id,
+            [(tomorrow, bits_from_windows([("09:00:00", "12:00:00")]))],
+        )
+        db.commit()
 
         # First public check - should be cached
         response1 = client.get(

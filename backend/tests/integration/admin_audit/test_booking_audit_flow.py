@@ -4,8 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.service_catalog import InstructorService as Service
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
+from app.utils.bitset import bits_from_windows
 
 
 @pytest.mark.asyncio
@@ -37,6 +39,12 @@ async def test_booking_audit_flow(
         student_note="Ring the doorbell",
         location_type="remote",
     )
+
+    AvailabilityDayRepository(db).upsert_week(
+        test_instructor_with_availability.id,
+        [(booking_day, bits_from_windows([("10:00", "10:30")]))],
+    )
+    db.commit()
 
     with patch("app.services.booking_service.PricingService.compute_booking_pricing", return_value=None):
         booking = await booking_service.create_booking(

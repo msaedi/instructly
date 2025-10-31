@@ -10,11 +10,13 @@ from tests.utils.availability_builders import future_week_start
 
 from app.core.exceptions import BookingConflictException
 from app.models.booking import BookingStatus
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.availability_window import WeekSpecificScheduleCreate
 from app.schemas.booking import BookingCreate
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import INSTRUCTOR_CONFLICT_MESSAGE, BookingService
 from app.services.cache_service import CacheService
+from app.utils.bitset import bits_from_windows
 
 
 class _StubNotificationService:
@@ -79,6 +81,12 @@ async def test_booking_availability_flow(monkeypatch, db: Session, test_instruct
         instructor.id,
         WeekSpecificScheduleCreate(schedule=schedule, week_start=week_start, clear_existing=True),
     )
+
+    AvailabilityDayRepository(db).upsert_week(
+        instructor.id,
+        [(week_start, bits_from_windows([("09:00", "12:00")]))],
+    )
+    db.commit()
 
     baseline_week = availability_service.get_week_availability(instructor.id, week_start)
     normalized_baseline = _normalize_week_map(baseline_week)

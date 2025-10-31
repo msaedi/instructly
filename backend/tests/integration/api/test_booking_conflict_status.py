@@ -14,9 +14,11 @@ from app.core.config import settings
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.availability_window import WeekSpecificScheduleCreate
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
+from app.utils.bitset import bits_from_windows
 
 
 def _get_service_with_duration(db: Session, instructor: User, duration_minutes: int) -> Service:
@@ -57,6 +59,16 @@ async def _seed_single_day_availability(
         ],
     )
     await availability_service.save_week_availability(instructor_id, payload)
+    AvailabilityDayRepository(availability_service.db).upsert_week(
+        instructor_id,
+        [
+            (
+                target_date,
+                bits_from_windows([(start.strftime("%H:%M"), end.strftime("%H:%M"))]),
+            )
+        ],
+    )
+    availability_service.db.commit()
 
 
 @pytest.mark.asyncio

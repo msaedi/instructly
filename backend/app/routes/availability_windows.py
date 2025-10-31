@@ -37,7 +37,8 @@ Router Endpoints:
     POST /blackout-dates - Add a blackout date
     DELETE /blackout-dates/{id} - Remove a blackout date
 """
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
+from email.utils import format_datetime
 from functools import wraps
 import logging
 import os
@@ -106,6 +107,13 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 BITMAP_V2 = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
+
+
+def _set_bitmap_headers(response: Response, etag: str, last_modified: Optional[datetime]) -> None:
+    response.headers["ETag"] = etag
+    if last_modified is not None:
+        response.headers["Last-Modified"] = format_datetime(last_modified.astimezone(timezone.utc))
+    response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
 
 
 def requires_roles(
@@ -361,18 +369,16 @@ async def save_week_availability(
                     raise HTTPException(
                         status_code=409,
                         detail={"error": "version_conflict", "current_version": server_version},
-                        headers={"ETag": server_version},
+                        headers={
+                            "ETag": server_version,
+                            "Access-Control-Expose-Headers": "ETag, Last-Modified",
+                        },
                     )
 
-                response.headers["ETag"] = new_version
                 last_mod = availability_service.get_week_bitmap_last_modified(
                     current_user.id, monday
                 )
-                if last_mod:
-                    response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
-                        "%a, %d %b %Y %H:%M:%S GMT"
-                    )
-                response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+                _set_bitmap_headers(response, new_version, last_mod)
 
                 return WeekAvailabilityUpdateResponse(
                     message="Saved weekly availability",
