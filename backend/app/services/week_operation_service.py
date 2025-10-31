@@ -30,6 +30,7 @@ from ..core.constants import DAYS_OF_WEEK
 from ..models.audit_log import AuditLog
 from ..monitoring.availability_perf import COPY_WEEK_ENDPOINT, availability_perf_span
 from ..repositories.factory import RepositoryFactory
+from ..utils.bitset import new_empty_bits
 from ..utils.time_helpers import string_to_time
 from .audit_redaction import redact
 from .base import BaseService
@@ -46,6 +47,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
+BITMAP_V2 = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
 
 
 class WeekOperationService(BaseService):
@@ -133,6 +135,91 @@ class WeekOperationService(BaseService):
         ):
             # Validate dates are Mondays
             self._validate_week_dates(from_week_start, to_week_start)
+
+            if BITMAP_V2:
+                target_week_dates = self.calculate_week_dates(to_week_start)
+                with self.transaction():
+                    bits_by_day = self.availability_service.get_week_bits(
+                        instructor_id, from_week_start
+                    )
+                    repo = self.availability_service._bitmap_repo()
+                    items: List[tuple[date, bytes]] = []
+                    for offset in range(7):
+                        src_day = from_week_start + timedelta(days=offset)
+                        dst_day = to_week_start + timedelta(days=offset)
+                        items.append((dst_day, bits_by_day.get(src_day, new_empty_bits())))
+                    written = repo.upsert_week(instructor_id, items)
+
+                    before_payload = self._build_copy_audit_payload(
+                        instructor_id,
+                        to_week_start,
+                        source_week_start=from_week_start,
+                        created=0,
+                        deleted=0,
+                    )
+                    after_payload = self._build_copy_audit_payload(
+                        instructor_id,
+                        to_week_start,
+                        source_week_start=from_week_start,
+                        created=written,
+                        deleted=0,
+                    )
+                    try:
+                        self._write_copy_audit(
+                            instructor_id,
+                            to_week_start,
+                            actor=actor,
+                            before=before_payload,
+                            after=after_payload,
+                        )
+                    except Exception as audit_err:
+                        self.logger.warning(
+                            "Audit write failed in bitmap copy_week",
+                            extra={
+                                "instructor_id": instructor_id,
+                                "from_week": from_week_start,
+                                "to_week": to_week_start,
+                                "error": str(audit_err),
+                            },
+                        )
+                    try:
+                        self._enqueue_week_copy_event(
+                            instructor_id,
+                            from_week_start,
+                            to_week_start,
+                            target_week_dates,
+                            written,
+                            0,
+                        )
+                    except Exception as enqueue_err:
+                        self.logger.warning(
+                            "Outbox enqueue failed in bitmap copy_week",
+                            extra={
+                                "instructor_id": instructor_id,
+                                "from_week": from_week_start,
+                                "to_week": to_week_start,
+                                "error": str(enqueue_err),
+                            },
+                        )
+                self.db.expire_all()
+                result = await self._warm_cache_and_get_result(
+                    instructor_id, to_week_start, written
+                )
+                result["_metadata"] = {
+                    "operation": "week_copy_bitmap",
+                    "slots_created": written,
+                    "message": f"Week copied successfully. {written} day bitmaps copied.",
+                }
+                self.logger.info(
+                    "Copied bitmap availability week",
+                    extra={
+                        "instructor_id": instructor_id,
+                        "from_week": from_week_start,
+                        "to_week": to_week_start,
+                        "days_copied": written,
+                    },
+                )
+                return result
 
             with self.transaction():
                 # Get target week dates and existing slots (before clearing)

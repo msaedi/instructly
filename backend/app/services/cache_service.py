@@ -641,7 +641,7 @@ class CacheService(BaseService):
         """Get cached week availability."""
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
         record_cache_key(key)
-        result = self.get(key)
+        result = cast(Optional[Dict[str, Any]], self.get(key))
 
         # Track availability-specific metrics
         if result is not None:
@@ -676,7 +676,7 @@ class CacheService(BaseService):
     ) -> Optional[List[Dict[str, Any]]]:
         """Get cached instructor availability for date range."""
         key = self.key_builder.build("availability", "range", instructor_id, start_date, end_date)
-        result = self.get(key)
+        result = cast(Optional[List[Dict[str, Any]]], self.get(key))
 
         # Track availability-specific metrics
         if result is not None:
@@ -700,7 +700,7 @@ class CacheService(BaseService):
     ) -> Optional[Dict[str, List[Dict[str, Any]]]]:
         """Get cached instructor weekly availability pattern."""
         key = self.key_builder.build("availability", "weekly", instructor_id)
-        result = self.get(key)
+        result = cast(Optional[Dict[str, List[Dict[str, Any]]]], self.get(key))
 
         # Track availability-specific metrics
         if result is not None:

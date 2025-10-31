@@ -9,9 +9,10 @@ This service handles all availability-related business logic.
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
+import hashlib
 import logging
 import os
-from typing import TYPE_CHECKING, Any, NamedTuple, Optional, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Optional, Tuple, TypedDict, cast
 
 from sqlalchemy.orm import Session
 
@@ -30,12 +31,14 @@ from ..monitoring.availability_perf import (
     availability_perf_span,
     estimate_payload_size_bytes,
 )
+from ..repositories.availability_day_repository import AvailabilityDayRepository
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BlackoutDateCreate,
     SpecificDateAvailabilityCreate,
     WeekSpecificScheduleCreate,
 )
+from ..utils.bitset import bits_from_windows, new_empty_bits
 from ..utils.time_helpers import time_to_string
 from .audit_redaction import redact
 from .base import BaseService
@@ -52,6 +55,7 @@ logger = logging.getLogger(__name__)
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
 ALLOW_PAST = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
+BITMAP_V2 = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
 
 
 def build_availability_idempotency_key(
@@ -142,6 +146,95 @@ class AvailabilityService(BaseService):
         )
         self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
         self.audit_repository = RepositoryFactory.create_audit_repository(db)
+
+    # ----- V2 (bitmaps) helpers -----
+
+    def _bitmap_repo(self) -> AvailabilityDayRepository:
+        return AvailabilityDayRepository(self.db)
+
+    @BaseService.measure_operation("get_week_bits")
+    def get_week_bits(self, instructor_id: str, week_start: date) -> Dict[date, bytes]:
+        """Return dict of day -> bits, ensuring all 7 days are present."""
+        repo = self._bitmap_repo()
+        rows = repo.get_week_rows(instructor_id, week_start)
+        existing = {row.day_date: row.bits for row in rows}
+        bits_by_day: Dict[date, bytes] = {}
+        for offset in range(7):
+            day = week_start + timedelta(days=offset)
+            bits_by_day[day] = existing.get(day, new_empty_bits())
+        return bits_by_day
+
+    @BaseService.measure_operation("compute_week_version_bits")
+    def compute_week_version_bits(self, bits_by_day: Dict[date, bytes]) -> str:
+        """Stable SHA1 of concatenated 7×bits ordered chronologically."""
+        if not bits_by_day:
+            concat = new_empty_bits() * 7
+        else:
+            ordered_days = sorted(bits_by_day.keys())
+            concat = b"".join(bits_by_day[day] for day in ordered_days)
+        return hashlib.sha1(concat).hexdigest()
+
+    @BaseService.measure_operation("get_week_bitmap_last_modified")
+    def get_week_bitmap_last_modified(
+        self, instructor_id: str, week_start: date
+    ) -> Optional[datetime]:
+        """Return the latest updated_at across bitmap rows for the week."""
+        repo = self._bitmap_repo()
+        rows = repo.get_week_rows(instructor_id, week_start)
+        latest: Optional[datetime] = None
+        for row in rows:
+            dt = row.updated_at
+            if dt is None:
+                continue
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if latest is None or dt > latest:
+                latest = dt
+        return latest
+
+    @BaseService.measure_operation("save_week_bits")
+    def save_week_bits(
+        self,
+        instructor_id: str,
+        week_start: date,
+        windows_by_day: Dict[date, List[Tuple[str, str]]],
+        base_version: Optional[str],
+        override: bool,
+        clear_existing: bool,
+    ) -> Tuple[int, Dict[date, bytes], str]:
+        """
+        Persist week availability using bitmap storage.
+
+        Returns:
+            rows_written, bits_by_day_after, new_version
+        """
+        current = self.get_week_bits(instructor_id, week_start)
+        server_version = self.compute_week_version_bits(current)
+
+        if base_version and (base_version != server_version) and not override:
+            raise ConflictException("Week has changed; please refresh and retry")
+
+        items: List[Tuple[date, bytes]] = []
+        today = datetime.now(timezone.utc).date()
+        for offset in range(7):
+            day = week_start + timedelta(days=offset)
+            has_payload = day in windows_by_day
+            if not clear_existing and not has_payload:
+                bits = current.get(day, new_empty_bits())
+            else:
+                day_windows = windows_by_day.get(day, [])
+                if not ALLOW_PAST and day < today:
+                    bits = current.get(day, new_empty_bits())
+                else:
+                    bits = bits_from_windows(day_windows) if day_windows else new_empty_bits()
+
+            items.append((day, bits))
+
+        repo = self._bitmap_repo()
+        written = repo.upsert_week(instructor_id, items)
+        after = self.get_week_bits(instructor_id, week_start)
+        new_version = self.compute_week_version_bits(after)
+        return written, after, new_version
 
     def _enqueue_week_save_event(
         self,

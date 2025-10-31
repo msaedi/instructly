@@ -116,13 +116,16 @@ class SenderProfileResolved(TypedDict):
     reply_to: str | None
 
 
+if os.getenv("CI"):
+    _DEFAULT_SECRET_KEY: SecretStr | object = SecretStr("ci-test-secret-key-not-for-production")
+else:
+    _DEFAULT_SECRET_KEY = ...
+
+
 class Settings(BaseSettings):
     # Use a default secret key for CI/testing environments
     secret_key: SecretStr = Field(
-        default=cast(
-            object,
-            SecretStr("ci-test-secret-key-not-for-production") if os.getenv("CI") else ...,
-        ),
+        default=_DEFAULT_SECRET_KEY,
         description="Secret key for JWT tokens",
     )  # type: ignore[assignment]  # defaults to ellipsis outside CI; SecretStr default provided for CI runs
     algorithm: str = "HS256"

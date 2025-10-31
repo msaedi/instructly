@@ -131,6 +131,7 @@ class BookingService(BaseService):
         else:
             timestamp = booking.created_at or datetime.now(timezone.utc)
 
+        assert timestamp is not None, "timestamp should always be computed for booking event"
         ts = timestamp.astimezone(timezone.utc)
         version = ts.isoformat()
         key = f"booking:{booking.id}:{event_type}:{version}"

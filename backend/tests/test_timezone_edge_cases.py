@@ -11,6 +11,7 @@ Tests edge cases and ensures timezone handling is correct across:
 """
 
 from datetime import date, datetime, time, timedelta
+import os
 from pathlib import Path
 import re
 from unittest.mock import Mock, patch
@@ -26,6 +27,25 @@ from app.core.ulid_helper import generate_ulid
 from app.models.user import User
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _force_no_past_slots_for_this_module():
+    """Ensure availability service skips past-day slots within this module."""
+    original_env = os.environ.get("AVAILABILITY_ALLOW_PAST")
+    os.environ["AVAILABILITY_ALLOW_PAST"] = "false"
+    import app.services.availability_service as availability_service_module
+
+    original_flag = availability_service_module.ALLOW_PAST
+    availability_service_module.ALLOW_PAST = False
+
+    yield
+
+    if original_env is None:
+        os.environ.pop("AVAILABILITY_ALLOW_PAST", None)
+    else:
+        os.environ["AVAILABILITY_ALLOW_PAST"] = original_env
+    availability_service_module.ALLOW_PAST = original_flag
 
 
 class TestCrossTimezoneBookings:

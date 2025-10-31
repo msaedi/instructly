@@ -37,9 +37,10 @@ Router Endpoints:
     POST /blackout-dates - Add a blackout date
     DELETE /blackout-dates/{id} - Remove a blackout date
 """
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from functools import wraps
 import logging
+import os
 from typing import Awaitable, Callable, Dict, List, Optional, ParamSpec, TypeVar, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
@@ -58,7 +59,8 @@ from ..api.dependencies.services import (
 )
 from ..core.constants import ERROR_INSTRUCTOR_ONLY
 from ..core.enums import RoleName
-from ..core.exceptions import DomainException
+from ..core.exceptions import ConflictException, DomainException
+from ..core.timezone_utils import get_user_today_by_id
 from ..models.user import User
 from ..monitoring.availability_perf import (
     COPY_WEEK_ENDPOINT,
@@ -98,9 +100,12 @@ from ..services.conflict_checker import ConflictChecker
 from ..services.presentation_service import PresentationService
 from ..services.slot_manager import SlotManager
 from ..services.week_operation_service import WeekOperationService
+from ..utils.bitset import windows_from_bits
 
 P = ParamSpec("P")
 R = TypeVar("R")
+
+BITMAP_V2 = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
 
 
 def requires_roles(
@@ -162,6 +167,37 @@ async def get_week_availability(
         instructor_id=current_user.id,
         payload_size_bytes=0,
     ):
+        if BITMAP_V2:
+            try:
+                bits_by_day = availability_service.get_week_bits(current_user.id, start_date)
+                version = availability_service.compute_week_version_bits(bits_by_day)
+                response.headers["ETag"] = version
+                last_mod = availability_service.get_week_bitmap_last_modified(
+                    current_user.id, start_date
+                )
+                if last_mod:
+                    response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
+                        "%a, %d %b %Y %H:%M:%S GMT"
+                    )
+                response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+
+                payload: Dict[str, List[TimeRange]] = {}
+                for day, bits in bits_by_day.items():
+                    windows = windows_from_bits(bits)
+                    payload[day.isoformat()] = [
+                        TimeRange(
+                            start_time=time.fromisoformat(start),
+                            end_time=time.fromisoformat(end),
+                        )
+                        for start, end in windows
+                    ]
+                return WeekAvailabilityResponse(payload)
+            except DomainException as e:
+                raise e.to_http_exception()
+            except Exception as e:
+                logger.error(f"Unexpected error getting bitmap week availability: {str(e)}")
+                raise HTTPException(status_code=500, detail="Internal server error")
+
         try:
             result = availability_service.get_week_availability_with_slots(
                 instructor_id=current_user.id,
@@ -192,7 +228,26 @@ async def get_week_availability(
             # Allow browsers to read ETag and Last-Modified via CORS
             response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
             return WeekAvailabilityResponse(week_map)
+        except HTTPException as e:
+            raise e
         except DomainException as e:
+            if isinstance(e, ConflictException):
+                fallback_monday = locals().get("monday")
+                monday_for_conflict = (
+                    fallback_monday if isinstance(fallback_monday, date) else payload.week_start
+                )
+                if monday_for_conflict is None:
+                    today_fallback = get_user_today_by_id(current_user.id, availability_service.db)
+                    monday_for_conflict = today_fallback - timedelta(days=today_fallback.weekday())
+                server_bits = availability_service.get_week_bits(
+                    current_user.id, monday_for_conflict
+                )
+                server_version = availability_service.compute_week_version_bits(server_bits)
+                raise HTTPException(
+                    status_code=409,
+                    detail={"error": "version_conflict", "current_version": server_version},
+                    headers={"ETag": server_version},
+                )
             raise e.to_http_exception()
         except Exception as e:
             logger.error(f"Unexpected error getting week availability: {str(e)}")
@@ -231,40 +286,113 @@ async def save_week_availability(
         instructor_id=current_user.id,
         payload_size_bytes=payload_size,
     ):
+        # Determine Monday/week_end prior to persistence for use in exception handling
+        schedule_dates: List[date] = []
+        monday: date
+        if payload.week_start:
+            monday = payload.week_start
+        else:
+            for item in payload.schedule:
+                raw_date = item.get("date")
+                if raw_date is None:
+                    continue
+                try:
+                    parsed_date = (
+                        raw_date
+                        if isinstance(raw_date, date)
+                        else date.fromisoformat(str(raw_date))
+                    )
+                except Exception:
+                    continue
+                schedule_dates.append(parsed_date)
+
+            reference_date = (
+                min(schedule_dates)
+                if schedule_dates
+                else get_user_today_by_id(current_user.id, availability_service.db)
+            )
+            monday = reference_date - timedelta(days=reference_date.weekday())
+        week_end = monday + timedelta(days=6)
+
+        server_version: Optional[str] = None
+
         try:
             # Inject cache service if needed
             if not availability_service.cache_service and cache_service:
                 availability_service.cache_service = cache_service
-
-            # Compute week start/end (Monday..Sunday)
-            from datetime import date as _date, timedelta as _timedelta
-
-            from app.core.timezone_utils import get_user_today_by_id
-
-            if payload.week_start:
-                monday = payload.week_start
-            else:
-                # Derive from the earliest schedule date
-                dates = []
-                for item in payload.schedule:
-                    try:
-                        dates.append(_date.fromisoformat(str(item["date"])))
-                    except Exception:
-                        continue
-                # Use user's timezone-aware 'today' when deriving default week
-                monday = (
-                    min(dates)
-                    if dates
-                    else get_user_today_by_id(current_user.id, availability_service.db)
-                )
-                monday = monday - _timedelta(days=monday.weekday())
-            week_end = monday + _timedelta(days=6)
 
             # Version handshake: If-Match header or body-provided base_version
             client_version = (
                 request.headers.get("if-match") or payload.base_version or payload.version
             )
             override_requested = override or bool(getattr(payload, "override", False))
+
+            if client_version:
+                payload.base_version = client_version
+                payload.version = client_version
+            payload.override = override_requested
+
+            if BITMAP_V2:
+                windows_by_day: Dict[date, List[tuple[str, str]]] = {}
+                for item in payload.schedule:
+                    raw_date = item.get("date")
+                    if isinstance(raw_date, date):
+                        slot_date = raw_date
+                    else:
+                        slot_date = date.fromisoformat(str(raw_date))
+
+                    raw_start = item.get("start_time")
+                    if isinstance(raw_start, time):
+                        start_str = raw_start.strftime("%H:%M:%S")
+                    else:
+                        start_str = time.fromisoformat(str(raw_start)).strftime("%H:%M:%S")
+
+                    raw_end = item.get("end_time")
+                    if isinstance(raw_end, time):
+                        end_str = raw_end.strftime("%H:%M:%S")
+                    else:
+                        end_str = time.fromisoformat(str(raw_end)).strftime("%H:%M:%S")
+
+                    windows_by_day.setdefault(slot_date, []).append((start_str, end_str))
+
+                try:
+                    written, _, new_version = availability_service.save_week_bits(
+                        instructor_id=current_user.id,
+                        week_start=monday,
+                        windows_by_day=windows_by_day,
+                        base_version=client_version,
+                        override=override_requested,
+                        clear_existing=bool(payload.clear_existing),
+                    )
+                except ConflictException:
+                    server_bits = availability_service.get_week_bits(current_user.id, monday)
+                    server_version = availability_service.compute_week_version_bits(server_bits)
+                    raise HTTPException(
+                        status_code=409,
+                        detail={"error": "version_conflict", "current_version": server_version},
+                        headers={"ETag": server_version},
+                    )
+
+                response.headers["ETag"] = new_version
+                last_mod = availability_service.get_week_bitmap_last_modified(
+                    current_user.id, monday
+                )
+                if last_mod:
+                    response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
+                        "%a, %d %b %Y %H:%M:%S GMT"
+                    )
+                response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+
+                return WeekAvailabilityUpdateResponse(
+                    message="Saved weekly availability",
+                    week_start=monday,
+                    week_end=week_end,
+                    windows_created=written,
+                    windows_updated=0,
+                    windows_deleted=0,
+                    version=new_version,
+                    week_version=new_version,
+                )
 
             try:
                 server_version = availability_service.compute_week_version(
@@ -277,12 +405,6 @@ async def save_week_availability(
                     "compute_week_version failed prior to save, continuing without conflict check",
                     extra={"error": str(compute_error)},
                 )
-                server_version = None
-
-            if client_version:
-                payload.base_version = client_version
-                payload.version = client_version
-            payload.override = override_requested
 
             if (
                 client_version
@@ -346,7 +468,8 @@ async def save_week_availability(
                 version=new_version,
                 week_version=new_version,
             )
-
+        except HTTPException as e:
+            raise e
         except DomainException as e:
             raise e.to_http_exception()
         except Exception as e:
