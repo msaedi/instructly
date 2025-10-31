@@ -43,7 +43,7 @@ function schedulesEqual(a: WeekSchedule, b: WeekSchedule): boolean {
   return true;
 }
 
-export function WeekView({
+const WeekView = ({
   weekDates,
   schedule,
   bookedSlots,
@@ -54,7 +54,7 @@ export function WeekView({
   isMobile,
   activeDayIndex,
   onActiveDayChange,
-}: WeekViewProps) {
+}: WeekViewProps) => {
   const normalizedSchedule = useMemo(() => {
     const normalized = normalizeSchedule(schedule, timezone);
     return schedulesEqual(normalized, schedule) ? schedule : normalized;
@@ -82,6 +82,6 @@ export function WeekView({
       onScheduleChange={handleScheduleChange}
     />
   );
-}
+};
 
 export default WeekView;

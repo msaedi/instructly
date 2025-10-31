@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 
 function run() {
   return new Promise((resolve) => {
-    const args = ['knip', '--config', 'knip.config.mjs', '--no-exit-code', '--reporter', 'summary'];
+    const args = ['knip', '--config', 'knip.config.mjs', '--no-exit-code'];
     const child = spawn('npx', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';

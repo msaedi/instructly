@@ -11,3 +11,6 @@
 ^services/.*$
 ^src/.*$
 ^utils/.*$
+^e2e/.*$
+^stories/.*$
+^\.next/.*$
