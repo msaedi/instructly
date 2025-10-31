@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Dict, List, Tuple, cast
+from typing import Dict, List, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,17 @@ class AvailabilityDayRepository:
             .all()
         )
         return cast(List[AvailabilityDay], rows)
+
+    def get_day_bits(self, instructor_id: str, day: date) -> Optional[bytes]:
+        row = (
+            self.db.query(AvailabilityDay)
+            .filter(
+                AvailabilityDay.instructor_id == instructor_id,
+                AvailabilityDay.day_date == day,
+            )
+            .one_or_none()
+        )
+        return row.bits if row else None
 
     def get_week(self, instructor_id: str, week_start: date) -> Dict[date, bytes]:
         res: Dict[date, bytes] = {}

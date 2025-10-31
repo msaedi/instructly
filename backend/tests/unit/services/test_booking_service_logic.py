@@ -28,9 +28,11 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.repositories.booking_repository import BookingRepository
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
+from app.utils.bitset import bits_from_windows
 
 
 class TestBookingServiceUnit:
@@ -399,6 +401,108 @@ class TestBookingServiceUnit:
             await booking_service.create_booking(
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )
+
+    @pytest.mark.asyncio
+    async def test_create_booking_respects_availability_bits_allows_inside(
+        self,
+        booking_service,
+        mock_student,
+        mock_service,
+        mock_instructor_profile,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Bitmap availability allows bookings fully inside published bits."""
+        instructor_id = mock_instructor_profile.user_id
+        target_day = date.today() + timedelta(days=5)
+        mock_instructor_profile.user.timezone = "America/New_York"
+
+        monkeypatch.setattr("app.services.booking_service.BITMAP_V2", True)
+        AvailabilityDayRepository(booking_service.db).upsert_week(
+            instructor_id,
+            [(target_day, bits_from_windows([("09:00", "11:00")]))],
+        )
+
+        booking_data = BookingCreate(
+            instructor_id=instructor_id,
+            instructor_service_id=mock_service.id,
+            booking_date=target_day,
+            start_time=time(9, 30),
+            selected_duration=30,
+        )
+
+        booking_service.repository.check_time_conflict.return_value = False
+        booking_service._validate_booking_prerequisites = AsyncMock(
+            return_value=(mock_service, mock_instructor_profile)
+        )
+
+        fake_booking = Mock(spec=Booking)
+        fake_booking.id = generate_ulid()
+        monkeypatch.setattr(booking_service, "_create_booking_record", AsyncMock(return_value=fake_booking))
+        monkeypatch.setattr(booking_service, "_enqueue_booking_outbox_event", Mock())
+        monkeypatch.setattr(booking_service, "_snapshot_booking", Mock(return_value={}))
+        monkeypatch.setattr(booking_service, "_write_booking_audit", Mock())
+        monkeypatch.setattr(booking_service, "_handle_post_booking_tasks", AsyncMock())
+
+        result = await booking_service.create_booking(
+            mock_student, booking_data, selected_duration=booking_data.selected_duration
+        )
+
+        assert result is fake_booking
+        booking_service.repository.check_time_conflict.assert_called_once_with(
+            instructor_id=instructor_id,
+            booking_date=target_day,
+            start_time=time(9, 30),
+            end_time=time(10, 0),
+            exclude_booking_id=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_booking_respects_availability_bits_rejects_outside(
+        self,
+        booking_service,
+        mock_student,
+        mock_service,
+        mock_instructor_profile,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Bitmap availability rejects bookings that fall outside published bits."""
+        instructor_id = mock_instructor_profile.user_id
+        target_day = date.today() + timedelta(days=6)
+        mock_instructor_profile.user.timezone = "America/New_York"
+
+        monkeypatch.setattr("app.services.booking_service.BITMAP_V2", True)
+        AvailabilityDayRepository(booking_service.db).upsert_week(
+            instructor_id,
+            [(target_day, bits_from_windows([("09:00", "11:00")]))],
+        )
+
+        booking_data = BookingCreate(
+            instructor_id=instructor_id,
+            instructor_service_id=mock_service.id,
+            booking_date=target_day,
+            start_time=time(11, 0),
+            selected_duration=60,
+        )
+
+        booking_service.repository.check_time_conflict.return_value = False
+        booking_service._validate_booking_prerequisites = AsyncMock(
+            return_value=(mock_service, mock_instructor_profile)
+        )
+
+        mocked_create = AsyncMock()
+        monkeypatch.setattr(booking_service, "_create_booking_record", mocked_create)
+        monkeypatch.setattr(booking_service, "_enqueue_booking_outbox_event", Mock())
+        monkeypatch.setattr(booking_service, "_snapshot_booking", Mock(return_value={}))
+        monkeypatch.setattr(booking_service, "_write_booking_audit", Mock())
+        monkeypatch.setattr(booking_service, "_handle_post_booking_tasks", AsyncMock())
+
+        with pytest.raises(BusinessRuleException, match="Requested time is not available"):
+            await booking_service.create_booking(
+                mock_student, booking_data, selected_duration=booking_data.selected_duration
+            )
+
+        booking_service.repository.check_time_conflict.assert_not_called()
+        mocked_create.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_cancel_booking_success(self, booking_service, mock_student, mock_booking):

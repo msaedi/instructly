@@ -37,6 +37,7 @@ from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService
 from ..models.user import User
+from ..repositories.availability_day_repository import AvailabilityDayRepository
 from ..repositories.factory import RepositoryFactory
 from ..schemas.booking import BookingCreate, BookingUpdate
 from .audit_redaction import redact
@@ -58,6 +59,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
+BITMAP_V2 = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
 
 INSTRUCTOR_CONFLICT_MESSAGE = "Instructor already has a booking that overlaps this time"
 STUDENT_CONFLICT_MESSAGE = "Student already has a booking that overlaps this time"
@@ -260,6 +262,69 @@ class BookingService(BaseService):
 
         raise ValidationException("Bookings must start and end on the same calendar day")
 
+    @staticmethod
+    def _half_hour_index(hh: int, mm: int) -> int:
+        """Map HH:MM to the half-hour slot index used by bitmap availability."""
+        return hh * 2 + (1 if mm >= 30 else 0)
+
+    def _resolve_local_booking_day(
+        self,
+        booking_data: BookingCreate,
+        instructor_profile: InstructorProfile,
+    ) -> date:
+        local_day = booking_data.booking_date
+        instructor_user = getattr(instructor_profile, "user", None)
+        timezone_name = getattr(instructor_user, "timezone", None)
+        if timezone_name and booking_data.start_time:
+            try:
+                from zoneinfo import ZoneInfo
+
+                start_dt_utc = datetime.combine(
+                    booking_data.booking_date,
+                    booking_data.start_time,
+                    tzinfo=timezone.utc,
+                )
+                local_day = start_dt_utc.astimezone(ZoneInfo(timezone_name)).date()
+            except Exception:
+                # Fall back to the provided booking_date if timezone conversion fails
+                local_day = booking_data.booking_date
+        return local_day
+
+    def _validate_against_availability_bits(
+        self,
+        booking_data: BookingCreate,
+        instructor_profile: InstructorProfile,
+    ) -> None:
+        if not BITMAP_V2:
+            return
+
+        start_time_value = booking_data.start_time
+        end_time_value = booking_data.end_time
+        if start_time_value is None or end_time_value is None:
+            raise ValidationException(
+                "Start and end time must be specified for availability checks"
+            )
+
+        start_index = self._half_hour_index(start_time_value.hour, start_time_value.minute)
+        midnight = time(0, 0)
+        if end_time_value == midnight and start_time_value != midnight:
+            end_index = 48
+        else:
+            end_index = self._half_hour_index(end_time_value.hour, end_time_value.minute)
+
+        if not (0 <= start_index < 48) or not (0 < end_index <= 48) or start_index >= end_index:
+            raise BusinessRuleException("Requested time is not available")
+
+        local_day = self._resolve_local_booking_day(booking_data, instructor_profile)
+        repo = AvailabilityDayRepository(self.db)
+        bits = repo.get_day_bits(booking_data.instructor_id, local_day) or b""
+
+        for idx in range(start_index, end_index):
+            byte_i = idx // 8
+            bit_mask = 1 << (idx % 8)
+            if byte_i >= len(bits) or (bits[byte_i] & bit_mask) == 0:
+                raise BusinessRuleException("Requested time is not available")
+
     def _build_conflict_details(
         self, booking_data: BookingCreate, student_id: Optional[str]
     ) -> dict[str, str]:
@@ -350,10 +415,13 @@ class BookingService(BaseService):
         )
         booking_data.end_time = calculated_end_time
 
-        # 4. Check conflicts and apply business rules
+        # 4. Ensure requested interval fits published availability (bitmap V2)
+        self._validate_against_availability_bits(booking_data, instructor_profile)
+
+        # 5. Check conflicts and apply business rules
         await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
-        # 5. Create the booking with transaction
+        # 6. Create the booking with transaction
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
@@ -380,7 +448,7 @@ class BookingService(BaseService):
                 details=conflict_details,
             ) from exc
 
-        # 6. Handle post-creation tasks
+        # 7. Handle post-creation tasks
         await self._handle_post_booking_tasks(booking)
 
         return booking
@@ -437,10 +505,13 @@ class BookingService(BaseService):
         )
         booking_data.end_time = calculated_end_time
 
-        # 4. Check conflicts and apply business rules
+        # 4. Ensure requested interval fits published availability (bitmap V2)
+        self._validate_against_availability_bits(booking_data, instructor_profile)
+
+        # 5. Check conflicts and apply business rules
         await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
-        # 5. Create booking with PENDING status initially
+        # 6. Create booking with PENDING status initially
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
@@ -465,7 +536,7 @@ class BookingService(BaseService):
                 booking.payment_status = "pending_payment_method"
                 self._enqueue_booking_outbox_event(booking, "booking.created")
 
-                # 6. Create Stripe SetupIntent (with safe fallback for CI/mock environments)
+                # 7. Create Stripe SetupIntent (with safe fallback for CI/mock environments)
                 stripe_service = StripeService(
                     self.db,
                     config_service=ConfigService(self.db),
