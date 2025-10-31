@@ -1,5 +1,7 @@
 import { buildDaySegments, normalizeSchedule } from '@/lib/calendar/normalize';
+import { fromWindows, newEmptyBits, toWindows, toggle, idx } from '@/lib/calendar/bitset';
 import type { WeekSchedule } from '@/types/availability';
+import type { DayBits } from '@/lib/calendar/bitset';
 
 describe('calendar normalization', () => {
   it('splits overnight intervals across days', () => {
@@ -93,5 +95,33 @@ describe('calendar normalization', () => {
     expect(segments).toHaveLength(1);
     expect(segments[0]?.startMinutes).toBe(9 * 60);
     expect(segments[0]?.endMinutes).toBe(12 * 60 + 30);
+  });
+});
+
+describe('bitset helpers', () => {
+  it('round-trips windows through fromWindows/toWindows', () => {
+    const windows = [
+      { start_time: '09:00:00', end_time: '11:00:00' },
+      { start_time: '14:30:00', end_time: '15:30:00' },
+    ];
+    const bits = fromWindows(windows);
+    expect(bits).toBeInstanceOf(Uint8Array);
+    const back = toWindows(bits);
+    expect(back).toEqual(windows);
+  });
+
+  it('merges adjacent toggled cells into a single window', () => {
+    let bits: DayBits = newEmptyBits();
+    const nineAmIndex = idx(9, 0);
+    const nineThirtyIndex = idx(9, 30);
+    const tenAmIndex = idx(10, 0);
+
+    bits = toggle(bits, nineAmIndex, true);
+    bits = toggle(bits, nineThirtyIndex, true);
+    bits = toggle(bits, tenAmIndex, true);
+
+    const windows = toWindows(bits);
+    expect(windows).toHaveLength(1);
+    expect(windows[0]).toEqual({ start_time: '09:00:00', end_time: '10:30:00' });
   });
 });

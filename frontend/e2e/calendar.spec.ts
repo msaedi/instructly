@@ -160,6 +160,12 @@ test.describe('Instructor availability calendar', () => {
     await addFutureSlotEnd.click();
     await expect(addFutureSlotEnd).toHaveAttribute('aria-pressed', 'true');
 
+    const bookedSlotStart = page.locator('[role="gridcell"][aria-label="Tuesday 14:00"]');
+    const bookedSlotEnd = page.locator('[role="gridcell"][aria-label="Tuesday 14:30"]');
+    await bookedSlotStart.click();
+    await bookedSlotEnd.click();
+    await expect(bookedSlotEnd).toHaveAttribute('aria-pressed', 'true');
+
     await expect(page.getByText('Unsaved changes')).toBeVisible();
 
     await page.getByRole('button', { name: 'Save Week' }).click();
@@ -177,6 +183,7 @@ test.describe('Instructor availability calendar', () => {
       expect.arrayContaining([
         { date: '2025-05-05', start_time: '13:00:00', end_time: '14:00:00' },
         { date: '2025-05-08', start_time: '15:00:00', end_time: '16:00:00' },
+        { date: '2025-05-06', start_time: '14:00:00', end_time: '15:00:00' },
       ])
     );
   });
@@ -224,6 +231,7 @@ test.describe('Instructor availability calendar', () => {
         baseVersions.push(payload.base_version ?? undefined);
         const schedulePayload = payload?.schedule ?? [];
         if (!payload.override) {
+          expect(ifMatchValue).toBe(currentEtag);
           conflictCounter += 1;
           const conflictVersion = conflictCounter === 1 ? '"v2"' : '"v3"';
           currentEtag = conflictVersion;
@@ -232,7 +240,7 @@ test.describe('Instructor availability calendar', () => {
           });
           return;
         }
-        expect(ifMatchValue).toBeUndefined();
+        expect(ifMatchValue).toBe(currentEtag);
         const grouped: typeof currentSchedule = {};
         for (const entry of schedulePayload) {
           const targetDate = entry.date;
@@ -294,8 +302,8 @@ test.describe('Instructor availability calendar', () => {
     await expect(page.getByText('Unsaved changes')).toBeHidden();
 
     expect(conflictCounter).toBe(2);
-    expect(ifMatchHeaders).toEqual(['"v1"', '"v2"', undefined]);
-    expect(baseVersions).toEqual(['"v1"', '"v2"', '"v2"']);
+    expect(ifMatchHeaders).toEqual(['"v1"', '"v2"', '"v3"']);
+    expect(baseVersions).toEqual(['"v1"', '"v2"', '"v3"']);
     const finalSchedule = postedSchedules.at(-1);
     expect(finalSchedule).toBeDefined();
     if (!finalSchedule) {

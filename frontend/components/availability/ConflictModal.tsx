@@ -4,9 +4,9 @@ import clsx from 'clsx';
 interface ConflictModalProps {
   open: boolean;
   serverVersion?: string;
-  onDismiss: () => void;
   onRefresh: () => Promise<void> | void;
   onOverwrite: () => Promise<void> | void;
+  onClose?: () => void;
   isRefreshing?: boolean;
   isOverwriting?: boolean;
 }
@@ -14,9 +14,9 @@ interface ConflictModalProps {
 export default function ConflictModal({
   open,
   serverVersion,
-  onDismiss,
   onRefresh,
   onOverwrite,
+  onClose,
   isRefreshing = false,
   isOverwriting = false,
 }: ConflictModalProps) {
@@ -27,7 +27,7 @@ export default function ConflictModal({
       <div
         className="absolute inset-0 bg-black/30"
         aria-hidden="true"
-        onClick={onDismiss}
+        onClick={onClose}
       />
       <div
         role="dialog"
@@ -38,7 +38,7 @@ export default function ConflictModal({
       >
         <button
           type="button"
-          onClick={onDismiss}
+          onClick={onClose}
           className="absolute right-3 top-3 rounded-full p-1 text-gray-500 hover:bg-gray-100"
           aria-label="Close"
         >

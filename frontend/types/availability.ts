@@ -10,6 +10,8 @@
  * @module availability
  */
 
+import type { DayBits } from '@/lib/calendar/bitset';
+
 /**
  * Possible actions for slot operations
  * - 'add': Create a new availability slot
@@ -164,6 +166,12 @@ export interface ExistingSlot {
   /** End time (HH:MM:SS format) */
   end_time: string;
 }
+
+/**
+ * Bitmap representation of a week's availability.
+ * Keys are ISO dates, values are 6-byte (48 half-hour) bitmaps.
+ */
+export type WeekBits = Record<string, DayBits>;
 
 /**
  * Detailed information about a validation operation

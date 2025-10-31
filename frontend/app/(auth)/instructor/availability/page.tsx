@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/queries/useAuth';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
-import type { WeekSchedule } from '@/types/availability';
+import type { WeekBits } from '@/types/availability';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
 import { Calendar, ArrowLeft } from 'lucide-react';
@@ -36,12 +36,11 @@ function AvailabilityPageImpl() {
   const userData = user as unknown as UserData;
   const {
     currentWeekStart,
-    weekSchedule,
-    savedWeekSchedule,
-    hasUnsavedChanges,
+    weekBits,
+    savedWeekBits,
     isLoading,
     navigateWeek,
-    setWeekSchedule,
+    setWeekBits,
     setMessage,
     message,
     refreshSchedule,
@@ -51,6 +50,24 @@ function AvailabilityPageImpl() {
     applyToFutureWeeks,
     goToCurrentWeek,
   } = useAvailability();
+
+  const serializeBits = useCallback((bits: WeekBits) => {
+    return Object.fromEntries(
+      Object.entries(bits)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, dayBits]) => [date, Array.from(dayBits)])
+    );
+  }, []);
+
+  const serializedWeekBits = useMemo(
+    () => JSON.stringify(serializeBits(weekBits)),
+    [serializeBits, weekBits]
+  );
+  const serializedSavedWeekBits = useMemo(
+    () => JSON.stringify(serializeBits(savedWeekBits)),
+    [serializeBits, savedWeekBits]
+  );
+  const hasPendingChanges = serializedWeekBits !== serializedSavedWeekBits;
 
   const [activeDay, setActiveDay] = useState(0);
   const [repeatWeeks, setRepeatWeeks] = useState<number>(4);
@@ -139,17 +156,17 @@ function AvailabilityPageImpl() {
     }
   }, [message, refreshSchedule]);
 
-  const handleScheduleChange = useCallback((next: WeekSchedule) => {
-    setWeekSchedule(next);
+  const handleBitsChange = useCallback((next: WeekBits | ((prev: WeekBits) => WeekBits)) => {
+    setWeekBits(next);
     setMessage(null);
-  }, [setWeekSchedule, setMessage]);
+  }, [setWeekBits, setMessage]);
 
   const handleDiscardChanges = useCallback(() => {
-    setWeekSchedule(savedWeekSchedule);
+    setWeekBits(savedWeekBits);
     setMessage(null);
     setConflictState(null);
     toast.info('Reverted to last saved schedule.');
-  }, [savedWeekSchedule, setWeekSchedule, setMessage]);
+  }, [savedWeekBits, setWeekBits, setMessage]);
 
   const persistWeek = useCallback(
     async ({ override = false }: { override?: boolean } = {}) => {
@@ -157,7 +174,6 @@ function AvailabilityPageImpl() {
       try {
         const result = await saveWeek({
           clearExisting: true,
-          scheduleOverride: weekSchedule,
           override,
         });
 
@@ -187,7 +203,7 @@ function AvailabilityPageImpl() {
         setIsSaving(false);
       }
     },
-    [saveWeek, weekSchedule, refreshSchedule, setMessage]
+    [saveWeek, refreshSchedule, setMessage]
   );
 
   const handleSaveWeek = useCallback(() => {
@@ -218,13 +234,10 @@ function AvailabilityPageImpl() {
   }, [persistWeek]);
 
   useEffect(() => {
-    if (!autosaveEnabled) {
+    if (!autosaveEnabled || typeof window === 'undefined') {
       return;
     }
-    if (typeof window === 'undefined') {
-      return;
-    }
-    if (!hasUnsavedChanges || isLoading || isSaving || conflictState) {
+    if (!hasPendingChanges || isLoading || isSaving || conflictState) {
       if (autosaveTimer.current) {
         window.clearTimeout(autosaveTimer.current);
         autosaveTimer.current = null;
@@ -247,17 +260,17 @@ function AvailabilityPageImpl() {
         autosaveTimer.current = null;
       }
     };
-  }, [autosaveEnabled, conflictState, hasUnsavedChanges, isLoading, isSaving, persistWeek]);
+  }, [autosaveEnabled, conflictState, hasPendingChanges, isLoading, isSaving, persistWeek]);
 
   const header = useMemo(() => (
     <WeekNavigator
       currentWeekStart={currentWeekStart}
       onNavigate={navigateWeek}
-      hasUnsavedChanges={false}
+      hasUnsavedChanges={hasPendingChanges}
       showSubtitle={false}
       disabled={isLoading}
     />
-  ), [currentWeekStart, navigateWeek, isLoading]);
+  ), [currentWeekStart, navigateWeek, isLoading, hasPendingChanges]);
 
   return (
     <div className="min-h-screen">
@@ -405,7 +418,7 @@ function AvailabilityPageImpl() {
 
       <ConflictModal
         open={Boolean(conflictState)}
-        onDismiss={() => setConflictState(null)}
+        onClose={() => setConflictState(null)}
         onRefresh={handleConflictRefresh}
         onOverwrite={handleConflictOverwrite}
         isRefreshing={isConflictRefreshing}
@@ -440,9 +453,9 @@ function AvailabilityPageImpl() {
         ) : (
           <WeekView
             weekDates={weekDateInfo}
-            schedule={weekSchedule}
+            weekBits={weekBits}
             bookedSlots={bookedSlots}
-            onScheduleChange={handleScheduleChange}
+            onBitsChange={handleBitsChange}
             isMobile={isMobile}
             activeDayIndex={activeDay}
             onActiveDayChange={setActiveDay}
@@ -456,7 +469,7 @@ function AvailabilityPageImpl() {
     </div>
   </div>
 
-  {hasUnsavedChanges && (
+  {hasPendingChanges && (
       <div className="fixed bottom-4 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 px-4">
         <div className="flex items-center justify-between gap-4 rounded-full border border-gray-200 bg-white px-6 py-3 shadow-lg">
           <div className="text-sm text-gray-800">
@@ -474,7 +487,7 @@ function AvailabilityPageImpl() {
             <button
               type="button"
               onClick={handleSaveWeek}
-              disabled={isSaving}
+              disabled={isSaving || !hasPendingChanges}
               className="rounded-full bg-[#7E22CE] px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#6b1ebe] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? 'Saving…' : 'Save Week'}
