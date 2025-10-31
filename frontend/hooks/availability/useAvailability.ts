@@ -7,6 +7,21 @@ import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { logger } from '@/lib/logger';
 import { WeekSchedule, TimeSlot } from '@/types/availability';
 
+export interface SaveWeekOptions {
+  clearExisting?: boolean;
+  scheduleOverride?: WeekSchedule;
+  override?: boolean;
+}
+
+export interface SaveWeekResult {
+  success: boolean;
+  message: string;
+  code?: number;
+  serverVersion?: string;
+  version?: string;
+  weekVersion?: string;
+}
+
 export interface UseAvailabilityReturn {
   // state from useWeekSchedule
   currentWeekStart: Date;
@@ -28,7 +43,7 @@ export interface UseAvailabilityReturn {
   goToCurrentWeek: () => void;
 
   // API orchestrations (thin)
-  saveWeek: (opts?: { clearExisting?: boolean; scheduleOverride?: WeekSchedule }) => Promise<{ success: boolean; message: string; code?: number }>;
+  saveWeek: (opts?: SaveWeekOptions) => Promise<SaveWeekResult>;
   validateWeek: () => Promise<{ success: boolean; message: string; issues?: unknown[] }>;
   copyFromPreviousWeek: () => Promise<{ success: boolean; message: string }>;
   applyToFutureWeeks: (endISO: string) => Promise<{ success: boolean; message: string }>;
@@ -71,58 +86,101 @@ export function useAvailability(): UseAvailabilityReturn {
     lastModified,
   } = useWeekSchedule();
 
-  const saveWeek: UseAvailabilityReturn['saveWeek'] = useCallback(async (opts) => {
+  const saveWeek: UseAvailabilityReturn['saveWeek'] = useCallback(async (opts: SaveWeekOptions = {}) => {
     const week_start = formatDateForAPI(currentWeekStart);
-    // Build a snapshot by overlaying local edits over last saved snapshot
-    const localSource: WeekSchedule = opts?.scheduleOverride ?? weekSchedule;
-    const merged: WeekSchedule = { ...savedWeekSchedule, ...localSource };
+    const localSource: WeekSchedule = opts.scheduleOverride ?? weekSchedule;
+    const clearExisting = opts.clearExisting ?? true;
+    const override = Boolean(opts.override);
+
     // Flatten into list of { date, start_time, end_time } per backend schema
     const schedule: Array<{ date: string; start_time: string; end_time: string }> = [];
-    Object.entries(merged).forEach(([date, slots]) => {
+    Object.entries(localSource).forEach(([date, slots]) => {
       (slots || []).forEach((s: TimeSlot) => {
         schedule.push({ date, start_time: s.start_time, end_time: s.end_time });
       });
     });
 
+    schedule.sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      if (a.start_time !== b.start_time) return a.start_time.localeCompare(b.start_time);
+      return a.end_time.localeCompare(b.end_time);
+    });
+
     logger.info('Saving weekly availability snapshot', {
       week_start,
-      days: Object.keys(merged).length,
+      days: Object.keys(localSource).length,
       total_slots: schedule.length,
     });
 
     try {
-      const effectiveVersion =
-        (typeof window !== 'undefined' && (window as Window & { __week_version?: string }).__week_version) ||
-        version;
+      const storedVersion =
+        typeof window !== 'undefined'
+          ? (window as Window & { __week_version?: string }).__week_version
+          : undefined;
+      const effectiveVersion = storedVersion || version || undefined;
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (effectiveVersion && !override) {
+        headers['If-Match'] = effectiveVersion;
+      }
 
       const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           week_start,
-          clear_existing: Boolean(opts?.clearExisting),
+          clear_existing: clearExisting,
           schedule,
-          version: effectiveVersion,
+          base_version: effectiveVersion,
+          override,
         }),
       });
-      // Capture new version from response headers if present
-      const newVersion = res.headers?.get?.('ETag') || undefined;
+      const status = res.status;
+      const responseJson = await res
+        .clone()
+        .json()
+        .catch(() => undefined) as {
+        message?: string;
+        version?: string;
+        week_version?: string;
+        current_version?: string;
+        error?: string;
+      } | undefined;
+
+      if (!res.ok) {
+        const serverVersion =
+          typeof responseJson?.current_version === 'string'
+            ? responseJson?.current_version
+            : undefined;
+        const message =
+          responseJson?.error === 'version_conflict'
+            ? 'Week availability changed in another session.'
+            : extractErrorMessage(responseJson, 'Failed to save availability');
+        return {
+          success: false,
+          message,
+          code: status,
+          ...(serverVersion ? { serverVersion } : {}),
+        };
+      }
+
+      const headerVersion = res.headers?.get?.('ETag') || undefined;
+      const newVersion = responseJson?.week_version || responseJson?.version || headerVersion;
       if (newVersion && typeof window !== 'undefined') {
         (window as Window & { __week_version?: string }).__week_version = newVersion;
         logger.debug('Updated week version from POST', { newVersion });
       }
-      if (!res.ok) {
-        const status = res.status;
-        const err = await res.json().catch(() => ({} as Record<string, unknown>));
-        return { success: false, message: extractErrorMessage(err, 'Failed to save availability'), code: status };
-      }
-      // Avoid immediate refresh to prevent flicker/race while user is editing.
-      return { success: true, message: 'Availability saved' };
+
+      return {
+        success: true,
+        message: responseJson?.message || 'Availability saved',
+        ...(newVersion ? { version: newVersion, weekVersion: newVersion } : {}),
+      };
     } catch (e) {
       logger.error('saveWeek error', e);
       return { success: false, message: 'Network error while saving' };
     }
-  }, [currentWeekStart, weekSchedule, savedWeekSchedule, version]);
+  }, [currentWeekStart, weekSchedule, version]);
 
   const validateWeek: UseAvailabilityReturn['validateWeek'] = useCallback(async () => {
     try {

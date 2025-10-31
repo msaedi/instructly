@@ -66,4 +66,32 @@ describe('calendar normalization', () => {
     expect(segments).toHaveLength(1);
     expect(segments[0]?.durationMinutes).toBe(180);
   });
+
+  it('merges back-to-back intervals without introducing horizontal gaps', () => {
+    const schedule: WeekSchedule = {
+      '2025-05-05': [
+        { start_time: '09:00:00', end_time: '10:00:00' },
+        { start_time: '10:00:00', end_time: '11:30:00' },
+        { start_time: '12:00:00', end_time: '13:00:00' },
+      ],
+    };
+
+    const normalized = normalizeSchedule(schedule);
+
+    expect(normalized['2025-05-05']).toEqual([
+      { start_time: '09:00:00', end_time: '11:30:00' },
+      { start_time: '12:00:00', end_time: '13:00:00' },
+    ]);
+  });
+
+  it('produces contiguous day segments for merged intervals', () => {
+    const segments = buildDaySegments('2025-05-05', [
+      { start_time: '09:00:00', end_time: '10:00:00' },
+      { start_time: '10:00:00', end_time: '12:30:00' },
+    ]);
+
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.startMinutes).toBe(9 * 60);
+    expect(segments[0]?.endMinutes).toBe(12 * 60 + 30);
+  });
 });

@@ -96,15 +96,31 @@ export function useWeekSchedule(
   options: {
     /** Auto-hide message timeout in ms (default: 5000) */
     messageTimeout?: number;
+    /** Optional externally-controlled week start (Monday) */
+    selectedWeekStart?: Date;
+    /** Callback when the week start changes internally */
+    onWeekStartChange?: (weekStart: Date) => void;
   } = {}
 ): UseWeekScheduleReturn {
-  const { messageTimeout = 5000 } = options;
+  const {
+    messageTimeout = 5000,
+    selectedWeekStart,
+    onWeekStartChange,
+  } = options;
 
   // Core state
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
-    const weekStart = getCurrentWeekStart();
-    logger.debug('Initializing week start', { weekStart: formatDateForAPI(weekStart) });
-    return weekStart;
+    const initial = selectedWeekStart
+      ? getCurrentWeekStart(selectedWeekStart)
+      : getCurrentWeekStart();
+    logger.debug('Initializing week start', {
+      weekStart: formatDateForAPI(initial),
+      source: selectedWeekStart ? 'external' : 'today',
+      ...(selectedWeekStart
+        ? { selectedInput: formatDateForAPI(selectedWeekStart) }
+        : {}),
+    });
+    return initial;
   });
 
   const [weekSchedule, setWeekSchedule] = useState<WeekSchedule>({});
@@ -114,6 +130,21 @@ export function useWeekSchedule(
   const [message, setMessage] = useState<AvailabilityMessage | null>(null);
   const [version, setVersion] = useState<string | undefined>(undefined);
   const [lastModified, setLastModified] = useState<string | undefined>(undefined);
+
+  const currentWeekStartMs = currentWeekStart.getTime();
+
+  useEffect(() => {
+    if (!selectedWeekStart) return;
+    const normalized = getCurrentWeekStart(selectedWeekStart);
+    if (normalized.getTime() === currentWeekStartMs) {
+      return;
+    }
+    logger.debug('Syncing week start from external selection', {
+      previous: formatDateForAPI(currentWeekStart),
+      next: formatDateForAPI(normalized),
+    });
+    setCurrentWeekStart(normalized);
+  }, [selectedWeekStart, currentWeekStartMs, currentWeekStart]);
 
   // Computed values
   const weekDates = useMemo(() => {
@@ -269,6 +300,17 @@ export function useWeekSchedule(
     }
   }, [currentWeekStart]);
 
+  const updateWeekStart = useCallback(
+    (next: Date) => {
+      const normalized = getCurrentWeekStart(next);
+      setCurrentWeekStart(normalized);
+      if (onWeekStartChange) {
+        onWeekStartChange(normalized);
+      }
+    },
+    [onWeekStartChange]
+  );
+
   /**
    * Navigate between weeks
    */
@@ -287,9 +329,9 @@ export function useWeekSchedule(
         to: formatDateForAPI(newDate),
       });
 
-      setCurrentWeekStart(newDate);
+      updateWeekStart(newDate);
     },
-    [currentWeekStart]
+    [currentWeekStart, updateWeekStart]
   );
 
   /**
@@ -305,8 +347,8 @@ export function useWeekSchedule(
    */
   const goToCurrentWeek = useCallback(() => {
     const wk = getCurrentWeekStart();
-    setCurrentWeekStart(wk);
-  }, []);
+    updateWeekStart(wk);
+  }, [updateWeekStart]);
 
   /**
    * Reset state when week changes

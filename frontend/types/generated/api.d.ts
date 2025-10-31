@@ -10827,6 +10827,16 @@ export type components = {
             windows_deleted: number;
             /** Windows Updated */
             windows_updated: number;
+            /**
+             * Version
+             * @description Deprecated alias for week_version (optimistic concurrency token)
+             */
+            version?: string | null;
+            /**
+             * Week Version
+             * @description Server-provided optimistic concurrency token (ETag) for this week
+             */
+            week_version?: string | null;
         };
         /**
          * WeekSpecificScheduleCreate
@@ -10844,8 +10854,19 @@ export type components = {
                 [key: string]: unknown;
             }[];
             /**
+             * Base Version
+             * @description Client's baseline week version when saving (If-Match fallback)
+             */
+            base_version?: string | null;
+            /**
+             * Override
+             * @description If true, bypass server-side version checks when saving
+             * @default false
+             */
+            override?: boolean;
+            /**
              * Version
-             * @description Optional optimistic concurrency token (ETag) for this week
+             * @description Deprecated alias for base_version (optimistic concurrency token)
              */
             version?: string | null;
             /**

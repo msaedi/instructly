@@ -17,5 +17,12 @@
       { "metric": "largest-contentful-paint", "budget": 2500 },
       { "metric": "total-blocking-time", "budget": 150 }
     ]
+  },
+  {
+    "path": "/instructor/calendar",
+    "timings": [
+      { "metric": "largest-contentful-paint", "budget": 2500 },
+      { "metric": "total-blocking-time", "budget": 150 }
+    ]
   }
 ]

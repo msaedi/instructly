@@ -29,6 +29,8 @@ function SlotImpl(
   }: SlotProps,
   ref: React.Ref<HTMLButtonElement>
 ) {
+  const computedDisabled = Boolean(disabled || isConflict);
+  const pointerClass = computedDisabled ? 'cursor-not-allowed' : 'cursor-pointer';
   const button = (
     <button
       ref={ref}
@@ -38,16 +40,15 @@ function SlotImpl(
         isMobile ? 'min-h-[44px]' : 'min-h-[32px]',
         isSelected && 'bg-[#EDE3FA]',
         !isSelected && !isPast && 'bg-white',
-        isPast && 'bg-gray-50 opacity-70',
-        (isConflict || isPast) && 'cursor-not-allowed',
-        !isConflict && !isPast && 'cursor-pointer',
+        isPast && 'bg-gray-50 opacity-80',
+        pointerClass,
         isDragging && 'ring-2 ring-[#D4B5F0] ring-inset',
         className
       )}
       aria-pressed={isSelected}
       aria-label={label}
-      aria-disabled={disabled || isConflict || undefined}
-      disabled={disabled || false}
+      aria-disabled={computedDisabled || undefined}
+      disabled={computedDisabled}
       {...props}
     >
       {isConflict && (

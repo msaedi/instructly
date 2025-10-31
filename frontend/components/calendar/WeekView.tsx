@@ -1,6 +1,7 @@
 // frontend/components/calendar/WeekView.tsx
 
 import { useCallback, useMemo } from 'react';
+import type { CSSProperties } from 'react';
 import type { WeekSchedule, WeekDateInfo } from '@/types/availability';
 import type { BookedSlotPreview } from '@/types/booking';
 import InteractiveGrid from '@/components/availability/InteractiveGrid';
@@ -68,19 +69,26 @@ const WeekView = ({
     [onScheduleChange, timezone]
   );
 
+  const gapStyle = useMemo(
+    () => ({ '--slot-gap-x': '0px', '--slot-gap-y': '8px' } as CSSProperties),
+    []
+  );
+
   return (
-    <InteractiveGrid
-      weekDates={weekDates}
-      weekSchedule={normalizedSchedule}
-      {...(bookedSlots ? { bookedSlots } : {})}
-      {...(startHour !== undefined ? { startHour } : {})}
-      {...(endHour !== undefined ? { endHour } : {})}
-      {...(timezone ? { timezone } : {})}
-      {...(isMobile !== undefined ? { isMobile } : {})}
-      {...(activeDayIndex !== undefined ? { activeDayIndex } : {})}
-      {...(onActiveDayChange ? { onActiveDayChange } : {})}
-      onScheduleChange={handleScheduleChange}
-    />
+    <div style={gapStyle}>
+      <InteractiveGrid
+        weekDates={weekDates}
+        weekSchedule={normalizedSchedule}
+        {...(bookedSlots ? { bookedSlots } : {})}
+        {...(startHour !== undefined ? { startHour } : {})}
+        {...(endHour !== undefined ? { endHour } : {})}
+        {...(timezone ? { timezone } : {})}
+        {...(isMobile !== undefined ? { isMobile } : {})}
+        {...(activeDayIndex !== undefined ? { activeDayIndex } : {})}
+        {...(onActiveDayChange ? { onActiveDayChange } : {})}
+        onScheduleChange={handleScheduleChange}
+      />
+    </div>
   );
 };
 

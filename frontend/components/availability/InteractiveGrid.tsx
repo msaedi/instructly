@@ -396,7 +396,7 @@ export default function InteractiveGrid({
             const labelHour = Math.floor(r / HALF_HOURS_PER_HOUR) + startHour;
             const labelMin = r % 2 === 1 ? '30' : '00';
             const ariaLabel = `${dateInfo.date.toLocaleDateString('en-US', { weekday: 'long' })} ${labelHour.toString().padStart(2, '0')}:${labelMin}`;
-            const disabled = booked || past;
+            const disabled = booked;
             const conflictMessage = booked
               ? 'Lesson booked. Cancel from Bookings to free this slot.'
               : undefined;
@@ -459,8 +459,18 @@ export default function InteractiveGrid({
 
   return (
     <div ref={containerRef} className="relative w-full overflow-x-auto">
-      <div ref={gridRef} className="grid" role="grid" aria-rowcount={rows} aria-colcount={isMobile ? 1 : weekDates.length}
-           style={{ gridTemplateColumns: `80px repeat(${isMobile ? 1 : weekDates.length}, minmax(0, 1fr))` }}>
+      <div
+        ref={gridRef}
+        className="grid"
+        role="grid"
+        aria-rowcount={rows}
+        aria-colcount={isMobile ? 1 : weekDates.length}
+        style={{
+          gridTemplateColumns: `80px repeat(${isMobile ? 1 : weekDates.length}, minmax(0, 1fr))`,
+          columnGap: 'var(--slot-gap-x, 0px)',
+          rowGap: 'var(--slot-gap-y, 8px)',
+        }}
+      >
         {/* Empty spacer header to align with day headers (with right border for vertical grid line) */}
         <div className="sticky left-0 top-0 z-20 bg-white/80 backdrop-blur px-2 py-1 border-r border-gray-200" />
         {/* Day headers */}
