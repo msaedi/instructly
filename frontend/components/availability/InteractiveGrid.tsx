@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import clsx from 'clsx';
 
 import type { WeekBits, WeekDateInfo } from '@/types/availability';
@@ -98,51 +99,125 @@ export default function InteractiveGrid({
   onActiveDayChange,
 }: InteractiveGridProps) {
   const rows = useMemo(() => (endHour - startHour) * HALF_HOURS_PER_HOUR, [startHour, endHour]);
-  const dragRef = useRef<{ date: string; turningOn: boolean } | null>(null);
 
-  const displayDates = useMemo(() => {
-    if (!isMobile) return weekDates;
-    const dateInfo = weekDates[activeDayIndex] ?? weekDates[0];
-    return dateInfo ? [dateInfo] : [];
-  }, [isMobile, activeDayIndex, weekDates]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragValue, setDragValue] = useState<boolean | null>(null);
+  const dragValueRef = useRef<boolean | null>(null);
+  const pendingRef = useRef<Record<string, Set<number>>>({});
+  const rafRef = useRef<number | null>(null);
 
-  const applyToggle = useCallback(
-    (date: string, slotIndex: number, turnOn: boolean) => {
+  const applyImmediate = useCallback(
+    (date: string, slotIndex: number, desired: boolean) => {
       onBitsChange((prev) => {
         const current = prev[date] ?? newEmptyBits();
-        if (isSlotSelected(current, slotIndex) === turnOn) {
+        if (isSlotSelected(current, slotIndex) === desired) {
           return prev;
         }
         return {
           ...prev,
-          [date]: toggle(current, slotIndex, turnOn),
+          [date]: toggle(current, slotIndex, desired),
         };
       });
     },
     [onBitsChange]
   );
 
-  const beginDrag = useCallback(
-    (date: string, slotIndex: number) => {
-      const turningOn = !isSlotSelected(weekBits[date], slotIndex);
-      applyToggle(date, slotIndex, turningOn);
-      dragRef.current = { date, turningOn };
-    },
-    [applyToggle, weekBits]
-  );
+  const flushPending = useCallback(() => {
+    const desired = dragValueRef.current;
+    if (desired === null) {
+      pendingRef.current = {};
+      return;
+    }
 
-  const updateDrag = useCallback(
-    (date: string, slotIndex: number) => {
-      const state = dragRef.current;
-      if (!state || state.date !== date) return;
-      applyToggle(date, slotIndex, state.turningOn);
-    },
-    [applyToggle]
-  );
+    const payload = pendingRef.current;
+    pendingRef.current = {};
+    const dates = Object.keys(payload);
+    if (!dates.length) {
+      return;
+    }
 
-  const endDrag = useCallback(() => {
-    dragRef.current = null;
+    onBitsChange((prev) => {
+      let changed = false;
+      const next: WeekBits = { ...prev };
+      for (const date of dates) {
+        const indices = Array.from(payload[date] ?? []);
+        if (!indices.length) continue;
+        const current = next[date] ?? newEmptyBits();
+        let updated = current;
+        indices.forEach((slotIndex) => {
+          const selected = isSlotSelected(updated, slotIndex);
+          if (selected !== desired) {
+            updated = toggle(updated, slotIndex, desired);
+          }
+        });
+        if (updated !== current) {
+          next[date] = updated;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [onBitsChange]);
+
+  const scheduleFlush = useCallback(() => {
+    if (rafRef.current !== null) return;
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
+      flushPending();
+    });
+  }, [flushPending]);
+
+  const cancelScheduledFlush = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
   }, []);
+
+  const enqueueUpdate = useCallback(
+    (date: string, slotIndex: number, desired: boolean) => {
+      const currentBits = weekBits[date];
+      if (isSlotSelected(currentBits, slotIndex) === desired) {
+        return;
+      }
+      let setForDate = pendingRef.current[date];
+      if (!setForDate) {
+        setForDate = new Set<number>();
+        pendingRef.current[date] = setForDate;
+      }
+      setForDate.add(slotIndex);
+      scheduleFlush();
+    },
+    [scheduleFlush, weekBits]
+  );
+
+  const finishDrag = useCallback(() => {
+    if (!isDragging) return;
+    cancelScheduledFlush();
+    flushPending();
+    pendingRef.current = {};
+    setIsDragging(false);
+    setDragValue(null);
+    dragValueRef.current = null;
+  }, [cancelScheduledFlush, flushPending, isDragging]);
+
+  useEffect(() => {
+    dragValueRef.current = dragValue;
+  }, [dragValue]);
+
+  useEffect(() => {
+    const handleWindowUp = () => {
+      finishDrag();
+    };
+    window.addEventListener('mouseup', handleWindowUp);
+    return () => window.removeEventListener('mouseup', handleWindowUp);
+  }, [finishDrag]);
+
+  const displayDates = useMemo(() => {
+    if (!isMobile) return weekDates;
+    const dateInfo = weekDates[activeDayIndex] ?? weekDates[0];
+    return dateInfo ? [dateInfo] : [];
+  }, [isMobile, activeDayIndex, weekDates]);
 
   const { isoDate: todayIso, minutes: nowMinutes } = useMemo(
     () => getNowInTimezone(timezone),
@@ -161,37 +236,43 @@ export default function InteractiveGrid({
     [nowMinutes, startHour, todayIso]
   );
 
-  const handlePointerDown = useCallback(
-    (event: React.PointerEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
+  const handleMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
       event.preventDefault();
-      event.currentTarget.setPointerCapture(event.pointerId);
-      beginDrag(date, slotIndex);
+      const desired = !isSlotSelected(weekBits[date], slotIndex);
+      pendingRef.current = {};
+      setIsDragging(true);
+      setDragValue(desired);
+      dragValueRef.current = desired;
+      applyImmediate(date, slotIndex, desired);
     },
-    [beginDrag]
+    [applyImmediate, weekBits]
   );
 
-  const handlePointerEnter = useCallback(
-    (event: React.PointerEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
-      if (event.buttons !== 1 || !dragRef.current) return;
-      updateDrag(date, slotIndex);
+  const handleMouseEnter = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
+      if (!isDragging || dragValue === null || event.buttons === 0) return;
+      enqueueUpdate(date, slotIndex, dragValue);
     },
-    [updateDrag]
+    [enqueueUpdate, isDragging, dragValue]
   );
 
-  const handlePointerUp = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    endDrag();
-  }, [endDrag]);
+  const handleMouseUp = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      finishDrag();
+    },
+    [finishDrag]
+  );
 
   const handleKeyToggle = useCallback(
-    (event: React.KeyboardEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
+    (event: ReactKeyboardEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
       if (event.key !== ' ' && event.key !== 'Enter') return;
       event.preventDefault();
-      const next = !isSlotSelected(weekBits[date], slotIndex);
-      applyToggle(date, slotIndex, next);
+      const desired = !isSlotSelected(weekBits[date], slotIndex);
+      applyImmediate(date, slotIndex, desired);
     },
-    [applyToggle, weekBits]
+    [applyImmediate, weekBits]
   );
 
   return (
@@ -201,7 +282,7 @@ export default function InteractiveGrid({
         style={{
           gridTemplateColumns: `80px repeat(${displayDates.length}, minmax(0, 1fr))`,
           columnGap: '0px',
-          rowGap: '8px',
+          rowGap: 'var(--slot-gap-y, 8px)',
         }}
       >
         {/* Corner spacer */}
@@ -284,11 +365,11 @@ export default function InteractiveGrid({
                     role="gridcell"
                     aria-selected={selected}
                     aria-label={ariaLabel}
-                    onPointerDown={(event) => handlePointerDown(event, date, slotIndex)}
-                    onPointerEnter={(event) => handlePointerEnter(event, date, slotIndex)}
-                    onPointerUp={handlePointerUp}
-                    onPointerLeave={(event) => {
-                      if (event.buttons === 0) endDrag();
+                    onMouseDown={(event) => handleMouseDown(event, date, slotIndex)}
+                    onMouseEnter={(event) => handleMouseEnter(event, date, slotIndex)}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={(event) => {
+                      if (event.buttons === 0) finishDrag();
                     }}
                     onKeyDown={(event) => handleKeyToggle(event, date, slotIndex)}
                   >

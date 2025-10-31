@@ -40,7 +40,7 @@ function SlotImpl(
         isMobile ? 'min-h-[44px]' : 'min-h-[32px]',
         isSelected && 'bg-[#EDE3FA]',
         !isSelected && !isPast && 'bg-white',
-        isPast && 'bg-gray-50 opacity-80',
+        isPast && !isSelected && 'bg-gray-50 opacity-80',
         pointerClass,
         isDragging && 'ring-2 ring-[#D4B5F0] ring-inset',
         className

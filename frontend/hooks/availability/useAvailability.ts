@@ -185,10 +185,13 @@ export function useAvailability(): UseAvailabilityReturn {
             typeof responseJson?.current_version === 'string'
               ? responseJson?.current_version
               : responseEtag;
-          const message =
-            responseJson?.error === 'version_conflict'
-              ? 'Week availability changed in another session.'
-              : extractErrorMessage(responseJson, 'Failed to save availability');
+          let message: string;
+          if (status === 409 || responseJson?.error === 'version_conflict') {
+            message = 'Week availability changed in another session.';
+          } else {
+            const detail = extractErrorMessage(responseJson, 'Failed to save availability');
+            message = `Failed to save availability (${status}): ${detail}`;
+          }
           return {
             success: false,
             message,

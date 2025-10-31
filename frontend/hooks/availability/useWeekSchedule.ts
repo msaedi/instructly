@@ -38,6 +38,39 @@ function cloneWeekBits(source: WeekBits): WeekBits {
   return next;
 }
 
+function extractDetailFromResponse(payload: unknown): string | undefined {
+  if (!payload) return undefined;
+  if (typeof payload === 'string') return payload;
+  const record = payload as Record<string, unknown>;
+  if (typeof record?.['detail'] === 'string') {
+    return record['detail'] as string;
+  }
+  const detailField = record?.['detail'];
+  if (Array.isArray(detailField)) {
+    const collected = detailField
+      .map((entry) => {
+        if (typeof entry === 'string') return entry;
+        const entryRecord = entry as Record<string, unknown> | undefined;
+        if (entryRecord && typeof entryRecord['msg'] === 'string') {
+          return entryRecord['msg'] as string;
+        }
+        return undefined;
+      })
+      .filter(Boolean) as string[];
+    if (collected.length) {
+      return collected.join('; ');
+    }
+  }
+  if (typeof record?.['message'] === 'string') {
+    return record['message'] as string;
+  }
+  try {
+    return JSON.stringify(payload);
+  } catch {
+    return undefined;
+  }
+}
+
 function dayBitsEqual(a?: DayBits, b?: DayBits): boolean {
   for (let i = 0; i < ZERO_DAY.length; i += 1) {
     const av = a ? a[i] ?? 0 : 0;
@@ -253,7 +286,18 @@ export function useWeekSchedule(
       );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch availability');
+        const errorBody = await response.json().catch(() => undefined);
+        const detail = extractDetailFromResponse(errorBody) || response.statusText || 'Unknown error';
+        const messageText = `Failed to load availability (${response.status}): ${detail}`;
+        logger.error('Failed to fetch weekly availability', new Error(messageText), {
+          status: response.status,
+          detail: errorBody,
+        });
+        setMessage({
+          type: 'error',
+          text: messageText,
+        });
+        return;
       }
 
       const data = await response.json();
@@ -279,10 +323,12 @@ export function useWeekSchedule(
       setEtag(headerEtag);
       setLastModified(headerLastModified);
     } catch (error) {
+      const fallback = error instanceof Error ? error.message : 'Unexpected error';
+      const messageText = `Failed to load availability: ${fallback}`;
       logger.error('Failed to load availability', error);
       setMessage({
         type: 'error',
-        text: 'Failed to load availability. Please try again.',
+        text: messageText,
       });
     } finally {
       logger.timeEnd('fetchWeekSchedule');
