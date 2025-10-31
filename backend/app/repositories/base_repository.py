@@ -239,13 +239,8 @@ class BaseRepository(IRepository[T]):
             raise RepositoryException(f"Failed to create {self.model.__name__}: {str(e)}")
 
     def flush(self) -> None:
-        """Flush pending changes while preserving repository abstraction."""
-        try:
-            self.db.flush()
-        except SQLAlchemyError as exc:
-            self.logger.error("Error flushing %s repository: %s", self.model.__name__, exc)
-            self.db.rollback()
-            raise RepositoryException(f"Failed to flush {self.model.__name__}") from exc
+        """Flush pending ORM changes."""
+        self.db.flush()
 
     def update(self, id: int, **kwargs) -> Optional[T]:
         """

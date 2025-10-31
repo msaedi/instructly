@@ -201,6 +201,9 @@ class TestCopyWeekLogic:
             unit_db, mock_availability, mock_conflict, mock_cache, mock_repository, mock_availability_repository
         )
         service.event_outbox_repository = Mock()
+        service.availability_repository.get_slots_by_date.return_value = []
+        service.availability_service.compute_week_version.return_value = "v1"
+        service.audit_repository = Mock()
         return service
 
     @pytest.mark.asyncio
@@ -213,7 +216,7 @@ class TestCopyWeekLogic:
         # Mock repository methods for single-table design
         service.availability_repository.delete_slots_by_dates.return_value = 0
         service.repository.get_week_slots.return_value = []
-        service.repository.bulk_create_slots.return_value = 0
+        service.repository.bulk_create_slots.return_value = []
 
         service.availability_service.get_week_availability.return_value = {}
 

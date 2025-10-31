@@ -237,6 +237,52 @@ def upgrade() -> None:
         ["event_type", "delivered_at"],
     )
 
+    print("Creating audit_log table...")
+    op.create_table(
+        "audit_log",
+        sa.Column("id", sa.String(length=26), primary_key=True, nullable=False),
+        sa.Column("entity_type", sa.String(length=50), nullable=False),
+        sa.Column("entity_id", sa.String(length=64), nullable=False),
+        sa.Column("action", sa.String(length=30), nullable=False),
+        sa.Column("actor_id", sa.String(length=26), nullable=True),
+        sa.Column("actor_role", sa.String(length=30), nullable=True),
+        sa.Column(
+            "occurred_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("before", json_type, nullable=True),
+        sa.Column("after", json_type, nullable=True),
+    )
+
+    if is_postgres:
+        op.execute(
+            "CREATE INDEX ix_audit_log_entity ON audit_log (entity_type, entity_id, occurred_at DESC);"
+        )
+        op.execute(
+            "CREATE INDEX ix_audit_log_actor ON audit_log (actor_id, occurred_at DESC);"
+        )
+        op.execute(
+            "CREATE INDEX ix_audit_log_action ON audit_log (action, occurred_at DESC);"
+        )
+    else:
+        op.create_index(
+            "ix_audit_log_entity",
+            "audit_log",
+            ["entity_type", "entity_id", "occurred_at"],
+        )
+        op.create_index(
+            "ix_audit_log_actor",
+            "audit_log",
+            ["actor_id", "occurred_at"],
+        )
+        op.create_index(
+            "ix_audit_log_action",
+            "audit_log",
+            ["action", "occurred_at"],
+        )
+
     # Background check guard rails on instructor profiles
     print("Adding background check fields to instructor_profiles...")
     op.add_column(
@@ -966,6 +1012,18 @@ def downgrade() -> None:
 
     print("Dropping platform_config table...")
     op.drop_table("platform_config")
+
+    print("Dropping audit_log table...")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS ix_audit_log_entity;")
+        op.execute("DROP INDEX IF EXISTS ix_audit_log_actor;")
+        op.execute("DROP INDEX IF EXISTS ix_audit_log_action;")
+        op.execute("DROP TABLE IF EXISTS audit_log;")
+    else:
+        op.drop_index("ix_audit_log_action", table_name="audit_log")
+        op.drop_index("ix_audit_log_actor", table_name="audit_log")
+        op.drop_index("ix_audit_log_entity", table_name="audit_log")
+        op.drop_table("audit_log")
 
     print("Dropping notification outbox tables...")
     op.drop_index(

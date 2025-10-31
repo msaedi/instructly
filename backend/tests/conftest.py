@@ -69,6 +69,7 @@ from app.models import SearchEvent, SearchHistory
 
 # Ensure address and region models are registered so Base.metadata.create_all creates their tables
 from app.models.address import InstructorServiceArea, NYCNeighborhood, UserAddress  # noqa: F401
+from app.models.audit_log import AuditLog
 from app.models.availability import AvailabilitySlot
 from app.models.badge import (  # noqa: F401 ensures badge tables
     BadgeDefinition,
@@ -741,6 +742,7 @@ def db():
         cleanup_db.query(BadgeProgress).delete()
         cleanup_db.query(NotificationDelivery).delete()
         cleanup_db.query(EventOutbox).delete()
+        cleanup_db.query(AuditLog).delete()
 
         # Clean up service catalog test data
         # Only delete services with test patterns - preserve all seeded catalog data

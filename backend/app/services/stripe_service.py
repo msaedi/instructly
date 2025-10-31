@@ -1860,8 +1860,7 @@ class StripeService(BaseService):
             booking = self.booking_repository.get_by_id(payment_record.booking_id)
             if booking and booking.status == "PENDING":
                 booking.status = "CONFIRMED"
-                # repo-pattern-ignore: Transaction management requires direct DB flush
-                self.db.flush()
+                self.booking_repository.flush()
 
             self.logger.info(
                 f"Processed successful payment for booking {payment_record.booking_id}"

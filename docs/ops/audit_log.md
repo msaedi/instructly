@@ -1,0 +1,70 @@
+# Audit Log Operations
+
+## Overview
+
+The audit log tracks key lifecycle events for bookings and availability so that administrators can review who changed what and when. The following actions are recorded:
+
+- Booking create, update, cancel, complete events
+- Availability week saves and week copy operations
+
+Each entry captures:
+
+- Entity type (`booking` or `availability`) and identifier
+- Action name
+- Actor id and role (student, instructor, admin, or system)
+- Timestamp (`occurred_at`)
+- Redacted `before` and `after` payloads showing relevant state snapshots
+
+## Redaction Policy
+
+Audit payloads are shallowly sanitized before persistence. Sensitive keys are masked (`[REDACTED]`) so that emails, contact details, payment metadata, and free-form notes do not leak into the log. The helper is lightweight and easy to extend – update `app/services/audit_redaction.py` if new fields need to be hidden.
+
+## Querying the Log
+
+`GET /api/admin/audit` (admin role required) exposes a filterable, paginated view.
+
+Supported query parameters:
+
+- `entity_type`, `entity_id`
+- `action`
+- `actor_id`, `actor_role`
+- `start`, `end` – ISO8601 timestamps (inclusive range)
+- `limit` (default 50, maximum 200), `offset`
+
+Results are ordered by `occurred_at DESC`. The endpoint is intentionally uncached so the latest writes are always visible.
+
+### Example
+
+```bash
+curl \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  'https://api.example.com/api/admin/audit?entity_type=booking&entity_id=bk_123&limit=25'
+```
+
+Sample response excerpt:
+
+```json
+{
+  "items": [
+    {
+      "id": "01HC5MAB62E5...",
+      "entity_type": "booking",
+      "entity_id": "bk_123",
+      "action": "cancel",
+      "actor_id": "student_42",
+      "actor_role": "student",
+      "occurred_at": "2025-01-05T17:42:11.082Z",
+      "before": {"status": "CONFIRMED", "student_note": "[REDACTED]"},
+      "after": {"status": "CANCELLED", "student_note": "[REDACTED]"}
+    }
+  ],
+  "total": 3,
+  "limit": 25,
+  "offset": 0
+}
+```
+
+## Access Control
+
+- Only admins can call the endpoint (`requires_roles("admin")`). Non-admin requests receive `403`.
+- Responses are never cached; every request hits the database to surface the most recent events.

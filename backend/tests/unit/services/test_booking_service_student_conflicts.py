@@ -3,7 +3,7 @@
 Unit tests for student conflict validation in BookingService.
 """
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
@@ -17,6 +17,54 @@ from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
+
+
+def _populate_booking_dict(
+    booking: Mock,
+    *,
+    student_id: str | int,
+    instructor_id: str | int,
+    booking_date: date,
+    start_time: time,
+    end_time: time,
+    status: BookingStatus = BookingStatus.CONFIRMED,
+    instructor_service_id: str | int | None = None,
+) -> None:
+    booking.student_id = student_id
+    booking.instructor_id = instructor_id
+    booking.booking_date = booking_date
+    booking.start_time = start_time
+    booking.end_time = end_time
+    booking.status = status
+    service_id = instructor_service_id or generate_ulid()
+    booking.instructor_service_id = service_id
+    booking.to_dict.return_value = {
+        "id": getattr(booking, "id", generate_ulid()),
+        "student_id": student_id,
+        "instructor_id": instructor_id,
+        "instructor_service_id": service_id,
+        "booking_date": booking_date.isoformat(),
+        "start_time": start_time.strftime("%H:%M"),
+        "end_time": end_time.strftime("%H:%M"),
+        "service_name": "Test Service",
+        "hourly_rate": 50.0,
+        "total_price": 50.0,
+        "duration_minutes": int((datetime.combine(date.min, end_time) - datetime.combine(date.min, start_time)).seconds / 60),
+        "status": status.value,
+        "location_type": "remote",
+        "location_type_display": "Remote",
+        "meeting_location": None,
+        "service_area": None,
+        "student_note": "",
+        "instructor_note": "",
+        "created_at": None,
+        "updated_at": None,
+        "confirmed_at": None,
+        "completed_at": None,
+        "cancelled_at": None,
+        "cancelled_by_id": None,
+        "cancellation_reason": None,
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -44,13 +92,18 @@ class TestStudentConflictValidation:
         repository = Mock()
         repository.check_time_conflict = Mock(return_value=False)  # No instructor conflicts by default
         repository.check_student_time_conflict = Mock(return_value=[])  # No student conflicts by default
-        repository.create = Mock(
-            return_value=Mock(
-                spec=Booking,
-                id=generate_ulid(),
-                status=BookingStatus.CONFIRMED,
-            )
+        created_booking = Mock(spec=Booking)
+        created_booking.id = generate_ulid()
+        created_booking.status = BookingStatus.CONFIRMED
+        _populate_booking_dict(
+            created_booking,
+            student_id=generate_ulid(),
+            instructor_id=generate_ulid(),
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(15, 0),
+            end_time=time(16, 0),
         )
+        repository.create = Mock(return_value=created_booking)
         repository.get_booking_with_details = Mock(return_value=None)
         transaction_cm = MagicMock()
         transaction_cm.__enter__.return_value = None
@@ -151,10 +204,14 @@ class TestStudentConflictValidation:
         # Setup: Student already has a booking at 3:00-4:00 PM
         existing_booking = Mock(spec=Booking)
         existing_booking.id = generate_ulid()
-        existing_booking.start_time = time(15, 0)
-        existing_booking.end_time = time(16, 0)
-        existing_booking.booking_date = date.today() + timedelta(days=1)
-        existing_booking.status = BookingStatus.CONFIRMED
+        _populate_booking_dict(
+            existing_booking,
+            student_id=student.id,
+            instructor_id=instructor.id,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+        )
 
         mock_repository.check_student_time_conflict.return_value = [existing_booking]
 
@@ -202,10 +259,14 @@ class TestStudentConflictValidation:
         # Setup: Student has a booking at 3:00-4:00 PM
         existing_booking = Mock(spec=Booking)
         existing_booking.id = generate_ulid()
-        existing_booking.start_time = time(15, 0)
-        existing_booking.end_time = time(16, 0)
-        existing_booking.booking_date = date.today() + timedelta(days=1)
-        existing_booking.status = BookingStatus.CONFIRMED
+        _populate_booking_dict(
+            existing_booking,
+            student_id=student.id,
+            instructor_id=instructor.id,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+        )
 
         # For adjacent booking (4:00-5:00 PM), no conflicts should be returned
         mock_repository.check_student_time_conflict.return_value = []
@@ -214,6 +275,14 @@ class TestStudentConflictValidation:
         new_booking = Mock(spec=Booking)
         new_booking.id = 101
         new_booking.status = BookingStatus.CONFIRMED
+        _populate_booking_dict(
+            new_booking,
+            student_id=student.id,
+            instructor_id=instructor.id,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(16, 0),
+            end_time=time(17, 0),
+        )
         mock_repository.create.return_value = new_booking
         mock_repository.get_booking_with_details.return_value = new_booking
 
@@ -298,11 +367,25 @@ class TestStudentConflictValidation:
         # Create bookings
         booking1 = Mock(spec=Booking)
         booking1.id = 101
-        booking1.status = BookingStatus.CONFIRMED
+        _populate_booking_dict(
+            booking1,
+            student_id=student1.id,
+            instructor_id=instructor.id,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+        )
 
         booking2 = Mock(spec=Booking)
         booking2.id = 102
-        booking2.status = BookingStatus.CONFIRMED
+        _populate_booking_dict(
+            booking2,
+            student_id=student2.id,
+            instructor_id=instructor.id,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(15, 30),
+            end_time=time(16, 30),
+        )
 
         mock_repository.create.side_effect = [booking1, booking2]
         mock_repository.get_booking_with_details.side_effect = [booking1, booking2]
@@ -354,10 +437,14 @@ class TestStudentConflictValidation:
         # Existing booking: 3:00-4:00 PM
         existing_booking = Mock(spec=Booking)
         existing_booking.id = generate_ulid()
-        existing_booking.start_time = time(15, 0)
-        existing_booking.end_time = time(16, 0)
-        existing_booking.booking_date = date.today() + timedelta(days=1)
-        existing_booking.status = BookingStatus.CONFIRMED
+        _populate_booking_dict(
+            existing_booking,
+            student_id=student.id,
+            instructor_id=instructor.id,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+        )
 
         mock_repository.check_student_time_conflict.return_value = [existing_booking]
 
@@ -413,7 +500,14 @@ class TestStudentConflictValidation:
         # Create new booking
         new_booking = Mock(spec=Booking)
         new_booking.id = 101
-        new_booking.status = BookingStatus.CONFIRMED
+        _populate_booking_dict(
+            new_booking,
+            student_id=student.id,
+            instructor_id=instructor.id,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+        )
         mock_repository.create.return_value = new_booking
         mock_repository.get_booking_with_details.return_value = new_booking
 

@@ -16,6 +16,7 @@ Note: The Service model has been replaced with a three-table catalog system:
 """
 
 from .address import InstructorServiceArea, NYCNeighborhood, UserAddress
+from .audit_log import AuditLog
 from .availability import AvailabilitySlot, BlackoutDate
 from .booking import Booking, BookingStatus
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
@@ -69,6 +70,7 @@ __all__ = [
     # Booking models
     "Booking",
     "BookingStatus",
+    "AuditLog",
     "PlatformConfig",
     # Notification outbox
     "EventOutbox",

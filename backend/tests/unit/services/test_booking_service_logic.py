@@ -195,6 +195,33 @@ class TestBookingServiceUnit:
         # Mock methods
         booking.cancel = Mock()
         booking.complete = Mock()
+        booking.to_dict.return_value = {
+            "id": booking.id,
+            "student_id": booking.student_id,
+            "instructor_id": booking.instructor_id,
+            "instructor_service_id": booking.instructor_service_id,
+            "booking_date": booking.booking_date.isoformat(),
+            "start_time": booking.start_time.strftime("%H:%M"),
+            "end_time": booking.end_time.strftime("%H:%M"),
+            "service_name": "Piano",
+            "hourly_rate": float(booking.total_price),
+            "total_price": float(booking.total_price),
+            "duration_minutes": booking.duration_minutes,
+            "status": booking.status.value,
+            "location_type": "remote",
+            "location_type_display": "Remote",
+            "meeting_location": None,
+            "service_area": None,
+            "student_note": "Bring metronome",
+            "instructor_note": "Lesson plan ready",
+            "created_at": None,
+            "updated_at": None,
+            "confirmed_at": None,
+            "completed_at": None,
+            "cancelled_at": None,
+            "cancelled_by_id": None,
+            "cancellation_reason": None,
+        }
 
         return booking
 

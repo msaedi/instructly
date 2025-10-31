@@ -138,6 +138,26 @@ notifications_dispatch_seconds = Histogram(
     buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
 )
 
+audit_log_write_total = Counter(
+    "instainstru_audit_log_write_total",
+    "Total number of audit log entries written",
+    ["entity_type", "action"],
+    registry=REGISTRY,
+)
+
+audit_log_read_total = Counter(
+    "instainstru_audit_log_read_total",
+    "Total number of admin audit log list invocations",
+    registry=REGISTRY,
+)
+
+audit_log_list_seconds = Histogram(
+    "instainstru_audit_log_list_seconds",
+    "Duration of audit log listing queries in seconds",
+    registry=REGISTRY,
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+)
+
 # Storage for tracking active operations
 active_operations: Dict[str, int] = defaultdict(int)
 
@@ -283,6 +303,19 @@ class PrometheusMetrics:
             PrometheusMetrics._cache_payload = None
 
     # Domain helpers
+    @staticmethod
+    def record_audit_write(entity_type: str, action: str) -> None:
+        """Increment audit log write counter."""
+        audit_log_write_total.labels(entity_type=entity_type, action=action).inc()
+        PrometheusMetrics._invalidate_cache()
+
+    @staticmethod
+    def record_audit_read(duration_seconds: float) -> None:
+        """Record audit log list metrics."""
+        audit_log_read_total.inc()
+        audit_log_list_seconds.observe(duration_seconds)
+        PrometheusMetrics._invalidate_cache()
+
     @staticmethod
     def inc_credits_applied(source: str = "authorization") -> None:
         """Increment credits applied counter."""

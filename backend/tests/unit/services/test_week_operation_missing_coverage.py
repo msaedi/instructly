@@ -35,6 +35,10 @@ class TestWeekOperationCacheWarming:
             unit_db, mock_availability, mock_conflict, mock_cache, mock_repository, mock_availability_repository
         )
         service.event_outbox_repository = Mock()
+        service.availability_repository.get_slots_by_date = Mock(return_value=[])
+        if isinstance(service.availability_service, Mock):
+            service.availability_service.compute_week_version.return_value = "v1"
+        service.audit_repository = Mock()
         return service
 
     @pytest.mark.asyncio
@@ -111,6 +115,10 @@ class TestWeekOperationGetSlots:
             unit_db, repository=mock_repository, availability_repository=mock_availability_repository
         )
         service.event_outbox_repository = Mock()
+        service.availability_repository.get_slots_by_date = Mock(return_value=[])
+        if isinstance(service.availability_service, Mock):
+            service.availability_service.compute_week_version.return_value = "v1"
+        service.audit_repository = Mock()
         return service
 
     def test_get_week_slots(self, service):
@@ -241,6 +249,8 @@ class TestWeekOperationErrorHandling:
         # Mock availability service for result
         service.availability_service = Mock()
         service.availability_service.get_week_availability.return_value = {}
+        service.availability_service.compute_week_version.return_value = "v1"
+        service._week_slot_counts = Mock(return_value={})
 
         # Disable cache
         service.cache_service = None

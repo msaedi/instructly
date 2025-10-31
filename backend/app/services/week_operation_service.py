@@ -26,13 +26,16 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 from sqlalchemy.orm import Session
 
 from ..core.constants import DAYS_OF_WEEK
+from ..models.audit_log import AuditLog
 from ..monitoring.availability_perf import COPY_WEEK_ENDPOINT, availability_perf_span
 from ..repositories.factory import RepositoryFactory
 from ..utils.time_helpers import string_to_time
+from .audit_redaction import redact
 from .base import BaseService
 
 if TYPE_CHECKING:
     from ..models.availability import AvailabilitySlot
+    from ..repositories.audit_repository import AuditRepository
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.week_operation_repository import WeekOperationRepository
     from .availability_service import AvailabilityService, TimeSlotResponse
@@ -49,6 +52,8 @@ class WeekOperationService(BaseService):
     Handles complex operations that work with entire weeks
     of availability data using the single-table design.
     """
+
+    audit_repository: "AuditRepository"
 
     def __init__(
         self,
@@ -84,10 +89,16 @@ class WeekOperationService(BaseService):
         self.conflict_checker = conflict_checker
         self.cache_service = cache_service
         self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
+        self.audit_repository = RepositoryFactory.create_audit_repository(db)
 
     @BaseService.measure_operation("copy_week")  # METRICS ADDED
     async def copy_week_availability(
-        self, instructor_id: str, from_week_start: date, to_week_start: date
+        self,
+        instructor_id: str,
+        from_week_start: date,
+        to_week_start: date,
+        *,
+        actor: Any | None = None,
     ) -> Dict[str, Any]:
         """
         Copy availability from one week to another.
@@ -123,6 +134,13 @@ class WeekOperationService(BaseService):
             with self.transaction():
                 # Get target week dates and existing slots (before clearing)
                 target_week_dates = self.calculate_week_dates(to_week_start)
+                before_payload = self._build_copy_audit_payload(
+                    instructor_id,
+                    to_week_start,
+                    source_week_start=from_week_start,
+                    created=0,
+                    deleted=0,
+                )
                 existing_target_slots = self.repository.get_week_slots(
                     instructor_id, to_week_start, to_week_start + timedelta(days=6)
                 )
@@ -144,6 +162,21 @@ class WeekOperationService(BaseService):
                     target_week_dates,
                     created_count,
                     deleted_count,
+                )
+                self.repository.flush()
+                after_payload = self._build_copy_audit_payload(
+                    instructor_id,
+                    to_week_start,
+                    source_week_start=from_week_start,
+                    created=created_count,
+                    deleted=deleted_count,
+                )
+                self._write_copy_audit(
+                    instructor_id,
+                    to_week_start,
+                    actor=actor,
+                    before=before_payload,
+                    after=after_payload,
                 )
 
             # Ensure SQLAlchemy session is fresh
@@ -445,6 +478,86 @@ class WeekOperationService(BaseService):
             payload=payload,
             idempotency_key=key,
         )
+
+    def _resolve_actor_payload(
+        self, actor: Any | None, default_role: str = "instructor"
+    ) -> dict[str, Any]:
+        """Normalize actor metadata for audit entries."""
+        if actor is None:
+            return {"role": default_role}
+
+        if isinstance(actor, dict):
+            actor_id = actor.get("id") or actor.get("actor_id") or actor.get("user_id")
+            raw_role = actor.get("role") or actor.get("actor_role") or actor.get("role_name")
+            resolved_role = str(raw_role) if raw_role is not None else default_role
+            return {"id": actor_id, "role": resolved_role}
+
+        actor_id = getattr(actor, "id", None)
+        role_value: Any = getattr(actor, "role", None) or getattr(actor, "role_name", None)
+        if role_value is None:
+            roles = getattr(actor, "roles", None)
+            if isinstance(roles, (list, tuple)):
+                for role_obj in roles:
+                    candidate = getattr(role_obj, "name", None)
+                    if candidate:
+                        role_value = candidate
+                        break
+        if role_value is None:
+            role_value = default_role
+        return {"id": actor_id, "role": str(role_value)}
+
+    def _week_slot_counts(self, instructor_id: str, week_start: date) -> dict[str, int]:
+        """Return slot counts per day for the target week."""
+        week_dates = [week_start + timedelta(days=offset) for offset in range(7)]
+        counts: dict[str, int] = {}
+        for day in week_dates:
+            slots = self.availability_repository.get_slots_by_date(instructor_id, day)
+            counts[day.isoformat()] = len(slots)
+        return counts
+
+    def _build_copy_audit_payload(
+        self,
+        instructor_id: str,
+        target_week_start: date,
+        *,
+        source_week_start: date,
+        created: int,
+        deleted: int,
+    ) -> dict[str, Any]:
+        """Construct compact copy summary for audit."""
+        counts = self._week_slot_counts(instructor_id, target_week_start)
+        week_end = target_week_start + timedelta(days=6)
+        payload: dict[str, Any] = {
+            "week_start": target_week_start.isoformat(),
+            "source_week_start": source_week_start.isoformat(),
+            "slot_counts": counts,
+            "version": self.availability_service.compute_week_version(
+                instructor_id, target_week_start, week_end
+            ),
+            "delta": {"created": created, "deleted": deleted},
+        }
+        return redact(payload) or {}
+
+    def _write_copy_audit(
+        self,
+        instructor_id: str,
+        target_week_start: date,
+        *,
+        actor: Any | None,
+        before: dict[str, Any],
+        after: dict[str, Any],
+    ) -> None:
+        """Persist audit entry for week copy operations."""
+        actor_payload = self._resolve_actor_payload(actor, default_role="instructor")
+        audit_entry = AuditLog.from_change(
+            entity_type="availability",
+            entity_id=f"{instructor_id}:{target_week_start.isoformat()}",
+            action="copy_week",
+            actor=actor_payload,
+            before=before,
+            after=after,
+        )
+        self.audit_repository.write(audit_entry)
 
     async def _warm_cache_and_get_result(
         self, instructor_id: str, week_start: date, created_count: int

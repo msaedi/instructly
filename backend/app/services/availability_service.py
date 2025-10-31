@@ -21,6 +21,7 @@ from ..core.exceptions import (
     RepositoryException,
 )
 from ..core.timezone_utils import get_user_today_by_id
+from ..models.audit_log import AuditLog
 from ..models.availability import AvailabilitySlot, BlackoutDate
 from ..monitoring.availability_perf import (
     WEEK_GET_ENDPOINT,
@@ -35,10 +36,12 @@ from ..schemas.availability_window import (
     WeekSpecificScheduleCreate,
 )
 from ..utils.time_helpers import time_to_string
+from .audit_redaction import redact
 from .base import BaseService
 
 # TYPE_CHECKING import to avoid circular dependencies
 if TYPE_CHECKING:
+    from ..repositories.audit_repository import AuditRepository
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.bulk_operation_repository import BulkOperationRepository
     from ..repositories.conflict_checker_repository import ConflictCheckerRepository
@@ -111,6 +114,8 @@ class AvailabilityService(BaseService):
     Works directly with AvailabilitySlot objects.
     """
 
+    audit_repository: "AuditRepository"
+
     def __init__(
         self,
         db: Session,
@@ -132,6 +137,7 @@ class AvailabilityService(BaseService):
             conflict_repository or RepositoryFactory.create_conflict_checker_repository(db)
         )
         self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
+        self.audit_repository = RepositoryFactory.create_audit_repository(db)
 
     def _enqueue_week_save_event(
         self,
@@ -170,6 +176,91 @@ class AvailabilityService(BaseService):
             payload=payload,
             idempotency_key=key,
         )
+
+    def _resolve_actor_payload(
+        self, actor: Any | None, default_role: str = "instructor"
+    ) -> dict[str, Any]:
+        """Normalize actor metadata for audit logging."""
+        if actor is None:
+            return {"role": default_role}
+
+        if isinstance(actor, dict):
+            actor_id = actor.get("id") or actor.get("actor_id") or actor.get("user_id")
+            raw_role = actor.get("role") or actor.get("actor_role") or actor.get("role_name")
+            resolved_role = str(raw_role) if raw_role is not None else default_role
+            return {"id": actor_id, "role": resolved_role}
+
+        actor_id = getattr(actor, "id", None)
+        role_value: Any = getattr(actor, "role", None) or getattr(actor, "role_name", None)
+        if role_value is None:
+            roles = getattr(actor, "roles", None)
+            if isinstance(roles, (list, tuple)):
+                for role_obj in roles:
+                    candidate = getattr(role_obj, "name", None)
+                    if candidate:
+                        role_value = candidate
+                        break
+        if role_value is None:
+            role_value = default_role
+        return {"id": actor_id, "role": str(role_value)}
+
+    def _build_week_audit_payload(
+        self,
+        instructor_id: str,
+        week_start: date,
+        dates: list[date],
+        *,
+        clear_existing: bool,
+        created: int = 0,
+        deleted: int = 0,
+        slot_cache: dict[date, list[AvailabilitySlot]] | None = None,
+    ) -> dict[str, Any]:
+        """Construct a compact snapshot for audit logging."""
+        unique_dates = sorted({d for d in dates})
+        slot_counts: dict[str, int] = {}
+        for target in unique_dates:
+            if slot_cache is not None and target in slot_cache:
+                slots_for_day = slot_cache[target]
+            else:
+                slots_for_day = self.repository.get_slots_by_date(instructor_id, target)
+                if slot_cache is not None:
+                    slot_cache[target] = list(slots_for_day)
+            slot_counts[target.isoformat()] = len(slots_for_day)
+
+        week_end = week_start + timedelta(days=6)
+        payload: dict[str, Any] = {
+            "week_start": week_start.isoformat(),
+            "affected_dates": [d.isoformat() for d in unique_dates],
+            "slot_counts": slot_counts,
+            "clear_existing": bool(clear_existing),
+            "version": self.compute_week_version(instructor_id, week_start, week_end),
+        }
+        if created or deleted:
+            payload["delta"] = {"created": created, "deleted": deleted}
+        return redact(payload) or {}
+
+    def _write_availability_audit(
+        self,
+        instructor_id: str,
+        week_start: date,
+        action: str,
+        *,
+        actor: Any | None,
+        before: dict[str, Any] | None,
+        after: dict[str, Any] | None,
+        default_role: str = "instructor",
+    ) -> None:
+        """Persist audit entry for availability changes."""
+        actor_payload = self._resolve_actor_payload(actor, default_role=default_role)
+        audit_entry = AuditLog.from_change(
+            entity_type="availability",
+            entity_id=f"{instructor_id}:{week_start.isoformat()}",
+            action=action,
+            actor=actor_payload,
+            before=before,
+            after=after,
+        )
+        self.audit_repository.write(audit_entry)
 
     @BaseService.measure_operation("get_availability_for_date")
     def get_availability_for_date(
@@ -797,6 +888,7 @@ class AvailabilityService(BaseService):
         week_dates: list[date],
         week_data: WeekSpecificScheduleCreate,
         prepared: PreparedWeek,
+        actor: Any | None = None,
     ) -> int:
         """
         Execute the database transaction to save slots.
@@ -816,6 +908,22 @@ class AvailabilityService(BaseService):
         deleted_count = 0
         created_count = 0
         change_detected = False
+        if week_data.clear_existing:
+            snapshot_dates = list(week_dates)
+        elif affected_dates:
+            snapshot_dates = list(affected_dates)
+        else:
+            snapshot_dates = list(week_dates)
+
+        existing_slots_cache: dict[date, list[AvailabilitySlot]] = {}
+
+        def get_existing_slots(target_date: date) -> list[AvailabilitySlot]:
+            cached = existing_slots_cache.get(target_date)
+            if cached is None:
+                slots_for_day = list(self.repository.get_slots_by_date(instructor_id, target_date))
+                existing_slots_cache[target_date] = slots_for_day
+                return slots_for_day
+            return cached
 
         slots_by_date: dict[date, list[ProcessedSlot]] = {}
         for slot in prepared.slots:
@@ -832,6 +940,13 @@ class AvailabilityService(BaseService):
         try:
             with self.transaction():
                 instructor_today = get_user_today_by_id(instructor_id, self.db)
+                before_payload = self._build_week_audit_payload(
+                    instructor_id,
+                    week_start,
+                    snapshot_dates,
+                    clear_existing=bool(week_data.clear_existing),
+                    slot_cache=existing_slots_cache,
+                )
 
                 # If clearing existing, delete only slots for TODAY and future within this week
                 if week_data.clear_existing:
@@ -846,6 +961,8 @@ class AvailabilityService(BaseService):
                                 instructor_id, future_or_today_dates
                             )
                             change_detected = change_detected or deleted_count > 0
+                            for cleared_date in future_or_today_dates:
+                                existing_slots_cache[cleared_date] = []
                     else:
                         deleted_count = 0
                     logger.info(
@@ -856,9 +973,7 @@ class AvailabilityService(BaseService):
                 if not week_data.clear_existing and slots_by_date:
                     existing_by_date = {}
                     for target_date in affected_dates:
-                        existing_by_date[target_date] = self.repository.get_slots_by_date(
-                            instructor_id, target_date
-                        )
+                        existing_by_date[target_date] = list(get_existing_slots(target_date))
 
                 if slots_by_date:
                     self._validate_no_overlaps(
@@ -872,6 +987,9 @@ class AvailabilityService(BaseService):
                 for target_date in sorted(slots_by_date.keys()):
                     if target_date < instructor_today:
                         continue
+                    existing_slots_cache.setdefault(
+                        target_date, existing_slots_cache.get(target_date, [])
+                    )
                     for processed_slot in slots_by_date[target_date]:
                         slots_to_create.append(
                             {
@@ -893,6 +1011,10 @@ class AvailabilityService(BaseService):
                     created_count = len(created_slots)
                     change_detected = change_detected or created_count > 0
                     logger.info(f"Created {created_count} new slots for instructor {instructor_id}")
+                    for created_slot in created_slots:
+                        existing_slots_cache.setdefault(created_slot.specific_date, []).append(
+                            created_slot
+                        )
 
                 if change_detected or week_data.clear_existing:
                     self._enqueue_week_save_event(
@@ -903,6 +1025,23 @@ class AvailabilityService(BaseService):
                         created_count=created_count,
                         deleted_count=deleted_count,
                         clear_existing=bool(week_data.clear_existing),
+                    )
+                    after_payload = self._build_week_audit_payload(
+                        instructor_id,
+                        week_start,
+                        snapshot_dates,
+                        clear_existing=bool(week_data.clear_existing),
+                        created=created_count,
+                        deleted=deleted_count,
+                        slot_cache=existing_slots_cache,
+                    )
+                    self._write_availability_audit(
+                        instructor_id,
+                        week_start,
+                        "save_week",
+                        actor=actor,
+                        before=before_payload,
+                        after=after_payload,
                     )
 
                 return created_count
@@ -993,7 +1132,11 @@ class AvailabilityService(BaseService):
 
     @BaseService.measure_operation("save_week_availability")
     async def save_week_availability(
-        self, instructor_id: str, week_data: WeekSpecificScheduleCreate
+        self,
+        instructor_id: str,
+        week_data: WeekSpecificScheduleCreate,
+        *,
+        actor: Any | None = None,
     ) -> dict[str, Any]:
         """
         Save availability for specific dates in a week - NOW UNDER 50 LINES!
@@ -1053,6 +1196,7 @@ class AvailabilityService(BaseService):
                 week_dates,
                 week_data,
                 prepared_week,
+                actor=actor,
             )
 
             # 4. Warm cache and return response

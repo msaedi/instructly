@@ -262,7 +262,9 @@ async def save_week_availability(
             pre_total = sum(pre_summary.values())
 
             await availability_service.save_week_availability(
-                instructor_id=current_user.id, week_data=payload
+                instructor_id=current_user.id,
+                week_data=payload,
+                actor=current_user,
             )
 
             # Get post-save summary
@@ -335,6 +337,7 @@ async def copy_week_availability(
                 instructor_id=current_user.id,
                 from_week_start=payload.from_week_start,
                 to_week_start=payload.to_week_start,
+                actor=current_user,
             )
             metadata = cast(dict[str, object], result.get("_metadata", {}))
             return CopyWeekResponse(

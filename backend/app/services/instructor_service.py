@@ -480,8 +480,7 @@ class InstructorService(BaseService):
                     self.service_repository.update(service.id, is_active=False)
 
             # Flush to ensure services are updated
-            # repo-pattern-ignore: Flush for ensuring services are updated belongs in service layer
-            self.db.flush()
+            self.service_repository.flush()
 
             # Now delete the profile
             self.profile_repository.delete(profile.id)

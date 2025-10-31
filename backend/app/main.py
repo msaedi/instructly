@@ -57,6 +57,7 @@ from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
 from .middleware.prometheus_middleware import PrometheusMiddleware
+from .schemas.audit import AuditLogView
 from .schemas.availability_window import (
     ValidateWeekRequest,
     WeekSpecificScheduleCreate,
@@ -64,7 +65,7 @@ from .schemas.availability_window import (
 
 #
 # Ensure Pydantic forward references for availability schemas are resolved before router setup
-for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest):
+for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest, AuditLogView):
     try:
         _model.model_rebuild(force=True)
     except Exception:  # pragma: no cover - defensive init
@@ -80,6 +81,7 @@ from .repositories.instructor_profile_repository import InstructorProfileReposit
 from .routes import (
     account_management,
     addresses,
+    admin_audit,
     admin_background_checks,
     admin_badges,
     admin_config,
@@ -831,6 +833,7 @@ app.include_router(addresses.router, dependencies=[Depends(public_guard_dependen
 app.include_router(redis_monitor.router)
 app.include_router(database_monitor.router)
 app.include_router(admin_config.router)
+app.include_router(admin_audit.router)
 app.include_router(privacy.router, prefix="/api", tags=["privacy"])
 app.include_router(stripe_webhooks.router)
 app.include_router(webhooks_checkr.router)

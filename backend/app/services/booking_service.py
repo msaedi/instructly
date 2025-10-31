@@ -31,12 +31,14 @@ from ..core.exceptions import (
     NotFoundException,
     ValidationException,
 )
+from ..models.audit_log import AuditLog
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..schemas.booking import BookingCreate, BookingUpdate
+from .audit_redaction import redact
 from .base import BaseService
 from .config_service import ConfigService
 from .notification_service import NotificationService
@@ -45,6 +47,7 @@ from .student_credit_service import StudentCreditService
 
 if TYPE_CHECKING:
     from ..models.availability_slot import AvailabilitySlot
+    from ..repositories.audit_repository import AuditRepository
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.booking_repository import BookingRepository
     from ..repositories.conflict_checker_repository import ConflictCheckerRepository
@@ -73,6 +76,7 @@ class BookingService(BaseService):
     cache_service: Optional["CacheService"]
     notification_service: NotificationService
     event_outbox_repository: "EventOutboxRepository"
+    audit_repository: "AuditRepository"
 
     def __init__(
         self,
@@ -110,6 +114,7 @@ class BookingService(BaseService):
             db
         )
         self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
+        self.audit_repository = RepositoryFactory.create_audit_repository(db)
 
     def _booking_event_identity(self, booking: Booking, event_type: str) -> tuple[str, str]:
         """Return idempotency key and version for a booking domain event."""
@@ -162,6 +167,65 @@ class BookingService(BaseService):
             payload=payload,
             idempotency_key=idempotency_key,
         )
+
+    def _resolve_actor_payload(
+        self, actor: Any | None, default_role: str = "system"
+    ) -> dict[str, Any]:
+        """Extract actor metadata (id/role) from user-like objects."""
+        if actor is None:
+            return {"role": default_role}
+
+        if isinstance(actor, dict):
+            actor_id = actor.get("id") or actor.get("actor_id") or actor.get("user_id")
+            raw_role = actor.get("role") or actor.get("actor_role") or actor.get("role_name")
+            resolved_role = str(raw_role) if raw_role is not None else default_role
+            return {"id": actor_id, "role": resolved_role}
+
+        actor_id = getattr(actor, "id", None)
+        role_value: Any = getattr(actor, "role", None) or getattr(actor, "role_name", None)
+
+        if role_value is None:
+            roles = getattr(actor, "roles", None)
+            if isinstance(roles, (list, tuple)):
+                for role_obj in roles:
+                    candidate = getattr(role_obj, "name", None)
+                    if candidate:
+                        role_value = candidate
+                        break
+        if role_value is None:
+            role_value = default_role
+
+        return {"id": actor_id, "role": str(role_value)}
+
+    def _snapshot_booking(self, booking: Booking) -> dict[str, Any]:
+        """Return a redacted snapshot of a booking suitable for audit logging."""
+        data = booking.to_dict()
+        status_value = data.get("status")
+        if isinstance(status_value, BookingStatus):
+            data["status"] = status_value.value
+        return redact(data) or {}
+
+    def _write_booking_audit(
+        self,
+        booking: Booking,
+        action: str,
+        *,
+        actor: Any | None,
+        before: dict[str, Any] | None,
+        after: dict[str, Any] | None,
+        default_role: str = "system",
+    ) -> None:
+        """Persist an audit row capturing the change."""
+        actor_payload = self._resolve_actor_payload(actor, default_role=default_role)
+        audit_entry = AuditLog.from_change(
+            entity_type="booking",
+            entity_id=booking.id,
+            action=action,
+            actor=actor_payload,
+            before=before,
+            after=after,
+        )
+        self.audit_repository.write(audit_entry)
 
     def _calculate_and_validate_end_time(
         self,
@@ -292,6 +356,15 @@ class BookingService(BaseService):
                     student, booking_data, service, instructor_profile, selected_duration
                 )
                 self._enqueue_booking_outbox_event(booking, "booking.created")
+                audit_after = self._snapshot_booking(booking)
+                self._write_booking_audit(
+                    booking,
+                    "create",
+                    actor=student,
+                    before=None,
+                    after=audit_after,
+                    default_role=RoleName.STUDENT.value,
+                )
         except IntegrityError as exc:
             message, scope = self._resolve_integrity_conflict_message(exc)
             conflict_details = self._build_conflict_details(booking_data, student.id)
@@ -445,6 +518,15 @@ class BookingService(BaseService):
                 )
 
                 # Transaction handles flush/commit automatically
+                audit_after = self._snapshot_booking(booking)
+                self._write_booking_audit(
+                    booking,
+                    "create",
+                    actor=student,
+                    before=None,
+                    after=audit_after,
+                    default_role=RoleName.STUDENT.value,
+                )
         except IntegrityError as exc:
             message, scope = self._resolve_integrity_conflict_message(exc)
             conflict_details = self._build_conflict_details(booking_data, student.id)
@@ -659,6 +741,13 @@ class BookingService(BaseService):
             if user.id not in [booking.student_id, booking.instructor_id]:
                 raise ValidationException("You don't have permission to cancel this booking")
 
+            audit_before = self._snapshot_booking(booking)
+            default_role = (
+                RoleName.STUDENT.value
+                if user.id == booking.student_id
+                else RoleName.INSTRUCTOR.value
+            )
+
             # Check if cancellable
             if not booking.is_cancellable:
                 raise BusinessRuleException(
@@ -786,6 +875,15 @@ class BookingService(BaseService):
             # Cancel the booking
             booking.cancel(user.id, reason)
             self._enqueue_booking_outbox_event(booking, "booking.cancelled")
+            audit_after = self._snapshot_booking(booking)
+            self._write_booking_audit(
+                booking,
+                "cancel",
+                actor=user,
+                before=audit_before,
+                after=audit_after,
+                default_role=default_role,
+            )
 
         # Send notifications
         try:
@@ -970,6 +1068,8 @@ class BookingService(BaseService):
             if user.id != booking.instructor_id:
                 raise ValidationException("Only the instructor can update booking details")
 
+            audit_before = self._snapshot_booking(booking)
+
             # Update allowed fields using repository
             update_dict = {}
             if update_data.instructor_note is not None:
@@ -986,6 +1086,15 @@ class BookingService(BaseService):
             refreshed_booking = self.repository.get_booking_with_details(booking_id)
             if not refreshed_booking:
                 raise NotFoundException("Booking not found")
+            audit_after = self._snapshot_booking(refreshed_booking)
+            self._write_booking_audit(
+                refreshed_booking,
+                "update",
+                actor=user,
+                before=audit_before,
+                after=audit_after,
+                default_role=RoleName.INSTRUCTOR.value,
+            )
             booking = refreshed_booking
 
         # Cache invalidation outside transaction
@@ -1032,12 +1141,23 @@ class BookingService(BaseService):
                     f"Only confirmed bookings can be completed - current status: {booking.status}"
                 )
 
+            audit_before = self._snapshot_booking(booking)
+
             # Mark as complete using repository method
             completed_booking = self.repository.complete_booking(booking_id)
             if completed_booking is None:
                 raise NotFoundException("Booking not found")
             booking = completed_booking
             self._enqueue_booking_outbox_event(booking, "booking.completed")
+            audit_after = self._snapshot_booking(booking)
+            self._write_booking_audit(
+                booking,
+                "complete",
+                actor=instructor,
+                before=audit_before,
+                after=audit_after,
+                default_role=RoleName.INSTRUCTOR.value,
+            )
 
         # External operations outside transaction
         # Reload booking with details for cache invalidation
