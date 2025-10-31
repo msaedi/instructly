@@ -232,16 +232,7 @@ async def get_week_availability(
             raise e
         except DomainException as e:
             if isinstance(e, ConflictException):
-                fallback_monday = locals().get("monday")
-                monday_for_conflict = (
-                    fallback_monday if isinstance(fallback_monday, date) else payload.week_start
-                )
-                if monday_for_conflict is None:
-                    today_fallback = get_user_today_by_id(current_user.id, availability_service.db)
-                    monday_for_conflict = today_fallback - timedelta(days=today_fallback.weekday())
-                server_bits = availability_service.get_week_bits(
-                    current_user.id, monday_for_conflict
-                )
+                server_bits = availability_service.get_week_bits(current_user.id, start_date)
                 server_version = availability_service.compute_week_version_bits(server_bits)
                 raise HTTPException(
                     status_code=409,
