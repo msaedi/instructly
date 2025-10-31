@@ -20,6 +20,8 @@ class WeekAvailabilityUpdateResponse(StrictModel):
     windows_created: int
     windows_updated: int
     windows_deleted: int
+    version: str | None = None
+    week_version: str | None = None
 
 
 class CopyWeekResponse(StrictModel):

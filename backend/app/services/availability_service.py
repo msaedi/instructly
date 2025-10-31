@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 import logging
+import os
 from typing import TYPE_CHECKING, Any, NamedTuple, Optional, TypedDict, cast
 
 from sqlalchemy.orm import Session
@@ -48,6 +49,9 @@ if TYPE_CHECKING:
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
+
+AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
+ALLOW_PAST = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
 
 
 def build_availability_idempotency_key(
@@ -260,7 +264,8 @@ class AvailabilityService(BaseService):
             before=before,
             after=after,
         )
-        self.audit_repository.write(audit_entry)
+        if AUDIT_ENABLED:
+            self.audit_repository.write(audit_entry)
 
     @BaseService.measure_operation("get_availability_for_date")
     def get_availability_for_date(
@@ -859,7 +864,7 @@ class AvailabilityService(BaseService):
         affected_dates: set[date] = set()
 
         for target_date in sorted(schedule_by_date.keys()):
-            if target_date < instructor_today:
+            if not ALLOW_PAST and target_date < instructor_today:
                 continue
 
             slots = schedule_by_date.get(target_date, [])
@@ -950,18 +955,22 @@ class AvailabilityService(BaseService):
 
                 # If clearing existing, delete only slots for TODAY and future within this week
                 if week_data.clear_existing:
-                    future_or_today_dates = [d for d in affected_dates if d >= instructor_today]
-                    if future_or_today_dates:
+                    dates_to_clear = (
+                        list(week_dates)
+                        if ALLOW_PAST
+                        else [d for d in week_dates if d >= instructor_today]
+                    )
+                    if dates_to_clear:
                         with availability_perf_span(
                             "repository.delete_slots_by_dates",
                             endpoint=WEEK_SAVE_ENDPOINT,
                             instructor_id=instructor_id,
                         ):
                             deleted_count = self.repository.delete_slots_by_dates(
-                                instructor_id, future_or_today_dates
+                                instructor_id, dates_to_clear
                             )
                             change_detected = change_detected or deleted_count > 0
-                            for cleared_date in future_or_today_dates:
+                            for cleared_date in dates_to_clear:
                                 existing_slots_cache[cleared_date] = []
                     else:
                         deleted_count = 0
@@ -985,7 +994,7 @@ class AvailabilityService(BaseService):
 
                 slots_to_create: list[dict[str, Any]] = []
                 for target_date in sorted(slots_by_date.keys()):
-                    if target_date < instructor_today:
+                    if not ALLOW_PAST and target_date < instructor_today:
                         continue
                     existing_slots_cache.setdefault(
                         target_date, existing_slots_cache.get(target_date, [])
@@ -1169,12 +1178,15 @@ class AvailabilityService(BaseService):
             )
 
             # Optional optimistic concurrency check
+            client_version = getattr(week_data, "version", None) or getattr(
+                week_data, "base_version", None
+            )
             try:
-                if week_data.version:
+                if client_version and not getattr(week_data, "override", False):
                     expected = self.compute_week_version(
                         instructor_id, monday, monday + timedelta(days=6)
                     )
-                    if week_data.version != expected:
+                    if client_version != expected:
                         raise ConflictException("Week has changed; please refresh and retry")
             except ConflictException:
                 raise
@@ -1572,7 +1584,7 @@ class AvailabilityService(BaseService):
             start_time_obj = time.fromisoformat(slot["start_time"])
             end_time_obj = time.fromisoformat(slot["end_time"])
 
-            if slot_date < instructor_today:
+            if not ALLOW_PAST and slot_date < instructor_today:
                 logger.warning(
                     f"Skipping past date: {slot_date} (instructor today: {instructor_today})"
                 )
@@ -1611,7 +1623,7 @@ class AvailabilityService(BaseService):
             )
             return
 
-        if target_date < instructor_today:
+        if not ALLOW_PAST and target_date < instructor_today:
             logger.warning(
                 f"Skipping past date: {target_date} (instructor today: {instructor_today})"
             )

@@ -21,6 +21,7 @@ FIXED IN THIS VERSION:
 from collections import defaultdict
 from datetime import date, time, timedelta
 import logging
+import os
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
@@ -43,6 +44,8 @@ if TYPE_CHECKING:
     from .conflict_checker import ConflictChecker
 
 logger = logging.getLogger(__name__)
+
+AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
 
 
 class WeekOperationService(BaseService):
@@ -557,7 +560,8 @@ class WeekOperationService(BaseService):
             before=before,
             after=after,
         )
-        self.audit_repository.write(audit_entry)
+        if AUDIT_ENABLED:
+            self.audit_repository.write(audit_entry)
 
     async def _warm_cache_and_get_result(
         self, instructor_id: str, week_start: date, created_count: int

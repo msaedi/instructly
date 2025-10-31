@@ -42,7 +42,7 @@ from functools import wraps
 import logging
 from typing import Awaitable, Callable, Dict, List, Optional, ParamSpec, TypeVar, cast
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 
 from app.api.dependencies.authz import requires_roles as _requires_roles
 
@@ -206,11 +206,16 @@ async def get_week_availability(
 )
 @requires_roles("instructor")
 async def save_week_availability(
+    request: Request,
     response: Response,
     payload: WeekSpecificScheduleCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
+    override: bool = Query(
+        False,
+        description="Set to true to bypass version conflict checks when saving availability",
+    ),
 ) -> WeekAvailabilityUpdateResponse:
     """
     Save availability for specific dates in a week.
@@ -254,6 +259,45 @@ async def save_week_availability(
                 )
                 monday = monday - _timedelta(days=monday.weekday())
             week_end = monday + _timedelta(days=6)
+
+            # Version handshake: If-Match header or body-provided base_version
+            client_version = (
+                request.headers.get("if-match") or payload.base_version or payload.version
+            )
+            override_requested = override or bool(getattr(payload, "override", False))
+
+            try:
+                server_version = availability_service.compute_week_version(
+                    current_user.id,
+                    monday,
+                    week_end,
+                )
+            except Exception as compute_error:  # pragma: no cover - defensive
+                logger.debug(
+                    "compute_week_version failed prior to save, continuing without conflict check",
+                    extra={"error": str(compute_error)},
+                )
+                server_version = None
+
+            if client_version:
+                payload.base_version = client_version
+                payload.version = client_version
+            payload.override = override_requested
+
+            if (
+                client_version
+                and server_version
+                and client_version != server_version
+                and not override_requested
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "version_conflict",
+                        "current_version": server_version,
+                    },
+                    headers={"ETag": server_version},
+                )
 
             # Get pre-save summary
             pre_summary = availability_service.get_availability_summary(
@@ -299,6 +343,8 @@ async def save_week_availability(
                 windows_created=created,
                 windows_updated=updated,
                 windows_deleted=deleted,
+                version=new_version,
+                week_version=new_version,
             )
 
         except DomainException as e:

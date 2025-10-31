@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 import logging
+import os
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
@@ -55,6 +56,8 @@ if TYPE_CHECKING:
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
+
+AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
 
 INSTRUCTOR_CONFLICT_MESSAGE = "Instructor already has a booking that overlaps this time"
 STUDENT_CONFLICT_MESSAGE = "Student already has a booking that overlaps this time"
@@ -225,7 +228,8 @@ class BookingService(BaseService):
             before=before,
             after=after,
         )
-        self.audit_repository.write(audit_entry)
+        if AUDIT_ENABLED:
+            self.audit_repository.write(audit_entry)
 
     def _calculate_and_validate_end_time(
         self,

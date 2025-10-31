@@ -177,9 +177,17 @@ class WeekSpecificScheduleCreate(StrictRequestModel):
         None,
         description="Optional Monday date. If not provided, inferred from schedule dates",
     )
-    version: Optional[str] = Field(
+    base_version: Optional[str] = Field(
         None,
-        description="Optional optimistic concurrency token (ETag) for this week",
+        description="Client's baseline week version when saving (If-Match fallback)",
+    )
+    version: Optional[str] = Field(  # Back-compat alias; prefer base_version
+        None,
+        description="Deprecated alias for base_version (optimistic concurrency token)",
+    )
+    override: bool = Field(
+        default=False,
+        description="If true, bypass server-side version checks when saving",
     )
 
     @field_validator("week_start")
