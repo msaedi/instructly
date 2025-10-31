@@ -82,3 +82,8 @@ A provisioned Grafana dashboard called **Audit Overview** (see `infra/observabil
 ### Operational SLO
 
 - Target: `audit:list_latency_p95_5m < 0.3s` (p95 list latency under 300 ms based on the recording rule). Investigate if the panel breaches for more than two consecutive intervals.
+
+### Alerts
+
+- `AuditListLatencyP95High` (warning): fires if `audit:list_latency_p95_5m` stays above 300 ms for 10 minutes. Confirm the Grafana Audit Overview latency panels, inspect recent deploys, and review Postgres slow query logs for `audit_log_entries`. If sustained, consider enabling query plan logging and verifying the `entity`/`action` fan-out volumes.
+- `AuditListLatencyP95VeryHigh` (critical): p95 latency above 600 ms for 10 minutes. Page the on-call engineer, check database saturation (CPU, IOPS) and Redis cache hit rate, and roll back the most recent release if a regression is suspected.

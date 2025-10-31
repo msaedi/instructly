@@ -1,0 +1,10 @@
+groups:
+  - name: retention-alerts
+    rules:
+      - alert: RetentionPurgeFailures
+        expr: increase(retention_purge_errors_total[30m]) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Retention purge errors in last 30m"
+          description: "Inspect Celery beat and RetentionService logs"

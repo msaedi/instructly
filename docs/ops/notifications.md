@@ -53,6 +53,11 @@ Surfaced through existing `/ops/metrics-lite` endpoint:
 - `instainstru_notifications_outbox_total{status="sent|failed", event_type}` — final outcomes.
 - `instainstru_notifications_dispatch_seconds{event_type}` — histogram for provider latency.
 
+### Alerts
+
+- `OutboxBacklogGrowing` (warning): triggers when pending events increase for 10 minutes. Check the Grafana outbox backlog panel, confirm Celery workers are healthy, and ensure no downstream rate limits. Drain the queue manually via `outbox.dispatch_pending()` if backlog exceeds 2× normal volume.
+- `NotificationDeliveryErrors` (warning): fires when `notifications_delivery_errors_total` increments over a 10-minute window. Inspect provider logs, retry counts, and the `notification_delivery` table; if a provider is degraded, fail over to the backup transport or flip `NOTIFICATION_PROVIDER_RAISE_ON` off in staging to reproduce.
+
 ## Running Locally
 ```
 # Ensure Celery workers/beat running or execute tasks manually:

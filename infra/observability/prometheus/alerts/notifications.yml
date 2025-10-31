@@ -1,0 +1,19 @@
+groups:
+  - name: notifications-alerts
+    rules:
+      - alert: OutboxBacklogGrowing
+        expr: sum by () (count_over_time(event_outbox{status="PENDING"}[10m])) > 0 and
+              deriv(sum(event_outbox{status="PENDING"})[10m]) > 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Outbox backlog increasing"
+          description: "Pending events are accumulating for 10m"
+
+      - alert: NotificationDeliveryErrors
+        expr: increase(notifications_delivery_errors_total[10m]) > 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Notification delivery errors detected"
+          description: "Check provider shim/logs and outbox retries"

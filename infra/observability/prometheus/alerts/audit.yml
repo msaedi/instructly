@@ -1,0 +1,18 @@
+groups:
+  - name: audit-alerts
+    rules:
+      - alert: AuditListLatencyP95High
+        expr: audit:list_latency_p95_5m > 0.3
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Audit p95 list latency > 300ms"
+          description: "p95 over last 10m is {{ $value | humanizeDuration }}s"
+
+      - alert: AuditListLatencyP95VeryHigh
+        expr: audit:list_latency_p95_5m > 0.6
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: "Audit p95 list latency > 600ms"
+          description: "Investigate DB load / N+1 / cache regressions"
