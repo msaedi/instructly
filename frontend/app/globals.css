@@ -50,10 +50,6 @@
 /* frontend/app/globals.css */
 @import 'tailwindcss';
 
-html {
-  overflow-y: scroll;
-}
-
 /* Global body styles */
 body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
@@ -67,10 +63,6 @@ body {
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
-}
-
-.sb-reserve {
-  padding-right: var(--sbw, 0);
 }
 
 /*
@@ -833,18 +825,18 @@ html {
   left: 0;
   right: 0;
   height: 1px;
-  background: #E11D48;
-  z-index: 10;
+  background: #ef4444;
+  z-index: 20;
   pointer-events: none;
 }
 
 .now-dot {
   position: absolute;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 9999px;
-  background: #E11D48;
-  transform: translate(-3px, -3px);
-  z-index: 10;
+  background: #ef4444;
+  transform: translate(-4px, -4px);
+  z-index: 20;
   pointer-events: none;
 }

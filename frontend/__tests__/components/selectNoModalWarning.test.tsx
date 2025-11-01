@@ -7,6 +7,8 @@ describe('Select component', () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
+    const widthBefore = document.documentElement.clientWidth;
+
     render(
       <Select defaultOpen value="one">
         <SelectTrigger>
@@ -28,6 +30,7 @@ describe('Select component', () => {
 
     expect(document.body.classList.contains('sb-reserve')).toBe(false);
     expect(document.body.style.overflowY).toBe('');
+    expect(document.documentElement.clientWidth).toBe(widthBefore);
 
     errorSpy.mockRestore();
     warnSpy.mockRestore();

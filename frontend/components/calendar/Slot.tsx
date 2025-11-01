@@ -31,6 +31,7 @@ function SlotImpl(
 ) {
   const computedDisabled = Boolean(disabled || isConflict);
   const pointerClass = computedDisabled ? 'cursor-not-allowed' : 'cursor-pointer';
+  const bgClass = isSelected ? 'bg-[#EDE3FA]' : isPast ? 'bg-gray-50 opacity-70' : 'bg-white';
   const button = (
     <button
       ref={ref}
@@ -38,9 +39,7 @@ function SlotImpl(
       className={clsx(
         'relative w-full border-l border-b border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] transition-colors',
         isMobile ? 'min-h-[44px]' : 'min-h-[32px]',
-        isSelected && 'bg-[#EDE3FA]',
-        !isSelected && !isPast && 'bg-white',
-        isPast && !isSelected && 'bg-gray-50 opacity-80',
+        bgClass,
         pointerClass,
         isDragging && 'ring-2 ring-[#D4B5F0] ring-inset',
         className

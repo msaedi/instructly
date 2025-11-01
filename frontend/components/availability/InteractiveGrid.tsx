@@ -97,7 +97,7 @@ export default function InteractiveGrid({
   timezone,
   isMobile = false,
   activeDayIndex = 0,
-  onActiveDayChange,
+  onActiveDayChange: _onActiveDayChange,
   allowPastEditing = false,
 }: InteractiveGridProps) {
   const rows = useMemo(() => (endHour - startHour) * HALF_HOURS_PER_HOUR, [startHour, endHour]);
@@ -321,53 +321,55 @@ export default function InteractiveGrid({
         style={{
           gridTemplateColumns: `80px repeat(${displayDates.length}, minmax(0, 1fr))`,
           columnGap: '0px',
-          rowGap: 'var(--slot-gap-y, 8px)',
         }}
       >
         {/* Corner spacer */}
-        <div />
+        <div className="sticky left-0 top-0 z-20 bg-white/80 backdrop-blur px-2 py-1 border-r border-gray-200" />
         {displayDates.map((info, idx) => {
           const isToday = info.fullDate === todayIso;
           const dateObj = info.date;
           const dow = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
           const dayNum = dateObj.getDate();
           const headerClasses = clsx(
-            'sticky top-0 z-10 flex flex-col items-center gap-1 bg-white/85 px-2 py-2 backdrop-blur'
+            'relative sticky top-0 z-20 bg-white/80 backdrop-blur px-2 pt-1 pb-0 text-center'
           );
           const isPastDate = info.fullDate < todayIso;
           return (
             <div key={info.fullDate} className={headerClasses}>
-              <span
+              {idx > 0 && (
+                <span className="absolute left-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
+              )}
+              {idx === displayDates.length - 1 && (
+                <span className="absolute right-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
+              )}
+              <div
                 className={clsx(
                   'text-[10px] tracking-wide uppercase',
                   isPastDate ? 'text-gray-400' : 'text-gray-500'
                 )}
               >
                 {dow}
-              </span>
-              <button
-                type="button"
-                className={clsx(
-                  'inline-flex items-center justify-center text-2xl font-medium transition-colors',
-                  isToday
-                    ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827]'
-                    : isPastDate
-                      ? 'text-gray-400'
-                      : 'text-gray-900'
-                )}
-                onClick={() => {
-                  if (!isMobile || !onActiveDayChange) return;
-                  onActiveDayChange(idx);
-                }}
-              >
-                {dayNum}
-              </button>
+              </div>
+              <div className="mt-0.5">
+                <span
+                  className={clsx(
+                    'inline-flex items-center justify-center text-2xl font-medium',
+                    isToday
+                      ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827]'
+                      : isPastDate
+                        ? 'text-gray-400'
+                        : 'text-gray-900'
+                  )}
+                >
+                  {dayNum}
+                </span>
+              </div>
             </div>
           );
         })}
 
         {/* Time gutter */}
-        <div className="sticky left-0 z-10 flex flex-col bg-white/85 px-2 py-1 backdrop-blur">
+        <div className="sticky left-0 z-10 flex flex-col bg-white/80 px-2 py-1 backdrop-blur border-r border-gray-200">
           {Array.from({ length: rows }, (_, row) => {
             const showLabel = row % HALF_HOURS_PER_HOUR === 0;
             const labelHour = Math.floor(row / HALF_HOURS_PER_HOUR) + startHour;
@@ -400,29 +402,20 @@ export default function InteractiveGrid({
           const topPercent = totalMinutes > 0 ? (relativeMinutes / totalMinutes) * 100 : 0;
           const showNowLine = isToday && withinWindow && totalMinutes > 0;
           const pendingForDate = pendingRef.current[date];
-          const isHistoricalDay = date < todayIso;
           const isLastColumn = columnIndex === displayDates.length - 1;
           return (
             <div key={date} className="relative flex flex-col">
-              {showNowLine && (
-                <>
-                  <div
-                    className="now-line"
-                    data-testid="now-line"
-                    style={{ top: `${topPercent}%` }}
-                  />
-                  <span
-                    className="now-dot"
-                    style={{ top: `${topPercent}%`, left: '0' }}
-                  />
-                </>
-              )}
               {Array.from({ length: rows }, (_, row) => {
                 const slotIndex = getSlotIndex(startHour, row);
                 const booked = isSlotBooked(bookedSlots, date, row, startHour);
                 const past = isPastSlot(date, slotIndex);
                 const selected = isSlotSelected(dayBits, slotIndex);
                 const isPreview = !!pendingForDate?.has(slotIndex);
+                const bgClass = selected
+                  ? 'bg-[#EDE3FA]'
+                  : past
+                    ? 'bg-gray-50 opacity-70'
+                    : 'bg-white';
                 const labelHour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
                 const labelMinute = row % 2 === 1 ? '30' : '00';
                 const weekdayLabel = info.date.toLocaleDateString('en-US', { weekday: 'long' });
@@ -432,12 +425,11 @@ export default function InteractiveGrid({
                     key={`${date}-${row}`}
                     type="button"
                     className={clsx(
-                      'group relative flex-1 border-b border-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE]',
+                      'group relative w-full flex-none border-b border-gray-200 border-l border-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] cursor-pointer',
                       isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
-                      'border-l border-gray-200',
                       isLastColumn && 'border-r border-gray-200',
-                      selected ? 'bg-[#EDE3FA]' : 'bg-white',
-                      !selected && isHistoricalDay && 'bg-gray-50 opacity-70',
+                      row === 0 && 'border-t border-gray-200',
+                      bgClass,
                       isPreview && 'ring-2 ring-[#D4B5F0] ring-inset'
                     )}
                     role="gridcell"
@@ -464,6 +456,19 @@ export default function InteractiveGrid({
                   </button>
                 );
               })}
+              {showNowLine && (
+                <>
+                  <div
+                    className="now-line"
+                    data-testid="now-line"
+                    style={{ top: `${topPercent}%` }}
+                  />
+                  <span
+                    className="now-dot"
+                    style={{ top: `${topPercent}%`, left: '0' }}
+                  />
+                </>
+              )}
             </div>
           );
         })}
