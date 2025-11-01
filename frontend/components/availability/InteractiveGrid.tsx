@@ -223,16 +223,23 @@ export default function InteractiveGrid({
     };
   }, []);
 
+  const [nowInfo, setNowInfo] = useState(() => getNowInTimezone(timezone));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const tick = () => setNowInfo(getNowInTimezone(timezone));
+    tick();
+    const interval = window.setInterval(tick, 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, [timezone]);
+
   const displayDates = useMemo(() => {
     if (!isMobile) return weekDates;
     const dateInfo = weekDates[activeDayIndex] ?? weekDates[0];
     return dateInfo ? [dateInfo] : [];
   }, [isMobile, activeDayIndex, weekDates]);
 
-  const { isoDate: todayIso, minutes: nowMinutes } = useMemo(
-    () => getNowInTimezone(timezone),
-    [timezone]
-  );
+  const { isoDate: todayIso, minutes: nowMinutes } = nowInfo;
 
   const isPastSlot = useCallback(
     (date: string, slotIndex: number) => {
@@ -322,23 +329,31 @@ export default function InteractiveGrid({
         {displayDates.map((info, idx) => {
           const isToday = info.fullDate === todayIso;
           const dateObj = info.date;
-          const dow = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+          const dow = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
           const dayNum = dateObj.getDate();
           const headerClasses = clsx(
-            'sticky top-0 z-10 flex flex-col items-center gap-1 bg-white/85 px-2 py-2 backdrop-blur',
-            isToday ? 'text-[#7E22CE]' : 'text-gray-700'
+            'sticky top-0 z-10 flex flex-col items-center gap-1 bg-white/85 px-2 py-2 backdrop-blur'
           );
-          const isPastDate = !allowPastEditing && info.fullDate < todayIso;
+          const isPastDate = info.fullDate < todayIso;
           return (
             <div key={info.fullDate} className={headerClasses}>
-              <span className={clsx('text-xs uppercase tracking-wide', isPastDate ? 'text-gray-400' : 'text-gray-500')}>
+              <span
+                className={clsx(
+                  'text-[10px] tracking-wide uppercase',
+                  isPastDate ? 'text-gray-400' : 'text-gray-500'
+                )}
+              >
                 {dow}
               </span>
               <button
                 type="button"
                 className={clsx(
-                  'flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold',
-                  isToday ? 'border-2 border-[#7E22CE] text-[#111827]' : 'border border-gray-200 text-gray-800'
+                  'inline-flex items-center justify-center text-2xl font-medium transition-colors',
+                  isToday
+                    ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827]'
+                    : isPastDate
+                      ? 'text-gray-400'
+                      : 'text-gray-900'
                 )}
                 onClick={() => {
                   if (!isMobile || !onActiveDayChange) return;
@@ -356,12 +371,14 @@ export default function InteractiveGrid({
           {Array.from({ length: rows }, (_, row) => {
             const showLabel = row % HALF_HOURS_PER_HOUR === 0;
             const labelHour = Math.floor(row / HALF_HOURS_PER_HOUR) + startHour;
+            const isFirst = row === 0;
             return (
               <div
                 key={`time-${row}`}
                 className={clsx(
                   'flex items-center border-b border-gray-200 text-xs text-gray-500',
-                  'min-h-[32px]'
+                  isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
+                  isFirst && 'border-t border-gray-200'
                 )}
               >
                 {showLabel ? HOURS_LABEL(labelHour) : ''}
@@ -371,16 +388,41 @@ export default function InteractiveGrid({
         </div>
 
         {/* Day grids */}
-        {displayDates.map((info) => {
+        {displayDates.map((info, columnIndex) => {
           const date = info.fullDate;
           const dayBits = weekBits[date] ?? newEmptyBits();
+          const isToday = date === todayIso;
+          const windowStartMinutes = startHour * 60;
+          const windowEndMinutes = endHour * 60;
+          const totalMinutes = Math.max(0, windowEndMinutes - windowStartMinutes);
+          const withinWindow = nowMinutes >= windowStartMinutes && nowMinutes <= windowEndMinutes;
+          const relativeMinutes = nowMinutes - windowStartMinutes;
+          const topPercent = totalMinutes > 0 ? (relativeMinutes / totalMinutes) * 100 : 0;
+          const showNowLine = isToday && withinWindow && totalMinutes > 0;
+          const pendingForDate = pendingRef.current[date];
+          const isHistoricalDay = date < todayIso;
+          const isLastColumn = columnIndex === displayDates.length - 1;
           return (
-            <div key={date} className="flex flex-col">
+            <div key={date} className="relative flex flex-col">
+              {showNowLine && (
+                <>
+                  <div
+                    className="now-line"
+                    data-testid="now-line"
+                    style={{ top: `${topPercent}%` }}
+                  />
+                  <span
+                    className="now-dot"
+                    style={{ top: `${topPercent}%`, left: '0' }}
+                  />
+                </>
+              )}
               {Array.from({ length: rows }, (_, row) => {
                 const slotIndex = getSlotIndex(startHour, row);
                 const booked = isSlotBooked(bookedSlots, date, row, startHour);
                 const past = isPastSlot(date, slotIndex);
                 const selected = isSlotSelected(dayBits, slotIndex);
+                const isPreview = !!pendingForDate?.has(slotIndex);
                 const labelHour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
                 const labelMinute = row % 2 === 1 ? '30' : '00';
                 const weekdayLabel = info.date.toLocaleDateString('en-US', { weekday: 'long' });
@@ -390,12 +432,17 @@ export default function InteractiveGrid({
                     key={`${date}-${row}`}
                     type="button"
                     className={clsx(
-                      'group relative flex-1 min-h-[32px] border-b border-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE]',
+                      'group relative flex-1 border-b border-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE]',
+                      isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
+                      'border-l border-gray-200',
+                      isLastColumn && 'border-r border-gray-200',
                       selected ? 'bg-[#EDE3FA]' : 'bg-white',
-                      past && !selected && 'bg-gray-50 opacity-80'
+                      !selected && isHistoricalDay && 'bg-gray-50 opacity-70',
+                      isPreview && 'ring-2 ring-[#D4B5F0] ring-inset'
                     )}
                     role="gridcell"
                     aria-selected={selected}
+                    aria-disabled={past}
                     aria-label={ariaLabel}
                     onMouseDown={(event) => handleMouseDown(event, date, row, slotIndex)}
                     onMouseEnter={(event) => handleMouseEnter(event, date, row, slotIndex)}
@@ -406,7 +453,7 @@ export default function InteractiveGrid({
                     onKeyDown={(event) => handleKeyToggle(event, date, slotIndex)}
                   >
                     {booked && (
-                      <span className="pointer-events-none absolute inset-0 rounded-sm bg-[repeating-linear-gradient(45deg,rgba(124,58,237,0.18),rgba(124,58,237,0.18)_6px,rgba(124,58,237,0.08)_6px,rgba(124,58,237,0.08)_12px)]" />
+                      <span className="pointer-events-none absolute inset-0 rounded-sm bg-[repeating-linear-gradient(45deg,rgba(156,163,175,0.35),rgba(156,163,175,0.35)_6px,rgba(156,163,175,0.2)_6px,rgba(156,163,175,0.2)_12px)]" />
                     )}
                     <span className="sr-only">
                       {info.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}

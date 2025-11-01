@@ -12,7 +12,6 @@ function setBodyScrollbarReservation(enable: boolean) {
   if (enable && scrollbarWidth > 0) {
     document.body.style.setProperty('--sbw', `${scrollbarWidth}px`);
     document.body.classList.add('sb-reserve');
-    // Force scrollbar to remain visible even if a library attempts to lock body scroll
     try {
       document.body.style.setProperty('overflow-y', 'scroll', 'important');
     } catch {}
@@ -100,7 +99,8 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       position={position}
-      // Radix Select v1 does not expose a modal prop; rely on popper positioning to avoid scroll locking quirks.
+      sideOffset={4}
+      collisionPadding={8}
       className={cn(
         'z-50 overflow-hidden rounded-md border border-gray-200 bg-white shadow-md',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
@@ -112,10 +112,13 @@ const SelectContent = React.forwardRef<
       {...props}
     >
       <SelectScrollUpButton />
-      <SelectPrimitive.Viewport className={cn(
-        'p-1 max-h-56 overflow-auto',
-        position === 'popper' && 'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]'
-      )}>
+      <SelectPrimitive.Viewport
+        className={cn(
+          'p-1 max-h-56 overflow-auto',
+          position === 'popper' &&
+            'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]'
+        )}
+      >
         {children}
       </SelectPrimitive.Viewport>
       <SelectScrollDownButton />

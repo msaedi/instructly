@@ -5,6 +5,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@
 describe('Select component', () => {
   it('does not emit modal attribute warnings when open', () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
     render(
       <Select defaultOpen value="one">
@@ -18,11 +19,17 @@ describe('Select component', () => {
       </Select>
     );
 
-    const errorCalls = errorSpy.mock.calls
-      .flat()
-      .filter((message) => typeof message === 'string' && message.includes('non-boolean attribute `modal`'));
-    expect(errorCalls).toHaveLength(0);
+    const hasModalWarning = (calls: unknown[][]) =>
+      calls
+        .flat()
+        .some((message) => typeof message === 'string' && message.includes('non-boolean attribute `modal`'));
+    expect(hasModalWarning(errorSpy.mock.calls)).toBe(false);
+    expect(hasModalWarning(warnSpy.mock.calls)).toBe(false);
+
+    expect(document.body.classList.contains('sb-reserve')).toBe(false);
+    expect(document.body.style.overflowY).toBe('');
 
     errorSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 });
