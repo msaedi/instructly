@@ -31,7 +31,9 @@ function SlotImpl(
 ) {
   const computedDisabled = Boolean(disabled || isConflict);
   const pointerClass = computedDisabled ? 'cursor-not-allowed' : 'cursor-pointer';
-  const bgClass = isSelected ? 'bg-[#EDE3FA]' : isPast ? 'bg-gray-50 opacity-70' : 'bg-white';
+  const isAvailable = isSelected;
+  const fillClass = isAvailable ? 'bg-[#EDE3FA]' : isPast ? 'bg-gray-50' : 'bg-white';
+  const fadeClass = isPast ? 'opacity-70' : 'opacity-100';
   const button = (
     <button
       ref={ref}
@@ -39,10 +41,11 @@ function SlotImpl(
       className={clsx(
         'relative w-full border-l border-b border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] transition-colors',
         isMobile ? 'min-h-[44px]' : 'min-h-[32px]',
-        bgClass,
         pointerClass,
         isDragging && 'ring-2 ring-[#D4B5F0] ring-inset',
-        className
+        className,
+        fillClass,
+        fadeClass
       )}
       aria-pressed={isSelected}
       aria-label={label}

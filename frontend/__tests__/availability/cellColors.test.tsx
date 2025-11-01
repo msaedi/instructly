@@ -44,7 +44,9 @@ describe('Availability cell colors', () => {
     const pastCell = screen.getByRole('gridcell', { name: /Monday 06:00/ });
     const futureCell = screen.getByRole('gridcell', { name: /Thursday 06:00/ });
 
-    expect(pastCell.className).toContain('bg-[#EDE9FE]');
-    expect(futureCell.className).toContain('bg-[#F5F3FF]');
+    expect(pastCell.className).toContain('bg-gray-50');
+    expect(pastCell.className).toContain('opacity-70');
+    expect(futureCell.className).toContain('bg-white');
+    expect(futureCell.className).toContain('opacity-100');
   });
 });

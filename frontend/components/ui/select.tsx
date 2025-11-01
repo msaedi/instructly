@@ -6,7 +6,12 @@ import { cn } from '@/lib/utils';
 type SelectRootProps = React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>;
 
 export function Select({ onOpenChange, ...rest }: SelectRootProps) {
-  return <SelectPrimitive.Root onOpenChange={onOpenChange} {...rest} />;
+  return (
+    <SelectPrimitive.Root
+      {...rest}
+      {...(onOpenChange !== undefined ? { onOpenChange } : {})}
+    />
+  );
 }
 export const SelectGroup = SelectPrimitive.Group;
 export const SelectValue = SelectPrimitive.Value;

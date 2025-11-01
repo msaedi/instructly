@@ -254,6 +254,16 @@ export default function InteractiveGrid({
     [allowPastEditing, nowMinutes, startHour, todayIso]
   );
 
+  const isPastForStyle = useCallback(
+    (date: string, slotIndex: number) => {
+      if (date < todayIso) return true;
+      if (date > todayIso) return false;
+      const slotEndMinutes = (slotIndex + 1) * 30;
+      return slotEndMinutes <= nowMinutes;
+    },
+    [nowMinutes, todayIso]
+  );
+
   const handleMouseDown = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>, date: string, row: number, slotIndex: number) => {
       event.preventDefault();
@@ -408,14 +418,12 @@ export default function InteractiveGrid({
               {Array.from({ length: rows }, (_, row) => {
                 const slotIndex = getSlotIndex(startHour, row);
                 const booked = isSlotBooked(bookedSlots, date, row, startHour);
-                const past = isPastSlot(date, slotIndex);
+                const behaviourPast = isPastSlot(date, slotIndex);
                 const selected = isSlotSelected(dayBits, slotIndex);
                 const isPreview = !!pendingForDate?.has(slotIndex);
-                const bgClass = selected
-                  ? 'bg-[#EDE3FA]'
-                  : past
-                    ? 'bg-gray-50 opacity-70'
-                    : 'bg-white';
+                const visualPast = isPastForStyle(date, slotIndex);
+                const fillClass = selected ? 'bg-[#EDE3FA]' : visualPast ? 'bg-gray-50' : 'bg-white';
+                const fadeClass = visualPast ? 'opacity-70' : 'opacity-100';
                 const labelHour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
                 const labelMinute = row % 2 === 1 ? '30' : '00';
                 const weekdayLabel = info.date.toLocaleDateString('en-US', { weekday: 'long' });
@@ -424,18 +432,20 @@ export default function InteractiveGrid({
                   <button
                     key={`${date}-${row}`}
                     type="button"
-                    className={clsx(
-                      'group relative w-full flex-none border-b border-gray-200 border-l border-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] cursor-pointer',
-                      isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
-                      isLastColumn && 'border-r border-gray-200',
-                      row === 0 && 'border-t border-gray-200',
-                      bgClass,
-                      isPreview && 'ring-2 ring-[#D4B5F0] ring-inset'
-                    )}
                     role="gridcell"
                     aria-selected={selected}
-                    aria-disabled={past}
+                    aria-disabled={behaviourPast}
                     aria-label={ariaLabel}
+                    className={clsx(
+                      'group relative w-full flex-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] cursor-pointer',
+                      'border-b border-l border-gray-200',
+                      isLastColumn && 'border-r border-gray-200',
+                      row === 0 && 'border-t border-gray-200',
+                      isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
+                      isPreview && 'ring-2 ring-[#D4B5F0] ring-inset',
+                      fillClass,
+                      fadeClass
+                    )}
                     onMouseDown={(event) => handleMouseDown(event, date, row, slotIndex)}
                     onMouseEnter={(event) => handleMouseEnter(event, date, row, slotIndex)}
                     onMouseUp={handleMouseUp}
