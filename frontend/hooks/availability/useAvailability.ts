@@ -45,6 +45,7 @@ export interface UseAvailabilityReturn {
   etag?: string;
   lastModified?: string;
   goToCurrentWeek: () => void;
+  allowPastEdits?: boolean;
 
   // API orchestrations (thin)
   saveWeek: (opts?: SaveWeekOptions) => Promise<SaveWeekResult>;
@@ -92,6 +93,37 @@ function scheduleToBits(schedule: WeekSchedule): WeekBits {
   return record;
 }
 
+const BYTE_MASK = 0xff;
+
+const countSetBits = (value: number): number => {
+  let count = 0;
+  let cursor = value & BYTE_MASK;
+  while (cursor > 0) {
+    count += cursor & 1;
+    cursor >>= 1;
+  }
+  return count;
+};
+
+function computeBitsDelta(previous: WeekBits, next: WeekBits): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  const allDates = new Set([...Object.keys(previous), ...Object.keys(next)]);
+  allDates.forEach((date) => {
+    const prevBits = previous[date];
+    const nextBits = next[date];
+    for (let i = 0; i < 6; i += 1) {
+      const prevByte = prevBits ? prevBits[i] ?? 0 : 0;
+      const nextByte = nextBits ? nextBits[i] ?? 0 : 0;
+      const addedMask = nextByte & (~prevByte & BYTE_MASK);
+      const removedMask = prevByte & (~nextByte & BYTE_MASK);
+      added += countSetBits(addedMask);
+      removed += countSetBits(removedMask);
+    }
+  });
+  return { added, removed };
+}
+
 export function useAvailability(): UseAvailabilityReturn {
   const {
     currentWeekStart,
@@ -114,6 +146,8 @@ export function useAvailability(): UseAvailabilityReturn {
     etag,
     lastModified,
     setVersion,
+    allowPastEdits,
+    setAllowPastEdits,
   } = useWeekSchedule();
 
   const saveWeek: UseAvailabilityReturn['saveWeek'] = useCallback(
@@ -138,9 +172,12 @@ export function useAvailability(): UseAvailabilityReturn {
         return a.end_time.localeCompare(b.end_time);
       });
 
+      const daysCount = Object.keys(scheduleSource).length;
+      const bitsDelta = computeBitsDelta(savedWeekBits, bitsSource);
+
       logger.info('Saving weekly availability snapshot', {
         week_start,
-        days: Object.keys(scheduleSource).length,
+        days: daysCount,
         total_slots: schedule.length,
       });
 
@@ -156,6 +193,10 @@ export function useAvailability(): UseAvailabilityReturn {
           headers['If-Match'] = effectiveVersion;
         }
 
+        logger.debug(
+          `saving If-Match=${effectiveVersion ?? 'none'} days=${daysCount} bitsDelta={added:${bitsDelta.added}, removed:${bitsDelta.removed}}`
+        );
+
         const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK, {
           method: 'POST',
           headers,
@@ -169,6 +210,7 @@ export function useAvailability(): UseAvailabilityReturn {
         });
         const status = res.status;
         const responseEtag = res.headers?.get?.('ETag') || undefined;
+        const allowPastHeader = res.headers?.get?.('X-Allow-Past');
         const responseJson = await res
           .clone()
           .json()
@@ -181,6 +223,12 @@ export function useAvailability(): UseAvailabilityReturn {
         } | undefined;
 
         if (!res.ok) {
+          if (typeof allowPastHeader === 'string') {
+            const normalizedAllow = allowPastHeader.trim().toLowerCase();
+            setAllowPastEdits(
+              normalizedAllow === '1' || normalizedAllow === 'true' || normalizedAllow === 'yes'
+            );
+          }
           const serverVersion =
             typeof responseJson?.current_version === 'string'
               ? responseJson?.current_version
@@ -207,6 +255,12 @@ export function useAvailability(): UseAvailabilityReturn {
         }
 
         const newVersion = responseEtag || responseJson?.week_version || responseJson?.version;
+        if (typeof allowPastHeader === 'string') {
+          const normalizedAllow = allowPastHeader.trim().toLowerCase();
+          setAllowPastEdits(
+            normalizedAllow === '1' || normalizedAllow === 'true' || normalizedAllow === 'yes'
+          );
+        }
         if (newVersion && typeof window !== 'undefined') {
           (window as Window & { __week_version?: string }).__week_version = newVersion;
           logger.debug('Updated week version from POST', { newVersion });
@@ -227,7 +281,16 @@ export function useAvailability(): UseAvailabilityReturn {
         return { success: false, message: 'Network error while saving' };
       }
     },
-    [currentWeekStart, weekBits, etag, setVersion, setSavedWeekBits, setWeekBits]
+    [
+      currentWeekStart,
+      weekBits,
+      savedWeekBits,
+      etag,
+      setVersion,
+      setSavedWeekBits,
+      setWeekBits,
+      setAllowPastEdits,
+    ]
   );
 
   const validateWeek: UseAvailabilityReturn['validateWeek'] = useCallback(async () => {
@@ -314,6 +377,7 @@ export function useAvailability(): UseAvailabilityReturn {
     ...(version && { version }),
     ...(etag && { etag }),
     ...(lastModified && { lastModified }),
+    ...(allowPastEdits !== undefined ? { allowPastEdits } : {}),
     saveWeek,
     validateWeek,
     copyFromPreviousWeek,

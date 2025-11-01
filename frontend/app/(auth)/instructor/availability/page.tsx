@@ -29,6 +29,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 const autosaveEnv = process.env['NEXT_PUBLIC_AVAIL_AUTOSAVE']?.toLowerCase();
 const AVAIL_AUTOSAVE_ENABLED = autosaveEnv === '1' || autosaveEnv === 'true';
 const AUTOSAVE_DELAY_MS = 1200;
+const refetchAfterSaveEnv = process.env['NEXT_PUBLIC_AVAILABILITY_REFETCH_AFTER_SAVE']?.toLowerCase();
+const REFETCH_AFTER_SAVE = refetchAfterSaveEnv === '1' || refetchAfterSaveEnv === 'true';
 
 
 function AvailabilityPageImpl() {
@@ -50,6 +52,7 @@ function AvailabilityPageImpl() {
     saveWeek,
     applyToFutureWeeks,
     goToCurrentWeek,
+    allowPastEdits,
   } = useAvailability();
 
   const serializeBits = useCallback((bits: WeekBits) => {
@@ -217,11 +220,16 @@ function AvailabilityPageImpl() {
 
         toast.success(result.message || 'Availability saved');
 
-        try {
-          await refreshSchedule();
+        if (REFETCH_AFTER_SAVE) {
+          try {
+            await refreshSchedule();
+            setMessage(null);
+          } catch {
+            toast.error('Saved, but failed to refresh the latest schedule.');
+          }
+        } else {
+          logger.debug('Refetch after save disabled; retaining current week snapshot');
           setMessage(null);
-        } catch {
-          toast.error('Saved, but failed to refresh the latest schedule.');
         }
 
         setConflictState(null);
@@ -471,6 +479,11 @@ function AvailabilityPageImpl() {
       )}
 
       {/* Interactive Grid */}
+      {allowPastEdits === false && (
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          Past-day changes are ignored on save.
+        </div>
+      )}
       <div className="mt-2">
         {isLoading ? (
           <div className="space-y-2" aria-hidden="true">
@@ -489,6 +502,7 @@ function AvailabilityPageImpl() {
             {...(userData?.timezone && { timezone: userData.timezone })}
             startHour={startHour}
             endHour={endHour}
+            allowPastEditing={allowPastEdits === true}
           />
         )}
       </div>

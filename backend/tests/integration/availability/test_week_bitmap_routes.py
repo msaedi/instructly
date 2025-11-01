@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 from importlib import reload
 from typing import Dict, List, Tuple
 
@@ -91,7 +91,8 @@ def test_get_week_bitmap_returns_windows_and_etag(
     body = resp.json()
     assert len(body) == 7
     assert resp.headers.get("ETag")
-    assert resp.headers.get("Access-Control-Expose-Headers") == "ETag, Last-Modified"
+    assert resp.headers.get("Access-Control-Expose-Headers") == "ETag, Last-Modified, X-Allow-Past"
+    assert resp.headers.get("X-Allow-Past") == "true"
 
     first_day = body[week_start.isoformat()]
     assert first_day == [
@@ -180,9 +181,15 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
     )
     assert conflict_resp.status_code == 409
     conflict_json = conflict_resp.json()
-    if isinstance(conflict_json, dict) and isinstance(conflict_json.get("detail"), dict):
-        assert conflict_json["detail"].get("current_version") == current_version
+    assert isinstance(conflict_json, dict)
+    assert conflict_json.get("error") == "version_conflict"
+    assert conflict_json.get("current_version") == current_version
     assert conflict_resp.headers.get("ETag") == current_version
+    assert conflict_resp.headers.get("X-Allow-Past") == "true"
+    assert (
+        conflict_resp.headers.get("Access-Control-Expose-Headers")
+        == "ETag, Last-Modified, X-Allow-Past"
+    )
 
     override_resp = bitmap_client.post(
         "/instructors/availability/week",
@@ -196,6 +203,76 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
 
     stored = repo.get_week(test_instructor.id, week_start)
     assert windows_from_bits(stored[week_start]) == [("11:00:00", "12:00:00")]
+
+
+def test_save_week_bitmap_persists_past_days_when_allowed(
+    bitmap_client: TestClient,
+    db: Session,
+    test_instructor: User,
+    auth_headers_instructor: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = AvailabilityDayRepository(db)
+    db.query(AvailabilityDay).filter(AvailabilityDay.instructor_id == test_instructor.id).delete()
+    week_start = date(2025, 10, 27)
+
+    real_datetime = availability_service_module.datetime
+
+    class FixedDateTime(real_datetime):  # type: ignore[misc]
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[override]
+            anchor = real_datetime(2025, 10, 30, 12, 0, tzinfo=timezone.utc)
+            if tz:
+                return anchor.astimezone(tz)
+            return anchor.replace(tzinfo=None)
+
+    monkeypatch.setattr(availability_service_module, "datetime", FixedDateTime)
+
+    past_day = week_start
+    future_day = week_start + timedelta(days=5)
+
+    payload = {
+        "week_start": week_start.isoformat(),
+        "clear_existing": True,
+        "schedule": [
+            {
+                "date": past_day.isoformat(),
+                "start_time": "08:00:00",
+                "end_time": "09:00:00",
+            },
+            {
+                "date": future_day.isoformat(),
+                "start_time": "16:00:00",
+                "end_time": "17:00:00",
+            },
+        ],
+    }
+
+    resp = bitmap_client.post(
+        "/instructors/availability/week",
+        json=payload,
+        headers=auth_headers_instructor,
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("X-Allow-Past") == "true"
+
+    fetched = bitmap_client.get(
+        "/instructors/availability/week",
+        params={"start_date": week_start.isoformat()},
+        headers=auth_headers_instructor,
+    )
+    assert fetched.status_code == 200
+    body = fetched.json()
+    assert body[past_day.isoformat()] == [
+        {"start_time": "08:00:00", "end_time": "09:00:00"},
+    ]
+    assert body[future_day.isoformat()] == [
+        {"start_time": "16:00:00", "end_time": "17:00:00"},
+    ]
+
+    stored = repo.get_week(test_instructor.id, week_start)
+    assert windows_from_bits(stored[past_day]) == [("08:00:00", "09:00:00")]
+    assert windows_from_bits(stored[future_day]) == [("16:00:00", "17:00:00")]
 
 
 def test_copy_week_bitmap_copies_all_days(

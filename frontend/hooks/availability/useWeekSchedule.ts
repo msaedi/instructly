@@ -137,6 +137,8 @@ export interface UseWeekScheduleReturn {
   etag?: string;
   lastModified?: string;
   setVersion: (next?: string) => void;
+  allowPastEdits?: boolean;
+  setAllowPastEdits: (next?: boolean) => void;
 }
 
 export function useWeekSchedule(
@@ -169,6 +171,7 @@ export function useWeekSchedule(
   const [message, setMessage] = useState<AvailabilityMessage | null>(null);
   const [etag, setEtag] = useState<string | undefined>(undefined);
   const [lastModified, setLastModified] = useState<string | undefined>(undefined);
+  const [allowPastEdits, setAllowPastEditsState] = useState<boolean | undefined>(undefined);
 
   const currentWeekStartMs = currentWeekStart.getTime();
 
@@ -248,6 +251,10 @@ export function useWeekSchedule(
     }
   }, []);
 
+  const setAllowPastEdits = useCallback((next?: boolean) => {
+    setAllowPastEditsState(next);
+  }, []);
+
   const setWeekSchedule = useCallback(
     (next: WeekSchedule | ((prev: WeekSchedule) => WeekSchedule)) => {
       setWeekBitsState((prev) => {
@@ -290,6 +297,7 @@ export function useWeekSchedule(
       const data = await response.json();
       const headerEtag = response.headers.get('ETag') || undefined;
       const headerLastModified = response.headers.get('Last-Modified') || undefined;
+      const allowPastHeader = response.headers.get('X-Allow-Past');
 
       const cleaned: WeekSchedule = {};
       Object.entries(data as Record<string, TimeSlot[] | undefined>).forEach(([date, slots]) => {
@@ -309,6 +317,12 @@ export function useWeekSchedule(
       setSavedWeekBits(nextBits);
       setVersion(headerEtag || undefined);
       setLastModified(headerLastModified);
+      if (allowPastHeader !== null) {
+        const normalized = allowPastHeader.trim().toLowerCase();
+        setAllowPastEdits(
+          normalized === '1' || normalized === 'true' || normalized === 'yes'
+        );
+      }
     } catch (error) {
       const fallback = error instanceof Error ? error.message : 'Unexpected error';
       const messageText = `Failed to load availability: ${fallback}`;
@@ -321,7 +335,7 @@ export function useWeekSchedule(
       logger.timeEnd('fetchWeekSchedule');
       setIsLoading(false);
     }
-  }, [currentWeekStart, setWeekBits, setSavedWeekBits, setVersion]);
+  }, [currentWeekStart, setWeekBits, setSavedWeekBits, setVersion, setAllowPastEdits]);
 
   const updateWeekStart = useCallback(
     (next: Date) => {
@@ -394,5 +408,7 @@ export function useWeekSchedule(
     ...(etag ? { version: etag, etag } : {}),
     ...(lastModified ? { lastModified } : {}),
     setVersion,
+    ...(allowPastEdits !== undefined ? { allowPastEdits } : {}),
+    setAllowPastEdits,
   };
 }

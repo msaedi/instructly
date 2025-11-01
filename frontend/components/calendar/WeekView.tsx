@@ -15,6 +15,7 @@ interface WeekViewProps {
   isMobile?: boolean;
   activeDayIndex?: number;
   onActiveDayChange?: (index: number) => void;
+  allowPastEditing?: boolean;
 }
 
 const WeekView = ({
@@ -28,6 +29,7 @@ const WeekView = ({
   isMobile,
   activeDayIndex,
   onActiveDayChange,
+  allowPastEditing,
 }: WeekViewProps) => {
   return (
     <InteractiveGrid
@@ -41,6 +43,7 @@ const WeekView = ({
       {...(isMobile !== undefined ? { isMobile } : {})}
       {...(activeDayIndex !== undefined ? { activeDayIndex } : {})}
       {...(onActiveDayChange ? { onActiveDayChange } : {})}
+      {...(allowPastEditing !== undefined ? { allowPastEditing } : {})}
     />
   );
 };

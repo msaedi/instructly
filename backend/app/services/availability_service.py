@@ -218,19 +218,30 @@ class AvailabilityService(BaseService):
 
         items: List[Tuple[date, bytes]] = []
         today = datetime.now(timezone.utc).date()
+        perf_debug = os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}
+
         for offset in range(7):
             day = week_start + timedelta(days=offset)
             has_payload = day in windows_by_day
+            previous_bits = current.get(day, new_empty_bits())
             if not clear_existing and not has_payload:
-                bits = current.get(day, new_empty_bits())
+                bits = previous_bits
             else:
                 day_windows = windows_by_day.get(day, [])
                 if not ALLOW_PAST and day < today:
-                    bits = current.get(day, new_empty_bits())
+                    bits = previous_bits
                 else:
                     bits = bits_from_windows(day_windows) if day_windows else new_empty_bits()
 
+            bits_changed = bits != previous_bits
             items.append((day, bits))
+            if perf_debug:
+                logger.debug(
+                    "bitmap_write day=%s override=%s bits_changed=%s",
+                    day.isoformat(),
+                    override,
+                    "true" if bits_changed else "false",
+                )
 
         repo = self._bitmap_repo()
         written = repo.upsert_week(instructor_id, items)

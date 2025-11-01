@@ -94,7 +94,7 @@ from ..schemas.availability_window import (
     WeekSpecificScheduleCreate,
     WeekValidationResponse,
 )
-from ..services.availability_service import AvailabilityService
+from ..services.availability_service import ALLOW_PAST as SERVICE_ALLOW_PAST, AvailabilityService
 from ..services.bulk_operation_service import BulkOperationService
 from ..services.cache_service import CacheService
 from ..services.conflict_checker import ConflictChecker
@@ -107,13 +107,18 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 BITMAP_V2 = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
+ALLOW_PAST = SERVICE_ALLOW_PAST
+EXPOSE_HEADERS = "ETag, Last-Modified, X-Allow-Past"
 
 
-def _set_bitmap_headers(response: Response, etag: str, last_modified: Optional[datetime]) -> None:
+def _set_bitmap_headers(
+    response: Response, etag: str, last_modified: Optional[datetime], *, allow_past: bool
+) -> None:
     response.headers["ETag"] = etag
     if last_modified is not None:
         response.headers["Last-Modified"] = format_datetime(last_modified.astimezone(timezone.utc))
-    response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+    response.headers["X-Allow-Past"] = "true" if allow_past else "false"
+    response.headers["Access-Control-Expose-Headers"] = EXPOSE_HEADERS
 
 
 def requires_roles(
@@ -179,15 +184,10 @@ async def get_week_availability(
             try:
                 bits_by_day = availability_service.get_week_bits(current_user.id, start_date)
                 version = availability_service.compute_week_version_bits(bits_by_day)
-                response.headers["ETag"] = version
                 last_mod = availability_service.get_week_bitmap_last_modified(
                     current_user.id, start_date
                 )
-                if last_mod:
-                    response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
-                        "%a, %d %b %Y %H:%M:%S GMT"
-                    )
-                response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+                _set_bitmap_headers(response, version, last_mod, allow_past=ALLOW_PAST)
 
                 payload: Dict[str, List[TimeRange]] = {}
                 for day, bits in bits_by_day.items():
@@ -234,7 +234,8 @@ async def get_week_availability(
                     "%a, %d %b %Y %H:%M:%S GMT"
                 )
             # Allow browsers to read ETag and Last-Modified via CORS
-            response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+            response.headers["X-Allow-Past"] = "true" if ALLOW_PAST else "false"
+            response.headers["Access-Control-Expose-Headers"] = EXPOSE_HEADERS
             return WeekAvailabilityResponse(week_map)
         except HTTPException as e:
             raise e
@@ -245,7 +246,11 @@ async def get_week_availability(
                 raise HTTPException(
                     status_code=409,
                     detail={"error": "version_conflict", "current_version": server_version},
-                    headers={"ETag": server_version},
+                    headers={
+                        "ETag": server_version,
+                        "X-Allow-Past": "true" if ALLOW_PAST else "false",
+                        "Access-Control-Expose-Headers": EXPOSE_HEADERS,
+                    },
                 )
             raise e.to_http_exception()
         except Exception as e:
@@ -371,14 +376,15 @@ async def save_week_availability(
                         detail={"error": "version_conflict", "current_version": server_version},
                         headers={
                             "ETag": server_version,
-                            "Access-Control-Expose-Headers": "ETag, Last-Modified",
+                            "X-Allow-Past": "true" if ALLOW_PAST else "false",
+                            "Access-Control-Expose-Headers": EXPOSE_HEADERS,
                         },
                     )
 
                 last_mod = availability_service.get_week_bitmap_last_modified(
                     current_user.id, monday
                 )
-                _set_bitmap_headers(response, new_version, last_mod)
+                _set_bitmap_headers(response, new_version, last_mod, allow_past=ALLOW_PAST)
 
                 return WeekAvailabilityUpdateResponse(
                     message="Saved weekly availability",
@@ -415,7 +421,11 @@ async def save_week_availability(
                         "error": "version_conflict",
                         "current_version": server_version,
                     },
-                    headers={"ETag": server_version},
+                    headers={
+                        "ETag": server_version,
+                        "X-Allow-Past": "true" if ALLOW_PAST else "false",
+                        "Access-Control-Expose-Headers": EXPOSE_HEADERS,
+                    },
                 )
 
             # Get pre-save summary
@@ -453,7 +463,8 @@ async def save_week_availability(
                 response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
                     "%a, %d %b %Y %H:%M:%S GMT"
                 )
-            response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+            response.headers["X-Allow-Past"] = "true" if ALLOW_PAST else "false"
+            response.headers["Access-Control-Expose-Headers"] = EXPOSE_HEADERS
 
             return WeekAvailabilityUpdateResponse(
                 message="Saved weekly availability",

@@ -82,6 +82,16 @@ def register_error_handlers(app: FastAPI) -> None:
             code=code,
             errors=jsonable_encoder(errors) if errors is not None else None,
         )
+        if isinstance(exc.detail, dict):
+            extras = {}
+            error_value = exc.detail.get("error")
+            if isinstance(error_value, str):
+                extras["error"] = error_value
+            current_version = exc.detail.get("current_version")
+            if isinstance(current_version, str):
+                extras["current_version"] = current_version
+            if extras:
+                problem.update(extras)
         return JSONResponse(
             problem,
             status_code=exc.status_code,
@@ -101,6 +111,16 @@ def register_error_handlers(app: FastAPI) -> None:
             code=code,
             errors=jsonable_encoder(errors) if errors is not None else None,
         )
+        if isinstance(exc.detail, dict):
+            extras = {}
+            error_value = exc.detail.get("error")
+            if isinstance(error_value, str):
+                extras["error"] = error_value
+            current_version = exc.detail.get("current_version")
+            if isinstance(current_version, str):
+                extras["current_version"] = current_version
+            if extras:
+                problem.update(extras)
         return JSONResponse(
             problem,
             status_code=exc.status_code,

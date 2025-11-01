@@ -20,6 +20,7 @@ interface InteractiveGridProps {
   isMobile?: boolean;
   activeDayIndex?: number;
   onActiveDayChange?: (index: number) => void;
+  allowPastEditing?: boolean;
 }
 
 const HALF_HOURS_PER_HOUR = 2;
@@ -97,6 +98,7 @@ export default function InteractiveGrid({
   isMobile = false,
   activeDayIndex = 0,
   onActiveDayChange,
+  allowPastEditing = false,
 }: InteractiveGridProps) {
   const rows = useMemo(() => (endHour - startHour) * HALF_HOURS_PER_HOUR, [startHour, endHour]);
 
@@ -234,6 +236,7 @@ export default function InteractiveGrid({
 
   const isPastSlot = useCallback(
     (date: string, slotIndex: number) => {
+      if (allowPastEditing) return false;
       if (date < todayIso) return true;
       if (date > todayIso) return false;
       const slotEndMinutes =
@@ -241,7 +244,7 @@ export default function InteractiveGrid({
         ((slotIndex + 1) % 2 === 1 ? 30 : 0);
       return slotEndMinutes <= nowMinutes;
     },
-    [nowMinutes, startHour, todayIso]
+    [allowPastEditing, nowMinutes, startHour, todayIso]
   );
 
   const handleMouseDown = useCallback(
@@ -325,7 +328,7 @@ export default function InteractiveGrid({
             'sticky top-0 z-10 flex flex-col items-center gap-1 bg-white/85 px-2 py-2 backdrop-blur',
             isToday ? 'text-[#7E22CE]' : 'text-gray-700'
           );
-          const isPastDate = info.fullDate < todayIso;
+          const isPastDate = !allowPastEditing && info.fullDate < todayIso;
           return (
             <div key={info.fullDate} className={headerClasses}>
               <span className={clsx('text-xs uppercase tracking-wide', isPastDate ? 'text-gray-400' : 'text-gray-500')}>
