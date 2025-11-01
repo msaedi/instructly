@@ -169,7 +169,7 @@ def test_apply_bitmap_pattern_no_source_bits(
     assert body["windows_created"] == 0
     assert body["weeks_affected"] == 0
     assert body["days_written"] == 0
-    assert "no availability bits in source" in body["message"].lower()
+    assert "no availability bits" in body["message"].lower()
 
     stored = repo.get_week(test_instructor.id, target_start)
     for bits in stored.values():

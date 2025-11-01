@@ -2,9 +2,11 @@ from datetime import date, timedelta
 
 import pytest
 
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.availability_window import CopyWeekRequest, WeekSpecificScheduleCreate
 from app.services.availability_service import AvailabilityService
 from app.services.week_operation_service import WeekOperationService
+from app.utils.bitset import bits_from_windows
 
 
 def _upcoming_monday() -> date:
@@ -31,6 +33,18 @@ async def test_availability_audit_flow(
         {"date": monday.isoformat(), "start_time": "09:00", "end_time": "10:00"},
         {"date": tuesday.isoformat(), "start_time": "14:00", "end_time": "15:30"},
     ]
+
+    bitmap_repo = AvailabilityDayRepository(db)
+    windows_by_day: dict[date, list[tuple[str, str]]] = {}
+    for entry in schedule:
+        day = date.fromisoformat(entry["date"])
+        windows_by_day.setdefault(day, []).append((entry["start_time"], entry["end_time"]))
+
+    bitmap_repo.upsert_week(
+        test_instructor.id,
+        [(day, bits_from_windows(windows)) for day, windows in windows_by_day.items()],
+    )
+    db.commit()
 
     request = WeekSpecificScheduleCreate(
         schedule=schedule,

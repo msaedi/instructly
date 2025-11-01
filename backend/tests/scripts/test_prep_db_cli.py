@@ -1,3 +1,4 @@
+import os
 import sys
 import types
 
@@ -33,21 +34,126 @@ def _execute(monkeypatch, args):
     monkeypatch.setattr(prep_db, "calculate_analytics", record("analytics"))
     monkeypatch.setattr(prep_db, "clear_cache", record("cache"))
 
-    class DummySession:
+    class DummyResult:
+        def fetchall(self):
+            return []
+
+        def scalar(self):
+            return 0
+
+    class DummyConnection:
         def __enter__(self):
-            return object()
+            return self
 
         def __exit__(self, exc_type, exc, tb):
             return False
+
+        def execute(self, *args, **kwargs):
+            return DummyResult()
+
+    class DummyEngine:
+        def connect(self):
+            return DummyConnection()
+
+        def dispose(self):
+            return None
+
+    monkeypatch.setattr(prep_db, "create_engine", lambda *_args, **_kwargs: DummyEngine())
+
+    class DummyQuery:
+        def join(self, *args, **kwargs):
+            return self
+
+        def filter(self, *args, **kwargs):
+            return self
+
+        def count(self):
+            return 0
+
+        def all(self):
+            return []
+
+    class DummySession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def rollback(self):
+            return None
+
+        def commit(self):
+            return None
+
+        def query(self, *args, **kwargs):
+            return DummyQuery()
 
     def beta_record(session):
         calls.append(("beta_seed", (session,), {}))
         return 0, 0
 
+    class DummySeeder:
+        def __init__(self):
+            self.engine = DummyEngine()
+            self.loader = types.SimpleNamespace(
+                get_students=lambda: [],
+                get_instructors=lambda: [],
+            )
+            self._seed_mock_logged = False
+
+        def reset_database(self):
+            calls.append(("reset_database", (), {}))
+
+        def create_instructors(self):
+            calls.append(("create_instructors", (), {}))
+            return 0
+
+        def create_students(self):
+            calls.append(("create_students", (), {}))
+            if not self._seed_mock_logged:
+                calls.append(
+                    (
+                        "seed_mock",
+                        (),
+                        {"seed_db_url": os.getenv("PROD_SERVICE_DATABASE_URL")},
+                    )
+                )
+                self._seed_mock_logged = True
+            return 0
+
+        def create_availability(self):
+            calls.append(("create_availability", (), {}))
+            return 0
+
+        def create_coverage_areas(self):
+            calls.append(("create_coverage_areas", (), {}))
+            return 0
+
+        def create_bookings(self):
+            calls.append(("create_bookings", (), {}))
+            return 0
+
+        def create_reviews(self, strict=False):
+            calls.append(("create_reviews", (strict,), {}))
+            return 0
+
+        def create_sample_platform_credits(self):
+            calls.append(("create_credits", (), {}))
+            return 0
+
+        def print_summary(self):
+            calls.append(("print_summary", (), {}))
+
     dummy_db_module = types.SimpleNamespace(SessionLocal=lambda: DummySession())
-    dummy_seed_module = types.SimpleNamespace(seed_beta_access_for_instructors=beta_record)
+    dummy_seed_module = types.SimpleNamespace(
+        seed_beta_access_for_instructors=beta_record,
+        seed_demo_student_badges=lambda engine, verbose=True: 0,
+    )
+    dummy_reset_seed = types.SimpleNamespace(DatabaseSeeder=DummySeeder)
     monkeypatch.setitem(sys.modules, "app.database", dummy_db_module)
     monkeypatch.setitem(sys.modules, "scripts.seed_data", dummy_seed_module)
+    monkeypatch.setitem(sys.modules, "scripts.reset_and_seed_yaml", dummy_reset_seed)
     monkeypatch.setattr(sys, "argv", ["prep_db.py", *args])
     prep_db.main()
     return calls

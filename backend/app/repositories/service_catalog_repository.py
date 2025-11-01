@@ -13,10 +13,10 @@ This repository extends BaseRepository with search and analytics capabilities.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TypedDict, cast
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TypedDict, TypeVar, cast
 
 from sqlalchemy import distinct, or_, text
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Query, Session, joinedload
 from sqlalchemy.sql import func
 
 from ..models.instructor import InstructorProfile
@@ -25,6 +25,15 @@ from ..models.user import User
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
+
+TQuery = TypeVar("TQuery")
+
+
+def _apply_catalog_not_deleted_filter(query: Query[TQuery]) -> Query[TQuery]:
+    """Ensure soft-deleted catalog entries are excluded by default."""
+    if hasattr(ServiceCatalog, "deleted_at"):
+        query = cast(Query[TQuery], query.filter(ServiceCatalog.deleted_at.is_(None)))
+    return query
 
 
 class PopularServiceMetrics(TypedDict):
@@ -95,9 +104,9 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
             # Get services
             service_ids = [row.id for row in rows]
-            services = (
-                self.db.query(ServiceCatalog).filter(ServiceCatalog.id.in_(service_ids)).all()
-            )
+            services = _apply_catalog_not_deleted_filter(
+                self.db.query(ServiceCatalog).filter(ServiceCatalog.id.in_(service_ids))
+            ).all()
 
             # Create service lookup
             service_map = {s.id: s for s in services}
@@ -133,6 +142,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             List of matching services
         """
         query = self.db.query(ServiceCatalog).filter(ServiceCatalog.is_active == True)
+        query = _apply_catalog_not_deleted_filter(query)
 
         # Text search across multiple fields
         if query_text:
@@ -205,6 +215,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             .join(ServiceAnalytics, ServiceCatalog.id == ServiceAnalytics.service_catalog_id)
             .filter(ServiceCatalog.is_active == True)
         )
+        query = _apply_catalog_not_deleted_filter(query)
 
         # Order by booking count
         if days == 7:
@@ -253,6 +264,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             )
             .order_by((trend_subquery.c.avg_7d - trend_subquery.c.avg_30d).desc())
         )
+        query = _apply_catalog_not_deleted_filter(query)
 
         return cast(List[ServiceCatalog], query.limit(limit).all())
 
@@ -272,11 +284,11 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             )
             .join(ServiceAnalytics, ServiceCatalog.id == ServiceAnalytics.service_catalog_id)
             .filter(ServiceCatalog.is_active == True)
-            .order_by(
-                (ServiceAnalytics.booking_count_30d * 2 + ServiceAnalytics.search_count_30d).desc()
-            )
-            .all()
         )
+        query = _apply_catalog_not_deleted_filter(query)
+        query = query.order_by(
+            (ServiceAnalytics.booking_count_30d * 2 + ServiceAnalytics.search_count_30d).desc()
+        ).all()
 
         # Update display orders
         updates = []
@@ -314,6 +326,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             .options(joinedload(ServiceCatalog.category))
             .filter(ServiceCatalog.is_active == True)
         )
+        query = _apply_catalog_not_deleted_filter(query)
 
         if category_id:
             query = query.filter(ServiceCatalog.category_id == category_id)
@@ -376,6 +389,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
                 .filter(InstructorService.is_active == True)
                 .filter(User.account_status == "active")
             )
+            query = _apply_catalog_not_deleted_filter(query)
 
             # Postgres: use array_position for membership; fallback: LIKE for JSON/text storage
             if self.dialect_name == "postgresql":
@@ -540,9 +554,11 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         missing_rows = cast(
             Sequence[Tuple[str]],
             (
-                self.db.query(ServiceCatalog.id)
-                .filter(ServiceCatalog.is_active == True, ~ServiceCatalog.id.in_(existing))
-                .all()
+                _apply_catalog_not_deleted_filter(
+                    self.db.query(ServiceCatalog.id).filter(
+                        ServiceCatalog.is_active == True, ~ServiceCatalog.id.in_(existing)
+                    )
+                ).all()
             ),
         )
 

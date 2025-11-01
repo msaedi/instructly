@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import pytest
 from sqlalchemy.orm import Session
 from tests.utils.time import (
@@ -107,9 +109,11 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
 
     svc = BookingService(db)
 
+    duration_minutes = 60
+
     # 23h59m ⇒ authorizing
     start1 = start_just_under_24h()
-    bd1, st1, et1 = booking_fields_from_start(start1)
+    bd1, st1, et1 = booking_fields_from_start(start1, duration_minutes=duration_minutes)
     b1 = create_booking_pg_safe(
         db,
         student_id=student.id,
@@ -131,7 +135,18 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
 
     # 24h01m ⇒ scheduled
     start2 = start_just_over_24h()
-    bd2, st2, et2 = booking_fields_from_start(start2)
+    bd2, st2, et2 = booking_fields_from_start(start2, duration_minutes=duration_minutes)
+    first_end_dt = datetime.combine(bd1, et1)
+    second_start_dt = datetime.combine(bd2, st2)
+    if second_start_dt <= first_end_dt:
+        second_start_dt = first_end_dt + timedelta(minutes=2)
+    second_end_dt = second_start_dt + timedelta(minutes=duration_minutes)
+    if second_end_dt.date() != second_start_dt.date():
+        second_start_dt = first_end_dt + timedelta(hours=2)
+        second_end_dt = second_start_dt + timedelta(minutes=duration_minutes)
+    bd2 = second_start_dt.date()
+    st2 = second_start_dt.time()
+    et2 = second_end_dt.time()
     b2 = create_booking_pg_safe(
         db,
         student_id=student.id,
@@ -143,10 +158,10 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         service_name="Test",
         hourly_rate=100.0,
         total_price=100.0,
-        duration_minutes=60,
+        duration_minutes=duration_minutes,
         status=BookingStatus.PENDING,
         payment_status="pending_payment_method",
-        offset_index=1,
+        offset_index=2,
     )
     c2 = await svc.confirm_booking_payment(b2.id, student, "pm_x", False)
     assert c2.payment_status == "scheduled"

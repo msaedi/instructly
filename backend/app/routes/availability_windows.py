@@ -62,6 +62,7 @@ from ..core.constants import ERROR_INSTRUCTOR_ONLY
 from ..core.enums import RoleName
 from ..core.exceptions import ConflictException, DomainException
 from ..core.timezone_utils import get_user_today_by_id
+from ..middleware.perf_counters import note_cache_miss
 from ..models.user import User
 from ..monitoring.availability_perf import (
     COPY_WEEK_ENDPOINT,
@@ -188,6 +189,7 @@ async def get_week_availability(
                     current_user.id, start_date
                 )
                 _set_bitmap_headers(response, version, last_mod, allow_past=ALLOW_PAST)
+                note_cache_miss(f"availability:bitmap:{current_user.id}:{start_date.isoformat()}")
 
                 payload: Dict[str, List[TimeRange]] = {}
                 for day, bits in bits_by_day.items():
@@ -517,11 +519,19 @@ async def copy_week_availability(
                 actor=current_user,
             )
             metadata = cast(dict[str, object], result.get("_metadata", {}))
+            service_message = metadata.get("message")
+            if service_message is None:
+                service_message = result.get("message")
+            if service_message is None:
+                service_message = "Week copied successfully"
+            slots_created = metadata.get("slots_created")
+            if slots_created is None:
+                slots_created = result.get("slots_created", 0)
             return CopyWeekResponse(
-                message=str(metadata.get("message", "Week copied successfully")),
+                message=str(service_message),
                 source_week_start=payload.from_week_start,
                 target_week_start=payload.to_week_start,
-                windows_copied=int(cast(int | str | None, metadata.get("slots_created", 0)) or 0),
+                windows_copied=int(cast(int | str | None, slots_created) or 0),
             )
         except DomainException as e:
             raise e.to_http_exception()
@@ -553,17 +563,31 @@ async def apply_to_date_range(
             from_week_start=payload.from_week_start,
             start_date=payload.start_date,
             end_date=payload.end_date,
+            actor=current_user,
         )
         # Map service result to response schema
         # Compute weeks_applied as ceiling of days/7 over the inclusive date range
         days = (payload.end_date - payload.start_date).days + 1
         weeks_applied = (days + 6) // 7
-        windows_created = int(result.get("slots_created", 0))
-        weeks_affected = int(result.get("weeks_affected", 0))
-        days_written = int(result.get("days_written", windows_created))
+        windows_created_raw = result.get("slots_created", 0)
+        weeks_affected_raw = result.get("weeks_affected", 0)
+        days_written_raw = result.get("days_written", windows_created_raw)
+
+        try:
+            windows_created = int(windows_created_raw)
+        except (TypeError, ValueError):
+            windows_created = 0
+        try:
+            weeks_affected = int(weeks_affected_raw)
+        except (TypeError, ValueError):
+            weeks_affected = 0
+        try:
+            days_written = int(days_written_raw)
+        except (TypeError, ValueError):
+            days_written = windows_created
 
         return ApplyToDateRangeResponse(
-            message=result.get("message", "Successfully applied schedule"),
+            message=str(result.get("message", "")),
             start_date=payload.start_date,
             end_date=payload.end_date,
             weeks_applied=weeks_applied,

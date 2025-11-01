@@ -1137,6 +1137,8 @@ to control the mock-data phases (stg/int default to include).
             info(mode, "Review seeding complete.")
             return
 
+        perform_mock_seed = include_mock_users
+
         if args.seed_all:
             pipeline_stats = run_seed_all_pipeline(
                 mode=mode,

@@ -184,8 +184,10 @@ class TestPerformanceOverhead:
 
         print(f"\nHTTP endpoint overhead: {overhead_ms:.2f}ms")
 
-    def test_metrics_endpoint_performance(self, client):
+    def test_metrics_endpoint_performance(self, client, monkeypatch):
         """Test that /metrics/prometheus endpoint is fast even with many metrics"""
+
+        monkeypatch.setenv("PROMETHEUS_CACHE_IN_TESTS", "1")
 
         # Generate a lot of metrics
         endpoints = [

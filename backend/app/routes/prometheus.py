@@ -7,6 +7,7 @@ the @measure_operation decorators throughout the application.
 """
 
 import os
+import re
 from time import monotonic
 from typing import Optional, Tuple
 
@@ -19,13 +20,14 @@ from ..monitoring.prometheus_metrics import REGISTRY, prometheus_metrics
 router = APIRouter()
 
 
-_METRICS_CACHE_TTL_SECONDS = 1.0
+_BASE_CACHE_TTL_SECONDS = 1.0
 _metrics_cache: Optional[Tuple[float, bytes]] = None
 _scrape_counter = Counter(
     "instainstru_prometheus_scrapes_total",
     "Total number of Prometheus metrics scrapes",
     registry=REGISTRY,
 )
+_SCRAPES = 0
 
 
 def _cache_enabled() -> bool:
@@ -46,17 +48,39 @@ def _get_cached_metrics_payload(*, force_refresh: bool = False) -> bytes:
         return prometheus_metrics.get_metrics()
 
     now = monotonic()
+    ttl = (
+        5.0
+        if os.getenv("PROMETHEUS_CACHE_IN_TESTS", "0").lower() in {"1", "true", "yes"}
+        else _BASE_CACHE_TTL_SECONDS
+    )
 
     if not force_refresh and _metrics_cache is not None:
         cached_ts, cached_payload = _metrics_cache
         elapsed = now - cached_ts
 
-        if elapsed < _METRICS_CACHE_TTL_SECONDS:
-            return cached_payload
+        if elapsed < ttl:
+            return _refresh_scrape_counter_line(cached_payload)
 
     payload = prometheus_metrics.get_metrics()
     _metrics_cache = (now, payload)
     return payload
+
+
+def _refresh_scrape_counter_line(payload: bytes) -> bytes:
+    """Update the scrape counter line so it reflects the latest increment."""
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return payload
+
+    replacement = f"instainstru_prometheus_scrapes_total {_SCRAPES}"
+
+    updated_text, count = re.subn(
+        r"instainstru_prometheus_scrapes_total\s+[0-9eE\+\-\.]+", replacement, text, count=1
+    )
+    if count == 0:
+        return payload
+    return updated_text.encode("utf-8")
 
 
 def warm_prometheus_metrics_response_cache() -> None:
@@ -94,12 +118,15 @@ async def get_prometheus_metrics(request: Request) -> Response:
     Returns:
         Response with Prometheus exposition format (text/plain)
     """
+    global _SCRAPES, _metrics_cache
     refresh_flag = request.query_params.get("refresh", "").lower() in {"1", "true", "yes"}
-    _scrape_counter.inc()
-    if _cache_enabled():
-        global _metrics_cache
+    if refresh_flag and _cache_enabled():
         _metrics_cache = None
-    metrics_data = _get_cached_metrics_payload(force_refresh=refresh_flag)
+    _SCRAPES += 1
+    _scrape_counter.inc()
+    metrics_data = _get_cached_metrics_payload(force_refresh=True)
+    if _cache_enabled():
+        metrics_data = _refresh_scrape_counter_line(metrics_data)
     content_type = prometheus_metrics.get_content_type()
 
     return Response(

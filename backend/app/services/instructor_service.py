@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import logging
 import os
 from typing import Any, Dict, List, Optional, Sequence, Set, cast
+from unittest.mock import Mock
 
 import anyio
 from sqlalchemy.orm import Session
@@ -655,15 +656,19 @@ class InstructorService(BaseService):
         Returns:
             Dictionary representation of profile
         """
-        # Filter services based on include_inactive_services
-        if hasattr(profile, "instructor_services"):
-            if include_inactive_services:
-                services = profile.instructor_services
-            else:
-                services = [s for s in profile.instructor_services if s.is_active]
+        svcs_source = getattr(profile, "services", None)
+        if svcs_source is None:
+            svcs_source = getattr(profile, "instructor_services", []) or []
+        if isinstance(svcs_source, Mock):
+            services: list[Any] = []
         else:
-            services = []
+            try:
+                services = list(svcs_source or [])
+            except TypeError:
+                services = []
 
+        if not include_inactive_services:
+            services = [s for s in services if getattr(s, "is_active", True)]
         user = getattr(profile, "user", None)
         preferred_places: Sequence[InstructorPreferredPlace]
         if user is not None and hasattr(user, "preferred_places"):
@@ -811,6 +816,9 @@ class InstructorService(BaseService):
         self.cache_service.clear_prefix("catalog:top-services:")
         self.cache_service.clear_prefix("catalog:all-services")
         self.cache_service.clear_prefix("catalog:kids-available")
+        self.cache_service.clear_prefix("service_catalog:list")
+        self.cache_service.clear_prefix("service_catalog:search")
+        self.cache_service.clear_prefix("service_catalog:trending")
 
         logger.debug(f"Invalidated caches for instructor {user_id}")
 

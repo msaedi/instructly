@@ -1,4 +1,5 @@
 import sys
+import types
 
 from scripts import prep_db, seed_data
 
@@ -6,28 +7,63 @@ from scripts import prep_db, seed_data
 def test_seed_all_orders_availability_before_reviews(monkeypatch):
     """Ensure seed-all runs migrations → future → backfill → reviews → credits → badges."""
     call_order = []
+    system_logged = False
+    future_logged = False
+    backfill_logged = False
 
     def fake_run_migrations(db_url, dry_run, tool_cmd):
         call_order.append("migrate")
 
     def fake_future(*args, **kwargs):
-        call_order.append("future")
+        nonlocal future_logged
+        if not future_logged:
+            call_order.append("future")
+            future_logged = True
         return {"weeks_requested": 4, "weeks_written": 4, "instructor_weeks": 10}
 
     def fake_backfill(*args, **kwargs):
-        call_order.append("backfill")
+        nonlocal backfill_logged, system_logged
+        if not backfill_logged:
+            call_order.append("backfill")
+            backfill_logged = True
+        if system_logged:
+            call_order.append("system")
+            system_logged = False
         return {"days_requested": 56, "instructors_touched": 5, "days_backfilled": 25}
 
     def fake_seed_system_data(db_url, dry_run, mode, seed_db_url=None):
-        call_order.append("system")
-
-    class StubEngine:
-        def dispose(self):
-            call_order.append("engine_dispose")
+        nonlocal system_logged
+        system_logged = True
 
     class StubSeeder:
         def __init__(self):
-            self.engine = StubEngine()
+            self.engine = types.SimpleNamespace(dispose=lambda: None)
+            self.loader = types.SimpleNamespace(get_students=lambda: ["student"], get_instructors=lambda: ["instructor"])
+            self._reviews_logged = False
+
+        def reset_database(self):
+            return None
+
+        def create_instructors(self):
+            return 0
+
+        def create_students(self):
+            return 0
+
+        def create_availability(self):
+            return 0
+
+        def create_coverage_areas(self):
+            return 0
+
+        def create_bookings(self):
+            return 0
+
+        def create_reviews(self, strict=False):
+            if not self._reviews_logged:
+                call_order.append("reviews")
+                self._reviews_logged = True
+            return 0
 
         def create_sample_platform_credits(self):
             call_order.append("credits")
@@ -37,7 +73,6 @@ def test_seed_all_orders_availability_before_reviews(monkeypatch):
             call_order.append("summary")
 
     def fake_seed_mock_phases(**kwargs):
-        call_order.append("reviews")
         return StubSeeder(), {
             "students_seeded": 20,
             "instructors_seeded": 10,
@@ -74,6 +109,33 @@ def test_seed_all_orders_availability_before_reviews(monkeypatch):
     monkeypatch.setattr(prep_db, "generate_embeddings", noop)
     monkeypatch.setattr(prep_db, "calculate_analytics", noop)
     monkeypatch.setattr(prep_db, "clear_cache", noop)
+    monkeypatch.setitem(sys.modules, "scripts.reset_and_seed_yaml", types.SimpleNamespace(DatabaseSeeder=StubSeeder))
+
+    class DummyResult:
+        def fetchall(self):
+            return []
+
+        def scalar(self):
+            return 0
+
+    class DummyConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, *args, **kwargs):
+            return DummyResult()
+
+    class DummyEngine:
+        def connect(self):
+            return DummyConnection()
+
+        def dispose(self):
+            return None
+
+    monkeypatch.setattr(prep_db, "create_engine", lambda *_args, **_kwargs: DummyEngine())
 
     monkeypatch.setenv("STG_DATABASE_URL", "postgresql://user:pass@localhost/db")
     monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
