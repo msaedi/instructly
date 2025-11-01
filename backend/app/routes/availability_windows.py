@@ -559,6 +559,8 @@ async def apply_to_date_range(
         days = (payload.end_date - payload.start_date).days + 1
         weeks_applied = (days + 6) // 7
         windows_created = int(result.get("slots_created", 0))
+        weeks_affected = int(result.get("weeks_affected", 0))
+        days_written = int(result.get("days_written", windows_created))
 
         return ApplyToDateRangeResponse(
             message=result.get("message", "Successfully applied schedule"),
@@ -566,6 +568,8 @@ async def apply_to_date_range(
             end_date=payload.end_date,
             weeks_applied=weeks_applied,
             windows_created=windows_created,
+            weeks_affected=weeks_affected,
+            days_written=days_written,
         )
     except DomainException as e:
         raise e.to_http_exception()

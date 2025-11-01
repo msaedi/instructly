@@ -4768,6 +4768,10 @@ export type components = {
             weeks_applied: number;
             /** Windows Created */
             windows_created: number;
+            /** Weeks Affected */
+            weeks_affected?: number;
+            /** Days Written */
+            days_written?: number;
         };
         /**
          * AuthTokenResponse

@@ -43,6 +43,8 @@ class ApplyToDateRangeResponse(StrictModel):
     end_date: date
     weeks_applied: int
     windows_created: int
+    weeks_affected: int
+    days_written: int
 
 
 class DeleteWindowResponse(StrictModel):

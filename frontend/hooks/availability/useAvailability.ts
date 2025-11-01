@@ -51,7 +51,9 @@ export interface UseAvailabilityReturn {
   saveWeek: (opts?: SaveWeekOptions) => Promise<SaveWeekResult>;
   validateWeek: () => Promise<{ success: boolean; message: string; issues?: unknown[] }>;
   copyFromPreviousWeek: () => Promise<{ success: boolean; message: string }>;
-  applyToFutureWeeks: (endISO: string) => Promise<{ success: boolean; message: string }>;
+  applyToFutureWeeks: (
+    endISO: string
+  ) => Promise<{ success: boolean; message: string; weeksAffected?: number; daysWritten?: number }>;
 }
 
 function extractErrorMessage(err: unknown, fallback: string): string {
@@ -336,27 +338,54 @@ export function useAvailability(): UseAvailabilityReturn {
     }
   }, [currentWeekStart, refreshSchedule]);
 
-  const applyToFutureWeeks: UseAvailabilityReturn['applyToFutureWeeks'] = useCallback(async (endISO) => {
-    try {
-      const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_APPLY_RANGE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from_week_start: formatDateForAPI(currentWeekStart),
-          start_date: formatDateForAPI(currentWeekStart),
-          end_date: endISO,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({} as Record<string, unknown>));
-        return { success: false, message: extractErrorMessage(err, 'Failed to apply to future weeks') };
+  const applyToFutureWeeks: UseAvailabilityReturn['applyToFutureWeeks'] = useCallback(
+    async (endISO) => {
+      try {
+        const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_APPLY_RANGE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from_week_start: formatDateForAPI(currentWeekStart),
+            start_date: formatDateForAPI(currentWeekStart),
+            end_date: endISO,
+          }),
+        });
+        const responseJson = await res
+          .clone()
+          .json()
+          .catch(() => undefined as { message?: string; weeks_affected?: number; days_written?: number } | undefined);
+
+        if (!res.ok) {
+          const err = (responseJson ?? {}) as Record<string, unknown>;
+          return { success: false, message: extractErrorMessage(err, 'Failed to apply to future weeks') };
+        }
+
+        const weeksAffected =
+          typeof responseJson?.weeks_affected === 'number' ? responseJson.weeks_affected : undefined;
+        const daysWritten =
+          typeof responseJson?.days_written === 'number' ? responseJson.days_written : undefined;
+
+        if (weeksAffected !== undefined || daysWritten !== undefined) {
+          logger.info('Applied schedule to future range', {
+            end_date: endISO,
+            weeksAffected,
+            daysWritten,
+          });
+        }
+
+        return {
+          success: true,
+          message: responseJson?.message || 'Applied schedule to future range',
+          ...(weeksAffected !== undefined ? { weeksAffected } : {}),
+          ...(daysWritten !== undefined ? { daysWritten } : {}),
+        };
+      } catch (e) {
+        logger.error('applyToFutureWeeks error', e);
+        return { success: false, message: 'Network error while applying' };
       }
-      return { success: true, message: 'Applied schedule to future range' };
-    } catch (e) {
-      logger.error('applyToFutureWeeks error', e);
-      return { success: false, message: 'Network error while applying' };
-    }
-  }, [currentWeekStart]);
+    },
+    [currentWeekStart]
+  );
 
   return {
     currentWeekStart,

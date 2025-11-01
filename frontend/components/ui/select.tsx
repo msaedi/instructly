@@ -87,17 +87,20 @@ const SelectScrollDownButton = React.forwardRef<
 ));
 SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName;
 
+type SelectContentProps = Omit<
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>,
+  'modal'
+>;
+
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
+  SelectContentProps
 >(({ className, children, position = 'popper', ...props }, ref) => (
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
       position={position}
-      // Prevent body scroll locking to avoid scrollbar disappearing/layout shift
-      // @ts-expect-error modal prop is supported in Radix Select Content
-      modal={false}
+      // Radix Select v1 does not expose a modal prop; rely on popper positioning to avoid scroll locking quirks.
       className={cn(
         'z-50 overflow-hidden rounded-md border border-gray-200 bg-white shadow-md',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',

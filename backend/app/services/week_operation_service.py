@@ -336,6 +336,14 @@ class WeekOperationService(BaseService):
             date_range=f"{start_date} to {end_date}",
         )
 
+        if BITMAP_V2:
+            return await self._apply_pattern_to_date_range_bitmap(
+                instructor_id=instructor_id,
+                from_week_start=from_week_start,
+                start_date=start_date,
+                end_date=end_date,
+            )
+
         # Get source week pattern
         week_pattern = self._extract_week_pattern_from_source(instructor_id, from_week_start)
 
@@ -704,6 +712,104 @@ class WeekOperationService(BaseService):
 
         return result
 
+    async def _apply_pattern_to_date_range_bitmap(
+        self,
+        *,
+        instructor_id: str,
+        from_week_start: date,
+        start_date: date,
+        end_date: date,
+    ) -> Dict[str, Any]:
+        """Apply a bitmap-based source week across a date range."""
+        all_dates = self._get_date_range(start_date, end_date)
+        if not all_dates:
+            return {
+                "message": "No dates provided to apply bitmap pattern.",
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "weeks_affected": 0,
+                "days_written": 0,
+                "slots_created": 0,
+            }
+
+        source_bits = self.availability_service.get_week_bits(instructor_id, from_week_start)
+        source_by_offset: Dict[int, bytes] = {}
+        has_any_bits = False
+        for offset in range(7):
+            day = from_week_start + timedelta(days=offset)
+            bits = source_bits.get(day, new_empty_bits())
+            source_by_offset[offset] = bits
+            if bits != new_empty_bits():
+                has_any_bits = True
+
+        if not has_any_bits:
+            self.logger.info(
+                "apply_pattern_to_date_range(bitmap): source week has no availability bits",
+                extra={
+                    "instructor_id": instructor_id,
+                    "from_week_start": from_week_start.isoformat(),
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                },
+            )
+            return {
+                "message": "No availability bits in source week; nothing applied.",
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "weeks_affected": 0,
+                "days_written": 0,
+                "slots_created": 0,
+            }
+
+        repo = self.availability_service._bitmap_repo()
+        affected_weeks_sorted = sorted(self._get_affected_weeks(start_date, end_date))
+        days_written = 0
+        weeks_affected = 0
+
+        with self.transaction():
+            for week_start in affected_weeks_sorted:
+                existing_week = self.availability_service.get_week_bits(instructor_id, week_start)
+                week_items: List[Tuple[date, bytes]] = []
+                week_changed = False
+
+                for offset in range(7):
+                    target_day = week_start + timedelta(days=offset)
+                    current_bits = existing_week.get(target_day, new_empty_bits())
+                    if start_date <= target_day <= end_date:
+                        new_bits = source_by_offset.get(offset, new_empty_bits())
+                    else:
+                        new_bits = current_bits
+
+                    week_items.append((target_day, new_bits))
+
+                    if start_date <= target_day <= end_date and new_bits != current_bits:
+                        week_changed = True
+                        days_written += 1
+
+                if week_changed:
+                    repo.upsert_week(instructor_id, week_items)
+                    weeks_affected += 1
+
+        self.db.expire_all()
+
+        if self.cache_service and weeks_affected > 0:
+            await self._warm_cache_for_affected_weeks(instructor_id, start_date, end_date)
+
+        message = (
+            f"Copied bitmap availability to {days_written} day(s) across {weeks_affected} week(s)."
+            if weeks_affected
+            else "Bitmap availability already up to date for the requested range."
+        )
+
+        return {
+            "message": message,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "weeks_affected": weeks_affected,
+            "days_written": days_written,
+            "slots_created": days_written,
+        }
+
     def _extract_week_pattern_from_source(
         self, instructor_id: str, from_week_start: date
     ) -> Dict[str, List[Dict[str, Any]]]:
@@ -812,6 +918,8 @@ class WeekOperationService(BaseService):
         message = f"Successfully applied schedule to {len(all_dates)} days"
         self.logger.info(f"Pattern application completed: {created_count} slots created")
 
+        weeks_affected = len(self._get_affected_weeks(start_date, end_date))
+
         return {
             "message": message,
             "start_date": start_date.isoformat(),
@@ -819,6 +927,8 @@ class WeekOperationService(BaseService):
             "dates_processed": len(all_dates),
             "dates_with_slots": dates_with_slots,
             "slots_created": created_count,
+            "weeks_affected": weeks_affected,
+            "days_written": dates_with_slots,
         }
 
     def _extract_week_pattern(
