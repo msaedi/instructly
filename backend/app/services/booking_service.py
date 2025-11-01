@@ -19,6 +19,7 @@ import logging
 import os
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -267,24 +268,28 @@ class BookingService(BaseService):
         """Map HH:MM to the half-hour slot index used by bitmap availability."""
         return hh * 2 + (1 if mm >= 30 else 0)
 
+    @staticmethod
+    def _local_date(dt: datetime, tz: ZoneInfo) -> date:
+        """Convert a timezone-aware datetime into the provided timezone and return its date."""
+        return dt.astimezone(tz).date()
+
     def _resolve_local_booking_day(
         self,
         booking_data: BookingCreate,
         instructor_profile: InstructorProfile,
     ) -> date:
-        local_day = booking_data.booking_date
+        local_day: date = booking_data.booking_date
         instructor_user = getattr(instructor_profile, "user", None)
         timezone_name = getattr(instructor_user, "timezone", None)
         if timezone_name and booking_data.start_time:
             try:
-                from zoneinfo import ZoneInfo
-
                 start_dt_utc = datetime.combine(
                     booking_data.booking_date,
                     booking_data.start_time,
                     tzinfo=timezone.utc,
                 )
-                local_day = start_dt_utc.astimezone(ZoneInfo(timezone_name)).date()
+                instructor_zone = ZoneInfo(timezone_name)
+                local_day = self._local_date(start_dt_utc, instructor_zone)
             except Exception:
                 # Fall back to the provided booking_date if timezone conversion fails
                 local_day = booking_data.booking_date
