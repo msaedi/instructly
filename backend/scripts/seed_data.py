@@ -19,11 +19,12 @@ Notes:
 import argparse
 import copy
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 import random
 import re
 import sys
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 import uuid
 
 # Ensure backend/ is importable when called directly
@@ -37,6 +38,9 @@ from app.auth import get_password_hash  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.enums import RoleName  # noqa: E402
 from app.core.ulid_helper import generate_ulid  # noqa: E402
+
+if TYPE_CHECKING:
+    from reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
 from app.models.beta import BetaAccess  # noqa: E402
 from app.models.rbac import Role  # noqa: E402
 from app.models.user import User  # noqa: E402
@@ -415,7 +419,7 @@ def seed_demo_student_badges(
         if student_badges_present is None:
             if verbose:
                 print("  ⚠ student_badges table not found; skipping demo badge awards")
-            return
+            return 0
 
         badge_rows = session.execute(
             sa.select(
@@ -441,7 +445,7 @@ def seed_demo_student_badges(
         if not badge_lookup:
             if verbose:
                 print("  ⚠ No badge definitions available for demo awards; skipping")
-            return
+            return 0
 
         student_role = session.execute(
             select(Role).where(Role.name == RoleName.STUDENT.value)
@@ -449,7 +453,7 @@ def seed_demo_student_badges(
         if student_role is None:
             if verbose:
                 print("  ⚠ Student role not found; skipping demo badge awards")
-            return
+            return 0
 
         students = (
             session.execute(
@@ -465,7 +469,7 @@ def seed_demo_student_badges(
         if not students:
             if verbose:
                 print("  ⚠ No student users found for demo badge awards")
-            return
+            return 0
 
         target_email = "emma.johnson@example.com"
         emma_user = next(
@@ -493,7 +497,7 @@ def seed_demo_student_badges(
         if not selected_students:
             if verbose:
                 print("  ⚠ No students selected for demo badge awards")
-            return
+            return 0
 
         badge_ids = [info["id"] for info in badge_lookup.values()]
         existing_pairs = session.execute(
@@ -558,6 +562,7 @@ def seed_demo_student_badges(
                 f"  → Demo badge awards: students={len(selected_students)}, "
                 f"created={awarded}, skipped_existing={skipped_existing}"
             )
+        return awarded
 
 
 
@@ -727,9 +732,27 @@ def seed_system_data(verbose: bool = True) -> None:
     seed_referral_config(engine, site_mode=settings.site_mode, actor="seed-system")
 
 
-def seed_mock_data(verbose: bool = True) -> None:
-    """Seed mock users, instructors, availability, bookings, reviews."""
+def seed_mock_data_phases(
+    *,
+    verbose: bool = True,
+    include_reviews: bool = True,
+    include_credits: bool = True,
+    include_badges: bool = True,
+    print_summary: bool = True,
+) -> tuple["DatabaseSeeder", dict[str, int]]:
+    """Seed mock data in phases, returning the seeder and aggregate stats."""
     from reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
+    from seed_catalog_only import seed_catalog  # noqa: E402
+
+    stats = {
+        "students_seeded": 0,
+        "instructors_seeded": 0,
+        "bookings_created": 0,
+        "reviews_created": 0,
+        "reviews_skipped": False,
+        "credits_created": 0,
+        "badges_awarded": 0,
+    }
 
     seeder = DatabaseSeeder()
 
@@ -742,14 +765,14 @@ def seed_mock_data(verbose: bool = True) -> None:
     # After cleaning, we must re-seed catalog for mapping instructor services
     if verbose:
         print("\n▶ Reseeding service catalog required for mock instructors…")
-    from seed_catalog_only import seed_catalog  # noqa: E402
-
     seed_catalog(db_url=settings.get_database_url(), verbose=verbose)
 
     if verbose:
         print("\n▶ Creating mock users and instructors…")
     seeder.create_students()
     seeder.create_instructors()
+    stats["students_seeded"] = len(seeder.loader.get_students())
+    stats["instructors_seeded"] = len(seeder.loader.get_instructors())
 
     if verbose:
         print("\n▶ Creating availability and coverage areas…")
@@ -758,13 +781,32 @@ def seed_mock_data(verbose: bool = True) -> None:
 
     if verbose:
         print("\n▶ Creating bookings and reviews…")
-    seeder.create_bookings()
-    seeder.create_sample_platform_credits()
-    seeder.create_reviews()
-    seeder.print_summary()
+    stats["bookings_created"] = seeder.create_bookings() or 0
 
-    engine = create_engine(settings.get_database_url())
-    seed_demo_student_badges(engine, verbose=verbose)
+    # Check if bitmap pipeline completed before seeding reviews
+    bitmap_pipeline_completed = os.getenv("BITMAP_PIPELINE_COMPLETED") == "1"
+    bitmap_enabled = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
+    if bitmap_enabled and not bitmap_pipeline_completed:
+        if verbose:
+            print("  ⚠️  Bitmap pipeline not marked as completed; reviews may skip due to missing bitmap coverage.")
+            print("  ℹ️  Reviews will check bitmap coverage and skip if empty.")
+
+    if include_reviews:
+        stats["reviews_created"] = seeder.create_reviews(strict=False) or 0  # Don't fail if bitmap coverage is missing
+    else:
+        stats["reviews_skipped"] = True
+
+    if include_credits:
+        stats["credits_created"] = seeder.create_sample_platform_credits() or 0
+
+    if print_summary:
+        seeder.print_summary()
+
+    engine = seeder.engine
+    if include_badges:
+        badges = seed_demo_student_badges(engine, verbose=verbose)
+        stats["badges_awarded"] = badges or 0
+
     admin_email, admin_password, admin_name = _get_admin_seed_credentials()
     with Session(engine) as session:
         seed_admin_user(
@@ -775,6 +817,24 @@ def seed_mock_data(verbose: bool = True) -> None:
             now=datetime.now(timezone.utc),
             verbose=verbose,
         )
+
+    return seeder, stats
+
+
+def seed_mock_data(verbose: bool = True, *, return_stats: bool = False) -> dict[str, int] | None:
+    """Seed mock users, instructors, availability, bookings, reviews."""
+    seeder, stats = seed_mock_data_phases(
+        verbose=verbose,
+        include_reviews=True,
+        include_credits=True,
+        include_badges=True,
+        print_summary=True,
+    )
+    # seed_mock_data_phases already prints summary; dispose engine to free resources
+    seeder.engine.dispose()
+    if return_stats:
+        return stats
+    return None
 
 
 def seed_beta_access_for_instructors(session: Session) -> tuple[int, int]:

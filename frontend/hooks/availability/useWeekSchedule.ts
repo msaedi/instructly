@@ -236,6 +236,18 @@ export function useWeekSchedule(
     });
   }, []);
 
+  const setVersion = useCallback((next?: string) => {
+    setEtag(next);
+    if (typeof window !== 'undefined') {
+      const win = window as Window & { __week_version?: string };
+      if (next) {
+        win.__week_version = next;
+      } else {
+        delete win.__week_version;
+      }
+    }
+  }, []);
+
   const setWeekSchedule = useCallback(
     (next: WeekSchedule | ((prev: WeekSchedule) => WeekSchedule)) => {
       setWeekBitsState((prev) => {
@@ -254,32 +266,7 @@ export function useWeekSchedule(
 
     try {
       const mondayDate = formatDateForAPI(currentWeekStart);
-      const sundayDate = formatDateForAPI(
-        new Date(currentWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000)
-      );
-
-      logger.info('Fetching week schedule', { mondayDate, sundayDate });
-
-      const detailedResponse = await fetchWithAuth(
-        `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY}?start_date=${mondayDate}&end_date=${sundayDate}`
-      );
-
-      if (detailedResponse.ok) {
-        const detailedData = await detailedResponse.json();
-        const slots: ExistingSlot[] = detailedData.map(
-          (slot: { id: string; specific_date: string; start_time: string; end_time: string }) => ({
-            id: slot.id,
-            date: slot.specific_date,
-            start_time: slot.start_time,
-            end_time: slot.end_time,
-          })
-        );
-        setExistingSlots(slots);
-      } else {
-        logger.error('Failed to fetch detailed slots', new Error('API error'), {
-          status: detailedResponse.status,
-        });
-      }
+      logger.info('Fetching week schedule', { mondayDate });
 
       const response = await fetchWithAuth(
         `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}?start_date=${mondayDate}`
@@ -320,7 +307,7 @@ export function useWeekSchedule(
 
       setWeekBits(nextBits);
       setSavedWeekBits(nextBits);
-      setEtag(headerEtag);
+      setVersion(headerEtag || undefined);
       setLastModified(headerLastModified);
     } catch (error) {
       const fallback = error instanceof Error ? error.message : 'Unexpected error';
@@ -334,7 +321,7 @@ export function useWeekSchedule(
       logger.timeEnd('fetchWeekSchedule');
       setIsLoading(false);
     }
-  }, [currentWeekStart, setWeekBits, setSavedWeekBits]);
+  }, [currentWeekStart, setWeekBits, setSavedWeekBits, setVersion]);
 
   const updateWeekStart = useCallback(
     (next: Date) => {
@@ -383,13 +370,6 @@ export function useWeekSchedule(
     setExistingSlots([]);
     void fetchWeekSchedule();
   }, [currentWeekStart, fetchWeekSchedule, setWeekBits, setSavedWeekBits]);
-
-  const setVersion = useCallback(
-    (next?: string) => {
-      setEtag(next);
-    },
-    []
-  );
 
   return {
     currentWeekStart,

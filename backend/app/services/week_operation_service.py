@@ -142,6 +142,31 @@ class WeekOperationService(BaseService):
                     bits_by_day = self.availability_service.get_week_bits(
                         instructor_id, from_week_start
                     )
+
+                    # Check if source week has any non-empty bits
+                    has_any_bits = any(
+                        bits and bits != new_empty_bits() for bits in bits_by_day.values()
+                    )
+                    if not has_any_bits:
+                        self.logger.warning(
+                            "copy_week_availability: source week has no availability bits",
+                            extra={
+                                "instructor_id": instructor_id,
+                                "from_week_start": from_week_start.isoformat(),
+                                "to_week_start": to_week_start.isoformat(),
+                            },
+                        )
+                        self.db.expire_all()
+                        result = await self._warm_cache_and_get_result(
+                            instructor_id, to_week_start, 0
+                        )
+                        result["_metadata"] = {
+                            "operation": "week_copy_bitmap",
+                            "slots_created": 0,
+                            "message": "Week copy skipped: source week has no availability bits.",
+                        }
+                        return result
+
                     repo = self.availability_service._bitmap_repo()
                     items: List[tuple[date, bytes]] = []
                     for offset in range(7):

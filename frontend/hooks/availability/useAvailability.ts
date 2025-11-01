@@ -168,6 +168,7 @@ export function useAvailability(): UseAvailabilityReturn {
           }),
         });
         const status = res.status;
+        const responseEtag = res.headers?.get?.('ETag') || undefined;
         const responseJson = await res
           .clone()
           .json()
@@ -178,13 +179,18 @@ export function useAvailability(): UseAvailabilityReturn {
           current_version?: string;
           error?: string;
         } | undefined;
-        const responseEtag = res.headers?.get?.('ETag') || undefined;
 
         if (!res.ok) {
           const serverVersion =
             typeof responseJson?.current_version === 'string'
               ? responseJson?.current_version
               : responseEtag;
+          if (serverVersion) {
+            if (typeof window !== 'undefined') {
+              (window as Window & { __week_version?: string }).__week_version = serverVersion;
+            }
+            setVersion(serverVersion);
+          }
           let message: string;
           if (status === 409 || responseJson?.error === 'version_conflict') {
             message = 'Week availability changed in another session.';
@@ -200,7 +206,7 @@ export function useAvailability(): UseAvailabilityReturn {
           };
         }
 
-        const newVersion = responseJson?.week_version || responseJson?.version || responseEtag;
+        const newVersion = responseEtag || responseJson?.week_version || responseJson?.version;
         if (newVersion && typeof window !== 'undefined') {
           (window as Window & { __week_version?: string }).__week_version = newVersion;
           logger.debug('Updated week version from POST', { newVersion });
@@ -208,6 +214,7 @@ export function useAvailability(): UseAvailabilityReturn {
         if (newVersion) {
           setVersion(newVersion);
         }
+        setWeekBits(bitsSource);
         setSavedWeekBits(bitsSource);
 
         return {
@@ -220,7 +227,7 @@ export function useAvailability(): UseAvailabilityReturn {
         return { success: false, message: 'Network error while saving' };
       }
     },
-    [currentWeekStart, weekBits, etag, setVersion, setSavedWeekBits]
+    [currentWeekStart, weekBits, etag, setVersion, setSavedWeekBits, setWeekBits]
   );
 
   const validateWeek: UseAvailabilityReturn['validateWeek'] = useCallback(async () => {

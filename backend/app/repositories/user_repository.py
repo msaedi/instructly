@@ -156,6 +156,27 @@ class UserRepository(BaseRepository[User]):
         """
         return self.get_instructor(user_id) is not None
 
+    def list_instructor_ids(self) -> list[str]:
+        """
+        Return all instructor user IDs.
+
+        Used by scripts and services that need to iterate instructors without
+        bypassing the repository pattern.
+        """
+        try:
+            from ..core.enums import RoleName
+
+            rows = (
+                self.db.query(User.id)
+                .join(User.roles)
+                .filter(Role.name == RoleName.INSTRUCTOR)
+                .all()
+            )
+            return [row[0] for row in rows]
+        except Exception as e:
+            self.logger.error(f"Error listing instructor ids: {str(e)}")
+            return []
+
     # ==========================================
     # Count Operations (2+ violations fixed)
     # ==========================================

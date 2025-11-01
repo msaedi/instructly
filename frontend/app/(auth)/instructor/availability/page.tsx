@@ -16,6 +16,7 @@ import { getWeekDates } from '@/lib/availability/dateHelpers';
 import { Calendar, ArrowLeft } from 'lucide-react';
 import ConflictModal from '@/components/availability/ConflictModal';
 import { useEmbedded } from '../_embedded/EmbeddedContext';
+import { logger } from '@/lib/logger';
 import {
   Select,
   SelectTrigger,
@@ -81,6 +82,32 @@ function AvailabilityPageImpl() {
   const [isConflictOverwriting, setIsConflictOverwriting] = useState(false);
   const autosaveTimer = useRef<number | null>(null);
   const autosaveEnabled = AVAIL_AUTOSAVE_ENABLED;
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    if (typeof window === 'undefined') return;
+    const legacyPath = '/instructors/availability?';
+    const originalFetch = window.fetch;
+    const patched: typeof window.fetch = (input, init) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : typeof Request !== 'undefined' && input instanceof Request
+              ? input.url
+              : undefined;
+      if (typeof url === 'string' && url.includes(legacyPath)) {
+        logger.warn('[availability-editor] Detected legacy availability fetch', { url });
+      }
+      return originalFetch(input, init);
+    };
+
+    window.fetch = patched;
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, []);
 
   useEffect(() => {
     const mq = () => window.matchMedia('(max-width: 640px)').matches;

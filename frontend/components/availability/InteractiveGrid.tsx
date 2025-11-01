@@ -105,6 +105,7 @@ export default function InteractiveGrid({
   const dragValueRef = useRef<boolean | null>(null);
   const pendingRef = useRef<Record<string, Set<number>>>({});
   const rafRef = useRef<number | null>(null);
+  const lastHoverRowRef = useRef<{ date: string; row: number } | null>(null);
 
   const applyImmediate = useCallback(
     (date: string, slotIndex: number, desired: boolean) => {
@@ -199,6 +200,7 @@ export default function InteractiveGrid({
     setIsDragging(false);
     setDragValue(null);
     dragValueRef.current = null;
+    lastHoverRowRef.current = null;
   }, [cancelScheduledFlush, flushPending, isDragging]);
 
   useEffect(() => {
@@ -212,6 +214,12 @@ export default function InteractiveGrid({
     window.addEventListener('mouseup', handleWindowUp);
     return () => window.removeEventListener('mouseup', handleWindowUp);
   }, [finishDrag]);
+
+  useEffect(() => {
+    return () => {
+      lastHoverRowRef.current = null;
+    };
+  }, []);
 
   const displayDates = useMemo(() => {
     if (!isMobile) return weekDates;
@@ -237,24 +245,45 @@ export default function InteractiveGrid({
   );
 
   const handleMouseDown = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
+    (event: ReactMouseEvent<HTMLButtonElement>, date: string, row: number, slotIndex: number) => {
       event.preventDefault();
       const desired = !isSlotSelected(weekBits[date], slotIndex);
       pendingRef.current = {};
       setIsDragging(true);
       setDragValue(desired);
       dragValueRef.current = desired;
+      lastHoverRowRef.current = { date, row };
       applyImmediate(date, slotIndex, desired);
     },
     [applyImmediate, weekBits]
   );
 
   const handleMouseEnter = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
-      if (!isDragging || dragValue === null || event.buttons === 0) return;
-      enqueueUpdate(date, slotIndex, dragValue);
+    (event: ReactMouseEvent<HTMLButtonElement>, date: string, row: number, slotIndex: number) => {
+      const desired = dragValueRef.current;
+      if (!isDragging || desired === null || event.buttons === 0) return;
+
+      const previous = lastHoverRowRef.current;
+      if (!previous || previous.date !== date) {
+        enqueueUpdate(date, slotIndex, desired);
+        lastHoverRowRef.current = { date, row };
+        return;
+      }
+
+      const delta = row - previous.row;
+      if (delta === 0) {
+        enqueueUpdate(date, slotIndex, desired);
+      } else {
+        const step = delta > 0 ? 1 : -1;
+        for (let r = previous.row + step; step > 0 ? r <= row : r >= row; r += step) {
+          const interpolatedIndex = getSlotIndex(startHour, r);
+          enqueueUpdate(date, interpolatedIndex, desired);
+        }
+      }
+
+      lastHoverRowRef.current = { date, row };
     },
-    [enqueueUpdate, isDragging, dragValue]
+    [enqueueUpdate, isDragging, startHour]
   );
 
   const handleMouseUp = useCallback(
@@ -365,8 +394,8 @@ export default function InteractiveGrid({
                     role="gridcell"
                     aria-selected={selected}
                     aria-label={ariaLabel}
-                    onMouseDown={(event) => handleMouseDown(event, date, slotIndex)}
-                    onMouseEnter={(event) => handleMouseEnter(event, date, slotIndex)}
+                    onMouseDown={(event) => handleMouseDown(event, date, row, slotIndex)}
+                    onMouseEnter={(event) => handleMouseEnter(event, date, row, slotIndex)}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={(event) => {
                       if (event.buttons === 0) finishDrag();

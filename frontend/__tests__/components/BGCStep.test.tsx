@@ -18,6 +18,25 @@ jest.mock('sonner', () => {
   return { toast: fn };
 });
 
+const originalConsoleWarn = console.warn.bind(console);
+
+beforeAll(() => {
+  jest.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+    const [message] = args;
+    if (
+      typeof message === 'string' &&
+      message.includes('A function to advance timers was called but the timers APIs are not replaced with fake timers')
+    ) {
+      return;
+    }
+    originalConsoleWarn(...args);
+  });
+});
+
+afterAll(() => {
+  (console.warn as jest.Mock).mockRestore();
+});
+
 describe('BGCStep', () => {
   const mockedBGCStatus = bgcStatus as jest.MockedFunction<typeof bgcStatus>;
   const mockedBGCInvite = bgcInvite as jest.MockedFunction<typeof bgcInvite>;

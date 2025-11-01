@@ -8,7 +8,6 @@ import dynamic from 'next/dynamic';
 import Modal from '@/components/Modal';
 import { Calendar, Eye, Trash2, Camera, SquareArrowDownLeft, ListTodo, User, MessageSquare, Bell, Star, DollarSign } from 'lucide-react';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
-import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 import { getCurrentWeekRange } from '@/types/common';
 import { protectedApi } from '@/features/shared/api/client';
 import EditProfileModal from '@/components/modals/EditProfileModal';
@@ -167,6 +166,9 @@ export default function InstructorDashboardNew() {
   const [bookedMinutes, setBookedMinutes] = useState(0);
   const [hasUpcomingBookings, setHasUpcomingBookings] = useState<boolean | null>(null);
   const [completedBookingsCount, setCompletedBookingsCount] = useState<number>(0);
+  const [availabilitySummary, setAvailabilitySummary] = useState<
+    Record<string, Array<{ start_time: string; end_time: string }>> | null
+  >(null);
   // Suggestions state removed; no longer used
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
@@ -299,7 +301,43 @@ export default function InstructorDashboardNew() {
 
   // Weekly range for availability/bookings (Mon–Sun)
   const weekRange = getCurrentWeekRange(1);
-  const { data: availability } = useInstructorAvailability(profile?.user_id || '', weekRange.start_date);
+
+  useEffect(() => {
+    let ignore = false;
+    if (!profile?.user_id) {
+      setAvailabilitySummary(null);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const res = await fetchWithAuth(
+          `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}?start_date=${weekRange.start_date}`
+        );
+        if (!res.ok) {
+          if (!ignore) setAvailabilitySummary(null);
+          logger.warn('Failed to fetch weekly availability summary', { status: res.status });
+          return;
+        }
+        const data = (await res.json()) as Record<
+          string,
+          Array<{ start_time: string; end_time: string }>
+        >;
+        if (!ignore) {
+          setAvailabilitySummary(data);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setAvailabilitySummary(null);
+        }
+        logger.warn('Error loading weekly availability summary', err);
+      }
+    })();
+
+    return () => {
+      ignore = true;
+    };
+  }, [profile?.user_id, weekRange.start_date]);
 
   // Helpers to calculate minutes from HH:MM or HH:MM:SS
   const parseTimeToMinutes = useCallback((time: string): number => {
@@ -332,17 +370,15 @@ export default function InstructorDashboardNew() {
 
   // Sum available minutes from weekly availability
   const availableMinutes = useMemo(() => {
-    if (!availability || !availability.availability_by_date) return 0;
-    let total = 0;
-    const dayMap = availability.availability_by_date as Record<string, { available_slots?: Array<{ start_time: string; end_time: string }> }>;
-    Object.values(dayMap).forEach((day) => {
-      const slots = Array.isArray(day?.available_slots) ? day.available_slots : [];
-      slots.forEach((slot) => {
-        total += diffMinutes(slot.start_time, slot.end_time);
-      });
-    });
-    return total;
-  }, [availability, diffMinutes]);
+    if (!availabilitySummary) return 0;
+    return Object.values(availabilitySummary).reduce((total, slots) => {
+      const windows = Array.isArray(slots) ? slots : [];
+      return (
+        total +
+        windows.reduce((acc, slot) => acc + diffMinutes(slot.start_time, slot.end_time), 0)
+      );
+    }, 0);
+  }, [availabilitySummary, diffMinutes]);
 
   // Fetch upcoming bookings for the week and compute booked minutes
   useEffect(() => {

@@ -7,17 +7,20 @@ Modes: prod | preview | stg | int
 """
 
 import argparse
+from datetime import date, timedelta
 import json
 import os
 from pathlib import Path
+import random
 import shlex
 import subprocess
 import sys
 import textwrap
-from typing import Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 import urllib.request
 
 import click
+from sqlalchemy import create_engine, text
 
 BACKEND_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
@@ -69,6 +72,42 @@ ALIASES = {
     "stg": {"stg", "stage", "staging", "local"},
     "int": {"int", "test", "ci"},
 }
+
+ENV_SNAPSHOT_KEYS = [
+    "AVAILABILITY_V2_BITMAPS",
+    "SEED_AVAILABILITY_BITMAP",
+    "SEED_AVAILABILITY_BITMAP_WEEKS",
+    "BITMAP_BACKFILL_DAYS",
+    "SEED_REVIEW_LOOKBACK_DAYS",
+    "SEED_REVIEW_HORIZON_DAYS",
+    "SEED_REVIEW_DURATIONS",
+    "SEED_REVIEW_STUDENT_EMAIL",
+    "INCLUDE_MOCK_USERS",
+    "SITE_MODE",
+    "SEED_TRACE",
+]
+
+
+def build_env_snapshot(mode: str) -> dict[str, str]:
+    snapshot: dict[str, str] = {"target": mode}
+    for key in ENV_SNAPSHOT_KEYS:
+        snapshot[key] = os.getenv(key, "")
+    return snapshot
+
+
+def snapshot_to_json(snapshot: dict[str, str]) -> str:
+    return json.dumps(snapshot, separators=(",", ":"))
+
+
+def is_trace_enabled() -> bool:
+    return os.getenv("SEED_TRACE", "0").lower() in {"1", "true", "yes"}
+
+
+def trace_message(label: str, env_json: str) -> None:
+    if not is_trace_enabled():
+        return
+    pid = os.getpid()
+    click.echo(f'{"[trace]"} phase="{label}" pid={pid} env={env_json}')
 
 
 def _norm_mode(s: Optional[str]) -> Optional[str]:
@@ -207,10 +246,535 @@ def seed_mock_users(db_url: str, dry_run: bool, mode: str, seed_db_url: Optional
         return
     info("seed", "Seeding MOCK users/instructors/bookings…")
     target = seed_db_url or db_url
-    env = {**os.environ, **_mode_env(mode), "DATABASE_URL": target}
-    subprocess.check_call(
-        [sys.executable, "scripts/seed_data.py", "--include-mock-users"], cwd=str(BACKEND_DIR), env=env
+    os.environ["DATABASE_URL"] = target
+    env_snapshot_json = snapshot_to_json(build_env_snapshot(mode))
+    trace_message("seed_mock_users:start", env_snapshot_json)
+
+    from scripts import seed_data  # noqa: E402
+
+    stats = seed_data.seed_mock_data(verbose=True, return_stats=True) or {}
+    trace_message("seed_mock_users:end", env_snapshot_json)
+    info(
+        "seed",
+        "Mock data summary: bookings={bookings_created}, reviews={reviews_created}, "
+        "credits={credits_created}, badges={badges_awarded}".format(
+            bookings_created=stats.get("bookings_created", 0),
+            reviews_created=stats.get("reviews_created", 0),
+            credits_created=stats.get("credits_created", 0),
+            badges_awarded=stats.get("badges_awarded", 0),
+        ),
     )
+
+
+def _run_future_bitmap_seeding(weeks: int, dry_run: bool, banner_prefix: str) -> dict[str, int]:
+    stats = {
+        "weeks_requested": weeks,
+        "weeks_written": 0,
+        "instructor_weeks": 0,
+    }
+    info(banner_prefix, f"Seeding bitmap availability for the next {weeks} week(s)…")
+    if dry_run:
+        info(banner_prefix, "(dry-run) Would seed future bitmap weeks.")
+        return stats
+
+    from scripts.seed_bitmap_availability import seed_bitmap_availability
+
+    result = seed_bitmap_availability(weeks)
+    if result:
+        stats["weeks_written"] = len(result)
+        stats["instructor_weeks"] = sum(result.values())
+        for week_start, count in sorted(result.items()):
+            info(banner_prefix, f"  → Week starting {week_start}: wrote {count} instructor(s)")
+        info(
+            banner_prefix,
+            f"✓ Future bitmap seeding complete: {stats['instructor_weeks']} instructor-week writes",
+        )
+    else:
+        info(banner_prefix, "  → Future bitmap seeder had nothing to write.")
+        info(banner_prefix, "✓ Future bitmap seeding complete: 0 writes")
+    return stats
+
+
+def _run_bitmap_backfill(backfill_days: int, dry_run: bool, banner_prefix: str) -> dict[str, int]:
+    stats = {
+        "days_requested": backfill_days,
+        "instructors_touched": 0,
+        "days_backfilled": 0,
+    }
+    info(banner_prefix, f"Backfilling bitmap availability for the past {backfill_days} day(s)…")
+    if dry_run:
+        info(banner_prefix, "(dry-run) Would backfill historical bitmap coverage.")
+        return stats
+
+    if backfill_days == 0:
+        info(banner_prefix, "Backfill days set to 0; skipping backfill step.")
+        return stats
+
+    from scripts.backfill_bitmaps import backfill_bitmaps_range
+
+    from app.database import SessionLocal
+
+    with SessionLocal() as session:
+        result = backfill_bitmaps_range(session, backfill_days)
+        if result:
+            session.commit()
+            stats["instructors_touched"] = len(result)
+            stats["days_backfilled"] = sum(result.values())
+            for instructor_id, days_written in sorted(result.items()):
+                info(
+                    banner_prefix,
+                    f"  → Backfilled {days_written} day(s) of historical bitmap availability for instructor {instructor_id}",
+                )
+            info(
+                banner_prefix,
+                f"✓ Bitmap backfill complete: {stats['days_backfilled']} total day writes "
+                f"across {stats['instructors_touched']} instructor(s)",
+            )
+        else:
+            session.rollback()
+            info(banner_prefix, "  → No instructors required bitmap backfill.")
+            info(banner_prefix, "✓ Bitmap backfill complete: 0 day writes")
+    return stats
+
+
+def run_availability_pipeline(mode: str, dry_run: bool, banner_prefix: str = "pipeline") -> None:
+    """Seed future bitmap availability (optional) and backfill past days."""
+
+    bitmap_enabled = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
+    if not bitmap_enabled:
+        info(banner_prefix, "Bitmap v2 disabled; skipping availability pipeline.")
+        return
+
+    if mode not in {"int", "stg"}:
+        info(
+            banner_prefix,
+            f"Skipping availability pipeline in mode '{mode}' (supported: int, stg).",
+        )
+        return
+
+    seed_future_flag = os.getenv("SEED_AVAILABILITY_BITMAP", "0").lower() in {"1", "true", "yes"}
+    weeks_env = os.getenv("SEED_AVAILABILITY_BITMAP_WEEKS")
+    weeks = 4
+    if weeks_env:
+        try:
+            weeks = max(1, int(weeks_env))
+        except ValueError:
+            warn(f"Invalid SEED_AVAILABILITY_BITMAP_WEEKS='{weeks_env}', falling back to {weeks}.")
+
+    backfill_days_env = os.getenv("BITMAP_BACKFILL_DAYS", "56")
+    try:
+        backfill_days = max(0, int(backfill_days_env or "56"))
+    except ValueError:
+        warn(f"Invalid BITMAP_BACKFILL_DAYS='{backfill_days_env}', defaulting to 56.")
+        backfill_days = 56
+
+    phase_num = 1
+    total_future_writes = 0
+    total_backfill_writes = 0
+
+    if seed_future_flag:
+        info(banner_prefix, f"╔═ Phase {phase_num}: Future Bitmap Seeding ═╗")
+        future_stats = _run_future_bitmap_seeding(weeks, dry_run, banner_prefix)
+        total_future_writes = future_stats["instructor_weeks"]
+    else:
+        info(banner_prefix, f"╔═ Phase {phase_num}: Future Bitmap Seeding ═╗")
+        info(banner_prefix, "SEED_AVAILABILITY_BITMAP not set; skipping future-week seeding.")
+    phase_num += 1
+
+    info(banner_prefix, f"╔═ Phase {phase_num}: Bitmap Backfill ═╗")
+    backfill_stats = _run_bitmap_backfill(backfill_days, dry_run, banner_prefix)
+    total_backfill_writes = backfill_stats["days_backfilled"]
+
+    os.environ.setdefault("BITMAP_PIPELINE_COMPLETED", "1")
+
+    info(banner_prefix, "╔═ Availability Pipeline Summary ═╗")
+    info(banner_prefix, f"  Future writes: {total_future_writes} instructor-weeks")
+    info(banner_prefix, f"  Backfill writes: {total_backfill_writes} days")
+    info(banner_prefix, "✓ Availability pipeline complete")
+
+
+def probe_bitmap_coverage(
+    db_url: str,
+    lookback_days: int,
+    horizon_days: int,
+    sample_size: int = 3,
+) -> dict[str, Any]:
+    """Collect bitmap coverage statistics for a rolling window."""
+
+    start_date = date.today() - timedelta(days=lookback_days)
+    end_date = date.today() + timedelta(days=horizon_days)
+
+    query = text(
+        """
+        SELECT instructor_id, COUNT(*) AS rows
+        FROM availability_days
+        WHERE day_date BETWEEN :start AND :end
+        GROUP BY instructor_id
+        """
+    )
+    engine = create_engine(db_url)
+    with engine.connect() as conn:  # type: ignore[assignment]
+        results = conn.execute(query, {"start": start_date, "end": end_date}).fetchall()
+
+    total_rows = sum(row._mapping["rows"] for row in results)
+    instructor_count = len(results)
+
+    sample_rows = []
+    if results:
+        selected = random.sample(results, min(sample_size, len(results)))
+        for row in selected:
+            mapping = row._mapping
+            sample_rows.append(
+                {
+                    "instructor_id": mapping["instructor_id"],
+                    "rows": mapping["rows"],
+                }
+            )
+
+    return {
+        "window_start": start_date.isoformat(),
+        "window_end": end_date.isoformat(),
+        "lookback_days": lookback_days,
+        "horizon_days": horizon_days,
+        "instructor_count": instructor_count,
+        "total_rows": total_rows,
+        "sample": sample_rows,
+    }
+
+
+def count_instructors(db_url: str) -> int:
+    """Return number of users assigned the instructor role."""
+
+    engine = create_engine(db_url)
+    query = text(
+        """
+        SELECT COUNT(*)
+        FROM users u
+        JOIN user_roles ur ON ur.user_id = u.id
+        JOIN roles r ON r.id = ur.role_id
+        WHERE r.name = :role_name
+        """
+    )
+    try:
+        with engine.connect() as conn:  # type: ignore[assignment]
+            result = conn.execute(query, {"role_name": "instructor"}).scalar()
+            return int(result or 0)
+    finally:
+        engine.dispose()
+
+
+def format_probe_sample(sample: list[dict[str, Any]]) -> str:
+    if not sample:
+        return "none"
+    return ", ".join(
+        f"{(entry.get('instructor_id') or '')[-6:]}:{entry.get('rows', 0)}"
+        for entry in sample[:3]
+    )
+
+
+def run_seed_all_pipeline(
+    *,
+    mode: str,
+    db_url: str,
+    seed_db_url: str,
+    migrate: bool,
+    dry_run: bool,
+    env_snapshot: dict[str, str],
+    include_mock_users: bool,
+) -> dict[str, Any]:
+    """Execute the deterministic seed-all pipeline with explicit phases."""
+
+    total_phases = 6
+    env_json = snapshot_to_json(env_snapshot)
+
+    def phase_heading(index: int, title: str) -> None:
+        info("pipeline", f"Phase {index}/{total_phases}: {title}")
+        trace_message(f"Phase {index}: {title}", env_json)
+
+    def log_summary(message: str) -> None:
+        info("pipeline", f"  ↪︎ {message}")
+
+    def parse_int_env(key: str, default: int) -> int:
+        raw = os.getenv(key)
+        if raw is None or raw.strip() == "":
+            return default
+        try:
+            return int(raw)
+        except ValueError:
+            warn(f"Invalid {key}='{raw}', defaulting to {default}.")
+            return default
+
+    bitmap_enabled = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
+    seed_future_flag = os.getenv("SEED_AVAILABILITY_BITMAP", "0").lower() in {"1", "true", "yes"}
+    weeks = parse_int_env("SEED_AVAILABILITY_BITMAP_WEEKS", 4)
+    backfill_days = parse_int_env("BITMAP_BACKFILL_DAYS", 56)
+    review_lookback = parse_int_env("SEED_REVIEW_LOOKBACK_DAYS", 90)
+    review_horizon = parse_int_env("SEED_REVIEW_HORIZON_DAYS", 21)
+
+    pipeline_result: dict[str, Any] = {
+        "future_instructor_weeks": 0,
+        "backfill_days": 0,
+        "students_seeded": 0,
+        "instructors_seeded": 0,
+        "bookings_created": 0,
+        "reviews_created": 0,
+        "reviews_skipped": False,
+        "credits_created": 0,
+        "badges_awarded": 0,
+        "skip_reviews": False,
+    }
+    system_data_seeded = False
+    mock_seeder: Optional["DatabaseSeeder"] = None  # type: ignore[name-defined]
+
+    # Phase 1: Migrate
+    phase_heading(1, "Migrate")
+    if migrate:
+        if dry_run:
+            log_summary("dry-run: would run migrations")
+        else:
+            run_migrations(db_url, dry_run, None)
+            log_summary("migrations applied")
+    else:
+        log_summary("skipped (--migrate not provided)")
+
+    # Phase 1b: Ensure mock instructors exist before bitmap seeding
+    info("pipeline", "Phase 1b/6: Ensure mock instructors")
+    instructors_before = 0
+    if not dry_run:
+        try:
+            instructors_before = count_instructors(db_url)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            warn(f"Unable to count instructors prior to ensure step: {exc}")
+    log_summary(f"existing instructors before ensure={instructors_before}")
+    if dry_run:
+        log_summary("dry-run: skipped ensure stage")
+    elif not include_mock_users:
+        log_summary("skipped (mock user seeding disabled)")
+    else:
+        from scripts.reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
+
+        mock_seeder = DatabaseSeeder()
+        log_summary("resetting mock dataset (idempotent cleanup)")
+        mock_seeder.reset_database()
+        seed_system_data(db_url, dry_run, mode, seed_db_url=seed_db_url)
+        system_data_seeded = True
+        log_summary("seeding instructor baseline prior to bitmap pipeline")
+        mock_seeder.create_instructors()
+        instructors_after = count_instructors(db_url) if not dry_run else instructors_before
+        log_summary(f"instructor count after ensure={instructors_after}")
+
+    # Phase 2: Seed future bitmap availability
+    phase_heading(2, "Seed future bitmap availability")
+    if not bitmap_enabled:
+        log_summary("skipped (AVAILABILITY_V2_BITMAPS is disabled)")
+    elif not seed_future_flag:
+        log_summary("skipped (SEED_AVAILABILITY_BITMAP not enabled)")
+    else:
+        stats_future = _run_future_bitmap_seeding(weeks, dry_run, "pipeline")
+        pipeline_result["future_instructor_weeks"] = stats_future["instructor_weeks"]
+        log_summary(
+            f"wrote {stats_future['instructor_weeks']} instructor-week rows across {stats_future['weeks_written']} week(s)"
+        )
+
+    # Phase 3: Backfill bitmap availability
+    phase_heading(3, "Backfill bitmap availability")
+    if not bitmap_enabled:
+        log_summary("skipped (AVAILABILITY_V2_BITMAPS is disabled)")
+        backfill_stats = {"days_backfilled": 0, "instructors_touched": 0}
+    else:
+        backfill_stats = _run_bitmap_backfill(backfill_days, dry_run, "pipeline")
+        pipeline_result["backfill_days"] = backfill_stats["days_backfilled"]
+        log_summary(
+            f"backfilled {backfill_stats['days_backfilled']} day(s) across {backfill_stats['instructors_touched']} instructor(s)"
+        )
+
+    os.environ.setdefault("BITMAP_PIPELINE_COMPLETED", "1")
+
+    # Probe coverage after availability work
+    if dry_run:
+        info("pipeline", "Probe: skipped (dry-run mode)")
+        probe_result = {
+            "lookback_days": review_lookback,
+            "horizon_days": review_horizon,
+            "total_rows": 0,
+            "sample": [],
+        }
+        skip_reviews = False
+    else:
+        probe_result = probe_bitmap_coverage(db_url, review_lookback, review_horizon)
+        total_rows = probe_result["total_rows"]
+        info(
+            "pipeline",
+            f"Probe: bitmap rows in [today-{review_lookback}, today+{review_horizon}] = {total_rows}",
+        )
+        sample_summary = format_probe_sample(probe_result.get("sample", []))
+        if sample_summary != "none":
+            info("pipeline", f"  ↪︎ sample (last 3 ids): {sample_summary}")
+        skip_reviews = total_rows == 0
+        if skip_reviews:
+            info("pipeline", "  ⚠️  No bitmap rows detected; reviews will be skipped.")
+    os.environ["BITMAP_PROBE_RESULT"] = json.dumps(probe_result)
+
+    # Ensure system data seeded before mock stages
+    if not dry_run and not system_data_seeded:
+        seed_system_data(db_url, dry_run, mode, seed_db_url=seed_db_url)
+        system_data_seeded = True
+
+    # Phase 4: Mock users + bookings + reviews
+    phase_heading(4, "Mock users + bookings + reviews")
+    if dry_run:
+        log_summary("dry-run: would seed mock users, bookings, and reviews")
+    elif not include_mock_users:
+        log_summary("skipped (mock user seeding disabled)")
+    else:
+        if mock_seeder is None:
+            from scripts.reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
+
+            mock_seeder = DatabaseSeeder()
+            log_summary("fallback seeder instantiated (no pre-run baseline detected)")
+        students_defined = len(mock_seeder.loader.get_students())
+        instructors_defined = len(mock_seeder.loader.get_instructors())
+        if students_defined == 0:
+            log_summary("no mock students defined in loader; nothing to seed")
+        mock_seeder.create_students()
+        mock_seeder.create_availability()
+        mock_seeder.create_coverage_areas()
+        bookings_created = mock_seeder.create_bookings() or 0
+        pipeline_result["students_seeded"] = students_defined
+        pipeline_result["instructors_seeded"] = instructors_defined
+        pipeline_result["bookings_created"] = bookings_created
+        if skip_reviews:
+            pipeline_result["reviews_skipped"] = True
+            pipeline_result["reviews_created"] = 0
+            log_summary(
+                f"seeded {students_defined} students, "
+                f"{instructors_defined} instructors, "
+                f"{bookings_created} bookings; reviews skipped (probe rows=0)"
+            )
+        else:
+            reviews_created = mock_seeder.create_reviews(strict=False) or 0
+            pipeline_result["reviews_created"] = reviews_created
+            pipeline_result["reviews_skipped"] = False
+            log_summary(
+                f"seeded {students_defined} students, "
+                f"{instructors_defined} instructors, "
+                f"{bookings_created} bookings, "
+                f"{reviews_created} reviews"
+            )
+
+    # Optional recovery pass if reviews were skipped despite instructor seeding
+    if (
+        not dry_run
+        and include_mock_users
+        and mock_seeder is not None
+        and (pipeline_result["reviews_created"] == 0 or pipeline_result["reviews_skipped"])
+    ):
+        info("pipeline", "Phase 4a/6: Availability recovery (auto)")
+        recovery_future = _run_future_bitmap_seeding(weeks, dry_run, "pipeline")
+        recovery_backfill = _run_bitmap_backfill(backfill_days, dry_run, "pipeline")
+        pipeline_result["future_instructor_weeks"] = max(
+            pipeline_result["future_instructor_weeks"], recovery_future["instructor_weeks"]
+        )
+        pipeline_result["backfill_days"] = max(
+            pipeline_result["backfill_days"], recovery_backfill["days_backfilled"]
+        )
+        recovery_probe = probe_bitmap_coverage(db_url, review_lookback, review_horizon)
+        os.environ["BITMAP_PROBE_RESULT"] = json.dumps(recovery_probe)
+        info(
+            "pipeline",
+            f"Probe (post-recovery): bitmap rows in [today-{review_lookback}, today+{review_horizon}] = {recovery_probe['total_rows']}",
+        )
+        sample_summary = format_probe_sample(recovery_probe.get("sample", []))
+        if sample_summary != "none":
+            info("pipeline", f"  ↪︎ sample (last 3 ids): {sample_summary}")
+        if recovery_probe["total_rows"] > 0:
+            skip_reviews = False
+            pipeline_result["reviews_skipped"] = False
+            recovered_reviews = mock_seeder.create_reviews(strict=False) or 0
+            pipeline_result["reviews_created"] = recovered_reviews
+            log_summary(f"recovery seeded {recovered_reviews} reviews after availability rerun")
+        else:
+            info("pipeline", "  ⚠️  Recovery probe still zero; reviews remain skipped.")
+
+    # Phase 5: Platform credits
+    phase_heading(5, "Platform credits")
+    if dry_run:
+        log_summary("dry-run: would seed platform credits")
+    elif not include_mock_users:
+        log_summary("skipped (mock user seeding disabled)")
+    else:
+        if mock_seeder is None:
+            from scripts.reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
+
+            mock_seeder = DatabaseSeeder()
+        credits_created = mock_seeder.create_sample_platform_credits() or 0
+        pipeline_result["credits_created"] = credits_created
+        log_summary(f"created {credits_created} platform credit(s)")
+
+    # Phase 6: Badges
+    phase_heading(6, "Badges")
+    if dry_run:
+        log_summary("dry-run: would award demo badges")
+    elif not include_mock_users:
+        log_summary("skipped (mock user seeding disabled)")
+    else:
+        from scripts.seed_data import seed_demo_student_badges  # noqa: E402
+
+        if mock_seeder is None:
+            from scripts.reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
+
+            mock_seeder = DatabaseSeeder()
+        badges_awarded = seed_demo_student_badges(mock_seeder.engine, verbose=True) or 0
+        pipeline_result["badges_awarded"] = badges_awarded
+        log_summary(f"awarded {badges_awarded} demo badge(s)")
+
+    if mock_seeder is not None and not dry_run:
+        mock_seeder.print_summary()
+    if mock_seeder is not None:
+        try:
+            mock_seeder.engine.dispose()
+        except Exception:
+            pass
+
+    pipeline_result["skip_reviews"] = skip_reviews
+    return pipeline_result
+
+
+def run_reviews_only(dry_run: bool, banner_prefix: str = "pipeline", strict: bool = True) -> None:
+    """Seed review bookings using the DatabaseSeeder helper."""
+
+    if dry_run:
+        info(banner_prefix, "(dry-run) Would seed review bookings.")
+        return
+
+    from scripts.reset_and_seed_yaml import DatabaseSeeder
+
+    lookback = int(os.getenv("SEED_REVIEW_LOOKBACK_DAYS", "90") or 90)
+    horizon = int(os.getenv("SEED_REVIEW_HORIZON_DAYS", "21") or 21)
+    db_url = os.getenv("DATABASE_URL", "")
+    if not db_url:
+        fail("DATABASE_URL must be set to run review seeding.")
+
+    probe_result = probe_bitmap_coverage(db_url, lookback, horizon)
+    sample_summary = format_probe_sample(probe_result.get("sample", []))
+    info(
+        banner_prefix,
+        f"Bitmap coverage probe: total_rows={probe_result['total_rows']} "
+        f"instructors={probe_result['instructor_count']} sample={sample_summary}",
+    )
+    if probe_result["total_rows"] == 0:
+        info(
+            banner_prefix,
+            "  ❌  Refusing to seed reviews because bitmap probe returned zero rows.\n"
+            "      Run `--seed-availability-only` first to seed and backfill availability.",
+        )
+        raise RuntimeError("Bitmap coverage probe returned zero rows; reviews-only seed aborted.")
+
+    os.environ["BITMAP_PROBE_RESULT"] = json.dumps(probe_result)
+
+    seeder = DatabaseSeeder()
+    created = seeder.create_reviews(strict=strict) or 0
+    info(banner_prefix, f"Seeded {created} reviews.")
 
 
 def verify_env_marker(db_url: str, expected_mode: str) -> bool:
@@ -407,6 +971,10 @@ Examples:
   # Seed with additional mock data windows (overrides config defaults)
   python backend/scripts/prep_db.py int --seed-all --set availability_weeks_future=6 --set availability_weeks_past=2
   python backend/scripts/prep_db.py stg --seed-all --set booking_days_future=10 --set booking_days_past=30
+
+Seed-all executes six phases in order (Migrate → Seed future bitmap availability → Backfill bitmap availability →
+Mock users + bookings + reviews → Platform credits → Badges). Use --include-mock-users/--exclude-mock-users
+to control the mock-data phases (stg/int default to include).
 """
         ),
     )
@@ -416,6 +984,26 @@ Examples:
     parser.add_argument("--seed-all", action="store_true")
     parser.add_argument("--seed-system-only", action="store_true")
     parser.add_argument("--seed-mock-users", action="store_true")
+    parser.add_argument(
+        "--seed-availability-only",
+        action="store_true",
+        help="Run only the bitmap availability pipeline (future + backfill) and exit.",
+    )
+    parser.add_argument(
+        "--seed-reviews-only",
+        action="store_true",
+        help="Seed review bookings only (requires existing bitmap coverage).",
+    )
+    parser.add_argument(
+        "--include-mock-users",
+        action="store_true",
+        help="Force inclusion of mock users/instructors/bookings during --seed-all.",
+    )
+    parser.add_argument(
+        "--exclude-mock-users",
+        action="store_true",
+        help="Skip mock user seeding even when --seed-all is used.",
+    )
     parser.add_argument(
         "--seed-all-prod",
         action="store_true",
@@ -458,10 +1046,6 @@ Examples:
     else:
         os.environ["PROD_DATABASE_URL"] = db_url
 
-    info("db", f"Using URL for migrations: {redact(db_url)}")
-    if seed_db_url != db_url:
-        info("db", f"Using seed connection override: {redact(seed_db_url)}")
-
     # verify env marker (optional)
     if args.verify_env:
         ok = verify_env_marker(db_url, mode)
@@ -492,18 +1076,109 @@ Examples:
                 info("prod", "Operation cancelled.")
                 sys.exit(0)
 
-    # do work
+    if args.seed_availability_only and args.seed_reviews_only:
+        fail("Cannot combine --seed-availability-only with --seed-reviews-only.")
+
+    include_mock_users = args.include_mock_users or args.seed_mock_users
+    mock_default_message: Optional[str] = None
+    if args.exclude_mock_users:
+        include_mock_users = False
+    elif args.seed_all:
+        if args.include_mock_users or args.seed_mock_users:
+            include_mock_users = True
+        elif mode in {"stg", "int"}:
+            include_mock_users = True
+            mock_default_message = "[seed] defaulting include-mock-users=true for stg/int with --seed-all"
+        else:
+            include_mock_users = False
+    os.environ["INCLUDE_MOCK_USERS"] = "1" if include_mock_users else "0"
+
+    bitmap_enabled = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
+    seed_availability_value = os.getenv("SEED_AVAILABILITY_BITMAP")
+    auto_default_message: Optional[str] = None
+    if bitmap_enabled and mode in {"stg", "int"} and (seed_availability_value is None or seed_availability_value.strip() == ""):
+        os.environ["SEED_AVAILABILITY_BITMAP"] = "1"
+        auto_default_message = "[seed] defaulting SEED_AVAILABILITY_BITMAP=1 for stg/int when AVAILABILITY_V2_BITMAPS=1"
+
+    env_snapshot = build_env_snapshot(mode)
+    env_json = snapshot_to_json(env_snapshot)
+    print(env_json)
+    if auto_default_message:
+        print(auto_default_message)
+    if mock_default_message:
+        print(mock_default_message)
+
+    info("db", f"Using URL for migrations: {redact(db_url)}")
+    if seed_db_url != db_url:
+        info("db", f"Using seed connection override: {redact(seed_db_url)}")
+
+    seed_availability_bitmap = os.getenv("SEED_AVAILABILITY_BITMAP", "0").lower() in {"1", "true", "yes"}
+    if bitmap_enabled and not seed_availability_bitmap and (args.seed_all or args.seed_mock_users):
+        warn(
+            "AVAILABILITY_V2_BITMAPS=1 but SEED_AVAILABILITY_BITMAP is not set. "
+            "Skipping availability seeding; reviews will likely be skipped."
+        )
+
     try:
-        if args.migrate:
-            run_migrations(db_url, args.dry_run, args.migrate_tool)
+        if args.seed_availability_only:
+            if args.migrate:
+                run_migrations(db_url, args.dry_run, args.migrate_tool)
+            run_availability_pipeline(mode, args.dry_run)
+            info(mode, "Availability pipeline complete.")
+            return
 
-        perform_system_seed = args.seed_system_only or args.seed_all or args.seed_mock_users
-        perform_mock_seed = args.seed_mock_users or args.seed_all
+        if args.seed_reviews_only:
+            if args.migrate:
+                run_migrations(db_url, args.dry_run, args.migrate_tool)
+            try:
+                run_reviews_only(args.dry_run, strict=True)
+            except RuntimeError as exc:
+                fail(str(exc))
+            info(mode, "Review seeding complete.")
+            return
 
-        if perform_system_seed:
-            seed_system_data(db_url, args.dry_run, mode, seed_db_url=seed_db_url)
-        if perform_mock_seed:
-            seed_mock_users(db_url, args.dry_run, mode, seed_db_url=seed_db_url)
+        if args.seed_all:
+            pipeline_stats = run_seed_all_pipeline(
+                mode=mode,
+                db_url=db_url,
+                seed_db_url=seed_db_url,
+                migrate=args.migrate,
+                dry_run=args.dry_run,
+                env_snapshot=env_snapshot,
+                include_mock_users=include_mock_users,
+            )
+            info(
+                "pipeline",
+                (
+                    "Seed-all summary: students={students_seeded}, instructors={instructors_seeded}, "
+                    "bookings={bookings_created}, reviews={reviews_created} "
+                    "(reviews_skipped={reviews_skipped}), credits={credits_created}, "
+                    "badges={badges_awarded}, skip_reviews={skip_reviews}"
+                ).format(**pipeline_stats),
+            )
+        else:
+            perform_system_seed = args.seed_system_only or include_mock_users
+            perform_mock_seed = include_mock_users
+            run_availability_step = bitmap_enabled and include_mock_users
+
+            steps: List[Tuple[str, Callable[[], None]]] = []
+
+            if args.migrate:
+                steps.append(("Run database migrations", lambda: run_migrations(db_url, args.dry_run, args.migrate_tool)))
+            if run_availability_step:
+                steps.append(("Seed bitmap availability/backfill", lambda: run_availability_pipeline(mode, args.dry_run)))
+            if perform_system_seed:
+                steps.append(("Seed system data", lambda: seed_system_data(db_url, args.dry_run, mode, seed_db_url=seed_db_url)))
+            if perform_mock_seed:
+                steps.append(("Seed mock users, bookings, reviews", lambda: seed_mock_users(db_url, args.dry_run, mode, seed_db_url=seed_db_url)))
+
+            if steps:
+                info("pipeline", "Executing seeding pipeline in the following order:")
+                for idx, (label, _) in enumerate(steps, start=1):
+                    info("pipeline", f"  {idx}. {label}")
+                for idx, (label, action) in enumerate(steps, start=1):
+                    info("pipeline", f"[Step {idx}/{len(steps)}] {label}")
+                    action()
 
         if (
             not args.dry_run
@@ -523,8 +1198,7 @@ Examples:
                 f"Ensured beta access for instructors (created={created}, existing={existing})",
             )
 
-        # Post-seed ops (always run after any seeding or migration when not dry-run)
-        if args.migrate or perform_system_seed or perform_mock_seed:
+        if args.migrate or args.seed_all or args.seed_system_only or args.seed_mock_users:
             generate_embeddings(db_url, args.dry_run, mode)
             calculate_analytics(db_url, args.dry_run, mode)
             clear_cache(mode, args.dry_run)

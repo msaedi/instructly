@@ -124,4 +124,28 @@ describe('bitset helpers', () => {
     expect(windows).toHaveLength(1);
     expect(windows[0]).toEqual({ start_time: '09:00:00', end_time: '10:30:00' });
   });
+
+  it('fills intermediate rows when simulating a drag from row 4 to row 10', () => {
+    const startHour = 6;
+    const indexForRow = (row: number) => {
+      const hour = startHour + Math.floor(row / 2);
+      const minute = row % 2 === 1 ? 30 : 0;
+      return idx(hour, minute);
+    };
+
+    const applyRow = (bits: DayBits, row: number, value: boolean) =>
+      toggle(bits, indexForRow(row), value);
+
+    let bits: DayBits = newEmptyBits();
+    const startRow = 4;
+    const endRow = 10;
+    bits = applyRow(bits, startRow, true);
+    const step = endRow > startRow ? 1 : -1;
+    for (let row = startRow + step; step > 0 ? row <= endRow : row >= endRow; row += step) {
+      bits = applyRow(bits, row, true);
+    }
+
+    const windows = toWindows(bits);
+    expect(windows).toEqual([{ start_time: '08:00:00', end_time: '11:30:00' }]);
+  });
 });
