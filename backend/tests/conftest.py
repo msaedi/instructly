@@ -17,11 +17,10 @@ import sys
 from typing import Sequence
 
 # CRITICAL: Set testing mode BEFORE any app imports!
-os.environ["is_testing"] = "true"
-os.environ["rate_limit_enabled"] = "false"
+os.environ.setdefault("is_testing", "true")
+os.environ.setdefault("rate_limit_enabled", "false")
 os.environ.setdefault("AVAILABILITY_PERF_DEBUG", "1")
 os.environ.setdefault("AVAILABILITY_TEST_MEMORY_CACHE", "1")
-os.environ.setdefault("AVAILABILITY_ALLOW_PAST", "false")
 os.environ.setdefault("DB_DIALECT", "postgresql")
 if "sqlite" in os.getenv("TEST_DATABASE_URL", "").lower() or "sqlite" in os.getenv(
     "DATABASE_URL", ""

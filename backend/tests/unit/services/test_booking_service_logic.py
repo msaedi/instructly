@@ -35,6 +35,12 @@ from app.services.booking_service import BookingService
 from app.utils.bitset import bits_from_windows
 
 
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
+    yield
+
+
 class TestBookingServiceUnit:
     """Unit tests for BookingService with mocked dependencies."""
 

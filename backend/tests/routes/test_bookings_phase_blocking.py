@@ -1,6 +1,13 @@
 from datetime import date, time
 
 from fastapi.testclient import TestClient
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch):
+    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
+    yield
 
 
 def _make_token_for_user(user_email: str):

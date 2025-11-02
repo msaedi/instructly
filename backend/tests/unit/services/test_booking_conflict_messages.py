@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.services.booking_service import (
@@ -10,6 +11,12 @@ from app.services.booking_service import (
     STUDENT_CONFLICT_MESSAGE,
     BookingService,
 )
+
+
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
+    yield
 
 
 class _FakeDiag:

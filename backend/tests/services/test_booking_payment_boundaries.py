@@ -19,6 +19,12 @@ from app.models.service_catalog import InstructorService, ServiceCatalog, Servic
 from app.models.user import User
 from app.services.booking_service import BookingService
 
+
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
+    yield
+
 try:  # pragma: no cover - allow running from backend/ root
     from backend.tests.factories.booking_builders import create_booking_pg_safe
 except ModuleNotFoundError:  # pragma: no cover

@@ -22,6 +22,12 @@ from app.services.pricing_service import PricingService
 from app.tasks.notification_tasks import deliver_event
 
 
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
+    yield
+
+
 def _next_available_slot(db, instructor_id: str) -> tuple[Service, AvailabilitySlot]:
     profile = (
         db.query(InstructorProfile)

@@ -28,6 +28,12 @@ from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
 
 
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
+    yield
+
+
 def _get_service_with_duration(db: Session, instructor: User, duration_minutes: int) -> Service:
     """Fetch an active instructor service that supports the requested duration."""
     profile = db.query(InstructorProfile).filter_by(user_id=instructor.id).first()

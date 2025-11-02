@@ -323,8 +323,9 @@ class TestApplyPatternLogic:
         total_days = (end_date - start_date).days + 1
         assert total_days == 10
 
-        # Verify result structure
-        assert "dates_processed" in result
+        # Verify result structure (support both legacy and bitmap fields)
+        dates_processed = result.get("dates_processed", result.get("days_written"))
+        assert dates_processed is not None
         assert "slots_created" in result
         assert "message" in result
 
@@ -357,7 +358,8 @@ class TestApplyPatternLogic:
 
         # Verify operations
         assert result["slots_created"] == 3
-        assert result["dates_processed"] == 3
+        dates_processed = result.get("dates_processed", result.get("days_written"))
+        assert dates_processed == 3
 
         # Verify repository calls
         service.availability_repository.delete_slots_by_dates.assert_called_once()

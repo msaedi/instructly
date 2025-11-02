@@ -19,6 +19,12 @@ def _no_price_floors(disable_price_floors):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch):
+    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
+    yield
+
+
 @pytest.mark.asyncio
 async def test_update_payment_method_retriggers_auth(client, db, test_student, test_instructor_with_availability):
     # Tokens

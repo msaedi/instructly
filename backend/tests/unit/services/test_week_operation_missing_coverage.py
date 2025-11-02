@@ -192,7 +192,8 @@ class TestWeekOperationApplyPattern:
         result = await service.apply_pattern_to_date_range(instructor_id, from_week, start_date, end_date)
 
         assert result["slots_created"] == 0
-        assert result["dates_processed"] == 7
+        dates_processed = result.get("dates_processed", result.get("days_written"))
+        assert dates_processed == 7
 
     @pytest.mark.asyncio
     async def test_apply_pattern_partial_week(self, service):
@@ -216,7 +217,8 @@ class TestWeekOperationApplyPattern:
 
         result = await service.apply_pattern_to_date_range(instructor_id, from_week, start_date, end_date)
 
-        assert result["dates_processed"] == 3
+        dates_processed = result.get("dates_processed", result.get("days_written"))
+        assert dates_processed == 3
         assert result["slots_created"] == 1
 
 

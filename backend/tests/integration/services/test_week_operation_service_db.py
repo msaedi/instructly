@@ -179,7 +179,8 @@ class TestWeekOperationBulkOperations:
         result = await service.apply_pattern_to_date_range(test_instructor.id, pattern_week, start_date, end_date)
 
         # Verify bulk operations completed
-        assert result["dates_processed"] > 0
+        dates_processed = result.get("dates_processed", result.get("days_written"))
+        assert dates_processed > 0
         assert result["slots_created"] > 0
 
         # Verify data integrity with single-table design
@@ -452,4 +453,5 @@ class TestWeekOperationErrorHandling:
 
         # Should handle large range
         assert result is not None
-        assert result["dates_processed"] > 90  # ~92 days
+        dates_processed = result.get("dates_processed", result.get("days_written"))
+        assert dates_processed > 90  # ~92 days
