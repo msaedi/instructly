@@ -15,9 +15,13 @@ from app.core.enums import RoleName
 from app.models.booking import BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.rbac import Role
-from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.services.booking_service import BookingService
+
+try:  # pragma: no cover - support repo or backend invocation
+    from backend.tests._utils import ensure_instructor_service_for_tests
+except ModuleNotFoundError:  # pragma: no cover
+    from tests._utils import ensure_instructor_service_for_tests
 
 
 @pytest.fixture(autouse=True)
@@ -83,39 +87,18 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
     db.add(profile)
     db.flush()
 
-    category = ServiceCategory(
-        id=str(ulid.ULID()),
-        name="Cat",
-        slug=f"cat-{str(ulid.ULID()).lower()}",
-        description="Cat",
-    )
-    db.add(category)
-    db.flush()
+    duration_minutes = 60
 
-    catalog = ServiceCatalog(
-        id=str(ulid.ULID()),
-        category_id=category.id,
-        name="Svc",
-        slug=f"svc-{str(ulid.ULID()).lower()}",
-        description="Svc",
-    )
-    db.add(catalog)
-    db.flush()
-
-    instr_service = InstructorService(
-        id=str(ulid.ULID()),
+    _, instructor_service_id = ensure_instructor_service_for_tests(
+        db,
         instructor_profile_id=profile.id,
-        service_catalog_id=catalog.id,
+        service_name="Svc",
+        duration_minutes=duration_minutes,
         hourly_rate=100.0,
-        duration_options=[30, 60, 90],
-        is_active=True,
+        extra_instructor_service_fields={"duration_options": [30, 60, 90]},
     )
-    db.add(instr_service)
-    db.flush()
 
     svc = BookingService(db)
-
-    duration_minutes = 60
 
     # 23h59m ⇒ authorizing
     start1 = start_just_under_24h()
@@ -124,7 +107,7 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         db,
         student_id=student.id,
         instructor_id=instructor.id,
-        instructor_service_id=instr_service.id,
+        instructor_service_id=instructor_service_id,
         booking_date=bd1,
         start_time=st1,
         end_time=et1,
@@ -144,11 +127,14 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
     bd2, st2, et2 = booking_fields_from_start(start2, duration_minutes=duration_minutes)
     first_end_dt = datetime.combine(bd1, et1)
     second_start_dt = datetime.combine(bd2, st2)
-    if second_start_dt <= first_end_dt:
-        second_start_dt = first_end_dt + timedelta(minutes=2)
+    minimum_gap = first_end_dt + timedelta(minutes=90)
+    if second_start_dt <= minimum_gap:
+        second_start_dt = minimum_gap
     second_end_dt = second_start_dt + timedelta(minutes=duration_minutes)
     if second_end_dt.date() != second_start_dt.date():
-        second_start_dt = first_end_dt + timedelta(hours=2)
+        second_start_dt = (first_end_dt + timedelta(hours=3)).replace(
+            minute=0, second=0, microsecond=0
+        )
         second_end_dt = second_start_dt + timedelta(minutes=duration_minutes)
     bd2 = second_start_dt.date()
     st2 = second_start_dt.time()
@@ -157,7 +143,7 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         db,
         student_id=student.id,
         instructor_id=instructor.id,
-        instructor_service_id=instr_service.id,
+        instructor_service_id=instructor_service_id,
         booking_date=bd2,
         start_time=st2,
         end_time=et2,

@@ -42,7 +42,7 @@ from email.utils import format_datetime
 from functools import wraps
 import logging
 import os
-from typing import Awaitable, Callable, Dict, List, Optional, ParamSpec, TypeVar, cast
+from typing import Any, Awaitable, Callable, Dict, List, Optional, ParamSpec, TypeVar, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 
@@ -362,13 +362,14 @@ async def save_week_availability(
                     windows_by_day.setdefault(slot_date, []).append((start_str, end_str))
 
                 try:
-                    written, _, new_version = availability_service.save_week_bits(
+                    save_result = availability_service.save_week_bits(
                         instructor_id=current_user.id,
                         week_start=monday,
                         windows_by_day=windows_by_day,
                         base_version=client_version,
                         override=override_requested,
                         clear_existing=bool(payload.clear_existing),
+                        actor=current_user,
                     )
                 except ConflictException:
                     server_bits = availability_service.get_week_bits(current_user.id, monday)
@@ -383,6 +384,7 @@ async def save_week_availability(
                         },
                     )
 
+                new_version = save_result.version
                 last_mod = availability_service.get_week_bitmap_last_modified(
                     current_user.id, monday
                 )
@@ -392,9 +394,11 @@ async def save_week_availability(
                     message="Saved weekly availability",
                     week_start=monday,
                     week_end=week_end,
-                    windows_created=written,
+                    windows_created=save_result.rows_written,
                     windows_updated=0,
                     windows_deleted=0,
+                    days_written=save_result.days_written,
+                    skipped_past_window=save_result.skipped_past_window,
                     version=new_version,
                     week_version=new_version,
                 )
@@ -475,6 +479,8 @@ async def save_week_availability(
                 windows_created=created,
                 windows_updated=updated,
                 windows_deleted=deleted,
+                days_written=created,
+                skipped_past_window=0,
                 version=new_version,
                 week_version=new_version,
             )
@@ -565,26 +571,23 @@ async def apply_to_date_range(
             end_date=payload.end_date,
             actor=current_user,
         )
-        # Map service result to response schema
-        # Compute weeks_applied as ceiling of days/7 over the inclusive date range
-        days = (payload.end_date - payload.start_date).days + 1
-        weeks_applied = (days + 6) // 7
-        windows_created_raw = result.get("slots_created", 0)
+        windows_created_raw = result.get("windows_created", result.get("slots_created", 0))
+        weeks_applied_raw = result.get("weeks_applied", 0)
         weeks_affected_raw = result.get("weeks_affected", 0)
         days_written_raw = result.get("days_written", windows_created_raw)
+        skipped_past_targets_raw = result.get("skipped_past_targets", 0)
 
-        try:
-            windows_created = int(windows_created_raw)
-        except (TypeError, ValueError):
-            windows_created = 0
-        try:
-            weeks_affected = int(weeks_affected_raw)
-        except (TypeError, ValueError):
-            weeks_affected = 0
-        try:
-            days_written = int(days_written_raw)
-        except (TypeError, ValueError):
-            days_written = windows_created
+        def _coerce_int(value: Any, fallback: int = 0) -> int:
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return fallback
+
+        windows_created = _coerce_int(windows_created_raw, 0)
+        weeks_applied = _coerce_int(weeks_applied_raw, 0)
+        weeks_affected = _coerce_int(weeks_affected_raw, 0)
+        days_written = _coerce_int(days_written_raw, windows_created)
+        skipped_past_targets = _coerce_int(skipped_past_targets_raw, 0)
 
         return ApplyToDateRangeResponse(
             message=str(result.get("message", "")),
@@ -594,6 +597,7 @@ async def apply_to_date_range(
             windows_created=windows_created,
             weeks_affected=weeks_affected,
             days_written=days_written,
+            skipped_past_targets=skipped_past_targets,
         )
     except DomainException as e:
         raise e.to_http_exception()

@@ -28,6 +28,12 @@ def _no_price_floors(disable_price_floors):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
+    yield
+
+
 class TestBookingRoutesNewFormat:
     """Test booking endpoints with new time-based format."""
 

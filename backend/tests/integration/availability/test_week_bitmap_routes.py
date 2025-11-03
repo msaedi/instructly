@@ -141,6 +141,8 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
     assert first_version
     payload = resp.json()
     assert payload["windows_created"] == 7
+    assert payload["days_written"] == 2
+    assert payload["skipped_past_window"] == 0
 
     intermediate_body = {
         **body,

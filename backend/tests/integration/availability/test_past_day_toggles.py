@@ -91,6 +91,7 @@ def _freeze_time_to_date(monkeypatch: pytest.MonkeyPatch, target_date: date) -> 
             return anchor.replace(tzinfo=None)
 
     monkeypatch.setattr(availability_service_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(availability_service_module, "get_user_today_by_id", lambda *_: target_date)
 
 
 class TestPastDayEditsPersistWhenAllowPastTrue:
@@ -181,6 +182,9 @@ class TestPastDayEditsIgnoredWhenAllowPastFalse:
         # Freeze time to 2025-10-30 (Wednesday)
         today_frozen = date(2025, 10, 30)
         _freeze_time_to_date(monkeypatch, today_frozen)
+
+        monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "false")
+        monkeypatch.setenv("PAST_EDIT_WINDOW_DAYS", "30")
 
         # Week starting Monday 2025-10-27 (past) to Sunday 2025-11-02
         week_start = date(2025, 10, 27)  # Monday (3 days ago)

@@ -266,6 +266,8 @@ class TestWeekPost409WithStaleIfMatch:
         # ETag should be exposed via Access-Control-Expose-Headers
         expose_headers = conflict_resp.headers.get("Access-Control-Expose-Headers", "")
         assert "ETag" in expose_headers
+        assert "Last-Modified" in expose_headers
+        assert "X-Allow-Past" in expose_headers
 
 
 class TestWeekPostOverrideTrueBypassesConflict:

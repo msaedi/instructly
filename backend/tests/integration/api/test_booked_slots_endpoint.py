@@ -46,14 +46,12 @@ def test_booked_slots_endpoint(
         .filter(
             AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
             AvailabilitySlot.specific_date == monday,
-            AvailabilitySlot.start_time == time(9, 0),
-            AvailabilitySlot.end_time == time(10, 0),
         )
+        .order_by(AvailabilitySlot.start_time)
         .first()
     )
 
     if not slot:
-        # Create slot directly (no InstructorAvailability table)
         slot = AvailabilitySlot(
             instructor_id=test_instructor_with_availability.id,
             specific_date=monday,

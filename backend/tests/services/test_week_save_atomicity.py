@@ -1,22 +1,31 @@
 from __future__ import annotations
 
 from datetime import time, timedelta
+from importlib import reload
 
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 from tests.utils.availability_builders import build_week_payload, future_week_start
 
+import app.main
 from app.middleware.perf_counters import PerfCounterMiddleware
 from app.models.availability import AvailabilitySlot
 from app.repositories.bulk_operation_repository import BulkOperationRepository
 
 
-def _ensure_perf_mode(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+@pytest.fixture
+def perf_client(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("AVAILABILITY_PERF_DEBUG", "1")
-    middleware_classes = {middleware.cls for middleware in client.app.user_middleware}
-    if PerfCounterMiddleware not in middleware_classes:
-        client.app.add_middleware(PerfCounterMiddleware)
+    reload(app.main)
+    app_instance = app.main.fastapi_app
+    if PerfCounterMiddleware not in {mw.cls for mw in app_instance.user_middleware}:
+        app_instance.add_middleware(PerfCounterMiddleware)
+    client = TestClient(app_instance, raise_server_exceptions=False)
+    try:
+        yield client
+    finally:
+        client.close()
 
 
 def _count_slots(db: Session, instructor_id: str) -> int:
@@ -25,14 +34,12 @@ def _count_slots(db: Session, instructor_id: str) -> int:
 
 @pytest.mark.usefixtures("STRICT_ON")
 def test_week_save_rolls_back_on_fault(
-    client: TestClient,
+    perf_client: TestClient,
     db: Session,
     test_instructor,
     auth_headers_instructor: dict,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    _ensure_perf_mode(monkeypatch, client)
-
     week_start = future_week_start(weeks_ahead=3)
     existing_slot = AvailabilitySlot(
         instructor_id=test_instructor.id,
@@ -54,7 +61,7 @@ def test_week_save_rolls_back_on_fault(
 
     monkeypatch.setattr(BulkOperationRepository, "bulk_create_slots", _boom)
 
-    response = client.post(
+    response = perf_client.post(
         "/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
@@ -67,22 +74,19 @@ def test_week_save_rolls_back_on_fault(
 
 @pytest.mark.parametrize("slot_count", [10, 30, 50])
 def test_week_save_happy_path_query_counts_param(
-    client: TestClient,
+    perf_client: TestClient,
     db: Session,
     test_instructor,
     auth_headers_instructor: dict,
-    monkeypatch: pytest.MonkeyPatch,
     slot_count: int,
 ):
-    _ensure_perf_mode(monkeypatch, client)
-
     db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).delete()
     db.commit()
 
     week_start = future_week_start(weeks_ahead=3)
     payload = build_week_payload(week_start, slot_count=slot_count)
 
-    response = client.post(
+    response = perf_client.post(
         "/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
@@ -101,14 +105,11 @@ def test_week_save_happy_path_query_counts_param(
 
 @pytest.mark.usefixtures("STRICT_ON")
 def test_week_save_rejects_overlap_via_api(
-    client: TestClient,
+    perf_client: TestClient,
     db: Session,
     test_instructor,
     auth_headers_instructor: dict,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _ensure_perf_mode(monkeypatch, client)
-
     week_start = future_week_start(weeks_ahead=3)
     db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).delete()
     db.commit()
@@ -130,7 +131,7 @@ def test_week_save_rejects_overlap_via_api(
         ],
     }
 
-    response = client.post(
+    response = perf_client.post(
         "/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
@@ -144,14 +145,11 @@ def test_week_save_rejects_overlap_via_api(
 
 @pytest.mark.usefixtures("STRICT_ON")
 def test_week_save_overnight_round_trip_via_api(
-    client: TestClient,
+    perf_client: TestClient,
     db: Session,
     test_instructor,
     auth_headers_instructor: dict,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _ensure_perf_mode(monkeypatch, client)
-
     week_start = future_week_start(weeks_ahead=4)
     db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).delete()
     db.commit()
@@ -168,14 +166,14 @@ def test_week_save_overnight_round_trip_via_api(
         ],
     }
 
-    response = client.post(
+    response = perf_client.post(
         "/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
     )
     assert response.status_code == 200
 
-    get_response = client.get(
+    get_response = perf_client.get(
         "/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=auth_headers_instructor,

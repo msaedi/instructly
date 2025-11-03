@@ -20,6 +20,8 @@ class WeekAvailabilityUpdateResponse(StrictModel):
     windows_created: int
     windows_updated: int
     windows_deleted: int
+    days_written: int = 0
+    skipped_past_window: int = 0
     version: str | None = None
     week_version: str | None = None
 
@@ -45,6 +47,7 @@ class ApplyToDateRangeResponse(StrictModel):
     windows_created: int
     weeks_affected: int
     days_written: int
+    skipped_past_targets: int = 0
 
 
 class DeleteWindowResponse(StrictModel):

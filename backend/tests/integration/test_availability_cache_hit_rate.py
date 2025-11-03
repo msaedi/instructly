@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 from datetime import date, time, timedelta
-import os
 
 import pytest
-
-os.environ["AVAILABILITY_PERF_DEBUG"] = "1"
-os.environ.setdefault("AVAILABILITY_TEST_MEMORY_CACHE", "1")
-
 from tests.utils.availability_builders import future_week_start
 
 from app.models.availability import AvailabilitySlot
+
+
+@pytest.fixture(autouse=True)
+def enable_test_cache(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("AVAILABILITY_PERF_DEBUG", "1")
+    monkeypatch.setenv("AVAILABILITY_TEST_MEMORY_CACHE", "1")
 
 
 def _seed_week(db, instructor_id: str, week_start: date, start_hour: int) -> None:

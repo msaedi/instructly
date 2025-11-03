@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Optional, Tuple, 
 
 from sqlalchemy.orm import Session
 
+from ..core.config import settings
 from ..core.exceptions import (
     AvailabilityOverlapException,
     ConflictException,
@@ -38,7 +39,7 @@ from ..schemas.availability_window import (
     SpecificDateAvailabilityCreate,
     WeekSpecificScheduleCreate,
 )
-from ..utils.bitset import bits_from_windows, new_empty_bits
+from ..utils.bitset import bits_from_windows, new_empty_bits, windows_from_bits
 from ..utils.time_helpers import time_to_string
 from .audit_redaction import redact
 from .base import BaseService
@@ -113,6 +114,18 @@ class WeekAvailabilityResult(NamedTuple):
 class PreparedWeek(NamedTuple):
     slots: list[AvailabilitySlotInput]
     affected_dates: set[date]
+
+
+class SaveWeekBitsResult(NamedTuple):
+    rows_written: int
+    days_written: int
+    skipped_past_window: int
+    skipped_past_forbidden: int
+    bits_by_day: Dict[date, bytes]
+    version: str
+    written_dates: List[date]
+    skipped_dates: List[date]
+    past_written_dates: List[date]
 
 
 class AvailabilityService(BaseService):
@@ -203,32 +216,54 @@ class AvailabilityService(BaseService):
         base_version: Optional[str],
         override: bool,
         clear_existing: bool,
-    ) -> Tuple[int, Dict[date, bytes], str]:
+        *,
+        actor: Any | None = None,
+    ) -> SaveWeekBitsResult:
         """
         Persist week availability using bitmap storage.
 
         Returns:
-            rows_written, bits_by_day_after, new_version
+            SaveWeekBitsResult with persistence metadata.
         """
         current = self.get_week_bits(instructor_id, week_start)
+        allow_past = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
         server_version = self.compute_week_version_bits(current)
 
         if base_version and (base_version != server_version) and not override:
             raise ConflictException("Week has changed; please refresh and retry")
 
         items: List[Tuple[date, bytes]] = []
-        today = datetime.now(timezone.utc).date()
+        instructor_today = get_user_today_by_id(instructor_id, self.db)
         perf_debug = os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}
+        window_days = max(0, settings.past_edit_window_days)
+        past_cutoff: Optional[date] = None
+        if window_days > 0:
+            past_cutoff = instructor_today - timedelta(days=window_days)
+
+        changed_dates: List[date] = []
+        past_written_dates: List[date] = []
+        skipped_dates: List[date] = []
+        skipped_forbidden_dates: List[date] = []
 
         for offset in range(7):
             day = week_start + timedelta(days=offset)
             has_payload = day in windows_by_day
             previous_bits = current.get(day, new_empty_bits())
-            if not clear_existing and not has_payload:
+            day_windows = windows_by_day.get(day, [])
+
+            if not allow_past and day < instructor_today:
                 bits = previous_bits
+                if has_payload or clear_existing:
+                    skipped_forbidden_dates.append(day)
             else:
-                day_windows = windows_by_day.get(day, [])
-                if not ALLOW_PAST and day < today:
+                should_skip = False
+                if past_cutoff and day < past_cutoff and (has_payload or clear_existing):
+                    should_skip = True
+
+                if should_skip:
+                    bits = previous_bits
+                    skipped_dates.append(day)
+                elif not clear_existing and not has_payload:
                     bits = previous_bits
                 else:
                     bits = bits_from_windows(day_windows) if day_windows else new_empty_bits()
@@ -242,12 +277,107 @@ class AvailabilityService(BaseService):
                     override,
                     "true" if bits_changed else "false",
                 )
+            if bits_changed:
+                changed_dates.append(day)
+                if day < instructor_today:
+                    past_written_dates.append(day)
 
         repo = self._bitmap_repo()
-        written = repo.upsert_week(instructor_id, items)
+        rows_written = repo.upsert_week(instructor_id, items)
         after = self.get_week_bits(instructor_id, week_start)
         new_version = self.compute_week_version_bits(after)
-        return written, after, new_version
+        days_written = len(changed_dates)
+        skipped_past_window = len(skipped_dates)
+        skipped_past_forbidden = len(skipped_forbidden_dates)
+
+        audit_dates = sorted(set(changed_dates) | set(skipped_dates) | set(skipped_forbidden_dates))
+
+        def _windows_payload(
+            bits_map: Dict[date, bytes], target_dates: List[date]
+        ) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for target in target_dates:
+                result[target.isoformat()] = [
+                    {"start_time": start, "end_time": end}
+                    for start, end in windows_from_bits(bits_map.get(target, new_empty_bits()))
+                ]
+            return result
+
+        if audit_dates and AUDIT_ENABLED:
+            before_payload = {
+                "week_start": week_start.isoformat(),
+                "windows": _windows_payload(current, audit_dates),
+            }
+            after_payload = {
+                "week_start": week_start.isoformat(),
+                "windows": _windows_payload(after, audit_dates),
+                "edited_dates": [d.isoformat() for d in changed_dates],
+                "skipped_dates": [d.isoformat() for d in skipped_dates],
+                "skipped_forbidden_dates": [d.isoformat() for d in skipped_forbidden_dates],
+                "historical_edit": bool(
+                    past_written_dates or skipped_dates or skipped_forbidden_dates
+                ),
+                "skipped_past_window": bool(skipped_dates),
+                "skipped_past_forbidden": bool(skipped_forbidden_dates),
+                "days_written": days_written,
+            }
+            try:
+                self._write_availability_audit(
+                    instructor_id,
+                    week_start,
+                    "save_week_bitmap",
+                    actor=actor,
+                    before=before_payload,
+                    after=after_payload,
+                )
+            except Exception as audit_err:
+                logger.warning(
+                    "Audit write failed for bitmap save_week_bits",
+                    extra={
+                        "instructor_id": instructor_id,
+                        "week_start": week_start.isoformat(),
+                        "error": str(audit_err),
+                    },
+                )
+
+        event_dates = [
+            d
+            for d in changed_dates
+            if not (settings.suppress_past_availability_events and d < instructor_today)
+        ]
+        if event_dates:
+            try:
+                prepared = PreparedWeek(slots=[], affected_dates=set(event_dates))
+                self._enqueue_week_save_event(
+                    instructor_id,
+                    week_start,
+                    week_dates=[week_start + timedelta(days=i) for i in range(7)],
+                    prepared=prepared,
+                    created_count=days_written,
+                    deleted_count=0,
+                    clear_existing=bool(clear_existing),
+                )
+            except Exception as enqueue_err:
+                logger.warning(
+                    "Outbox enqueue failed for bitmap save_week_bits",
+                    extra={
+                        "instructor_id": instructor_id,
+                        "week_start": week_start.isoformat(),
+                        "error": str(enqueue_err),
+                    },
+                )
+
+        return SaveWeekBitsResult(
+            rows_written=rows_written,
+            days_written=days_written,
+            skipped_past_window=skipped_past_window,
+            skipped_past_forbidden=skipped_past_forbidden,
+            bits_by_day=after,
+            version=new_version,
+            written_dates=changed_dates,
+            skipped_dates=skipped_dates,
+            past_written_dates=past_written_dates,
+        )
 
     def _enqueue_week_save_event(
         self,
@@ -263,7 +393,20 @@ class AvailabilityService(BaseService):
         self.repository.flush()
         week_end = week_start + timedelta(days=6)
         version = self.compute_week_version(instructor_id, week_start, week_end)
-        affected = {d.isoformat() for d in prepared.affected_dates}
+        affected_dates = list(prepared.affected_dates)
+        if settings.suppress_past_availability_events:
+            today = get_user_today_by_id(instructor_id, self.db)
+            affected_dates = [d for d in affected_dates if d >= today]
+        if not affected_dates:
+            logger.info(
+                "Skipping availability.week_saved event due to past-only edits",
+                extra={
+                    "instructor_id": instructor_id,
+                    "week_start": week_start.isoformat(),
+                },
+            )
+            return
+        affected = {d.isoformat() for d in affected_dates}
         if clear_existing and not affected:
             affected = {d.isoformat() for d in week_dates}
 

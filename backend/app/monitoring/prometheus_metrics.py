@@ -130,6 +130,13 @@ notifications_outbox_attempt_total = Counter(
     registry=REGISTRY,
 )
 
+availability_events_suppressed_total = Counter(
+    "instainstru_availability_events_suppressed_total",
+    "Total number of availability events suppressed prior to dispatch",
+    ["reason"],
+    registry=REGISTRY,
+)
+
 notifications_dispatch_seconds = Histogram(
     "instainstru_notifications_dispatch_seconds",
     "Notification provider dispatch duration in seconds",
@@ -197,6 +204,12 @@ class PrometheusMetrics:
     def track_http_request_end(method: str, endpoint: str) -> None:
         """Track the end of an HTTP request."""
         http_requests_in_progress.labels(method=method, endpoint=endpoint).dec()
+
+    @staticmethod
+    def record_availability_event_suppressed(reason: str) -> None:
+        """Increment counter when availability notifications are suppressed."""
+        availability_events_suppressed_total.labels(reason=reason).inc()
+        PrometheusMetrics._invalidate_cache()
 
     @staticmethod
     def record_service_operation(

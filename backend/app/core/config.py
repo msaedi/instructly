@@ -433,6 +433,23 @@ class Settings(BaseSettings):
         description="Cache TTL in seconds for public availability data",  # 5 minutes
     )
 
+    past_edit_window_days: int = Field(
+        default=0,
+        alias="PAST_EDIT_WINDOW_DAYS",
+        ge=0,
+        description="Maximum number of days in the past that bitmap edits will write; 0 = no limit",
+    )
+    clamp_copy_to_future: bool = Field(
+        default=False,
+        alias="CLAMP_COPY_TO_FUTURE",
+        description="Skip bitmap apply/copy writes for target dates before today",
+    )
+    suppress_past_availability_events: bool = Field(
+        default=False,
+        alias="SUPPRESS_PAST_AVAILABILITY_EVENTS",
+        description="When true, availability events with only past dates are suppressed",
+    )
+
     # Rate Limiting Configuration
     rate_limit_enabled: bool = Field(
         default=True, description="Enable rate limiting (disable for testing)"
@@ -708,6 +725,45 @@ class Settings(BaseSettings):
                 self.checkr_fake = True
             elif is_prod:
                 self.checkr_fake = False
+        return self
+
+    @model_validator(mode="after")
+    def _default_bitmap_guardrails(self) -> "Settings":
+        """Apply environment-based defaults for bitmap past-edit guardrails."""
+
+        fields_set = cast(Set[str], getattr(self, "model_fields_set", set()))
+        env = os.environ
+        normalized_mode, is_prod, is_non_prod = _classify_site_mode(env.get("SITE_MODE"))
+        guardrails_enabled = normalized_mode in {
+            "prod",
+            "production",
+            "beta",
+            "live",
+            "stg",
+            "stage",
+            "staging",
+        }
+        if (
+            not guardrails_enabled
+            and is_non_prod
+            and normalized_mode not in {"local", "dev", "development"}
+        ):
+            # Treat non-local staging-style modes (e.g., preview) as guardrail-enabled.
+            guardrails_enabled = normalized_mode not in {"int", "test"}
+
+        if "past_edit_window_days" not in fields_set and "PAST_EDIT_WINDOW_DAYS" not in env:
+            self.past_edit_window_days = 30 if guardrails_enabled else 0
+        self.past_edit_window_days = max(0, self.past_edit_window_days)
+
+        if "clamp_copy_to_future" not in fields_set and "CLAMP_COPY_TO_FUTURE" not in env:
+            self.clamp_copy_to_future = guardrails_enabled
+
+        if (
+            "suppress_past_availability_events" not in fields_set
+            and "SUPPRESS_PAST_AVAILABILITY_EVENTS" not in env
+        ):
+            self.suppress_past_availability_events = guardrails_enabled
+
         return self
 
     def refresh_sender_profiles(self, raw_json: str | None = None) -> None:

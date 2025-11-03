@@ -1,49 +1,77 @@
+"""Helpers for seeding bitmap availability in tests."""
+
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Sequence
+from typing import Dict, Iterable, List, Tuple
 
 from sqlalchemy.orm import Session
 
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-from app.utils.bitset import bits_from_windows
-
-WindowSeq = Sequence[tuple[str, str]]
+import app.utils.bitset as bitset  # type: ignore
 
 
-def seed_bits_for_range(
+def _resolve_windows_to_bits():
+    """Return a callable that packs windows into bitmap bytes."""
+    for name in ("windows_to_bits", "bits_from_windows", "pack_windows"):
+        fn = getattr(bitset, name, None)
+        if callable(fn):
+            return fn
+    raise RuntimeError("Could not locate a windows->bits helper in app.utils.bitset")
+
+
+_WINDOWS_TO_BITS = _resolve_windows_to_bits()
+
+
+def next_monday(day: date) -> date:
+    """Return the next Monday on/after *day*."""
+    return day + timedelta(days=(7 - day.weekday()) % 7)
+
+
+def seed_week_bits(
     session: Session,
-    instructor_id: str,
-    start_date: date,
     *,
-    weeks: int = 1,
-    windows: WindowSeq | None = None,
-) -> None:
-    """
-    Seed bitmap availability for an instructor across a contiguous range of weeks.
+    instructor_id: str,
+    week_start: date,
+    windows_by_weekday: Dict[int, Iterable[Tuple[str, str]]],
+    clear_existing: bool = False,
+) -> int:
+    """Seed bitmap availability rows for a single instructor week.
 
     Args:
-        session: Active database session.
-        instructor_id: Instructor identifier.
-        start_date: Monday date representing the first week to seed.
-        weeks: Number of consecutive weeks (default 1).
-        windows: Iterable of time window tuples (start_time, end_time) for each day.
-                 Defaults to a full-day 09:00-18:00 window.
+        session: active SQLAlchemy Session.
+        instructor_id: instructor ULID.
+        week_start: Monday date for the target week.
+        windows_by_weekday: mapping of weekday (0=Mon) to iterable of (start, end) tuples.
+        clear_existing: when True, days without windows are overwritten with empty bitsets.
+
+    Returns:
+        Number of day rows populated with non-empty windows.
     """
 
     repo = AvailabilityDayRepository(session)
-    daily_windows: WindowSeq = windows if windows is not None else [("09:00:00", "18:00:00")]
+    items: List[Tuple[date, bytes]] = []
+    days_written = 0
 
-    encoded_windows = bits_from_windows(list(daily_windows))
+    for weekday in range(7):
+        day_date = week_start + timedelta(days=weekday)
+        windows = list(windows_by_weekday.get(weekday, []))
+        if windows:
+            items.append((day_date, _WINDOWS_TO_BITS(windows)))
+            days_written += 1
+        elif clear_existing:
+            items.append((day_date, _WINDOWS_TO_BITS([])))
 
-    for week_index in range(max(weeks, 0)):
-        monday = start_date + timedelta(days=week_index * 7)
-        items: list[tuple[date, bytes]] = []
-        for offset in range(7):
-            day = monday + timedelta(days=offset)
-            items.append((day, encoded_windows))
+    if items:
         repo.upsert_week(instructor_id, items)
-    session.flush()
+        session.flush()
+        try:
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+    return days_written
 
 
-__all__ = ["seed_bits_for_range"]
+__all__ = ["next_monday", "seed_week_bits"]
