@@ -13,6 +13,8 @@ from app.models.service_catalog import (
     ServiceCategory,
 )
 
+DEFAULT_DURATIONS = {30, 60}
+
 
 def _ulid() -> str:
     """Generate a ULID string."""
@@ -77,6 +79,10 @@ def ensure_instructor_service_for_tests(
     catalog_fields = dict(extra_catalog_fields or {})
     service_fields = dict(extra_instructor_service_fields or {})
 
+    desired_durations = set(service_fields.get("duration_options", [])) | DEFAULT_DURATIONS
+    desired_durations.add(duration_minutes)
+    service_fields["duration_options"] = sorted(desired_durations)
+
     profile_id = _resolve_instructor_profile_id(
         session,
         instructor_profile_id=instructor_profile_id,
@@ -138,10 +144,9 @@ def ensure_instructor_service_for_tests(
     )
 
     if service:
-        if duration_minutes not in service.duration_options:
-            service.duration_options = sorted(
-                set(service.duration_options + [duration_minutes])
-            )
+        current_options = set(service.duration_options or [])
+        current_options |= desired_durations
+        service.duration_options = sorted(current_options)
         if "hourly_rate" not in service_fields:
             service.hourly_rate = hourly_rate
         if "is_active" not in service_fields:
@@ -150,7 +155,7 @@ def ensure_instructor_service_for_tests(
     else:
         service_kwargs = {
             "hourly_rate": hourly_rate,
-            "duration_options": [duration_minutes],
+            "duration_options": sorted(desired_durations),
             "is_active": is_active,
         }
         service_kwargs.update(service_fields)

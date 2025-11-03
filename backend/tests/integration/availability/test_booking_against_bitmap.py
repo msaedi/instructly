@@ -4,6 +4,10 @@ from datetime import date, timedelta
 from importlib import reload
 from types import SimpleNamespace
 
+try:  # pragma: no cover - support direct invocation
+    from backend.tests._utils import ensure_allowed_durations_for_instructor
+except ModuleNotFoundError:  # pragma: no cover
+    from tests._utils import ensure_allowed_durations_for_instructor
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
@@ -101,6 +105,12 @@ def test_bookings_respect_bitmap_availability_windows(
         .first()
     )
     assert service is not None, "Expected active instructor service"
+
+    ensure_allowed_durations_for_instructor(
+        db,
+        instructor_user_id=test_instructor.id,
+        durations=(30, 60),
+    )
 
     week_start = _next_monday(date.today())
     target_day = week_start + timedelta(days=2)

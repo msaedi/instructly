@@ -353,6 +353,12 @@ class Settings(BaseSettings):
             return False
         return self.metrics_basic_auth_user is not None and self.metrics_basic_auth_pass is not None
 
+    def env_bool(self, name: str, default: bool = False) -> bool:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
     @field_validator("metrics_ip_allowlist", mode="before")
     @classmethod
     def _parse_metrics_ip_allowlist(cls, value: object) -> list[str]:

@@ -34,8 +34,23 @@ try:
 except Exception:
     pass
 
+# Pre-set SITE_MODE before importing settings so banner selection matches target.
+if len(sys.argv) > 1:
+    candidate_mode = sys.argv[1].strip().lower()
+    if candidate_mode in {"int", "stg", "preview", "prod"}:
+        mapped_mode = {
+            "int": "int",
+            "stg": "stg",
+            "preview": "preview",
+            "prod": "prod",
+        }[candidate_mode]
+        os.environ.setdefault("SITE_MODE", "local" if mapped_mode == "stg" else mapped_mode)
+
 # Import settings after dotenv so local overrides take effect
+from scripts.seed_chat_fixture import seed_chat_fixture_booking
+
 from app.core.config import settings
+from app.database import SessionLocal
 from app.utils.env_logging import (
     log_info as color_log_info,
     log_warn as color_log_warn,
@@ -737,6 +752,38 @@ def run_seed_all_pipeline(
             pass
 
     pipeline_result["skip_reviews"] = skip_reviews
+
+    if not dry_run and include_mock_users:
+        default_seed_chat = settings.site_mode.lower() not in {"prod", "production", "beta", "live"}
+        if settings.env_bool("SEED_CHAT_FIXTURE", default_seed_chat):
+            try:
+                start_hour = int(os.getenv("CHAT_FIXTURE_START_HOUR", "19") or 19)
+                duration_minutes = int(os.getenv("CHAT_FIXTURE_DURATION_MINUTES", "60") or 60)
+                days_ahead_min = int(os.getenv("CHAT_FIXTURE_DAYS_AHEAD_MIN", "3") or 3)
+                days_ahead_max = int(os.getenv("CHAT_FIXTURE_DAYS_AHEAD_MAX", "10") or 10)
+            except ValueError:
+                warn("chat fixture config contains invalid integers; skipping fixture seeding")
+            else:
+                try:
+                    with SessionLocal() as session:
+                        seed_chat_fixture_booking(
+                            session,
+                            instructor_email=os.getenv(
+                                "CHAT_INSTRUCTOR_EMAIL", "sarah.chen@example.com"
+                            ),
+                            student_email=os.getenv(
+                                "CHAT_STUDENT_EMAIL", "emma.johnson@example.com"
+                            ),
+                            start_hour=start_hour,
+                            duration_minutes=duration_minutes,
+                            days_ahead_min=days_ahead_min,
+                            days_ahead_max=days_ahead_max,
+                            location=os.getenv("CHAT_FIXTURE_LOCATION", "neutral"),
+                            service_name=os.getenv("CHAT_FIXTURE_SERVICE_NAME", "Lesson"),
+                        )
+                except Exception as exc:  # pragma: no cover - best effort seeding
+                    warn(f"chat fixture booking failed: {exc}")
+
     return pipeline_result
 
 

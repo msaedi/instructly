@@ -3,6 +3,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+try:  # pragma: no cover - allow running from backend/ root
+    from backend.tests._utils import ensure_allowed_durations_for_instructor
+except ModuleNotFoundError:  # pragma: no cover
+    from tests._utils import ensure_allowed_durations_for_instructor
+
 from app.models.service_catalog import InstructorService as Service
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.booking import BookingCreate, BookingUpdate
@@ -27,6 +32,12 @@ async def test_booking_audit_flow(
     profile = test_instructor_with_availability.instructor_profile
     service = db.query(Service).filter(Service.instructor_profile_id == profile.id).first()
     assert service is not None
+
+    ensure_allowed_durations_for_instructor(
+        db,
+        instructor_user_id=test_instructor_with_availability.id,
+        durations=(30, 60),
+    )
 
     booking_day = date.today() + timedelta(days=3)
 

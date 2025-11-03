@@ -41,6 +41,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+_PRINTED_ENV_BANNERS: set[str] = set()
+
 DatabaseEnvironment = Literal["int", "stg", "prod"]
 
 
@@ -183,8 +185,9 @@ class DatabaseConfig:
         # If local dev environment detected, suggest STG
         if detected_env == "stg":
             logger.info(
-                "[Database] Local development detected. Consider setting USE_STG_DATABASE=true to use staging database."
+                "[Database] Local development detected. Using staging/local development database."
             )
+            return self._get_staging_url()
 
         # Default to INT database for safety
         return self._get_int_url()
@@ -309,8 +312,9 @@ class DatabaseConfig:
                 "INT database URL not configured. "
                 "Please set test_database_url in your .env file."
             )
-        if not os.getenv("SUPPRESS_DB_MESSAGES"):
+        if "int" not in _PRINTED_ENV_BANNERS and not os.getenv("SUPPRESS_DB_MESSAGES"):
             scripts_log_info("int", "Using Integration Test database (safe for drops/resets)")
+            _PRINTED_ENV_BANNERS.add("int")
         self._audit_log_operation(
             "database_selection", {"environment": "int", "url": self._mask_url(self.int_url)}
         )
@@ -322,7 +326,9 @@ class DatabaseConfig:
             raise ValueError(
                 "STG database URL not configured. " "Please set stg_database_url in your .env file."
             )
-        scripts_log_info("stg", "Using Staging/Local Dev database (preserves data)")
+        if "stg" not in _PRINTED_ENV_BANNERS:
+            scripts_log_info("stg", "Using Staging/Local Dev database (preserves data)")
+            _PRINTED_ENV_BANNERS.add("stg")
         self._audit_log_operation(
             "database_selection", {"environment": "stg", "url": self._mask_url(self.stg_url)}
         )
@@ -334,7 +340,9 @@ class DatabaseConfig:
             raise ValueError(
                 "Preview database URL not configured. Please set preview_database_url in your environment."
             )
-        scripts_log_info("preview", "Using Preview database")
+        if "preview" not in _PRINTED_ENV_BANNERS:
+            scripts_log_info("preview", "Using Preview database")
+            _PRINTED_ENV_BANNERS.add("preview")
         self._audit_log_operation(
             "database_selection",
             {"environment": "preview", "url": self._mask_url(self.preview_url)},
