@@ -49,7 +49,7 @@ export function getApiUrl(): string {
  * ```
  */
 export const fetchWithAuth = async (endpoint: string, options: FetchWithAuthOptions = {}) => {
-  const { noCache = true, ...requestInit } = options;
+  const { noCache = true, cache: cacheOption, ...requestInit } = options;
   const method = requestInit.method || 'GET';
 
   // Log the API call
@@ -68,13 +68,20 @@ export const fetchWithAuth = async (endpoint: string, options: FetchWithAuthOpti
       baseHeaders['Cache-Control'] = 'no-cache';
       baseHeaders['Pragma'] = 'no-cache';
     }
-    const response = await fetch(url, {
+    const fetchOptions: RequestInit = {
       ...requestInit,
       // Always include credentials to support cookie-based sessions across all endpoints
       credentials: 'include',
-      cache: noCache ? 'no-store' : requestInit.cache,
       headers: baseHeaders,
-    });
+    };
+
+    if (noCache) {
+      fetchOptions.cache = 'no-store';
+    } else if (cacheOption !== undefined) {
+      fetchOptions.cache = cacheOption;
+    }
+
+    const response = await fetch(url, fetchOptions);
 
     // Log response details
     logger.timeEnd(timerLabel);
