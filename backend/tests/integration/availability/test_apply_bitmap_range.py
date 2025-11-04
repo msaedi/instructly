@@ -98,10 +98,12 @@ def test_apply_bitmap_pattern_across_weeks(
     )
     assert resp.status_code == 200
     body = resp.json()
+    assert body["message"].startswith("Copied bitmap availability to ")
     assert body["weeks_applied"] == weeks_to_apply
     assert body.get("weeks_affected", 0) >= 1
     assert body.get("days_written", 0) > 0
     assert body.get("windows_created", 0) > 0
+    assert body.get("edited_dates")
 
     for week_index in range(weeks_to_apply):
         target_monday = target_start + timedelta(days=7 * week_index)
@@ -167,6 +169,8 @@ def test_apply_bitmap_pattern_no_source_bits(
     body = resp.json()
     assert body.get("windows_created", 0) == 0
     assert body.get("days_written", 0) == 0
+    assert body.get("message") == "Source week has no availability bits; nothing applied."
+    assert body.get("edited_dates", []) == []
 
     for offset in range(0, (target_end - target_start).days + 1, 7):
         target_monday = target_start + timedelta(days=offset)

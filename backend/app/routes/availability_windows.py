@@ -337,10 +337,13 @@ async def save_week_availability(
                 message="Saved weekly availability",
                 week_start=monday,
                 week_end=week_end,
-                windows_created=save_result.rows_written,
+                windows_created=save_result.windows_created,
                 windows_updated=0,
                 windows_deleted=0,
                 days_written=save_result.days_written,
+                weeks_affected=save_result.weeks_affected,
+                edited_dates=save_result.edited_dates,
+                skipped_dates=[d.isoformat() for d in save_result.skipped_dates],
                 skipped_past_window=save_result.skipped_past_window,
                 version=new_version,
                 week_version=new_version,
@@ -437,6 +440,7 @@ async def apply_to_date_range(
         weeks_affected_raw = result.get("weeks_affected", 0)
         days_written_raw = result.get("days_written", windows_created_raw)
         skipped_past_targets_raw = result.get("skipped_past_targets", 0)
+        edited_dates_raw = result.get("edited_dates", [])
 
         def _coerce_int(value: Any, fallback: int = 0) -> int:
             try:
@@ -449,6 +453,7 @@ async def apply_to_date_range(
         weeks_affected = _coerce_int(weeks_affected_raw, 0)
         days_written = _coerce_int(days_written_raw, windows_created)
         skipped_past_targets = _coerce_int(skipped_past_targets_raw, 0)
+        edited_dates = [str(item) for item in edited_dates_raw] if edited_dates_raw else []
 
         return ApplyToDateRangeResponse(
             message=str(result.get("message", "")),
@@ -459,6 +464,7 @@ async def apply_to_date_range(
             weeks_affected=weeks_affected,
             days_written=days_written,
             skipped_past_targets=skipped_past_targets,
+            edited_dates=edited_dates,
         )
     except DomainException as e:
         raise e.to_http_exception()

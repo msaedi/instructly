@@ -450,6 +450,16 @@ class Settings(BaseSettings):
         alias="CLAMP_COPY_TO_FUTURE",
         description="Skip bitmap apply/copy writes for target dates before today",
     )
+    feature_disable_slot_writes: bool = Field(
+        default=True,
+        alias="FEATURE_DISABLE_SLOT_WRITES",
+        description="When true, legacy availability_slots writes are disabled",
+    )
+    seed_disable_slots: bool = Field(
+        default=True,
+        alias="SEED_DISABLE_SLOTS",
+        description="When true, seed scripts skip inserting availability_slots rows",
+    )
     suppress_past_availability_events: bool = Field(
         default=False,
         alias="SUPPRESS_PAST_AVAILABILITY_EVENTS",

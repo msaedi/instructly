@@ -32,7 +32,7 @@ from ..core.timezone_utils import get_user_today_by_id
 from ..models.audit_log import AuditLog
 from ..monitoring.availability_perf import COPY_WEEK_ENDPOINT, availability_perf_span
 from ..repositories.factory import RepositoryFactory
-from ..utils.bitset import new_empty_bits
+from ..utils.bitset import new_empty_bits, windows_from_bits
 from ..utils.time_helpers import string_to_time
 from .audit_redaction import redact
 from .base import BaseService
@@ -860,17 +860,17 @@ class WeekOperationService(BaseService):
         empty_bits = new_empty_bits()
         affected_weeks_sorted = sorted(self._get_affected_weeks(start_date, end_date))
         weeks_applied = len(affected_weeks_sorted)
-        raw_source_bits = self.availability_service.get_week_bits(instructor_id, from_week_start)
 
-        src_bits_by_weekday: Dict[int, bytes] = {}
-        weekday_has_bits: Dict[int, bool] = {}
+        source_bits_map = self.availability_service.get_week_bits(
+            instructor_id, from_week_start, use_cache=False
+        )
+        source_monday = from_week_start - timedelta(days=from_week_start.weekday())
+        source_bits_by_weekday: Dict[int, bytes] = {}
         for offset in range(7):
-            day = from_week_start + timedelta(days=offset)
-            bits = raw_source_bits.get(day, empty_bits)
-            src_bits_by_weekday[offset] = bits
-            weekday_has_bits[offset] = bits != empty_bits
+            src_day = source_monday + timedelta(days=offset)
+            source_bits_by_weekday[offset] = source_bits_map.get(src_day, empty_bits)
 
-        if not any(weekday_has_bits.values()):
+        if not any(bits != empty_bits for bits in source_bits_by_weekday.values()):
             self.logger.info(
                 "apply_pattern_to_date_range(bitmap): source week has no availability bits",
                 extra={
@@ -890,120 +890,75 @@ class WeekOperationService(BaseService):
                 "days_written": 0,
                 "slots_created": 0,
                 "skipped_past_targets": 0,
+                "edited_dates": [],
             }
 
-        repo = self.availability_service._bitmap_repo()
         instructor_today = get_user_today_by_id(instructor_id, self.db)
         clamp_to_future = settings.clamp_copy_to_future
-        days_written = 0
+        total_days_written = 0
+        total_weeks_affected = 0
+        total_windows_created = 0
         skipped_past_targets = 0
-        weeks_affected_set: Set[date] = set()
-        weeks_changed_for_cache: Set[date] = set()
-        audit_changes: List[Tuple[date, dict[str, Any], dict[str, Any]]] = []
+        edited_dates: Set[str] = set()
 
-        with self.transaction():
-            for week_start in affected_weeks_sorted:
-                existing_week = self.availability_service.get_week_bits(instructor_id, week_start)
-                week_items: List[Tuple[date, bytes]] = []
-                week_changed = False
-                week_written_dates: List[date] = []
-                week_skipped_dates: List[date] = []
-                week_past_written = False
-                for offset in range(7):
-                    target_day = week_start + timedelta(days=offset)
-                    if not (start_date <= target_day <= end_date):
-                        continue
+        for week_start in affected_weeks_sorted:
+            existing_bits = self.availability_service.get_week_bits(
+                instructor_id, week_start, use_cache=False
+            )
+            windows_by_day: Dict[date, List[Tuple[str, str]]] = {}
+            week_has_changes = False
 
-                    weekday_index = target_day.weekday()
-                    source_has_bits = weekday_has_bits.get(weekday_index, False)
-                    new_bits = src_bits_by_weekday.get(weekday_index, empty_bits)
-                    current_bits = existing_week.get(target_day, empty_bits)
+            for offset in range(7):
+                target_day = week_start + timedelta(days=offset)
+                previous_bits = existing_bits.get(target_day, empty_bits)
+                previous_windows = windows_from_bits(previous_bits)
 
-                    if clamp_to_future and target_day < instructor_today:
+                if not (start_date <= target_day <= end_date):
+                    windows_by_day[target_day] = list(previous_windows)
+                    continue
+
+                source_bits = source_bits_by_weekday.get(offset, empty_bits)
+                source_windows = windows_from_bits(source_bits)
+
+                if clamp_to_future and target_day < instructor_today:
+                    if source_bits != previous_bits:
                         skipped_past_targets += 1
-                        if current_bits != new_bits:
-                            week_skipped_dates.append(target_day)
-                        continue
+                    windows_by_day[target_day] = list(previous_windows)
+                    continue
 
-                    if not source_has_bits and current_bits == empty_bits:
-                        continue
-                    if clamp_to_future and target_day < instructor_today:
-                        continue
+                windows_by_day[target_day] = list(source_windows)
+                if source_bits != previous_bits:
+                    week_has_changes = True
 
-                    if new_bits == current_bits:
-                        continue
+            if not week_has_changes:
+                continue
 
-                    week_changed = True
-                    week_items.append((target_day, new_bits))
-                    week_written_dates.append(target_day)
-                    if target_day < instructor_today:
-                        week_past_written = True
+            save_result = self.availability_service.save_week_bits(
+                instructor_id=instructor_id,
+                week_start=week_start,
+                windows_by_day=windows_by_day,
+                base_version=None,
+                override=True,
+                clear_existing=True,
+                actor=actor,
+            )
 
-                if week_items:
-                    before_payload: dict[str, Any] | None = None
-                    if week_changed:
-                        before_payload = self._build_copy_audit_payload(
-                            instructor_id,
-                            week_start,
-                            source_week_start=from_week_start,
-                            created=0,
-                            deleted=0,
-                        )
-                    repo.upsert_week(instructor_id, week_items)
-                    if week_written_dates:
-                        weeks_affected_set.add(week_start)
-                        days_written += len(week_written_dates)
-                    if week_changed:
-                        weeks_changed_for_cache.add(week_start)
-                        after_payload = self._build_copy_audit_payload(
-                            instructor_id,
-                            week_start,
-                            source_week_start=from_week_start,
-                            created=len(week_written_dates),
-                            deleted=0,
-                            historical_copy=week_past_written or bool(week_skipped_dates),
-                            skipped_dates=week_skipped_dates,
-                            written_dates=week_written_dates,
-                        )
-                        if before_payload is not None:
-                            audit_changes.append((week_start, before_payload, after_payload))
+            total_days_written += save_result.days_written
+            total_weeks_affected += save_result.weeks_affected
+            total_windows_created += save_result.windows_created
+            skipped_past_targets += (
+                save_result.skipped_past_window + save_result.skipped_past_forbidden
+            )
+            edited_dates.update(save_result.edited_dates)
 
-        self.db.expire_all()
-
-        weeks_affected = len(weeks_affected_set)
-
-        if self.cache_service and weeks_changed_for_cache:
-            await self._warm_cache_for_affected_weeks(instructor_id, start_date, end_date)
-
-        if audit_changes and AUDIT_ENABLED:
-            for week_start, before_payload, after_payload in audit_changes:
-                try:
-                    self._write_copy_audit(
-                        instructor_id,
-                        week_start,
-                        actor=actor,
-                        before=before_payload,
-                        after=after_payload,
-                    )
-                except Exception as audit_err:
-                    self.logger.warning(
-                        "Audit write failed in bitmap apply_pattern",
-                        extra={
-                            "instructor_id": instructor_id,
-                            "source_week_start": from_week_start.isoformat(),
-                            "week_start": week_start.isoformat(),
-                            "error": str(audit_err),
-                        },
-                    )
-
-        if days_written > 0:
+        if total_days_written > 0:
             if skipped_past_targets:
                 message = (
-                    f"Copied bitmap availability to {days_written} day(s) across {weeks_affected} week(s); "
+                    f"Copied bitmap availability to {total_days_written} day(s) across {total_weeks_affected} week(s); "
                     f"skipped {skipped_past_targets} past day(s)."
                 )
             else:
-                message = f"Copied bitmap availability to {days_written} day(s) across {weeks_affected} week(s)."
+                message = f"Copied bitmap availability to {total_days_written} day(s) across {total_weeks_affected} week(s)."
         else:
             if skipped_past_targets:
                 message = f"Bitmap availability already up to date; skipped {skipped_past_targets} past day(s)."
@@ -1015,11 +970,12 @@ class WeekOperationService(BaseService):
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "weeks_applied": weeks_applied,
-            "weeks_affected": weeks_affected,
-            "days_written": days_written,
-            "slots_created": days_written,
-            "windows_created": days_written,
+            "weeks_affected": total_weeks_affected,
+            "days_written": total_days_written,
+            "windows_created": total_windows_created,
             "skipped_past_targets": skipped_past_targets,
+            "edited_dates": sorted(edited_dates),
+            "slots_created": total_windows_created,
         }
 
     def _extract_week_pattern_from_source(

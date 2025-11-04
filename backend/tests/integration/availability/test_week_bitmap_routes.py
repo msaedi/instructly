@@ -140,8 +140,13 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
     first_version = resp.headers.get("ETag")
     assert first_version
     payload = resp.json()
-    assert payload["windows_created"] == 7
+    assert payload["windows_created"] == len(body["schedule"])
     assert payload["days_written"] == 2
+    assert payload.get("weeks_affected") == 1
+    assert set(payload.get("edited_dates", [])) == {
+        week_start.isoformat(),
+        (week_start + timedelta(days=2)).isoformat(),
+    }
     assert payload["skipped_past_window"] == 0
 
     intermediate_body = {

@@ -21,6 +21,9 @@ class WeekAvailabilityUpdateResponse(StrictModel):
     windows_updated: int
     windows_deleted: int
     days_written: int = 0
+    weeks_affected: int = 0
+    edited_dates: List[str] = Field(default_factory=list)
+    skipped_dates: List[str] = Field(default_factory=list)
     skipped_past_window: int = 0
     version: str | None = None
     week_version: str | None = None
@@ -48,6 +51,7 @@ class ApplyToDateRangeResponse(StrictModel):
     weeks_affected: int
     days_written: int
     skipped_past_targets: int = 0
+    edited_dates: List[str] = Field(default_factory=list)
 
 
 class DeleteWindowResponse(StrictModel):

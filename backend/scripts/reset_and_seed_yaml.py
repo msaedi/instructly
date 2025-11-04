@@ -18,13 +18,13 @@ from decimal import Decimal
 import json
 import os
 import random
-from typing import Any, Sequence
+from typing import Any, Dict, Sequence, Tuple
 
 # Add the scripts directory to Python path so imports work from anywhere
 sys.path.insert(0, str(Path(__file__).parent))
 
 from seed_catalog_only import seed_catalog
-from seed_utils import create_review_booking_pg_safe
+from seed_utils import create_review_booking_pg_safe, find_free_slot_in_bitmap
 from seed_yaml_loader import SeedDataLoader
 from sqlalchemy import create_engine, func, text
 from sqlalchemy.orm import Session
@@ -33,7 +33,6 @@ import ulid
 from app.auth import get_password_hash
 from app.core.config import settings
 from app.core.enums import RoleName
-from app.models.availability import AvailabilitySlot
 from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import BGCConsent, InstructorProfile
@@ -43,7 +42,9 @@ from app.models.review import Review, ReviewStatus
 from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.models.user import User
 from app.repositories.address_repository import InstructorServiceAreaRepository
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
+from app.utils.bitset import bits_from_windows, new_empty_bits
 
 
 class DatabaseSeeder:
@@ -725,21 +726,28 @@ class DatabaseSeeder:
                 # Create availability for the next N weeks
                 # Generate slots for past weeks (if configured), current week, and future weeks
                 for week_offset in range(-weeks_past, weeks_future + 1):
+                    week_start_date = self._get_week_start_for_offset(week_offset)
+                    day_windows: Dict[date, list[Tuple[str, str]]] = {}
+
                     for day_name, time_slots in days_data.items():
-                        # Calculate the date for this day
                         target_date = self._get_date_for_day(day_name, week_offset)
+                        normalized_slots: list[Tuple[str, str]] = []
+                        for start_str, end_str in time_slots:
+                            start_formatted = f"{start_str}:00" if len(start_str) == 5 else start_str
+                            end_formatted = f"{end_str}:00" if len(end_str) == 5 else end_str
+                            normalized_slots.append((start_formatted, end_formatted))
+                        if normalized_slots:
+                            day_windows.setdefault(target_date, []).extend(normalized_slots)
 
-                        for time_range in time_slots:
-                            start_time = time(*[int(x) for x in time_range[0].split(":")])
-                            end_time = time(*[int(x) for x in time_range[1].split(":")])
+                    repo = AvailabilityDayRepository(session)
+                    items: list[Tuple[date, bytes]] = []
+                    for offset in range(7):
+                        day_date = week_start_date + timedelta(days=offset)
+                        windows = day_windows.get(day_date, [])
+                        bits = bits_from_windows(windows) if windows else new_empty_bits()
+                        items.append((day_date, bits))
 
-                            slot = AvailabilitySlot(
-                                instructor_id=user_id,
-                                specific_date=target_date,
-                                start_time=start_time,
-                                end_time=end_time,
-                            )
-                            session.add(slot)
+                    repo.upsert_week(user_id, items)
 
                 session.commit()
                 print(
@@ -748,14 +756,17 @@ class DatabaseSeeder:
 
         print("✅ Created availability patterns for all instructors")
 
+    def _get_week_start_for_offset(self, week_offset: int) -> date:
+        today = date.today()
+        start_of_week = today - timedelta(days=today.weekday())
+        return start_of_week + timedelta(weeks=week_offset)
+
     def _get_date_for_day(self, day_name: str, week_offset: int) -> date:
         """Return the calendar date for a given day name within the week offset."""
         days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
         day_index = days.index(day_name.lower())
 
-        today = date.today()
-        start_of_week = today - timedelta(days=today.weekday())  # Monday of the current week
-        target_week_start = start_of_week + timedelta(weeks=week_offset)
+        target_week_start = self._get_week_start_for_offset(week_offset)
         return target_week_start + timedelta(days=day_index)
 
     def _day_name_to_number(self, day_name):
@@ -897,86 +908,29 @@ class DatabaseSeeder:
                     # Pick a random duration from the service's options
                     duration = random.choice(service.duration_options)
 
-                    # Find an available slot in the next week
-                    slots = (
-                        session.query(AvailabilitySlot)
-                        .filter(
-                            AvailabilitySlot.instructor_id == instructor_id,
-                            AvailabilitySlot.specific_date >= date.today(),
-                            AvailabilitySlot.specific_date <= date.today() + timedelta(days=booking_days_future),
-                        )
-                        .all()
+                    candidate, _ = find_free_slot_in_bitmap(
+                        session,
+                        instructor_id=instructor_id,
+                        student_id=student.id,
+                        base_date=date.today(),
+                        horizon_days=booking_days_future,
+                        durations_minutes=[duration],
                     )
 
-                    if not slots:
+                    if not candidate:
                         continue
 
-                    # Pick a random slot
-                    slot = random.choice(slots)
+                    booking_date, start_time, end_time = candidate
 
-                    # Calculate end time based on duration
-                    start_datetime = datetime.combine(slot.specific_date, slot.start_time)
-                    end_datetime = start_datetime + timedelta(minutes=duration)
-
-                    # Make sure booking doesn't exceed slot end time
-                    if end_datetime.time() > slot.end_time:
-                        continue
-
-                    # Check if this time is already booked for instructor
-                    existing = (
-                        session.query(Booking)
-                        .filter(
-                            Booking.instructor_id == instructor_id,
-                            Booking.booking_date == slot.specific_date,
-                            Booking.start_time < end_datetime.time(),
-                            Booking.end_time > slot.start_time,
-                            Booking.status.in_(
-                                [
-                                    BookingStatus.PENDING,
-                                    BookingStatus.CONFIRMED,
-                                    BookingStatus.COMPLETED,
-                                ]
-                            ),
-                        )
-                        .first()
-                    )
-
-                    if existing:
-                        continue
-
-                    # Prevent the student from having overlapping bookings
-                    student_conflict = (
-                        session.query(Booking)
-                        .filter(
-                            Booking.student_id == student.id,
-                            Booking.booking_date == slot.specific_date,
-                            Booking.start_time < end_datetime.time(),
-                            Booking.end_time > slot.start_time,
-                            Booking.status.in_(
-                                [
-                                    BookingStatus.PENDING,
-                                    BookingStatus.CONFIRMED,
-                                    BookingStatus.COMPLETED,
-                                ]
-                            ),
-                        )
-                        .first()
-                    )
-
-                    if student_conflict:
-                        continue
-
-                    # Get service details from catalog
                     catalog_service = session.query(ServiceCatalog).filter_by(id=service.service_catalog_id).first()
 
-                    # Create booking
                     booking = Booking(
                         student_id=student.id,
                         instructor_id=instructor_id,
                         instructor_service_id=service.id,
-                        booking_date=slot.specific_date,
-                        start_time=slot.start_time,
-                        end_time=end_datetime.time(),
+                        booking_date=booking_date,
+                        start_time=start_time,
+                        end_time=end_time,
                         duration_minutes=duration,
                         service_name=catalog_service.name if catalog_service else "Service",
                         hourly_rate=service.hourly_rate,
