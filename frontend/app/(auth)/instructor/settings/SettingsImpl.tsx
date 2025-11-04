@@ -11,6 +11,7 @@ import TfaModal from '@/components/security/TfaModal';
 import ChangePasswordModal from '@/components/security/ChangePasswordModal';
 import DeleteAccountModal from '@/components/security/DeleteAccountModal';
 import PauseAccountModal from '@/components/security/PauseAccountModal';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 
 const RewardsPanel = dynamic(() => import('@/features/referrals/RewardsPanel'), { ssr: false });
 
@@ -180,22 +181,12 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       )}
 
       <div className={embedded ? 'px-0 lg:px-0 py-0' : 'container mx-auto px-8 lg:px-32 py-8 max-w-6xl'}>
-        {!embedded && (
-          <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Gift className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Settings</h1>
-                  <p className="text-sm text-gray-600">Manage your account and preferences</p>
-                </div>
-              </div>
-              <span className="hidden sm:inline" />
-            </div>
-          </div>
-        )}
+        <SectionHeroCard
+          id={embedded ? 'account-first-card' : undefined}
+          icon={Settings}
+          title="Account settings"
+          subtitle="Manage your personal details, security options, and platform preferences from one place."
+        />
 
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           {embedded ? (

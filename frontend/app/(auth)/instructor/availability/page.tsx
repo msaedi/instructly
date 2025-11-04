@@ -21,6 +21,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 
 
 function AvailabilityPageImpl() {
@@ -178,21 +179,14 @@ function AvailabilityPageImpl() {
             </Link>
           </div>
         )}
-        {!embedded && (
-          <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-[#7E22CE]" />
-              </div>
-              <div>
-                <h2 className="text-3xl font-bold text-gray-600 mb-2">Set Availability</h2>
-                <p className="text-gray-600">Set the times you’re available to teach.</p>
-              </div>
-            </div>
-          </div>
-        )}
+        <SectionHeroCard
+          id={embedded ? 'availability-first-card' : undefined}
+          icon={Calendar}
+          title="Availability"
+          subtitle="Map out the days and hours you’re available so students can book the right times."
+        />
 
-        <div id={embedded ? 'availability-first-card' : undefined} className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
         {header}
 
       {/* Tip below the week navigator */}

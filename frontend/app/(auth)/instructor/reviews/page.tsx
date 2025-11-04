@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ArrowLeft, ChevronDown, Star } from 'lucide-react';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
@@ -57,26 +58,20 @@ function ReviewsPageImpl() {
             </Link>
           </div>
         )}
-        {/* Title card hidden when embedded; Ratings card is first anchor */}
-        {!embedded && (
-        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Star className="w-6 h-6 text-[#7E22CE]" />
-              </div>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Reviews</h1>
-                <p className="text-sm text-gray-600">Student ratings and feedback</p>
-              </div>
-            </div>
-            <Link href="/instructor/dashboard" className="text-[#7E22CE] sm:hidden">Dashboard</Link>
-          </div>
-        </div>
-        )}
+        <SectionHeroCard
+          id={embedded ? 'reviews-first-card' : undefined}
+          icon={Star}
+          title="Reviews"
+          subtitle="See what students are saying and keep an eye on your ratings."
+          actions={!embedded ? (
+            <Link href="/instructor/dashboard" className="text-[#7E22CE] sm:hidden">
+              Dashboard
+            </Link>
+          ) : undefined}
+        />
 
         {/* Ratings summary */}
-        <div id={embedded ? 'reviews-first-card' : undefined} className="bg-white rounded-lg p-6 border border-gray-200">
+        <div className="bg-white rounded-lg p-6 border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-900">0 Reviews</h2>
             <span className="text-gray-900 font-semibold">0</span>

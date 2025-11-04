@@ -5,7 +5,8 @@ import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, Info } from 'lucide-react';
+import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, Info, ShieldCheck, CreditCard } from 'lucide-react';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
@@ -154,6 +155,8 @@ function ProfilePageImpl() {
   const inFlightServiceAreasRef = useRef(false);
   const [savingServiceAreas, setSavingServiceAreas] = useState(false);
   const [hasProfilePicture, setHasProfilePicture] = useState<boolean>(false);
+  const [openIdentity, setOpenIdentity] = useState(false);
+  const [openPayments, setOpenPayments] = useState(false);
   const [openPersonal, setOpenPersonal] = useState(false);
   const [openDetails, setOpenDetails] = useState(false);
   const [openServiceAreas, setOpenServiceAreas] = useState(false);
@@ -759,6 +762,13 @@ function ProfilePageImpl() {
           </>
         )}
 
+      <SectionHeroCard
+        id={embedded ? 'profile-first-card' : undefined}
+        icon={UserIcon}
+        title="Instructor profile"
+        subtitle="Update your story, teaching services, and booking preferences so students know what to expect."
+      />
+
       {error && (
         <div className="mb-6 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3">{error}</div>
       )}
@@ -767,19 +777,22 @@ function ProfilePageImpl() {
       {/* Mobile: stacked white sections with mobile-only dividers; Desktop: spaced cards */}
       <div className={embedded ? 'mt-0 sm:mt-0 sm:space-y-6' : 'mt-0 sm:mt-6 sm:space-y-6'}>
         {/* Personal Information Section */}
-        <div id={embedded ? 'profile-first-card' : undefined} className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+        <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
             <button
               type="button"
               className="w-full flex items-center justify-between mb-4 text-left"
               onClick={() => setOpenPersonal((v) => !v)}
               aria-expanded={openPersonal}
             >
-              <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <UserIcon className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <span>Personal Information</span>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <UserIcon className="w-6 h-6 text-[#7E22CE]" />
               </div>
+              <div className="flex flex-col text-left">
+                <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Personal Information</span>
+                <span className="text-sm text-gray-500">Basic details that appear on your profile and booking receipts.</span>
+              </div>
+            </div>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPersonal ? 'rotate-180' : ''}`} />
             </button>
             {openPersonal && (
@@ -841,11 +854,14 @@ function ProfilePageImpl() {
             onClick={() => setOpenDetails((v) => !v)}
             aria-expanded={openDetails}
           >
-            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
+            <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <BookOpen className="w-6 h-6 text-[#7E22CE]" />
               </div>
-              <span>Profile Details</span>
+              <div className="flex flex-col text-left">
+                <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Profile Details</span>
+                <span className="text-sm text-gray-500">Tell students about your experience, style, and teaching approach.</span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openDetails ? 'rotate-180' : ''}`} />
@@ -964,11 +980,14 @@ function ProfilePageImpl() {
             onClick={() => setOpenServiceAreas((v) => !v)}
             aria-expanded={openServiceAreas}
           >
-            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
+            <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <MapPin className="w-6 h-6 text-[#7E22CE]" />
               </div>
-              <span>Service Areas</span>
+              <div className="flex flex-col text-left">
+                <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Service Areas</span>
+                <span className="text-sm text-gray-500">Select the neighborhoods where you’re available for lessons.</span>
+              </div>
             </div>
             <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openServiceAreas ? 'rotate-180' : ''}`} />
           </button>
@@ -1267,11 +1286,14 @@ function ProfilePageImpl() {
             onClick={() => setOpenSkills((v) => !v)}
             aria-expanded={openSkills}
           >
-            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
+            <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <BookOpen className="w-6 h-6 text-[#7E22CE]" />
               </div>
-              <span>Skills & Pricing</span>
+              <div className="flex flex-col text-left">
+                <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Skills & Pricing</span>
+                <span className="text-sm text-gray-500">Manage the subjects you teach, durations, and rates students see.</span>
+              </div>
             </div>
             <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openSkills ? 'rotate-180' : ''}`} />
           </button>
@@ -1293,11 +1315,14 @@ function ProfilePageImpl() {
             onClick={() => setOpenPreferences((v) => !v)}
             aria-expanded={openPreferences}
           >
-            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
+            <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <SettingsIcon className="w-6 h-6 text-[#7E22CE]" />
               </div>
-              <span>Booking Preferences</span>
+              <div className="flex flex-col text-left">
+                <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Booking Preferences</span>
+                <span className="text-sm text-gray-500">Fine-tune lead time, buffers, and other scheduling requirements.</span>
+              </div>
             </div>
             <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
           </button>
@@ -1373,6 +1398,78 @@ function ProfilePageImpl() {
           </>
           )}
         </div>
+        {embedded && (
+          <>
+            <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+            <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between mb-4 text-left"
+                onClick={() => setOpenIdentity((v) => !v)}
+                aria-expanded={openIdentity}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <ShieldCheck className="w-6 h-6 text-[#7E22CE]" />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Verify identity</span>
+                    <span className="text-sm text-gray-500">Secure your account with a fast Stripe identity check.</span>
+                  </div>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openIdentity ? 'rotate-180' : ''}`} />
+              </button>
+              {openIdentity && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Complete a quick identity check so students can trust who they are booking. We use a secure Stripe flow to verify your government ID.
+                  </p>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-sm font-medium text-white transition-colors hover:bg-[#6b1cb9]"
+                    onClick={() => router.push('/instructor/onboarding/verification')}
+                  >
+                    Start verification
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+            <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between mb-4 text-left"
+                onClick={() => setOpenPayments((v) => !v)}
+                aria-expanded={openPayments}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <CreditCard className="w-6 h-6 text-[#7E22CE]" />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Payment setup</span>
+                    <span className="text-sm text-gray-500">Link Stripe payouts so completed lessons are paid automatically.</span>
+                  </div>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPayments ? 'rotate-180' : ''}`} />
+              </button>
+              {openPayments && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Connect Stripe payouts so you can receive earnings without delay. Confirm your tax information and bank details to enable transfers.
+                  </p>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center h-10 px-4 rounded-lg border border-purple-200 bg-white text-sm font-medium text-[#7E22CE] transition-colors hover:bg-purple-50"
+                    onClick={() => router.push('/instructor/onboarding/payment-setup')}
+                  >
+                    Open payment setup
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Inline actions - standalone save */}
         <div className="flex items-center justify-end gap-3 pt-2">

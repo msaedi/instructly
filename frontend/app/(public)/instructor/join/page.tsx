@@ -104,6 +104,11 @@ function JoinInner() {
               {submitting ? 'Validating…' : 'Join!'}
             </button>
           </form>
+          <p className="mt-4 text-xs text-gray-500 text-center">
+            By clicking below and creating an account, I agree to iNSTAiNSTRU&apos;s{' '}
+            <a href="/legal#terms" className="text-[#7E22CE] hover:underline">Terms of Service</a> and{' '}
+            <a href="/legal#privacy" className="text-[#7E22CE] hover:underline">Privacy Policy</a>.
+          </p>
           <p className="mt-6 text-xs text-gray-500 text-center">
             <span className="block">Don’t have a code? We’re handpicking our founding instructors. Request to join our Profile Clinic.</span>
             <span className="block h-2" aria-hidden="true"></span>

@@ -1,12 +1,23 @@
 // frontend/app/(auth)/instructor/dashboard/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  type ReactNode,
+  type ComponentType,
+  type SVGProps,
+  type RefObject,
+  type MutableRefObject,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Modal from '@/components/Modal';
-import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Bell, Menu, X } from 'lucide-react';
+import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Bell, Menu, X, ChevronDown } from 'lucide-react';
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 import { getCurrentWeekRange } from '@/types/common';
 import { protectedApi } from '@/features/shared/api/client';
@@ -19,21 +30,85 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { normalizeInstructorServices } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { httpPut } from '@/features/shared/api/http';
+import { messageService } from '@/services/messageService';
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
 type PreferredPublicSpace = { address: string };
 type DashboardPanel = 'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability' | 'account';
 
-const MOBILE_NAV_ITEMS: Array<{ key: DashboardPanel; label: string }> = [
+const MOBILE_NAV_PRIMARY: Array<{ key: DashboardPanel; label: string }> = [
   { key: 'dashboard', label: 'Dashboard' },
-  { key: 'account', label: 'Account' },
-  { key: 'profile', label: 'Profile' },
   { key: 'bookings', label: 'Bookings' },
-  { key: 'earnings', label: 'Earnings' },
-  { key: 'reviews', label: 'Reviews' },
   { key: 'availability', label: 'Availability' },
 ];
+
+const MOBILE_NAV_SECONDARY: Array<{ key: DashboardPanel; label: string }> = [
+  { key: 'profile', label: 'Profile' },
+  { key: 'earnings', label: 'Earnings' },
+  { key: 'reviews', label: 'Reviews' },
+  { key: 'account', label: 'Account' },
+];
+
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
+function DashboardPopover({
+  icon: Icon,
+  label,
+  isOpen,
+  onToggle,
+  children,
+  containerRef,
+  badgeCount,
+}: {
+  icon: IconComponent;
+  label: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+  /**
+   * DOM ref used for positioning/portals. Nullable by design because refs are null until after mount.
+   * Accepts both object and mutable refs.
+   */
+  containerRef?: RefObject<HTMLDivElement> | MutableRefObject<HTMLDivElement | null>;
+  badgeCount?: number;
+}) {
+  const containerEl = containerRef?.current ?? null;
+  const refProp = containerRef ?? undefined;
+  const containerReady = containerEl !== null;
+
+  const hasBadge = typeof badgeCount === 'number' && badgeCount > 0;
+  const badgeLabel = hasBadge ? (badgeCount > 9 ? '9+' : String(badgeCount)) : '';
+  const computedLabel = hasBadge ? `${label} (${badgeLabel} unread)` : label;
+  return (
+    <div className="relative" ref={refProp} data-container-ready={containerReady ? 'true' : 'false'}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-label={computedLabel}
+        className="group relative inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors duration-150 focus:outline-none select-none"
+        title={label}
+      >
+        <Icon
+          className="w-6 h-6 transition-colors group-hover:fill-current"
+          style={{ fill: isOpen ? 'currentColor' : undefined }}
+        />
+        {hasBadge && (
+          <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#7E22CE] px-1 text-[10px] font-semibold leading-none text-white">
+            {badgeLabel}
+          </span>
+        )}
+      </button>
+      {isOpen && (
+        <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function InstructorDashboardNew() {
   const router = useRouter();
@@ -57,6 +132,8 @@ export default function InstructorDashboardNew() {
   const msgRef = useRef<HTMLDivElement | null>(null);
   const [showMessages, setShowMessages] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showMoreMobile, setShowMoreMobile] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState<number>(0);
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -197,6 +274,7 @@ export default function InstructorDashboardNew() {
   const [preferredPublicSpaces, setPreferredPublicSpaces] = useState<PreferredPublicSpace[]>([]);
   const [bookedMinutes, setBookedMinutes] = useState(0);
   const [hasUpcomingBookings, setHasUpcomingBookings] = useState<boolean | null>(null);
+  const [upcomingBookingsCount, setUpcomingBookingsCount] = useState<number>(0);
   const [completedBookingsCount, setCompletedBookingsCount] = useState<number>(0);
   // Suggestions state removed; no longer used
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -354,6 +432,19 @@ export default function InstructorDashboardNew() {
     })();
     return () => { ignore = true; };
   }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      try {
+        const res = await messageService.getUnreadCount();
+        if (!ignore) setUnreadMessageCount(res?.unread_count ?? 0);
+      } catch {
+        if (!ignore) setUnreadMessageCount(0);
+      }
+    })();
+    return () => { ignore = true; };
+  }, []);
   const diffMinutes = useCallback((start: string, end: string): number => {
     const s = parseTimeToMinutes(start);
     const e = parseTimeToMinutes(end);
@@ -388,9 +479,17 @@ export default function InstructorDashboardNew() {
         );
         let mins = 0;
         withinWeek.forEach((b) => { mins += diffMinutes(b.start_time, b.end_time); });
-        if (!ignore) setBookedMinutes(mins);
+        if (!ignore) {
+          setBookedMinutes(mins);
+          setUpcomingBookingsCount(withinWeek.length);
+          setHasUpcomingBookings(withinWeek.length > 0);
+        }
       } catch {
-        if (!ignore) setBookedMinutes(0);
+        if (!ignore) {
+          setBookedMinutes(0);
+          setUpcomingBookingsCount(0);
+          setHasUpcomingBookings(false);
+        }
       }
     })();
     return () => { ignore = true; };
@@ -398,18 +497,6 @@ export default function InstructorDashboardNew() {
 
   const availableHours = Math.round(availableMinutes / 60);
   const bookedHours = Math.round(bookedMinutes / 60);
-
-  // Fetch upcoming booking presence
-  useEffect(() => {
-    (async () => {
-      try {
-        const up = await protectedApi.getBookings({ upcoming: true, limit: 1 });
-        setHasUpcomingBookings((up.data?.items?.length || 0) > 0);
-      } catch {
-        setHasUpcomingBookings(false);
-      }
-    })();
-  }, []);
 
   // Gate access until cleared to go live
   useEffect(() => {
@@ -472,11 +559,20 @@ export default function InstructorDashboardNew() {
       <div className="min-h-screen">
         <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <Link href="/instructor/dashboard" className="inline-block">
+            <Link
+              href="/instructor/dashboard"
+              className="inline-block"
+              onClick={() => {
+                setActivePanel('dashboard');
+                setShowMessages(false);
+                setShowNotifications(false);
+                setIsMobileMenuOpen(false);
+              }}
+            >
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
-              <UserProfileDropdown />
+              <UserProfileDropdown hideDashboardItem />
             </div>
           </div>
         </header>
@@ -504,73 +600,97 @@ export default function InstructorDashboardNew() {
       {/* Header - matching other pages */}
       <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
-          <Link href="/instructor/dashboard" className="inline-block">
+          <Link
+            href="/instructor/dashboard"
+            className="inline-block"
+            onClick={() => {
+              setActivePanel('dashboard');
+              setShowMessages(false);
+              setShowNotifications(false);
+              setIsMobileMenuOpen(false);
+            }}
+          >
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="flex items-center gap-2 pr-0 sm:pr-4">
-            <div className="relative" ref={msgRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMessages((v) => !v);
-                  setShowNotifications(false);
-                  setIsMobileMenuOpen(false);
-                }}
-                aria-expanded={showMessages}
-                aria-haspopup="menu"
-                className={`group inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors duration-150 focus:outline-none select-none`}
-                title="Messages"
-              >
-                <MessageSquare className="w-6 h-6 transition-colors group-hover:fill-current" style={{ fill: showMessages ? 'currentColor' : undefined }} />
-              </button>
-              {showMessages && (
-                <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                  <div className="p-3 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">Messages</p>
-                  </div>
-                  <ul className="max-h-80 overflow-auto p-2 space-y-2">
-                    <li>
-                      <button className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded" onClick={() => router.push('/instructor/messages')}>
-                        No new messages
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-              )}
-            </div>
-            <div className="relative" ref={notifRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowNotifications((v) => !v);
-                  setShowMessages(false);
-                  setIsMobileMenuOpen(false);
-                }}
-                aria-expanded={showNotifications}
-                aria-haspopup="menu"
-                className={`group inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors duration-150 focus:outline-none select-none`}
-                title="Notifications"
-              >
-                <Bell className="w-6 h-6 transition-colors group-hover:fill-current" style={{ fill: showNotifications ? 'currentColor' : undefined }} />
-              </button>
-              {showNotifications && (
-                <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                  <div className="p-3 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">Notifications</p>
-                  </div>
-                  <ul className="max-h-80 overflow-auto p-2 space-y-2">
-                    <li className="text-sm text-gray-600 px-2 py-2">No new notifications</li>
-                  </ul>
-                </div>
-              )}
-            </div>
-            <UserProfileDropdown />
+            <DashboardPopover
+              icon={MessageSquare}
+              label="Messages"
+              isOpen={showMessages}
+              onToggle={() => {
+                setShowMessages((prev) => {
+                  const next = !prev;
+                  if (!prev && next && unreadMessageCount > 0) {
+                    setUnreadMessageCount(0);
+                  }
+                  return next;
+                });
+                setShowNotifications(false);
+                setIsMobileMenuOpen(false);
+              }}
+              containerRef={msgRef}
+              badgeCount={unreadMessageCount}
+            >
+              <ul className="max-h-80 overflow-auto p-2 space-y-2">
+                <li className="px-2 py-2 text-sm text-gray-600">
+                  You’ll see student replies here once someone messages you.
+                </li>
+                <li>
+                  <button
+                    className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
+                    onClick={() => {
+                      setUnreadMessageCount(0);
+                      setShowMessages(false);
+                      router.push('/instructor/messages');
+                    }}
+                  >
+                    Open inbox
+                  </button>
+                </li>
+              </ul>
+            </DashboardPopover>
+            <DashboardPopover
+              icon={Bell}
+              label="Notifications"
+              isOpen={showNotifications}
+              onToggle={() => {
+                setShowNotifications((v) => !v);
+                setShowMessages(false);
+                setIsMobileMenuOpen(false);
+              }}
+              containerRef={notifRef}
+              badgeCount={upcomingBookingsCount}
+            >
+              <ul className="max-h-80 overflow-auto p-2 space-y-2">
+                <li className="text-sm text-gray-600 px-2 py-2">
+                  No alerts right now. We’ll nudge you when there’s something to review.
+                </li>
+                <li>
+                  <button
+                    className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
+                    onClick={() => {
+                      setShowNotifications(false);
+                      router.push('/instructor/settings');
+                    }}
+                  >
+                    Notification settings
+                  </button>
+                </li>
+              </ul>
+            </DashboardPopover>
+            <UserProfileDropdown hideDashboardItem />
             <button
               type="button"
               className="md:hidden p-2 rounded-lg text-[#7E22CE] border border-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 hover:bg-transparent active:bg-transparent"
               aria-label={isMobileMenuOpen ? 'Close dashboard navigation menu' : 'Open dashboard navigation menu'}
               aria-expanded={isMobileMenuOpen}
-              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+              onClick={() => {
+                setIsMobileMenuOpen((prev) => {
+                  const next = !prev;
+                  if (!next) setShowMoreMobile(false);
+                  return next;
+                });
+              }}
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -579,27 +699,69 @@ export default function InstructorDashboardNew() {
         </div>
         {isMobileMenuOpen && (
           <nav className="mt-4 border-t border-gray-200 pt-4 md:hidden" aria-label="Instructor navigation">
-            <ul className="space-y-2">
-              {MOBILE_NAV_ITEMS.map((item) => (
-                <li key={item.key}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActivePanel(item.key);
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className={`w-full text-left px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      activePanel === item.key
-                        ? 'bg-purple-50 text-[#7E22CE] border border-purple-200'
-                        : 'text-gray-700 hover:bg-purple-50 hover:text-[#7E22CE]'
-                    }`}
-                    aria-current={activePanel === item.key ? 'page' : undefined}
-                  >
-                    {item.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-4">
+              <div>
+                <div className="px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Quick access</div>
+                <ul className="space-y-2">
+                  {MOBILE_NAV_PRIMARY.map((item) => (
+                    <li key={item.key}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActivePanel(item.key);
+                          setIsMobileMenuOpen(false);
+                          setShowMoreMobile(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          activePanel === item.key
+                            ? 'bg-purple-50 text-[#7E22CE] border border-purple-200'
+                            : 'text-gray-700 hover:bg-purple-50 hover:text-[#7E22CE]'
+                        }`}
+                        aria-current={activePanel === item.key ? 'page' : undefined}
+                      >
+                        {item.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="border-t border-gray-200 pt-3">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between px-4 py-2 text-sm font-medium text-gray-600 hover:text-[#7E22CE]"
+                  onClick={() => setShowMoreMobile((prev) => !prev)}
+                  aria-expanded={showMoreMobile}
+                  aria-controls="mobile-nav-more"
+                >
+                  More tools
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showMoreMobile ? 'rotate-180' : ''}`} aria-hidden="true" />
+                </button>
+                {showMoreMobile && (
+                  <ul id="mobile-nav-more" className="mt-2 space-y-2 px-1">
+                    {MOBILE_NAV_SECONDARY.map((item) => (
+                      <li key={item.key}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActivePanel(item.key);
+                            setIsMobileMenuOpen(false);
+                            setShowMoreMobile(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                            activePanel === item.key
+                              ? 'bg-purple-50 text-[#7E22CE] border border-purple-200'
+                              : 'text-gray-700 hover:bg-purple-50 hover:text-[#7E22CE]'
+                          }`}
+                          aria-current={activePanel === item.key ? 'page' : undefined}
+                        >
+                          {item.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
           </nav>
         )}
       </header>

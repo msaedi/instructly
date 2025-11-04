@@ -7,6 +7,7 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { protectedApi } from '@/features/shared/api/client';
 import Modal from '@/components/Modal';
 import { Download, DollarSign, Info, ArrowLeft } from 'lucide-react';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
@@ -169,19 +170,12 @@ function EarningsPageImpl() {
             </Link>
           </div>
         )}
-        {/* Title card hidden when embedded; first visible card anchor */}
-        {!embedded && (
-          <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-            <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-[#7E22CE]" />
-              </div>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Earnings</h1>
-                <p className="text-sm text-gray-600">Your payouts and earnings summary will appear here.</p>
-              </div>
-            </div>
+        <SectionHeroCard
+          id={embedded ? 'earnings-first-card' : undefined}
+          icon={DollarSign}
+          title="Earnings"
+          subtitle="Review your payouts, exports, and lesson earnings in one place."
+          actions={
             <button
               type="button"
               aria-label="How payouts work"
@@ -191,12 +185,11 @@ function EarningsPageImpl() {
               <Info className="w-5 h-5" />
               <span className="hidden sm:inline">More info</span>
             </button>
-          </div>
-        </div>
-        )}
+          }
+        />
 
         {/* Stat Cards */}
-        <div id={embedded ? 'earnings-first-card' : undefined} className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Total earned</h3>
             <p className="text-3xl font-bold text-[#7E22CE] uppercase">$0</p>

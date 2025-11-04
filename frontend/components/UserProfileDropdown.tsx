@@ -9,7 +9,11 @@ import { RoleName } from '@/types/enums';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 
-export default function UserProfileDropdown() {
+interface UserProfileDropdownProps {
+  hideDashboardItem?: boolean;
+}
+
+export default function UserProfileDropdown({ hideDashboardItem = false }: UserProfileDropdownProps) {
   const { user, logout, isLoading } = useAuth();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -98,6 +102,8 @@ export default function UserProfileDropdown() {
     void logout();
   };
 
+  const showDashboardShortcut = !(hideDashboardItem && instructorOnboardingComplete);
+
   // Don't render until mounted to avoid hydration mismatch
   if (!isMounted || isLoading) {
     return (
@@ -151,27 +157,29 @@ export default function UserProfileDropdown() {
             {(user?.roles || []).includes(RoleName.INSTRUCTOR) ? (
               // Instructor menu
               <>
-                <button
-                  onClick={() => handleNavigation(
-                    instructorOnboardingComplete ? '/instructor/dashboard' : '/instructor/onboarding/skill-selection'
-                  )}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  {instructorOnboardingComplete ? (
-                    <>
-                      <User className="h-4 w-4" aria-hidden="true" />
-                      Dashboard
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="h-4 w-4 text-purple-600" aria-hidden="true" />
-                      <span className="text-[#7E22CE] font-medium whitespace-nowrap">Finish Onboarding</span>
-                    </>
-                  )}
-                </button>
+                {showDashboardShortcut && (
+                  <button
+                    onClick={() => handleNavigation(
+                      instructorOnboardingComplete ? '/instructor/dashboard' : '/instructor/onboarding/skill-selection'
+                    )}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    {instructorOnboardingComplete ? (
+                      <>
+                        <User className="h-4 w-4" aria-hidden="true" />
+                        Dashboard
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-4 w-4 text-purple-600" aria-hidden="true" />
+                        <span className="text-[#7E22CE] font-medium whitespace-nowrap">Finish Onboarding</span>
+                      </>
+                    )}
+                  </button>
+                )}
 
                 {/* Onboarding quick links (desktop/web and mobile alike) */}
-                <div className="my-1 border-t border-gray-100" />
+                <div className={showDashboardShortcut ? 'my-1 border-t border-gray-100' : 'my-1'} />
                 <div className="px-4 py-1 text-[10px] uppercase tracking-wide text-gray-400">Onboarding</div>
                 <button
                   onClick={() => handleNavigation('/instructor/profile')}

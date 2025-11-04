@@ -43,18 +43,19 @@ export async function sendMessage(bookingId: string, text: string): Promise<{ id
   const res = await fetchWithAuth('/api/messages/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ booking_id: bookingId, text }),
+    body: JSON.stringify({ booking_id: bookingId, content: text }),
   });
   if (!res.ok) return null;
-  const data = (await res.json()) as { id: string };
-  return data;
+  const data = (await res.json()) as { id?: string; message?: { id?: string } };
+  const messageId = data?.message?.id ?? data?.id;
+  return messageId ? { id: messageId } : null;
 }
 
 export async function markRead(bookingId: string): Promise<number> {
   const res = await fetchWithAuth('/api/messages/mark-read', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ booking_id: bookingId, mark_all: true }),
+    body: JSON.stringify({ booking_id: bookingId }),
   });
   if (!res.ok) return 0;
   const data = (await res.json()) as { messages_marked?: number };
