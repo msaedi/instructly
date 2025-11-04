@@ -56,7 +56,6 @@ logger = logging.getLogger(__name__)
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
 ALLOW_PAST = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
-BITMAP_V2 = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
 
 
 def build_availability_idempotency_key(
@@ -126,6 +125,7 @@ class SaveWeekBitsResult(NamedTuple):
     written_dates: List[date]
     skipped_dates: List[date]
     past_written_dates: List[date]
+    edited_dates: List[str]
 
 
 class AvailabilityService(BaseService):
@@ -166,15 +166,52 @@ class AvailabilityService(BaseService):
         return AvailabilityDayRepository(self.db)
 
     @BaseService.measure_operation("get_week_bits")
-    def get_week_bits(self, instructor_id: str, week_start: date) -> Dict[date, bytes]:
+    def get_week_bits(
+        self, instructor_id: str, week_start: date, *, use_cache: bool = True
+    ) -> Dict[date, bytes]:
         """Return dict of day -> bits, ensuring all 7 days are present."""
+        monday = week_start - timedelta(days=week_start.weekday())
+        cache_service = self.cache_service if use_cache else None
+        cache_keys: Optional[tuple[str, str]] = None
+        if cache_service:
+            cache_keys = self._week_cache_keys(instructor_id, monday)
+            map_key, composite_key = cache_keys
+            try:
+                cached_payload = cache_service.get_json(composite_key)
+                cached_result = self._extract_cached_week_result(
+                    cached_payload,
+                    include_slots=False,
+                )
+                if cached_result:
+                    return self._bits_from_week_map(cached_result.week_map, monday)
+
+                cached_map = cache_service.get_json(map_key)
+                sanitized = self._sanitize_week_map(cached_map)
+                if sanitized is not None:
+                    return self._bits_from_week_map(sanitized, monday)
+            except Exception as cache_error:
+                logger.warning(f"Cache read error for week bits: {cache_error}")
+
         repo = self._bitmap_repo()
-        rows = repo.get_week_rows(instructor_id, week_start)
+        rows = repo.get_week_rows(instructor_id, monday)
         existing = {row.day_date: row.bits for row in rows}
         bits_by_day: Dict[date, bytes] = {}
         for offset in range(7):
-            day = week_start + timedelta(days=offset)
+            day = monday + timedelta(days=offset)
             bits_by_day[day] = existing.get(day, new_empty_bits())
+
+        if use_cache and cache_service and cache_keys:
+            try:
+                week_map, _ = self._week_map_from_bits(bits_by_day, include_snapshots=False)
+                self._persist_week_cache(
+                    instructor_id=instructor_id,
+                    week_start=monday,
+                    week_map=week_map,
+                    cache_keys=cache_keys,
+                )
+            except Exception as cache_error:
+                logger.warning(f"Cache write error for week bits: {cache_error}")
+
         return bits_by_day
 
     @BaseService.measure_operation("compute_week_version_bits")
@@ -225,7 +262,7 @@ class AvailabilityService(BaseService):
         Returns:
             SaveWeekBitsResult with persistence metadata.
         """
-        current = self.get_week_bits(instructor_id, week_start)
+        current = self.get_week_bits(instructor_id, week_start, use_cache=False)
         allow_past = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
         server_version = self.compute_week_version_bits(current)
 
@@ -242,7 +279,7 @@ class AvailabilityService(BaseService):
 
         changed_dates: List[date] = []
         past_written_dates: List[date] = []
-        skipped_dates: List[date] = []
+        skipped_window_dates: List[date] = []
         skipped_forbidden_dates: List[date] = []
 
         for offset in range(7):
@@ -257,12 +294,17 @@ class AvailabilityService(BaseService):
                     skipped_forbidden_dates.append(day)
             else:
                 should_skip = False
+                window_skip = False
                 if past_cutoff and day < past_cutoff and (has_payload or clear_existing):
                     should_skip = True
+                    window_skip = True
 
                 if should_skip:
                     bits = previous_bits
-                    skipped_dates.append(day)
+                    if window_skip:
+                        skipped_window_dates.append(day)
+                    else:
+                        skipped_forbidden_dates.append(day)
                 elif not clear_existing and not has_payload:
                     bits = previous_bits
                 else:
@@ -284,13 +326,28 @@ class AvailabilityService(BaseService):
 
         repo = self._bitmap_repo()
         rows_written = repo.upsert_week(instructor_id, items)
-        after = self.get_week_bits(instructor_id, week_start)
+        after = self.get_week_bits(instructor_id, week_start, use_cache=False)
+        if self.cache_service:
+            try:
+                week_map_after, _ = self._week_map_from_bits(
+                    after,
+                    include_snapshots=False,
+                )
+                self._persist_week_cache(
+                    instructor_id=instructor_id,
+                    week_start=week_start,
+                    week_map=week_map_after,
+                )
+            except Exception as cache_error:
+                logger.warning(f"Cache update error after bitmap save: {cache_error}")
         new_version = self.compute_week_version_bits(after)
         days_written = len(changed_dates)
-        skipped_past_window = len(skipped_dates)
+        skipped_past_window = len(skipped_window_dates)
         skipped_past_forbidden = len(skipped_forbidden_dates)
 
-        audit_dates = sorted(set(changed_dates) | set(skipped_dates) | set(skipped_forbidden_dates))
+        audit_dates = sorted(
+            set(changed_dates) | set(skipped_window_dates) | set(skipped_forbidden_dates)
+        )
 
         def _windows_payload(
             bits_map: Dict[date, bytes], target_dates: List[date]
@@ -312,12 +369,12 @@ class AvailabilityService(BaseService):
                 "week_start": week_start.isoformat(),
                 "windows": _windows_payload(after, audit_dates),
                 "edited_dates": [d.isoformat() for d in changed_dates],
-                "skipped_dates": [d.isoformat() for d in skipped_dates],
+                "skipped_dates": [d.isoformat() for d in skipped_window_dates],
                 "skipped_forbidden_dates": [d.isoformat() for d in skipped_forbidden_dates],
                 "historical_edit": bool(
-                    past_written_dates or skipped_dates or skipped_forbidden_dates
+                    past_written_dates or skipped_window_dates or skipped_forbidden_dates
                 ),
-                "skipped_past_window": bool(skipped_dates),
+                "skipped_past_window": bool(skipped_window_dates),
                 "skipped_past_forbidden": bool(skipped_forbidden_dates),
                 "days_written": days_written,
             }
@@ -367,6 +424,8 @@ class AvailabilityService(BaseService):
                     },
                 )
 
+        edited_date_strings = [d.isoformat() for d in sorted(set(changed_dates))]
+
         return SaveWeekBitsResult(
             rows_written=rows_written,
             days_written=days_written,
@@ -375,8 +434,9 @@ class AvailabilityService(BaseService):
             bits_by_day=after,
             version=new_version,
             written_dates=changed_dates,
-            skipped_dates=skipped_dates,
+            skipped_dates=skipped_window_dates,
             past_written_dates=past_written_dates,
+            edited_dates=edited_date_strings,
         )
 
     def _enqueue_week_save_event(
@@ -603,35 +663,10 @@ class AvailabilityService(BaseService):
         end_date: date,
         slots: Optional[list[AvailabilitySlot | SlotSnapshot]] = None,
     ) -> str:
-        """Compute a robust week version/etag by hashing slot contents.
-
-        Includes every slot's date/start/end to detect any change beyond counts.
-        Fallbacks to a simple count hash if repository errors occur.
-        """
-        try:
-            slot_rows = slots or self.repository.get_week_availability(
-                instructor_id, start_date, end_date
-            )
-            # Collect normalized strings for deterministic hashing
-            parts = []
-            for s in slot_rows:
-                parts.append(
-                    f"{s.specific_date.isoformat()}|{s.start_time.isoformat()}|{s.end_time.isoformat()}"
-                )
-            parts.sort()
-            key = f"{start_date.isoformat()}:{end_date.isoformat()}::" + "#".join(parts)
-        except Exception:
-            # Fallback to summary counts if slot fetch fails
-            summary = self.get_availability_summary(instructor_id, start_date, end_date)
-            total = sum(summary.values())
-            key = f"{start_date.isoformat()}:{end_date.isoformat()}:{total}"
-
-        try:
-            import hashlib
-
-            return hashlib.sha1(key.encode("utf-8")).hexdigest()
-        except Exception:
-            return key
+        """Compute a deterministic week version using bitmap contents only."""
+        week_start = start_date - timedelta(days=start_date.weekday())
+        bits_by_day = self.get_week_bits(instructor_id, week_start)
+        return self.compute_week_version_bits(bits_by_day)
 
     @BaseService.measure_operation("get_week_last_modified")
     def get_week_last_modified(
@@ -641,36 +676,9 @@ class AvailabilityService(BaseService):
         end_date: date,
         slots: Optional[list[AvailabilitySlot | SlotSnapshot]] = None,
     ) -> Optional[datetime]:
-        """Compute a server-sourced last-modified timestamp for a week's availability.
-
-        Uses the max of slot.updated_at and slot.created_at across all slots in the week.
-        Returns None if no slots are present for the week.
-        """
-        try:
-            slot_rows = slots or self.repository.get_week_availability(
-                instructor_id, start_date, end_date
-            )
-        except RepositoryException as e:
-            logger.error(f"Error computing last-modified for week availability: {e}")
-            return None
-
-        if not slot_rows:
-            return None
-
-        latest: Optional[datetime] = None
-        for s in slot_rows:
-            # Some rows may not have updated_at set; fall back to created_at
-            candidates = [getattr(s, "updated_at", None), getattr(s, "created_at", None)]
-            for dt in candidates:
-                if dt is None:
-                    continue
-                # Ensure timezone-aware in UTC for header stability
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                if latest is None or dt > latest:
-                    latest = dt
-
-        return latest
+        """Return last-modified timestamp derived from bitmap rows only."""
+        week_start = start_date - timedelta(days=start_date.weekday())
+        return self.get_week_bitmap_last_modified(instructor_id, week_start)
 
     @BaseService.measure_operation("get_week_availability")
     def get_week_availability(
@@ -745,33 +753,18 @@ class AvailabilityService(BaseService):
                 except Exception as cache_error:
                     logger.warning(f"Cache error for week availability: {cache_error}")
 
-            week_dates = self._calculate_week_dates(start_date)
-            end_date = week_dates[-1]
-
-            try:
-                with availability_perf_span(
-                    "repository.get_week_availability",
-                    endpoint=endpoint,
-                    instructor_id=instructor_id,
-                ):
-                    all_slots = self.repository.get_week_availability(
-                        instructor_id, start_date, end_date
-                    )
-            except RepositoryException as e:
-                logger.error(f"Error getting week availability: {e}")
-                if perf:
-                    perf(cache_used=cache_used)
-                return WeekAvailabilityResult(week_map={}, slots=[])
-
-            week_schedule = self._slots_to_week_map(all_slots)
+            bits_by_day = self.get_week_bits(instructor_id, start_date)
+            week_map, slot_snapshots = self._week_map_from_bits(
+                bits_by_day,
+                include_snapshots=include_slots,
+            )
 
             if cache_service and cache_keys:
                 try:
                     self._persist_week_cache(
                         instructor_id=instructor_id,
                         week_start=start_date,
-                        week_map=week_schedule,
-                        slots=list(all_slots),
+                        week_map=week_map,
                         cache_keys=cache_keys,
                     )
                 except Exception as cache_error:
@@ -780,8 +773,8 @@ class AvailabilityService(BaseService):
             if perf:
                 perf(cache_used=cache_used)
 
-            slots_union = cast(list[AvailabilitySlot | SlotSnapshot], list(all_slots))
-            return WeekAvailabilityResult(week_map=week_schedule, slots=slots_union)
+            slots_union = cast(list[AvailabilitySlot | SlotSnapshot], slot_snapshots)
+            return WeekAvailabilityResult(week_map=week_map, slots=slots_union)
 
     def _persist_week_cache(
         self,
@@ -789,7 +782,6 @@ class AvailabilityService(BaseService):
         instructor_id: str,
         week_start: date,
         week_map: dict[str, list[TimeSlotResponse]],
-        slots: list[AvailabilitySlot],
         cache_keys: Optional[tuple[str, str]] = None,
     ) -> None:
         if not self.cache_service:
@@ -803,13 +795,9 @@ class AvailabilityService(BaseService):
             map_key, composite_key = self._week_cache_keys(instructor_id, week_start)
 
         ttl_seconds = self._week_cache_ttl_seconds(instructor_id, week_start)
-        payload = {
-            "map": week_map,
-            "slots": self._serialize_slot_meta(slots),
-            "_metadata": [],
-        }
+        payload = {"week_map": week_map, "_metadata": []}
         self.cache_service.set_json(composite_key, payload, ttl=ttl_seconds)
-        self.cache_service.set_json(map_key, payload["map"], ttl=ttl_seconds)
+        self.cache_service.set_json(map_key, week_map, ttl=ttl_seconds)
 
     def _week_cache_keys(self, instructor_id: str, week_start: date) -> tuple[str, str]:
         assert self.cache_service is not None
@@ -855,12 +843,37 @@ class AvailabilityService(BaseService):
         if not include_slots:
             return WeekAvailabilityResult(week_map=week_map, slots=[])
 
+        slot_snapshots: list[SlotSnapshot]
         if isinstance(slots_payload, list):
-            slots = self._deserialize_slot_meta(slots_payload)
-            slots_union = cast(list[AvailabilitySlot | SlotSnapshot], slots)
-            return WeekAvailabilityResult(week_map=week_map, slots=slots_union)
+            deserialized = self._deserialize_slot_meta(slots_payload)
+            slot_snapshots = cast(list[SlotSnapshot], deserialized)
+        else:
+            slot_snapshots = []
+            for iso_date, entries in week_map.items():
+                try:
+                    day = date.fromisoformat(iso_date)
+                except ValueError:
+                    continue
+                for entry in entries:
+                    start = entry.get("start_time")
+                    end = entry.get("end_time")
+                    if start is None or end is None:
+                        continue
+                    try:
+                        slot_snapshots.append(
+                            SlotSnapshot(
+                                specific_date=day,
+                                start_time=time.fromisoformat(str(start)),
+                                end_time=time.fromisoformat(str(end)),
+                                created_at=None,
+                                updated_at=None,
+                            )
+                        )
+                    except ValueError:
+                        continue
 
-        return None
+        slots_union = cast(list[AvailabilitySlot | SlotSnapshot], slot_snapshots)
+        return WeekAvailabilityResult(week_map=week_map, slots=slots_union)
 
     @staticmethod
     def _coerce_metadata_list(metadata: Any) -> list[Any]:
@@ -900,22 +913,58 @@ class AvailabilityService(BaseService):
 
         return clean_map
 
-    @staticmethod
-    def _slots_to_week_map(slots: list[AvailabilitySlot]) -> dict[str, list[TimeSlotResponse]]:
+    def _week_map_from_bits(
+        self,
+        bits_by_day: Dict[date, bytes],
+        *,
+        include_snapshots: bool,
+    ) -> tuple[dict[str, list[TimeSlotResponse]], list[SlotSnapshot]]:
         week_schedule: dict[str, list[TimeSlotResponse]] = {}
-        for slot in slots:
-            date_str = slot.specific_date.isoformat()
-
-            if date_str not in week_schedule:
-                week_schedule[date_str] = []
-
-            week_schedule[date_str].append(
-                TimeSlotResponse(
-                    start_time=time_to_string(slot.start_time),
-                    end_time=time_to_string(slot.end_time),
+        snapshots: list[SlotSnapshot] = []
+        for day in sorted(bits_by_day.keys()):
+            date_str = day.isoformat()
+            windows = windows_from_bits(bits_by_day[day])
+            entries: list[TimeSlotResponse] = []
+            for start, end in windows:
+                start_str = str(start)
+                end_str = str(end)
+                entries.append(
+                    TimeSlotResponse(
+                        start_time=start_str,
+                        end_time=end_str,
+                    )
                 )
-            )
-        return week_schedule
+                if include_snapshots:
+                    snapshots.append(
+                        SlotSnapshot(
+                            specific_date=day,
+                            start_time=time.fromisoformat(start_str),
+                            end_time=time.fromisoformat(end_str),
+                            created_at=None,
+                            updated_at=None,
+                        )
+                    )
+            week_schedule[date_str] = entries
+        return week_schedule, snapshots
+
+    @staticmethod
+    def _bits_from_week_map(
+        week_map: dict[str, list[TimeSlotResponse]],
+        week_start: date,
+    ) -> Dict[date, bytes]:
+        monday = week_start - timedelta(days=week_start.weekday())
+        bits_by_day: Dict[date, bytes] = {}
+        for offset in range(7):
+            day = monday + timedelta(days=offset)
+            windows: list[tuple[str, str]] = []
+            for entry in week_map.get(day.isoformat(), []):
+                start = entry.get("start_time")
+                end = entry.get("end_time")
+                if start is None or end is None:
+                    continue
+                windows.append((str(start), str(end)))
+            bits_by_day[day] = bits_from_windows(windows) if windows else new_empty_bits()
+        return bits_by_day
 
     @staticmethod
     def _serialize_slot_meta(slots: list[AvailabilitySlot]) -> list[dict[str, Optional[str]]]:
