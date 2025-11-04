@@ -41,7 +41,6 @@ from datetime import date, datetime, time, timedelta, timezone
 from email.utils import format_datetime
 from functools import wraps
 import logging
-import os
 from typing import Any, Awaitable, Callable, Dict, List, Optional, ParamSpec, TypeVar, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
@@ -107,7 +106,6 @@ from ..utils.bitset import windows_from_bits
 P = ParamSpec("P")
 R = TypeVar("R")
 
-BITMAP_V2 = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
 ALLOW_PAST = SERVICE_ALLOW_PAST
 EXPOSE_HEADERS = "ETag, Last-Modified, X-Allow-Past"
 
@@ -181,82 +179,30 @@ async def get_week_availability(
         instructor_id=current_user.id,
         payload_size_bytes=0,
     ):
-        if BITMAP_V2:
-            try:
-                bits_by_day = availability_service.get_week_bits(current_user.id, start_date)
-                version = availability_service.compute_week_version_bits(bits_by_day)
-                last_mod = availability_service.get_week_bitmap_last_modified(
-                    current_user.id, start_date
-                )
-                _set_bitmap_headers(response, version, last_mod, allow_past=ALLOW_PAST)
-                note_cache_miss(f"availability:bitmap:{current_user.id}:{start_date.isoformat()}")
-
-                payload: Dict[str, List[TimeRange]] = {}
-                for day, bits in bits_by_day.items():
-                    windows = windows_from_bits(bits)
-                    payload[day.isoformat()] = [
-                        TimeRange(
-                            start_time=time.fromisoformat(start),
-                            end_time=time.fromisoformat(end),
-                        )
-                        for start, end in windows
-                    ]
-                return WeekAvailabilityResponse(payload)
-            except DomainException as e:
-                raise e.to_http_exception()
-            except Exception as e:
-                logger.error(f"Unexpected error getting bitmap week availability: {str(e)}")
-                raise HTTPException(status_code=500, detail="Internal server error")
-
         try:
-            result = availability_service.get_week_availability_with_slots(
-                instructor_id=current_user.id,
-                start_date=start_date,
+            bits_by_day = availability_service.get_week_bits(current_user.id, start_date)
+            version = availability_service.compute_week_version_bits(bits_by_day)
+            last_mod = availability_service.get_week_bitmap_last_modified(
+                current_user.id, start_date
             )
-            week_map = cast(Dict[str, List[TimeRange]], result.week_map)
-            slot_rows = result.slots
-            # Compute version and attach as header
-            version = availability_service.compute_week_version(
-                current_user.id,
-                start_date,
-                start_date + timedelta(days=6),
-                slots=slot_rows,
-            )
-            response.headers["ETag"] = version
-            # Compute Last-Modified from server data for cross-tab consistency
-            last_mod = availability_service.get_week_last_modified(
-                current_user.id,
-                start_date,
-                start_date + timedelta(days=6),
-                slots=slot_rows,
-            )
-            if last_mod:
-                # RFC 1123 format via http-date: use strftime with GMT
-                response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
-                    "%a, %d %b %Y %H:%M:%S GMT"
-                )
-            # Allow browsers to read ETag and Last-Modified via CORS
-            response.headers["X-Allow-Past"] = "true" if ALLOW_PAST else "false"
-            response.headers["Access-Control-Expose-Headers"] = EXPOSE_HEADERS
-            return WeekAvailabilityResponse(week_map)
-        except HTTPException as e:
-            raise e
+            _set_bitmap_headers(response, version, last_mod, allow_past=ALLOW_PAST)
+            note_cache_miss(f"availability:bitmap:{current_user.id}:{start_date.isoformat()}")
+
+            payload: Dict[str, List[TimeRange]] = {}
+            for day, bits in bits_by_day.items():
+                windows = windows_from_bits(bits)
+                payload[day.isoformat()] = [
+                    TimeRange(
+                        start_time=time.fromisoformat(start),
+                        end_time=time.fromisoformat(end),
+                    )
+                    for start, end in windows
+                ]
+            return WeekAvailabilityResponse(payload)
         except DomainException as e:
-            if isinstance(e, ConflictException):
-                server_bits = availability_service.get_week_bits(current_user.id, start_date)
-                server_version = availability_service.compute_week_version_bits(server_bits)
-                raise HTTPException(
-                    status_code=409,
-                    detail={"error": "version_conflict", "current_version": server_version},
-                    headers={
-                        "ETag": server_version,
-                        "X-Allow-Past": "true" if ALLOW_PAST else "false",
-                        "Access-Control-Expose-Headers": EXPOSE_HEADERS,
-                    },
-                )
             raise e.to_http_exception()
         except Exception as e:
-            logger.error(f"Unexpected error getting week availability: {str(e)}")
+            logger.error(f"Unexpected error getting bitmap week availability: {str(e)}")
             raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -338,95 +284,44 @@ async def save_week_availability(
                 payload.version = client_version
             payload.override = override_requested
 
-            if BITMAP_V2:
-                windows_by_day: Dict[date, List[tuple[str, str]]] = {}
-                for item in payload.schedule:
-                    raw_date = item.get("date")
-                    if isinstance(raw_date, date):
-                        slot_date = raw_date
-                    else:
-                        slot_date = date.fromisoformat(str(raw_date))
+            windows_by_day: Dict[date, List[tuple[str, str]]] = {}
+            for item in payload.schedule:
+                raw_date = item.get("date")
+                if isinstance(raw_date, date):
+                    slot_date = raw_date
+                else:
+                    slot_date = date.fromisoformat(str(raw_date))
 
-                    raw_start = item.get("start_time")
-                    if isinstance(raw_start, time):
-                        start_str = raw_start.strftime("%H:%M:%S")
-                    else:
-                        start_str = time.fromisoformat(str(raw_start)).strftime("%H:%M:%S")
+                raw_start = item.get("start_time")
+                if isinstance(raw_start, time):
+                    start_str = raw_start.strftime("%H:%M:%S")
+                else:
+                    start_str = time.fromisoformat(str(raw_start)).strftime("%H:%M:%S")
 
-                    raw_end = item.get("end_time")
-                    if isinstance(raw_end, time):
-                        end_str = raw_end.strftime("%H:%M:%S")
-                    else:
-                        end_str = time.fromisoformat(str(raw_end)).strftime("%H:%M:%S")
+                raw_end = item.get("end_time")
+                if isinstance(raw_end, time):
+                    end_str = raw_end.strftime("%H:%M:%S")
+                else:
+                    end_str = time.fromisoformat(str(raw_end)).strftime("%H:%M:%S")
 
-                    windows_by_day.setdefault(slot_date, []).append((start_str, end_str))
-
-                try:
-                    save_result = availability_service.save_week_bits(
-                        instructor_id=current_user.id,
-                        week_start=monday,
-                        windows_by_day=windows_by_day,
-                        base_version=client_version,
-                        override=override_requested,
-                        clear_existing=bool(payload.clear_existing),
-                        actor=current_user,
-                    )
-                except ConflictException:
-                    server_bits = availability_service.get_week_bits(current_user.id, monday)
-                    server_version = availability_service.compute_week_version_bits(server_bits)
-                    raise HTTPException(
-                        status_code=409,
-                        detail={"error": "version_conflict", "current_version": server_version},
-                        headers={
-                            "ETag": server_version,
-                            "X-Allow-Past": "true" if ALLOW_PAST else "false",
-                            "Access-Control-Expose-Headers": EXPOSE_HEADERS,
-                        },
-                    )
-
-                new_version = save_result.version
-                last_mod = availability_service.get_week_bitmap_last_modified(
-                    current_user.id, monday
-                )
-                _set_bitmap_headers(response, new_version, last_mod, allow_past=ALLOW_PAST)
-
-                return WeekAvailabilityUpdateResponse(
-                    message="Saved weekly availability",
-                    week_start=monday,
-                    week_end=week_end,
-                    windows_created=save_result.rows_written,
-                    windows_updated=0,
-                    windows_deleted=0,
-                    days_written=save_result.days_written,
-                    skipped_past_window=save_result.skipped_past_window,
-                    version=new_version,
-                    week_version=new_version,
-                )
+                windows_by_day.setdefault(slot_date, []).append((start_str, end_str))
 
             try:
-                server_version = availability_service.compute_week_version(
-                    current_user.id,
-                    monday,
-                    week_end,
+                save_result = availability_service.save_week_bits(
+                    instructor_id=current_user.id,
+                    week_start=monday,
+                    windows_by_day=windows_by_day,
+                    base_version=client_version,
+                    override=override_requested,
+                    clear_existing=bool(payload.clear_existing),
+                    actor=current_user,
                 )
-            except Exception as compute_error:  # pragma: no cover - defensive
-                logger.debug(
-                    "compute_week_version failed prior to save, continuing without conflict check",
-                    extra={"error": str(compute_error)},
-                )
-
-            if (
-                client_version
-                and server_version
-                and client_version != server_version
-                and not override_requested
-            ):
+            except ConflictException:
+                server_bits = availability_service.get_week_bits(current_user.id, monday)
+                server_version = availability_service.compute_week_version_bits(server_bits)
                 raise HTTPException(
                     status_code=409,
-                    detail={
-                        "error": "version_conflict",
-                        "current_version": server_version,
-                    },
+                    detail={"error": "version_conflict", "current_version": server_version},
                     headers={
                         "ETag": server_version,
                         "X-Allow-Past": "true" if ALLOW_PAST else "false",
@@ -434,53 +329,19 @@ async def save_week_availability(
                     },
                 )
 
-            # Get pre-save summary
-            pre_summary = availability_service.get_availability_summary(
-                current_user.id, monday, week_end
-            )
-            pre_total = sum(pre_summary.values())
-
-            await availability_service.save_week_availability(
-                instructor_id=current_user.id,
-                week_data=payload,
-                actor=current_user,
-            )
-
-            # Get post-save summary
-            post_summary = availability_service.get_availability_summary(
-                current_user.id, monday, week_end
-            )
-            post_total = sum(post_summary.values())
-
-            created = max(0, post_total - pre_total)
-            deleted = max(0, pre_total - post_total)
-            updated = 0  # Not tracked precisely in this endpoint
-
-            # Compute and attach new version
-            new_version = availability_service.compute_week_version(
-                current_user.id, monday, week_end
-            )
-            response.headers["ETag"] = new_version
-            # Compute and attach Last-Modified after save
-            last_mod = availability_service.get_week_last_modified(
-                current_user.id, monday, week_end
-            )
-            if last_mod:
-                response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime(
-                    "%a, %d %b %Y %H:%M:%S GMT"
-                )
-            response.headers["X-Allow-Past"] = "true" if ALLOW_PAST else "false"
-            response.headers["Access-Control-Expose-Headers"] = EXPOSE_HEADERS
+            new_version = save_result.version
+            last_mod = availability_service.get_week_bitmap_last_modified(current_user.id, monday)
+            _set_bitmap_headers(response, new_version, last_mod, allow_past=ALLOW_PAST)
 
             return WeekAvailabilityUpdateResponse(
                 message="Saved weekly availability",
                 week_start=monday,
                 week_end=week_end,
-                windows_created=created,
-                windows_updated=updated,
-                windows_deleted=deleted,
-                days_written=created,
-                skipped_past_window=0,
+                windows_created=save_result.rows_written,
+                windows_updated=0,
+                windows_deleted=0,
+                days_written=save_result.days_written,
+                skipped_past_window=save_result.skipped_past_window,
                 version=new_version,
                 week_version=new_version,
             )
