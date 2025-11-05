@@ -21,10 +21,12 @@ from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.availability_service import AvailabilityService
 from app.services.cache_service import CacheService
 from app.services.conflict_checker import ConflictChecker
 from app.services.week_operation_service import WeekOperationService
+from app.utils.bitset import bits_from_windows
 
 
 class TestWeekOperationServiceTransactions:
@@ -150,51 +152,56 @@ class TestWeekOperationBulkOperations:
 
     @pytest.mark.asyncio
     async def test_apply_pattern_bulk_operations(
-        self, db: Session, service: WeekOperationService, test_instructor: User
+        self,
+        db: Session,
+        service: WeekOperationService,
+        unique_instructor: tuple[str, str],
+        clear_week_bits,
     ):
         """Test bulk operations in apply_pattern_to_date_range."""
         # Create source pattern with single-table design
-        pattern_week = date(2025, 6, 16)
+        instructor_id, _ = unique_instructor
+        today = date.today()
+        days_until_next_monday = (7 - today.weekday()) % 7
+        if days_until_next_monday == 0:
+            days_until_next_monday = 7
+        pattern_week = today + timedelta(days=days_until_next_monday)
+        clear_week_bits(instructor_id, pattern_week, weeks=6)
+        repo = AvailabilityDayRepository(db)
+        day_windows: dict = {}
         for i in range(3):  # Mon, Tue, Wed
             day_date = pattern_week + timedelta(days=i)
-            # Multiple slots per day
-            for hour in [9, 11, 14]:
-                slot = AvailabilitySlot(
-                    instructor_id=test_instructor.id,
-                    specific_date=day_date,  # Fixed: use specific_date
-                    start_time=time(hour, 0),
-                    end_time=time(hour + 1, 0),
-                )
-                db.add(slot)
+            day_windows[day_date] = [
+                (f"{hour:02d}:00:00", f"{hour + 1:02d}:00:00") for hour in [9, 11, 14]
+            ]
 
+        repo.upsert_week(
+            instructor_id,
+            [(day, bits_from_windows(windows)) for day, windows in day_windows.items()],
+        )
         db.commit()
+
+        source_bits = service.availability_service.get_week_bits(
+            instructor_id, pattern_week, use_cache=False
+        )
+        assert any(bits and any(bits) for bits in source_bits.values())
 
         # Disable cache for testing
         service.cache_service = None
 
         # Apply to large date range
-        start_date = date(2025, 7, 1)
-        end_date = date(2025, 7, 31)  # Full month
+        start_date = pattern_week + timedelta(days=7)
+        end_date = start_date + timedelta(days=30)
 
-        result = await service.apply_pattern_to_date_range(test_instructor.id, pattern_week, start_date, end_date)
+        result = await service.apply_pattern_to_date_range(
+            instructor_id, pattern_week, start_date, end_date
+        )
 
         # Verify bulk operations completed
         dates_processed = result.get("dates_processed", result.get("days_written"))
-        assert dates_processed > 0
-        assert result["slots_created"] > 0
-
-        # Verify data integrity with single-table design
-        created_slots = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor.id,
-                AvailabilitySlot.specific_date >= start_date,  # Fixed: use specific_date
-                AvailabilitySlot.specific_date <= end_date,  # Fixed: use specific_date
-            )
-            .all()
-        )
-
-        assert len(created_slots) > 0
+        assert dates_processed == (end_date - start_date).days + 1, result
+        assert result["days_written"] > 0, result
+        assert result.get("windows_created", 0) >= result["days_written"], result
 
     def test_bulk_create_slots_performance(self, db: Session, service: WeekOperationService, test_instructor: User):
         """Test bulk slot creation performance with single-table design."""

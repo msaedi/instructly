@@ -6,11 +6,11 @@ from typing import Iterator, List
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from tests.utils.availability_builders import future_week_start
 
 from app.database import engine as global_engine
 from app.models.availability import AvailabilitySlot
 from app.services.availability_service import AvailabilityService
+from tests.utils.availability_builders import future_week_start
 
 
 @contextmanager

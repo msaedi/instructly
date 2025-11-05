@@ -3,8 +3,6 @@ from typing import cast
 
 import pytest
 from sqlalchemy.orm import Session
-from tests.conftest import mocked_send
-from tests.unit.services._adverse_helpers import ensure_adverse_schema
 import ulid
 
 from app.core.config import settings
@@ -16,6 +14,8 @@ from app.services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
     FinalAdversePayload,
 )
+from tests.conftest import mocked_send
+from tests.unit.services._adverse_helpers import ensure_adverse_schema
 
 
 def _reset_jobs(db: Session) -> None:

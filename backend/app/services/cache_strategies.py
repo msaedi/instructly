@@ -115,6 +115,23 @@ class CacheWarmingStrategy:
 
         return last_result[0] if last_result else {}
 
+    async def warm_week(
+        self, instructor_id: str, week_start: date, expected_slot_count: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Warm cache for a specific week. Alias for warm_with_verification to simplify call sites.
+
+        Args:
+            instructor_id: Instructor identifier
+            week_start: Monday of the target week
+            expected_slot_count: Optional expected slot count for verification
+        """
+        return await self.warm_with_verification(
+            instructor_id,
+            week_start,
+            expected_slot_count=expected_slot_count,
+        )
+
     def _write_week_cache_bundle(
         self,
         instructor_id: str,

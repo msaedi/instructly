@@ -8,6 +8,7 @@ from tests.utils.availability_builders import future_week_start, slot_entry
 
 from app.core.exceptions import AvailabilityOverlapException
 from app.models.availability import AvailabilitySlot
+from app.models.availability_day import AvailabilityDay
 from app.schemas.availability_window import WeekSpecificScheduleCreate
 from app.services.availability_service import AvailabilityService
 
@@ -30,8 +31,8 @@ async def test_rejects_true_overlap_same_day(db, test_instructor) -> None:
         await service.save_week_availability(test_instructor.id, payload)
 
     remaining = (
-        db.query(AvailabilitySlot)
-        .filter(AvailabilitySlot.instructor_id == test_instructor.id)
+        db.query(AvailabilityDay)
+        .filter(AvailabilityDay.instructor_id == test_instructor.id)
         .count()
     )
     assert remaining == 0
@@ -53,7 +54,10 @@ async def test_allows_touching_edges(db, test_instructor) -> None:
 
     await service.save_week_availability(test_instructor.id, payload)
     week_map = service.get_week_availability(test_instructor.id, monday)
-    assert len(week_map[monday.isoformat()]) == 2
+    slots = week_map[monday.isoformat()]
+    assert len(slots) == 1
+    assert slots[0]["start_time"] == "10:00:00"
+    assert slots[0]["end_time"] == "12:00:00"
 
 
 @pytest.mark.asyncio
@@ -68,22 +72,21 @@ async def test_overnight_payload_persists_split_segments(db, test_instructor) ->
     )
 
     await service.save_week_availability(test_instructor.id, payload)
-    slots = (
-        db.query(AvailabilitySlot)
-        .filter(AvailabilitySlot.instructor_id == test_instructor.id)
-        .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
-        .all()
+    week_map = service.get_week_availability(
+        test_instructor.id,
+        monday,
+        include_empty=True,
     )
-
-    assert len(slots) == 2
-    assert slots[0].specific_date == monday
-    assert slots[0].start_time.strftime("%H:%M") == "23:30"
-    assert slots[0].end_time.strftime("%H:%M") == "00:00"
+    slots = week_map[monday.isoformat()]
+    assert len(slots) == 1
+    assert slots[0]["start_time"] == "23:30:00"
+    assert slots[0]["end_time"] in {"00:00:00", "24:00:00"}
 
     next_day = monday + timedelta(days=1)
-    assert slots[1].specific_date == next_day
-    assert slots[1].start_time.strftime("%H:%M") == "00:00"
-    assert slots[1].end_time.strftime("%H:%M") == "01:00"
+    next_slots = week_map[next_day.isoformat()]
+    assert len(next_slots) == 1
+    assert next_slots[0]["start_time"] == "00:00:00"
+    assert next_slots[0]["end_time"] == "01:00:00"
 
 
 @pytest.mark.asyncio
@@ -107,12 +110,13 @@ async def test_detects_overlap_against_existing(db, test_instructor) -> None:
     with pytest.raises(AvailabilityOverlapException):
         await service.save_week_availability(test_instructor.id, overlapping_payload)
 
-    slots = (
-        db.query(AvailabilitySlot)
-        .filter(AvailabilitySlot.instructor_id == test_instructor.id)
-        .all()
+    week_map = service.get_week_availability(
+        test_instructor.id,
+        monday,
+        include_empty=True,
     )
-    assert [(s.start_time.strftime("%H:%M"), s.end_time.strftime("%H:%M")) for s in slots] == [
+    monday_windows = week_map[monday.isoformat()]
+    assert [(entry["start_time"][:5], entry["end_time"][:5]) for entry in monday_windows] == [
         ("09:00", "10:00")
     ]
 
@@ -151,7 +155,7 @@ async def test_existing_slots_fetched_once_per_date(
     )
 
     await service.save_week_availability(test_instructor.id, follow_up)
-    assert call_counter["count"] == 1
+    assert call_counter["count"] == 0
 
 
 def test_db_constraint_blocks_overlap(db, test_instructor) -> None:

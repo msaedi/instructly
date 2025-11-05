@@ -21,11 +21,13 @@ import pytest
 from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.service_catalog import InstructorService as Service
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.availability_window import SpecificDateAvailabilityCreate
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
 from app.services.conflict_checker import ConflictChecker
 from app.services.slot_manager import SlotManager
+from app.utils.bitset import bits_from_windows
 
 
 # Fixtures for services
@@ -73,15 +75,14 @@ class TestAvailabilityService:
         test_date1 = date(2025, 6, 16)
         test_date2 = date(2025, 6, 17)
 
-        slot1 = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=test_date1, start_time=time(9, 0), end_time=time(10, 0)
+        repo = AvailabilityDayRepository(db)
+        repo.upsert_week(
+            test_instructor.id,
+            [
+                (test_date1, bits_from_windows([("09:00:00", "10:00:00")])),
+                (test_date2, bits_from_windows([("14:00:00", "15:00:00")])),
+            ],
         )
-        slot2 = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=test_date2, start_time=time(14, 0), end_time=time(15, 0)
-        )
-
-        db.add(slot1)
-        db.add(slot2)
         db.commit()
 
         # Call method

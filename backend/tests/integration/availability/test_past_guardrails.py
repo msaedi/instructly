@@ -121,7 +121,7 @@ def test_bitmap_past_clamp_skips_outside_window(
     )
     assert get_resp.status_code == 200
     week_map = get_resp.json()
-    assert week_map[far_past.isoformat()] == []
+    assert week_map.get(far_past.isoformat(), []) == []
     assert week_map[recent_past.isoformat()] == [
         {"start_time": "10:00:00", "end_time": "11:00:00"}
     ]

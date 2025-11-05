@@ -236,7 +236,7 @@ class TestPastDayEditsIgnoredWhenAllowPastFalse:
         body = get_resp.json()
 
         # Past day should be empty (or unchanged if there was initial data)
-        assert body[past_day.isoformat()] == []
+        assert body.get(past_day.isoformat(), []) == []
 
         # Future day should have the new window
         assert body[future_day.isoformat()] == [{"start_time": "16:00:00", "end_time": "17:00:00"}]

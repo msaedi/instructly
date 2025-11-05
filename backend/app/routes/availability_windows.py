@@ -57,6 +57,7 @@ from ..api.dependencies.services import (
     get_slot_manager,
     get_week_operation_service,
 )
+from ..core.config import settings
 from ..core.constants import ERROR_INSTRUCTOR_ONLY
 from ..core.enums import RoleName
 from ..core.exceptions import ConflictException, DomainException
@@ -191,6 +192,8 @@ async def get_week_availability(
             payload: Dict[str, List[TimeRange]] = {}
             for day, bits in bits_by_day.items():
                 windows = windows_from_bits(bits)
+                if not windows:
+                    continue
                 payload[day.isoformat()] = [
                     TimeRange(
                         start_time=time.fromisoformat(start),
@@ -198,6 +201,13 @@ async def get_week_availability(
                     )
                     for start, end in windows
                 ]
+            if settings.include_empty_days_in_tests:
+                monday_anchor = min(bits_by_day.keys()) if bits_by_day else start_date
+                monday_anchor = monday_anchor - timedelta(days=monday_anchor.weekday())
+                for offset in range(7):
+                    day_key = (monday_anchor + timedelta(days=offset)).isoformat()
+                    payload.setdefault(day_key, [])
+                payload = dict(sorted(payload.items()))
             return WeekAvailabilityResponse(payload)
         except DomainException as e:
             raise e.to_http_exception()
@@ -317,7 +327,9 @@ async def save_week_availability(
                     actor=current_user,
                 )
             except ConflictException:
-                server_bits = availability_service.get_week_bits(current_user.id, monday)
+                server_bits = availability_service.get_week_bits(
+                    current_user.id, monday, use_cache=False
+                )
                 server_version = availability_service.compute_week_version_bits(server_bits)
                 raise HTTPException(
                     status_code=409,
@@ -338,6 +350,7 @@ async def save_week_availability(
                 week_start=monday,
                 week_end=week_end,
                 windows_created=save_result.windows_created,
+                slots_created=save_result.slots_created,
                 windows_updated=0,
                 windows_deleted=0,
                 days_written=save_result.days_written,
@@ -454,6 +467,14 @@ async def apply_to_date_range(
         days_written = _coerce_int(days_written_raw, windows_created)
         skipped_past_targets = _coerce_int(skipped_past_targets_raw, 0)
         edited_dates = [str(item) for item in edited_dates_raw] if edited_dates_raw else []
+        dates_processed = _coerce_int(result.get("dates_processed", 0), 0)
+        dates_with_windows = _coerce_int(
+            result.get("dates_with_windows", result.get("dates_with_slots", 0)), 0
+        )
+        dates_with_slots = _coerce_int(
+            result.get("dates_with_slots", dates_with_windows), dates_with_windows
+        )
+        written_dates = [str(item) for item in result.get("written_dates", [])]
 
         return ApplyToDateRangeResponse(
             message=str(result.get("message", "")),
@@ -461,10 +482,15 @@ async def apply_to_date_range(
             end_date=payload.end_date,
             weeks_applied=weeks_applied,
             windows_created=windows_created,
+            slots_created=windows_created,
             weeks_affected=weeks_affected,
             days_written=days_written,
             skipped_past_targets=skipped_past_targets,
             edited_dates=edited_dates,
+            dates_processed=dates_processed,
+            dates_with_windows=dates_with_windows,
+            dates_with_slots=dates_with_slots,
+            written_dates=written_dates,
         )
     except DomainException as e:
         raise e.to_http_exception()

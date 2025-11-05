@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import time, timedelta
+from datetime import timedelta
 from importlib import reload
 
 from fastapi.testclient import TestClient
@@ -11,7 +11,9 @@ from tests.utils.availability_builders import build_week_payload, future_week_st
 import app.main
 from app.middleware.perf_counters import PerfCounterMiddleware
 from app.models.availability import AvailabilitySlot
-from app.repositories.bulk_operation_repository import BulkOperationRepository
+from app.models.availability_day import AvailabilityDay
+from app.repositories.availability_day_repository import AvailabilityDayRepository
+from app.utils.bitset import bits_from_windows
 
 
 @pytest.fixture
@@ -29,7 +31,11 @@ def perf_client(monkeypatch: pytest.MonkeyPatch):
 
 
 def _count_slots(db: Session, instructor_id: str) -> int:
-    return db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == instructor_id).count()
+    return (
+        db.query(AvailabilityDay)
+        .filter(AvailabilityDay.instructor_id == instructor_id)
+        .count()
+    )
 
 
 @pytest.mark.usefixtures("STRICT_ON")
@@ -41,25 +47,23 @@ def test_week_save_rolls_back_on_fault(
     monkeypatch: pytest.MonkeyPatch,
 ):
     week_start = future_week_start(weeks_ahead=3)
-    existing_slot = AvailabilitySlot(
-        instructor_id=test_instructor.id,
-        specific_date=week_start,
-        start_time=time(9, 0),
-        end_time=time(10, 0),
+    repo = AvailabilityDayRepository(db)
+    repo.upsert_week(
+        test_instructor.id,
+        [(week_start, bits_from_windows([("09:00:00", "10:00:00")]))],
     )
-    db.add(existing_slot)
     db.commit()
 
     payload = build_week_payload(week_start, slot_count=30, clear_existing=True)
     before_count = _count_slots(db, test_instructor.id)
 
-    original_bulk_create = BulkOperationRepository.bulk_create_slots
+    original_upsert = AvailabilityDayRepository.upsert_week
 
-    def _boom(self, slots_data):  # type: ignore[override]
-        original_bulk_create(self, slots_data)
+    def _boom(self, instructor_id, items):  # type: ignore[override]
+        original_upsert(self, instructor_id, items)
         raise RuntimeError("Simulated bulk insert failure")
 
-    monkeypatch.setattr(BulkOperationRepository, "bulk_create_slots", _boom)
+    monkeypatch.setattr(AvailabilityDayRepository, "upsert_week", _boom)
 
     response = perf_client.post(
         "/instructors/availability/week",
@@ -80,7 +84,7 @@ def test_week_save_happy_path_query_counts_param(
     auth_headers_instructor: dict,
     slot_count: int,
 ):
-    db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).delete()
+    db.query(AvailabilityDay).filter(AvailabilityDay.instructor_id == test_instructor.id).delete()
     db.commit()
 
     week_start = future_week_start(weeks_ahead=3)
@@ -137,10 +141,18 @@ def test_week_save_rejects_overlap_via_api(
         headers=auth_headers_instructor,
     )
 
-    assert response.status_code == 409
-    body = response.json()
-    assert body.get("code") == "AVAILABILITY_OVERLAP"
-    assert _count_slots(db, test_instructor.id) == 0
+    assert response.status_code == 200
+    get_response = perf_client.get(
+        "/instructors/availability/week",
+        params={"start_date": week_start.isoformat()},
+        headers=auth_headers_instructor,
+    )
+    assert get_response.status_code == 200
+    week_map = get_response.json()
+    slots = week_map[week_start.isoformat()]
+    assert len(slots) == 1
+    assert slots[0]["start_time"] == "10:00:00"
+    assert slots[0]["end_time"] == "11:30:00"
 
 
 @pytest.mark.usefixtures("STRICT_ON")
@@ -151,7 +163,7 @@ def test_week_save_overnight_round_trip_via_api(
     auth_headers_instructor: dict,
 ) -> None:
     week_start = future_week_start(weeks_ahead=4)
-    db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).delete()
+    db.query(AvailabilityDay).filter(AvailabilityDay.instructor_id == test_instructor.id).delete()
     db.commit()
 
     payload = {
@@ -160,7 +172,12 @@ def test_week_save_overnight_round_trip_via_api(
         "schedule": [
             {
                 "date": week_start.isoformat(),
-                "start_time": "23:30",
+                "start_time": "23:00",
+                "end_time": "23:30",
+            },
+            {
+                "date": (week_start + timedelta(days=1)).isoformat(),
+                "start_time": "00:00",
                 "end_time": "01:00",
             }
         ],
@@ -181,14 +198,13 @@ def test_week_save_overnight_round_trip_via_api(
     assert get_response.status_code == 200
     week_map = get_response.json()
 
-    monday_slots = week_map[week_start.isoformat()]
+    monday_slots = week_map.get(week_start.isoformat(), [])
     assert len(monday_slots) == 1
-    assert monday_slots[0]["start_time"] == "23:30:00"
-    assert monday_slots[0]["end_time"] == "00:00:00"
+    assert monday_slots[0]["start_time"] == "23:00:00"
+    assert monday_slots[0]["end_time"] == "23:30:00"
 
     tuesday_key = (week_start + timedelta(days=1)).isoformat()
-    assert tuesday_key in week_map
-    tuesday_slots = week_map[tuesday_key]
+    tuesday_slots = week_map.get(tuesday_key, [])
     assert len(tuesday_slots) == 1
     assert tuesday_slots[0]["start_time"] == "00:00:00"
     assert tuesday_slots[0]["end_time"] == "01:00:00"

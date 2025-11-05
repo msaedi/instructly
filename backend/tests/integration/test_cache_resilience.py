@@ -1,25 +1,21 @@
 from __future__ import annotations
 
-from datetime import time
 from unittest.mock import Mock
 
-from tests.utils.availability_builders import future_week_start
-
-from app.models.availability import AvailabilitySlot
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.availability_service import AvailabilityService
+from app.utils.bitset import bits_from_windows
+from tests.utils.availability_builders import future_week_start
 
 
 def test_week_get_falls_back_when_cache_failures_occur(db, test_instructor) -> None:
     """Cache errors should not prevent availability from loading."""
 
     week_start = future_week_start()
-    db.add(
-        AvailabilitySlot(
-            instructor_id=test_instructor.id,
-            specific_date=week_start,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
+    repo = AvailabilityDayRepository(db)
+    repo.upsert_week(
+        test_instructor.id,
+        [(week_start, bits_from_windows([("09:00:00", "10:00:00")]))],
     )
     db.commit()
 

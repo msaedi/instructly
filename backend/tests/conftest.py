@@ -21,6 +21,12 @@ os.environ.setdefault("is_testing", "true")
 os.environ.setdefault("rate_limit_enabled", "false")
 os.environ.setdefault("AVAILABILITY_PERF_DEBUG", "1")
 os.environ.setdefault("AVAILABILITY_TEST_MEMORY_CACHE", "1")
+os.environ.setdefault("SEED_AVAILABILITY_BITMAP", "0")
+os.environ.setdefault("SEED_AVAILABILITY_BITMAP_WEEKS", "0")
+os.environ.setdefault("SEED_DISABLE_SLOTS", "1")
+os.environ.setdefault("INCLUDE_EMPTY_DAYS_IN_TESTS", "1")
+os.environ.setdefault("INSTANT_DELIVER_IN_TESTS", "1")
+os.environ.setdefault("PROMETHEUS_CACHE_IN_TESTS", "1")
 os.environ.setdefault("DB_DIALECT", "postgresql")
 if "sqlite" in os.getenv("TEST_DATABASE_URL", "").lower() or "sqlite" in os.getenv(
     "DATABASE_URL", ""

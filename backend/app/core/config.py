@@ -460,6 +460,16 @@ class Settings(BaseSettings):
         alias="SEED_DISABLE_SLOTS",
         description="When true, seed scripts skip inserting availability_slots rows",
     )
+    include_empty_days_in_tests: bool = Field(
+        default=False,
+        alias="INCLUDE_EMPTY_DAYS_IN_TESTS",
+        description="When true, weekly availability responses include empty days (test-only helper)",
+    )
+    instant_deliver_in_tests: bool = Field(
+        default=True,
+        alias="INSTANT_DELIVER_IN_TESTS",
+        description="When true, availability outbox events are marked sent immediately during tests",
+    )
     suppress_past_availability_events: bool = Field(
         default=False,
         alias="SUPPRESS_PAST_AVAILABILITY_EVENTS",

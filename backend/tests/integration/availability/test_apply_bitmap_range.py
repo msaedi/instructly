@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from tests._utils.bitmap_seed import next_monday, seed_week_bits
 
 import app.api.dependencies.services as dependency_services
+from app.core.config import settings
 import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -102,7 +103,9 @@ def test_apply_bitmap_pattern_across_weeks(
     assert body["weeks_applied"] == weeks_to_apply
     assert body.get("weeks_affected", 0) >= 1
     assert body.get("days_written", 0) > 0
-    assert body.get("windows_created", 0) > 0
+    windows_per_week = sum(len(windows) for windows in pattern.values())
+    assert body.get("windows_created", 0) == windows_per_week * weeks_to_apply
+    assert body.get("days_written", 0) == len(pattern) * weeks_to_apply
     assert body.get("edited_dates")
 
     for week_index in range(weeks_to_apply):
@@ -130,7 +133,16 @@ def test_apply_bitmap_pattern_across_weeks(
                 {"start_time": start, "end_time": end}
                 for start, end in pattern.get(weekday, [])
             ]
-            assert payload[target_day.isoformat()] == expected
+            day_key = target_day.isoformat()
+            if expected:
+                assert day_key in payload
+                assert payload[day_key] == expected
+            else:
+                if settings.include_empty_days_in_tests:
+                    assert day_key in payload
+                    assert payload[day_key] == []
+                else:
+                    assert day_key not in payload
 
 
 def test_apply_bitmap_pattern_no_source_bits(
@@ -185,5 +197,8 @@ def test_apply_bitmap_pattern_no_source_bits(
         )
         assert get_resp.status_code == 200
         payload = get_resp.json()
-        for day_payload in payload.values():
-            assert day_payload == []
+        if settings.include_empty_days_in_tests:
+            assert len(payload) == 7
+            assert all(not entries for entries in payload.values())
+        else:
+            assert payload == {}

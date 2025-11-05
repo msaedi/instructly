@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 
 import pytest
-from tests.utils.availability_builders import future_week_start
 
-from app.models.availability import AvailabilitySlot
+from app.models.availability_day import AvailabilityDay
+from app.repositories.availability_day_repository import AvailabilityDayRepository
+from app.utils.bitset import bits_from_windows
+from tests.utils.availability_builders import future_week_start
 
 
 @pytest.fixture(autouse=True)
@@ -16,21 +18,18 @@ def enable_test_cache(monkeypatch: pytest.MonkeyPatch):
 
 def _seed_week(db, instructor_id: str, week_start: date, start_hour: int) -> None:
     week_end = week_start + timedelta(days=6)
-    db.query(AvailabilitySlot).filter(
-        AvailabilitySlot.instructor_id == instructor_id,
-        AvailabilitySlot.specific_date.between(week_start, week_end),
+    db.query(AvailabilityDay).filter(
+        AvailabilityDay.instructor_id == instructor_id,
+        AvailabilityDay.day_date.between(week_start, week_end),
     ).delete(synchronize_session=False)
 
+    repo = AvailabilityDayRepository(db)
+    items = []
     for day in range(7):
         current = week_start + timedelta(days=day)
-        db.add(
-            AvailabilitySlot(
-                instructor_id=instructor_id,
-                specific_date=current,
-                start_time=time(start_hour, 0),
-                end_time=time(start_hour + 1, 0),
-            )
-        )
+        window = (f"{start_hour:02d}:00:00", f"{start_hour + 1:02d}:00:00")
+        items.append((current, bits_from_windows([window])))
+    repo.upsert_week(instructor_id, items)
     db.commit()
 
 

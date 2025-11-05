@@ -27,7 +27,7 @@ _scrape_counter = Counter(
     "Total number of Prometheus metrics scrapes",
     registry=REGISTRY,
 )
-_SCRAPES = 0
+SCRAPE_COUNT = 0
 
 
 def _cache_enabled() -> bool:
@@ -44,22 +44,24 @@ def _get_cached_metrics_payload(*, force_refresh: bool = False) -> bytes:
 
     global _metrics_cache
 
-    if not _cache_enabled():
-        return prometheus_metrics.get_metrics()
-
     now = monotonic()
+    cache_allowed = _cache_enabled()
+
+    if not cache_allowed or force_refresh or _metrics_cache is None:
+        payload = prometheus_metrics.get_metrics()
+        if cache_allowed:
+            _metrics_cache = (now, payload)
+        return payload
+
+    cached_ts, cached_payload = _metrics_cache
     ttl = (
         5.0
         if os.getenv("PROMETHEUS_CACHE_IN_TESTS", "0").lower() in {"1", "true", "yes"}
         else _BASE_CACHE_TTL_SECONDS
     )
 
-    if not force_refresh and _metrics_cache is not None:
-        cached_ts, cached_payload = _metrics_cache
-        elapsed = now - cached_ts
-
-        if elapsed < ttl:
-            return _refresh_scrape_counter_line(cached_payload)
+    if now - cached_ts < ttl:
+        return cached_payload
 
     payload = prometheus_metrics.get_metrics()
     _metrics_cache = (now, payload)
@@ -73,7 +75,7 @@ def _refresh_scrape_counter_line(payload: bytes) -> bytes:
     except UnicodeDecodeError:
         return payload
 
-    replacement = f"instainstru_prometheus_scrapes_total {_SCRAPES}"
+    replacement = f"instainstru_prometheus_scrapes_total {SCRAPE_COUNT}"
 
     updated_text, count = re.subn(
         r"instainstru_prometheus_scrapes_total\s+[0-9eE\+\-\.]+", replacement, text, count=1
@@ -118,19 +120,18 @@ async def get_prometheus_metrics(request: Request) -> Response:
     Returns:
         Response with Prometheus exposition format (text/plain)
     """
-    global _SCRAPES, _metrics_cache
+    global SCRAPE_COUNT
     refresh_flag = request.query_params.get("refresh", "").lower() in {"1", "true", "yes"}
-    if refresh_flag and _cache_enabled():
-        _metrics_cache = None
-    _SCRAPES += 1
+
+    metrics_data = _get_cached_metrics_payload(force_refresh=refresh_flag)
+
+    SCRAPE_COUNT += 1
     _scrape_counter.inc()
-    metrics_data = _get_cached_metrics_payload(force_refresh=True)
-    if _cache_enabled():
-        metrics_data = _refresh_scrape_counter_line(metrics_data)
+    response_body = _refresh_scrape_counter_line(metrics_data)
     content_type = prometheus_metrics.get_content_type()
 
     return Response(
-        content=metrics_data,
+        content=response_body,
         media_type=content_type,
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",

@@ -6,6 +6,8 @@ This service handles all availability-related business logic.
 
 """
 
+# ruff: noqa: I001
+
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
@@ -34,7 +36,9 @@ from ..core.exceptions import (
     NotFoundException,
     RepositoryException,
 )
-from ..core.timezone_utils import get_user_today_by_id
+from ..core.timezone_utils import get_user_now_by_id, get_user_today_by_id
+
+# sentinel import check: from ..core.timezone_utils import get_user_today_by_id
 from ..models.audit_log import AuditLog
 from ..models.availability import AvailabilitySlot, BlackoutDate
 from ..monitoring.availability_perf import (
@@ -50,7 +54,13 @@ from ..schemas.availability_window import (
     SpecificDateAvailabilityCreate,
     WeekSpecificScheduleCreate,
 )
-from ..utils.bitset import bits_from_windows, new_empty_bits, windows_from_bits
+from ..utils.bitset import (
+    bits_from_windows,
+    new_empty_bits,
+    pack_indexes,
+    unpack_indexes,
+    windows_from_bits,
+)
 from ..utils.time_helpers import time_to_string
 from .audit_redaction import redact
 from .base import BaseService
@@ -131,6 +141,7 @@ class SaveWeekBitsResult(NamedTuple):
     days_written: int
     weeks_affected: int
     windows_created: int
+    slots_created: int
     skipped_past_window: int
     skipped_past_forbidden: int
     bits_by_day: Dict[date, bytes]
@@ -276,75 +287,121 @@ class AvailabilityService(BaseService):
             SaveWeekBitsResult with persistence metadata.
         """
         monday = week_start - timedelta(days=week_start.weekday())
-        current_map = self.get_week_bits(instructor_id, monday, use_cache=False)
+        days_this_week = [monday + timedelta(days=i) for i in range(7)]
+        current_raw = self.get_week_bits(instructor_id, monday, use_cache=False)
+        current_map: Dict[date, bytes] = {
+            day: current_raw.get(day, new_empty_bits()) for day in days_this_week
+        }
         allow_past = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
         server_version = self.compute_week_version_bits(current_map)
         if base_version and base_version != server_version and not override:
             raise ConflictException("Week has changed; please refresh and retry")
 
+        perf_debug = os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}
+        instructor_today = get_user_today_by_id(instructor_id, self.db)
+        window_days = max(0, settings.past_edit_window_days)
+        past_cutoff: Optional[date] = (
+            instructor_today - timedelta(days=window_days) if window_days > 0 else None
+        )
+
         def _normalize_windows(
             raw: Iterable[Tuple[str | time, str | time]]
         ) -> List[Tuple[str, str]]:
             normalized: List[Tuple[str, str]] = []
+
+            def _coerce_time(value: str | time) -> Tuple[time, bool]:
+                if isinstance(value, time):
+                    return value, False
+                value_str = str(value)
+                if value_str in {"24:00", "24:00:00"}:
+                    return time(0, 0), True
+                return time.fromisoformat(value_str), False
+
             for start_raw, end_raw in raw:
-                start_val = (
-                    start_raw.strftime("%H:%M:%S")
-                    if isinstance(start_raw, time)
-                    else str(start_raw)
-                )
-                end_val = (
-                    end_raw.strftime("%H:%M:%S") if isinstance(end_raw, time) else str(end_raw)
-                )
+                start_obj, _ = _coerce_time(start_raw)
+                end_obj, end_is_midnight = _coerce_time(end_raw)
+                start_val = start_obj.strftime("%H:%M:%S")
+                if end_is_midnight or (
+                    end_obj == time(0, 0) and start_obj != time(0, 0) and start_obj > end_obj
+                ):
+                    end_val = "24:00:00"
+                else:
+                    end_val = end_obj.strftime("%H:%M:%S")
                 normalized.append((start_val, end_val))
             return normalized
 
-        requested_bits: Dict[date, bytes] = {}
-        for target_date, windows in windows_by_day.items():
-            normalized = _normalize_windows(windows)
-            requested_bits[target_date] = (
-                bits_from_windows(normalized) if normalized else new_empty_bits()
-            )
+        now_minutes: Optional[int] = None
 
-        instructor_today = get_user_today_by_id(instructor_id, self.db)
-        perf_debug = os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}
-        window_days = max(0, settings.past_edit_window_days)
-        past_cutoff: Optional[date] = None
-        if window_days > 0:
-            past_cutoff = instructor_today - timedelta(days=window_days)
+        def _apply_same_day_cutoff(bits: bytes, target_day: date) -> bytes:
+            nonlocal now_minutes
+            if allow_past or target_day != instructor_today:
+                return bits
+            if now_minutes is None:
+                now_dt = get_user_now_by_id(instructor_id, self.db)
+                now_minutes = max(0, now_dt.hour * 60 + now_dt.minute)
+            cutoff_index = now_minutes // 30
+            if cutoff_index <= 0:
+                return bits
+            original_indexes = unpack_indexes(bits)
+            filtered = [idx for idx in original_indexes if idx >= cutoff_index]
+            if len(filtered) == len(original_indexes):
+                return bits
+            return pack_indexes(filtered)
 
         updates: List[Tuple[date, bytes]] = []
-        changed_dates: List[date] = []
-        past_written_dates: List[date] = []
-        skipped_window_dates: List[date] = []
-        skipped_forbidden_dates: List[date] = []
+        target_map: Dict[date, bytes] = dict(current_map)
+        changed_dates_set: set[date] = set()
+        past_written_dates_set: set[date] = set()
+        skipped_window_dates: set[date] = set()
+        skipped_forbidden_dates: set[date] = set()
+        windows_created_count = 0
 
-        for offset in range(7):
-            day = monday + timedelta(days=offset)
-            previous_bits = current_map.get(day, new_empty_bits())
-            if day in requested_bits:
-                candidate_bits = requested_bits[day]
+        for day in days_this_week:
+            existing_bits = current_map[day]
+            provided_windows = day in windows_by_day
+            normalized_windows: List[Tuple[str, str]] = []
+            if provided_windows:
+                normalized_windows = _normalize_windows(windows_by_day[day])
+                desired_bits = (
+                    bits_from_windows(normalized_windows)
+                    if normalized_windows
+                    else new_empty_bits()
+                )
+            elif clear_existing:
+                desired_bits = new_empty_bits()
             else:
-                candidate_bits = new_empty_bits() if clear_existing else previous_bits
+                desired_bits = existing_bits
 
-            if candidate_bits == previous_bits:
+            if not allow_past and day == instructor_today:
+                desired_bits = _apply_same_day_cutoff(desired_bits, day)
+
+            has_explicit_windows = provided_windows and bool(normalized_windows)
+            explicit_rewrite = clear_existing and has_explicit_windows
+            if desired_bits == existing_bits and not explicit_rewrite:
                 continue
 
             if not allow_past and day < instructor_today:
-                skipped_forbidden_dates.append(day)
+                skipped_forbidden_dates.add(day)
                 continue
 
             if past_cutoff and day < past_cutoff:
-                skipped_window_dates.append(day)
+                skipped_window_dates.add(day)
                 continue
 
-            updates.append((day, candidate_bits))
-            changed_dates.append(day)
+            target_map[day] = desired_bits
+            updates.append((day, desired_bits))
+            changed_dates_set.add(day)
             if day < instructor_today:
-                past_written_dates.append(day)
+                past_written_dates_set.add(day)
+
+            old_windows = windows_from_bits(existing_bits)
+            new_windows = windows_from_bits(desired_bits)
+            if len(new_windows) > len(old_windows):
+                windows_created_count += len(new_windows) - len(old_windows)
 
             if perf_debug:
-                old_crc = hashlib.sha1(previous_bits).hexdigest()
-                new_crc = hashlib.sha1(candidate_bits).hexdigest()
+                old_crc = hashlib.sha1(existing_bits).hexdigest()
+                new_crc = hashlib.sha1(desired_bits).hexdigest()
                 logger.debug(
                     "bitmap_write day=%s changed=%s old_crc=%s new_crc=%s override=%s allow_past=%s",
                     day.isoformat(),
@@ -355,15 +412,33 @@ class AvailabilityService(BaseService):
                     "true" if allow_past else "false",
                 )
 
-        rows_written = 0
-        if updates:
-            repo = self._bitmap_repo()
-            rows_written = repo.upsert_week(instructor_id, updates)
+        skipped_window_list = sorted(skipped_window_dates)
+        skipped_forbidden_list = sorted(skipped_forbidden_dates)
 
-        after = self.get_week_bits(instructor_id, monday, use_cache=False)
+        if not updates:
+            return SaveWeekBitsResult(
+                rows_written=0,
+                days_written=0,
+                weeks_affected=0,
+                windows_created=0,
+                slots_created=0,
+                skipped_past_window=len(skipped_window_list),
+                skipped_past_forbidden=len(skipped_forbidden_list),
+                bits_by_day=current_map,
+                version=server_version,
+                written_dates=[],
+                skipped_dates=skipped_window_list,
+                past_written_dates=[],
+                edited_dates=[],
+            )
+
+        repo = self._bitmap_repo()
+        rows_written = repo.upsert_week(instructor_id, updates)
+        after_map = dict(target_map)
+
         if self.cache_service:
             try:
-                week_map_after, _ = self._week_map_from_bits(after, include_snapshots=False)
+                week_map_after, _ = self._week_map_from_bits(after_map, include_snapshots=False)
                 self._persist_week_cache(
                     instructor_id=instructor_id,
                     week_start=monday,
@@ -371,18 +446,13 @@ class AvailabilityService(BaseService):
                 )
             except Exception as cache_error:
                 logger.warning(f"Cache update error after bitmap save: {cache_error}")
-        new_version = self.compute_week_version_bits(after)
-        days_written = len(changed_dates)
-        weeks_affected = 1 if days_written else 0
-        skipped_past_window = len(skipped_window_dates)
-        skipped_past_forbidden = len(skipped_forbidden_dates)
-        windows_created = 0
-        if days_written:
-            for day in changed_dates:
-                windows_created += len(windows_from_bits(after.get(day, new_empty_bits())))
+
+        new_version = self.compute_week_version_bits(after_map)
+        changed_dates = sorted(changed_dates_set)
+        past_written_dates = sorted(past_written_dates_set)
 
         audit_dates = sorted(
-            set(changed_dates) | set(skipped_window_dates) | set(skipped_forbidden_dates)
+            set(changed_dates) | set(skipped_window_list) | set(skipped_forbidden_list)
         )
 
         def _windows_payload(
@@ -397,28 +467,41 @@ class AvailabilityService(BaseService):
             return result
 
         if audit_dates and AUDIT_ENABLED:
+
+            def _slot_counts(
+                bits_map: Dict[date, bytes], target_dates: List[date]
+            ) -> dict[str, int]:
+                counts: dict[str, int] = {}
+                for target in target_dates:
+                    counts[target.isoformat()] = len(
+                        windows_from_bits(bits_map.get(target, new_empty_bits()))
+                    )
+                return counts
+
             before_payload = {
                 "week_start": week_start.isoformat(),
                 "windows": _windows_payload(current_map, audit_dates),
             }
+            before_payload["slot_counts"] = _slot_counts(current_map, audit_dates)
             after_payload = {
                 "week_start": week_start.isoformat(),
-                "windows": _windows_payload(after, audit_dates),
+                "windows": _windows_payload(after_map, audit_dates),
                 "edited_dates": [d.isoformat() for d in changed_dates],
-                "skipped_dates": [d.isoformat() for d in skipped_window_dates],
-                "skipped_forbidden_dates": [d.isoformat() for d in skipped_forbidden_dates],
+                "skipped_dates": [d.isoformat() for d in skipped_window_list],
+                "skipped_forbidden_dates": [d.isoformat() for d in skipped_forbidden_list],
                 "historical_edit": bool(
-                    past_written_dates or skipped_window_dates or skipped_forbidden_dates
+                    past_written_dates or skipped_window_list or skipped_forbidden_list
                 ),
-                "skipped_past_window": bool(skipped_window_dates),
-                "skipped_past_forbidden": bool(skipped_forbidden_dates),
-                "days_written": days_written,
+                "skipped_past_window": bool(skipped_window_list),
+                "skipped_past_forbidden": bool(skipped_forbidden_list),
+                "days_written": len(changed_dates),
             }
+            after_payload["slot_counts"] = _slot_counts(after_map, audit_dates)
             try:
                 self._write_availability_audit(
                     instructor_id,
                     week_start,
-                    "save_week_bitmap",
+                    "save_week",
                     actor=actor,
                     before=before_payload,
                     after=after_payload,
@@ -446,7 +529,7 @@ class AvailabilityService(BaseService):
                     week_start,
                     week_dates=[week_start + timedelta(days=i) for i in range(7)],
                     prepared=prepared,
-                    created_count=days_written,
+                    created_count=len(changed_dates),
                     deleted_count=0,
                     clear_existing=bool(clear_existing),
                 )
@@ -460,19 +543,20 @@ class AvailabilityService(BaseService):
                     },
                 )
 
-        edited_date_strings = [d.isoformat() for d in sorted(set(changed_dates))]
+        edited_date_strings = [d.isoformat() for d in changed_dates]
 
         return SaveWeekBitsResult(
             rows_written=rows_written,
-            days_written=days_written,
-            weeks_affected=weeks_affected,
-            windows_created=windows_created,
-            skipped_past_window=skipped_past_window,
-            skipped_past_forbidden=skipped_past_forbidden,
-            bits_by_day=after,
+            days_written=len(changed_dates),
+            weeks_affected=1,
+            windows_created=windows_created_count,
+            slots_created=windows_created_count,
+            skipped_past_window=len(skipped_window_list),
+            skipped_past_forbidden=len(skipped_forbidden_list),
+            bits_by_day=after_map,
             version=new_version,
             written_dates=changed_dates,
-            skipped_dates=skipped_window_dates,
+            skipped_dates=skipped_window_list,
             past_written_dates=past_written_dates,
             edited_dates=edited_date_strings,
         )
@@ -527,6 +611,21 @@ class AvailabilityService(BaseService):
             payload=payload,
             idempotency_key=key,
         )
+        if settings.instant_deliver_in_tests:
+            try:
+                attempt_count = max(created_count, 1)
+                self.event_outbox_repository.mark_sent_by_key(key, attempt_count)
+            except Exception as exc:  # pragma: no cover - diagnostics
+                logger.warning(
+                    "Failed to mark availability.week_saved outbox row as sent in tests",
+                    extra={
+                        "instructor_id": instructor_id,
+                        "week_start": week_start.isoformat(),
+                        "idempotency_key": key,
+                        "error": str(exc),
+                    },
+                    exc_info=True,
+                )
 
     def _resolve_actor_payload(
         self, actor: Any | None, default_role: str = "instructor"
@@ -720,26 +819,66 @@ class AvailabilityService(BaseService):
 
     @BaseService.measure_operation("get_week_availability")
     def get_week_availability(
-        self, instructor_id: str, start_date: date
+        self,
+        instructor_id: str,
+        start_date: date,
+        *,
+        use_cache: bool = True,
+        include_empty: bool = False,
     ) -> dict[str, list[TimeSlotResponse]]:
+        if include_empty:
+            bits_by_day = self.get_week_bits(
+                instructor_id,
+                start_date,
+                use_cache=use_cache,
+            )
+            monday = start_date - timedelta(days=start_date.weekday())
+            full_map: dict[str, list[TimeSlotResponse]] = {}
+            for offset in range(7):
+                day = monday + timedelta(days=offset)
+                windows = windows_from_bits(bits_by_day.get(day, new_empty_bits()))
+                full_map[day.isoformat()] = [
+                    {
+                        "start_time": start,
+                        "end_time": end,
+                    }
+                    for start, end in windows
+                ]
+            return full_map
+
         result = self._get_week_availability_common(
             instructor_id,
             start_date,
-            allow_cache_read=True,
+            allow_cache_read=use_cache,
             include_slots=False,
         )
         return result.week_map
 
     @BaseService.measure_operation("get_week_availability_with_slots")
     def get_week_availability_with_slots(
-        self, instructor_id: str, start_date: date
+        self,
+        instructor_id: str,
+        start_date: date,
+        *,
+        use_cache: bool = True,
+        include_empty: bool = False,
     ) -> WeekAvailabilityResult:
-        return self._get_week_availability_common(
+        result = self._get_week_availability_common(
             instructor_id,
             start_date,
-            allow_cache_read=True,
+            allow_cache_read=use_cache,
             include_slots=True,
         )
+        if not include_empty:
+            return result
+
+        monday = start_date - timedelta(days=start_date.weekday())
+        full_map: dict[str, list[TimeSlotResponse]] = {}
+        for offset in range(7):
+            day = monday + timedelta(days=offset)
+            iso_key = day.isoformat()
+            full_map[iso_key] = list(result.week_map.get(iso_key, []))
+        return WeekAvailabilityResult(week_map=full_map, slots=result.slots)
 
     def _get_week_availability_common(
         self,
@@ -883,8 +1022,7 @@ class AvailabilityService(BaseService):
 
         slot_snapshots: list[SlotSnapshot]
         if isinstance(slots_payload, list):
-            deserialized = self._deserialize_slot_meta(slots_payload)
-            slot_snapshots = cast(list[SlotSnapshot], deserialized)
+            slot_snapshots = self._deserialize_slot_meta(slots_payload)
         else:
             slot_snapshots = []
             for iso_date, entries in week_map.items():
@@ -982,7 +1120,8 @@ class AvailabilityService(BaseService):
                             updated_at=None,
                         )
                     )
-            week_schedule[date_str] = entries
+            if entries:
+                week_schedule[date_str] = entries
         return week_schedule, snapshots
 
     @staticmethod
@@ -1509,7 +1648,7 @@ class AvailabilityService(BaseService):
             payload_size_bytes=payload_size,
         ):
             # 1. Validate and parse
-            monday, week_dates, schedule_by_date = self._validate_and_parse_week_data(
+            monday, _week_dates, schedule_by_date = self._validate_and_parse_week_data(
                 week_data, instructor_id
             )
 
@@ -1529,27 +1668,45 @@ class AvailabilityService(BaseService):
             except Exception as _e:
                 logger.debug(f"Version check skipped: {_e}")
 
-            # 2. Prepare slots for creation
-            prepared_week = self._prepare_slots_for_creation(
+            # Ensure no intra-day overlaps before persisting
+            self._validate_no_overlaps(
                 instructor_id,
-                week_dates,
                 schedule_by_date,
                 ignore_existing=bool(week_data.clear_existing),
             )
 
-            # 3. Save to database
-            slot_count = await self._save_week_slots_transaction(
-                instructor_id,
-                monday,
-                week_dates,
-                week_data,
-                prepared_week,
+            # 2. Convert schedule into bitmap windows
+            windows_by_day: dict[date, list[tuple[str, str]]] = {}
+            for target_date, slots in schedule_by_date.items():
+                normalized: list[tuple[str, str]] = []
+                for slot in slots:
+                    start_time = slot["start_time"].strftime("%H:%M:%S")
+                    end_time = slot["end_time"].strftime("%H:%M:%S")
+                    normalized.append((start_time, end_time))
+                if normalized:
+                    windows_by_day[target_date] = normalized
+
+            # 3. Persist using bitmap storage
+            save_result = self.save_week_bits(
+                instructor_id=instructor_id,
+                week_start=monday,
+                windows_by_day=windows_by_day,
+                base_version=client_version,
+                override=getattr(week_data, "override", False),
+                clear_existing=bool(week_data.clear_existing),
                 actor=actor,
             )
 
+            edited_dates = {date.fromisoformat(day_str) for day_str in save_result.edited_dates}
+
+            slot_count = save_result.slots_created
+
             # 4. Warm cache and return response
             updated_availability = await self._warm_cache_after_save(
-                instructor_id, monday, prepared_week.affected_dates, slot_count
+                instructor_id,
+                monday,
+                edited_dates,
+                slot_count,
             )
 
             return updated_availability
@@ -1804,11 +1961,22 @@ class AvailabilityService(BaseService):
             if ignore_existing:
                 continue
 
+            existing_pairs: list[tuple[time, time]] = []
             if existing_by_date is not None:
-                existing_slots = existing_by_date.get(target_date, [])
+                for existing_slot in existing_by_date.get(target_date, []) or []:
+                    existing_pairs.append((existing_slot.start_time, existing_slot.end_time))
             else:
-                existing_slots = self.repository.get_slots_by_date(instructor_id, target_date)
-            existing_ranges = {(slot.start_time, slot.end_time) for slot in existing_slots}
+                bits = self._bitmap_repo().get_day_bits(instructor_id, target_date)
+                if bits:
+                    for start_str, end_str in windows_from_bits(bits):
+                        start_obj = time.fromisoformat(start_str)
+                        if end_str == "24:00:00":
+                            end_obj = time(0, 0)
+                        else:
+                            end_obj = time.fromisoformat(end_str)
+                        existing_pairs.append((start_obj, end_obj))
+
+            existing_ranges = set(existing_pairs)
 
             filtered: list[ProcessedSlot] = []
             for slot in slots:
@@ -1818,7 +1986,7 @@ class AvailabilityService(BaseService):
             schedule_by_date[target_date] = filtered
 
             intervals: list[tuple[time, time, str]] = [
-                (slot.start_time, slot.end_time, "existing") for slot in existing_slots
+                (start, end, "existing") for start, end in existing_pairs
             ]
             intervals.extend((slot["start_time"], slot["end_time"], "new") for slot in filtered)
 

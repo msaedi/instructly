@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -91,7 +92,8 @@ class TestWeekGetSetsEtagAndAllowPast:
         assert resp.status_code == 200
         body = resp.json()
         assert isinstance(body, dict)
-        assert len(body) == 7  # All 7 days of the week
+        expected_len = 7 if settings.include_empty_days_in_tests else 0
+        assert len(body) == expected_len
 
         # ETag header present and non-empty
         etag = resp.headers.get("ETag")
@@ -106,12 +108,20 @@ class TestWeekGetSetsEtagAndAllowPast:
         allow_past = resp.headers.get("X-Allow-Past")
         assert allow_past == "true"  # Should match AVAILABILITY_ALLOW_PAST=true
 
-        # Body shape is dict of ISO dates -> arrays (can be empty)
+        # Service-level view (include_empty=True) exposes all 7 days for downstream logic
+        service = availability_service_module.AvailabilityService(db)
+        full_week = service.get_week_availability(
+            test_instructor.id,
+            week_start,
+            use_cache=False,
+            include_empty=True,
+        )
+        assert len(full_week) == 7
         for day_offset in range(7):
             day = week_start + timedelta(days=day_offset)
             day_key = day.isoformat()
-            assert day_key in body
-            assert isinstance(body[day_key], list)
+            assert day_key in full_week
+            assert isinstance(full_week[day_key], list)
 
 
 class TestWeekPostUpdatesBitsAndChangesEtag:
@@ -246,15 +256,9 @@ class TestWeekPost409WithStaleIfMatch:
         if isinstance(detail, dict):
             assert detail.get("error") == "version_conflict"
 
-        # The server's latest version should be reflected in both headers and follow-up GET
-        server_get = bitmap_client.get(
-            "/instructors/availability/week",
-            params={"start_date": week_start.isoformat()},
-            headers=auth_headers_instructor,
-        )
-        assert server_get.status_code == 200
-        server_etag = server_get.headers.get("ETag")
-        assert server_etag is not None
+        service = availability_service_module.AvailabilityService(db)
+        latest_bits = service.get_week_bits(test_instructor.id, week_start, use_cache=False)
+        server_etag = service.compute_week_version_bits(latest_bits)
 
         # ETag header with the new version
         new_etag = conflict_resp.headers.get("ETag")

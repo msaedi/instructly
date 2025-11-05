@@ -14,15 +14,11 @@ from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot
-from app.schemas.availability_window import (
-    SpecificDateAvailabilityCreate,
-    WeekSpecificScheduleCreate,
-)
+from app.schemas.availability_window import WeekSpecificScheduleCreate
 from app.services.availability_service import AvailabilityService
 from app.services.bulk_operation_service import BulkOperationService
 from app.services.week_operation_service import WeekOperationService
-from app.utils.time_helpers import time_to_string
+from app.utils.bitset import windows_from_bits
 
 
 class AvailabilityTestHelper:
@@ -54,54 +50,23 @@ class AvailabilityTestHelper:
         Returns:
             Dict with the saved slots and success status
         """
-        # If clear_existing, first remove any existing slots for this date
-        if clear_existing:
-            existing_slots = (
-                self.db.query(AvailabilitySlot)
-                .filter(
-                    AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.specific_date == date,
-                )
-                .all()
-            )
+        week_start = date - timedelta(days=date.weekday())
+        windows_by_day = {date: [(slot["start_time"], slot["end_time"]) for slot in slots]}
 
-            for slot in existing_slots:
-                self.db.delete(slot)
-            self.db.commit()
+        save_result = self.availability_service.save_week_bits(
+            instructor_id=instructor_id,
+            week_start=week_start,
+            windows_by_day=windows_by_day,
+            base_version=None,
+            override=True,
+            clear_existing=False,
+        )
 
-        # Add each slot using the actual API
-        saved_slots = []
-        for slot in slots:
-            # Convert string times to time objects if needed
-            start_time = slot["start_time"]
-            end_time = slot["end_time"]
-
-            if isinstance(start_time, str):
-                hour, minute = map(int, start_time.split(":")[:2])
-                start_time = time(hour, minute)
-            if isinstance(end_time, str):
-                hour, minute = map(int, end_time.split(":")[:2])
-                end_time = time(hour, minute)
-
-            availability_data = SpecificDateAvailabilityCreate(
-                specific_date=date, start_time=start_time, end_time=end_time
-            )
-
-            # FIX: add_specific_date_availability returns an AvailabilitySlot object, not a dict
-            result = self.availability_service.add_specific_date_availability(
-                instructor_id=instructor_id, availability_data=availability_data
-            )
-
-            # Handle both object and dict responses (for compatibility)
-            if isinstance(result, AvailabilitySlot):
-                saved_slots.append(
-                    {"start_time": time_to_string(result.start_time), "end_time": time_to_string(result.end_time)}
-                )
-            elif isinstance(result, dict):
-                saved_slots.append({"start_time": result.get("start_time"), "end_time": result.get("end_time")})
-            else:
-                # If result is something else, try to extract the times
-                saved_slots.append({"start_time": time_to_string(start_time), "end_time": time_to_string(end_time)})
+        day_bits = save_result.bits_by_day.get(date)
+        saved_slots = [
+            {"start_time": start, "end_time": end}
+            for start, end in windows_from_bits(day_bits) if day_bits is not None
+        ]
 
         return {"success": True, "date": date.isoformat(), "slots": saved_slots}
 
@@ -113,7 +78,11 @@ class AvailabilityTestHelper:
         """
         # Get the week that contains this date
         week_start = date - timedelta(days=date.weekday())
-        week_data = self.availability_service.get_week_availability(instructor_id=instructor_id, start_date=week_start)
+        week_data = self.availability_service.get_week_availability(
+            instructor_id=instructor_id,
+            start_date=week_start,
+            include_empty=True,
+        )
 
         # Extract just the requested day
         date_str = date.isoformat()
@@ -127,7 +96,11 @@ class AvailabilityTestHelper:
 
         Returns week data in a format that tests expect.
         """
-        week_data = self.availability_service.get_week_availability(instructor_id=instructor_id, start_date=week_start)
+        week_data = self.availability_service.get_week_availability(
+            instructor_id=instructor_id,
+            start_date=week_start,
+            include_empty=True,
+        )
 
         # Convert to test-friendly format
         days = []

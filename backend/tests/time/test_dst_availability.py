@@ -5,8 +5,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.models.availability import AvailabilitySlot
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.availability_service import AvailabilityService
+from app.utils.bitset import bits_from_windows
 
 
 @pytest.mark.parametrize(
@@ -33,13 +34,18 @@ def test_dst_boundary_slots_render_consistently(
     to America/New_York to ensure offsets line up before/after the transition.
     """
 
-    slot = AvailabilitySlot(
-        instructor_id=test_instructor.id,
-        specific_date=slot_date,
-        start_time=time(start_hour, 30),
-        end_time=time(end_hour, 30),
+    repo = AvailabilityDayRepository(db)
+    repo.upsert_week(
+        test_instructor.id,
+        [
+            (
+                slot_date,
+                bits_from_windows(
+                    [(f"{start_hour:02d}:30:00", f"{end_hour:02d}:30:00")]
+                ),
+            )
+        ],
     )
-    db.add(slot)
     db.commit()
 
     service = AvailabilityService(db)

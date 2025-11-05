@@ -88,8 +88,12 @@ async def test_booking_availability_flow(monkeypatch, db: Session, test_instruct
     )
     db.commit()
 
-    baseline_week = availability_service.get_week_availability(instructor.id, week_start)
-    normalized_baseline = _normalize_week_map(baseline_week)
+    expected_availability = [
+        (
+            week_start.isoformat(),
+            (("09:00:00", "12:00:00"),),
+        )
+    ]
 
     service = instructor.instructor_profile.instructor_services[0]
     duration = service.duration_options[0]
@@ -131,7 +135,7 @@ async def test_booking_availability_flow(monkeypatch, db: Session, test_instruct
 
     db.expire_all()
     after_cancel_week = availability_service.get_week_availability(instructor.id, week_start)
-    assert _normalize_week_map(after_cancel_week) == normalized_baseline
+    assert _normalize_week_map(after_cancel_week) == expected_availability
 
     stats = booking_service.get_booking_stats_for_instructor(instructor.id)
     assert stats["total_bookings"] == 2

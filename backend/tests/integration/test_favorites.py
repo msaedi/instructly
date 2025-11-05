@@ -14,6 +14,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
+
 from tests.fixtures.unique_test_data import unique_data
 
 try:  # pragma: no cover - fallback for direct backend pytest runs

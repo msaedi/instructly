@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.database import SessionLocal
 from app.monitoring.prometheus_metrics import PrometheusMetrics
+from app.repositories.event_outbox_repository import EventOutboxRepository
 from app.repositories.notification_delivery_repository import NotificationDeliveryRepository
 
 logger = logging.getLogger(__name__)
@@ -142,6 +143,20 @@ class NotificationProvider:
                 record.id,
                 record.attempt_count,
             )
+            if settings.instant_deliver_in_tests:
+                try:
+                    outbox_repo = EventOutboxRepository(session)
+                    outbox_repo.mark_sent_by_key(idempotency_key, record.attempt_count or 1)
+                except Exception as exc:  # pragma: no cover - diagnostics
+                    logger.warning(
+                        "Failed to mark outbox row sent during test delivery",
+                        extra={
+                            "event_type": event_type,
+                            "idempotency_key": idempotency_key,
+                            "error": str(exc),
+                        },
+                        exc_info=True,
+                    )
             return NotificationDispatchResult(
                 idempotency_key=idempotency_key,
                 event_type=event_type,

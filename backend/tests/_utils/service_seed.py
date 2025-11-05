@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import re
 from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy.orm import Session
 import ulid
 
+from app.auth import get_password_hash
+from app.core.enums import RoleName
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import (
     InstructorService,
     ServiceCatalog,
     ServiceCategory,
 )
+from app.models.user import User
+from app.services.permission_service import PermissionService
 
 DEFAULT_DURATIONS = {30, 60}
 
@@ -169,3 +174,64 @@ def ensure_instructor_service_for_tests(
         session.flush()
 
     return catalog.id, service.id
+
+
+def create_unique_instructor_for_tests(
+    session: Session,
+    *,
+    email: str,
+    first_name: str = "Bitmap",
+    last_name: str = "Tester",
+) -> Dict[str, str]:
+    """
+    Create a standalone instructor user with profile and service for isolated tests.
+
+    Returns a dict with identifiers so callers can reference the created records.
+    """
+    existing = session.query(User).filter(User.email == email).one_or_none()
+    if existing:
+        raise ValueError(f"Test instructor email already exists: {email}")
+
+    hashed_password = get_password_hash("TempPass123!")
+
+    user = User(
+        email=email,
+        hashed_password=hashed_password,
+        first_name=first_name,
+        last_name=last_name,
+        phone="+12125550000",
+        zip_code="10002",
+        is_active=True,
+    )
+    session.add(user)
+    session.flush()
+
+    profile = InstructorProfile(
+        user_id=user.id,
+        bio=f"Test instructor profile for {email}",
+        years_experience=5,
+        min_advance_booking_hours=2,
+        buffer_time_minutes=15,
+        bgc_status="passed",
+        is_live=True,
+        bgc_completed_at=datetime.now(timezone.utc),
+    )
+    session.add(profile)
+    session.flush()
+
+    permission_service = PermissionService(session)
+    permission_service.assign_role(user.id, RoleName.INSTRUCTOR)
+
+    ensure_instructor_service_for_tests(
+        session,
+        instructor_id=user.id,
+        service_name=f"{first_name} {last_name} Lessons",
+    )
+
+    session.flush()
+
+    return {
+        "instructor_id": user.id,
+        "user_id": user.id,
+        "profile_id": profile.id,
+    }

@@ -139,12 +139,28 @@ class EventOutboxRepository:
         return cast(Optional[EventOutbox], self.db.get(EventOutbox, event_id))
 
     # ------------------------------------------------------------- state updates
-    def mark_sent(self, event_id: int, attempt_count: int) -> None:
+    def mark_sent(self, event_id: str, attempt_count: int) -> None:
         """Update row to SENT state."""
         now = _now_utc()
         self.db.execute(
             update(EventOutbox)
             .where(EventOutbox.id == event_id)
+            .values(
+                status=EventOutboxStatus.SENT.value,
+                attempt_count=attempt_count,
+                last_error=None,
+                next_attempt_at=now,
+                updated_at=now,
+            )
+        )
+        self.db.flush()
+
+    def mark_sent_by_key(self, idempotency_key: str, attempt_count: int) -> None:
+        """Mark an outbox row as sent using its idempotency key."""
+        now = _now_utc()
+        self.db.execute(
+            update(EventOutbox)
+            .where(EventOutbox.idempotency_key == idempotency_key)
             .values(
                 status=EventOutboxStatus.SENT.value,
                 attempt_count=attempt_count,

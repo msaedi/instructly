@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy.orm import Session
 from tests._utils.bitmap_seed import next_monday, seed_week_bits
 
+from app.core.config import settings
 import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -111,7 +112,10 @@ class TestApplyBitmapPatternAcrossWeeksExactCopy:
         apply_body = apply_resp.json()
         assert apply_body.get("weeks_applied") == len(week_offsets)
         assert apply_body.get("weeks_affected") == len(week_offsets)
-        assert apply_body.get("windows_created") == apply_body.get("days_written")
+        windows_per_week = sum(len(windows) for windows in pattern.values())
+        expected_windows = windows_per_week * len(week_offsets)
+        assert apply_body.get("windows_created") == expected_windows
+        assert apply_body.get("days_written") == len(pattern) * len(week_offsets)
 
         seen_etags: set[str] = set()
         for week_index in week_offsets:
@@ -137,10 +141,18 @@ class TestApplyBitmapPatternAcrossWeeksExactCopy:
                 else:
                     assert windows_from_bits(bits) == expected
                 expected_payload = [
-                    {"start_time": start, "end_time": end}
-                    for start, end in expected
+                    {"start_time": start, "end_time": end} for start, end in expected
                 ]
-                assert week_payload[target_day.isoformat()] == expected_payload
+                day_key = target_day.isoformat()
+                if expected_payload:
+                    assert day_key in week_payload
+                    assert week_payload[day_key] == expected_payload
+                else:
+                    if settings.include_empty_days_in_tests:
+                        assert day_key in week_payload
+                        assert week_payload[day_key] == []
+                    else:
+                        assert day_key not in week_payload
 
         assert len(seen_etags) >= 1
 
@@ -202,6 +214,9 @@ class TestApplyBitmapEmptySourceReturnsNoopMessage:
                 headers=auth_headers_instructor,
             )
             assert get_resp.status_code == 200
-            payload = get_resp.json()
-            for day_payload in payload.values():
-                assert day_payload == []
+        payload = get_resp.json()
+        if settings.include_empty_days_in_tests:
+            assert len(payload) == 7
+            assert all(not entries for entries in payload.values())
+        else:
+            assert payload == {}

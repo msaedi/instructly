@@ -16,13 +16,13 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy.orm import Session
-from tests.fixtures.unique_test_data import unique_data
 
 from app.models.booking import Booking, BookingStatus
 from app.models.service_catalog import InstructorService
 from app.models.user import User
 from app.repositories.message_repository import MessageRepository
 from app.services.message_service import MessageService
+from tests.fixtures.unique_test_data import unique_data
 
 
 @pytest.fixture

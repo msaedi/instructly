@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 import app.api.dependencies.services as dependency_services
+from app.core.config import settings
 import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -89,7 +90,16 @@ def test_get_week_bitmap_returns_windows_and_etag(
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body) == 7
+    if settings.include_empty_days_in_tests:
+        expected_keys = {
+            (week_start + timedelta(days=offset)).isoformat() for offset in range(7)
+        }
+    else:
+        expected_keys = {
+            week_start.isoformat(),
+            (week_start + timedelta(days=1)).isoformat(),
+        }
+    assert set(body.keys()) == expected_keys
     assert resp.headers.get("ETag")
     assert resp.headers.get("Access-Control-Expose-Headers") == "ETag, Last-Modified, X-Allow-Past"
     assert resp.headers.get("X-Allow-Past") == "true"
@@ -140,7 +150,8 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
     first_version = resp.headers.get("ETag")
     assert first_version
     payload = resp.json()
-    assert payload["windows_created"] == len(body["schedule"])
+    expected_windows = len(body["schedule"])
+    assert payload["windows_created"] == expected_windows
     assert payload["days_written"] == 2
     assert payload.get("weeks_affected") == 1
     assert set(payload.get("edited_dates", [])) == {

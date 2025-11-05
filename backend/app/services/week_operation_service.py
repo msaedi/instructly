@@ -345,28 +345,19 @@ class WeekOperationService(BaseService):
             date_range=f"{start_date} to {end_date}",
         )
 
-        env_enabled = BITMAP_V2 or os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-
         use_bitmap = False
-        if env_enabled:
-            availability_module = type(self.availability_service).__module__
-            availability_is_mock = availability_module.startswith("unittest.mock")
-            has_bitmap_rows = False
-            if not availability_is_mock:
-                try:
-                    bitmap_repo = self.availability_service._bitmap_repo()
-                    has_bitmap_rows = bool(
-                        bitmap_repo.get_week_rows(instructor_id, from_week_start)
-                    )
-                except Exception:
-                    has_bitmap_rows = False
+        availability_module = type(self.availability_service).__module__
+        availability_is_mock = availability_module.startswith("unittest.mock")
+        has_bitmap_rows = False
+        if not availability_is_mock:
+            try:
+                bitmap_repo = self.availability_service._bitmap_repo()
+                has_bitmap_rows = bool(bitmap_repo.get_week_rows(instructor_id, from_week_start))
+            except Exception:
+                has_bitmap_rows = False
 
-            if has_bitmap_rows:
-                use_bitmap = True
+        if has_bitmap_rows:
+            use_bitmap = True
 
         if use_bitmap:
             return await self._apply_pattern_to_date_range_bitmap(
@@ -650,6 +641,21 @@ class WeekOperationService(BaseService):
             payload=payload,
             idempotency_key=key,
         )
+        if settings.instant_deliver_in_tests:
+            try:
+                attempt_count = max(created_count, 1)
+                self.event_outbox_repository.mark_sent_by_key(key, attempt_count)
+            except Exception as exc:  # pragma: no cover - diagnostics
+                self.logger.warning(
+                    "Failed to mark availability.week_copied outbox row as sent in tests",
+                    extra={
+                        "instructor_id": instructor_id,
+                        "to_week_start": to_week_start.isoformat(),
+                        "idempotency_key": key,
+                        "error": str(exc),
+                    },
+                    exc_info=True,
+                )
 
     def _resolve_actor_payload(
         self, actor: Any | None, default_role: str = "instructor"
@@ -852,14 +858,23 @@ class WeekOperationService(BaseService):
                 "message": "No dates provided to apply bitmap pattern.",
                 "start_date": start_date.isoformat(),
                 "end_date": end_date.isoformat(),
+                "weeks_applied": 0,
                 "weeks_affected": 0,
                 "days_written": 0,
                 "slots_created": 0,
+                "windows_created": 0,
+                "dates_processed": 0,
+                "dates_with_windows": 0,
+                "dates_with_slots": 0,
+                "skipped_past_targets": 0,
+                "edited_dates": [],
+                "written_dates": [],
             }
 
         empty_bits = new_empty_bits()
         affected_weeks_sorted = sorted(self._get_affected_weeks(start_date, end_date))
         weeks_applied = len(affected_weeks_sorted)
+        dates_processed = len(all_dates)
 
         source_bits_map = self.availability_service.get_week_bits(
             instructor_id, from_week_start, use_cache=False
@@ -891,6 +906,10 @@ class WeekOperationService(BaseService):
                 "slots_created": 0,
                 "skipped_past_targets": 0,
                 "edited_dates": [],
+                "dates_processed": dates_processed,
+                "dates_with_windows": 0,
+                "dates_with_slots": 0,
+                "written_dates": [],
             }
 
         instructor_today = get_user_today_by_id(instructor_id, self.db)
@@ -900,6 +919,8 @@ class WeekOperationService(BaseService):
         total_windows_created = 0
         skipped_past_targets = 0
         edited_dates: Set[str] = set()
+        written_dates: Set[str] = set()
+        days_with_windows: Set[str] = set()
 
         for week_start in affected_weeks_sorted:
             existing_bits = self.availability_service.get_week_bits(
@@ -939,32 +960,65 @@ class WeekOperationService(BaseService):
                 windows_by_day=windows_by_day,
                 base_version=None,
                 override=True,
-                clear_existing=True,
+                clear_existing=False,
                 actor=actor,
             )
 
             total_days_written += save_result.days_written
             total_weeks_affected += save_result.weeks_affected
-            total_windows_created += save_result.windows_created
             skipped_past_targets += (
                 save_result.skipped_past_window + save_result.skipped_past_forbidden
             )
             edited_dates.update(save_result.edited_dates)
+            for changed_day in save_result.written_dates:
+                iso_day = changed_day.isoformat()
+                written_dates.add(iso_day)
+                day_bits = save_result.bits_by_day.get(changed_day, empty_bits)
+                new_windows = windows_from_bits(day_bits)
+                if new_windows:
+                    days_with_windows.add(iso_day)
+            total_windows_created += save_result.windows_created
 
         if total_days_written > 0:
-            if skipped_past_targets:
-                message = (
-                    f"Copied bitmap availability to {total_days_written} day(s) across {total_weeks_affected} week(s); "
-                    f"skipped {skipped_past_targets} past day(s)."
-                )
-            else:
-                message = f"Copied bitmap availability to {total_days_written} day(s) across {total_weeks_affected} week(s)."
+            message = f"Copied bitmap availability to {total_days_written} day(s) across {total_weeks_affected} week(s)."
         else:
-            if skipped_past_targets:
-                message = f"Bitmap availability already up to date; skipped {skipped_past_targets} past day(s)."
-            else:
-                message = "Bitmap availability already up to date for the requested range."
+            message = "Bitmap availability already up to date for the requested range."
 
+        if skipped_past_targets > 0:
+            message = f"{message} Skipped {skipped_past_targets} past day(s)."
+
+        message = f"{message} Successfully applied schedule to {dates_processed} day(s)."
+
+        if clamp_to_future and skipped_past_targets > 0:
+            message = f"{message} (clamped past day(s))."
+
+        if self.cache_service:
+            try:
+                from .cache_strategies import CacheWarmingStrategy
+
+                warmer = CacheWarmingStrategy(self.cache_service, self.db)
+                await warmer.warm_with_verification(
+                    instructor_id, source_monday, expected_slot_count=None
+                )
+                for target_week in affected_weeks_sorted:
+                    await warmer.warm_with_verification(
+                        instructor_id, target_week, expected_slot_count=None
+                    )
+            except Exception as cache_error:  # pragma: no cover - defensive logging
+                self.logger.warning(
+                    "Cache warming failed after bitmap pattern apply",
+                    extra={
+                        "instructor_id": instructor_id,
+                        "from_week_start": from_week_start.isoformat(),
+                        "start_date": start_date.isoformat(),
+                        "end_date": end_date.isoformat(),
+                        "error": str(cache_error),
+                    },
+                    exc_info=True,
+                )
+
+        unique_written_dates = sorted(written_dates)
+        dates_with_windows = len(days_with_windows)
         return {
             "message": message,
             "start_date": start_date.isoformat(),
@@ -976,6 +1030,10 @@ class WeekOperationService(BaseService):
             "skipped_past_targets": skipped_past_targets,
             "edited_dates": sorted(edited_dates),
             "slots_created": total_windows_created,
+            "dates_processed": dates_processed,
+            "dates_with_windows": dates_with_windows,
+            "dates_with_slots": dates_with_windows,
+            "written_dates": unique_written_dates,
         }
 
     def _extract_week_pattern_from_source(
@@ -1051,18 +1109,36 @@ class WeekOperationService(BaseService):
         self, instructor_id: str, start_date: date, end_date: date
     ) -> None:
         """Warm cache for all weeks affected by pattern application."""
-        from .cache_strategies import CacheWarmingStrategy
+        if not self.cache_service:
+            return
 
-        warmer = CacheWarmingStrategy(self.cache_service, self.db)
+        try:
+            from .cache_strategies import CacheWarmingStrategy
 
-        # Warm cache for ALL affected weeks
-        affected_weeks = self._get_affected_weeks(start_date, end_date)
+            warmer = CacheWarmingStrategy(self.cache_service, self.db)
 
-        for week_start in affected_weeks:
-            # warm_with_verification is async - uses asyncio.sleep for rate limiting
-            await warmer.warm_with_verification(instructor_id, week_start, expected_slot_count=None)
+            affected_weeks = self._get_affected_weeks(start_date, end_date)
 
-        self.logger.info(f"Warmed cache for {len(affected_weeks)} affected weeks")
+            for week_start in affected_weeks:
+                try:
+                    await warmer.warm_week(instructor_id, week_start)
+                except AttributeError:
+                    await warmer.warm_with_verification(
+                        instructor_id, week_start, expected_slot_count=None
+                    )
+
+            self.logger.info(f"Warmed cache for {len(affected_weeks)} affected weeks")
+        except Exception as cache_error:  # pragma: no cover - defensive logging
+            self.logger.warning(
+                "Cache warming failed",
+                extra={
+                    "instructor_id": instructor_id,
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "error": str(cache_error),
+                },
+                exc_info=True,
+            )
 
     def _get_affected_weeks(self, start_date: date, end_date: date) -> Set[date]:
         """Get all week start dates affected by a date range."""

@@ -26,6 +26,7 @@ from app.schemas.availability_window import (
     WeekSpecificScheduleCreate,
 )
 from app.services.availability_service import AvailabilityService
+from app.utils.bitset import bits_from_windows
 
 
 class TestAvailabilityServiceBusinessLogic:
@@ -145,37 +146,28 @@ class TestAvailabilityServiceQueryHelpers:
 
     def test_get_week_availability(self, service):
         """Test getting week availability with single-table design."""
-        # Mock repository response - now returns AvailabilitySlot objects directly
-        test_date = date.today()
+        # Mock bitmap response instead of slot repository
+        monday = date.today()
+        tuesday = monday + timedelta(days=1)
 
-        # Create properly configured mock slots
-        mock_slot1 = Mock(spec=AvailabilitySlot)
-        mock_slot1.specific_date = test_date  # Fixed: date -> specific_date
-        mock_slot1.start_time = time(9, 0)
-        mock_slot1.end_time = time(10, 0)
-        # Configure the mock to return proper isoformat
-        type(mock_slot1).specific_date = PropertyMock(return_value=test_date)
-
-        mock_slot2 = Mock(spec=AvailabilitySlot)
-        mock_slot2.specific_date = test_date  # Fixed: date -> specific_date
-        mock_slot2.start_time = time(14, 0)
-        mock_slot2.end_time = time(15, 0)
-        # Configure the mock to return proper isoformat
-        type(mock_slot2).specific_date = PropertyMock(return_value=test_date)
-
-        service.repository.get_week_availability.return_value = [mock_slot1, mock_slot2]
+        bits_map = {
+            monday: bits_from_windows([("09:00:00", "10:00:00")]),
+            tuesday: bits_from_windows([("14:00:00", "15:00:00")]),
+        }
+        service.get_week_bits = Mock(return_value=bits_map)
 
         # Call the service method
-        result = service.get_week_availability(instructor_id=123, start_date=test_date)
+        result = service.get_week_availability(instructor_id=123, start_date=monday)
 
         # Verify the result format
-        date_str = test_date.isoformat()
-        assert date_str in result
-        assert len(result[date_str]) == 2
-        assert result[date_str][0]["start_time"] == "09:00:00"
-        assert result[date_str][0]["end_time"] == "10:00:00"
-        # Verify is_available is NOT in the response (Work Stream #10)
-        assert "is_available" not in result[date_str][0]
+        monday_str = monday.isoformat()
+        tuesday_str = tuesday.isoformat()
+        assert monday_str in result
+        assert tuesday_str in result
+        assert result[monday_str][0]["start_time"] == "09:00:00"
+        assert result[monday_str][0]["end_time"] == "10:00:00"
+        assert result[tuesday_str][0]["start_time"] == "14:00:00"
+        assert result[tuesday_str][0]["end_time"] == "15:00:00"
 
     def test_delete_slots_by_dates(self, service):
         """Test deleting slots by dates via repository."""
