@@ -1,0 +1,66 @@
+name: Test Census (Pytest collect-only)
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/tag/sha to analyze"
+        required: true
+        default: "perf/availability-baseline-20251026"
+
+jobs:
+  census-pytest:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: app
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app
+      REDIS_URL: redis://localhost:6379/0
+      APP_ENV: local
+      ALLOW_COOKIE_ONLY_AUTH: "1"
+      DISABLE_CSRF_FOR_TESTS: "1"
+      RUN_SCRIPT_TESTS: "0"                 # keep scripts gated
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"   # stable, predictable collection
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pytest + deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          pip install pytest
+
+      - name: Collect counts (overall + key buckets)
+        shell: bash
+        run: |
+          count () { python -m pytest --collect-only -q "$1" 2>/dev/null | wc -l | tr -d ' '; }
+          echo "### Pytest collect-only for \`${{ github.event.inputs.ref }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Bucket | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---:|" >> $GITHUB_STEP_SUMMARY
+          echo "| ALL | $(count .) |" >> $GITHUB_STEP_SUMMARY
+          echo "| integration | $(count backend/tests/integration) |" >> $GITHUB_STEP_SUMMARY
+          echo "| unit | $(count backend/tests/unit) |" >> $GITHUB_STEP_SUMMARY
+          echo "| routes | $(count backend/tests/routes) |" >> $GITHUB_STEP_SUMMARY
+          echo "| repositories | $(count backend/tests/repositories) |" >> $GITHUB_STEP_SUMMARY
+          echo "| repo_patterns | $(count backend/tests/integration/repository_patterns) |" >> $GITHUB_STEP_SUMMARY
+          echo "| scripts (gated) | $(count backend/tests/scripts) |" >> $GITHUB_STEP_SUMMARY
