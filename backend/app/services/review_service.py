@@ -258,6 +258,7 @@ class ReviewService(BaseService):
         limit: int = 10,
         page: int = 1,
         min_rating: Optional[int] = None,
+        rating: Optional[int] = None,
         with_text: Optional[bool] = None,
     ) -> list[Review]:
         offset = max(0, (page - 1) * max(1, limit))
@@ -267,6 +268,7 @@ class ReviewService(BaseService):
             limit,
             offset,
             min_rating=min_rating,
+            rating=rating,
             with_text=with_text,
         )
 
@@ -277,12 +279,14 @@ class ReviewService(BaseService):
         instructor_id: str,
         instructor_service_id: Optional[str] = None,
         min_rating: Optional[int] = None,
+        rating: Optional[int] = None,
         with_text: Optional[bool] = None,
     ) -> int:
         count = self.repository.count_recent_reviews(
             instructor_id,
             instructor_service_id,
             min_rating=min_rating,
+            rating=rating,
             with_text=with_text,
         )
         return int(count)

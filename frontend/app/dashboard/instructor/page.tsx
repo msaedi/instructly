@@ -6,7 +6,7 @@
 import { BRAND } from '@/app/config/brand';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Star } from 'lucide-react';
 import Link from 'next/link';
 import { Edit, Calendar, ExternalLink, LogOut, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 import EditProfileModal from '@/components/modals/EditProfileModal';
@@ -18,6 +18,9 @@ import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import StripeOnboarding from '@/components/instructor/StripeOnboarding';
+import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
+import { useInstructorReviews } from '@/features/instructor-profile/hooks/useInstructorReviews';
+import { formatDistanceToNow } from 'date-fns';
 
 /**
  * InstructorDashboard Component
@@ -49,6 +52,20 @@ export default function InstructorDashboard() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [connectStatus, setConnectStatus] = useState<any>(null);
+
+  const instructorProfileId = profile?.id ?? profile?.user_id ?? '';
+  const { data: ratingsData, isLoading: ratingsLoading } = useInstructorRatingsQuery(instructorProfileId);
+  const { data: reviewsData, isLoading: reviewsLoading } = useInstructorReviews(instructorProfileId, 1, 3);
+
+  const totalReviews = ratingsData?.overall?.total_reviews ?? 0;
+  const averageRatingValue = ratingsData?.overall?.rating ?? null;
+  const hasReviews = totalReviews > 0 && typeof averageRatingValue === 'number';
+  const formattedRating = hasReviews ? averageRatingValue?.toFixed(1) : '—';
+  const ratingSubtitle = ratingsLoading
+    ? 'Loading…'
+    : hasReviews
+      ? `${totalReviews} review${totalReviews === 1 ? '' : 's'}`
+      : 'No reviews yet';
 
   /**
    * Fetch instructor profile data
@@ -296,14 +313,68 @@ export default function InstructorDashboard() {
           </div>
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Rating</h3>
-            <p className="text-3xl font-bold text-[#7E22CE]">-</p>
-            <p className="text-sm text-gray-500 mt-1">Not yet available</p>
+            <div className="flex items-center gap-2">
+              <Star className="h-6 w-6 text-yellow-400" fill="#facc15" aria-hidden="true" />
+              <p className="text-3xl font-bold text-[#7E22CE]">{formattedRating}</p>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">{ratingSubtitle}</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Earnings</h3>
             <p className="text-3xl font-bold text-[#7E22CE]">$0</p>
             <p className="text-sm text-gray-500 mt-1">Payment integration pending</p>
           </div>
+        </div>
+
+        {/* Recent Reviews */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Reviews</h2>
+            {profile?.id && totalReviews > 0 && (
+              <Link
+                href={`/instructors/${profile.id}/reviews`}
+                className="text-sm text-[#7E22CE] hover:underline"
+                onClick={() => logger.debug('Navigating to public reviews view from dashboard')}
+              >
+                View all
+              </Link>
+            )}
+          </div>
+
+          {reviewsLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <div key={idx} className="animate-pulse space-y-2">
+                  <div className="h-3 w-24 bg-gray-200 rounded" />
+                  <div className="h-3 w-full bg-gray-200 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : reviewsData && reviewsData.reviews.length > 0 ? (
+            <div className="space-y-4">
+              {reviewsData.reviews.map((review) => {
+                const created = new Date(review.created_at);
+                const relative = Number.isNaN(created.getTime()) ? '' : formatDistanceToNow(created, { addSuffix: true });
+                const reviewerName = review.reviewer_display_name?.trim() || 'Verified student';
+                const reviewText = review.review_text?.trim() || 'No written feedback provided.';
+                return (
+                  <div key={review.id} className="border border-gray-100 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Star className="h-5 w-5 text-yellow-400" fill="#facc15" aria-hidden="true" />
+                        <span className="font-semibold text-gray-900">{review.rating.toFixed(1)}</span>
+                        <span className="text-xs text-gray-500">{relative}</span>
+                      </div>
+                      <span className="text-sm text-gray-500">{reviewerName}</span>
+                    </div>
+                    <p className="mt-3 text-sm text-gray-700 whitespace-pre-line">{reviewText}</p>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No reviews yet. Once students leave feedback it will appear here.</p>
+          )}
         </div>
 
         {/* Quick Actions */}
@@ -355,7 +426,7 @@ export default function InstructorDashboard() {
 
             {/* Services Section */}
             <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Services & Pricing</h3>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">Skills and pricing</h3>
               <div className="space-y-2">
                 {profile.services.map((service) => (
                   <div

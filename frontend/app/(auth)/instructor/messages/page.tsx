@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   MessageSquare,
@@ -283,6 +284,7 @@ const loadInitialDrafts = () => {
 };
 
 export default function MessagesPage() {
+  const router = useRouter();
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
@@ -1766,12 +1768,25 @@ function loadStoredTemplates(): TemplateItem[] {
               </button>
               {showMessages && (
                 <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                  <div className="p-3 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">Messages</p>
-                  </div>
                   <ul className="max-h-80 overflow-auto p-2 space-y-2">
                     {unreadConversations.length === 0 ? (
-                      <li className="text-sm text-gray-600 px-2 py-2">No new messages</li>
+                      <>
+                        <li className="px-2 py-2 text-sm text-gray-600">
+                          You’ll see student replies here once someone messages you.
+                        </li>
+                        <li>
+                          <button
+                            type="button"
+                            className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
+                            onClick={() => {
+                              setShowMessages(false);
+                              router.push('/instructor/messages');
+                            }}
+                          >
+                            Open inbox
+                          </button>
+                        </li>
+                      </>
                     ) : (
                       unreadConversations.map((conversation) => (
                         <li key={`unread-${conversation.id}`}>
@@ -1808,11 +1823,22 @@ function loadStoredTemplates(): TemplateItem[] {
               </button>
               {showNotifications && (
                 <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                  <div className="p-3 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">Notifications</p>
-                  </div>
                   <ul className="max-h-80 overflow-auto p-2 space-y-2">
-                    <li className="text-sm text-gray-600 px-2 py-2">No new notifications</li>
+                    <li className="text-sm text-gray-600 px-2 py-2">
+                      No alerts right now. We’ll nudge you when there’s something to review.
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
+                        onClick={() => {
+                          setShowNotifications(false);
+                          router.push('/instructor/settings');
+                        }}
+                      >
+                        Notification settings
+                      </button>
+                    </li>
                   </ul>
                 </div>
               )}

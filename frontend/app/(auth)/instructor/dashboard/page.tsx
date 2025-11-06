@@ -13,7 +13,7 @@ import {
   type RefObject,
   type MutableRefObject,
 } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Modal from '@/components/Modal';
@@ -34,8 +34,22 @@ import { messageService } from '@/services/messageService';
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
-type PreferredPublicSpace = { address: string };
+type PreferredPublicSpace = { address: string; label?: string };
 type DashboardPanel = 'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability' | 'account';
+
+const DASHBOARD_PANEL_KEYS = new Set<DashboardPanel>([
+  'dashboard',
+  'profile',
+  'bookings',
+  'earnings',
+  'reviews',
+  'availability',
+  'account',
+]);
+
+const isDashboardPanel = (value: string | null): value is DashboardPanel => {
+  return value !== null && DASHBOARD_PANEL_KEYS.has(value as DashboardPanel);
+};
 
 const MOBILE_NAV_PRIMARY: Array<{ key: DashboardPanel; label: string }> = [
   { key: 'dashboard', label: 'Dashboard' },
@@ -112,6 +126,8 @@ function DashboardPopover({
 
 export default function InstructorDashboardNew() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [profile, setProfile] = useState<InstructorProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +139,47 @@ export default function InstructorDashboardNew() {
   const [sidebarOffset, setSidebarOffset] = useState<number>(0);
   const lastStableOffsetRef = useRef<number>(0);
   const [isOffsetFrozen, setIsOffsetFrozen] = useState(false);
-  const [activePanel, setActivePanel] = useState<DashboardPanel>('dashboard');
+  const [activePanel, setActivePanelState] = useState<DashboardPanel>(() => {
+    const initialPanel = searchParams.get('panel');
+    return isDashboardPanel(initialPanel) ? initialPanel : 'dashboard';
+  });
+  useEffect(() => {
+    const paramPanel = searchParams.get('panel');
+    if (isDashboardPanel(paramPanel)) {
+      setActivePanelState((prev) => (prev === paramPanel ? prev : paramPanel));
+    } else {
+      setActivePanelState((prev) => (prev === 'dashboard' ? prev : 'dashboard'));
+    }
+  }, [searchParams]);
+  const handlePanelChange = useCallback(
+    (panel: DashboardPanel, options?: { replace?: boolean }) => {
+      setActivePanelState(panel);
+      const currentSearch = searchParams.toString();
+      const currentHref = currentSearch ? `${pathname}?${currentSearch}` : pathname;
+
+      const nextParams = new URLSearchParams(searchParams.toString());
+      if (panel === 'dashboard') {
+        nextParams.delete('panel');
+      } else {
+        nextParams.set('panel', panel);
+      }
+      const nextSearch = nextParams.toString();
+      const nextHref = nextSearch ? `${pathname}?${nextSearch}` : pathname;
+
+      if (nextHref === currentHref) {
+        return;
+      }
+
+      const navOptions = { scroll: false };
+      const useReplace = options?.replace ?? false;
+      if (useReplace) {
+        router.replace(nextHref, navOptions);
+      } else {
+        router.push(nextHref, navOptions);
+      }
+    },
+    [pathname, router, searchParams]
+  );
 
   // Notifications dropdown state (declare before any conditional returns)
   const notifRef = useRef<HTMLDivElement | null>(null);
@@ -563,7 +619,7 @@ export default function InstructorDashboardNew() {
               href="/instructor/dashboard"
               className="inline-block"
               onClick={() => {
-                setActivePanel('dashboard');
+                handlePanelChange('dashboard', { replace: true });
                 setShowMessages(false);
                 setShowNotifications(false);
                 setIsMobileMenuOpen(false);
@@ -604,7 +660,7 @@ export default function InstructorDashboardNew() {
             href="/instructor/dashboard"
             className="inline-block"
             onClick={() => {
-              setActivePanel('dashboard');
+              handlePanelChange('dashboard', { replace: true });
               setShowMessages(false);
               setShowNotifications(false);
               setIsMobileMenuOpen(false);
@@ -708,7 +764,7 @@ export default function InstructorDashboardNew() {
                       <button
                         type="button"
                         onClick={() => {
-                          setActivePanel(item.key);
+                          handlePanelChange(item.key);
                           setIsMobileMenuOpen(false);
                           setShowMoreMobile(false);
                         }}
@@ -743,7 +799,7 @@ export default function InstructorDashboardNew() {
                         <button
                           type="button"
                           onClick={() => {
-                            setActivePanel(item.key);
+                            handlePanelChange(item.key);
                             setIsMobileMenuOpen(false);
                             setShowMoreMobile(false);
                           }}
@@ -782,7 +838,7 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('dashboard')}
+                      onClick={() => handlePanelChange('dashboard')}
                       aria-current={activePanel === 'dashboard' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'dashboard'
@@ -796,7 +852,7 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('account')}
+                      onClick={() => handlePanelChange('account')}
                       aria-current={activePanel === 'account' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'account'
@@ -810,7 +866,7 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('profile')}
+                      onClick={() => handlePanelChange('profile')}
                       aria-current={activePanel === 'profile' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'profile'
@@ -824,7 +880,7 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('bookings')}
+                      onClick={() => handlePanelChange('bookings')}
                       aria-current={activePanel === 'bookings' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'bookings'
@@ -838,7 +894,7 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('earnings')}
+                      onClick={() => handlePanelChange('earnings')}
                       aria-current={activePanel === 'earnings' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'earnings'
@@ -852,7 +908,7 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('availability')}
+                      onClick={() => handlePanelChange('availability')}
                       aria-current={activePanel === 'availability' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'availability'
@@ -866,7 +922,7 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('reviews')}
+                      onClick={() => handlePanelChange('reviews')}
                       aria-current={activePanel === 'reviews' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'reviews'
@@ -924,7 +980,7 @@ export default function InstructorDashboardNew() {
         <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-8">
           {/* Bookings card - clickable with outline icon */}
           <button
-            onClick={() => setActivePanel('bookings')}
+            onClick={() => handlePanelChange('bookings')}
             className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open bookings"
           >
@@ -944,7 +1000,7 @@ export default function InstructorDashboardNew() {
 
           {/* Earnings card - clickable with outline icon */}
           <button
-            onClick={() => setActivePanel('earnings')}
+            onClick={() => handlePanelChange('earnings')}
             className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open earnings"
           >
@@ -960,7 +1016,7 @@ export default function InstructorDashboardNew() {
           </button>
           {/* Reviews card - clickable with outline icon */}
           <button
-            onClick={() => setActivePanel('reviews')}
+            onClick={() => handlePanelChange('reviews')}
             className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open reviews"
           >
@@ -1182,7 +1238,7 @@ export default function InstructorDashboardNew() {
           <div className="p-5 sm:p-6 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow h-full flex flex-col relative">
             <div className="flex items-start gap-4 w-full">
               <button
-                onClick={() => setActivePanel('availability')}
+                onClick={() => handlePanelChange('availability')}
                 aria-label="Manage Availability"
                 className="group relative w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] transition shrink-0 overflow-hidden"
               >
@@ -1213,7 +1269,7 @@ export default function InstructorDashboardNew() {
               <button
                 type="button"
                 className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg bg-[#7E22CE] text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
-                onClick={() => setActivePanel('availability')}
+                onClick={() => handlePanelChange('availability')}
               >
                 Open Calendar
               </button>

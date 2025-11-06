@@ -197,11 +197,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 onClick={() => setOpenAccount((v) => !v)}
                 aria-expanded={openAccount}
               >
-                <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+                <div className="flex items-start gap-3 text-left">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <Settings className="w-6 h-6 text-[#7E22CE]" />
                   </div>
-                  <span>Account details</span>
+                  <div>
+                    <span className="block text-lg font-semibold text-gray-900">Account details</span>
+                    <span className="mt-1 block text-sm text-gray-500">Update your contact info and preferred ZIP.</span>
+                  </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openAccount ? 'rotate-180' : ''}`} />
               </button>
@@ -337,12 +340,13 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 onClick={() => setOpenRefer((v) => !v)}
                 aria-expanded={openRefer}
               >
-                <div className="flex items-center gap-3 text-left">
+                <div className="flex items-start gap-3 text-left">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <Gift className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
                     <span className="block text-lg font-semibold text-gray-900">Refer instructors</span>
+                    <span className="mt-1 block text-sm text-gray-500">Share your link to invite peers and earn rewards.</span>
                   </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openRefer ? 'rotate-180' : ''}`} />
@@ -394,11 +398,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               onClick={() => setOpenSecurity((v) => !v)}
               aria-expanded={openSecurity}
             >
-              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="flex items-start gap-3 text-left">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <Shield className="w-6 h-6 text-[#7E22CE]" />
                 </div>
-                <span>Account security</span>
+                <div>
+                  <span className="block text-lg font-semibold text-gray-900">Account security</span>
+                  <span className="mt-1 block text-sm text-gray-500">Enable two-factor authentication for extra protection.</span>
+                </div>
               </div>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openSecurity ? 'rotate-180' : ''}`} />
             </button>
@@ -452,11 +459,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               onClick={() => setOpenStatus((v) => !v)}
               aria-expanded={openStatus}
             >
-              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="flex items-start gap-3 text-left">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <Power className="w-6 h-6 text-[#7E22CE]" />
                 </div>
-                <span>Account status</span>
+                <div>
+                  <span className="block text-lg font-semibold text-gray-900">Account status</span>
+                  <span className="mt-1 block text-sm text-gray-500">Pause or close your instructor account if needed.</span>
+                </div>
               </div>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openStatus ? 'rotate-180' : ''}`} />
             </button>
@@ -506,11 +516,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               onClick={() => setOpenPassword((v) => !v)}
               aria-expanded={openPassword}
             >
-              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="flex items-start gap-3 text-left">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <KeyRound className="w-6 h-6 text-[#7E22CE]" />
                 </div>
-                <span>Password</span>
+                <div>
+                  <span className="block text-lg font-semibold text-gray-900">Password</span>
+                  <span className="mt-1 block text-sm text-gray-500">Keep your login secure with a strong password.</span>
+                </div>
               </div>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPassword ? 'rotate-180' : ''}`} />
             </button>
@@ -538,11 +551,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 onClick={() => setOpenPreferences((v) => !v)}
                 aria-expanded={openPreferences}
               >
-                <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+                <div className="flex items-start gap-3 text-left">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <Settings className="w-6 h-6 text-[#7E22CE]" />
                   </div>
-                  <span>Preferences</span>
+                  <div>
+                    <span className="block text-lg font-semibold text-gray-900">Preferences</span>
+                    <span className="mt-1 block text-sm text-gray-500">Choose how we contact you about lessons and updates.</span>
+                  </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
               </button>
@@ -648,11 +664,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               onClick={() => setOpenAccount((v) => !v)}
               aria-expanded={openAccount}
             >
-              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="flex items-start gap-3 text-left">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <Settings className="w-6 h-6 text-[#7E22CE]" />
                 </div>
-                <span>About</span>
+                <div>
+                  <span className="block text-lg font-semibold text-gray-900">About</span>
+                  <span className="mt-1 block text-sm text-gray-500">Access legal resources and support information.</span>
+                </div>
               </div>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openAccount ? 'rotate-180' : ''}`} />
             </button>
@@ -664,13 +683,13 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   </a>
                 </div>
                 <div>
-                  <a href="/privacy" className="text-[#7E22CE] hover:underline">
+                  <a href="/legal#privacy" className="text-[#7E22CE] hover:underline">
                     Privacy Policy
                   </a>
                 </div>
                 <div>
-                  <a href="/terms" className="text-[#7E22CE] hover:underline">
-                    Terms & Conditions
+                  <a href="/legal#terms" className="text-[#7E22CE] hover:underline">
+                    Terms &amp; Conditions
                   </a>
                 </div>
                 <div>

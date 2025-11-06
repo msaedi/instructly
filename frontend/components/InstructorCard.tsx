@@ -3,10 +3,10 @@
 
 import { useRouter } from 'next/navigation';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { Star, MapPin, Heart, Info } from 'lucide-react';
+import { Star, Heart, Info, Layers, MonitorSmartphone, Clock3, MapPin } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { publicApi } from '@/features/shared/api/client';
 import { ApiProblemError } from '@/lib/api/fetch';
@@ -48,6 +48,7 @@ interface InstructorCardProps {
   compact?: boolean;
   bookingDraftId?: string;
   appliedCreditCents?: number;
+  highlightServiceCatalogId?: string;
 }
 export default function InstructorCard({
   instructor,
@@ -57,6 +58,7 @@ export default function InstructorCard({
   compact = false,
   bookingDraftId,
   appliedCreditCents,
+  highlightServiceCatalogId,
 }: InstructorCardProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -93,6 +95,7 @@ export default function InstructorCard({
   const { data: searchRating } = useSearchRatingQuery(instructor.user_id, primaryServiceId);
   const rating = typeof searchRating?.primary_rating === 'number' ? searchRating?.primary_rating : null;
   const reviewCount = searchRating?.review_count || 0;
+  const showRating = typeof rating === 'number' && reviewCount >= 3;
   const [recentReviews, setRecentReviews] = useState<import('@/services/api/reviews').ReviewItem[]>([]);
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
@@ -311,14 +314,31 @@ export default function InstructorCard({
           {/* Header row with name, price and favorite */}
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1">
-              {/* Name with verification badge */}
-              <div className="flex items-center">
-                <h2 className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-[#7E22CE]`} data-testid="instructor-name">
-                  {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
-                </h2>
-                {shouldShowVerifiedBadge ? (
-                  <VerifiedBadge dateISO={bgcCompletedAt} className={compact ? 'ml-2' : 'ml-3'} />
-                ) : null}
+              {/* Name with verification badge and rating */}
+              <div className={`flex flex-wrap items-center ${compact ? 'gap-2' : 'gap-3'}`}>
+                <div className="flex items-center gap-2">
+                  <h2 className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-[#7E22CE]`} data-testid="instructor-name">
+                    {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
+                  </h2>
+                  {shouldShowVerifiedBadge ? (
+                    <VerifiedBadge dateISO={bgcCompletedAt} className={compact ? 'ml-1' : 'ml-2'} />
+                  ) : null}
+                </div>
+                {showRating && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      router.push(`/instructors/${instructor.user_id}/reviews`);
+                    }}
+                    className={`flex items-center gap-1 text-gray-600 hover:text-[#7E22CE] transition-colors ${compact ? 'text-sm' : 'text-base'} font-medium`}
+                    aria-label="See all reviews"
+                  >
+                    <Star className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-yellow-500 fill-current`} />
+                    <span>{rating}</span>
+                    <span>·</span>
+                    <span>{reviewCount} reviews</span>
+                  </button>
+                )}
               </div>
 
               {/* Services as pills */}
@@ -326,57 +346,201 @@ export default function InstructorCard({
                 {instructor.services.map((service, idx) => {
                   const serviceName = getServiceName(service.service_catalog_id);
                   if (!serviceName) return null;
+                  const isHighlighted =
+                    (highlightServiceCatalogId || '').trim().toLowerCase() ===
+                    (service.service_catalog_id || '').trim().toLowerCase();
                   return (
                     <span
-                      key={idx}
-                      className={`${compact ? 'px-3 py-0.5 text-sm' : 'px-6 py-1 text-lg'} bg-gray-100 text-gray-700 rounded-full font-bold`}
+                      key={`${service.service_catalog_id || service.id || idx}-${serviceName}`}
+                      className={`${compact ? 'px-3 py-0.5 text-sm' : 'px-6 py-1 text-lg'} rounded-full font-bold ${
+                        isHighlighted ? 'bg-[#7E22CE]/15 text-[#7E22CE]' : 'bg-gray-100 text-gray-700'
+                      }`}
                     >
                       {serviceName}
                     </span>
                   );
                 })}
               </div>
+              {(() => {
+                const highlightId = (highlightServiceCatalogId || '').trim().toLowerCase();
+                const context = (instructor as {
+                  _matchedServiceContext?: { levels?: string[]; age_groups?: string[]; location_types?: string[] };
+                })._matchedServiceContext;
+                const contextLevels = context?.levels ?? [];
+                const contextAgeGroups = context?.age_groups ?? [];
+                const contextLocations = context?.location_types ?? [];
 
-              {/* Rating (show only when backend says to display) */}
-              {typeof rating === 'number' && reviewCount >= 3 && (
-                <div className={`flex items-center gap-1 ${compact ? 'text-sm mb-1' : 'text-lg mb-2'} text-gray-600`}>
-                  <Star className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-yellow-500 fill-current`} />
-                  <span className="font-medium">{rating}</span>
-                  <span>·</span>
-                  <button
-                    onClick={() => { router.push(`/instructors/${instructor.user_id}/reviews`); }}
-                    className="underline-offset-2 hover:underline cursor-pointer"
-                    aria-label="See all reviews"
-                  >
-                    {reviewCount} reviews
-                  </button>
-                </div>
-              )}
+                const highlightService = highlightId
+                  ? instructor.services.find(
+                      (svc) => (svc.service_catalog_id || '').trim().toLowerCase() === highlightId,
+                    )
+                  : null;
 
-              {/* Experience */}
-              {!compact && (
-                <p className="text-lg text-gray-600 mb-2">{instructor.years_experience} years experience</p>
-              )}
+                const derivedLevels = Array.isArray(highlightService?.levels_taught)
+                  ? Array.from(
+                      new Set(
+                        highlightService!.levels_taught!.map((lvl) => String(lvl).trim().toLowerCase()).filter(Boolean),
+                      ),
+                    )
+                  : [];
+                const derivedLocations = Array.isArray(highlightService?.location_types)
+                  ? Array.from(
+                      new Set(
+                        highlightService!.location_types!.map((loc) => String(loc).trim().toLowerCase()).filter(Boolean),
+                      ),
+                    )
+                  : [];
+                const derivedAgeGroups = Array.isArray(highlightService?.age_groups)
+                  ? Array.from(
+                      new Set(
+                        highlightService!.age_groups!.map((group) => String(group).trim().toLowerCase()).filter(Boolean),
+                      ),
+                    )
+                  : [];
 
-              {/* Location */}
-              <div className={`flex items-center ${compact ? 'text-sm mb-1' : 'text-lg mb-2'} text-gray-600`}>
-                <MapPin className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} mr-1`} />
-                <span>{serviceAreaBoroughs.slice(0, 2).join(', ') || serviceAreaDisplay}</span>
-              </div>
+                const levels = contextLevels.length ? contextLevels : derivedLevels;
+                const ageGroups = contextAgeGroups.length ? contextAgeGroups : derivedAgeGroups;
+                const locations = contextLocations.length ? contextLocations : derivedLocations;
+
+                const levelLabel = levels
+                  .map((lvl) => lvl.charAt(0).toUpperCase() + lvl.slice(1))
+                  .join(' · ');
+                const locationLabel = locations
+                  .map((loc) =>
+                    loc.includes('-')
+                      ? loc
+                          .split('-')
+                          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                          .join('-')
+                      : loc.charAt(0).toUpperCase() + loc.slice(1),
+                  )
+                  .join(' · ');
+                const showsKidsBadge = ageGroups.map((g) => g.toLowerCase()).includes('kids');
+
+                const highlightRows: ReactNode[] = [];
+                if (showsKidsBadge) {
+                  highlightRows.push(
+                    <div>
+                      <span className="inline-flex items-center bg-yellow-100 text-gray-600 font-semibold px-2 py-1 rounded-full">
+                        Kids lesson available
+                      </span>
+                    </div>
+                  );
+                }
+                if (levelLabel) {
+                  highlightRows.push(
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
+                      <div>
+                        <span className="font-semibold text-[#7E22CE]">Levels:</span>{' '}
+                        <span>{levelLabel}</span>
+                      </div>
+                    </div>
+                  );
+                }
+                if (locationLabel) {
+                  highlightRows.push(
+                    <div className="flex items-center gap-2">
+                      <MonitorSmartphone className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
+                      <div>
+                        <span className="font-semibold text-[#7E22CE]">Format:</span>{' '}
+                        <span>{locationLabel}</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                const yearsLabel = instructor.years_experience > 0 ? `${instructor.years_experience} years experience` : '';
+                const areaLabel = serviceAreaBoroughs.slice(0, 2).join(', ') || serviceAreaDisplay;
+
+                const metaRows: ReactNode[] = [];
+                if (yearsLabel) {
+                  metaRows.push(
+                    <div className="flex items-center gap-2">
+                      <Clock3 className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
+                      <div>
+                        <span className="font-semibold text-[#7E22CE]">Experience:</span>{' '}
+                        <span>{yearsLabel}</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (areaLabel) {
+                  metaRows.push(
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
+                      <div>
+                        <span className="font-semibold text-[#7E22CE]">Service areas:</span>{' '}
+                        <span>{areaLabel}</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                const combinedRows = [...highlightRows, ...metaRows];
+                if (!combinedRows.length) return null;
+
+                const marginClass = highlightRows.length
+                  ? (compact ? 'mt-1 text-xs' : 'mt-2 text-sm')
+                  : (compact ? 'mt-1 text-xs' : 'mt-3 text-sm');
+
+                return (
+                  <div className={`${marginClass} text-gray-600`}>
+                    {combinedRows.map((row, index) => (
+                      <div key={index}>
+                        {index > 0 && (
+                          <div className="h-px w-[70%] ml-0 bg-gradient-to-r from-transparent via-[#7E22CE]/40 to-transparent" />
+                        )}
+                        <div className="py-2">{row}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Price in upper right */}
-            <div className="flex items-center gap-3">
-              {(() => {
-                const rateRaw = instructor.services[0]?.hourly_rate as unknown;
-                const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
-                const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
-                return (
-                  <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-[#7E22CE]`} data-testid="instructor-price">
-                    ${safeRate}/hr
-                  </p>
-                );
-              })()}
+            <div className="flex items-start gap-3">
+              <div className="flex flex-col items-end text-right">
+                {(() => {
+                  const rateRaw = instructor.services[0]?.hourly_rate as unknown;
+                  const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
+                  const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
+                  return (
+                    <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-[#7E22CE]`} data-testid="instructor-price">
+                      ${safeRate}/hr
+                    </p>
+                  );
+                })()}
+                <p className="mt-1 text-xs text-gray-500">
+                  <span className="inline-flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
+                    <span>{serviceSupportAnnotationLabel}</span>
+                    <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                            aria-label="Learn about the Service & Support fee"
+                          >
+                            <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content
+                          side="top"
+                          sideOffset={6}
+                          className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
+                        >
+                          {serviceSupportTooltip}
+                          <Tooltip.Arrow className="fill-gray-900" />
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    </Tooltip.Provider>
+                  </span>{' '}
+                  and credits apply at checkout.
+                </p>
+              </div>
 
               {/* Favorite Button */}
               <button
@@ -504,7 +668,8 @@ export default function InstructorCard({
                     <span>{formatCentsToDisplay(pricingPreview.student_pay_cents)}</span>
                   </div>
                 </div>
-              ) : pricingPreviewError ? (
+              ) : null}
+              {!pricingPreview && pricingPreviewError ? (
                 <p className="text-xs text-red-600">{pricingPreviewError}</p>
               ) : null}
             </div>

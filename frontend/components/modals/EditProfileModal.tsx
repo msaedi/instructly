@@ -67,6 +67,7 @@ type PreferredTeachingLocationInput = {
 
 type PreferredPublicSpaceInput = {
   address: string;
+  label?: string;
 };
 
 /**
@@ -213,7 +214,7 @@ export default function EditProfileModal({
   const [savingAreas, setSavingAreas] = useState(false);
   const areasPrefillAppliedRef = useRef(false);
   const isAreasVariant = variant === 'areas';
-  // Services & Pricing (onboarding-like)
+  // Skills and pricing (onboarding-like)
   type AgeGroup = 'kids' | 'adults' | 'both';
   type SelectedService = {
     catalog_service_id: string;
@@ -425,7 +426,8 @@ export default function EditProfileModal({
         const key = address.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
-        result.push({ address });
+        const label = typeof item?.label === 'string' ? item.label.trim() : '';
+        result.push(label ? { address, label } : { address });
         if (result.length === 2) break;
       }
       return result;
@@ -574,6 +576,20 @@ export default function EditProfileModal({
     setTeachingPlaces((prev) => prev.filter((_, idx) => idx !== index));
   };
 
+  const updatePublicLabel = (index: number, label: string) => {
+    setPublicPlaces((prev) =>
+      prev.map((place, idx) => {
+        if (idx !== index) return place;
+        const nextLabel = label.trim();
+        if (!nextLabel) {
+          const { label: _omit, ...rest } = place;
+          return rest;
+        }
+        return { ...place, label: nextLabel };
+      })
+    );
+  };
+
   const addPublicPlace = () => {
     const trimmed = neutralLocationInput.trim();
     if (!trimmed) return;
@@ -583,7 +599,13 @@ export default function EditProfileModal({
       const exists = prev.some((place) => place.address.toLowerCase() === trimmed.toLowerCase());
       if (exists) return prev;
       didAdd = true;
-      return [...prev, { address: trimmed }];
+      const parts = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
+      const autoLabel = parts.length > 0 ? parts[0] : trimmed;
+      const entry: PreferredPublicSpaceInput = { address: trimmed };
+      if (autoLabel) {
+        entry.label = autoLabel;
+      }
+      return [...prev, entry];
     });
     if (didAdd) {
       setNeutralLocationInput('');
@@ -610,7 +632,11 @@ export default function EditProfileModal({
       const label = place.label?.trim();
       return label ? { address, label } : { address };
     });
-    const publicPayload = publicPlaces.slice(0, 2).map((place) => ({ address: place.address.trim() }));
+    const publicPayload = publicPlaces.slice(0, 2).map((place) => {
+      const address = place.address.trim();
+      const label = place.label?.trim();
+      return label ? { address, label } : { address };
+    });
 
     setSavingAreas(true);
     setError('');
@@ -1415,16 +1441,25 @@ export default function EditProfileModal({
                     </div>
                     <div className="min-h-10 flex w-full flex-nowrap items-end gap-4">
                       {publicPlaces.map((place, index) => (
-                        <div key={`${place.address}-${index}`} className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
-                          <span className="truncate min-w-0" title={place.address}>{place.address}</span>
-                          <button
-                            type="button"
-                            aria-label={`Remove ${place.address}`}
-                            className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-50"
-                            onClick={() => removePublicPlace(index)}
-                          >
-                            &times;
-                          </button>
+                        <div key={`${place.address}-${index}`} className="relative w-1/2 min-w-0">
+                          <input
+                            type="text"
+                            value={place.label ?? ''}
+                            onChange={(e) => updatePublicLabel(index, e.target.value)}
+                            placeholder="Name this spot"
+                            className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-[#7E22CE] focus:outline-none focus:ring-0"
+                          />
+                          <div className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
+                            <span className="truncate min-w-0" title={place.address}>{place.address}</span>
+                            <button
+                              type="button"
+                              aria-label={`Remove ${place.address}`}
+                              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-50"
+                              onClick={() => removePublicPlace(index)}
+                            >
+                              &times;
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

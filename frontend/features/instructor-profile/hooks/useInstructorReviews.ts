@@ -24,15 +24,19 @@ export function useInstructorReviews(
   instructorId: string,
   page: number = 1,
   limit: number = 12,
-  opts?: { minRating?: number; withText?: boolean; instructorServiceId?: string }
+  opts?: { minRating?: number; rating?: number; withText?: boolean; instructorServiceId?: string }
 ) {
   return useQuery<ReviewsResponse>({
     queryKey: ['instructors', instructorId, 'reviews', { page, limit, opts }],
     queryFn: async (): Promise<ReviewsResponse> => {
-      const queryOpts: { minRating?: number; withText?: boolean } = {};
+      const queryOpts: { minRating?: number; rating?: number; withText?: boolean } = {};
 
       if (opts?.minRating !== undefined) {
         queryOpts.minRating = opts.minRating;
+      }
+
+      if (opts?.rating !== undefined) {
+        queryOpts.rating = opts.rating;
       }
 
       if (opts?.withText !== undefined) {

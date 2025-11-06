@@ -5,7 +5,7 @@ import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, Info, ShieldCheck, CreditCard } from 'lucide-react';
+import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, Info } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
@@ -155,8 +155,6 @@ function ProfilePageImpl() {
   const inFlightServiceAreasRef = useRef(false);
   const [savingServiceAreas, setSavingServiceAreas] = useState(false);
   const [hasProfilePicture, setHasProfilePicture] = useState<boolean>(false);
-  const [openIdentity, setOpenIdentity] = useState(false);
-  const [openPayments, setOpenPayments] = useState(false);
   const [openPersonal, setOpenPersonal] = useState(false);
   const [openDetails, setOpenDetails] = useState(false);
   const [openServiceAreas, setOpenServiceAreas] = useState(false);
@@ -930,33 +928,44 @@ function ProfilePageImpl() {
                 <button
                   type="button"
                   onClick={() => {
-                    const base = (profile.bio || '').trim();
-                    const prefix = base.length > 0 ? base : 'I am a dedicated instructor who helps students learn efficiently and enjoy the process.';
-                    const pool = [
+                    const sentences = [
                       'I focus on building strong fundamentals and lasting confidence.',
                       'Each lesson is tailored to your goals, pace, and learning style.',
                       'We combine technique drills with practical applications you can use right away.',
                       'I provide clear takeaways, measurable milestones, and simple practice plans.',
                       'My approach balances encouragement with constructive, actionable feedback.',
                       'You will know what to improve next and how to practice effectively between sessions.',
-                      'I bring real-world examples, curated resources, and step‑by‑step guidance.',
+                      'I bring real-world examples, curated resources, and step-by-step guidance.',
                       'Consistency matters—together we set realistic targets and celebrate progress.',
                       'Whether you are a beginner or leveling up, I will meet you where you are.',
-                      'My goal is to make learning engaging, stress‑free, and genuinely rewarding.'
+                      'My goal is to make learning engaging, stress-free, and genuinely rewarding.',
+                      'Lessons come with curated resources, homework guides, and accountability check-ins.',
+                      'We track your milestones so you can clearly see how far you have come.',
+                      'Expect a calm, upbeat environment where questions are encouraged and celebrated.',
+                      'I adapt my teaching to visual, auditory, or hands-on learners on the fly.',
                     ];
-                    let assembled = prefix.endsWith('.') ? prefix : `${prefix}.`;
-                    for (const sentence of pool) {
-                      if (assembled.length >= 400) break;
-                      assembled += ` ${sentence}`;
+
+                    const current = (profile.bio || '').trim();
+                    const defaultIntro =
+                      'I am a dedicated instructor who helps students learn efficiently and enjoy the process.';
+
+                    const firstSentence = current.split('.').map((part) => part.trim()).filter(Boolean)[0];
+                    const intro =
+                      firstSentence && firstSentence.length >= 10 && firstSentence.length <= 160
+                        ? `${firstSentence}.`
+                        : defaultIntro;
+
+                    const shuffled = [...sentences].sort(() => Math.random() - 0.5);
+                    let assembled = intro.endsWith('.') ? intro : `${intro}.`;
+                    let index = 0;
+
+                    while (assembled.length < 400) {
+                      assembled += ` ${shuffled[index % shuffled.length]}`;
+                      index += 1;
+                      if (index > shuffled.length * 2) break;
                     }
-                    // If still short, repeat from the pool until we reach the floor, but cap length for readability
-                    let i = 0;
-                    while (assembled.length < 400 && i < pool.length * 2) {
-                      assembled += ` ${pool[i % pool.length]}`;
-                      i += 1;
-                    }
-                    // Soft cap to avoid overly long bios
-                    const next = assembled.slice(0, 560);
+
+                    const next = assembled.slice(0, 560).replace(/\s+/g, ' ').trim();
                     setProfile((p) => ({ ...p, bio: next }));
                     setBioTouched(true);
                   }}
@@ -1398,79 +1407,6 @@ function ProfilePageImpl() {
           </>
           )}
         </div>
-        {embedded && (
-          <>
-            <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
-            <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
-              <button
-                type="button"
-                className="w-full flex items-center justify-between mb-4 text-left"
-                onClick={() => setOpenIdentity((v) => !v)}
-                aria-expanded={openIdentity}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <ShieldCheck className="w-6 h-6 text-[#7E22CE]" />
-                  </div>
-                  <div className="flex flex-col text-left">
-                    <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Verify identity</span>
-                    <span className="text-sm text-gray-500">Secure your account with a fast Stripe identity check.</span>
-                  </div>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openIdentity ? 'rotate-180' : ''}`} />
-              </button>
-              {openIdentity && (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-600">
-                    Complete a quick identity check so students can trust who they are booking. We use a secure Stripe flow to verify your government ID.
-                  </p>
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-sm font-medium text-white transition-colors hover:bg-[#6b1cb9]"
-                    onClick={() => router.push('/instructor/onboarding/verification')}
-                  >
-                    Start verification
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
-            <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
-              <button
-                type="button"
-                className="w-full flex items-center justify-between mb-4 text-left"
-                onClick={() => setOpenPayments((v) => !v)}
-                aria-expanded={openPayments}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <CreditCard className="w-6 h-6 text-[#7E22CE]" />
-                  </div>
-                  <div className="flex flex-col text-left">
-                    <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Payment setup</span>
-                    <span className="text-sm text-gray-500">Link Stripe payouts so completed lessons are paid automatically.</span>
-                  </div>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPayments ? 'rotate-180' : ''}`} />
-              </button>
-              {openPayments && (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-600">
-                    Connect Stripe payouts so you can receive earnings without delay. Confirm your tax information and bank details to enable transfers.
-                  </p>
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center h-10 px-4 rounded-lg border border-purple-200 bg-white text-sm font-medium text-[#7E22CE] transition-colors hover:bg-purple-50"
-                    onClick={() => router.push('/instructor/onboarding/payment-setup')}
-                  >
-                    Open payment setup
-                  </button>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
         {/* Inline actions - standalone save */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <button

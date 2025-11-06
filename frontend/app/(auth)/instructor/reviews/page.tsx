@@ -2,11 +2,28 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ArrowLeft, ChevronDown, Star } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+import { useAuth } from '@/features/shared/hooks/useAuth';
+import { useInstructorReviews } from '@/features/instructor-profile/hooks/useInstructorReviews';
+import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
+
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <div className="flex gap-0.5" aria-label={`${rating} star rating`}>
+      {[1, 2, 3, 4, 5].map((s) => (
+        <Star
+          key={s}
+          className={`h-4 w-4 ${s <= rating ? 'fill-yellow-400 text-yellow-400' : 'fill-gray-200 text-gray-200'}`}
+        />
+      ))}
+    </div>
+  );
+}
 
 function ReviewsPageImpl() {
   const embedded = useEmbedded();
@@ -14,6 +31,40 @@ function ReviewsPageImpl() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement | null>(null);
   const [hoveredOpt, setHoveredOpt] = useState<'all' | 5 | 4 | 3 | 2 | 1 | null>(null);
+  const { user, isLoading: authLoading } = useAuth();
+  const instructorId = user?.id ?? '';
+  const [withCommentsOnly, setWithCommentsOnly] = useState(false);
+  const [page, setPage] = useState(1);
+  const perPage = 6;
+  const selectedRating = filter === 'all' ? undefined : filter;
+  const { data: ratingsData, isLoading: ratingsLoading } = useInstructorRatingsQuery(instructorId);
+  const reviewFilters: { rating?: number; withText?: boolean } = {};
+  if (selectedRating !== undefined) {
+    reviewFilters.rating = selectedRating;
+  }
+  if (withCommentsOnly) {
+    reviewFilters.withText = true;
+  }
+
+  const {
+    data: reviewsData,
+    isLoading: reviewsLoading,
+    error: reviewsError,
+    isFetching: reviewsFetching,
+  } = useInstructorReviews(instructorId, page, perPage, reviewFilters);
+  const reviews = reviewsData?.reviews ?? [];
+  const totalReviews = ratingsData?.overall?.total_reviews ?? reviewsData?.total ?? 0;
+  const averageRating = ratingsData?.overall?.rating ?? null;
+  const averageRatingDisplay = ratingsData?.overall?.display_rating ?? (averageRating != null ? `${averageRating.toFixed(1)}★` : null);
+  const confidenceLabel = ratingsData?.confidence_level ?? null;
+  const confidenceDisplay = confidenceLabel
+    ? confidenceLabel.charAt(0).toUpperCase() + confidenceLabel.slice(1)
+    : null;
+  const loading = authLoading || ratingsLoading || reviewsLoading;
+  const isRefetching = reviewsFetching && !reviewsLoading;
+  const effectiveLoading = loading || isRefetching;
+  const showEmptyState = !effectiveLoading && totalReviews === 0;
+  const noFilteredResults = !effectiveLoading && reviews.length === 0 && totalReviews > 0;
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -23,6 +74,10 @@ function ReviewsPageImpl() {
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedRating, withCommentsOnly, instructorId]);
 
   const filterLabel = filter === 'all' ? 'All reviews' : `${filter} stars`;
   return (
@@ -72,70 +127,156 @@ function ReviewsPageImpl() {
 
         {/* Ratings summary */}
         <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">0 Reviews</h2>
-            <span className="text-gray-900 font-semibold">0</span>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Reviews</h2>
+              <p className="text-gray-600 text-sm">{loading ? 'Loading…' : `${totalReviews} total`}</p>
+              {confidenceDisplay && (
+                <span className="mt-2 inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-medium text-[#7E22CE]">
+                  {confidenceDisplay}
+                </span>
+              )}
+            </div>
+            <div className="flex items-baseline gap-2 text-gray-900">
+              <Star className={`h-6 w-6 ${averageRating != null ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+              <span className="text-3xl font-bold">
+                {loading ? '—' : averageRatingDisplay ?? '—'}
+              </span>
+              {averageRating != null && (
+                <span className="text-sm text-gray-500 font-medium">({averageRating.toFixed(2)})</span>
+              )}
+            </div>
           </div>
 
-          <ul className="space-y-4">
-            {[5,4,3,2,1].map((stars) => (
-              <li
-                key={stars}
-                className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 ${filter !== 'all' && filter !== stars ? 'opacity-60' : ''}`}
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative" ref={filterRef}>
+              <button
+                type="button"
+                onClick={() => setIsFilterOpen((v) => !v)}
+                className="inline-flex items-center gap-1 text-[#7E22CE] font-semibold hover:text-[#5f1aa4]"
+                aria-haspopup="listbox"
+                aria-expanded={isFilterOpen}
               >
-                <span className="text-[#7E22CE] font-medium">{stars} stars</span>
-                <div className="h-3 rounded-full bg-gray-200">
-                  <div className="h-3 rounded-full bg-gray-300" style={{ width: '0%' }} />
-                </div>
-                <span className="text-gray-900 font-medium">0</span>
-              </li>
-            ))}
-          </ul>
+                <span>{filterLabel}</span>
+                <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {isFilterOpen && (
+                <ul
+                  role="listbox"
+                  className="absolute z-10 mt-2 w-44 rounded-md border border-gray-200 bg-white shadow-md p-1"
+                >
+                  {(['all', 5, 4, 3, 2, 1] as const).map((opt) => (
+                    <li key={String(opt)}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={filter === opt}
+                        onClick={() => {
+                          setFilter(opt);
+                          setPage(1);
+                          setIsFilterOpen(false);
+                        }}
+                        onMouseEnter={() => setHoveredOpt(opt)}
+                        onMouseLeave={() => setHoveredOpt((h) => (h === opt ? null : h))}
+                        className={`w-full text-left px-3 py-2 rounded-md transition-colors cursor-pointer ${
+                          hoveredOpt === opt ? 'bg-purple-50 text-[#7E22CE]' : ''
+                        } ${
+                          filter === opt ? 'bg-purple-100 text-[#7E22CE] font-semibold' : 'text-gray-800'
+                        }`}
+                      >
+                        {opt === 'all' ? 'All reviews' : `${opt} stars`}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-          <div className="mt-6 relative" ref={filterRef}>
             <button
               type="button"
-              onClick={() => setIsFilterOpen((v) => !v)}
-              className="inline-flex items-center gap-1 text-[#7E22CE] font-semibold hover:text-[#5f1aa4]"
-              aria-haspopup="listbox"
-              aria-expanded={isFilterOpen}
+              aria-pressed={withCommentsOnly}
+              onClick={() => setWithCommentsOnly((v) => !v)}
+              className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                withCommentsOnly ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 bg-white text-gray-700'
+              }`}
             >
-              <span>{filterLabel}</span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+              {withCommentsOnly ? <span className="inline-block h-3 w-3 rounded-full bg-[#7E22CE]" /> : <span className="inline-block h-3 w-3 rounded-full border border-gray-300" />}
+              With comments only
             </button>
-            {isFilterOpen && (
-              <ul
-                role="listbox"
-                className="absolute z-10 mt-2 w-44 rounded-md border border-gray-200 bg-white shadow-md p-1"
-              >
-                {(['all', 5, 4, 3, 2, 1] as const).map((opt) => (
-                  <li key={String(opt)}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={filter === opt}
-                      onClick={() => { setFilter(opt); setIsFilterOpen(false); }}
-                      onMouseEnter={() => setHoveredOpt(opt)}
-                      onMouseLeave={() => setHoveredOpt((h) => (h === opt ? null : h))}
-                      className={`w-full text-left px-3 py-2 rounded-md transition-colors cursor-pointer ${
-                        hoveredOpt === opt ? 'bg-purple-50 text-[#7E22CE]' : ''
-                      } ${
-                        filter === opt ? 'bg-purple-100 text-[#7E22CE] font-semibold' : 'text-gray-800'
-                      }`}
-                    >
-                      {opt === 'all' ? 'All reviews' : `${opt} stars`}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
 
-          <div className="mt-8 space-y-3">
-            <p className="text-gray-500 text-lg">You don’t have any reviews yet — but you’re just getting started!</p>
-            <p className="text-gray-500 text-lg">Happy students leave great feedback. After each lesson, kindly remind them to rate their experience.</p>
-          </div>
+          {showEmptyState && (
+            <div className="mt-6 space-y-3 text-gray-500">
+              <p>You don’t have any reviews yet — but you’re just getting started!</p>
+              <p>Happy students leave great feedback. After each lesson, kindly remind them to rate their experience.</p>
+            </div>
+          )}
         </div>
+
+        <div className="mt-6 space-y-4">
+          {reviewsError ? (
+            <p className="text-red-600">
+              {reviewsError instanceof Error ? reviewsError.message : 'Failed to load reviews'}
+            </p>
+          ) : null}
+
+          {effectiveLoading ? (
+            <p className="text-muted-foreground">Loading reviews…</p>
+          ) : (
+            <>
+              {noFilteredResults && (
+                <p className="text-muted-foreground">No reviews match your filters.</p>
+              )}
+
+              {reviews.length > 0 && (
+                <div className="grid grid-cols-1 gap-4">
+                  {reviews.map((review) => (
+                    <article key={review.id} className="p-4 bg-white rounded-lg border border-gray-200">
+                      <div className="flex items-start gap-3">
+                        <StarRating rating={review.rating} />
+                        <div className="flex-1">
+                          <div className="flex flex-wrap items-baseline gap-2">
+                            <span className="text-sm font-medium text-gray-900">{review.reviewer_display_name || 'Student'}</span>
+                            <span className="text-xs text-gray-500">
+                              {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
+                            </span>
+                          </div>
+                          {review.review_text ? (
+                            <p className="text-sm text-gray-700 mt-1">{review.review_text}</p>
+                          ) : (
+                            <p className="text-xs text-gray-500 mt-1">No written feedback</p>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {(reviewsData?.has_prev || reviewsData?.has_next) && !showEmptyState && (
+          <div className="mt-6 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={page === 1 || reviewsFetching}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
+            >
+              <span>Previous</span>
+            </button>
+            <span className="text-sm text-gray-600">Page {page}</span>
+            <button
+              type="button"
+              onClick={() => setPage((prev) => prev + 1)}
+              disabled={!reviewsData?.has_next || reviewsFetching}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
+            >
+              <span>Next</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

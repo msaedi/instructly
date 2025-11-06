@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DollarSign, ChevronDown } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DollarSign, ChevronDown, Lightbulb } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -37,6 +37,9 @@ export default function SkillsPricingInline({ className }: Props) {
   const [error, setError] = useState('');
   const { floors: pricingFloors } = usePricingFloors();
   const [skillsFilter, setSkillsFilter] = useState('');
+  const [requestedSkill, setRequestedSkill] = useState('');
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
 
   const serviceFloorViolations = useMemo(() => {
     const map = new Map<string, FloorViolation[]>();
@@ -153,6 +156,25 @@ export default function SkillsPricingInline({ className }: Props) {
     });
   };
 
+  const handleRequestSkill = useCallback(async () => {
+    if (!requestedSkill.trim()) return;
+    try {
+      setRequestSubmitting(true);
+      setRequestSuccess(null);
+      logger.info('Instructor profile skill request submitted', { requestedSkill });
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      setRequestSuccess("Thanks! We'll review and consider adding this skill.");
+      setRequestedSkill('');
+    } catch {
+      setRequestSuccess('Something went wrong. Please try again.');
+    } finally {
+      setRequestSubmitting(false);
+    }
+  }, [requestedSkill]);
+
+  const initialLoadRef = useRef(true);
+  const autoSaveTimeout = useRef<NodeJS.Timeout | null>(null);
+
   const handleSave = useCallback(async () => {
     try {
       setSvcSaving(true);
@@ -208,6 +230,28 @@ export default function SkillsPricingInline({ className }: Props) {
       setSvcSaving(false);
     }
   }, [pricingFloors, selectedServices, serviceFloorViolations]);
+
+  useEffect(() => {
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false;
+      return;
+    }
+
+    if (autoSaveTimeout.current) {
+      clearTimeout(autoSaveTimeout.current);
+    }
+
+    autoSaveTimeout.current = setTimeout(() => {
+      void handleSave();
+    }, 1200);
+
+    return () => {
+      if (autoSaveTimeout.current) {
+        clearTimeout(autoSaveTimeout.current);
+        autoSaveTimeout.current = null;
+      }
+    };
+  }, [selectedServices, handleSave]);
 
   return (
     <div className={className}>
@@ -465,16 +509,41 @@ export default function SkillsPricingInline({ className }: Props) {
             )}
           </div>
 
-          <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => { void handleSave(); }}
-              disabled={svcSaving}
-              className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
-            >
-              {svcSaving ? 'Saving…' : 'Save'}
-            </button>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 dark:bg-gray-800 text-[#7E22CE]">
+                <Lightbulb className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Don&apos;t see your skill? We&apos;d love to add it!</p>
+                <p className="text-xs text-gray-600 dark:text-gray-300">Tell us what you teach and we&apos;ll consider adding it to the marketplace.</p>
+              </div>
+            </div>
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+              <input
+                type="text"
+                value={requestedSkill}
+                onChange={(e) => {
+                  setRequestedSkill(e.target.value);
+                  if (requestSuccess) setRequestSuccess(null);
+                }}
+                placeholder="Request a new skill"
+                className="w-full min-w-[220px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/30 focus:border-[#7E22CE]"
+              />
+              <button
+                type="button"
+                onClick={() => { void handleRequestSkill(); }}
+                disabled={!requestedSkill.trim() || requestSubmitting}
+                className="inline-flex items-center justify-center rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6d1fc3] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {requestSubmitting ? 'Sending…' : 'Submit'}
+              </button>
+            </div>
           </div>
+          {requestSuccess && <p className="mt-2 text-xs text-gray-700 dark:text-gray-200">{requestSuccess}</p>}
+          {svcSaving && (
+            <p className="mt-3 text-xs text-gray-500">Saving changes…</p>
+          )}
         </>
       )}
     </div>

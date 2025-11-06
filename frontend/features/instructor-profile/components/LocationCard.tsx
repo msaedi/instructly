@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin, Home, Users } from 'lucide-react';
 import type { InstructorProfile } from '@/types/instructor';
-import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
+import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 
 interface LocationCardProps {
   instructor: InstructorProfile;
@@ -15,7 +15,7 @@ export function LocationCard({ instructor }: LocationCardProps) {
     { type: 'online', label: 'Online Lessons' },
   ];
 
-  const serviceAreas = getServiceAreaBoroughs(instructor);
+  const serviceAreaDisplay = getServiceAreaDisplay(instructor);
 
   return (
     <Card>
@@ -24,18 +24,16 @@ export function LocationCard({ instructor }: LocationCardProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Service Areas */}
-        {serviceAreas.length > 0 && (
+        {serviceAreaDisplay && serviceAreaDisplay.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-2">
               <MapPin className="h-4 w-4 text-muted-foreground" />
               <span className="font-medium text-sm">Service Areas</span>
             </div>
             <div className="space-y-1 ml-6">
-              {serviceAreas.map((area, idx) => (
-                <div key={idx} className="text-sm text-muted-foreground">
-                  {area}
-                </div>
-              ))}
+              <div className="text-sm text-muted-foreground whitespace-pre-line">
+                {serviceAreaDisplay}
+              </div>
             </div>
           </div>
         )}

@@ -32,6 +32,63 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
     ? service.duration_options.filter(d => typeof d === 'number' && d > 0)
     : [60];
 
+  const rawLevels = (service as unknown as Record<string, unknown>)?.['levels_taught'];
+  const levelsTaught = Array.isArray(rawLevels)
+    ? rawLevels
+        .map((level) => (typeof level === 'string' ? level.trim().toLowerCase() : ''))
+        .filter((level) => level.length > 0)
+    : Array.isArray(service.levels_taught)
+      ? service.levels_taught
+          .map((level) => (typeof level === 'string' ? level.trim().toLowerCase() : ''))
+          .filter((level) => level.length > 0)
+      : [];
+
+  const levelLabel = (() => {
+    if (!levelsTaught.length) return '';
+    const uniqueLevels = Array.from(new Set(levelsTaught));
+    const capitalized = uniqueLevels.map((level) => level.charAt(0).toUpperCase() + level.slice(1));
+    return capitalized.join(' · ');
+  })();
+
+  const rawLocations = (service as unknown as Record<string, unknown>)?.['location_types'];
+  const locationTypes = Array.isArray(rawLocations)
+    ? rawLocations
+        .map((loc) => (typeof loc === 'string' ? loc.trim().toLowerCase() : ''))
+        .filter((loc) => loc.length > 0)
+    : Array.isArray(service.location_types)
+      ? service.location_types
+          .map((loc) => (typeof loc === 'string' ? loc.trim().toLowerCase() : ''))
+          .filter((loc) => loc.length > 0)
+      : [];
+
+  const locationLabel = (() => {
+    if (!locationTypes.length) return '';
+    const uniqueTypes = Array.from(new Set(locationTypes));
+    const formatted = uniqueTypes.map((loc) => {
+      if (loc.includes('-')) {
+        return loc
+          .split('-')
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join('-');
+      }
+      return loc.charAt(0).toUpperCase() + loc.slice(1);
+    });
+    return formatted.join(' · ');
+  })();
+
+  const rawAgeGroups = (service as unknown as Record<string, unknown>)?.['age_groups'];
+  const ageGroups = Array.isArray(rawAgeGroups)
+    ? rawAgeGroups
+        .map((group) => (typeof group === 'string' ? group.trim().toLowerCase() : ''))
+        .filter((group) => group.length > 0)
+    : Array.isArray(service.age_groups)
+      ? service.age_groups
+          .map((group) => (typeof group === 'string' ? group.trim().toLowerCase() : ''))
+          .filter((group) => group.length > 0)
+      : [];
+
+  const showsKidsBadge = ageGroups.includes('kids');
+
   // Calculate price based on selected duration with safety/coercion
   // API may return hourly_rate as a string; coerce to number
   const hourlyRateRaw = (service as unknown as Record<string, unknown>)?.['hourly_rate'] as unknown;
@@ -56,33 +113,56 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
   };
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       <Card
         className={cn(
-          "transition-all bg-gradient-to-br from-purple-50 to-lavender-50 border-purple-100",
+          "transition-all bg-gradient-to-br from-purple-50 to-lavender-50 border-purple-100 flex h-full flex-col",
           !canBook ? "opacity-50" : "hover:shadow-md"
         )}
         style={{ backgroundColor: 'rgb(249, 247, 255)' }}
         onMouseEnter={() => !canBook && setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
       >
-        <CardHeader className="text-center pb-3">
+        <CardHeader className="text-center pb-2">
           <CardTitle className="text-lg">
             {service.skill || 'Service'}
           </CardTitle>
-          <div className="mt-2">
-            <span className="inline-block bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded-full">
-              Kids lesson available
-            </span>
+          <div className="mt-3 flex w-full flex-col items-center gap-2">
+            <div className="flex w-full min-h-[26px] items-center justify-center">
+              {showsKidsBadge ? (
+                <span className="inline-flex items-center text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
+                  Kids lesson available
+                </span>
+              ) : (
+                <span className="text-xs opacity-0">Kids lesson available</span>
+              )}
+            </div>
+            <div className="flex w-full min-h-[46px] items-center justify-center text-center">
+              {levelLabel ? (
+                <span className="inline-flex items-center bg-white text-[#7E22CE] text-xs font-semibold px-2 py-1 rounded-full border border-purple-200 shadow-sm leading-tight">
+                  Levels: {levelLabel}
+                </span>
+              ) : (
+                <span className="text-xs opacity-0">Levels placeholder</span>
+              )}
+            </div>
+            <div className="flex w-full min-h-[28px] items-center justify-center">
+              {locationLabel ? (
+                <span className="inline-flex items-center bg-white text-gray-700 text-xs font-medium px-2 py-1 rounded-full border border-gray-200 shadow-sm">
+                  Format: {locationLabel}
+                </span>
+              ) : (
+                <span className="text-xs opacity-0">Format placeholder</span>
+              )}
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {/* Duration selector with inline radio buttons like calendar */}
-          {durationOptions.length > 1 ? (
-            <div>
-              <div className="flex gap-2 justify-center">
-                {durationOptions.map((dur) => {
-                  return (
+        <CardContent className="flex-1 flex flex-col gap-3">
+          <div className="flex flex-col items-center gap-2.5 justify-center min-h-[100px]">
+            <div className="min-h-[28px] flex items-center justify-center w-full">
+              {durationOptions.length > 1 ? (
+                <div className="flex gap-2 justify-center flex-wrap">
+                  {durationOptions.map((dur) => (
                     <label
                       key={dur}
                       className="flex items-center cursor-pointer"
@@ -99,21 +179,13 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
                         {dur}min
                       </span>
                     </label>
-                  );
-                })}
-              </div>
-              <div className="text-center mt-2">
-                <div className="text-lg font-semibold">${price}</div>
-              </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          ) : (
-            <div className="text-center space-y-2">
-              <div className="text-lg font-semibold">
-                ${price}
-              </div>
-            </div>
-          )}
-          <div className="flex justify-center">
+            <div className="text-lg font-semibold">${price}</div>
+          </div>
+          <div className="mt-auto flex justify-center">
             <button
               className={`py-1.5 px-4 rounded-lg font-medium transition-colors ${
                 canBook
@@ -181,7 +253,7 @@ export function ServiceCards({ services, selectedSlot, onBookService, searchedSe
   const displayedServices = serviceCards.slice(0, 4);
 
   return (
-    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
+    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-2 items-stretch">
       {displayedServices.map((item, index) => {
         const { service, duration } = item;
 

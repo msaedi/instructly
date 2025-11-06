@@ -32,7 +32,16 @@ describe('useInstructorProfile fetch behaviour', () => {
   });
 
   it('uses relative endpoints via httpJson and catalog client', async () => {
-    const mockInstructor = { user_id: 'me', services: [] };
+    const mockInstructor = {
+      user_id: 'me',
+      services: [
+        {
+          id: 'svc-1',
+          service_catalog_id: 'catalog-1',
+          hourly_rate: 60,
+        },
+      ],
+    };
     (httpJson as jest.Mock).mockResolvedValue(mockInstructor);
     (publicApi.getCatalogServices as jest.Mock).mockResolvedValue({ status: 200, data: [] });
 

@@ -18,6 +18,7 @@ type LegalSection = {
   heading: string;
   body?: ReactNode[];
   list?: ReactNode[];
+  bodyAfterList?: ReactNode[];
   table?: LegalTable;
 };
 
@@ -525,166 +526,131 @@ const LEGAL_DOCUMENTS: LegalDocument[] = [
       {
         heading: 'Overview',
         body: [
-          `This Cookie Policy explains how iNSTAiNSTRU ("we", "us", or "our") uses cookies, unique identifiers, and similar technologies (e.g., pixels) to distinguish you from other users of our platform. It supplements our Privacy Policy, and capitalized terms have the meanings given there.`
+          'iNSTAiNSTRU uses cookies, unique identifiers, and other similar technologies, like pixels, to distinguish you from other users of our platform, provide our services to you, help collect data, and improve our platform.',
+          'This Cookie Policy supplements our Privacy Policy and explains how and why we use cookies and other similar technologies. Any terms capitalized in this policy and not otherwise defined shall have the same meaning attributed to them in our Privacy Policy.',
+          'When you visit our website, your browser may automatically transmit information to the site throughout the visit. In a similar way, when you use our mobile applications, we will access and use mobile device IDs to recognize your device. We use “cookies” and equivalent technologies to collect information through our website and Apps.',
+          'Most browsers accept cookies by default. You can instruct your browser, by changing its settings, to decline or delete cookies. If you use multiple browsers on your device, you will need to instruct each browser separately. Your ability to limit cookies is subject to your browser settings and limitations. Exhibit A sets out the different categories of cookies that the iNSTAiNSTRU Platform uses and why we use them.'
         ]
       },
       {
-        heading: 'Automatic Data Collection',
-        body: [
-          `When you visit our website, your browser may automatically transmit certain information. If you use our apps now or in the future, we may collect mobile device IDs to recognize your device. We use cookies and equivalent technologies to collect data through our website and services.`
-        ]
-      },
-      {
-        heading: 'Managing Cookies in Your Browser',
-        body: [
-          `Most browsers accept cookies by default. You can configure your browser settings to decline or delete cookies, though your ability to manage them depends on your browser capabilities. Exhibit A outlines the types of cookies we use and their purposes.`
-        ]
-      },
-      {
-        heading: 'What Are Cookies?',
-        body: [
-          `Cookies are small data files stored on your device that act as a unique tag to identify your browser.`
-        ]
+        heading: 'Cookies',
+        body: ['Cookies are small data files stored on your device that act as a unique tag to identify your browser.']
       },
       {
         heading: 'Persistent Cookies',
         body: [
-          `Persistent cookies remain on your device to remember preferences, support security features, and help deliver advertising. You may manage them via your browser settings.`
+          'Persistent cookies help with personalizing your experience, remembering your preferences, and supporting security features. Additionally, persistent cookies allow us to bring you advertising both on and off the iNSTAiNSTRU Platform. Persistent cookies may remain on your device for extended periods of time and generally may be controlled through your browser settings. We utilize persistent cookies that only iNSTAiNSTRU can read and use, and access mobile device IDs to:'
         ],
         list: [
-          'Save login details for future sessions;',
-          'Track user preferences;',
-          'Maintain session continuity.'
+          'save your login information for future logins to the iNSTAiNSTRU Platform;',
+          'assist in processing items during checkout;',
+          'hold session information;',
+          'track user preferences.'
         ]
       },
       {
         heading: 'Session Cookies',
         body: [
-          `Session cookies are temporary, expire when you close your browser, and help with navigation and platform functionality.`
+          'Session cookies make it easier for you to navigate our website and expire when you close your browser. Unlike persistent cookies, session cookies are deleted from your computer when you log off from the iNSTAiNSTRU Platform and then close your browser. We utilize session ID cookies and similar technologies to:'
         ],
         list: [
-          'Enable interactive features;',
-          'Monitor platform usage;',
-          'Identify visited areas of the platform.'
+          'enable certain features of the iNSTAiNSTRU Platform;',
+          'better understand how you interact with the website and the iNSTAiNSTRU Platform;',
+          'monitor usage by our Users and web traffic routing on the iNSTAiNSTRU Platform;',
+          'track the number of entries in iNSTAiNSTRU promotions, sweepstakes, and contests;',
+          'identify visited areas of the iNSTAiNSTRU Platform.'
         ]
       },
       {
         heading: 'Flash Cookies',
         body: [
-          `We may use Local Shared Objects (Flash cookies) to personalize your experience, such as storing preferences or displaying content based on your browsing activity.`
+          'We may use flash cookies (or Local Shared Objects) to personalize and enhance your visit. Via flash cookies we may store your preferences or display content based upon what you view on the Sites to personalize your visit.'
         ]
       },
       {
         heading: 'Pixel Tags',
         body: [
-          `We and our partners may use pixel tags (clear GIFs or web beacons) to understand how users interact with our site or emails, evaluate marketing performance, and collect usage statistics.`
+          'We and our third-party agents may use “pixel tags” (sometimes referred to as “web beacons” or “clear GIFs”). These or similar technologies are tiny graphic images and/or blocks of code with a unique identifier that are used to understand browsing activity and/or determine whether a specific action was performed.',
+          'These are used by iNSTAiNSTRU or our third-party agents in connection with the iNSTAiNSTRU Platform and HTML-formatted email messages to, among other things, track the actions of Users and email recipients, determine the success of marketing campaigns, and compile statistics about Site usage and response rates.'
         ]
       },
       {
-        heading: 'Marketing and Advertising Technologies',
+        heading: 'Marketing Services',
         body: [
-          `We use advertising technologies from platforms such as Facebook and Google to serve targeted ads.`
-        ],
-        list: [
-          'Facebook Pixel: allows us to show relevant ads on Facebook based on your activity on our site;',
-          'Custom Audiences: we may share hashed emails with partners like Facebook to reach similar audiences;',
-          'Social Network Ads: you may still see ads from us based on social platform data even if you have limited cookies.'
+          'We use Facebook cookies and pixels to help deliver our advertising on Facebook. This means you may see our ads when you use Facebook because you have visited our site, and to help integrate with our Facebook advertising services. In accordance with your Facebook privacy settings, please visit your Facebook privacy settings to learn more.',
+          'iNSTAiNSTRU uses audience matching services to reach people (or people similar to those people) who have visited our Sites or are identified in one or more of our databases (“Matched Ads”). This is done by us uploading a hashed customer list to a third party or incorporating a pixel from another party into our own Sites, and the other party matching common factors between our data and their data or other datasets.',
+          'For instance, we incorporate the Facebook pixel on our Sites and may share your email address with Facebook as part of our use of Facebook Custom Audiences.',
+          'We also work with social networks and other third parties to help serve our ads. We identify certain characteristics and/or interests that we expect to be relevant to individuals interested in our services, and our ads are served to those individuals via social networks and other third parties which match these. Even if you have disabled certain cookies, our adverts may still be displayed to you through these channels. Please visit your social network preferences to understand more about these ads.',
+          'To opt out of Matched Ads, please contact the applicable third-party agent directly.'
         ]
       },
       {
-        heading: 'App & Location Technologies',
+        heading: 'App and Location Technologies',
         body: [
-          `If we release mobile apps, we may use SDKs to track activity and advertising performance.`
-        ],
-        list: [
-          'Disable location sharing through device settings;',
-          "Reset your device’s advertising ID;",
-          'Uninstall the app to stop data collection.'
+          'We include technologies in our apps that are not browser-based like cookies and cannot be controlled by browser settings. For example, our Apps may include Software Development Kits (SDKs), which are code embedded in Apps that collect information about the App and your activity in the App. These SDKs allow us to track conversions and bring you advertising both on and off the iNSTAiNSTRU Platform. For example, we use the Facebook SDK as part of our use of Facebook Custom Audiences.',
+          'You can stop all collection of information via an app by uninstalling the app. You can also reset your device Ad ID at any time through your device settings, which is designed to allow you to limit the use of information collected about you.',
+          'If you do not want us to use your location anymore for the purposes set forth above, you should turn off the location services for the mobile application located in your device’s account settings, your mobile phone settings, and/or within the mobile application.'
         ]
       },
       {
         heading: 'Third-Party Cookies',
         body: [
-          `Third-party cookies are set by others to collect data across sessions and sites. We may use them for advertising, analytics, or enhanced services.`
+          'Third-party cookies are placed by someone other than iNSTAiNSTRU. These third parties may gather browsing activity across multiple websites and multiple sessions. Third-party cookies are usually persistent cookies and are stored until you delete them or they expire based on the duration set in respect of each third-party cookie.',
+          'For example, we may work with third-party advertisers who may place or read persistent cookies on your browser.',
+          'A description of third-party cookies and similar technologies used by the Sites, along with their respective privacy policies and options for controlling your privacy on these platforms, is set out below:'
         ],
         list: [
-          'Google (Analytics, DoubleClick);',
-          'Facebook;',
-          'Iterable;',
-          'LinkedIn widgets, Bing Ads, and similar providers.'
+          'DoubleClick: Google’s DoubleClick re-targeting cookie lets us serve personalized ads to you when you’re browsing other websites and social media platforms. You can control ad personalization on Google and partner websites in Google’s Privacy and Terms page.',
+          'Facebook Impressions: We use Facebook Impressions to track the number of people that interact with our content on Facebook. This information is collected by Facebook and is provided to us under the terms of Facebook’s Privacy Policy. You can control the information that we receive from Facebook using the privacy settings in your Facebook account.',
+          'LinkedIn Widgets: This tool enables visitors to engage with us via LinkedIn and show visitors relevant ads and personalized content on LinkedIn. To learn more about LinkedIn’s practices and to opt out, please visit LinkedIn’s Privacy Policy and Settings.',
+          'Iterable: Email newsletters you elect to receive from us are transmitted through Iterable. Iterable uses pixel tag technology to determine whether an email has been opened. When you click any link in an email newsletter or marketing message you have elected to receive, Iterable recognizes that fact. This information is used in the aggregate to measure the rate at which emails are opened and various links are clicked, to measure user interests and traffic patterns, and to improve the content of the email newsletters and the services and features offered through the email newsletter and marketing messages. Because some of this information is linked to individual email addresses, it is personally identifiable. You can view Iterable’s privacy policy here.',
+          'Bing Ads: We use Bing Ads to promote our company online and use the cookies provided by Bing to record completion of a transaction on our website. You can find out more about Bing cookies by visiting Bing’s Privacy Policy.',
+          'Google Analytics: We use Google Analytics, a web analytics service. Google Analytics uses cookies to help iNSTAiNSTRU analyze how visitors use the Site(s). The information generated by cookies about your use of the Site(s) and the iNSTAiNSTRU Platform (including your IP address) will be transmitted to and stored by a Google server in the United States. Google uses this information for the purpose of evaluating your use of the Site(s), compiling reports on Site activity for Site operators, and providing Site operators with other services relating to Site activity and Internet usage. You can prevent the storage of data relating to your use of the Site(s) and created via the cookie (including your IP address) by Google, as well as the processing of this data by Google, by downloading and installing the browser plug-in available here. You can obtain additional information on Google Analytics’ collection and processing of data and data privacy and security at the following links: How Google Uses Information From Sites Or Apps That Use Our Services and Analytics Help.'
         ]
       },
       {
-        heading: 'Managing Your Preferences',
+        heading: 'Information from Other Sources',
+        body: ['We also collect information from other sources, including data brokers, social media networks, and publicly available sources.']
+      },
+      {
+        heading: 'Your Choices and Managing Cookies',
         body: [
-          (
-            <>
-              You may change your browser settings to disable cookies, visit resources such as{' '}
-              <a
-                className="text-[#7E22CE] hover:underline"
-                href="https://www.allaboutcookies.org"
-                target="_blank"
-                rel="noreferrer"
-              >
-                All About Cookies
-              </a>{' '}
-              for guidance, or use opt-out tools provided by advertising platforms. Note: cookie preferences are browser- and device-specific.
-            </>
-          )
-        ],
-        list: [
-          (
-            <>
-              Visit{' '}
-              <a
-                className="text-[#7E22CE] hover:underline"
-                href="https://www.networkadvertising.org/choices/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Network Advertising Initiative
-              </a>{' '}
-              for additional opt-out controls.
-            </>
-          ),
-          (
-            <>
-              Explore{' '}
-              <a
-                className="text-[#7E22CE] hover:underline"
-                href="https://www.aboutads.info/choices/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Digital Advertising Alliance
-              </a>{' '}
-              to manage interest-based advertising preferences.
-            </>
-          )
+          'You can adjust your browser settings to enable you to stop accepting cookies or to prompt you before accepting a cookie from the websites you visit. Depending on what browser you use, you may manage your settings here: Internet Explorer, Safari, Chrome, Firefox, and Opera. If you do not accept cookies, however, you will not be able to use all portions or all functionalities of the iNSTAiNSTRU Platform.',
+          'Your browser settings may allow you to automatically transmit a “Do Not Track” signal to online services you visit. Note, however, that there is currently no industry consensus as to what site and app operations should do with regard to these signals. Accordingly, unless and until the law is interpreted to require us to do so, we do not monitor or take action with respect to “Do Not Track” signals. For more information on “Do Not Track,” visit https://www.allaboutdnt.com.'
         ]
       },
       {
-        heading: 'Do Not Track',
+        heading: 'Contacting Us',
         body: [
-          `Some browsers send a "Do Not Track" (DNT) signal. There is no industry standard for handling DNT, so we currently do not respond to these signals. Learn more at https://www.allaboutdnt.com.`
+          'If you have any questions about this Cookie Policy, the manner in which we or our third-party agents treat your Personal Information, the practices of the Site, or your dealings with the iNSTAiNSTRU Platform, please contact us at support@instainstru.com.'
         ]
       },
       {
-        heading: 'Contact Us',
-        body: [
-          'Questions about this Cookie Policy? Contact us at [insert contact link or email].'
-        ]
-      },
-      {
-        heading: 'Exhibit A: Cookie Categories',
+        heading: 'Exhibit A',
         table: {
-          headers: ['Type of Cookie', 'Purpose', 'Provider(s)'],
+          headers: ['Type of Cookie', 'Purpose', 'iNSTAiNSTRU or 3rd Party'],
           rows: [
-            ['Authentication', 'Identify logged-in users, maintain sessions', 'iNSTAiNSTRU'],
-            ['Localization', 'Show content relevant to the user’s location', 'iNSTAiNSTRU'],
-            ['Site Features & Services', 'Enable core functionality, forms, chats', 'iNSTAiNSTRU, Facebook, LinkedIn, Amazon'],
-            ['Analytics & Research', 'Understand usage, improve platform features', 'Google Analytics, Heap, MixPanel, Iterable'],
-            ['Advertising & Targeting', 'Serve relevant ads, track campaigns', 'Google Ads, Facebook Pixel, Bing Ads']
+            [
+              'Authentication Cookies',
+              'These cookies (including local storage and similar technologies) tell us when you’re logged in, so we can customize your experience and connect your account information and settings.',
+              'iNSTAiNSTRU'
+            ],
+            ['Localization', 'These cookies help provide a localized experience by showing you your local metro area.', 'iNSTAiNSTRU'],
+            [
+              'Site Features and Services',
+              'These provide functionality that helps us deliver products and the iNSTAiNSTRU Platform. For example, cookies help you log in by pre-filling fields or help ensure older versions of web browsers can still view our Sites. We may also use cookies and similar technologies to help us provide you with social plugins and other customized content and experiences, including customized fonts.',
+              'iNSTAiNSTRU, Facebook, LinkedIn, Amazon Hosting, Zopim, Polyfill, MyFonts Counter'
+            ],
+            [
+              'Analytics and Research',
+              'These are used to understand, improve, and research products and services, including when you access the iNSTAiNSTRU Platform and related websites and apps from a computer or mobile device. For example, we may use cookies to understand how you are using site features, to report on any errors in how the Site is functioning, to report to our vendors when content licensed from them is accessed, and to segment audiences for feature testing. We and our partners may use these technologies and the information we receive to improve and understand how you use websites, apps, products, services, and ads.',
+              'Google Analytics, HeapAnalytics, MixPanel, BugSnag, Google Tag Manager, Optimizely'
+            ],
+            [
+              'Interest-Based Advertising',
+              'Things like cookies and pixels are used to deliver relevant ads, track ad campaign performance and efficiency, and to understand your interests from your online activity on the Site, mobile applications, and other websites and apps. For example, we and our ad partners may rely on information gleaned through these cookies to serve you ads that may be interesting to you on other websites, and in doing that, your information (which will not contain your name, email address, or other "real-world" identifiers) will be shared with other platforms in the digital advertising ecosystem, all involved in assisting the delivery, purchase, reporting, and analysis of digital advertising. Similarly, our advertisers may use a cookie, attribution service, or another similar technology to determine whether we have served an ad and how it performed, or provide us with information about how you interact with them. Please note that even if you opt out of interest-based advertising by a third party, these tracking technologies may still collect data for other purposes, including analytics, and you may still see ads from us -- but the ads will not be targeted based on behavioral information about you and may therefore be less relevant to your interests. You can instruct your browser, by changing its options, to stop accepting cookies or to prompt you before accepting a cookie from the websites you visit. To successfully opt out, you must have cookies enabled in your web browser. Please see the instructions for your browser for information on cookies and how to enable them. Your opt-out only applies to the web browser you use, so you must opt out of each web browser on each device that you use. Once you opt out, if you delete cookies saved by your browser, you may need to opt out again. For more information about targeting and advertising cookies and how you can opt out, you can visit the Network Advertising Initiative opt-out page, the Digital Advertising Alliance US opt-out page, YourAdChoices Canada, or YourOnlineChoices EU.',
+              'Multiple third-party ad networks'
+            ]
           ]
         }
       }
@@ -692,159 +658,307 @@ const LEGAL_DOCUMENTS: LegalDocument[] = [
   },
   {
     id: 'acceptable-use',
-    title: `${BRAND.name} Acceptable Use Policy`,
-    summary: `Rules that govern how students and instructors may use the platform.`,
-    updated: 'November 1, 2025',
+    title: 'iNSTAiNSTRU Platform Acceptable Use Policy (AUP)',
+    summary: 'Additional conditions that govern how you may use the iNSTAiNSTRU Platform.',
+    updated: 'November 3, 2025',
     sections: [
       {
-        heading: 'Introduction',
+        heading: 'Overview',
         body: [
-          'This Acceptable Use Policy (“AUP”) forms a part of the iNSTAiNSTRU Terms of Service. Capitalized terms used but not defined here have the meanings assigned in the Terms of Service.',
-          'The AUP outlines the rules that govern your use of the iNSTAiNSTRU platform (“Platform”), which connects students with instructors for in-person or virtual instruction. All users—including both students and instructors—must comply with this policy when using the Platform.',
-          'By using the Platform, you agree not to engage in any of the activities listed below. Violation of this AUP may result in suspension or termination of your account and other actions, as described below.'
+          'This iNSTAiNSTRU Platform Acceptable Use Policy (this "AUP") forms a part of iNSTAiNSTRU\'s Global Terms of Service (the "Terms"). Capitalized terms used, but not defined, in this AUP will have the definitions as set out in the Terms.',
+          'This AUP establishes additional conditions that apply to your use of the Platform. Users must comply with this AUP in their use of the Platform.'
         ]
       },
       {
-        heading: 'Prohibited Activities',
-        body: ['You may not use the Platform, and you may not permit anyone else to use your account to engage in the following:']
-      },
-      {
-        heading: '1. Harassment or Abuse',
+        heading: 'Prohibited Uses',
+        body: ['Without limitation, you may not use the Platform, and you may not permit any third party, to:'],
         list: [
-          'Harass, threaten, stalk, intimidate, or defame other users or iNSTAiNSTRU staff.',
-          'Violate the rights of others, including privacy, confidentiality, or publicity rights.'
+          'Defame, abuse, harass, stalk, threaten, intimidate, misrepresent, mislead, or otherwise violate the rights (such as, but not limited to, rights of privacy, confidentiality, reputation, and publicity) of others, including Users and/or iNSTAiNSTRU staff;',
+          'Publish, post, upload, distribute, or disseminate any content or information, or files that contain software or other materials that infringe upon or violate the intellectual property rights or rights of privacy or publicity of iNSTAiNSTRU or any other User or third party, or which are profane, defamatory, obscene, or unlawful;',
+          'Upload files or scripts that may or are designed to damage, copy, lock out, or take control of the Platform or any User\'s computer, such as Trojan horses, corrupt files, SQL injections, worms, timebombs, cancelbots, or any other files or software;',
+          'Advertise or offer to sell any goods or services for any commercial purpose that are not relevant to the Lesson services;',
+          'Post or complete a Lesson requiring a User to (1) purchase or obtain gift cards or money orders, (2) purchase high value items (over 300 USD / 300 GBP / 300 EUR, as applicable in your country) without obtaining pre-authorization from iNSTAiNSTRU, (3) travel into different countries during the performance of a Lesson, (4) provide ridesharing or other peer-to-peer transportation services, (5) post ratings or reviews on any third-party website in breach of such third party\'s terms of use, or (6) otherwise engage in activity that is illegal or deemed to be dangerous, harmful, or otherwise inappropriate by iNSTAiNSTRU in its sole discretion;',
+          'Conduct or forward surveys, contests, pyramid schemes, or chain letters;',
+          'Impersonate another person or User, or allow any other person or entity to use another User\'s profile to post or view comments (except as may be expressly permitted in the Terms under Section 2(E)(ii) for Student Agents).'
         ]
       },
       {
-        heading: '2. Illegal or Offensive Content',
+        heading: 'Additional Restrictions',
+        body: ['Additionally, you may not, and you may not permit any third party to:'],
         list: [
-          'Post, distribute, or share content that is illegal, obscene, hateful, profane, or defamatory.',
-          'Upload or use materials that infringe on the intellectual property rights or privacy of others.'
-        ]
-      },
-      {
-        heading: '3. Malicious Software',
-        list: [
-          'Upload or distribute files or scripts that contain malware, viruses, worms, Trojan horses, spyware, or other harmful or destructive content.',
-          'Attempt to damage or control the Platform or any user’s system.'
-        ]
-      },
-      {
-        heading: '4. Irrelevant or Unauthorized Commercial Activity',
-        list: [
-          'Advertise or offer unrelated products or services.',
-          'Solicit users for outside employment, contracting, or business deals unrelated to iNSTAiNSTRU.'
-        ]
-      },
-      {
-        heading: '5. Prohibited Lesson Requests',
-        list: [
-          'Require someone to purchase or send gift cards or money orders.',
-          'Involve high-value purchases (over $300) without prior approval from iNSTAiNSTRU.',
-          'Require cross-border travel or violate local or international law.',
-          'Involve ridesharing, escort services, medical services, or other prohibited activities.',
-          'Encourage or result in illegal, unsafe, or inappropriate conduct.'
-        ]
-      },
-      {
-        heading: '6. Spam, Scams, and Fraud',
-        list: [
-          'Post duplicate or spam-like listings.',
-          'Run or promote pyramid schemes, contests, or chain letters.',
-          'Misrepresent your identity or the nature of a lesson or service.'
-        ]
-      },
-      {
-        heading: '7. Impersonation or Misuse of Accounts',
-        list: [
-          'Impersonate another person or use another user’s profile without permission.',
-          'Allow someone else to access or control your account.'
-        ]
-      },
-      {
-        heading: '8. Circumvention of Payments',
-        list: [
-          'Attempt to process payments outside of the iNSTAiNSTRU Platform.',
-          'Provide inaccurate invoices or engage in off-platform transactions to avoid fees.'
-        ]
-      },
-      {
-        heading: '9. Unauthorized Data Use or Access',
-        list: [
-          'Use bots, crawlers, scrapers, or automated tools to extract data or interact with the Platform.',
-          'Collect or harvest user data (e.g., names, emails) without consent.',
-          'Feed Platform content or user information into artificial intelligence tools without permission.'
-        ]
-      },
-      {
-        heading: '10. Platform Interference',
-        list: [
-          'Disrupt or interfere with others’ use of the Platform.',
-          'Attempt to hack, bypass security, or gain unauthorized access to our servers or systems.',
-          'Reverse engineer, reproduce, or distribute Platform content without written permission.'
-        ]
-      },
-      {
-        heading: '11. Multiple or Fake Accounts',
-        list: [
-          'Create duplicate accounts or register under false names, email addresses, or phone numbers.',
-          'Re-register after suspension or termination without express written approval.'
-        ]
-      },
-      {
-        heading: 'Enforcement and Consequences',
-        body: [
-          'Violating this Acceptable Use Policy is a violation of the iNSTAiNSTRU Terms of Service. We reserve the right to take any action we deem necessary in response to violations, including removing or modifying content, issuing warnings or suspending accounts, terminating access to the Platform without notice, and reporting violations to law enforcement where appropriate.'
-        ]
-      },
-      {
-        heading: 'Reporting',
-        body: [
-          'If you witness or experience behavior that violates this policy, please report it immediately by contacting us at support@instainstru.com.'
-        ]
-      },
-      {
-        heading: 'Questions',
-        body: [
-          'If you have any questions about this policy or how it applies to your use of the iNSTAiNSTRU Platform, please reach out to us at support@instainstru.com.'
+          'Use the Platform or use or perform the Lesson services in violation of the Agreement (including this AUP);',
+          'Use the Platform or use or perform the Lesson services in any manner or for any purpose (1) other than as expressly set out in the Agreement (including, but not limited to, any journalistic, academic, investigative, or unlawful purpose), (2) that is unauthorized or illegal (including, but not limited to, posting or performing a Lesson in violation of local, state, provincial, national, or international law), (3) that is false or misleading (whether directly or by omission or failure to update information), or (4) to access or obtain iNSTAiNSTRU\'s trade secret information (or attempt to do so);',
+          'Post or upload any content to the Platform (1) that is offensive and/or harmful (including, but not limited to, content that advocates, endorses, condones, or promotes racism, bigotry, hatred, or physical harm of any kind against any individual or group of individuals, or that exploits people in an abusive, violative, or sexual manner), or (2) for which you have not obtained the necessary rights and permissions;',
+          'Post the same Lesson repeatedly ("spamming");',
+          'Download any file posted by another User that you know, or reasonably should know, cannot be legally distributed through the Platform;',
+          'Restrict or inhibit any other User from using and enjoying the Public Areas;',
+          'Imply or state that any statements you make (whether on or off the iNSTAiNSTRU Platform) are endorsed by iNSTAiNSTRU, without the prior written consent of iNSTAiNSTRU;',
+          'Use a robot, spider, manual, meta tag, "hidden text," agent, script, and/or automatic processes or devices to data-mine, data-crawl, scrape, collect, mine, republish, redistribute, transmit, sell, license, download, manage, or index the iNSTAiNSTRU Platform, or the electronic addresses or personal information of others, in any manner;',
+          'Frame or utilize framing techniques to enclose all or any portion of the Platform;',
+          'Hack or interfere with the Platform, its servers, or any connected networks;',
+          'Adapt, alter, license, sublicense, or translate the Platform for your own personal or commercial use;',
+          'Remove, alter, or misuse, visually or otherwise, any copyrights, trademarks, or proprietary marks or rights owned by iNSTAiNSTRU and Affiliates;',
+          'Solicit for any other business, website, or service, or otherwise contact Users for employment, contracting, or any purpose not permitted by the Agreement;',
+          'Collect usernames, email addresses, or other personal information of Users by electronic or other means;',
+          'Attempt to circumvent the payments system, PSP, or service charge in any way (including, but not limited to, making or processing payments for Lessons outside of the Platform, providing inaccurate information on invoices, or otherwise invoicing in a fraudulent manner);',
+          'Register (1) under different usernames, identities, or false identities (including after your account has been suspended or terminated), (2) under multiple usernames or false identities, or (3) using inaccurate information (including using a false or disposable email or phone number);',
+          'Use tools with the goal of masking your IP address (like the TOR network);',
+          'Copy, download, use, redesign, reconfigure, or retransmit anything from the iNSTAiNSTRU Platform without iNSTAiNSTRU\'s express prior written consent, and/or if applicable, the consent of the holder of the rights to the User Generated Content;',
+          'Use any artificial intelligence technologies to create or generate a Platform account, or to impersonate another person or User;',
+          'Submit any part of the Platform (including, without limitation, any iNSTAiNSTRU information) into any artificial intelligence technologies.'
         ]
       }
     ]
   },
   {
     id: 'payments',
-    title: 'Payments & Cancellation Policy',
-    summary: 'Billing, refunds, and cancellation windows for lessons.',
-    updated: 'November 1, 2025',
+    title: 'Fees, Payments, and Cancellation Supplemental Terms',
+    summary: 'How fees, payments, and cancellations work on the iNSTAiNSTRU Platform.',
+    updated: 'November 3, 2025',
     sections: [
       {
-        heading: '1. Student Billing',
-        list: [
-          'Students provide a valid payment method at booking. Charges are authorized immediately and captured once the lesson concludes.',
-          'Prices include applicable taxes and platform fees. Tips can be added within 48 hours of a completed lesson.',
-          'Declined payments must be resolved within 24 hours to avoid lesson cancellation and account pause.'
-        ]
-      },
-      {
-        heading: '2. Instructor Payouts',
-        list: [
-          'Stripe Connect handles payouts within two business days after lesson completion.',
-          'Instructors are responsible for reporting income to the appropriate tax authorities.',
-          'Chargebacks or disputed lessons may be debited from future payouts while investigations are completed.'
-        ]
-      },
-      {
-        heading: '3. Cancellation Windows',
+        heading: 'Overview',
         body: [
-          'Students may cancel or reschedule online up to 24 hours before the lesson without penalty. Cancellations inside that window may result in up to a 50% charge to compensate instructors. No-shows are treated as completed lessons and are billed in full.'
+          'THESE FEES, PAYMENTS AND CANCELLATION SUPPLEMENTAL TERMS ("Fees and Payments Terms") form part of iNSTAiNSTRU\'s Global Terms of Service (the "Terms") and apply to each User\'s access to and use of the Platform, and the fees and payments associated with such access and use.',
+          'Capitalized terms used, but not defined, in these Fees and Payments Terms will have the definitions as set out in the Terms.'
         ]
       },
       {
-        heading: '4. Refund Eligibility',
+        heading: 'A. Lesson Payment and Other Amounts Owed by the Student',
+        body: [
+          'All amounts owed and/or to be paid by you shall be set out in an invoice ("Invoice(s)"), which will include the Lesson-related fees and iNSTAiNSTRU fees, each as described in more detail below in this Section A.',
+          'By providing a payment method, and upon receipt (whether through the Platform or via text or email) that the Lesson has been completed, you authorize us to process your existing payment method. If we are unable to charge your existing payment method, you authorize us to use any payment methods you have previously linked to your account. To update your existing payment preferences, go to Your Account -> Billing Info.',
+          'You acknowledge and agree that we may prevent you from booking future Lessons if any amounts remain outstanding on your account. Unless otherwise expressly stated in this Agreement, all fees (including, without limitation, the Lesson Payment and all iNSTAiNSTRU fees) are non-refundable.'
+        ]
+      },
+      {
+        heading: '1. Lesson-related fees',
+        body: ['The Student is responsible for paying the following associated with each Lesson:'],
         list: [
-          'If a lesson is canceled by an instructor, we automatically issue a full refund or rebook with an alternative instructor.',
-          'Report quality concerns within 48 hours; we will review communications and instructor history to determine refunds.',
-          'Students receiving repeated refunds may be asked to verify future bookings to prevent abuse.'
+          'the fee for the Lesson, at the Instructor\'s rates and as agreed-upon by the Student and the Instructor (the "Lesson Payment"),',
+          'any out-of-pocket expenses agreed-upon by the Student and the Instructor and submitted by the Instructor in connection with the Lesson,',
+          'a tip or gratuity, as applicable, which may be added to the Invoice by, or at the direction of, the Student (all of which shall go directly to the Instructor),',
+          'taxes or similar charges, as described in Section E below,',
+          'a credit-card processing fee, as applicable, and',
+          'taxes or similar charges, as described in Section E below.'
+        ]
+      },
+      {
+        heading: '2. iNSTAiNSTRU fees',
+        body: ['In addition to the amounts owed for the Lesson as set out in Section A(1) above, iNSTAiNSTRU charges, and the Student is responsible for paying, the following fees associated with each Lesson:'],
+        list: [
+          'the service charge that iNSTAiNSTRU assesses to the Student for access to and information regarding Instructors;',
+          'the Trust & Support fee that iNSTAiNSTRU assesses for customer support, services in support of the platform\'s guarantees, and other operational services;',
+          'taxes or similar charges, as described in Section E below; and',
+          'applicable cancellation charges (see Section F below for details).'
+        ],
+        bodyAfterList: [
+          'iNSTAiNSTRU reserves the right to change its fees at any time and will notify Students of any fee changes in accordance with Section 17 of the Terms.',
+          'If you disagree with an iNSTAiNSTRU fee change, you may cease using the Platform and terminate the Agreement at any time pursuant to Section 7 of the Terms. Instructors have no authority to, and may not, modify all or any part of iNSTAiNSTRU\'s fees.'
+        ]
+      },
+      {
+        heading: 'B. Amounts Owed by Instructors',
+        body: [
+          'Instructors will be responsible for (1) paying registration fees, if applicable, and (2) repaying to iNSTAiNSTRU or the PSP any erroneous payments or other amounts received by the Instructor.'
+        ]
+      },
+      {
+        heading: 'C. Payment Service Provider (PSP)',
+        body: [
+          'All amounts owed and/or to be paid by any User must be paid through the PSP.',
+          'The Student will be required to provide their payment-method details to iNSTAiNSTRU and the PSP. The Instructor will be required to set up an account with the PSP, which requires registration with the PSP, consent to the terms of service of the PSP (the "PSP Services Agreement"), and completion of a vetting process and/or account validation.',
+          'iNSTAiNSTRU is not a party to any PSP Services Agreement and has no obligations, responsibility, or liability to any Instructor or other party under any PSP Services Agreement.'
+        ]
+      },
+      {
+        heading: 'D. Fraud',
+        body: [
+          'Notwithstanding anything herein to the contrary, the Student will not be held responsible for transactions that are identified by iNSTAiNSTRU as potential or confirmed fraud; provided that the Student did not contribute to or cause (directly or indirectly, in any part) such fraud.',
+          'In these instances, a transaction may be declined, frozen, or held until investigation is complete.'
+        ]
+      },
+      {
+        heading: 'E. Sales Tax Collection and Remittance',
+        body: [
+          'Users of the Platform may be liable for taxes or similar charges (including VAT, if applicable in the country where the Lesson is performed) which are imposed on the Lessons performed and/or fees paid under the Agreement and must be collected and/or paid.',
+          'In certain jurisdictions, applicable rules require that we collect and/or report tax and/or revenue information about you to applicable tax authorities. You agree that iNSTAiNSTRU may issue, on your behalf, receipts or similar documentation to facilitate accurate tax reporting, and use of your account may be paused until such documentation is provided.',
+          'Notwithstanding anything herein to the contrary, however:',
+          'Instructors remain fully responsible and liable for, and in charge of, compliance with all tax obligations applicable to the Instructor and the Lessons (including performance thereof), including, without limitation, filing their tax returns (such as, as applicable, VAT) and paying taxes (such as, as applicable, VAT) relating to the Lessons performed by them for the benefit of their Students. Instructors should consult with their own tax advisors to ensure compliance with applicable tax and reporting requirements.',
+          'iNSTAiNSTRU is neither responsible nor liable for ensuring Users\' compliance with applicable tax obligations. Without limitation, iNSTAiNSTRU shall not be held responsible for any breach of an Instructor\'s tax obligations, including (without limitation) that iNSTAiNSTRU shall not be held jointly and severally liable for taxes, interest on overdue taxes, or for any penalties or fines that would be owed by the Instructor.',
+          'iNSTAiNSTRU may (i) request the Instructor to confirm and/or demonstrate that they are up to date with their tax obligations (including social contributions, if applicable); and (ii) deactivate an Instructor\'s account or limit their use of or remove the Instructor from the Platform upon (1) a determination from the applicable tax authorities that such Instructor has failed to comply with tax obligations (such as VAT), or (2) if the Instructor is unable or unwilling to confirm and/or demonstrate their compliance with their tax obligations, upon request.'
+        ]
+      },
+      {
+        heading: 'F. Cancellation Fees',
+        body: [
+          'Students may cancel a Lesson at any time. However, the Student may be billed a cancellation fee under certain circumstances. Please consult the Cancellation Policy available through support@instainstru.com or within your account dashboard.'
+        ]
+      }
+    ]
+  },
+  {
+    id: 'contact-details',
+    title: 'iNSTAiNSTRU Contact Details Supplemental Terms',
+    summary: 'How to reach iNSTAiNSTRU for legal or policy questions.',
+    updated: 'November 3, 2025',
+    sections: [
+      {
+        heading: 'Overview',
+        body: [
+          'These iNSTAiNSTRU Contact Details Supplemental Terms ("Contact Details") form part of iNSTAiNSTRU\'s Global Terms of Service (the "Terms") and apply to all Users\' access to and use of the Platform.',
+          'Capitalized terms used but not defined in these Contact Details will have the meanings set out in the Terms.'
+        ]
+      },
+      {
+        heading: 'Get in Touch',
+        body: [
+          'If you have any questions about the Agreement, the Platform, or any related policies, please contact us using the details below:',
+          'support@instainstru.com',
+          'Attention: Legal'
+        ]
+      }
+    ]
+  },
+  {
+    id: 'sms-terms',
+    title: 'iNSTAiNSTRU SMS Terms and Conditions',
+    summary: 'Rules for receiving SMS messages from iNSTAiNSTRU.',
+    updated: 'November 3, 2025',
+    sections: [
+      {
+        heading: 'Overview',
+        body: [
+          'Pursuant to the provisions of Section 28 of the iNSTAiNSTRU Global Terms of Service, you may receive messages that include Instructor Status updates, Lesson Reminders and Receipts, two-factor authentication (2FA) codes, and promotional or service-related messages that may be sent to Students and Instructors on iNSTAiNSTRU.',
+          'Message frequency varies.',
+          'Carriers are not liable for delayed or undelivered messages. Message and data rates may apply.',
+          'Reply HELP for assistance.',
+          'Reply STOP to unsubscribe.',
+          'For our Privacy Policy, please visit the Privacy Policy or contact support@instainstru.com.'
+        ]
+      }
+    ]
+  },
+  {
+    id: 'referral-program',
+    title: 'iNSTAiNSTRU Referral Program Terms and Conditions',
+    summary: 'Details for the Give $20 / Get $20 referral program.',
+    updated: 'November 3, 2025',
+    sections: [
+      {
+        heading: 'Overview',
+        body: [
+          'These iNSTAiNSTRU Referral Program Terms and Conditions ("Referral Terms") govern participation in iNSTAiNSTRU\'s "Give $20 / Get $20" referral program (the "Program").',
+          'These Referral Terms form part of, and are subject to, the iNSTAiNSTRU Global Terms of Service and Privacy Policy. By sharing a referral link, inviting a friend, or redeeming a referral reward, you agree to these Terms.'
+        ]
+      },
+      {
+        heading: '1. Overview',
+        body: [
+          'The iNSTAiNSTRU Referral Program allows Users (both Instructors and Students) to earn referral rewards ("Referral Rewards") by inviting new Users to sign up and book a qualifying lesson through the iNSTAiNSTRU Platform.',
+          'We may change, suspend, or terminate the Program at any time for any reason. Any changes will apply prospectively.'
+        ]
+      },
+      {
+        heading: '2. Eligibility',
+        body: ['To participate, you must:'],
+        list: [
+          'Have an active iNSTAiNSTRU account in good standing.',
+          'Reside in a jurisdiction where the Program is legally permitted.',
+          'Be in full compliance with the iNSTAiNSTRU Global Terms of Service.'
+        ],
+        bodyAfterList: [
+          'New Users ("Referees") must create an iNSTAiNSTRU account with the Referrer\'s unique link or code, complete their first lesson valued at 75 USD or more within 30 days of signup, and be new to the Platform (one referral reward per household; self-referrals are prohibited).'
+        ]
+      },
+      {
+        heading: '3. How the Program Works',
+        body: [
+          'Eligible Users ("Referrers") can access their unique referral code or link through their iNSTAiNSTRU account.',
+          'The Referrer may share this link privately with friends, family, or colleagues they personally know ("Friends").',
+          'When a Friend signs up using the referral link and completes an eligible first lesson, both the Referrer and the Referee receive a 20 USD iNSTAiNSTRU credit ("Referral Reward").',
+          'Rewards are typically issued within 48 hours after the qualifying lesson is completed.',
+          'If the qualifying lesson is canceled or refunded, the corresponding Referral Reward may be revoked.'
+        ]
+      },
+      {
+        heading: '4. Reward Use',
+        body: [
+          'Referral Rewards are issued as iNSTAiNSTRU credits and automatically apply at checkout when booking a new lesson of 75 USD or more.',
+          'Credits:'
+        ],
+        list: [
+          'Have no cash value and cannot be transferred.',
+          'May not be combined with other promo codes, offers, or discounts.',
+          'May only be redeemed on the iNSTAiNSTRU Platform.',
+          'Only one credit can be applied per transaction.',
+          'Rewards may not be used toward taxes, tips, background check fees, or other non-lesson fees.'
+        ]
+      },
+      {
+        heading: '5. Expiration and Forfeiture',
+        body: [
+          'Referral credits expire 90 days from the date of issuance (unless otherwise stated in your rewards dashboard).',
+          'Unused or expired credits are forfeited upon any of the following:'
+        ],
+        list: [
+          'Account closure.',
+          'Violation of these Referral Terms.',
+          'Misuse of the Program (as described in Section 8 below).'
+        ]
+      },
+      {
+        heading: '6. Verification and Limits',
+        body: [
+          'Referral Rewards are subject to verification and may be withheld, delayed, or revoked at iNSTAiNSTRU\'s sole discretion.',
+          'Rewards may differ based on region or promotional period.',
+          'A single User may not earn more than 500 USD in referral credits per calendar year.',
+          'Referral links may not be distributed via coupon sites, paid ad networks, or public forums without iNSTAiNSTRU\'s prior written consent.'
+        ]
+      },
+      {
+        heading: '7. Fair Use and Prohibited Conduct',
+        body: [
+          'We may suspend or revoke referral privileges if we suspect fraud, spam, reseller activity, fake accounts, or other abuse.',
+          'Specifically, Users may not:'
+        ],
+        list: [
+          'Refer themselves or create multiple accounts.',
+          'Use bots, scripts, or automated tools to generate signups.',
+          'Mislead or misrepresent the nature of the Program.',
+          'Post referral links publicly or in ways that violate anti-spam or privacy laws.'
+        ],
+        bodyAfterList: [
+          'Each Referrer is considered the sender of any referral communication and must comply with all applicable laws, including CAN-SPAM and other anti-spam regulations.'
+        ]
+      },
+      {
+        heading: '8. Disclaimer of Warranties',
+        body: [
+          'THE PROGRAM AND THE iNSTAiNSTRU PLATFORM ARE PROVIDED ON AN "AS IS" AND "AS AVAILABLE" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION, WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.',
+          'iNSTAiNSTRU DOES NOT GUARANTEE THAT REFERRAL REWARDS WILL BE AVAILABLE OR ERROR-FREE, NOR THAT THEY WILL BE ISSUED IN EVERY CASE.'
+        ]
+      },
+      {
+        heading: '9. Limitation of Liability',
+        body: [
+          'TO THE FULLEST EXTENT PERMITTED BY LAW, THE MAXIMUM LIABILITY OF iNSTAiNSTRU, ITS AFFILIATES, AND CORPORATE PARTNERS ARISING OUT OF OR IN CONNECTION WITH THE PROGRAM SHALL NOT EXCEED 100 USD.',
+          'You agree to indemnify, defend, and hold harmless iNSTAiNSTRU and its Affiliates from any claims, losses, or damages arising out of your participation in the Program or your violation of these Terms.'
+        ]
+      },
+      {
+        heading: '10. Right to Cancel, Modify, or Terminate',
+        body: [
+          'iNSTAiNSTRU reserves the right to cancel, modify, or terminate the Program - or any User\'s participation - at any time, for any reason, including where fraud or abuse is suspected.',
+          'If the Program is terminated, iNSTAiNSTRU will honor Referral Rewards already earned, unless termination occurs due to fraudulent or abusive conduct.'
+        ]
+      },
+      {
+        heading: '11. Contact',
+        body: [
+          'If you have any questions about these Referral Terms or the Program, please contact:',
+          'Email: support@instainstru.com',
+          'Attention: Legal'
         ]
       }
     ]
@@ -993,13 +1107,6 @@ export default function LegalResourceCenter() {
                   );
                 })}
               </nav>
-              <div className="px-5 py-4 bg-gray-50 text-sm text-gray-600 rounded-b-2xl">
-                Looking for referral details?{' '}
-                <Link href="/referrals-terms" className="text-[#7E22CE] font-medium hover:underline">
-                  Review the referral terms
-                </Link>
-                .
-              </div>
             </div>
           </aside>
 
@@ -1027,6 +1134,11 @@ export default function LegalResourceCenter() {
                       ))}
                     </ul>
                   )}
+                  {section.bodyAfterList?.map((paragraph, index) => (
+                    <p key={`after-${index}`} className="mt-3 leading-7">
+                      {paragraph}
+                    </p>
+                  ))}
                   {section.table && (
                     <div className="mt-6 overflow-x-auto">
                       <table className="w-full border-collapse text-sm text-gray-700">

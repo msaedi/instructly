@@ -101,6 +101,123 @@ function InstructorProfileContent() {
 
   const bookingModal = useBookingModal();
   const serviceAreaBoroughs = instructor ? getServiceAreaBoroughs(instructor) : [];
+  const preferredTeachingLocations =
+    Array.isArray(instructor?.preferred_teaching_locations)
+      ? instructor.preferred_teaching_locations.filter(
+          (loc): loc is { address: string; label?: string } =>
+            !!loc && typeof loc.address === 'string' && loc.address.trim().length > 0,
+        )
+      : [];
+  const preferredPublicSpaces =
+    Array.isArray(instructor?.preferred_public_spaces)
+      ? instructor.preferred_public_spaces.filter(
+          (loc): loc is { address: string; label?: string } =>
+            !!loc && typeof loc.address === 'string' && loc.address.trim().length > 0,
+        )
+      : [];
+  const hasAnyInPersonLocations =
+    serviceAreaBoroughs.length > 0 || preferredTeachingLocations.length > 0 || preferredPublicSpaces.length > 0;
+  const offersOnline = Array.isArray(instructor?.services)
+    ? instructor.services.some((service) => {
+        const locations = Array.isArray((service as { location_types?: unknown }).location_types)
+          ? ((service as { location_types?: string[] }).location_types ?? [])
+          : [];
+        return locations
+          .map((loc) => (typeof loc === 'string' ? loc.toLowerCase().trim() : ''))
+          .some((loc) => loc === 'online');
+      })
+    : false;
+  const serviceAreaSectionContent = (
+    <>
+      {hasAnyInPersonLocations ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {serviceAreaBoroughs.length > 0 && (
+            <div>
+              <div className="text-lg font-bold mb-2">Travel To You</div>
+              <ul className="text-xs text-gray-600 space-y-0.5 list-disc list-inside">
+                {serviceAreaBoroughs.slice(0, 8).map((borough) => (
+                  <li key={borough}>{borough}</li>
+                ))}
+                {serviceAreaBoroughs.length > 8 && (
+                  <li className="text-[#7E22CE] text-xs font-medium mt-1">
+                    + {serviceAreaBoroughs.length - 8} more
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+
+          {preferredTeachingLocations.length > 0 && (
+            <div>
+              <div className="text-lg font-bold mb-2">Teach At</div>
+              <ul className="text-xs text-gray-600 space-y-0.5 list-disc list-inside">
+                {preferredTeachingLocations.map((location, idx) => {
+                  const rawLabel = typeof location.label === 'string' ? location.label.trim() : '';
+                  const address = location.address.trim();
+                  const addressParts = address.split(',').map((part) => part.trim()).filter(Boolean);
+                  const fallbackTitle = (addressParts.length > 0 ? addressParts[0] : address) || '';
+                  const displayPrimary = (rawLabel || fallbackTitle).trim();
+                  const secondaryCandidate = rawLabel
+                    ? address
+                    : addressParts.slice(1).join(', ');
+                  const showSecondary =
+                    Boolean(secondaryCandidate) &&
+                    secondaryCandidate.toLowerCase() !== displayPrimary.toLowerCase();
+                  return (
+                    <li key={`${address}-${idx}`} className="flex flex-col gap-0.5">
+                      <span className="font-semibold text-gray-700">{displayPrimary}</span>
+                      {showSecondary ? (
+                        <span className="ml-3 text-[11px] text-gray-500">{secondaryCandidate}</span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {preferredPublicSpaces.length > 0 && (
+            <div>
+              <div className="text-lg font-bold mb-2">Public Spaces</div>
+              <ul className="text-xs text-gray-600 space-y-0.5 list-disc list-inside">
+                {preferredPublicSpaces.map((space, idx) => {
+                  const rawLabel = typeof space.label === 'string' ? space.label.trim() : '';
+                  const address = space.address.trim();
+                  const addressParts = address.split(',').map((part) => part.trim()).filter(Boolean);
+                  const fallbackTitle = (addressParts.length > 0 ? addressParts[0] : address) || '';
+                  const displayPrimary = (rawLabel || fallbackTitle).trim();
+                  const secondaryCandidate = rawLabel
+                    ? address
+                    : addressParts.slice(1).join(', ');
+                  const showSecondary =
+                    Boolean(secondaryCandidate) &&
+                    secondaryCandidate.toLowerCase() !== displayPrimary.toLowerCase();
+                  return (
+                    <li key={`${space.address}-${idx}`} className="flex flex-col gap-0.5">
+                      <span className="font-semibold text-gray-700">{displayPrimary}</span>
+                      {showSecondary ? (
+                        <span className="ml-3 text-[11px] text-gray-500">{secondaryCandidate}</span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="text-xs text-gray-500">
+          This instructor hasn’t shared in-person service areas yet.
+        </div>
+      )}
+      {offersOnline ? (
+        <div className="mt-6 flex items-center gap-2 text-sm font-semibold text-[#7E22CE]">
+          <span className="inline-block h-2 w-2 rounded-full border border-[#7E22CE]" aria-hidden="true" />
+          <span>Online lesson available</span>
+        </div>
+      ) : null}
+    </>
+  );
 
 
 
@@ -436,7 +553,7 @@ function InstructorProfileContent() {
           </div>
 
           <section>
-            <h2 className="text-xl font-semibold mb-4">Services & Pricing</h2>
+            <h2 className="text-xl font-semibold mb-4">Skills and pricing</h2>
             <ServiceCards
               services={instructor.services}
               selectedSlot={selectedSlot}
@@ -444,6 +561,12 @@ function InstructorProfileContent() {
             />
           </section>
 
+          <section>
+            <h2 className="text-xl font-semibold mb-4">Service Areas</h2>
+            <div className="rounded-xl bg-white p-3">
+              {serviceAreaSectionContent}
+            </div>
+          </section>
 
           <ReviewsSection instructorId={instructor.user_id} />
         </div>
@@ -456,73 +579,20 @@ function InstructorProfileContent() {
           </div>
 
 
-          {/* Services Section */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex gap-8">
-              {/* Services & Pricing - reduced width */}
-              <div className="flex-[1.4] max-w-lg">
-                <h2 className="text-lg text-gray-600 mb-4">Services & Pricing</h2>
-                <ServiceCards
-                  services={instructor.services}
-                  selectedSlot={selectedSlot}
-                  onBookService={(service, duration) => handleBookingClick(service, duration)}
-                />
-              </div>
-
-              {/* Lesson Locations */}
-              <div className="flex-[1]">
-                <h2 className="text-lg text-gray-600 mb-4">Lesson Locations</h2>
-                <div className="rounded-lg border border-purple-100 p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
-                  <div className="grid grid-cols-4 gap-4">
-                    {/* Travel to you */}
-                    {serviceAreaBoroughs.length > 0 && (
-                      <div>
-                        <div className="text-lg font-bold mb-2">Travel to you</div>
-                        <div className="text-xs text-gray-600 space-y-0.5 ml-3">
-                          {serviceAreaBoroughs.slice(0, 8).map((borough) => (
-                            <div key={borough}>• {borough}</div>
-                          ))}
-                          {serviceAreaBoroughs.length > 8 && (
-                            <div className="text-[#7E22CE] text-xs font-medium mt-1">
-                              + {serviceAreaBoroughs.length - 8} more
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* My location - example: show if instructor has a studio */}
-                    {true && ( // Replace with actual condition
-                      <div>
-                        <div className="text-lg font-bold mb-2">My location</div>
-                        <div className="text-xs text-gray-600 ml-3">
-                          <div>• Private studio in Manhattan</div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Neutral location - example: show if instructor uses public spaces */}
-                    {true && ( // Replace with actual condition
-                      <div>
-                        <div className="text-lg font-bold mb-2">Neutral location</div>
-                        <div className="text-xs text-gray-600 ml-3">
-                          <div>• Parks and outdoor spaces</div>
-                          <div>• Community centers</div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Online */}
-                    {true && ( // Replace with actual condition
-                      <div>
-                        <div className="text-lg font-bold mb-2">Online</div>
-                        <div className="text-xs text-gray-600 ml-3">
-                          <div>• Video call lessons available</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+          {/* Skills & Service Areas */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 className="text-lg text-gray-600 mb-4">Skills and pricing</h2>
+              <ServiceCards
+                services={instructor.services}
+                selectedSlot={selectedSlot}
+                onBookService={(service, duration) => handleBookingClick(service, duration)}
+              />
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 className="text-lg text-gray-600 mb-4">Service Areas</h2>
+              <div className="rounded-xl bg-white p-3">
+                {serviceAreaSectionContent}
               </div>
             </div>
           </div>
