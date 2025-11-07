@@ -15,15 +15,9 @@ UPDATED FOR WORK STREAM #9: Layer independence
 - Bookings use time-based creation
 """
 
-import pytest
-
-pytestmark = pytest.mark.xfail(
-    reason="Bitmap-era policy: soft-delete behavior differs from slot-era; AvailabilityDay has no soft delete",
-    strict=False,
-)
-
 from datetime import date, time, timedelta
 
+import pytest
 from sqlalchemy.orm import Session
 from tests._utils.bitmap_avail import get_day_windows, seed_day
 

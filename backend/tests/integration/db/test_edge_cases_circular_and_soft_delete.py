@@ -18,16 +18,10 @@ UPDATED FOR WORK STREAM #9: Layer independence
 - Bookings are time-based and independent of slots
 """
 
-import pytest
-
-pytestmark = pytest.mark.xfail(
-    reason="Bitmap-era policy: no cascade on AvailabilityDay; soft-delete behavior differs from slot-era",
-    strict=False,
-)
-
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
+import pytest
 from sqlalchemy.orm import Session
 from tests._utils.bitmap_avail import seed_day
 
@@ -191,11 +185,7 @@ class TestCircularDependencyEdgeCases:
         assert booking_after.end_time == time(11, 0)
 
     def test_cascade_delete_instructor_availability(self, db: Session, instructor_user: User, student_user: User):
-        """Test behavior when trying to delete instructor with availability and bookings.
-
-        The database is configured to SET NULL on instructor_profiles when user is deleted,
-        which fails due to NOT NULL constraint. This test verifies this behavior.
-        """
+        """Bitmap-era policy: no cascade from Instructor → AvailabilityDay; availability must be cleaned manually."""
         # Create availability using bitmap storage
         target_date = date.today() + timedelta(days=1)
         seed_day(db, instructor_user.id, target_date, [("10:00", "11:00"), ("11:00", "12:00")])
@@ -236,11 +226,11 @@ class TestCircularDependencyEdgeCases:
         # Verify everything is deleted
         assert db.query(User).filter(User.id == instructor_id).first() is None
         assert db.query(InstructorProfile).filter(InstructorProfile.id == profile_id).first() is None
-        # Availability days should also be deleted (CASCADE from user)
+        # Availability days now remain since there is no FK cascade in bitmap storage.
         remaining_days = db.query(AvailabilityDay).filter(
             AvailabilityDay.instructor_id == instructor_id
         ).all()
-        assert len(remaining_days) == 0
+        assert len(remaining_days) == 1
 
     def test_no_reverse_relationship_from_availability(self, db: Session, instructor_user: User):
         """Verify that availability days don't have a booking relationship."""
