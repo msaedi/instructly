@@ -8,7 +8,6 @@ import pytest
 # Ensure perf instrumentation is enabled before any app imports
 os.environ["AVAILABILITY_PERF_DEBUG"] = "1"
 os.environ.setdefault("AVAILABILITY_TEST_MEMORY_CACHE", "1")
-os.environ["AVAILABILITY_V2_BITMAPS"] = "0"
 
 from tests._utils.bitmap_avail import seed_week
 

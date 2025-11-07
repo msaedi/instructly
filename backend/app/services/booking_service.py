@@ -61,7 +61,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
-BITMAP_V2 = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
 
 INSTRUCTOR_CONFLICT_MESSAGE = "Instructor already has a booking that overlaps this time"
 STUDENT_CONFLICT_MESSAGE = "Student already has a booking that overlaps this time"
@@ -175,6 +174,39 @@ class BookingService(BaseService):
             payload=payload,
             idempotency_key=idempotency_key,
         )
+
+    @staticmethod
+    def _time_to_minutes(value: time) -> int:
+        """Return minutes since midnight for a time value."""
+        return value.hour * 60 + value.minute
+
+    @staticmethod
+    def _minutes_to_time(value: int) -> time:
+        """Convert minutes since midnight to a time (wrap 24:00 as 00:00)."""
+        if value >= 24 * 60:
+            return time(0, 0)
+        return time(value // 60, value % 60)
+
+    @staticmethod
+    def _bitmap_str_to_minutes(value: str) -> int:
+        """Convert bitmap strings (e.g., '24:00:00') into minute offsets."""
+        parts = value.split(":")
+        hour = int(parts[0]) if parts and parts[0] else 0
+        minute = int(parts[1]) if len(parts) > 1 and parts[1] else 0
+        if hour >= 24:
+            return 24 * 60
+        return hour * 60 + minute
+
+    @staticmethod
+    def _booking_window_to_minutes(booking: Booking) -> tuple[int, int]:
+        """Convert a booking's start/end times into minute offsets."""
+        if not booking.start_time or not booking.end_time:
+            return 0, 0
+        start = BookingService._time_to_minutes(booking.start_time)
+        end = BookingService._time_to_minutes(booking.end_time)
+        if end <= start:
+            end = 24 * 60
+        return start, end
 
     def _resolve_actor_payload(
         self, actor: Any | None, default_role: str = "system"
@@ -301,9 +333,6 @@ class BookingService(BaseService):
         booking_data: BookingCreate,
         instructor_profile: InstructorProfile,
     ) -> None:
-        if not BITMAP_V2:
-            return
-
         start_time_value = booking_data.start_time
         end_time_value = booking_data.end_time
         if start_time_value is None or end_time_value is None:
@@ -1675,19 +1704,27 @@ class BookingService(BaseService):
             return []
 
         windows_str: list[tuple[str, str]] = windows_from_bits(bits)
-        # Filter windows within time range
-        result = []
+        earliest_minutes = self._time_to_minutes(earliest_time)
+        latest_minutes = self._time_to_minutes(latest_time)
+        if latest_minutes <= earliest_minutes and latest_time == time(0, 0):
+            latest_minutes = 24 * 60
+        if latest_minutes <= earliest_minutes and latest_time == time(0, 0):
+            latest_minutes = 24 * 60
+        result: list[dict[str, Any]] = []
         for start_str, end_str in windows_str:
-            start_time_obj = time.fromisoformat(start_str)
-            end_time_obj = time.fromisoformat(end_str) if end_str != "24:00:00" else time(0, 0)
-            if not (end_time_obj <= earliest_time or start_time_obj >= latest_time):
-                result.append(
-                    {
-                        "start_time": start_time_obj,
-                        "end_time": end_time_obj,
-                        "specific_date": target_date,
-                    }
-                )
+            start_minutes = self._bitmap_str_to_minutes(start_str)
+            end_minutes = self._bitmap_str_to_minutes(end_str)
+            if end_minutes <= earliest_minutes or start_minutes >= latest_minutes:
+                continue
+            result.append(
+                {
+                    "start_time": self._minutes_to_time(start_minutes),
+                    "end_time": self._minutes_to_time(end_minutes),
+                    "specific_date": target_date,
+                    "_start_minutes": start_minutes,
+                    "_end_minutes": end_minutes,
+                }
+            )
         return result
 
     async def _get_existing_bookings_for_date(
@@ -1743,11 +1780,16 @@ class BookingService(BaseService):
             List of booking opportunities
         """
         opportunities: List[Dict[str, Any]] = []
+        earliest_minutes = self._time_to_minutes(earliest_time)
+        latest_minutes = self._time_to_minutes(latest_time)
+        if latest_minutes <= earliest_minutes and latest_time == time(0, 0):
+            latest_minutes = 24 * 60
 
         for window in availability_windows:
-            # Adjust window boundaries to requested time range
-            slot_start = max(window["start_time"], earliest_time)
-            slot_end = min(window["end_time"], latest_time)
+            slot_start = max(window["_start_minutes"], earliest_minutes)
+            slot_end = min(window["_end_minutes"], latest_minutes)
+            if slot_end <= slot_start:
+                continue
 
             # Find opportunities within this slot
             opportunities.extend(
@@ -1765,8 +1807,8 @@ class BookingService(BaseService):
 
     def _find_opportunities_in_slot(
         self,
-        slot_start: time,
-        slot_end: time,
+        slot_start: int,
+        slot_end: int,
         existing_bookings: List[Booking],
         target_duration_minutes: int,
         instructor_id: str,
@@ -1776,8 +1818,8 @@ class BookingService(BaseService):
         Find booking opportunities within a single availability slot.
 
         Args:
-            slot_start: Start of availability slot
-            slot_end: End of availability slot
+            slot_start: Start of availability slot (minutes since midnight)
+            slot_end: End of availability slot (minutes since midnight)
             existing_bookings: List of existing bookings
             target_duration_minutes: Desired booking duration
             instructor_id: Instructor ID
@@ -1787,45 +1829,36 @@ class BookingService(BaseService):
             List of opportunities in this slot
         """
         opportunities: List[Dict[str, Any]] = []
-        current_time = slot_start
+        current_minutes = slot_start
+        booking_windows = [
+            self._booking_window_to_minutes(booking) for booking in existing_bookings if booking
+        ]
 
-        while current_time < slot_end:
-            # Calculate potential end time
-            # Use a reference date for time calculations
-            # This is just for duration math, not timezone-specific
-            reference_date = date(2024, 1, 1)
-            start_dt = datetime.combine(reference_date, current_time)
-            end_dt = start_dt + timedelta(minutes=target_duration_minutes)
-            potential_end = end_dt.time()
+        while current_minutes + target_duration_minutes <= slot_end:
+            potential_end = current_minutes + target_duration_minutes
 
-            # Check if this exceeds slot boundary
-            if potential_end > slot_end:
-                break
-
-            # Check for conflicts with existing bookings
             has_conflict = False
-            for booking in existing_bookings:
-                if current_time < booking.end_time and potential_end > booking.start_time:
-                    # Conflict found, skip to after this booking
-                    current_time = booking.end_time
+            for booking_start, booking_end in booking_windows:
+                if current_minutes < booking_end and potential_end > booking_start:
+                    current_minutes = max(current_minutes, booking_end)
                     has_conflict = True
                     break
 
-            if not has_conflict:
-                # This is a valid opportunity
-                opportunities.append(
-                    {
-                        "start_time": current_time.isoformat(),
-                        "end_time": potential_end.isoformat(),
-                        "duration_minutes": target_duration_minutes,
-                        "available": True,
-                        "instructor_id": instructor_id,
-                        "date": target_date.isoformat(),
-                    }
-                )
+            if has_conflict:
+                continue
 
-                # Move to next potential slot
-                current_time = potential_end
+            opportunities.append(
+                {
+                    "start_time": self._minutes_to_time(current_minutes).isoformat(),
+                    "end_time": self._minutes_to_time(potential_end).isoformat(),
+                    "duration_minutes": target_duration_minutes,
+                    "available": True,
+                    "instructor_id": instructor_id,
+                    "date": target_date.isoformat(),
+                }
+            )
+
+            current_minutes = potential_end
 
         return opportunities
 

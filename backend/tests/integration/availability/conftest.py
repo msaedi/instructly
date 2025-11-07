@@ -8,7 +8,7 @@ def bitmap_env_guardrails(monkeypatch: pytest.MonkeyPatch):
     """
     Apply the production-style guardrail defaults for bitmap availability.
     """
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
+    # Bitmap availability is always enabled; no flag required
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
     monkeypatch.setenv("PAST_EDIT_WINDOW_DAYS", "30")
     monkeypatch.setenv("CLAMP_COPY_TO_FUTURE", "true")
@@ -26,7 +26,7 @@ def bitmap_env_relaxed(monkeypatch: pytest.MonkeyPatch):
     """
     Enable bitmap mode with permissive past edits/copies for focused tests.
     """
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
+    # Always seed bitmaps; no flag required
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
     monkeypatch.setenv("PAST_EDIT_WINDOW_DAYS", "0")
     monkeypatch.setenv("CLAMP_COPY_TO_FUTURE", "false")

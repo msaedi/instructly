@@ -81,25 +81,39 @@ class TestSoftDeleteServices:
                 seed_day(db, test_instructor_with_bookings.id, tomorrow, [("13:00", "16:00")])
                 db.flush()
 
-            # Create a booking - using time-based booking (no availability_slot_id)
-            booking = Booking(
-                student_id=test_student.id,
-                instructor_id=test_instructor_with_bookings.id,
-                instructor_service_id=service_with_bookings["id"],
-                # NO availability_slot_id - removed in Work Stream #9
-                booking_date=booking_date,
-                start_time=start_time,
-                end_time=end_time,
-                service_name=service_with_bookings["name"],
-                hourly_rate=service_with_bookings["hourly_rate"],
-                total_price=service_with_bookings["hourly_rate"] * ((end_time.hour - start_time.hour) or 1),
-                duration_minutes=(end_time.hour - start_time.hour) * 60,
-                status=BookingStatus.CONFIRMED,
-                meeting_location="Test Location",
+            existing_span = (
+                db.query(Booking)
+                .filter(
+                    Booking.instructor_id == test_instructor_with_bookings.id,
+                    Booking.booking_date == booking_date,
+                    Booking.start_time == start_time,
+                    Booking.end_time == end_time,
+                    Booking.cancelled_at.is_(None),
+                )
+                .first()
             )
-            db.add(booking)
-            db.commit()
-            booking_count = 1
+            if existing_span is None:
+                # Create a booking - using time-based booking (no availability_slot_id)
+                booking = Booking(
+                    student_id=test_student.id,
+                    instructor_id=test_instructor_with_bookings.id,
+                    instructor_service_id=service_with_bookings["id"],
+                    # NO availability_slot_id - removed in Work Stream #9
+                    booking_date=booking_date,
+                    start_time=start_time,
+                    end_time=end_time,
+                    service_name=service_with_bookings["name"],
+                    hourly_rate=service_with_bookings["hourly_rate"],
+                    total_price=service_with_bookings["hourly_rate"] * ((end_time.hour - start_time.hour) or 1),
+                    duration_minutes=(end_time.hour - start_time.hour) * 60,
+                    status=BookingStatus.CONFIRMED,
+                    meeting_location="Test Location",
+                )
+                db.add(booking)
+                db.commit()
+                booking_count = 1
+            else:
+                booking_count = 1
 
         assert booking_count > 0, "Test needs at least one booking to be valid"
 

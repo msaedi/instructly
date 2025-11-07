@@ -26,7 +26,6 @@ except ModuleNotFoundError:  # pragma: no cover
 
 @pytest.fixture(autouse=True)
 def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
     yield
 
 try:  # pragma: no cover - allow running from backend/ root

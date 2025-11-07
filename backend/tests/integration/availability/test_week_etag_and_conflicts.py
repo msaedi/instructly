@@ -28,7 +28,7 @@ from app.utils.bitset import bits_from_windows
 @pytest.fixture
 def bitmap_app(monkeypatch: pytest.MonkeyPatch):
     """Reload the application with bitmap availability enabled."""
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
+    # Bitmap availability is always enabled, no flag needed
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
 
     reload(availability_service_module)
@@ -37,7 +37,7 @@ def bitmap_app(monkeypatch: pytest.MonkeyPatch):
 
     yield app.main
 
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
+    # Nothing to revert
     reload(availability_service_module)
     reload(availability_routes)
     reload(app.main)

@@ -104,6 +104,7 @@ from ..services.presentation_service import PresentationService
 # SlotManager removed - bitmap-only storage now
 from ..services.week_operation_service import WeekOperationService
 from ..utils.bitset import windows_from_bits
+from ..utils.time_helpers import string_to_time
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -197,8 +198,8 @@ async def get_week_availability(
                     continue
                 payload[day.isoformat()] = [
                     TimeRange(
-                        start_time=time.fromisoformat(start),
-                        end_time=time.fromisoformat(end),
+                        start_time=string_to_time(start),
+                        end_time=string_to_time(end),
                     )
                     for start, end in windows
                 ]
@@ -307,13 +308,13 @@ async def save_week_availability(
                 if isinstance(raw_start, time):
                     start_str = raw_start.strftime("%H:%M:%S")
                 else:
-                    start_str = time.fromisoformat(str(raw_start)).strftime("%H:%M:%S")
+                    start_str = string_to_time(str(raw_start)).strftime("%H:%M:%S")
 
                 raw_end = item.get("end_time")
                 if isinstance(raw_end, time):
                     end_str = raw_end.strftime("%H:%M:%S")
                 else:
-                    end_str = time.fromisoformat(str(raw_end)).strftime("%H:%M:%S")
+                    end_str = string_to_time(str(raw_end)).strftime("%H:%M:%S")
 
                 windows_by_day.setdefault(slot_date, []).append((start_str, end_str))
 
@@ -595,16 +596,11 @@ async def bulk_update_availability(
     """Bulk update availability slots."""
     verify_instructor(current_user)
 
-    try:
-        result = await bulk_operation_service.process_bulk_update(
-            instructor_id=current_user.id, update_data=update_data
-        )
-        return BulkUpdateResponse(**result)
-    except DomainException as e:
-        raise e.to_http_exception()
-    except Exception as e:
-        logger.error(f"Unexpected error in bulk update: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    raise HTTPException(
+        status_code=410,
+        detail="PATCH /instructors/availability/bulk-update has been deprecated. "
+        "Use POST /instructors/availability/week to update windows.",
+    )
 
 
 @router.patch(

@@ -23,13 +23,11 @@ from app.utils.bitset import bits_from_windows, windows_from_bits
 
 @pytest.fixture
 def bitmap_app(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
     reload(availability_service_module)
     reload(availability_routes)
     reload(app.main)
     yield app.main
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
     reload(availability_service_module)
     reload(availability_routes)
     reload(app.main)

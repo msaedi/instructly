@@ -2,7 +2,19 @@
 
 from datetime import date, timedelta
 
+from backend.tests._utils.bitmap_avail import seed_day
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _seed_availability_for_privacy_tests(db, test_instructor):
+    """
+    Ensure the instructor used in this module always has availability bits on the day
+    these tests book so BookingService passes availability validation.
+    """
+    instructor_id = test_instructor.id
+    tomorrow = date.today() + timedelta(days=1)
+    seed_day(db, instructor_id, tomorrow, [("09:00:00", "17:00:00")])
 
 
 @pytest.fixture(autouse=True)
@@ -13,7 +25,6 @@ def _no_price_floors(disable_price_floors):
 
 @pytest.fixture(autouse=True)
 def _disable_bitmap_guard(monkeypatch):
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
     yield
 
 

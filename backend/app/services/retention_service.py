@@ -62,7 +62,7 @@ class RetentionService(BaseService):
 
     _TABLES: tuple[_RetentionTableConfig, ...] = (
         _RetentionTableConfig(
-            table_name="availability_slots",
+            table_name="availability_days",
             primary_key="id",
             cache_prefixes=("avail:", "week:", "conf:", "public_availability:", "slot:"),
         ),

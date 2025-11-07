@@ -32,6 +32,13 @@ The "Uber of instruction" - A marketplace platform for instantly booking private
 - **Infrastructure**: Render Standard plan (backend) + Vercel (frontend)
 - **Monitoring**: Custom production monitoring middleware
 
+## ✅ Recent Backend Updates
+
+- Bitmap availability now normalizes `"24:00:00"` windows at the helper level, so midnight ranges survive GET/booking flows.
+- `PATCH /instructors/availability/bulk-update` is deprecated and responds with `410 Gone`; use the week POST APIs instead.
+- Week-copy logic no longer probes the legacy slot repository—bitmap rows are always used when copying/applying patterns.
+- Retention purge logic now references `availability_days`, matching the bitmap tables described in [docs/architecture/availability-bitmap.md](docs/architecture/availability-bitmap.md).
+
 ## 📋 Prerequisites
 
 - Python 3.9+

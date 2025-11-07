@@ -21,7 +21,6 @@ def _no_price_floors(disable_price_floors):
 
 @pytest.fixture(autouse=True)
 def _disable_bitmap_guard(monkeypatch):
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
     yield
 
 

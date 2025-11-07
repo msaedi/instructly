@@ -22,7 +22,6 @@ from app.utils.bitset import windows_from_bits
 @pytest.fixture
 def bitmap_app_allow_past(monkeypatch: pytest.MonkeyPatch):
     """Reload the application with bitmap availability and allow_past enabled."""
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
 
     reload(availability_service_module)
@@ -31,7 +30,6 @@ def bitmap_app_allow_past(monkeypatch: pytest.MonkeyPatch):
 
     yield app.main
 
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "false")
     reload(availability_service_module)
     reload(availability_routes)
@@ -41,7 +39,6 @@ def bitmap_app_allow_past(monkeypatch: pytest.MonkeyPatch):
 @pytest.fixture
 def bitmap_app_disallow_past(monkeypatch: pytest.MonkeyPatch):
     """Reload the application with bitmap availability but disallow_past."""
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "false")
 
     reload(availability_service_module)
@@ -50,7 +47,6 @@ def bitmap_app_disallow_past(monkeypatch: pytest.MonkeyPatch):
 
     yield app.main
 
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
     reload(availability_service_module)
     reload(availability_routes)

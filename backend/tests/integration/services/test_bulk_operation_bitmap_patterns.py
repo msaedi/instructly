@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.schemas.availability_window import OperationResult, SlotOperation
 from app.services.bulk_operation_service import BulkOperationService
+from app.utils.time_helpers import string_to_time
 from tests._utils.bitmap_avail import get_day_windows, seed_day
 
 
@@ -52,8 +53,8 @@ class TestBulkOperationBitmapPatterns:
         operation = SlotOperation(
             action="remove",
             date=today,
-            start_time=time.fromisoformat(start),
-            end_time=time.fromisoformat(end),
+            start_time=string_to_time(start),
+            end_time=string_to_time(end),
         )
 
         slot, error = await service._validate_remove_operation(instructor_id, operation)

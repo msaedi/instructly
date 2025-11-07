@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta, timezone
+from datetime import date, time, timedelta, timezone
 from importlib import reload
 from typing import Dict, List, Tuple
 
@@ -15,6 +15,7 @@ from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 import app.routes.availability_windows as availability_routes
 import app.services.availability_service as availability_service_module
+from app.services.booking_service import BookingService
 import app.services.week_operation_service as week_operation_service_module
 from app.utils.bitset import bits_from_windows, windows_from_bits
 
@@ -22,7 +23,7 @@ from app.utils.bitset import bits_from_windows, windows_from_bits
 @pytest.fixture
 def bitmap_app(monkeypatch: pytest.MonkeyPatch):
     """Reload the application with bitmap availability enabled."""
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
+    # Bitmap availability is always enabled
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
 
     reload(availability_service_module)
@@ -33,7 +34,7 @@ def bitmap_app(monkeypatch: pytest.MonkeyPatch):
 
     yield app.main
 
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
+    # Allow tests to flip other behaviors without legacy flags
     reload(availability_service_module)
     reload(week_operation_service_module)
     reload(availability_routes)
@@ -221,6 +222,67 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
 
     stored = repo.get_week(test_instructor.id, week_start)
     assert windows_from_bits(stored[week_start]) == [("11:00:00", "12:00:00")]
+
+
+@pytest.mark.asyncio
+async def test_midnight_window_round_trip(
+    bitmap_client: TestClient,
+    db: Session,
+    test_instructor: User,
+    auth_headers_instructor: dict,
+) -> None:
+    monday = date(2025, 11, 17)
+    payload = {
+        "week_start": monday.isoformat(),
+        "clear_existing": True,
+        "schedule": [
+            {
+                "date": monday.isoformat(),
+                "start_time": "23:30:00",
+                "end_time": "24:00:00",
+            }
+        ],
+    }
+
+    create_resp = bitmap_client.post(
+        "/instructors/availability/week",
+        json=payload,
+        headers=auth_headers_instructor,
+    )
+    assert create_resp.status_code == 200, create_resp.text
+
+    get_resp = bitmap_client.get(
+        "/instructors/availability/week",
+        params={"start_date": monday.isoformat()},
+        headers=auth_headers_instructor,
+    )
+    assert get_resp.status_code == 200
+    body = get_resp.json()
+    assert body[monday.isoformat()] == [{"start_time": "23:30:00", "end_time": "00:00:00"}]
+
+    booking_service = BookingService(db)
+    windows = await booking_service._get_instructor_availability_windows(
+        test_instructor.id,
+        monday,
+        time(0, 0),
+        time(0, 0),
+    )
+    assert windows and windows[0]["end_time"] == time(0, 0)
+    assert "_start_minutes" in windows[0] and "_end_minutes" in windows[0]
+    assert windows[0]["_start_minutes"] == 23 * 60 + 30
+    assert windows[0]["_end_minutes"] == 24 * 60
+
+    opportunities = booking_service._calculate_booking_opportunities(
+        windows,
+        existing_bookings=[],
+        target_duration_minutes=30,
+        earliest_time=time(0, 0),
+        latest_time=time(0, 0),
+        instructor_id=test_instructor.id,
+        target_date=monday,
+    )
+    assert opportunities, f"Opportunities returned: {opportunities}"
+    assert any(op["end_time"] == "00:00:00" for op in opportunities)
 
 
 def test_save_week_bitmap_persists_past_days_when_allowed(

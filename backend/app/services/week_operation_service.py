@@ -31,7 +31,7 @@ from ..core.timezone_utils import get_user_today_by_id
 from ..models.audit_log import AuditLog
 from ..monitoring.availability_perf import COPY_WEEK_ENDPOINT, availability_perf_span
 from ..repositories.factory import RepositoryFactory
-from ..utils.bitset import new_empty_bits, windows_from_bits
+from ..utils.bitset import bits_from_windows, new_empty_bits, windows_from_bits
 from .audit_redaction import redact
 from .base import BaseService
 
@@ -46,7 +46,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
-BITMAP_V2 = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
 
 
 class WeekOperationService(BaseService):
@@ -135,127 +134,119 @@ class WeekOperationService(BaseService):
             # Validate dates are Mondays
             self._validate_week_dates(from_week_start, to_week_start)
 
-            use_bitmap = self._should_use_bitmap_week_copy(instructor_id, from_week_start)
-
-            if use_bitmap:
-                target_week_dates = self.calculate_week_dates(to_week_start)
-                with self.transaction():
-                    bits_by_day = self.availability_service.get_week_bits(
-                        instructor_id, from_week_start
-                    )
-
-                    # Check if source week has any non-empty bits
-                    has_any_bits = any(
-                        bits and bits != new_empty_bits() for bits in bits_by_day.values()
-                    )
-                    if not has_any_bits:
-                        self.logger.warning(
-                            "copy_week_availability: source week has no availability bits",
-                            extra={
-                                "instructor_id": instructor_id,
-                                "from_week_start": from_week_start.isoformat(),
-                                "to_week_start": to_week_start.isoformat(),
-                            },
-                        )
-                        self.db.expire_all()
-                        result = await self._warm_cache_and_get_result(
-                            instructor_id, to_week_start, 0
-                        )
-                        result["_metadata"] = {
-                            "operation": "week_copy_bitmap",
-                            "windows_created": 0,
-                            "message": "Week copy skipped: source week has no availability bits.",
-                        }
-                        return result
-
-                    repo = self.availability_service._bitmap_repo()
-                    items: List[tuple[date, bytes]] = []
-                    for offset in range(7):
-                        src_day = from_week_start + timedelta(days=offset)
-                        dst_day = to_week_start + timedelta(days=offset)
-                        items.append((dst_day, bits_by_day.get(src_day, new_empty_bits())))
-                    days_written = sum(
-                        1 for _day, bits in items if bits and bits != new_empty_bits()
-                    )
-                    repo.upsert_week(instructor_id, items)
-
-                    before_payload = self._build_copy_audit_payload(
-                        instructor_id,
-                        to_week_start,
-                        source_week_start=from_week_start,
-                        created=0,
-                        deleted=0,
-                    )
-                    after_payload = self._build_copy_audit_payload(
-                        instructor_id,
-                        to_week_start,
-                        source_week_start=from_week_start,
-                        created=days_written,
-                        deleted=0,
-                    )
-                    try:
-                        self._write_copy_audit(
-                            instructor_id,
-                            to_week_start,
-                            actor=actor,
-                            before=before_payload,
-                            after=after_payload,
-                        )
-                    except Exception as audit_err:
-                        self.logger.warning(
-                            "Audit write failed in bitmap copy_week",
-                            extra={
-                                "instructor_id": instructor_id,
-                                "from_week": from_week_start,
-                                "to_week": to_week_start,
-                                "error": str(audit_err),
-                            },
-                        )
-                    try:
-                        self._enqueue_week_copy_event(
-                            instructor_id,
-                            from_week_start,
-                            to_week_start,
-                            target_week_dates,
-                            days_written,
-                            0,
-                        )
-                    except Exception as enqueue_err:
-                        self.logger.warning(
-                            "Outbox enqueue failed in bitmap copy_week",
-                            extra={
-                                "instructor_id": instructor_id,
-                                "from_week": from_week_start,
-                                "to_week": to_week_start,
-                                "error": str(enqueue_err),
-                            },
-                        )
-                self.db.expire_all()
-                result = await self._warm_cache_and_get_result(
-                    instructor_id, to_week_start, days_written
-                )
-                result["_metadata"] = {
-                    "operation": "week_copy_bitmap",
-                    "windows_copied": days_written,
-                    "windows_created": days_written,
-                    "days_written": days_written,
-                    "message": f"Week copied successfully. {days_written} day bitmaps copied.",
-                }
-                self.logger.info(
-                    "Copied bitmap availability week",
+            target_week_dates = self.calculate_week_dates(to_week_start)
+            bits_by_day = self.availability_service.get_week_bits(
+                instructor_id,
+                from_week_start,
+                use_cache=False,
+            )
+            has_any_bits = any(bits and bits != new_empty_bits() for bits in bits_by_day.values())
+            if not has_any_bits:
+                self.logger.warning(
+                    "copy_week_availability: source week has no availability windows",
                     extra={
                         "instructor_id": instructor_id,
-                        "from_week": from_week_start,
-                        "to_week": to_week_start,
-                        "days_copied": days_written,
+                        "from_week_start": from_week_start.isoformat(),
+                        "to_week_start": to_week_start.isoformat(),
                     },
                 )
+                self.db.expire_all()
+                result = await self._warm_cache_and_get_result(instructor_id, to_week_start, 0)
+                result["_metadata"] = {
+                    "operation": "week_copy_bitmap",
+                    "windows_created": 0,
+                    "message": "Week copy skipped: source week has no availability bits.",
+                }
                 return result
 
-            # Slot-based fallback removed - bitmap-only storage now
-            raise NotImplementedError(
-                "Slot-based operations removed. All availability operations must use bitmap storage."
+            windows_by_day: dict[date, list[tuple[str, str]]] = {}
+            items: list[tuple[date, bytes]] = []
+            for offset, dst_day in enumerate(target_week_dates):
+                src_day = from_week_start + timedelta(days=offset)
+                src_bits = bits_by_day.get(src_day, new_empty_bits())
+                windows = windows_from_bits(src_bits)
+                windows_by_day[dst_day] = windows
+                items.append((dst_day, bits_from_windows(windows)))
+
+            days_written = sum(1 for _, bits in items if bits and bits != new_empty_bits())
+
+            with self.transaction():
+                repo = self.availability_service._bitmap_repo()
+                repo.upsert_week(instructor_id, items)
+
+                before_payload = self._build_copy_audit_payload(
+                    instructor_id,
+                    to_week_start,
+                    source_week_start=from_week_start,
+                    created=0,
+                    deleted=0,
+                )
+                after_payload = self._build_copy_audit_payload(
+                    instructor_id,
+                    to_week_start,
+                    source_week_start=from_week_start,
+                    created=days_written,
+                    deleted=0,
+                )
+                try:
+                    self._write_copy_audit(
+                        instructor_id,
+                        to_week_start,
+                        actor=actor,
+                        before=before_payload,
+                        after=after_payload,
+                    )
+                except Exception as audit_err:
+                    self.logger.warning(
+                        "Audit write failed in bitmap copy_week",
+                        extra={
+                            "instructor_id": instructor_id,
+                            "from_week": from_week_start,
+                            "to_week": to_week_start,
+                            "error": str(audit_err),
+                        },
+                    )
+                try:
+                    self._enqueue_week_copy_event(
+                        instructor_id,
+                        from_week_start,
+                        to_week_start,
+                        target_week_dates,
+                        days_written,
+                        0,
+                    )
+                except Exception as enqueue_err:
+                    self.logger.warning(
+                        "Outbox enqueue failed in bitmap copy_week",
+                        extra={
+                            "instructor_id": instructor_id,
+                            "from_week": from_week_start,
+                            "to_week": to_week_start,
+                            "error": str(enqueue_err),
+                        },
+                    )
+
+            self.db.expire_all()
+            result = await self._warm_cache_and_get_result(
+                instructor_id, to_week_start, days_written
             )
+            result["_metadata"] = {
+                "operation": "week_copy_bitmap",
+                "windows_copied": days_written,
+                "windows_created": days_written,
+                "days_written": days_written,
+                "message": f"Week copied successfully. {days_written} day bitmaps copied.",
+            }
+            self.logger.info(
+                "Copied bitmap availability week",
+                extra={
+                    "instructor_id": instructor_id,
+                    "from_week": from_week_start,
+                    "to_week": to_week_start,
+                    "days_copied": days_written,
+                },
+            )
+            return result
 
     @BaseService.measure_operation("apply_pattern")  # METRICS ADDED
     async def apply_pattern_to_date_range(
@@ -466,72 +457,6 @@ class WeekOperationService(BaseService):
             windows = windows_from_bits(bits) if bits else []
             counts[day.isoformat()] = len(windows)
         return counts
-
-    def _should_use_bitmap_week_copy(self, instructor_id: str, from_week_start: date) -> bool:
-        """Determine whether to execute week copy using bitmap storage."""
-        env_enabled = BITMAP_V2 or os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-        availability_module = type(self.availability_service).__module__
-        repository_module = type(self.repository).__module__
-        availability_is_mock = availability_module.startswith("unittest.mock")
-        repository_is_mock = repository_module.startswith("unittest.mock")
-
-        has_bitmap_rows = False
-        if not availability_is_mock:
-            try:
-                bitmap_repo = self.availability_service._bitmap_repo()
-                has_bitmap_rows = bool(bitmap_repo.get_week_rows(instructor_id, from_week_start))
-            except Exception as err:  # pragma: no cover - diagnostic fallback
-                self.logger.debug(
-                    "Bitmap week copy probe failed; falling back to slot copy",
-                    extra={
-                        "instructor_id": instructor_id,
-                        "from_week_start": from_week_start.isoformat(),
-                        "error": str(err),
-                    },
-                )
-
-        slots_lookup_failed = False
-        has_source_slots = False
-        if not repository_is_mock:
-            try:
-                source_slots = self.repository.get_week_slots(
-                    instructor_id, from_week_start, from_week_start + timedelta(days=6)
-                )
-                try:
-                    has_source_slots = bool(source_slots)
-                except TypeError:
-                    has_source_slots = True
-            except Exception:
-                slots_lookup_failed = True
-        else:
-            # Trust test-provided mocks that explicitly control slot behavior.
-            get_week_slots_attr = getattr(self.repository, "get_week_slots", None)
-            mock_return = None
-            if get_week_slots_attr is not None:
-                mock_return = getattr(get_week_slots_attr, "return_value", None)
-            has_source_slots = bool(mock_return)
-
-        if env_enabled:
-            if has_bitmap_rows:
-                return True
-            if slots_lookup_failed:
-                return True
-            if availability_is_mock:
-                return False
-            return not has_source_slots
-
-        if slots_lookup_failed:
-            return True
-        if availability_is_mock:
-            return False
-        if has_bitmap_rows:
-            return True
-
-        return not has_source_slots
 
     def _build_copy_audit_payload(
         self,

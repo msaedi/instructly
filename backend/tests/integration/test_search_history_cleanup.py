@@ -100,9 +100,13 @@ class TestSearchHistoryCleanup:
 
         service = SearchHistoryCleanupService(db)
 
+        import uuid
+
+        guest_session_id = f"cleanup-disabled-test-{uuid.uuid4().hex[:8]}"
+
         # Create old soft-deleted search
         search = SearchHistory(
-            guest_session_id="cleanup-disabled-test",
+            guest_session_id=guest_session_id,
             search_query="old search",
             normalized_query="old search",
             search_type="natural_language",
@@ -118,7 +122,7 @@ class TestSearchHistoryCleanup:
 
         assert deleted_count == 0
         # Check that our specific test record still exists
-        assert db.query(SearchHistory).filter_by(guest_session_id="cleanup-disabled-test").count() == 1
+        assert db.query(SearchHistory).filter_by(guest_session_id=guest_session_id).count() == 1
 
     def test_cleanup_old_guest_sessions(self, db: Session, monkeypatch):
         """Test cleanup of old guest session searches."""

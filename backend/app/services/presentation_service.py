@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from ..models.booking import Booking
 from ..repositories.factory import RepositoryFactory
+from ..utils.time_helpers import string_to_time
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -199,8 +200,8 @@ class PresentationService(BaseService):
                 if booking:
                     formatted_slot = self.format_booked_slot_for_display(
                         booking=booking,
-                        slot_start_time=time.fromisoformat(slot["start_time"]),
-                        slot_end_time=time.fromisoformat(slot["end_time"]),
+                        slot_start_time=string_to_time(slot["start_time"]),
+                        slot_end_time=string_to_time(slot["end_time"]),
                         slot_date=date.fromisoformat(date_str),
                     )
                     formatted_slots.append(formatted_slot)

@@ -24,7 +24,6 @@ pytestmark = pytest.mark.usefixtures("bitmap_env_relaxed")
 @pytest.fixture
 def bitmap_app(monkeypatch: pytest.MonkeyPatch):
     """Reload the application with bitmap availability enabled."""
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
 
     reload(availability_service_module)
@@ -33,7 +32,6 @@ def bitmap_app(monkeypatch: pytest.MonkeyPatch):
 
     yield app.main
 
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
     reload(availability_service_module)
     reload(availability_routes)
     reload(app.main)

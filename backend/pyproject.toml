@@ -100,7 +100,7 @@ addopts = """
 filterwarnings = [
     "ignore::urllib3.exceptions.NotOpenSSLWarning",
     "ignore::DeprecationWarning",
-    "ignore:'imghdr' is deprecated and slated for removal in Python 3.13:DeprecationWarning",
+    "ignore:.*imghdr.*deprecated and slated for removal.*:DeprecationWarning",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

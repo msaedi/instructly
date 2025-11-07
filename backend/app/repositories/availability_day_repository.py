@@ -43,6 +43,20 @@ class AvailabilityDayRepository:
             res[row.day_date] = row.bits
         return res
 
+    def get_days_in_range(
+        self, instructor_id: str, start_date: date, end_date: date
+    ) -> List[AvailabilityDay]:
+        rows = (
+            self.db.query(AvailabilityDay)
+            .filter(
+                AvailabilityDay.instructor_id == instructor_id,
+                AvailabilityDay.day_date >= start_date,
+                AvailabilityDay.day_date <= end_date,
+            )
+            .all()
+        )
+        return cast(List[AvailabilityDay], rows)
+
     def upsert_week(self, instructor_id: str, items: List[Tuple[date, bytes]]) -> int:
         """Upsert (date, bits) for a single week; returns row count written."""
         count = 0

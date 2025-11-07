@@ -61,7 +61,7 @@ from ..utils.bitset import (
     unpack_indexes,
     windows_from_bits,
 )
-from ..utils.time_helpers import time_to_string
+from ..utils.time_helpers import string_to_time, time_to_string
 from .audit_redaction import redact
 from .base import BaseService
 
@@ -313,9 +313,9 @@ class AvailabilityService(BaseService):
                 if isinstance(value, time):
                     return value, False
                 value_str = str(value)
-                if value_str in {"24:00", "24:00:00"}:
-                    return time(0, 0), True
-                return time.fromisoformat(value_str), False
+                is_midnight = value_str in {"24:00", "24:00:00"}
+                coerced = string_to_time(value_str)
+                return coerced, is_midnight
 
             for start_raw, end_raw in raw:
                 start_obj, _ = _coerce_time(start_raw)
@@ -753,8 +753,8 @@ class AvailabilityService(BaseService):
                 "date": target_date.isoformat(),
                 "slots": [
                     TimeSlotResponse(
-                        start_time=time_to_string(time.fromisoformat(start_str)),
-                        end_time=time_to_string(time.fromisoformat(end_str)),
+                        start_time=time_to_string(string_to_time(start_str)),
+                        end_time=time_to_string(string_to_time(end_str)),
                     )
                     for start_str, end_str in windows_str
                 ],
@@ -791,14 +791,13 @@ class AvailabilityService(BaseService):
         """
         try:
             bitmap_repo = self._bitmap_repo()
+            rows = bitmap_repo.get_days_in_range(instructor_id, start_date, end_date)
             result: dict[str, int] = {}
-            current_date = start_date
-            while current_date <= end_date:
-                bits = bitmap_repo.get_day_bits(instructor_id, current_date)
-                if bits:
-                    windows = windows_from_bits(bits)
-                    result[current_date.isoformat()] = len(windows)
-                current_date += timedelta(days=1)
+            for row in rows:
+                bits = row.bits or new_empty_bits()
+                windows = windows_from_bits(bits)
+                if windows:
+                    result[row.day_date.isoformat()] = len(windows)
             return result
         except Exception as e:
             logger.error(f"Error getting availability summary: {e}")
@@ -1058,8 +1057,8 @@ class AvailabilityService(BaseService):
                         slot_snapshots.append(
                             SlotSnapshot(
                                 specific_date=day,
-                                start_time=time.fromisoformat(str(start)),
-                                end_time=time.fromisoformat(str(end)),
+                                start_time=string_to_time(str(start)),
+                                end_time=string_to_time(str(end)),
                                 created_at=None,
                                 updated_at=None,
                             )
@@ -1136,8 +1135,8 @@ class AvailabilityService(BaseService):
                     snapshots.append(
                         SlotSnapshot(
                             specific_date=day,
-                            start_time=time.fromisoformat(start_str),
-                            end_time=time.fromisoformat(end_str),
+                            start_time=string_to_time(start_str),
+                            end_time=string_to_time(end_str),
                             created_at=None,
                             updated_at=None,
                         )
@@ -1206,8 +1205,8 @@ class AvailabilityService(BaseService):
                         "date": current_date.isoformat(),
                         "slots": [
                             {
-                                "start_time": time_to_string(time.fromisoformat(start_str)),
-                                "end_time": time_to_string(time.fromisoformat(end_str)),
+                                "start_time": time_to_string(string_to_time(start_str)),
+                                "end_time": time_to_string(string_to_time(end_str)),
                             }
                             for start_str, end_str in windows_str
                         ],
@@ -1562,7 +1561,7 @@ class AvailabilityService(BaseService):
             # Check for overlaps - convert strings to time objects for validation
             candidate_windows_str = existing_windows_str + [new_window_str]
             candidate_windows_time: list[tuple[time, time]] = [
-                (time.fromisoformat(start_str), time.fromisoformat(end_str))
+                (string_to_time(start_str), string_to_time(end_str))
                 for start_str, end_str in candidate_windows_str
             ]
             self._validate_no_overlaps(
@@ -1683,10 +1682,8 @@ class AvailabilityService(BaseService):
             if bits:
                 day_windows_str: list[tuple[str, str]] = windows_from_bits(bits)
                 for start_str, end_str in day_windows_str:
-                    start_time_obj = time.fromisoformat(start_str)
-                    end_time_obj = (
-                        time.fromisoformat(end_str) if end_str != "24:00:00" else time(0, 0)
-                    )
+                    start_time_obj = string_to_time(start_str)
+                    end_time_obj = string_to_time(end_str)
                     windows.append(
                         {
                             "specific_date": current_date,
@@ -1717,8 +1714,8 @@ class AvailabilityService(BaseService):
                 # Convert to time objects for return type
                 windows_time: list[tuple[time, time]] = [
                     (
-                        time.fromisoformat(start_str),
-                        time.fromisoformat(end_str) if end_str != "24:00:00" else time(0, 0),
+                        string_to_time(start_str),
+                        string_to_time(end_str),
                     )
                     for start_str, end_str in windows_str
                 ]
@@ -1840,11 +1837,11 @@ class AvailabilityService(BaseService):
                 bits = self._bitmap_repo().get_day_bits(instructor_id, target_date)
                 if bits:
                     for start_str, end_str in windows_from_bits(bits):
-                        start_obj = time.fromisoformat(start_str)
+                        start_obj = string_to_time(start_str)
                         if end_str == "24:00:00":
                             end_obj = time(0, 0)
                         else:
-                            end_obj = time.fromisoformat(end_str)
+                            end_obj = string_to_time(end_str)
                         existing_pairs.append((start_obj, end_obj))
 
             existing_ranges = set(existing_pairs)
@@ -1988,8 +1985,8 @@ class AvailabilityService(BaseService):
 
         for slot in schedule:
             slot_date = date.fromisoformat(slot["date"])
-            start_time_obj = time.fromisoformat(slot["start_time"])
-            end_time_obj = time.fromisoformat(slot["end_time"])
+            start_time_obj = string_to_time(slot["start_time"])
+            end_time_obj = string_to_time(slot["end_time"])
 
             if not ALLOW_PAST and slot_date < instructor_today:
                 logger.warning(

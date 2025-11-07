@@ -6,6 +6,7 @@ Unit tests for student conflict validation in BookingService.
 from datetime import date, datetime, time, timedelta
 from unittest.mock import AsyncMock, MagicMock, Mock
 
+from backend.tests._utils.bitmap_avail import seed_day
 import pytest
 
 from app.core.enums import RoleName
@@ -21,7 +22,6 @@ from app.services.booking_service import BookingService
 
 @pytest.fixture(autouse=True)
 def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
     yield
 
 
@@ -535,3 +535,8 @@ class TestStudentConflictValidation:
         )
         assert result.id == 101
         assert result.status == BookingStatus.CONFIRMED
+@pytest.fixture(autouse=True)
+def _seed_conflict_validation_day(unit_db, instructor):
+    """Ensure each mock instructor has availability bits covering the test windows."""
+    target_date = date.today() + timedelta(days=1)
+    seed_day(unit_db, instructor.id, target_date, [("08:00:00", "20:00:00")])

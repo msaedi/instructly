@@ -29,7 +29,6 @@ from app.utils.bitset import bits_from_windows, new_empty_bits
 @pytest.fixture
 def bitmap_booking_app(monkeypatch: pytest.MonkeyPatch):
     """Reload the FastAPI app with bitmap availability enabled for bookings."""
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
 
     reload(availability_service_module)
     reload(week_operation_service_module)
@@ -41,7 +40,6 @@ def bitmap_booking_app(monkeypatch: pytest.MonkeyPatch):
 
     yield app.main
 
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
     reload(availability_service_module)
     reload(week_operation_service_module)
     reload(booking_service_module)

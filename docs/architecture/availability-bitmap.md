@@ -151,3 +151,10 @@ Source-guard tests ensure no legacy code reappears:
 
 - `test_no_slot_symbols_in_repo.py`: Scans backend codebase for `AvailabilitySlot` references
 - `test_no_slot_queries_runtime.py`: Verifies no `availability_slots` table queries at runtime
+
+## Recent Updates
+
+- **Midnight normalization**: All bitmap decoders now use the shared `string_to_time()` helper, so windows ending at `"24:00:00"` round-trip without raising `ValueError` and still appear in booking searches.
+- **Bulk update endpoint**: `PATCH /instructors/availability/bulk-update` is deprecated and now returns `410 Gone`. Use `POST /instructors/availability/week` (and `/week/validate-changes`) for mutations.
+- **Week copy probe removal**: `WeekOperationService` no longer probes legacy slot repositories before copying; bitmap data is the single source of truth.
+- **Retention cleanup**: Bitmap retention now targets `availability_days` (the previous `availability_slots` reference has been removed).

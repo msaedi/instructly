@@ -18,7 +18,7 @@ def week_operation_service(db: Session):
 
 
 @pytest.mark.skipif(
-    not __import__("os").getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"},
+    False,
     reason="Bitmap v2 not enabled",
 )
 def test_copy_week_availability_empty_source_week_guard(
@@ -59,7 +59,7 @@ def test_copy_week_availability_empty_source_week_guard(
 
 
 @pytest.mark.skipif(
-    not __import__("os").getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"},
+    False,
     reason="Bitmap v2 not enabled",
 )
 def test_copy_week_availability_with_non_empty_source(

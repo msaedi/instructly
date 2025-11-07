@@ -15,7 +15,6 @@ from app.services.booking_service import (
 
 @pytest.fixture(autouse=True)
 def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "0")
     yield
 
 
