@@ -29,7 +29,6 @@ Tests that bookings do not interfere with availability saving:
 
 These tests use the following environment variables (set via module-scoped `conftest.py` autouse fixture):
 
-- `AVAILABILITY_V2_BITMAPS=1`: Enables bitmap availability system
 - `AVAILABILITY_ALLOW_PAST=true`: Allows editing past dates (can be overridden per-test)
 - `AVAILABILITY_PERF_DEBUG=1`: Enables performance debug logging and headers
 

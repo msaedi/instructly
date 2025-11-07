@@ -125,7 +125,7 @@ class DatabaseSeeder:
             )
             session.execute(
                 text(
-                    "DELETE FROM availability_slots WHERE instructor_id IN (SELECT id FROM users WHERE email LIKE '%@example.com')"
+                    "DELETE FROM availability_days WHERE instructor_id IN (SELECT id FROM users WHERE email LIKE '%@example.com')"
                 )
             )
             session.execute(
@@ -778,11 +778,11 @@ class DatabaseSeeder:
         if os.getenv("BITMAP_PIPELINE_COMPLETED") == "1":
             print("  ℹ️  Bitmap pipeline already executed earlier in this run; skipping local seed/backfill.")
             return
-        flag = os.getenv("SEED_AVAILABILITY_BITMAP", "0").lower() in {"1", "true", "yes"}
+        flag = os.getenv("SEED_AVAILABILITY", "0").lower() in {"1", "true", "yes"}
         if not flag:
             return
 
-        weeks = self._get_env_int("SEED_AVAILABILITY_BITMAP_WEEKS", 3)
+        weeks = self._get_env_int("SEED_AVAILABILITY_WEEKS", 3)
         print(f"🗓️  Seeding bitmap availability for {weeks} future week(s)…")
         from scripts.seed_bitmap_availability import seed_bitmap_availability
 
@@ -1290,7 +1290,7 @@ class DatabaseSeeder:
                 if total_rows == 0:
                     message = (
                         f"No bitmap availability found in the last {seed_lookback} days. "
-                        "Run: SEED_AVAILABILITY_BITMAP=1 ... prep_db.py --seed-all"
+                        "Run: SEED_AVAILABILITY=1 ... prep_db.py --seed-all"
                     )
                     print(f"  ❌  {message}")
                     if strict:

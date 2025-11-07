@@ -89,9 +89,8 @@ ALIASES = {
 }
 
 ENV_SNAPSHOT_KEYS = [
-    "AVAILABILITY_V2_BITMAPS",
-    "SEED_AVAILABILITY_BITMAP",
-    "SEED_AVAILABILITY_BITMAP_WEEKS",
+    "SEED_AVAILABILITY",
+    "SEED_AVAILABILITY_WEEKS",
     "BITMAP_BACKFILL_DAYS",
     "SEED_REVIEW_LOOKBACK_DAYS",
     "SEED_REVIEW_HORIZON_DAYS",
@@ -355,11 +354,6 @@ def _run_bitmap_backfill(backfill_days: int, dry_run: bool, banner_prefix: str) 
 def run_availability_pipeline(mode: str, dry_run: bool, banner_prefix: str = "pipeline") -> None:
     """Seed future bitmap availability (optional) and backfill past days."""
 
-    bitmap_enabled = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
-    if not bitmap_enabled:
-        info(banner_prefix, "Bitmap v2 disabled; skipping availability pipeline.")
-        return
-
     if mode not in {"int", "stg"}:
         info(
             banner_prefix,
@@ -367,14 +361,14 @@ def run_availability_pipeline(mode: str, dry_run: bool, banner_prefix: str = "pi
         )
         return
 
-    seed_future_flag = os.getenv("SEED_AVAILABILITY_BITMAP", "0").lower() in {"1", "true", "yes"}
-    weeks_env = os.getenv("SEED_AVAILABILITY_BITMAP_WEEKS")
+    seed_future_flag = os.getenv("SEED_AVAILABILITY", "0").lower() in {"1", "true", "yes"}
+    weeks_env = os.getenv("SEED_AVAILABILITY_WEEKS")
     weeks = 4
     if weeks_env:
         try:
             weeks = max(1, int(weeks_env))
         except ValueError:
-            warn(f"Invalid SEED_AVAILABILITY_BITMAP_WEEKS='{weeks_env}', falling back to {weeks}.")
+            warn(f"Invalid SEED_AVAILABILITY_WEEKS='{weeks_env}', falling back to {weeks}.")
 
     backfill_days_env = os.getenv("BITMAP_BACKFILL_DAYS", "56")
     try:
@@ -393,7 +387,7 @@ def run_availability_pipeline(mode: str, dry_run: bool, banner_prefix: str = "pi
         total_future_writes = future_stats["instructor_weeks"]
     else:
         info(banner_prefix, f"╔═ Phase {phase_num}: Future Bitmap Seeding ═╗")
-        info(banner_prefix, "SEED_AVAILABILITY_BITMAP not set; skipping future-week seeding.")
+        info(banner_prefix, "SEED_AVAILABILITY not set; skipping future-week seeding.")
     phase_num += 1
 
     info(banner_prefix, f"╔═ Phase {phase_num}: Bitmap Backfill ═╗")
@@ -519,9 +513,8 @@ def run_seed_all_pipeline(
             warn(f"Invalid {key}='{raw}', defaulting to {default}.")
             return default
 
-    bitmap_enabled = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
-    seed_future_flag = os.getenv("SEED_AVAILABILITY_BITMAP", "0").lower() in {"1", "true", "yes"}
-    weeks = parse_int_env("SEED_AVAILABILITY_BITMAP_WEEKS", 4)
+    seed_future_flag = os.getenv("SEED_AVAILABILITY", "0").lower() in {"1", "true", "yes"}
+    weeks = parse_int_env("SEED_AVAILABILITY_WEEKS", 4)
     backfill_days = parse_int_env("BITMAP_BACKFILL_DAYS", 56)
     review_lookback = parse_int_env("SEED_REVIEW_LOOKBACK_DAYS", 90)
     review_horizon = parse_int_env("SEED_REVIEW_HORIZON_DAYS", 21)
@@ -580,10 +573,8 @@ def run_seed_all_pipeline(
 
     # Phase 2: Seed future bitmap availability
     phase_heading(2, "Seed future bitmap availability")
-    if not bitmap_enabled:
-        log_summary("skipped (AVAILABILITY_V2_BITMAPS is disabled)")
-    elif not seed_future_flag:
-        log_summary("skipped (SEED_AVAILABILITY_BITMAP not enabled)")
+    if not seed_future_flag:
+        log_summary("skipped (SEED_AVAILABILITY not enabled)")
     else:
         stats_future = _run_future_bitmap_seeding(weeks, dry_run, "pipeline")
         pipeline_result["future_instructor_weeks"] = stats_future["instructor_weeks"]
@@ -593,15 +584,11 @@ def run_seed_all_pipeline(
 
     # Phase 3: Backfill bitmap availability
     phase_heading(3, "Backfill bitmap availability")
-    if not bitmap_enabled:
-        log_summary("skipped (AVAILABILITY_V2_BITMAPS is disabled)")
-        backfill_stats = {"days_backfilled": 0, "instructors_touched": 0}
-    else:
-        backfill_stats = _run_bitmap_backfill(backfill_days, dry_run, "pipeline")
-        pipeline_result["backfill_days"] = backfill_stats["days_backfilled"]
-        log_summary(
-            f"backfilled {backfill_stats['days_backfilled']} day(s) across {backfill_stats['instructors_touched']} instructor(s)"
-        )
+    backfill_stats = _run_bitmap_backfill(backfill_days, dry_run, "pipeline")
+    pipeline_result["backfill_days"] = backfill_stats["days_backfilled"]
+    log_summary(
+        f"backfilled {backfill_stats['days_backfilled']} day(s) across {backfill_stats['instructors_touched']} instructor(s)"
+    )
 
     os.environ.setdefault("BITMAP_PIPELINE_COMPLETED", "1")
 
@@ -1140,12 +1127,11 @@ to control the mock-data phases (stg/int default to include).
             include_mock_users = False
     os.environ["INCLUDE_MOCK_USERS"] = "1" if include_mock_users else "0"
 
-    bitmap_enabled = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
-    seed_availability_value = os.getenv("SEED_AVAILABILITY_BITMAP")
+    seed_availability_value = os.getenv("SEED_AVAILABILITY")
     auto_default_message: Optional[str] = None
-    if bitmap_enabled and mode in {"stg", "int"} and (seed_availability_value is None or seed_availability_value.strip() == ""):
-        os.environ["SEED_AVAILABILITY_BITMAP"] = "1"
-        auto_default_message = "[seed] defaulting SEED_AVAILABILITY_BITMAP=1 for stg/int when AVAILABILITY_V2_BITMAPS=1"
+    if mode in {"stg", "int"} and (seed_availability_value is None or seed_availability_value.strip() == ""):
+        os.environ["SEED_AVAILABILITY"] = "1"
+        auto_default_message = "[seed] defaulting SEED_AVAILABILITY=1 for stg/int when --seed-all is used"
 
     env_snapshot = build_env_snapshot(mode)
     env_json = snapshot_to_json(env_snapshot)
@@ -1159,12 +1145,7 @@ to control the mock-data phases (stg/int default to include).
     if seed_db_url != db_url:
         info("db", f"Using seed connection override: {redact(seed_db_url)}")
 
-    seed_availability_bitmap = os.getenv("SEED_AVAILABILITY_BITMAP", "0").lower() in {"1", "true", "yes"}
-    if bitmap_enabled and not seed_availability_bitmap and (args.seed_all or args.seed_mock_users):
-        warn(
-            "AVAILABILITY_V2_BITMAPS=1 but SEED_AVAILABILITY_BITMAP is not set. "
-            "Skipping availability seeding; reviews will likely be skipped."
-        )
+    seed_availability_enabled = os.getenv("SEED_AVAILABILITY", "0").lower() in {"1", "true", "yes"}
 
     try:
         if args.seed_availability_only:
@@ -1208,7 +1189,7 @@ to control the mock-data phases (stg/int default to include).
         else:
             perform_system_seed = args.seed_system_only or include_mock_users
             perform_mock_seed = include_mock_users
-            run_availability_step = bitmap_enabled and include_mock_users
+            run_availability_step = seed_availability_enabled
 
             steps: List[Tuple[str, Callable[[], None]]] = []
 

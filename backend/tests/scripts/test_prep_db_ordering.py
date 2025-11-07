@@ -138,9 +138,8 @@ def test_seed_all_orders_availability_before_reviews(monkeypatch):
     monkeypatch.setattr(prep_db, "create_engine", lambda *_args, **_kwargs: DummyEngine())
 
     monkeypatch.setenv("STG_DATABASE_URL", "postgresql://user:pass@localhost/db")
-    monkeypatch.setenv("AVAILABILITY_V2_BITMAPS", "1")
-    monkeypatch.delenv("SEED_AVAILABILITY_BITMAP", raising=False)
-    monkeypatch.setenv("SEED_AVAILABILITY_BITMAP_WEEKS", "4")
+    monkeypatch.delenv("SEED_AVAILABILITY", raising=False)
+    monkeypatch.setenv("SEED_AVAILABILITY_WEEKS", "4")
     monkeypatch.setenv("BITMAP_BACKFILL_DAYS", "56")
 
     monkeypatch.setattr(sys, "argv", ["prep_db.py", "stg", "--migrate", "--seed-all"])

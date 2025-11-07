@@ -785,8 +785,7 @@ def seed_mock_data_phases(
 
     # Check if bitmap pipeline completed before seeding reviews
     bitmap_pipeline_completed = os.getenv("BITMAP_PIPELINE_COMPLETED") == "1"
-    bitmap_enabled = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
-    if bitmap_enabled and not bitmap_pipeline_completed:
+    if not bitmap_pipeline_completed:
         if verbose:
             print("  ⚠️  Bitmap pipeline not marked as completed; reviews may skip due to missing bitmap coverage.")
             print("  ℹ️  Reviews will check bitmap coverage and skip if empty.")

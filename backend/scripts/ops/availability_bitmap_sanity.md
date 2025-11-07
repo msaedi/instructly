@@ -123,9 +123,8 @@ python backend/scripts/backfill_bitmaps.py --days 56
 ### Staging Seeding Recipe
 
 ```
-export AVAILABILITY_V2_BITMAPS=1
-export SEED_AVAILABILITY_BITMAP=1
-export SEED_AVAILABILITY_BITMAP_WEEKS=4
+export SEED_AVAILABILITY=1
+export SEED_AVAILABILITY_WEEKS=4
 export BITMAP_BACKFILL_DAYS=56
 export SEED_REVIEW_LOOKBACK_DAYS=90
 export SEED_REVIEW_HORIZON_DAYS=21
@@ -149,12 +148,12 @@ The seeding pipeline now executes migrations first, then bitmap future seeding a
 
 - Bitmap rows exist but contain no availability windows
 - Check if instructor has set availability in the editor
-- Verify `SEED_AVAILABILITY_BITMAP=1` was set during seeding
+- Verify `SEED_AVAILABILITY=1` was set during seeding
 
 ### Coverage Gaps
 
 - Missing days indicate incomplete week seeding
-- Verify `SEED_AVAILABILITY_BITMAP_WEEKS` setting (default: 3 weeks)
+- Verify `SEED_AVAILABILITY_WEEKS` setting (default: 3 weeks)
 - Check if bitmap seeding ran before review seeding
 
 ## Review Seeding Environment Knobs
@@ -166,14 +165,14 @@ The seeding pipeline now executes migrations first, then bitmap future seeding a
 | `SEED_REVIEW_DURATIONS` | `60,45,30` | Durations to attempt (minutes, in order) |
 | `SEED_REVIEW_STUDENT_EMAIL` | unset | Force all seeded reviews to use a specific student |
 | `SEED_REVIEW_STEP_MINUTES` | 15 | Step size when sliding within a bitmap window |
-| `SEED_AVAILABILITY_BITMAP_WEEKS` | 3 | Future weeks to seed default availability |
+| `SEED_AVAILABILITY_WEEKS` | 3 | Future weeks to seed default availability |
 | `BITMAP_BACKFILL_DAYS` | 56 | Backfill range for past bitmap coverage |
 
 ## Typical Staging Seeding Recipe
 
 ```bash
-export SEED_AVAILABILITY_BITMAP=1
-export SEED_AVAILABILITY_BITMAP_WEEKS=4
+export SEED_AVAILABILITY=1
+export SEED_AVAILABILITY_WEEKS=4
 export BITMAP_BACKFILL_DAYS=56
 export SEED_REVIEW_LOOKBACK_DAYS=90
 export SEED_REVIEW_HORIZON_DAYS=21
