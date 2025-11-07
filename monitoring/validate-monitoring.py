@@ -17,9 +17,8 @@ import sys
 import time
 import json
 import asyncio
-from datetime import datetime, timedelta
-from typing import Dict, List, Set, Optional, Tuple
-from urllib.parse import urlencode
+from datetime import datetime
+from typing import Dict, List, Set, Optional
 
 try:
     import httpx

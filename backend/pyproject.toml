@@ -100,6 +100,7 @@ addopts = """
 filterwarnings = [
     "ignore::urllib3.exceptions.NotOpenSSLWarning",
     "ignore::DeprecationWarning",
+    "ignore:imghdr is deprecated:DeprecationWarning",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -166,21 +167,21 @@ exclude = [
 
 # --- Strict by default for new & existing code (last-wins applies below) ---
 [[tool.mypy.overrides]]
-module = ["backend.app.repositories.*"]
+module = ["app.repositories.*"]
 strict = true
 
 [[tool.mypy.overrides]]
-module = ["backend.app.services.*"]
+module = ["app.services.*"]
 strict = true
 
 [[tool.mypy.overrides]]
-module = ["backend.app.routes.*"]
+module = ["app.routes.*"]
 strict = true
 
 # --- Explicit, documented exceptions (SDK glue / base DI) ---
 [[tool.mypy.overrides]]
 module = [
-  "backend.app.database",
+  "app.database",
 ]
 follow_imports = "normal"
 warn_unused_ignores = true
@@ -188,7 +189,7 @@ warn_unused_ignores = true
 # --- Schema-wide flags (we enforce request DTO strict via scanner + StrictRequestModel) ---
 [[tool.mypy.overrides]]
 module = [
-  "backend.app.schemas.*"
+  "app.schemas.*",
 ]
 check_untyped_defs = true
 warn_unused_ignores = true
@@ -196,16 +197,16 @@ warn_unused_ignores = true
 # --- Targeted strict overrides beyond service/repository/route globs ---
 [[tool.mypy.overrides]]
 module = [
-  "backend.app.schemas.base",
-  "backend.app.schemas.search_history_responses",
-  "backend.app.schemas.review",
-  "backend.app.schemas.message_requests",
-  "backend.app.schemas.payment_schemas",
+  "app.schemas.base",
+  "app.schemas.search_history_responses",
+  "app.schemas.review",
+  "app.schemas.message_requests",
+  "app.schemas.payment_schemas",
 ]
 strict = true
 
 [[tool.mypy.overrides]]
-module = ["backend.app.tasks.*"]
+module = ["app.tasks.*"]
 strict = true
 
 [[tool.mypy.overrides]]

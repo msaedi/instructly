@@ -282,11 +282,8 @@ async def get_instructor_public_availability(
     # Build response based on detail level
     if settings.public_availability_detail_level == "minimal":
         # Minimal: Just check if any availability exists
-        all_slots = cast(
-            Sequence[SlotLike],
-            availability_service.repository.get_week_availability(
-                instructor_id, start_date, end_date
-            ),
+        all_slots = availability_service.get_week_windows_as_slot_like(
+            instructor_id, start_date, end_date
         )
 
         response_data = PublicInstructorAvailability(
@@ -303,23 +300,22 @@ async def get_instructor_public_availability(
             ),
             detail_level="minimal",
             has_availability=len(all_slots) > 0,
-            earliest_available_date=all_slots[0].specific_date.isoformat() if all_slots else None,
+            earliest_available_date=all_slots[0]["specific_date"].isoformat()
+            if all_slots
+            else None,
             timezone="America/New_York",
         )
 
     elif settings.public_availability_detail_level == "summary":
         # Summary: Show counts and time ranges, not specific slots
-        all_slots = cast(
-            Sequence[SlotLike],
-            availability_service.repository.get_week_availability(
-                instructor_id, start_date, end_date
-            ),
+        all_slots = availability_service.get_week_windows_as_slot_like(
+            instructor_id, start_date, end_date
         )
 
         # Group by morning/afternoon/evening
         availability_summary: Dict[str, AvailabilitySummaryEntry] = {}
         for slot in all_slots:
-            date_str = slot.specific_date.isoformat()
+            date_str = slot["specific_date"].isoformat()
             if date_str not in availability_summary:
                 availability_summary[date_str] = {
                     "date": date_str,
@@ -330,17 +326,18 @@ async def get_instructor_public_availability(
                 }
 
             # Categorize time slots
-            if slot.start_time.hour < 12:
+            start_time = slot["start_time"]
+            end_time = slot["end_time"]
+            if start_time.hour < 12:
                 availability_summary[date_str]["morning_available"] = True
-            elif slot.start_time.hour < 17:
+            elif start_time.hour < 17:
                 availability_summary[date_str]["afternoon_available"] = True
             else:
                 availability_summary[date_str]["evening_available"] = True
 
             # Add hours
             duration = (
-                datetime.combine(date.min, slot.end_time)
-                - datetime.combine(date.min, slot.start_time)
+                datetime.combine(date.min, end_time) - datetime.combine(date.min, start_time)
             ).seconds / 3600
             availability_summary[date_str]["total_hours"] += duration
 
@@ -515,11 +512,8 @@ async def get_next_available_slot(
             continue
 
         # Get available slots for this date
-        slots = cast(
-            Sequence[SlotLike],
-            availability_service.repository.get_week_availability(
-                instructor_id, current_date, current_date
-            ),
+        slots = availability_service.get_week_windows_as_slot_like(
+            instructor_id, current_date, current_date
         )
 
         if slots:
@@ -537,11 +531,13 @@ async def get_next_available_slot(
                 )
 
             # Find first slot that can accommodate the duration
-            for slot in sorted(slots, key=lambda s: s.start_time):
+            for slot in sorted(slots, key=lambda s: s["start_time"]):
                 # Calculate slot duration in minutes
+                slot_start_time = slot["start_time"]
+                slot_end_time = slot["end_time"]
                 slot_duration = (
-                    datetime.combine(date.min, slot.end_time)
-                    - datetime.combine(date.min, slot.start_time)
+                    datetime.combine(date.min, slot_end_time)
+                    - datetime.combine(date.min, slot_start_time)
                 ).seconds // 60
 
                 if slot_duration >= duration_minutes:
@@ -549,8 +545,8 @@ async def get_next_available_slot(
                     is_booked = False
                     for booked in booked_times:
                         if (
-                            slot.start_time < booked["end_time"]
-                            and slot.end_time > booked["start_time"]
+                            slot_start_time < booked["end_time"]
+                            and slot_end_time > booked["start_time"]
                         ):
                             is_booked = True
                             break
@@ -559,7 +555,7 @@ async def get_next_available_slot(
                         # Found an available slot!
                         # Return the requested duration from the start of the slot
                         end_time = (
-                            datetime.combine(date.min, slot.start_time)
+                            datetime.combine(date.min, slot_start_time)
                             + timedelta(minutes=duration_minutes)
                         ).time()
 
@@ -569,7 +565,7 @@ async def get_next_available_slot(
                         return NextAvailableSlotResponse(
                             found=True,
                             date=current_date.isoformat(),
-                            start_time=slot.start_time.strftime("%H:%M:%S"),
+                            start_time=slot_start_time.strftime("%H:%M:%S"),
                             end_time=end_time.strftime("%H:%M:%S"),
                             duration_minutes=duration_minutes,
                         )

@@ -39,7 +39,7 @@ class AvailabilityTestHelper:
         """
         Set availability for a specific day with multiple slots.
 
-        UPDATED: Works directly with AvailabilitySlot objects.
+        UPDATED: Works with bitmap storage using AvailabilityDayRepository.
 
         Args:
             instructor_id: The instructor ID
@@ -151,7 +151,7 @@ class AvailabilityTestHelper:
 
         return {
             "success": result.get("success", True),
-            "slots_created": result.get("slots_created", 0),
+            "windows_created": result.get("windows_created", result.get("slots_created", 0)),
             "days_created": result.get("days_created", 0),
             "from_week": from_week_start.isoformat(),
             "to_week": to_week_start.isoformat(),
@@ -177,7 +177,7 @@ class AvailabilityTestHelper:
 
             return {
                 "success": bool(result),
-                "total_slots_created": result.get("slots_created", 0),
+                "total_windows_created": result.get("windows_created", 0),
                 "message": result.get("message", ""),
             }
         else:

@@ -168,8 +168,8 @@ class TestCrossTimezoneBookings:
                 )
 
                 # Should only create slot for Jan 16 (today for instructor)
-                assert len(prepared.slots) == 1
-                assert prepared.slots[0]["specific_date"] == date(2024, 1, 16)
+                assert len(prepared.windows) == 1
+                assert prepared.windows[0]["specific_date"] == date(2024, 1, 16)
                 assert prepared.affected_dates == {date(2024, 1, 16)}
 
 

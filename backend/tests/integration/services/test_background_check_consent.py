@@ -146,6 +146,8 @@ def test_invite_succeeds_after_recent_consent(client, db, owner_auth_override):
     payload = response.json()
     assert payload["ok"] is True
     assert payload["status"] == "pending"
-    refreshed = db.query(InstructorProfile).filter_by(id=profile.id).one()
+    db.expire_all()
+    refreshed = db.get(InstructorProfile, profile.id)
+    assert refreshed is not None
     assert refreshed.bgc_status == "pending"
     assert refreshed.bgc_invited_at is not None

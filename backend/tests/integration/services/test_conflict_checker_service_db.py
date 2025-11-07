@@ -13,7 +13,7 @@ from datetime import date, time, timedelta
 from sqlalchemy.orm import Session
 
 from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot, BlackoutDate
+from app.models.availability import BlackoutDate
 from app.models.booking import Booking
 from app.models.user import User
 from app.services.conflict_checker import ConflictChecker
@@ -225,7 +225,7 @@ class TestConflictCheckerTransactionBoundaries:
 
         # Count initial bookings
         initial_booking_count = db.query(Booking).count()
-        initial_slot_count = db.query(AvailabilitySlot).count()
+        # Availability is stored in bitmap format (availability_days table), not slots
 
         # Perform various read operations
         service.check_booking_conflicts(
@@ -249,10 +249,8 @@ class TestConflictCheckerTransactionBoundaries:
 
         # Verify no data was modified
         final_booking_count = db.query(Booking).count()
-        final_slot_count = db.query(AvailabilitySlot).count()
 
         assert final_booking_count == initial_booking_count
-        assert final_slot_count == initial_slot_count
 
 
 class TestConflictCheckerErrorConditions:

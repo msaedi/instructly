@@ -4,12 +4,12 @@ Simple test to verify public API works after fixes.
 These tests adapt to current configuration settings.
 """
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.availability import AvailabilitySlot
+from tests._utils.bitmap_avail import seed_day
 
 
 def test_public_availability_basic(client, db: Session, test_instructor):
@@ -17,19 +17,8 @@ def test_public_availability_basic(client, db: Session, test_instructor):
     # Create some availability for today
     today = date.today()
 
-    # Add slots
-    slots = [
-        AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-        ),
-        AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=today, start_time=time(14, 0), end_time=time(15, 0)
-        ),
-    ]
-
-    for slot in slots:
-        db.add(slot)
-    db.commit()
+    # Add availability using bitmap storage
+    seed_day(db, test_instructor.id, today, [("09:00", "10:00"), ("14:00", "15:00")])
 
     # Test the public endpoint
     response = client.get(
@@ -103,17 +92,9 @@ def test_public_availability_instructor_not_found(client):
 
 def test_next_available_basic(client, db: Session, test_instructor):
     """Test next available slot endpoint."""
-    # Create availability for tomorrow
+    # Create availability for tomorrow using bitmap storage
     tomorrow = date.today() + timedelta(days=1)
-
-    slot = AvailabilitySlot(
-        instructor_id=test_instructor.id,
-        specific_date=tomorrow,
-        start_time=time(9, 0),
-        end_time=time(11, 0),  # 2 hour slot
-    )
-    db.add(slot)
-    db.commit()
+    seed_day(db, test_instructor.id, tomorrow, [("09:00", "11:00")])
 
     # Find next available
     response = client.get(

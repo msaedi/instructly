@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
 from app.middleware.perf_counters import PerfCounterMiddleware
-from app.models.availability import AvailabilitySlot
+from tests._utils.bitmap_avail import seed_week
 
 
 def _ensure_perf_mode(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -28,30 +28,12 @@ def test_week_get_uses_single_query(
     _ensure_perf_mode(client, monkeypatch)
 
     week_start = date(2025, 10, 20)
-    db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).delete()
-
-    slots = []
+    # Seed week using bitmap storage
+    week_map = {}
     for day_offset in range(7):
         current_date = week_start + timedelta(days=day_offset)
-        slots.append(
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=current_date,
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            )
-        )
-        slots.append(
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=current_date,
-                start_time=time(14, 0),
-                end_time=time(15, 0),
-            )
-        )
-
-    db.add_all(slots)
-    db.commit()
+        week_map[current_date.isoformat()] = [("09:00", "10:00"), ("14:00", "15:00")]
+    seed_week(db, test_instructor.id, week_start, week_map)
 
     response = client.get(
         "/instructors/availability/week",

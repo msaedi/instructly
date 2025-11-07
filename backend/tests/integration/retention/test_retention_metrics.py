@@ -1,51 +1,57 @@
-
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy.orm import Session
+from tests._utils.bitmap_avail import seed_day
 
-from app.auth import create_access_token
-from app.core.enums import RoleName
-from app.models.availability import AvailabilitySlot
-from app.services.permission_service import PermissionService
-from app.tasks.retention_tasks import purge_soft_deleted_task
+from app.core.config import settings
+from app.monitoring.prometheus_metrics import REGISTRY
+from app.services.retention_service import RetentionService
+
+
+def _configure_retention(monkeypatch: pytest.MonkeyPatch, *, dry_run: bool = False) -> None:
+    monkeypatch.setattr(settings, "availability_retention_enabled", True, raising=False)
+    monkeypatch.setattr(settings, "availability_retention_days", 180, raising=False)
+    monkeypatch.setattr(settings, "availability_retention_keep_recent_days", 30, raising=False)
+    monkeypatch.setattr(settings, "availability_retention_dry_run", dry_run, raising=False)
+
+
+def _counter_value(site_mode: str) -> float:
+    labels = {"site_mode": site_mode}
+    value = REGISTRY.get_sample_value("availability_days_purged_total", labels)
+    return float(value or 0.0)
+
+
+def _histogram_count() -> float:
+    value = REGISTRY.get_sample_value("availability_retention_run_seconds_count")
+    return float(value or 0.0)
 
 
 @pytest.mark.integration
-def test_retention_metrics_lite(monkeypatch, client, db: Session, test_instructor, sample_admin_for_privacy) -> None:
-    monkeypatch.setenv("AVAILABILITY_PERF_DEBUG", "1")
-    monkeypatch.setenv("AVAILABILITY_TEST_MEMORY_CACHE", "1")
+def test_metrics_increment_when_purging(
+    monkeypatch: pytest.MonkeyPatch,
+    db: Session,
+    test_instructor,
+) -> None:
+    _configure_retention(monkeypatch)
 
-    old_timestamp = datetime.now(timezone.utc) - timedelta(days=40)
+    instructor_id = test_instructor.id
+    today = date.today()
+    for offset in (190, 200):
+        seed_day(db, instructor_id, today - timedelta(days=offset), [("08:00:00", "09:00:00")])
 
-    slot = AvailabilitySlot(
-        instructor_id=test_instructor.id,
-        specific_date=date.today(),
-        start_time=time(hour=7, minute=0),
-        end_time=time(hour=8, minute=0),
-        deleted_at=old_timestamp,
-    )
-    db.add(slot)
-    db.commit()
+    site_mode = (settings.site_mode or "unknown").strip() or "unknown"
+    counter_before = _counter_value(site_mode)
+    histogram_before = _histogram_count()
 
-    permission_service = PermissionService(db)
-    permission_service.assign_role(sample_admin_for_privacy.id, RoleName.ADMIN)
-    db.commit()
+    service = RetentionService(db)
+    summary = service.purge_availability_days(today=today)
 
-    token = create_access_token(data={"sub": sample_admin_for_privacy.email})
-    headers = {"Authorization": f"Bearer {token}"}
+    counter_after = _counter_value(site_mode)
+    histogram_after = _histogram_count()
 
-    purge_soft_deleted_task.apply(
-        args=[],
-        kwargs={"days": 30, "chunk_size": 10, "dry_run": False},
-    ).get()
-
-    response = client.get("/ops/metrics-lite", headers=headers)
-    assert response.status_code == 200
-
-    body = response.text
-    assert "retention_purge_total" in body
-    assert "availability_slots" in body
-    assert "retention_purge_chunk_seconds" in body
+    assert summary["purged_days"] == 2
+    assert counter_after == pytest.approx(counter_before + 2)
+    assert histogram_after >= histogram_before + 1

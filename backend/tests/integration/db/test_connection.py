@@ -58,7 +58,7 @@ def test_database_tables_exist():
         "instructor_profiles",
         "instructor_services",
         # "instructor_availability",  # REMOVED in Work Stream #10
-        "availability_slots",
+        "availability_days",  # Bitmap-only storage
         "blackout_dates",
         "bookings",
         "password_reset_tokens",

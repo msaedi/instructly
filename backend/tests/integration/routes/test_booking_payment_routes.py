@@ -153,6 +153,7 @@ class TestBookingPaymentRoutes:
         user.roles.append(student_role)
         db.add(user)
         db.flush()
+        db.commit()  # Commit so the user is visible to other sessions
         return user
 
     @pytest.fixture

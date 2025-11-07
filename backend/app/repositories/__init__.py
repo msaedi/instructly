@@ -53,7 +53,8 @@ from .referral_repository import (
     WalletTransactionRepository,
 )
 from .search_event_repository import SearchEventRepository
-from .slot_manager_repository import SlotManagerRepository
+
+# SlotManagerRepository removed - bitmap-only storage now
 from .week_operation_repository import WeekOperationRepository
 
 __all__ = [
@@ -62,7 +63,7 @@ __all__ = [
     "RepositoryFactory",
     "AvailabilityRepository",
     "AvailabilityDayRepository",
-    "SlotManagerRepository",
+    # "SlotManagerRepository",  # Removed - bitmap-only storage now
     "ConflictCheckerRepository",
     "BulkOperationRepository",
     "BookingRepository",

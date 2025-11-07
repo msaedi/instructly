@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 import os
 
 import pytest
@@ -10,27 +10,18 @@ os.environ["AVAILABILITY_PERF_DEBUG"] = "1"
 os.environ.setdefault("AVAILABILITY_TEST_MEMORY_CACHE", "1")
 os.environ["AVAILABILITY_V2_BITMAPS"] = "0"
 
-from app.models.availability import AvailabilitySlot
+from tests._utils.bitmap_avail import seed_week
 
 
 def _seed_week(db, instructor_id: str, week_start: date, start_hour: int) -> None:
-    week_end = week_start + timedelta(days=6)
-    db.query(AvailabilitySlot).filter(
-        AvailabilitySlot.instructor_id == instructor_id,
-        AvailabilitySlot.specific_date.between(week_start, week_end),
-    ).delete(synchronize_session=False)
-
+    """Seed a week of availability using bitmap storage."""
+    week_map = {}
     for offset in range(7):
         current = week_start + timedelta(days=offset)
-        db.add(
-            AvailabilitySlot(
-                instructor_id=instructor_id,
-                specific_date=current,
-                start_time=time(start_hour, 0),
-                end_time=time(start_hour + 1, 0),
-            )
-        )
-    db.commit()
+        week_map[current.isoformat()] = [
+            (f"{start_hour:02d}:00", f"{start_hour + 1:02d}:00")
+        ]
+    seed_week(db, instructor_id, week_start, week_map)
 
 
 @pytest.mark.usefixtures("STRICT_ON")

@@ -106,3 +106,7 @@ scripts/patches/
 
 # mypy bisect logs
 backend/.mypy_bisect_logs/
+.census_branch.txt
+.census_headsha.txt
+TEST_INVENTORY.json
+backend/TEST_INVENTORY.json

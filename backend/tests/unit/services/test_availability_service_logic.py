@@ -13,13 +13,13 @@ FIXES:
 """
 
 from datetime import date, time, timedelta
-from unittest.mock import Mock, PropertyMock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot, BlackoutDate
+from app.models.availability import BlackoutDate
 from app.repositories.availability_repository import AvailabilityRepository
 from app.schemas.availability_window import (
     SpecificDateAvailabilityCreate,
@@ -232,17 +232,17 @@ class TestAvailabilityServiceCacheHandling:
         mock_repository = Mock(spec=AvailabilityRepository)
         service.repository = mock_repository
 
-        # Mock successful repository query - now returns slots directly
+        # Mock successful repository query - returns bitmap windows as dict
         test_date = date.today()
-        mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.specific_date = test_date  # Fixed: date -> specific_date
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
-        # Configure the mock properly
-        type(mock_slot).specific_date = PropertyMock(return_value=test_date)
+        mock_window = {
+            "start_time": "09:00:00",
+            "end_time": "10:00:00",
+        }
 
-        # Repository returns list of slots
-        service.repository.get_week_availability.return_value = [mock_slot]
+        # Repository returns week map with windows
+        service.repository.get_week_availability.return_value = {
+            test_date.isoformat(): [mock_window]
+        }
 
         # Should still work despite cache error
         result = service.get_week_availability(
@@ -319,15 +319,16 @@ class TestAvailabilityServiceNoBackwardCompatibility:
 
     def test_no_is_available_in_responses(self, service):
         """Test that responses don't include the removed is_available field."""
-        # Mock repository response
+        # Mock repository response - returns bitmap windows as dict
         test_date = date.today()
-        mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.specific_date = test_date
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
-        type(mock_slot).specific_date = PropertyMock(return_value=test_date)
+        mock_window = {
+            "start_time": "09:00:00",
+            "end_time": "10:00:00",
+        }
 
-        service.repository.get_week_availability.return_value = [mock_slot]
+        service.repository.get_week_availability.return_value = {
+            test_date.isoformat(): [mock_window]
+        }
 
         result = service.get_week_availability(instructor_id=123, start_date=test_date)
 
@@ -338,14 +339,18 @@ class TestAvailabilityServiceNoBackwardCompatibility:
 
     def test_get_availability_for_date_no_is_available(self, service):
         """Test that get_availability_for_date doesn't return is_available."""
-        # Mock repository response
+        # Mock repository response - returns bitmap windows as dict
         test_date = date.today()
-        mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.specific_date = test_date
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
+        mock_window = {
+            "start_time": "09:00:00",
+            "end_time": "10:00:00",
+        }
 
-        service.repository.get_slots_by_date.return_value = [mock_slot]
+        # get_availability_for_date returns windows for the date
+        service.repository.get_day_bits = Mock(return_value=None)  # No availability
+        service.repository.get_week_availability.return_value = {
+            test_date.isoformat(): [mock_window]
+        }
 
         result = service.get_availability_for_date(instructor_id=123, target_date=test_date)
 

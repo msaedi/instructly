@@ -50,7 +50,7 @@ def test_copy_week_availability_empty_source_week_guard(
     )
 
     # Should return 0-copy result
-    assert result["_metadata"]["slots_created"] == 0
+    assert result["_metadata"]["windows_created"] == 0
     assert "no availability bits" in result["_metadata"]["message"].lower()
 
     # Verify target week still has no rows
@@ -99,7 +99,7 @@ def test_copy_week_availability_with_non_empty_source(
     )
 
     # Should copy successfully
-    assert result["_metadata"]["slots_created"] > 0
+    assert result["_metadata"]["windows_created"] > 0
 
     # Verify target week received the bits
     target_bits_after = repo.get_week_rows(instructor_id, to_week_start)

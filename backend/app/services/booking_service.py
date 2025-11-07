@@ -12,6 +12,7 @@ Handles all booking-related business logic including:
 UPDATED IN v65: Added performance metrics and refactored long methods.
 All methods now under 50 lines with comprehensive observability! ⚡
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
@@ -49,7 +50,7 @@ from .pricing_service import PricingService
 from .student_credit_service import StudentCreditService
 
 if TYPE_CHECKING:
-    from ..models.availability_slot import AvailabilitySlot
+    # AvailabilitySlot removed - bitmap-only storage now
     from ..repositories.audit_repository import AuditRepository
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.booking_repository import BookingRepository
@@ -771,7 +772,7 @@ class BookingService(BaseService):
             latest_time = time(21, 0)
 
         # Get availability data
-        availability_slots = await self._get_instructor_availability_windows(
+        availability_windows = await self._get_instructor_availability_windows(
             instructor_id, target_date, earliest_time, latest_time
         )
 
@@ -781,7 +782,7 @@ class BookingService(BaseService):
 
         # Find opportunities
         opportunities = self._calculate_booking_opportunities(
-            availability_slots,
+            availability_windows,
             existing_bookings,
             target_duration_minutes,
             earliest_time,
@@ -1651,9 +1652,9 @@ class BookingService(BaseService):
         target_date: date,
         earliest_time: time,
         latest_time: time,
-    ) -> List["AvailabilitySlot"]:
+    ) -> List[dict[str, Any]]:
         """
-        Get instructor's availability slots for the date.
+        Get instructor's availability windows for the date (bitmap storage).
 
         Args:
             instructor_id: The instructor ID
@@ -1662,18 +1663,32 @@ class BookingService(BaseService):
             latest_time: Latest time boundary
 
         Returns:
-            List of availability slots
+            List of availability windows as dicts
         """
-        availability_slots: List[
-            "AvailabilitySlot"
-        ] = self.availability_repository.get_slots_by_date(instructor_id, target_date)
+        # Use bitmap storage to get windows
+        from ..repositories.availability_day_repository import AvailabilityDayRepository
+        from ..utils.bitset import windows_from_bits
 
-        # Filter slots within time range
-        return [
-            slot
-            for slot in availability_slots
-            if not (slot.end_time <= earliest_time or slot.start_time >= latest_time)
-        ]
+        repo = AvailabilityDayRepository(self.db)
+        bits = repo.get_day_bits(instructor_id, target_date)
+        if not bits:
+            return []
+
+        windows_str: list[tuple[str, str]] = windows_from_bits(bits)
+        # Filter windows within time range
+        result = []
+        for start_str, end_str in windows_str:
+            start_time_obj = time.fromisoformat(start_str)
+            end_time_obj = time.fromisoformat(end_str) if end_str != "24:00:00" else time(0, 0)
+            if not (end_time_obj <= earliest_time or start_time_obj >= latest_time):
+                result.append(
+                    {
+                        "start_time": start_time_obj,
+                        "end_time": end_time_obj,
+                        "specific_date": target_date,
+                    }
+                )
+        return result
 
     async def _get_existing_bookings_for_date(
         self,
@@ -1704,7 +1719,7 @@ class BookingService(BaseService):
 
     def _calculate_booking_opportunities(
         self,
-        availability_slots: List["AvailabilitySlot"],
+        availability_windows: List[dict[str, Any]],  # Bitmap windows as dicts
         existing_bookings: List[Booking],
         target_duration_minutes: int,
         earliest_time: time,
@@ -1713,10 +1728,10 @@ class BookingService(BaseService):
         target_date: date,
     ) -> List[Dict[str, Any]]:
         """
-        Calculate available booking opportunities from slots and bookings.
+        Calculate available booking opportunities from windows and bookings.
 
         Args:
-            availability_slots: Available time slots
+            availability_windows: Available time windows (as dicts)
             existing_bookings: Existing bookings
             target_duration_minutes: Desired duration
             earliest_time: Earliest boundary
@@ -1729,10 +1744,10 @@ class BookingService(BaseService):
         """
         opportunities: List[Dict[str, Any]] = []
 
-        for slot in availability_slots:
-            # Adjust slot boundaries to requested time range
-            slot_start = max(slot.start_time, earliest_time)
-            slot_end = min(slot.end_time, latest_time)
+        for window in availability_windows:
+            # Adjust window boundaries to requested time range
+            slot_start = max(window["start_time"], earliest_time)
+            slot_end = min(window["end_time"], latest_time)
 
             # Find opportunities within this slot
             opportunities.extend(

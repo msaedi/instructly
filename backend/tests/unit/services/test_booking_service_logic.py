@@ -23,7 +23,8 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot
+
+# AvailabilitySlot removed - bitmap-only storage now
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
@@ -165,15 +166,12 @@ class TestBookingServiceUnit:
         return profile
 
     @pytest.fixture
-    def mock_slot(self):
-        """Create a mock availability slot with single-table design."""
-        slot = Mock(spec=AvailabilitySlot)
-        slot.id = generate_ulid()
-        slot.instructor_id = generate_ulid()  # Same as mock_instructor.id
-        slot.specific_date = date.today() + timedelta(days=2)
-        slot.start_time = time(14, 0)
-        slot.end_time = time(15, 0)
-        return slot
+    def mock_window(self):
+        """Create a mock availability window (bitmap storage)."""
+        return {
+            "start_time": "14:00:00",
+            "end_time": "15:00:00",
+        }
 
     @pytest.fixture
     def mock_booking(self, mock_student, mock_instructor, mock_service):

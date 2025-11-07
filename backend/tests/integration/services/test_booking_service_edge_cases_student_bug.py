@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash
 from app.core.enums import RoleName
-from app.models.availability import AvailabilitySlot
 from app.models.booking import BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
@@ -19,6 +18,7 @@ from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
 from app.services.permission_service import PermissionService
+from tests._utils.bitmap_avail import seed_day
 
 try:  # pragma: no cover - fallback for direct backend test executions
     from backend.tests.conftest import add_service_areas_for_boroughs
@@ -152,23 +152,10 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
     tomorrow = date.today() + timedelta(days=1)
 
     # Math instructor available 9 AM - 5 PM
-    math_slot = AvailabilitySlot(
-        instructor_id=instructor1.id,
-        specific_date=tomorrow,
-        start_time=time(9, 0),
-        end_time=time(17, 0),
-    )
-    db.add(math_slot)
+    seed_day(db, instructor1.id, tomorrow, [("09:00", "17:00")])
 
     # Piano instructor available 9 AM - 5 PM
-    piano_slot = AvailabilitySlot(
-        instructor_id=instructor2.id,
-        specific_date=tomorrow,
-        start_time=time(9, 0),
-        end_time=time(17, 0),
-    )
-    db.add(piano_slot)
-    db.commit()
+    seed_day(db, instructor2.id, tomorrow, [("09:00", "17:00")])
 
     # Create booking service (notifications will fail but that's OK)
     booking_service = BookingService(db)

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import time, timedelta
+from datetime import timedelta
 from typing import Iterator, List
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from app.database import engine as global_engine
-from app.models.availability import AvailabilitySlot
 from app.services.availability_service import AvailabilityService
+from tests._utils.bitmap_avail import seed_day
 from tests.utils.availability_builders import future_week_start
 
 
@@ -33,15 +33,8 @@ def test_availability_routes_do_not_touch_bookings(db, test_instructor) -> None:
     """Availability fetch/save should not query the bookings tables."""
 
     monday = future_week_start()
-    db.add(
-        AvailabilitySlot(
-            instructor_id=test_instructor.id,
-            specific_date=monday,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-    )
-    db.commit()
+    # Create availability using bitmap storage
+    seed_day(db, test_instructor.id, monday, [("09:00", "10:00")])
 
     service = AvailabilityService(db)
 

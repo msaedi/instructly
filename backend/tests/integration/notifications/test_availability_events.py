@@ -15,6 +15,19 @@ from app.services.week_operation_service import WeekOperationService
 from app.tasks.notification_tasks import deliver_event
 
 
+@pytest.fixture(autouse=True)
+def _notif_sync(monkeypatch):
+    """Ensure availability events are not suppressed and are processed synchronously."""
+    from app.core.config import settings
+
+    # ensure availability events are not suppressed and are processed synchronously
+    monkeypatch.setenv("SUPPRESS_PAST_AVAILABILITY_EVENTS", "0", prepend=False)
+    monkeypatch.setenv("NOTIFICATIONS_SYNC_DELIVERY", "1", prepend=False)
+
+    # Also patch settings directly to ensure it takes effect immediately
+    monkeypatch.setattr(settings, "suppress_past_availability_events", False, raising=False)
+
+
 def _future_monday(weeks_ahead: int = 1) -> date:
     today = date.today()
     days_until_monday = (7 - today.weekday()) % 7
@@ -59,6 +72,9 @@ async def test_save_week_availability_emits_outbox(
     )
 
     await availability_service.save_week_availability(test_instructor_with_availability.id, week_data)
+
+    # Commit the transaction so the outbox event is visible to deliver_event.run()
+    db.commit()
 
     outbox_row = _latest_outbox(db, "availability.week_saved")
     assert outbox_row is not None

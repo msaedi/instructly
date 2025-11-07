@@ -6,8 +6,8 @@ from datetime import date, time, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from tests._utils.bitmap_avail import seed_day
 
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
@@ -40,26 +40,9 @@ def test_booked_slots_endpoint(
 
     service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
 
-    # Get or create availability slot for Monday (single-table design)
-    slot = (
-        db.query(AvailabilitySlot)
-        .filter(
-            AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-            AvailabilitySlot.specific_date == monday,
-        )
-        .order_by(AvailabilitySlot.start_time)
-        .first()
-    )
-
-    if not slot:
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor_with_availability.id,
-            specific_date=monday,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-        db.add(slot)
-        db.flush()
+    # Ensure availability exists for Monday using bitmap storage
+    seed_day(db, test_instructor_with_availability.id, monday, [("09:00", "10:00")])
+    db.commit()
 
     # Create booking with time-based pattern (no availability_slot_id in new architecture)
     booking = Booking(
@@ -68,8 +51,8 @@ def test_booked_slots_endpoint(
         instructor_service_id=service.id,
         # availability_slot_id completely removed from architecture
         booking_date=monday,
-        start_time=slot.start_time,
-        end_time=slot.end_time,
+        start_time=time(9, 0),
+        end_time=time(10, 0),
         service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
         hourly_rate=service.hourly_rate,
         total_price=service.hourly_rate,

@@ -21,13 +21,11 @@ Session v56. These tests will help identify such inconsistencies.
 """
 
 from datetime import date, time, timedelta
-from unittest.mock import patch
 
 import pytest
 
-from app.core.exceptions import RepositoryException
 from app.core.ulid_helper import generate_ulid
-from app.models import AvailabilitySlot, Booking, BookingStatus, InstructorProfile
+from app.models import Booking, BookingStatus, InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories import (
@@ -36,7 +34,6 @@ from app.repositories import (
     BulkOperationRepository,
     ConflictCheckerRepository,
     RepositoryFactory,
-    SlotManagerRepository,
     WeekOperationRepository,
 )
 
@@ -50,78 +47,34 @@ class TestRepositoryInstantiation:
         repositories = {
             "availability": RepositoryFactory.create_availability_repository(db),
             "booking": RepositoryFactory.create_booking_repository(db),
-            "slot_manager": RepositoryFactory.create_slot_manager_repository(db),
+            # slot_manager removed - bitmap-only storage now
             "week_operation": RepositoryFactory.create_week_operation_repository(db),
             "conflict_checker": RepositoryFactory.create_conflict_checker_repository(db),
             "bulk_operation": RepositoryFactory.create_bulk_operation_repository(db),
-            "instructor_profile": RepositoryFactory.create_instructor_profile_repository(db),  # Add this line
+            "instructor_profile": RepositoryFactory.create_instructor_profile_repository(db),
         }
 
         # Verify all created successfully
         for name, repo in repositories.items():
             assert repo is not None, f"{name} repository failed to instantiate"
             assert hasattr(repo, "db"), f"{name} repository missing db attribute"
-            assert hasattr(repo, "model"), f"{name} repository missing model attribute"
+            # Some repositories don't have a .model attribute by design in bitmap world
+            if repo.__class__.__name__ not in {"AvailabilityRepository", "WeekOperationRepository", "BulkOperationRepository"}:
+                assert hasattr(repo, "model"), f"{name} repository missing model attribute"
 
+    @pytest.mark.skip(reason="AvailabilitySlot model removed - bitmap-only storage now")
     def test_repository_models(self, db):
-        """Verify repositories use correct models."""
-        # AvailabilityRepository should use AvailabilitySlot (NOT InstructorAvailability!)
-        availability_repo = RepositoryFactory.create_availability_repository(db)
-        assert availability_repo.model == AvailabilitySlot
-
-        # BookingRepository should use Booking
-        booking_repo = RepositoryFactory.create_booking_repository(db)
-        assert booking_repo.model == Booking
-
-        # SlotManagerRepository should use AvailabilitySlot
-        slot_repo = RepositoryFactory.create_slot_manager_repository(db)
-        assert slot_repo.model == AvailabilitySlot
+        """
+        DEPRECATED: AvailabilitySlot model removed - bitmap-only storage now.
+        AvailabilityRepository no longer uses AvailabilitySlot model.
+        """
+        pass
 
 
+@pytest.mark.skip(reason="AvailabilitySlot model removed - bitmap-only storage now")
 class TestAvailabilityRepositorySingleTable:
-    """Test AvailabilityRepository works with single-table design."""
-
-    def test_get_week_availability_single_table(self, db, test_instructor):
-        """Verify get_week_availability queries slots directly without joins."""
-        repo = AvailabilityRepository(db)
-
-        # Create slots directly (single-table design)
-        today = date.today()
-        slots = [
-            AvailabilitySlot(
-                instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-            ),
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=today + timedelta(days=1),
-                start_time=time(14, 0),
-                end_time=time(15, 0),
-            ),
-        ]
-        for slot in slots:
-            db.add(slot)
-        db.flush()
-
-        # Query should work without InstructorAvailability
-        result = repo.get_week_availability(test_instructor.id, today, today + timedelta(days=6))
-
-        assert len(result) == 2
-        assert all(isinstance(s, AvailabilitySlot) for s in result)
-        assert all(s.instructor_id == test_instructor.id for s in result)
-
-    def test_create_slot_with_instructor_and_date(self, db, test_instructor):
-        """Verify slots are created with instructor_id and date directly."""
-        repo = AvailabilityRepository(db)
-
-        # Create slot with new single-table design
-        slot = repo.create_slot(
-            instructor_id=test_instructor.id, target_date=date.today(), start_time=time(11, 0), end_time=time(12, 0)
-        )
-
-        assert slot.instructor_id == test_instructor.id
-        assert slot.specific_date == date.today()
-        assert slot.start_time == time(11, 0)
-        assert slot.end_time == time(12, 0)
+    """DEPRECATED: AvailabilitySlot model removed - bitmap-only storage now."""
+    pass
 
     def test_removed_methods_are_gone(self, db):
         """Verify old InstructorAvailability methods were removed."""
@@ -249,54 +202,20 @@ class TestBookingRepositoryNoSlotReferences:
         assert not hasattr(repo, "booking_exists_for_slot")
 
 
+@pytest.mark.skip(reason="SlotManager removed - bitmap-only storage now")
 class TestSlotManagerDirectSlotAccess:
-    """Test SlotManager uses instructor_id + date instead of availability_id."""
+    """DEPRECATED: SlotManager removed - bitmap-only storage now."""
+    pass
 
-    def test_get_slots_by_date_ordered(self, db, test_instructor):
-        """Verify slot queries use instructor_id + date."""
-        repo = SlotManagerRepository(db)
-
-        # Create test slots
-        today = date.today()
-        slots = [
-            AvailabilitySlot(
-                instructor_id=test_instructor.id, specific_date=today, start_time=time(14, 0), end_time=time(15, 0)
-            ),
-            AvailabilitySlot(
-                instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-            ),
-        ]
-        for slot in slots:
-            db.add(slot)
-        db.flush()
-
-        # Query with instructor_id + date (not availability_id)
-        result = repo.get_slots_by_date_ordered(test_instructor.id, today)
-
-        assert len(result) == 2
-        # Should be ordered by start time
-        assert result[0].start_time == time(9, 0)
-        assert result[1].start_time == time(14, 0)
-
+    @pytest.mark.skip(reason="SlotManagerRepository removed - bitmap-only storage now")
     def test_removed_booking_methods(self, db):
-        """Verify all booking-related methods were removed."""
-        repo = SlotManagerRepository(db)
+        """DEPRECATED: SlotManagerRepository removed - bitmap-only storage now."""
+        pass
 
-        # These should all be gone
-        assert not hasattr(repo, "slot_has_booking")
-        assert not hasattr(repo, "get_booking_for_slot")
-        assert not hasattr(repo, "get_slots_with_booking_status")
-        assert not hasattr(repo, "get_booked_slot_ids")
-        assert not hasattr(repo, "count_bookings_for_slots")
-        assert not hasattr(repo, "date_has_bookings")
-        assert not hasattr(repo, "get_availability_by_id")
-
+    @pytest.mark.skip(reason="SlotManagerRepository removed - bitmap-only storage now")
     def test_no_optimize_availability(self, db):
-        """Verify optimize_availability was moved to BookingService."""
-        repo = SlotManagerRepository(db)
-
-        # Should not be in SlotManager anymore
-        assert not hasattr(repo, "optimize_availability")
+        """DEPRECATED: SlotManagerRepository removed - bitmap-only storage now."""
+        pass
 
 
 class TestConflictCheckerNoSlotJoins:
@@ -392,44 +311,20 @@ class TestBulkOperationValidation:
         with pytest.raises(AttributeError):
             repo.slot_has_active_booking(generate_ulid())
 
+    @pytest.mark.skip(reason="Slot-based repository methods removed - bitmap-only storage now")
     def test_bulk_create_slots(self, db, test_instructor):
-        """Test bulk slot creation works."""
-        repo = BulkOperationRepository(db)
-
-        # Prepare bulk slot data
-        slots_data = [
-            {
-                "instructor_id": test_instructor.id,
-                "specific_date": date.today(),
-                "start_time": time(9, 0),
-                "end_time": time(10, 0),
-            },
-            {
-                "instructor_id": test_instructor.id,
-                "specific_date": date.today(),
-                "start_time": time(11, 0),
-                "end_time": time(12, 0),
-            },
-        ]
-
-        # Bulk create
-        created_slots = repo.bulk_create_slots(slots_data)
-
-        assert len(created_slots) == 2
-        assert all(s.instructor_id == test_instructor.id for s in created_slots)
+        """DEPRECATED: Slot-based repository methods removed - bitmap-only storage now."""
+        pass
 
 
 class TestRepositoryIntegration:
     """Test that repositories work together correctly."""
 
     def test_booking_creation_without_slot_reference(self, db, test_student, test_instructor):
-        """End-to-end test: create slot, then booking, verify independence."""
-        # Create a slot using AvailabilityRepository
-        availability_repo = AvailabilityRepository(db)
-        slot = availability_repo.create_slot(
-            instructor_id=test_instructor.id, target_date=date.today(), start_time=time(10, 0), end_time=time(11, 0)
-        )
-        db.flush()
+        """End-to-end test: create availability using bitmap, then booking, verify independence."""
+        # Create availability using bitmap storage
+        from tests._utils.bitmap_avail import seed_day
+        seed_day(db, test_instructor.id, date.today(), [("10:00", "11:00")])
 
         # Create a booking for same time using BookingRepository
         booking_repo = BookingRepository(db)
@@ -439,7 +334,7 @@ class TestRepositoryIntegration:
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            # Same time as slot, but no reference to it!
+            # Same time as availability, but no reference to it!
             booking_date=date.today(),
             start_time=time(10, 0),
             end_time=time(11, 0),
@@ -451,48 +346,22 @@ class TestRepositoryIntegration:
         )
         db.flush()
 
-        # Verify both exist independently
-        assert slot.id is not None
+        # Verify booking exists
         assert booking.id is not None
 
-        # Delete the slot
-        db.delete(slot)
-        db.flush()
+        # Delete the availability (clear bitmap bits)
+        from backend.tests._utils.bitmap_seed import clear_week_bits
+        clear_week_bits(db, test_instructor.id, date.today(), weeks=1)
 
         # Booking should still exist (layer independence)
         booking_check = db.get(Booking, booking.id)
         assert booking_check is not None
         assert booking_check.start_time == time(10, 0)
 
+    @pytest.mark.skip(reason="Slot-based repository methods removed - bitmap-only storage now")
     def test_week_operations_without_availability_table(self, db, test_instructor):
-        """Test week operations work without InstructorAvailability table."""
-        week_repo = WeekOperationRepository(db)
-
-        # Create slots for a week
-        today = date.today()
-        week_start = today - timedelta(days=today.weekday())  # Monday
-
-        slots_data = []
-        for i in range(5):  # Mon-Fri
-            slots_data.append(
-                {
-                    "instructor_id": test_instructor.id,
-                    "specific_date": week_start + timedelta(days=i),
-                    "start_time": time(9, 0),
-                    "end_time": time(17, 0),
-                }
-            )
-
-        # Use bulk create
-        created = week_repo.bulk_create_slots(slots_data)
-        assert created == 5
-
-        # Query week slots
-        week_end = week_start + timedelta(days=6)
-        slots = week_repo.get_week_slots(test_instructor.id, week_start, week_end)
-
-        assert len(slots) == 5
-        assert all(isinstance(s, AvailabilitySlot) for s in slots)
+        """DEPRECATED: Slot-based repository methods removed - bitmap-only storage now."""
+        pass
 
 
 class TestRemovedMethodVerification:
@@ -503,7 +372,7 @@ class TestRemovedMethodVerification:
         repositories = [
             AvailabilityRepository(db),
             BookingRepository(db),
-            SlotManagerRepository(db),
+            # SlotManagerRepository removed - bitmap-only storage now
             WeekOperationRepository(db),
             ConflictCheckerRepository(db),
             BulkOperationRepository(db),
@@ -523,38 +392,10 @@ class TestRemovedMethodVerification:
             assert not hasattr(repo, "get_or_create_availability"), f"{repo_name} still has get_or_create_availability"
 
 
+@pytest.mark.skip(reason="AvailabilitySlot model removed - bitmap-only storage now")
 class TestQueryPerformance:
-    """Test that single-table design improves query performance."""
-
-    def test_no_unnecessary_joins(self, db, test_instructor):
-        """Verify queries don't have unnecessary joins."""
-        repo = AvailabilityRepository(db)
-
-        # Create test data
-        for i in range(3):
-            slot = AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=date.today() + timedelta(days=i),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            )
-            db.add(slot)
-        db.flush()
-
-        # Get week availability - should be a simple query
-        with patch.object(repo.logger, "error") as mock_logger:
-            slots = repo.get_week_availability(test_instructor.id, date.today(), date.today() + timedelta(days=6))
-
-            # Should not log any errors about joins
-            mock_logger.assert_not_called()
-
-        assert len(slots) == 3
-        # All slots should have the data directly
-        for slot in slots:
-            assert slot.instructor_id == test_instructor.id
-            assert slot.specific_date is not None
-            assert slot.start_time is not None
-            assert slot.end_time is not None
+    """DEPRECATED: AvailabilitySlot model removed - bitmap-only storage now."""
+    pass
 
 
 class TestArchitecturalInconsistencies:
@@ -601,22 +442,10 @@ class TestArchitecturalInconsistencies:
         # This architectural inconsistency needs resolution
 
 
-# Helper test to check repository exception handling
+@pytest.mark.skip(reason="AvailabilitySlot model removed - bitmap-only storage now")
 def test_repository_exception_handling(db):
-    """Test that repositories properly handle and wrap exceptions."""
-    repo = AvailabilityRepository(db)
-
-    # Test with invalid data that should raise IntegrityError
-    with pytest.raises(RepositoryException) as exc_info:
-        # Try to create duplicate slot
-        repo.create_slot(
-            instructor_id=generate_ulid(),  # Non-existent instructor
-            target_date=date.today(),
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-
-    assert "Failed to create slot" in str(exc_info.value)
+    """DEPRECATED: AvailabilitySlot model removed - bitmap-only storage now."""
+    pass
 
 
 class TestInstructorProfileRepositoryValidation:

@@ -7,22 +7,21 @@ These tests use real services and database to ensure the entire
 flow works correctly.
 """
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy.orm import Session
+from tests._utils.bitmap_avail import seed_day
 
 from app.core.config import settings
-from app.models.availability import AvailabilitySlot
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
-from app.repositories.availability_day_repository import AvailabilityDayRepository
-from app.utils.bitset import bits_from_windows
 
 
 def _seed_bitmap_bits(db: Session, instructor_id: str, target_day: date, windows: list[tuple[str, str]]) -> None:
-    repo = AvailabilityDayRepository(db)
-    repo.upsert_week(instructor_id, [(target_day, bits_from_windows(windows))])
+    """Helper to seed bitmap availability - use seed_day from bitmap_avail instead."""
+    from tests._utils.bitmap_avail import seed_day
+    seed_day(db, instructor_id, target_day, windows)
     db.commit()
 
 
@@ -68,15 +67,12 @@ class TestPublicAvailabilityIntegration:
         today = date.today()
         tomorrow = today + timedelta(days=1)
 
-        # Ensure no pre-existing slots for the target date to avoid conflicts
-        (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.specific_date == tomorrow,
-            )
-            .delete(synchronize_session=False)
-        )
+        # Clear any pre-existing availability for the target date (bitmap storage)
+        from app.models import AvailabilityDay
+        db.query(AvailabilityDay).filter(
+            AvailabilityDay.instructor_id == instructor_id,
+            AvailabilityDay.day_date == tomorrow,
+        ).delete(synchronize_session=False)
         db.commit()
 
         # Step 1: Instructor creates availability for tomorrow
@@ -261,10 +257,7 @@ class TestPublicAvailabilityIntegration:
         )
         assert response.status_code == 200
 
-        AvailabilityDayRepository(db).upsert_week(
-            test_instructor.id,
-            [(tomorrow, bits_from_windows([("09:00:00", "12:00:00")]))],
-        )
+        seed_day(db, test_instructor.id, tomorrow, [("09:00", "12:00")])
         db.commit()
 
         # First public check - should be cached
@@ -317,16 +310,11 @@ class TestPublicAvailabilityIntegration:
         for day_offset in range(days_to_create):
             current_date = start_date + timedelta(days=day_offset)
 
-            # Create 8 one-hour slots per day (9am-5pm)
-            for hour in range(9, 17):
-                slot = AvailabilitySlot(
-                    instructor_id=instructor_id,
-                    specific_date=current_date,
-                    start_time=time(hour, 0),
-                    end_time=time(hour + 1, 0),
-                )
-                db.add(slot)
-                slots_created += 1
+            # Create 8 one-hour windows per day (9am-5pm) using bitmap storage
+            # Actually, create consecutive hourly windows
+            hour_windows = [(f"{hour:02d}:00", f"{hour+1:02d}:00") for hour in range(9, 17)]
+            seed_day(db, instructor_id, current_date, hour_windows)
+            slots_created += len(hour_windows)
 
         db.commit()
 

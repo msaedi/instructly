@@ -21,7 +21,6 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessRuleException, NotFoundException, ValidationException
 from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
@@ -31,6 +30,7 @@ from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
 from app.services.notification_service import NotificationService
+from tests._utils.bitmap_avail import get_day_windows, seed_day
 
 try:  # pragma: no cover - fallback when pytest runs from backend/
     from backend.tests.conftest import add_service_areas_for_boroughs
@@ -72,15 +72,16 @@ class TestBookingServiceErrorHandling:
         )
 
         tomorrow = date.today() + timedelta(days=1)
-        # Get slot directly (single-table design) - FIXED: date → specific_date
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == tomorrow,  # FIXED: date → specific_date
-            )
-            .first()
-        )
+        # Get windows from bitmap storage
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+
+        start_str, end_str = windows[0]
+        from datetime import time as dt_time
+        start_time = dt_time.fromisoformat(start_str)
+        end_time = dt_time.fromisoformat(end_str)
 
         booking_service = BookingService(db, mock_notification_service)
 
@@ -88,8 +89,8 @@ class TestBookingServiceErrorHandling:
         booking_data = BookingCreate(
             instructor_id=test_instructor_with_availability.id,
             booking_date=tomorrow,
-            start_time=slot.start_time,
-            end_time=slot.end_time,
+            start_time=start_time,
+            end_time=end_time,
             selected_duration=60,
             instructor_service_id=service.id,
             location_type="neutral",
@@ -380,15 +381,16 @@ class TestBookingServiceAvailabilityEdgeCases:
         """Test checking availability with non-existent service."""
         tomorrow = date.today() + timedelta(days=1)
 
-        # Get a valid slot to know the available times - FIXED: date → specific_date
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == tomorrow,  # FIXED: date → specific_date
-            )
-            .first()
-        )
+        # Get available windows from bitmap storage
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+
+        start_str, end_str = windows[0] if windows else ("09:00", "10:00")
+        from datetime import time as dt_time
+        start_time = dt_time.fromisoformat(start_str) if windows else time(9, 0)
+        end_time = dt_time.fromisoformat(end_str) if windows else time(10, 0)
 
         booking_service = BookingService(db, mock_notification_service)
 
@@ -396,8 +398,8 @@ class TestBookingServiceAvailabilityEdgeCases:
         result = await booking_service.check_availability(
             instructor_id=test_instructor_with_availability.id,
             booking_date=tomorrow,
-            start_time=slot.start_time if slot else time(9, 0),
-            end_time=slot.end_time if slot else time(10, 0),
+            start_time=start_time,
+            end_time=end_time,
             service_id=generate_ulid(),  # Non-existent service
         )
 
@@ -636,15 +638,10 @@ class TestStudentDoubleBookingPrevention:
         booking_service = BookingService(db, mock_notification_service)
 
         # First booking: Math lesson 10:00-11:00 AM
-        # Get available slot for first instructor
-        _math_slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == tomorrow,
-            )
-            .first()
-        )
+        # Ensure availability exists for first instructor
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "17:00")])
 
         booking1_data = BookingCreate(
             instructor_id=test_instructor_with_availability.id,

@@ -27,7 +27,6 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
@@ -35,6 +34,7 @@ from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
 from app.services.notification_service import NotificationService
+from tests._utils.bitmap_avail import get_day_windows, seed_day
 
 
 @pytest.fixture(autouse=True)
@@ -75,16 +75,19 @@ class TestBookingServiceCreation:
 
         service = active_services[0]
 
-        # Get an available slot for tomorrow directly (single-table design)
+        # Get available windows for tomorrow using bitmap storage
         tomorrow = date.today() + timedelta(days=1)
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == tomorrow,  # Fixed: use specific_date
-            )
-            .first()
-        )
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            # Create default availability if none exists
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+
+        # Use first window for booking
+        start_str, end_str = windows[0]
+        from datetime import time as dt_time
+        start_time = dt_time.fromisoformat(start_str)
+        end_time = dt_time.fromisoformat(end_str)
 
         # Create booking with time-based approach (Work Stream #9)
         booking_service = BookingService(db, mock_notification_service)
@@ -95,9 +98,9 @@ class TestBookingServiceCreation:
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,
             booking_date=tomorrow,
-            start_time=slot.start_time,
+            start_time=start_time,
             selected_duration=selected_duration,
-            end_time=time(slot.start_time.hour + 1, slot.start_time.minute),  # Calculate end time based on duration
+            end_time=end_time,
             location_type="neutral",
             meeting_location="Online",
             student_note="Looking forward to the lesson!",
@@ -149,14 +152,8 @@ class TestBookingServiceCreation:
         # Get a real slot for testing
         tomorrow = date.today() + timedelta(days=1)
 
-        # Create a slot directly (single-table design)
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor_with_inactive_service.id,
-            specific_date=tomorrow,  # Fixed: use specific_date
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-        db.add(slot)
+        # Create availability using bitmap storage
+        seed_day(db, test_instructor_with_inactive_service.id, tomorrow, [("09:00", "10:00")])
         db.flush()
 
         # Now use time-based booking
@@ -164,9 +161,9 @@ class TestBookingServiceCreation:
             instructor_id=test_instructor_with_inactive_service.id,
             instructor_service_id=service.id,
             booking_date=tomorrow,
-            start_time=slot.start_time,
+            start_time=time(9, 0),
             selected_duration=60,
-            end_time=slot.end_time,
+            end_time=time(10, 0),
             location_type="neutral",
         )
 
@@ -254,16 +251,17 @@ class TestBookingServiceCreation:
         profile.min_advance_booking_hours = 48  # 2 days
         db.commit()
 
-        # Try to book tomorrow (less than 48 hours) - query slot directly
+        # Try to book tomorrow (less than 48 hours) - get windows from bitmap storage
         tomorrow = date.today() + timedelta(days=1)
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == tomorrow,  # Fixed: use specific_date
-            )
-            .first()
-        )
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+
+        start_str, end_str = windows[0]
+        from datetime import time as dt_time
+        start_time = dt_time.fromisoformat(start_str)
+        end_time = dt_time.fromisoformat(end_str)
 
         service = (
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
@@ -274,8 +272,8 @@ class TestBookingServiceCreation:
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,
             booking_date=tomorrow,
-            start_time=slot.start_time,
-            end_time=slot.end_time,
+            start_time=start_time,
+            end_time=end_time,
             selected_duration=60,
             location_type="neutral",
         )
@@ -539,16 +537,17 @@ class TestBookingServiceAvailabilityCheck:
         self, db: Session, test_instructor_with_availability: User, mock_notification_service: Mock
     ):
         """Test checking availability for valid time slot."""
-        # Get an available slot directly (single-table design)
+        # Get available windows using bitmap storage
         tomorrow = date.today() + timedelta(days=1)
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == tomorrow,  # Fixed: use specific_date
-            )
-            .first()
-        )
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+
+        start_str, end_str = windows[0]
+        from datetime import time as dt_time
+        start_time = dt_time.fromisoformat(start_str)
+        end_time = dt_time.fromisoformat(end_str)
 
         profile = (
             db.query(InstructorProfile)
@@ -566,8 +565,8 @@ class TestBookingServiceAvailabilityCheck:
             instructor_id=test_instructor_with_availability.id,
             service_id=service.id,
             booking_date=tomorrow,
-            start_time=slot.start_time,
-            end_time=slot.end_time,
+            start_time=start_time,
+            end_time=end_time,
         )
 
         assert result["available"] is True

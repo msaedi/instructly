@@ -19,13 +19,18 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
 from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot
+
+# SlotManager removed - bitmap-only storage now
+# AvailabilitySlot model removed - bitmap-only storage now
 from app.services.conflict_checker import ConflictChecker
-from app.services.slot_manager import SlotManager
+
+# Type stub to prevent ruff errors in deprecated tests
+SlotManager = None  # type: ignore  # noqa: F821
 
 
+@pytest.mark.skip(reason="SlotManager removed - bitmap-only storage now")
 class TestSlotManagerTimeValidation:
-    """Test time validation business logic."""
+    """Test time validation business logic (deprecated)."""
 
     @pytest.fixture
     def service(self):
@@ -105,12 +110,12 @@ class TestSlotManagerTimeValidation:
     def test_slots_can_merge_logic(self, service):
         """Test slot merging logic."""
         # Create mock slots
-        slot1 = Mock(spec=AvailabilitySlot)
+        slot1 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
-        slot2 = Mock(spec=AvailabilitySlot)
+        slot2 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)
         slot2.end_time = time(11, 0)
@@ -165,7 +170,7 @@ class TestSlotManagerCRUDLogic:
         # Mock merge operation
         with patch.object(service, "merge_overlapping_slots") as mock_merge:
             # Mock repository create
-            new_slot = Mock(spec=AvailabilitySlot)
+            new_slot = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
             new_slot.id = generate_ulid()
             new_slot.instructor_id = generate_ulid()
             new_slot.specific_date = date.today()
@@ -196,7 +201,7 @@ class TestSlotManagerCRUDLogic:
     def test_update_slot_business_rules(self, service):
         """Test business rules for slot update."""
         # Mock slot
-        mock_slot = Mock(spec=AvailabilitySlot)
+        mock_slot = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot_id = generate_ulid()
         mock_slot.id = slot_id
         mock_slot.start_time = time(9, 0)
@@ -222,7 +227,7 @@ class TestSlotManagerCRUDLogic:
     def test_delete_slot_business_rules(self, service):
         """Test business rules for slot deletion."""
         # Mock slot
-        mock_slot = Mock(spec=AvailabilitySlot)
+        mock_slot = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot_id = generate_ulid()
         mock_slot.id = slot_id
         mock_slot.instructor_id = generate_ulid()
@@ -266,17 +271,17 @@ class TestSlotManagerMergeLogic:
     def test_merge_overlapping_slots_algorithm(self, service):
         """Test the merging algorithm logic."""
         # Create mock slots
-        slot1 = Mock(spec=AvailabilitySlot)
+        slot1 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
-        slot2 = Mock(spec=AvailabilitySlot)
+        slot2 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)
         slot2.end_time = time(11, 0)
 
-        slot3 = Mock(spec=AvailabilitySlot)
+        slot3 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot3.id = generate_ulid()
         slot3.start_time = time(11, 0)
         slot3.end_time = time(12, 0)
@@ -302,12 +307,12 @@ class TestSlotManagerMergeLogic:
     def test_merge_with_gaps(self, service):
         """Test merging handles gaps correctly."""
         # Create slots with gap
-        slot1 = Mock(spec=AvailabilitySlot)
+        slot1 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
-        slot2 = Mock(spec=AvailabilitySlot)
+        slot2 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot2.id = generate_ulid()
         slot2.start_time = time(11, 0)  # 1 hour gap
         slot2.end_time = time(12, 0)
@@ -328,12 +333,12 @@ class TestSlotManagerMergeLogic:
     def test_merge_always_happens_regardless_of_bookings(self, service):
         """Test that merge always happens (preserve_booked parameter removed)."""
         # Create mock slots
-        slot1 = Mock(spec=AvailabilitySlot)
+        slot1 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
-        slot2 = Mock(spec=AvailabilitySlot)
+        slot2 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)
         slot2.end_time = time(11, 0)
@@ -374,7 +379,7 @@ class TestSlotManagerSplitLogic:
     def test_split_slot_logic(self, service):
         """Test slot splitting business logic."""
         # Mock original slot
-        original_slot = Mock(spec=AvailabilitySlot)
+        original_slot = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot_id = generate_ulid()
         instructor_id = generate_ulid()
         original_slot.id = slot_id
@@ -386,7 +391,7 @@ class TestSlotManagerSplitLogic:
         service.repository.get_slot_by_id = Mock(return_value=original_slot)
 
         # Mock new slot creation
-        new_slot = Mock(spec=AvailabilitySlot)
+        new_slot = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         new_slot.id = generate_ulid()
         new_slot.instructor_id = instructor_id
         new_slot.specific_date = date.today()
@@ -418,7 +423,7 @@ class TestSlotManagerSplitLogic:
     def test_split_slot_validation(self, service):
         """Test split validation only checks time boundaries."""
         # Mock slot
-        mock_slot = Mock(spec=AvailabilitySlot)
+        mock_slot = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         mock_slot.start_time = time(9, 0)
         mock_slot.end_time = time(10, 0)
 
@@ -474,17 +479,17 @@ class TestSlotManagerGapAnalysis:
     def test_find_gaps_algorithm(self, service):
         """Test gap finding algorithm."""
         # Create mock slots with gaps
-        slot1 = Mock(spec=AvailabilitySlot)
+        slot1 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
-        slot2 = Mock(spec=AvailabilitySlot)
+        slot2 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot2.id = generate_ulid()
         slot2.start_time = time(11, 0)  # 1 hour gap
         slot2.end_time = time(12, 0)
 
-        slot3 = Mock(spec=AvailabilitySlot)
+        slot3 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot3.id = generate_ulid()
         slot3.start_time = time(14, 0)  # 2 hour gap
         slot3.end_time = time(15, 0)
@@ -514,12 +519,12 @@ class TestSlotManagerGapAnalysis:
     def test_find_gaps_with_minimum_size(self, service):
         """Test gap finding respects minimum size."""
         # Create slots with small gap
-        slot1 = Mock(spec=AvailabilitySlot)
+        slot1 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(9, 45)
 
-        slot2 = Mock(spec=AvailabilitySlot)
+        slot2 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)  # 15 minute gap
         slot2.end_time = time(11, 0)
@@ -662,7 +667,7 @@ class TestSlotManagerMissingCoverage:
     def test_update_slot_no_changes(self, service):
         """Test update_slot when no new values provided (covers early return)."""
         # Mock slot
-        mock_slot = Mock(spec=AvailabilitySlot)
+        mock_slot = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         mock_slot.id = generate_ulid()
         mock_slot.start_time = time(9, 0)
         mock_slot.end_time = time(10, 0)
@@ -697,7 +702,7 @@ class TestSlotManagerMissingCoverage:
 
     def test_merge_slots_with_single_slot(self, service):
         """Test merge with only one slot (covers early return)."""
-        single_slot = Mock(spec=AvailabilitySlot)
+        single_slot = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         service.repository.get_slots_by_date_ordered.return_value = [single_slot]
 
         result = service.merge_overlapping_slots(instructor_id=generate_ulid(), target_date=date.today())
@@ -715,12 +720,12 @@ class TestSlotManagerMissingCoverage:
 
     def test_slots_can_merge_with_exact_adjacency(self, service):
         """Test merging slots that are exactly adjacent (no gap)."""
-        slot1 = Mock(spec=AvailabilitySlot)
+        slot1 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
-        slot2 = Mock(spec=AvailabilitySlot)
+        slot2 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)  # Exactly adjacent
         slot2.end_time = time(11, 0)
@@ -755,12 +760,12 @@ class TestSlotManagerEdgeCases:
     def test_merge_with_overlapping_slots(self, service):
         """Test merging when slots overlap (not just adjacent)."""
         # Create overlapping slots
-        slot1 = Mock(spec=AvailabilitySlot)
+        slot1 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 30)  # Overlaps with slot2
 
-        slot2 = Mock(spec=AvailabilitySlot)
+        slot2 = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)  # Starts before slot1 ends
         slot2.end_time = time(11, 0)
@@ -780,7 +785,7 @@ class TestSlotManagerEdgeCases:
 
     def test_find_gaps_single_slot(self, service):
         """Test gap finding with only one slot (no gaps possible)."""
-        single_slot = Mock(spec=AvailabilitySlot)
+        single_slot = {"id": None, "start_time": None, "end_time": None}  # Deprecated - was Mock(spec=AvailabilitySlot)
         single_slot.start_time = time(9, 0)
         single_slot.end_time = time(10, 0)
 

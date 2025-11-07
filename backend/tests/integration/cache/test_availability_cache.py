@@ -30,12 +30,12 @@ def test_availability_timing(db: Session, test_instructor_with_availability: Use
     # Step 1: Get current availability using helper
     print("\n1. Fetching current availability...")
     original_data = helper.get_week_availability(instructor_id=instructor.id, week_start=next_monday)
-    # Count total slots across all days
-    total_slots = sum(len(day_data.get("slots", [])) for day_data in original_data.get("days", []))
-    print(f"   Original slots: {total_slots}")
+    # Count total windows across all days (bitmap storage)
+    total_windows = sum(len(day_data.get("windows", day_data.get("slots", []))) for day_data in original_data.get("days", []))
+    print(f"   Original windows: {total_windows}")
 
     # Step 2: Prepare test data
-    test_slots = [
+    test_windows = [
         {
             "start_time": "09:00:00",
             "end_time": "12:00:00",
@@ -51,7 +51,7 @@ def test_availability_timing(db: Session, test_instructor_with_availability: Use
     save_start = time.time()
 
     result = helper.set_day_availability(
-        instructor_id=instructor.id, date=next_monday, slots=test_slots, clear_existing=True
+        instructor_id=instructor.id, date=next_monday, slots=test_windows, clear_existing=True
     )
 
     save_duration = time.time() - save_start
@@ -59,8 +59,8 @@ def test_availability_timing(db: Session, test_instructor_with_availability: Use
     print(f"   Save successful: {result.get('success', True)}")
 
     if result:
-        saved_slots = result.get("slots", [])
-        print(f"   Saved {len(saved_slots)} slots")
+        saved_windows = result.get("windows", result.get("slots", []))
+        print(f"   Saved {len(saved_windows)} windows")
 
     # Step 4: Test immediate and delayed fetches
     print("\n3. Testing fetch timing...")
@@ -75,14 +75,14 @@ def test_availability_timing(db: Session, test_instructor_with_availability: Use
         data = helper.get_day_availability(instructor_id=instructor.id, date=next_monday)
         fetch_duration = time.time() - fetch_start
 
-        monday_slots = data.get("slots", [])
-        print(f"   After {delay}s delay: {len(monday_slots)} slots (fetch took {fetch_duration:.3f}s)")
-        if len(monday_slots) > 0:
-            print(f"     First slot: {monday_slots[0]['start_time']} - {monday_slots[0]['end_time']}")
+        monday_windows = data.get("windows", data.get("slots", []))
+        print(f"   After {delay}s delay: {len(monday_windows)} windows (fetch took {fetch_duration:.3f}s)")
+        if len(monday_windows) > 0:
+            print(f"     First window: {monday_windows[0]['start_time']} - {monday_windows[0]['end_time']}")
 
     # Final verification
-    assert len(monday_slots) == 2, f"Expected 2 slots, got {len(monday_slots)}"
-    assert monday_slots[0]["start_time"] == "09:00:00", "First slot time mismatch"
+    assert len(monday_windows) == 2, f"Expected 2 windows, got {len(monday_windows)}"
+    assert monday_windows[0]["start_time"] == "09:00:00", "First window time mismatch"
 
 
 def test_cache_invalidation(db: Session, test_instructor_with_availability: User):
@@ -121,12 +121,12 @@ def test_cache_invalidation(db: Session, test_instructor_with_availability: User
     # Fetch again (should get fresh data, not cached)
     print("\n4. Fetching after update...")
     data2 = helper.get_day_availability(instructor_id=instructor.id, date=test_date)
-    slots2 = data2.get("slots", [])
-    print(f"   Got {len(slots2)} slots")
+    windows2 = data2.get("windows", data2.get("slots", []))
+    print(f"   Got {len(windows2)} windows")
 
     # Verify cache was invalidated
-    assert len(slots2) == 2, f"Expected 2 slots after update, got {len(slots2)}"
-    assert slots2[0]["start_time"] == "14:00:00", "Cache not properly invalidated"
+    assert len(windows2) == 2, f"Expected 2 windows after update, got {len(windows2)}"
+    assert windows2[0]["start_time"] == "14:00:00", "Cache not properly invalidated"
 
     print("\n✅ Cache invalidation working correctly!")
 

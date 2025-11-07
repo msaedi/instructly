@@ -44,7 +44,8 @@ if TYPE_CHECKING:
     from .search_event_repository import SearchEventRepository
     from .search_history_repository import SearchHistoryRepository
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
-    from .slot_manager_repository import SlotManagerRepository
+
+    # SlotManagerRepository removed - bitmap-only storage now
     from .user_repository import UserRepository
     from .week_operation_repository import WeekOperationRepository
 
@@ -71,12 +72,7 @@ class RepositoryFactory:
         """
         return BaseRepository(db, model)
 
-    @staticmethod
-    def create_slot_manager_repository(db: Session) -> "SlotManagerRepository":
-        """Create repository for slot management operations."""
-        from .slot_manager_repository import SlotManagerRepository
-
-        return SlotManagerRepository(db)
+    # create_slot_manager_repository removed - SlotManagerRepository deleted (bitmap-only storage)
 
     @staticmethod
     def create_availability_repository(db: Session) -> "AvailabilityRepository":

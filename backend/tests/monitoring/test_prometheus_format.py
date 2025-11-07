@@ -119,13 +119,43 @@ class TestPrometheusFormat:
                 else:
                     pytest.fail(f"No buckets found for histogram {family.name}")
 
+    def _parse(self, text: str):
+        """Parse Prometheus metrics text into metric families."""
+        return list(text_string_to_metric_families(text))
+
+    def _as_map(self, families):
+        """Convert metric families to a map of metric_name -> value."""
+        result = {}
+        for family in families:
+            for sample in family.samples:
+                # Use the full sample name (includes _total suffix if present)
+                key = sample.name
+                # For metrics with labels, we could include labels in the key
+                # but for simple counters without labels, just use the name
+                if not sample.labels:
+                    result[key] = sample.value
+                else:
+                    # For metrics with labels, create a key with labels
+                    # For scrape counter, it should have no labels or minimal labels
+                    if key == "instainstru_prometheus_scrapes_total" or key == "instainstru_prometheus_scrapes":
+                        result[key] = sample.value
+                    # For other metrics, use the first sample value (or aggregate)
+                    elif key not in result:
+                        result[key] = sample.value
+        return result
+
     def test_counter_metrics_increment(self, client):
         """Test that counter metrics increment correctly"""
         # Get initial metrics
-        response1 = client.get("/metrics/prometheus")
+        resp1 = client.get("/metrics/prometheus")
+        m1 = self._as_map(self._parse(resp1.text))
 
-        # Parse initial state
-        families1 = {f.name: f for f in text_string_to_metric_families(response1.text)}
+        # Get metrics again (this increments the scrape counter)
+        resp2 = client.get("/metrics/prometheus")
+        m2 = self._as_map(self._parse(resp2.text))
+
+        # Assert on the scrape counter that always increments
+        assert m2["instainstru_prometheus_scrapes_total"] == m1["instainstru_prometheus_scrapes_total"] + 1
 
         # Make some requests to increment counters
         client.get("/health")
@@ -138,14 +168,16 @@ class TestPrometheusFormat:
         # Check that request counter increased (using correct metric name)
         http_metric_name = (
             "instainstru_http_requests_total"
-            if "instainstru_http_requests_total" in families1
+            if "instainstru_http_requests_total" in m1
             else "instainstru_http_requests"
         )
-        if http_metric_name in families1 and http_metric_name in families2:
+        if http_metric_name in m1 and http_metric_name in families2:
             # Find samples for /health endpoint
             samples1 = {
                 (s.labels.get("endpoint"), s.labels.get("status_code")): s.value
-                for s in families1[http_metric_name].samples
+                for f in self._parse(resp1.text)
+                for s in f.samples
+                if f.name == http_metric_name
             }
             samples2 = {
                 (s.labels.get("endpoint"), s.labels.get("status_code")): s.value

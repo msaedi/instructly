@@ -34,7 +34,8 @@ from ...services.presentation_service import PresentationService
 from ...services.pricing_service import PricingService
 from ...services.referral_checkout_service import ReferralCheckoutService
 from ...services.referral_service import ReferralService
-from ...services.slot_manager import SlotManager
+
+# SlotManager removed - bitmap-only storage now
 from ...services.two_factor_auth_service import TwoFactorAuthService
 from ...services.wallet_service import WalletService
 from ...services.week_operation_service import WeekOperationService
@@ -183,21 +184,7 @@ def get_conflict_checker(db: Session = Depends(get_db)) -> ConflictChecker:
     return ConflictChecker(db)
 
 
-def get_slot_manager(
-    db: Session = Depends(get_db),
-    conflict_checker: ConflictChecker = Depends(get_conflict_checker),
-) -> SlotManager:
-    """
-    Get slot manager service instance.
-
-    Args:
-        db: Database session
-        conflict_checker: Conflict checker service
-
-    Returns:
-        SlotManager instance
-    """
-    return SlotManager(db, conflict_checker)
+# get_slot_manager removed - SlotManager service deleted (bitmap-only storage)
 
 
 def get_referral_service(db: Session = Depends(get_db)) -> ReferralService:
@@ -305,7 +292,6 @@ def get_week_operation_service(
 
 def get_bulk_operation_service(
     db: Session = Depends(get_db),
-    slot_manager: SlotManager = Depends(get_slot_manager),
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
     cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> BulkOperationService:
@@ -314,13 +300,15 @@ def get_bulk_operation_service(
 
     Args:
         db: Database session
-        slot_manager: Slot manager service
         conflict_checker: Conflict checker service
+        cache_service: Cache service
 
     Returns:
         BulkOperationService instance
     """
-    return BulkOperationService(db, slot_manager, conflict_checker, cache_service)
+    return BulkOperationService(
+        db, slot_manager=None, conflict_checker=conflict_checker, cache_service=cache_service
+    )
 
 
 def get_presentation_service(db: Session = Depends(get_db)) -> PresentationService:

@@ -18,7 +18,7 @@ from datetime import date, time, timedelta
 
 import pytest
 
-from app.models.availability import AvailabilitySlot, BlackoutDate
+from app.models.availability import BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.service_catalog import InstructorService as Service
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -26,8 +26,10 @@ from app.schemas.availability_window import SpecificDateAvailabilityCreate
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
 from app.services.conflict_checker import ConflictChecker
-from app.services.slot_manager import SlotManager
+
+# SlotManager removed - bitmap-only storage now
 from app.utils.bitset import bits_from_windows
+from tests._utils.bitmap_avail import get_day_windows, seed_day
 
 
 # Fixtures for services
@@ -39,8 +41,8 @@ def availability_service(db):
 
 @pytest.fixture
 def slot_manager(db):
-    """Create SlotManager instance."""
-    return SlotManager(db)
+    """SlotManager removed - bitmap-only storage now."""
+    pytest.skip("SlotManager removed - bitmap-only storage now")
 
 
 @pytest.fixture
@@ -114,12 +116,16 @@ class TestAvailabilityService:
             instructor_id=test_instructor.id, availability_data=availability_data
         )
 
-        # Verify result is an AvailabilitySlot
+        # Verify result is a dict with availability details
         assert result is not None
-        assert result.instructor_id == test_instructor.id
-        assert result.specific_date == test_date
-        assert result.start_time == time(10, 0)
-        assert result.end_time == time(12, 0)
+        assert result["instructor_id"] == test_instructor.id
+        assert result["specific_date"] == test_date
+        assert result["start_time"] == time(10, 0)
+        assert result["end_time"] == time(12, 0)
+
+        # Verify bitmap storage
+        windows = get_day_windows(availability_service.db, test_instructor.id, test_date)
+        assert len(windows) >= 1
 
     def test_blackout_dates(self, availability_service, test_instructor):
         """Test blackout date operations."""
@@ -155,8 +161,9 @@ class TestAvailabilityService:
         assert not any(b.date == blackout_date for b in blackouts_after_delete)
 
 
+@pytest.mark.skip(reason="SlotManager removed - bitmap-only storage now")
 class TestSlotManager:
-    """Test SlotManager service."""
+    """Test SlotManager service (deprecated)."""
 
     def test_create_slot_basic(self, slot_manager, test_instructor):
         """Test basic slot creation."""
@@ -210,9 +217,12 @@ class TestSlotManager:
 
         assert success is True
 
-        # Verify it's deleted
-        deleted_slot = db.query(AvailabilitySlot).filter_by(id=slot_id).first()
-        assert deleted_slot is None
+        # Verify deletion using bitmap helpers
+        from tests._utils.bitmap_avail import get_day_windows
+
+        windows = get_day_windows(db, test_instructor.id, test_date)
+        # Window should be removed
+        assert len(windows) == 0
 
     def test_update_slot(self, slot_manager, db, test_instructor):
         """Test slot update."""
@@ -249,18 +259,12 @@ class TestSlotManager:
             auto_merge=True,
         )
 
-        # Should merge into one slot
-        slots = db.query(AvailabilitySlot).filter_by(instructor_id=test_instructor.id, specific_date=test_date).all()
+        # Verify merged windows using bitmap helpers
+        from tests._utils.bitmap_avail import get_day_windows
 
-        # Depending on implementation, might be 1 merged slot or 2 separate
-        # Document actual behavior
-        if len(slots) == 1:
-            # Merged
-            assert slots[0].start_time == time(9, 0)
-            assert slots[0].end_time == time(11, 0)
-        else:
-            # Not merged
-            assert len(slots) == 2
+        windows = get_day_windows(db, test_instructor.id, test_date)
+        # Should have merged windows (bitmap automatically handles overlaps)
+        assert len(windows) >= 1
 
 
 class TestConflictChecker:
@@ -270,12 +274,8 @@ class TestConflictChecker:
         """Test availability check when no conflicts exist."""
         test_date = date.today() + timedelta(days=7)
 
-        # Create an available slot
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=test_date, start_time=time(9, 0), end_time=time(17, 0)
-        )
-        db.add(slot)
-        db.commit()
+        # Create availability using bitmap storage
+        seed_day(db, test_instructor.id, test_date, [("09:00", "17:00")])
 
         # Check for conflicts - should return False (no conflicts)
         has_conflicts = conflict_checker.check_time_conflicts(
@@ -288,11 +288,8 @@ class TestConflictChecker:
         """Test conflict checking with single-table design."""
         test_date = date.today() + timedelta(days=7)
 
-        # Create an available slot
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=test_date, start_time=time(9, 0), end_time=time(11, 0)
-        )
-        db.add(slot)
+        # Create availability using bitmap storage
+        seed_day(db, test_instructor.id, test_date, [("09:00", "11:00")])
 
         # Get instructor profile first
         from app.models.instructor import InstructorProfile
@@ -323,11 +320,8 @@ class TestConflictChecker:
         """Test availability check with existing booking."""
         test_date = date.today() + timedelta(days=7)
 
-        # Create an available slot
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=test_date, start_time=time(9, 0), end_time=time(17, 0)
-        )
-        db.add(slot)
+        # Create availability using bitmap storage
+        seed_day(db, test_instructor.id, test_date, [("09:00", "17:00")])
 
         # Get instructor profile
         from app.models.instructor import InstructorProfile

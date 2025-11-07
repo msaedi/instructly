@@ -15,15 +15,23 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import logging
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, TypedDict
 
-from sqlalchemy import Table
+from sqlalchemy import Table, and_, delete, func, select, tuple_
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
-from ..metrics import retention_metrics
+from app.core.config import settings
+from app.models.availability_day import AvailabilityDay
+from app.models.booking import Booking
+from app.services.retention_metrics import (
+    availability_days_purged_total,
+    availability_retention_run_seconds,
+)
+
+from ..metrics import retention_metrics as soft_delete_retention_metrics
 from ..repositories.retention_repository import RetentionRepository
 from .base import BaseService
 from .cache_service import CacheService
@@ -250,12 +258,12 @@ class RetentionService(BaseService):
                 break
 
             try:
-                with retention_metrics.time_chunk(table.name):
+                with soft_delete_retention_metrics.time_chunk(table.name):
                     with self.transaction():
                         deleted_rows = self.retention_repository.delete_rows(table, pk_column, ids)
-                retention_metrics.inc_total(table.name, deleted_rows)
+                soft_delete_retention_metrics.inc_total(table.name, deleted_rows)
             except Exception:
-                retention_metrics.inc_error(table.name)
+                soft_delete_retention_metrics.inc_error(table.name)
                 raise
 
             total_deleted += deleted_rows
@@ -280,3 +288,115 @@ class RetentionService(BaseService):
                 self.cache_service.clear_prefix(prefix)
             except Exception as exc:  # pragma: no cover - cache backend issues
                 logger.warning("Failed to clear cache prefix %s: %s", prefix, exc)
+
+    @BaseService.measure_operation("purge_availability_days")
+    def purge_availability_days(
+        self,
+        session: Optional[Session] = None,
+        *,
+        today: Optional[date] = None,
+    ) -> "RetentionResult":
+        """
+        Delete orphaned AvailabilityDay rows according to bitmap retention policy.
+
+        Rows are purged only when:
+            * availability_retention_enabled is true
+            * day_date is in the past
+            * day_date is older than both the TTL window and the keep-recent buffer
+            * no bookings exist for the instructor on that date
+        """
+
+        ttl_days = max(0, settings.availability_retention_days)
+        keep_recent_days = max(0, settings.availability_retention_keep_recent_days)
+        dry_run = bool(settings.availability_retention_dry_run)
+        base_today = today or datetime.now(timezone.utc).date()
+        result: RetentionResult = {
+            "inspected_days": 0,
+            "purged_days": 0,
+            "ttl_days": ttl_days,
+            "keep_recent_days": keep_recent_days,
+            "dry_run": dry_run,
+            "cutoff_date": base_today,
+        }
+
+        if not settings.availability_retention_enabled:
+            return result
+
+        db = session or self.db
+        ttl_cutoff = base_today - timedelta(days=ttl_days)
+        keep_recent_cutoff = base_today - timedelta(days=keep_recent_days)
+        effective_cutoff = min(ttl_cutoff, keep_recent_cutoff)
+        result["cutoff_date"] = effective_cutoff
+
+        has_booking = (
+            select(Booking.id)
+            .where(
+                and_(
+                    Booking.instructor_id == AvailabilityDay.instructor_id,
+                    Booking.booking_date == AvailabilityDay.day_date,
+                )
+            )
+            .exists()
+        )
+
+        candidates_subquery = (
+            select(
+                AvailabilityDay.instructor_id.label("instructor_id"),
+                AvailabilityDay.day_date.label("day_date"),
+            )
+            .where(
+                and_(
+                    AvailabilityDay.day_date < base_today,
+                    AvailabilityDay.day_date < ttl_cutoff,
+                    AvailabilityDay.day_date <= keep_recent_cutoff,
+                    ~has_booking,
+                )
+            )
+            .subquery()
+        )
+
+        purged = 0
+        with availability_retention_run_seconds.time():
+            inspected = db.execute(
+                select(func.count()).select_from(candidates_subquery)
+            ).scalar_one()
+            if inspected and not dry_run:
+                delete_statement = delete(AvailabilityDay).where(
+                    tuple_(AvailabilityDay.instructor_id, AvailabilityDay.day_date).in_(
+                        select(candidates_subquery.c.instructor_id, candidates_subquery.c.day_date)
+                    )
+                )
+                delete_result = db.execute(delete_statement)
+                purged = delete_result.rowcount or 0
+                if purged:
+                    db.commit()
+        result["inspected_days"] = inspected
+
+        result["purged_days"] = purged
+
+        logger.info(
+            "availability_retention: inspected=%s purged=%s cutoff=%s ttl=%s keep_recent=%s dry_run=%s",
+            inspected,
+            purged,
+            effective_cutoff.isoformat(),
+            ttl_days,
+            keep_recent_days,
+            dry_run,
+        )
+
+        site_mode_label = (settings.site_mode or "unknown").strip() or "unknown"
+        try:
+            availability_days_purged_total.labels(site_mode=site_mode_label).inc(purged)
+        except Exception:
+            logger.debug("availability_retention: metrics not registered")
+
+        return result
+
+
+class RetentionResult(TypedDict):
+    inspected_days: int
+    purged_days: int
+    ttl_days: int
+    keep_recent_days: int
+    dry_run: bool
+    cutoff_date: date

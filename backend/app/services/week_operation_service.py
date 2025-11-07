@@ -3,7 +3,7 @@
 Week Operation Service for InstaInstru Platform
 
 Handles complex operations that work with entire weeks of availability data
-using the single-table design where AvailabilitySlots contain instructor_id
+using bitmap storage in availability_days table
 and date directly.
 
 Note: Some methods are async because they perform cache warming operations
@@ -18,8 +18,7 @@ FIXED IN THIS VERSION:
 - Service now achieves 9/10 quality
 """
 
-from collections import defaultdict
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 import logging
 import os
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
@@ -33,12 +32,10 @@ from ..models.audit_log import AuditLog
 from ..monitoring.availability_perf import COPY_WEEK_ENDPOINT, availability_perf_span
 from ..repositories.factory import RepositoryFactory
 from ..utils.bitset import new_empty_bits, windows_from_bits
-from ..utils.time_helpers import string_to_time
 from .audit_redaction import redact
 from .base import BaseService
 
 if TYPE_CHECKING:
-    from ..models.availability import AvailabilitySlot
     from ..repositories.audit_repository import AuditRepository
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.week_operation_repository import WeekOperationRepository
@@ -166,7 +163,7 @@ class WeekOperationService(BaseService):
                         )
                         result["_metadata"] = {
                             "operation": "week_copy_bitmap",
-                            "slots_created": 0,
+                            "windows_created": 0,
                             "message": "Week copy skipped: source week has no availability bits.",
                         }
                         return result
@@ -239,7 +236,9 @@ class WeekOperationService(BaseService):
                 )
                 result["_metadata"] = {
                     "operation": "week_copy_bitmap",
-                    "slots_created": days_written,
+                    "windows_copied": days_written,
+                    "windows_created": days_written,
+                    "days_written": days_written,
                     "message": f"Week copied successfully. {days_written} day bitmaps copied.",
                 }
                 self.logger.info(
@@ -253,63 +252,10 @@ class WeekOperationService(BaseService):
                 )
                 return result
 
-            with self.transaction():
-                # Get target week dates and existing slots (before clearing)
-                target_week_dates = self.calculate_week_dates(to_week_start)
-                before_payload = self._build_copy_audit_payload(
-                    instructor_id,
-                    to_week_start,
-                    source_week_start=from_week_start,
-                    created=0,
-                    deleted=0,
-                )
-                existing_target_slots = self.repository.get_week_slots(
-                    instructor_id, to_week_start, to_week_start + timedelta(days=6)
-                )
-
-                # Clear existing slots
-                deleted_count = self._clear_week_slots(instructor_id, target_week_dates)
-
-                # Copy slots from source to target
-                created_count = self._copy_slots_between_weeks(
-                    instructor_id,
-                    from_week_start,
-                    to_week_start,
-                    existing_target_slots=existing_target_slots,
-                )
-                self._enqueue_week_copy_event(
-                    instructor_id,
-                    from_week_start,
-                    to_week_start,
-                    target_week_dates,
-                    created_count,
-                    deleted_count,
-                )
-                self.repository.flush()
-                after_payload = self._build_copy_audit_payload(
-                    instructor_id,
-                    to_week_start,
-                    source_week_start=from_week_start,
-                    created=created_count,
-                    deleted=deleted_count,
-                )
-                self._write_copy_audit(
-                    instructor_id,
-                    to_week_start,
-                    actor=actor,
-                    before=before_payload,
-                    after=after_payload,
-                )
-
-            # Ensure SQLAlchemy session is fresh
-            self.db.expire_all()
-
-            # Warm cache with new data
-            result = await self._warm_cache_and_get_result(
-                instructor_id, to_week_start, created_count
+            # Slot-based fallback removed - bitmap-only storage now
+            raise NotImplementedError(
+                "Slot-based operations removed. All availability operations must use bitmap storage."
             )
-
-            return result
 
     @BaseService.measure_operation("apply_pattern")  # METRICS ADDED
     async def apply_pattern_to_date_range(
@@ -345,53 +291,13 @@ class WeekOperationService(BaseService):
             date_range=f"{start_date} to {end_date}",
         )
 
-        use_bitmap = False
-        availability_module = type(self.availability_service).__module__
-        availability_is_mock = availability_module.startswith("unittest.mock")
-        has_bitmap_rows = False
-        if not availability_is_mock:
-            try:
-                bitmap_repo = self.availability_service._bitmap_repo()
-                has_bitmap_rows = bool(bitmap_repo.get_week_rows(instructor_id, from_week_start))
-            except Exception:
-                has_bitmap_rows = False
-
-        if has_bitmap_rows:
-            use_bitmap = True
-
-        if use_bitmap:
-            return await self._apply_pattern_to_date_range_bitmap(
-                instructor_id=instructor_id,
-                from_week_start=from_week_start,
-                start_date=start_date,
-                end_date=end_date,
-                actor=actor,
-            )
-
-        # Get source week pattern
-        week_pattern = self._extract_week_pattern_from_source(instructor_id, from_week_start)
-
-        with self.transaction():
-            # Get all dates in range
-            all_dates = self._get_date_range(start_date, end_date)
-
-            # Clear existing slots
-            self._clear_date_range_slots(instructor_id, all_dates)
-
-            # Apply pattern to date range
-            created_count, dates_with_slots = self._apply_pattern_to_dates(
-                instructor_id, week_pattern, start_date, end_date
-            )
-
-        # Ensure SQLAlchemy session is fresh
-        self.db.expire_all()
-
-        # Warm cache for affected weeks
-        if self.cache_service and created_count > 0:
-            await self._warm_cache_for_affected_weeks(instructor_id, start_date, end_date)
-
-        return self._format_pattern_application_result(
-            all_dates, dates_with_slots, created_count, start_date, end_date
+        # Bitmap-only path - no legacy fallback
+        return await self._apply_pattern_to_date_range_bitmap(
+            instructor_id=instructor_id,
+            from_week_start=from_week_start,
+            start_date=start_date,
+            end_date=end_date,
+            actor=actor,
         )
 
     @BaseService.measure_operation("calculate_week_dates")  # METRICS ADDED
@@ -436,156 +342,22 @@ class WeekOperationService(BaseService):
             self.logger.warning(f"Target week start {to_week_start} is not a Monday")
 
     def _clear_week_slots(self, instructor_id: str, week_dates: List[date]) -> int:
-        """Clear all existing slots from a week."""
-        with availability_perf_span(
-            "repository.delete_slots_by_dates",
-            endpoint=COPY_WEEK_ENDPOINT,
-            instructor_id=instructor_id,
-        ):
-            deleted_count = self.availability_repository.delete_slots_by_dates(
-                instructor_id, week_dates
-            )
-        self.logger.debug(f"Deleted {deleted_count} existing slots from target week")
-        return deleted_count
+        """DEPRECATED: Slot-based method removed. Use bitmap operations only."""
+        raise NotImplementedError(
+            "Slot-based operations removed. All availability operations must use bitmap storage."
+        )
 
     def _copy_slots_between_weeks(
         self,
         instructor_id: str,
         from_week_start: date,
         to_week_start: date,
-        existing_target_slots: Optional[List["AvailabilitySlot"]] = None,
+        existing_target_slots: Optional[List[dict[str, Any]]] = None,
     ) -> int:
-        """Copy slots from source week to target week."""
-        # Get source week slots
-        with availability_perf_span(
-            "repository.get_week_slots",
-            endpoint=COPY_WEEK_ENDPOINT,
-            instructor_id=instructor_id,
-        ):
-            source_slots = self.repository.get_week_slots(
-                instructor_id, from_week_start, from_week_start + timedelta(days=6)
-            )
-
-        existing_by_date: Dict[date, List["AvailabilitySlot"]] = defaultdict(list)
-        if existing_target_slots:
-            for slot in existing_target_slots:
-                existing_by_date[slot.specific_date].append(slot)
-
-        def _duration_minutes(start_time: time, end_time: time) -> int:
-            return (end_time.hour * 60 + end_time.minute) - (
-                start_time.hour * 60 + start_time.minute
-            )
-
-        # Prepare new slots with updated dates
-        candidate_slots: List[Dict[str, Any]] = []
-        for slot in source_slots:
-            # Calculate the day offset
-            day_offset = (slot.specific_date - from_week_start).days
-            new_date = to_week_start + timedelta(days=day_offset)
-
-            candidate_slots.append(
-                {
-                    "instructor_id": instructor_id,
-                    "specific_date": new_date,
-                    "start_time": slot.start_time,
-                    "end_time": slot.end_time,
-                    "_duration": _duration_minutes(slot.start_time, slot.end_time),
-                }
-            )
-
-        # Sort so that longer slots are evaluated first per date to prevent contained duplicates
-        candidate_slots.sort(
-            key=lambda slot: (slot["specific_date"], slot["start_time"], -slot["_duration"])
+        """DEPRECATED: Slot-based method removed. Use bitmap operations only."""
+        raise NotImplementedError(
+            "Slot-based operations removed. All availability operations must use bitmap storage."
         )
-
-        preserved_slots: List[Dict[str, Any]] = []
-        preserved_seen: Set[Tuple[date, time, time]] = set()
-        accepted_by_date: Dict[date, List[Dict[str, Any]]] = defaultdict(list)
-        final_new_slots: List[Dict[str, Any]] = []
-
-        for candidate in candidate_slots:
-            candidate_date = candidate["specific_date"]
-            start_time = candidate["start_time"]
-            end_time = candidate["end_time"]
-
-            # Skip if contained by existing slot (preserve existing instead of inserting)
-            containing_existing = next(
-                (
-                    slot
-                    for slot in existing_by_date.get(candidate_date, [])
-                    if slot.start_time <= start_time and end_time <= slot.end_time
-                ),
-                None,
-            )
-            if containing_existing:
-                key = (
-                    containing_existing.specific_date,
-                    containing_existing.start_time,
-                    containing_existing.end_time,
-                )
-                if key not in preserved_seen:
-                    preserved_seen.add(key)
-                    preserved_slots.append(
-                        {
-                            "instructor_id": containing_existing.instructor_id,
-                            "specific_date": containing_existing.specific_date,
-                            "start_time": containing_existing.start_time,
-                            "end_time": containing_existing.end_time,
-                        }
-                    )
-                continue
-
-            # Remove any existing slots fully contained by this new slot (they will be replaced)
-            if existing_by_date.get(candidate_date):
-                remaining = []
-                for slot in existing_by_date[candidate_date]:
-                    if start_time <= slot.start_time and slot.end_time <= end_time:
-                        continue
-                    remaining.append(slot)
-                existing_by_date[candidate_date] = remaining
-
-            # Skip if another candidate already covers this interval
-            if any(
-                accepted["start_time"] <= start_time and end_time <= accepted["end_time"]
-                for accepted in accepted_by_date[candidate_date]
-            ):
-                continue
-
-            accepted_by_date[candidate_date].append(candidate)
-            final_new_slots.append(candidate)
-
-        slots_to_create: List[Dict[str, Any]] = []
-        slots_to_create.extend(
-            {
-                "instructor_id": slot_data["instructor_id"],
-                "specific_date": slot_data["specific_date"],
-                "start_time": slot_data["start_time"],
-                "end_time": slot_data["end_time"],
-            }
-            for slot_data in preserved_slots
-        )
-        slots_to_create.extend(
-            {
-                "instructor_id": slot_data["instructor_id"],
-                "specific_date": slot_data["specific_date"],
-                "start_time": slot_data["start_time"],
-                "end_time": slot_data["end_time"],
-            }
-            for slot_data in final_new_slots
-        )
-
-        # Bulk create new slots
-        if slots_to_create:
-            with availability_perf_span(
-                "repository.bulk_create_slots",
-                endpoint=COPY_WEEK_ENDPOINT,
-                instructor_id=instructor_id,
-            ):
-                created_count = self.repository.bulk_create_slots(slots_to_create)
-            self.logger.info(f"Created {created_count} slots in target week")
-            return created_count
-        else:
-            return 0
 
     def _enqueue_week_copy_event(
         self,
@@ -684,13 +456,15 @@ class WeekOperationService(BaseService):
             role_value = default_role
         return {"id": actor_id, "role": str(role_value)}
 
-    def _week_slot_counts(self, instructor_id: str, week_start: date) -> dict[str, int]:
-        """Return slot counts per day for the target week."""
+    def _week_window_counts(self, instructor_id: str, week_start: date) -> dict[str, int]:
+        """Return window counts per day for the target week using bitmap storage."""
         week_dates = [week_start + timedelta(days=offset) for offset in range(7)]
         counts: dict[str, int] = {}
+        bitmap_repo = self.availability_service._bitmap_repo()
         for day in week_dates:
-            slots = self.availability_repository.get_slots_by_date(instructor_id, day)
-            counts[day.isoformat()] = len(slots)
+            bits = bitmap_repo.get_day_bits(instructor_id, day)
+            windows = windows_from_bits(bits) if bits else []
+            counts[day.isoformat()] = len(windows)
         return counts
 
     def _should_use_bitmap_week_copy(self, instructor_id: str, from_week_start: date) -> bool:
@@ -772,12 +546,13 @@ class WeekOperationService(BaseService):
         written_dates: Optional[List[date]] = None,
     ) -> dict[str, Any]:
         """Construct compact copy summary for audit."""
-        counts = self._week_slot_counts(instructor_id, target_week_start)
+        counts = self._week_window_counts(instructor_id, target_week_start)
         week_end = target_week_start + timedelta(days=6)
         payload: dict[str, Any] = {
             "week_start": target_week_start.isoformat(),
             "source_week_start": source_week_start.isoformat(),
-            "slot_counts": counts,
+            "slot_counts": counts,  # Legacy field - kept for backward compatibility
+            "window_counts": counts,  # Bitmap-era field - preferred going forward
             "version": self.availability_service.compute_week_version(
                 instructor_id, target_week_start, week_end
             ),
@@ -826,7 +601,7 @@ class WeekOperationService(BaseService):
             result: Dict[str, Any] = await warmer.warm_with_verification(
                 instructor_id,
                 week_start,
-                expected_slot_count=None,
+                expected_window_count=None,
             )
         else:
             result = dict(
@@ -836,8 +611,8 @@ class WeekOperationService(BaseService):
         # Add metadata
         result["_metadata"] = {
             "operation": "week_copy",
-            "slots_created": created_count,
-            "message": f"Week copied successfully. {created_count} slots created.",
+            "windows_created": created_count,
+            "message": f"Week copied successfully. {created_count} windows created.",
         }
 
         return result
@@ -861,11 +636,9 @@ class WeekOperationService(BaseService):
                 "weeks_applied": 0,
                 "weeks_affected": 0,
                 "days_written": 0,
-                "slots_created": 0,
                 "windows_created": 0,
                 "dates_processed": 0,
                 "dates_with_windows": 0,
-                "dates_with_slots": 0,
                 "skipped_past_targets": 0,
                 "edited_dates": [],
                 "written_dates": [],
@@ -903,12 +676,10 @@ class WeekOperationService(BaseService):
                 "weeks_affected": 0,
                 "windows_created": 0,
                 "days_written": 0,
-                "slots_created": 0,
                 "skipped_past_targets": 0,
                 "edited_dates": [],
                 "dates_processed": dates_processed,
                 "dates_with_windows": 0,
-                "dates_with_slots": 0,
                 "written_dates": [],
             }
 
@@ -998,11 +769,11 @@ class WeekOperationService(BaseService):
 
                 warmer = CacheWarmingStrategy(self.cache_service, self.db)
                 await warmer.warm_with_verification(
-                    instructor_id, source_monday, expected_slot_count=None
+                    instructor_id, source_monday, expected_window_count=None
                 )
                 for target_week in affected_weeks_sorted:
                     await warmer.warm_with_verification(
-                        instructor_id, target_week, expected_slot_count=None
+                        instructor_id, target_week, expected_window_count=None
                     )
             except Exception as cache_error:  # pragma: no cover - defensive logging
                 self.logger.warning(
@@ -1029,10 +800,8 @@ class WeekOperationService(BaseService):
             "windows_created": total_windows_created,
             "skipped_past_targets": skipped_past_targets,
             "edited_dates": sorted(edited_dates),
-            "slots_created": total_windows_created,
             "dates_processed": dates_processed,
             "dates_with_windows": dates_with_windows,
-            "dates_with_slots": dates_with_windows,
             "written_dates": unique_written_dates,
         }
 
@@ -1055,12 +824,10 @@ class WeekOperationService(BaseService):
         return all_dates
 
     def _clear_date_range_slots(self, instructor_id: str, dates: List[date]) -> int:
-        """Clear all existing slots in a date range."""
-        deleted_count: int = self.availability_repository.delete_slots_by_dates(
-            instructor_id, dates
+        """DEPRECATED: Slot-based method removed. Use bitmap operations only."""
+        raise NotImplementedError(
+            "Slot-based operations removed. All availability operations must use bitmap storage."
         )
-        self.logger.debug(f"Deleted {deleted_count} existing slots from date range")
-        return deleted_count
 
     def _apply_pattern_to_dates(
         self,
@@ -1069,41 +836,10 @@ class WeekOperationService(BaseService):
         start_date: date,
         end_date: date,
     ) -> Tuple[int, int]:
-        """Apply week pattern to date range."""
-        new_slots: List[Dict[str, Any]] = []
-        dates_with_slots = 0
-
-        current_date = start_date
-        while current_date <= end_date:
-            day_name = DAYS_OF_WEEK[current_date.weekday()]
-
-            if day_name in week_pattern and week_pattern[day_name]:
-                # Apply pattern for this day
-                dates_with_slots += 1
-
-                for pattern_slot in week_pattern[day_name]:
-                    slot_start = string_to_time(pattern_slot["start_time"])
-                    slot_end = string_to_time(pattern_slot["end_time"])
-
-                    new_slots.append(
-                        {
-                            "instructor_id": instructor_id,
-                            "specific_date": current_date,
-                            "start_time": slot_start,
-                            "end_time": slot_end,
-                        }
-                    )
-
-            current_date += timedelta(days=1)
-
-        # Bulk create all new slots
-        if new_slots:
-            created_count: int = self.repository.bulk_create_slots(new_slots)
-            self.logger.info(f"Created {created_count} slots across {dates_with_slots} days")
-            return created_count, dates_with_slots
-        else:
-            self.logger.info("No slots to create - pattern may be empty")
-            return 0, 0
+        """DEPRECATED: Slot-based method removed. Use bitmap operations only."""
+        raise NotImplementedError(
+            "Slot-based operations removed. All availability operations must use bitmap storage."
+        )
 
     async def _warm_cache_for_affected_weeks(
         self, instructor_id: str, start_date: date, end_date: date
@@ -1124,7 +860,7 @@ class WeekOperationService(BaseService):
                     await warmer.warm_week(instructor_id, week_start)
                 except AttributeError:
                     await warmer.warm_with_verification(
-                        instructor_id, week_start, expected_slot_count=None
+                        instructor_id, week_start, expected_window_count=None
                     )
 
             self.logger.info(f"Warmed cache for {len(affected_weeks)} affected weeks")
@@ -1153,7 +889,7 @@ class WeekOperationService(BaseService):
     def _format_pattern_application_result(
         self,
         all_dates: List[date],
-        dates_with_slots: int,
+        dates_with_windows: int,
         created_count: int,
         start_date: date,
         end_date: date,
@@ -1169,10 +905,10 @@ class WeekOperationService(BaseService):
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "dates_processed": len(all_dates),
-            "dates_with_slots": dates_with_slots,
-            "slots_created": created_count,
+            "dates_with_windows": dates_with_windows,
+            "windows_created": created_count,
             "weeks_affected": weeks_affected,
-            "days_written": dates_with_slots,
+            "days_written": dates_with_windows,
         }
 
     def _extract_week_pattern(

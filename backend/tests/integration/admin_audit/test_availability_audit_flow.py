@@ -81,7 +81,8 @@ async def test_availability_audit_flow(
     assert actions[1] == "save_week"
 
     for entry in payload["items"]:
-        assert "slot_counts" in (entry.get("after") or {})
+        after = entry.get("after") or {}
+        assert "window_counts" in after
         assert entry["actor_role"] == "instructor"
 
     forbidden = client.get("/api/admin/audit", headers=auth_headers_student)

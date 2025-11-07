@@ -10,7 +10,8 @@ from tests.utils.availability_builders import build_week_payload, future_week_st
 
 import app.main
 from app.middleware.perf_counters import PerfCounterMiddleware
-from app.models.availability import AvailabilitySlot
+
+# AvailabilitySlot model removed - bitmap-only storage now
 from app.models.availability_day import AvailabilityDay
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.utils.bitset import bits_from_windows
@@ -115,8 +116,9 @@ def test_week_save_rejects_overlap_via_api(
     auth_headers_instructor: dict,
 ) -> None:
     week_start = future_week_start(weeks_ahead=3)
-    db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).delete()
-    db.commit()
+    # Clear existing availability using bitmap repository
+    from backend.tests._utils.bitmap_seed import clear_week_bits
+    clear_week_bits(db, test_instructor.id, week_start, weeks=1)
 
     payload = {
         "week_start": week_start.isoformat(),

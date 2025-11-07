@@ -40,7 +40,7 @@ from ..core.timezone_utils import get_user_now_by_id, get_user_today_by_id
 
 # sentinel import check: from ..core.timezone_utils import get_user_today_by_id
 from ..models.audit_log import AuditLog
-from ..models.availability import AvailabilitySlot, BlackoutDate
+from ..models.availability import BlackoutDate
 from ..monitoring.availability_perf import (
     WEEK_GET_ENDPOINT,
     WEEK_SAVE_ENDPOINT,
@@ -102,8 +102,8 @@ class ProcessedSlot(TypedDict):
     end_time: time
 
 
-class AvailabilitySlotInput(TypedDict):
-    """Normalized slot ready for persistence."""
+class AvailabilityWindowInput(TypedDict):
+    """Normalized window ready for persistence (bitmap storage)."""
 
     instructor_id: str
     specific_date: date
@@ -128,11 +128,11 @@ class SlotSnapshot(NamedTuple):
 
 class WeekAvailabilityResult(NamedTuple):
     week_map: dict[str, list[TimeSlotResponse]]
-    slots: list[AvailabilitySlot | SlotSnapshot]
+    windows: list[tuple[date, time, time]]  # (date, start_time, end_time) tuples
 
 
 class PreparedWeek(NamedTuple):
-    slots: list[AvailabilitySlotInput]
+    windows: list[AvailabilityWindowInput]
     affected_dates: set[date]
 
 
@@ -141,7 +141,6 @@ class SaveWeekBitsResult(NamedTuple):
     days_written: int
     weeks_affected: int
     windows_created: int
-    slots_created: int
     skipped_past_window: int
     skipped_past_forbidden: int
     bits_by_day: Dict[date, bytes]
@@ -156,7 +155,7 @@ class AvailabilityService(BaseService):
     """
     Service layer for availability operations.
 
-    Works directly with AvailabilitySlot objects.
+    Uses bitmap-based availability storage (availability_days table).
     """
 
     audit_repository: "AuditRepository"
@@ -305,7 +304,7 @@ class AvailabilityService(BaseService):
         )
 
         def _normalize_windows(
-            raw: Iterable[Tuple[str | time, str | time]]
+            raw: Iterable[Tuple[str | time, str | time]],
         ) -> List[Tuple[str, str]]:
             normalized: List[Tuple[str, str]] = []
 
@@ -421,7 +420,6 @@ class AvailabilityService(BaseService):
                 days_written=0,
                 weeks_affected=0,
                 windows_created=0,
-                slots_created=0,
                 skipped_past_window=len(skipped_window_list),
                 skipped_past_forbidden=len(skipped_forbidden_list),
                 bits_by_day=current_map,
@@ -468,7 +466,7 @@ class AvailabilityService(BaseService):
 
         if audit_dates and AUDIT_ENABLED:
 
-            def _slot_counts(
+            def _window_counts(
                 bits_map: Dict[date, bytes], target_dates: List[date]
             ) -> dict[str, int]:
                 counts: dict[str, int] = {}
@@ -482,7 +480,7 @@ class AvailabilityService(BaseService):
                 "week_start": week_start.isoformat(),
                 "windows": _windows_payload(current_map, audit_dates),
             }
-            before_payload["slot_counts"] = _slot_counts(current_map, audit_dates)
+            before_payload["window_counts"] = _window_counts(current_map, audit_dates)
             after_payload = {
                 "week_start": week_start.isoformat(),
                 "windows": _windows_payload(after_map, audit_dates),
@@ -496,7 +494,7 @@ class AvailabilityService(BaseService):
                 "skipped_past_forbidden": bool(skipped_forbidden_list),
                 "days_written": len(changed_dates),
             }
-            after_payload["slot_counts"] = _slot_counts(after_map, audit_dates)
+            after_payload["window_counts"] = _window_counts(after_map, audit_dates)
             try:
                 self._write_availability_audit(
                     instructor_id,
@@ -523,7 +521,7 @@ class AvailabilityService(BaseService):
         ]
         if event_dates:
             try:
-                prepared = PreparedWeek(slots=[], affected_dates=set(event_dates))
+                prepared = PreparedWeek(windows=[], affected_dates=set(event_dates))
                 self._enqueue_week_save_event(
                     instructor_id,
                     week_start,
@@ -550,7 +548,6 @@ class AvailabilityService(BaseService):
             days_written=len(changed_dates),
             weeks_affected=1,
             windows_created=windows_created_count,
-            slots_created=windows_created_count,
             skipped_past_window=len(skipped_window_list),
             skipped_past_forbidden=len(skipped_forbidden_list),
             bits_by_day=after_map,
@@ -663,25 +660,27 @@ class AvailabilityService(BaseService):
         clear_existing: bool,
         created: int = 0,
         deleted: int = 0,
-        slot_cache: dict[date, list[AvailabilitySlot]] | None = None,
+        window_cache: dict[date, list[tuple[str, str]]] | None = None,
     ) -> dict[str, Any]:
         """Construct a compact snapshot for audit logging."""
         unique_dates = sorted({d for d in dates})
-        slot_counts: dict[str, int] = {}
+        window_counts: dict[str, int] = {}
+        bitmap_repo = self._bitmap_repo()
         for target in unique_dates:
-            if slot_cache is not None and target in slot_cache:
-                slots_for_day = slot_cache[target]
+            if window_cache is not None and target in window_cache:
+                windows_for_day = window_cache[target]
             else:
-                slots_for_day = self.repository.get_slots_by_date(instructor_id, target)
-                if slot_cache is not None:
-                    slot_cache[target] = list(slots_for_day)
-            slot_counts[target.isoformat()] = len(slots_for_day)
+                bits = bitmap_repo.get_day_bits(instructor_id, target)
+                windows_for_day = windows_from_bits(bits) if bits else []
+                if window_cache is not None:
+                    window_cache[target] = windows_for_day
+            window_counts[target.isoformat()] = len(windows_for_day)
 
         week_end = week_start + timedelta(days=6)
         payload: dict[str, Any] = {
             "week_start": week_start.isoformat(),
             "affected_dates": [d.isoformat() for d in unique_dates],
-            "slot_counts": slot_counts,
+            "window_counts": window_counts,
             "clear_existing": bool(clear_existing),
             "version": self.compute_week_version(instructor_id, week_start, week_end),
         }
@@ -718,14 +717,14 @@ class AvailabilityService(BaseService):
         self, instructor_id: str, target_date: date
     ) -> Optional[dict[str, Any]]:
         """
-        Get availability for a specific date using cache-aside pattern.
+        Get availability for a specific date using bitmap storage.
 
         Args:
             instructor_id: The instructor ID
             target_date: The specific date
 
         Returns:
-            Availability data for the date or None if no slots
+            Availability data for the date or None if no windows
         """
         # Try cache first (cache-aside pattern)
         if self.cache_service:
@@ -739,44 +738,47 @@ class AvailabilityService(BaseService):
             except Exception as cache_error:
                 logger.warning(f"Cache error for date availability: {cache_error}")
 
-        # Cache miss - query database
+        # Cache miss - query bitmap database
         try:
-            slots = self.repository.get_slots_by_date(instructor_id, target_date)
-        except RepositoryException as e:
-            logger.error(f"Repository error getting availability: {e}")
+            bits = self._bitmap_repo().get_day_bits(instructor_id, target_date)
+            if bits is None:
+                return None
+
+            windows_str: list[tuple[str, str]] = windows_from_bits(bits)
+            if not windows_str:
+                return None
+
+            result = {
+                "date": target_date.isoformat(),
+                "slots": [
+                    TimeSlotResponse(
+                        start_time=time_to_string(time.fromisoformat(start_str)),
+                        end_time=time_to_string(time.fromisoformat(end_str)),
+                    )
+                    for start_str, end_str in windows_str
+                ],
+            }
+
+            # Cache the result with 5-minute TTL for better performance
+            if self.cache_service:
+                try:
+                    self.cache_service.cache_instructor_availability_date_range(
+                        instructor_id, target_date, target_date, [result]
+                    )
+                except Exception as cache_error:
+                    logger.warning(f"Failed to cache date availability: {cache_error}")
+
+            return result
+        except Exception as e:
+            logger.error(f"Error getting availability for date: {e}")
             return None
-
-        if not slots:
-            return None
-
-        result = {
-            "date": target_date.isoformat(),
-            "slots": [
-                TimeSlotResponse(
-                    start_time=time_to_string(slot.start_time),
-                    end_time=time_to_string(slot.end_time),
-                )
-                for slot in slots
-            ],
-        }
-
-        # Cache the result with 5-minute TTL for better performance
-        if self.cache_service:
-            try:
-                self.cache_service.cache_instructor_availability_date_range(
-                    instructor_id, target_date, target_date, [result]
-                )
-            except Exception as cache_error:
-                logger.warning(f"Failed to cache date availability: {cache_error}")
-
-        return result
 
     @BaseService.measure_operation("get_availability_summary")
     def get_availability_summary(
         self, instructor_id: str, start_date: date, end_date: date
     ) -> dict[str, int]:
         """
-        Get summary of availability (slot counts) for date range.
+        Get summary of availability (window counts) for date range.
 
         Args:
             instructor_id: The instructor ID
@@ -784,11 +786,20 @@ class AvailabilityService(BaseService):
             end_date: End of range
 
         Returns:
-            Dict mapping date strings to slot counts
+            Dict mapping date strings to window counts
         """
         try:
-            return self.repository.get_availability_summary(instructor_id, start_date, end_date)
-        except RepositoryException as e:
+            bitmap_repo = self._bitmap_repo()
+            result: dict[str, int] = {}
+            current_date = start_date
+            while current_date <= end_date:
+                bits = bitmap_repo.get_day_bits(instructor_id, current_date)
+                if bits:
+                    windows = windows_from_bits(bits)
+                    result[current_date.isoformat()] = len(windows)
+                current_date += timedelta(days=1)
+            return result
+        except Exception as e:
             logger.error(f"Error getting availability summary: {e}")
             return {}
 
@@ -798,7 +809,7 @@ class AvailabilityService(BaseService):
         instructor_id: str,
         start_date: date,
         end_date: date,
-        slots: Optional[list[AvailabilitySlot | SlotSnapshot]] = None,
+        windows: Optional[list[tuple[date, time, time]]] = None,
     ) -> str:
         """Compute a deterministic week version using bitmap contents only."""
         week_start = start_date - timedelta(days=start_date.weekday())
@@ -811,7 +822,7 @@ class AvailabilityService(BaseService):
         instructor_id: str,
         start_date: date,
         end_date: date,
-        slots: Optional[list[AvailabilitySlot | SlotSnapshot]] = None,
+        windows: Optional[list[tuple[date, time, time]]] = None,
     ) -> Optional[datetime]:
         """Return last-modified timestamp derived from bitmap rows only."""
         week_start = start_date - timedelta(days=start_date.weekday())
@@ -878,7 +889,7 @@ class AvailabilityService(BaseService):
             day = monday + timedelta(days=offset)
             iso_key = day.isoformat()
             full_map[iso_key] = list(result.week_map.get(iso_key, []))
-        return WeekAvailabilityResult(week_map=full_map, slots=result.slots)
+        return WeekAvailabilityResult(week_map=full_map, windows=result.windows)
 
     def _get_week_availability_common(
         self,
@@ -925,7 +936,7 @@ class AvailabilityService(BaseService):
                             cache_used = "y"
                             if perf:
                                 perf(cache_used=cache_used)
-                            return WeekAvailabilityResult(week_map=week_map, slots=[])
+                            return WeekAvailabilityResult(week_map=week_map, windows=[])
 
                 except Exception as cache_error:
                     logger.warning(f"Cache error for week availability: {cache_error}")
@@ -950,8 +961,11 @@ class AvailabilityService(BaseService):
             if perf:
                 perf(cache_used=cache_used)
 
-            slots_union = cast(list[AvailabilitySlot | SlotSnapshot], slot_snapshots)
-            return WeekAvailabilityResult(week_map=week_map, slots=slots_union)
+            # Convert slot snapshots to windows format
+            windows: list[tuple[date, time, time]] = []
+            for snapshot in slot_snapshots:
+                windows.append((snapshot.specific_date, snapshot.start_time, snapshot.end_time))
+            return WeekAvailabilityResult(week_map=week_map, windows=windows)
 
     def _persist_week_cache(
         self,
@@ -1017,12 +1031,16 @@ class AvailabilityService(BaseService):
         if week_map is None:
             return None
 
+        # Convert to windows format (date, start_time, end_time) tuples
+        windows: list[tuple[date, time, time]] = []
         if not include_slots:
-            return WeekAvailabilityResult(week_map=week_map, slots=[])
+            return WeekAvailabilityResult(week_map=week_map, windows=windows)
 
-        slot_snapshots: list[SlotSnapshot]
+        slot_snapshots: list[SlotSnapshot] = []
+        # DEPRECATED: _deserialize_slot_meta removed - bitmap-only storage now
         if isinstance(slots_payload, list):
-            slot_snapshots = self._deserialize_slot_meta(slots_payload)
+            # Legacy slot payload format not supported - return empty snapshots
+            slot_snapshots = []
         else:
             slot_snapshots = []
             for iso_date, entries in week_map.items():
@@ -1048,8 +1066,11 @@ class AvailabilityService(BaseService):
                     except ValueError:
                         continue
 
-        slots_union = cast(list[AvailabilitySlot | SlotSnapshot], slot_snapshots)
-        return WeekAvailabilityResult(week_map=week_map, slots=slots_union)
+        # Convert slot snapshots to windows
+        for snapshot in slot_snapshots:
+            windows.append((snapshot.specific_date, snapshot.start_time, snapshot.end_time))
+
+        return WeekAvailabilityResult(week_map=week_map, windows=windows)
 
     @staticmethod
     def _coerce_metadata_list(metadata: Any) -> list[Any]:
@@ -1143,48 +1164,7 @@ class AvailabilityService(BaseService):
             bits_by_day[day] = bits_from_windows(windows) if windows else new_empty_bits()
         return bits_by_day
 
-    @staticmethod
-    def _serialize_slot_meta(slots: list[AvailabilitySlot]) -> list[dict[str, Optional[str]]]:
-        meta: list[dict[str, Optional[str]]] = []
-        for slot in slots:
-            meta.append(
-                {
-                    "specific_date": slot.specific_date.isoformat(),
-                    "start_time": slot.start_time.isoformat(),
-                    "end_time": slot.end_time.isoformat(),
-                    "created_at": slot.created_at.isoformat() if slot.created_at else None,
-                    "updated_at": slot.updated_at.isoformat() if slot.updated_at else None,
-                }
-            )
-        return meta
-
-    @staticmethod
-    def _deserialize_slot_meta(meta: list[dict[str, Optional[str]]]) -> list[SlotSnapshot]:
-        slots: list[SlotSnapshot] = []
-        for item in meta:
-            specific_date = date.fromisoformat(cast(str, item.get("specific_date")))
-            start_time_obj = time.fromisoformat(cast(str, item.get("start_time")))
-            end_time_obj = time.fromisoformat(cast(str, item.get("end_time")))
-            created_at = (
-                datetime.fromisoformat(cast(str, item.get("created_at")))
-                if item.get("created_at")
-                else None
-            )
-            updated_at = (
-                datetime.fromisoformat(cast(str, item.get("updated_at")))
-                if item.get("updated_at")
-                else None
-            )
-            slots.append(
-                SlotSnapshot(
-                    specific_date=specific_date,
-                    start_time=start_time_obj,
-                    end_time=end_time_obj,
-                    created_at=created_at,
-                    updated_at=updated_at,
-                )
-            )
-        return slots
+    # Removed _serialize_slot_meta and _deserialize_slot_meta - no longer needed with bitmap storage
 
     @BaseService.measure_operation("get_instructor_availability_for_date_range")
     def get_instructor_availability_for_date_range(
@@ -1212,52 +1192,48 @@ class AvailabilityService(BaseService):
             except Exception as cache_error:
                 logger.warning(f"Cache error for date range availability: {cache_error}")
 
-        # Cache miss - query database
+        # Cache miss - query bitmap database
         try:
-            slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
-        except RepositoryException as e:
+            bitmap_repo = self._bitmap_repo()
+            result = []
+            current_date = start_date
+            while current_date <= end_date:
+                bits = bitmap_repo.get_day_bits(instructor_id, current_date)
+                windows_str: list[tuple[str, str]] = windows_from_bits(bits) if bits else []
+                result.append(
+                    {
+                        "date": current_date.isoformat(),
+                        "slots": [
+                            {
+                                "start_time": time_to_string(time.fromisoformat(start_str)),
+                                "end_time": time_to_string(time.fromisoformat(end_str)),
+                            }
+                            for start_str, end_str in windows_str
+                        ],
+                    }
+                )
+                current_date += timedelta(days=1)
+
+            # Cache the result
+            if self.cache_service:
+                try:
+                    self.cache_service.cache_instructor_availability_date_range(
+                        instructor_id, start_date, end_date, result
+                    )
+                except Exception as cache_error:
+                    logger.warning(f"Failed to cache date range availability: {cache_error}")
+
+            return result
+        except Exception as e:
             logger.error(f"Error getting date range availability: {e}")
             return []
-
-        # Group slots by date
-        availability_by_date: dict[str, list[dict[str, Any]]] = {}
-        for slot in slots:
-            date_str = slot.specific_date.isoformat()
-            if date_str not in availability_by_date:
-                availability_by_date[date_str] = []
-
-            availability_by_date[date_str].append(
-                {
-                    "start_time": time_to_string(slot.start_time),
-                    "end_time": time_to_string(slot.end_time),
-                }
-            )
-
-        # Convert to list format
-        result = []
-        current_date = start_date
-        while current_date <= end_date:
-            date_str = current_date.isoformat()
-            result.append({"date": date_str, "slots": availability_by_date.get(date_str, [])})
-            current_date += timedelta(days=1)
-
-        # Cache the result
-        if self.cache_service:
-            try:
-                self.cache_service.cache_instructor_availability_date_range(
-                    instructor_id, start_date, end_date, result
-                )
-            except Exception as cache_error:
-                logger.warning(f"Failed to cache date range availability: {cache_error}")
-
-        return result
 
     @BaseService.measure_operation("get_all_availability")
     def get_all_instructor_availability(
         self, instructor_id: str, start_date: Optional[date] = None, end_date: Optional[date] = None
-    ) -> list[AvailabilitySlot]:
+    ) -> list[dict[str, Any]]:
         """
-        Get all availability slots for an instructor with optional date filtering.
+        Get all availability windows for an instructor with optional date filtering.
 
         Args:
             instructor_id: The instructor's ID
@@ -1265,7 +1241,7 @@ class AvailabilityService(BaseService):
             end_date: Optional end date filter
 
         Returns:
-            List of availability slots ordered by date and time
+            List of availability windows as dicts with date, start_time, end_time
         """
         self.log_operation(
             "get_all_instructor_availability",
@@ -1275,7 +1251,6 @@ class AvailabilityService(BaseService):
         )
 
         try:
-            # Use repository method for date range queries
             # If no dates provided, use a large range based on instructor's timezone
             if not start_date:
                 start_date = get_user_today_by_id(instructor_id, self.db)
@@ -1284,10 +1259,28 @@ class AvailabilityService(BaseService):
                     days=365
                 )  # One year ahead
 
-            slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
-            return slots
+            # Query bitmap data
+            bitmap_repo = self._bitmap_repo()
+            windows: list[dict[str, Any]] = []
+            current_date = start_date
+            while current_date <= end_date:
+                bits = bitmap_repo.get_day_bits(instructor_id, current_date)
+                if bits:
+                    day_windows = windows_from_bits(bits)
+                    for start, end in day_windows:
+                        windows.append(
+                            {
+                                "instructor_id": instructor_id,
+                                "specific_date": current_date,
+                                "start_time": start,
+                                "end_time": end,
+                            }
+                        )
+                current_date += timedelta(days=1)
 
-        except RepositoryException as e:
+            return windows
+
+        except Exception as e:
             logger.error(f"Error retrieving all availability: {str(e)}")
             raise
 
@@ -1328,12 +1321,12 @@ class AvailabilityService(BaseService):
             schedule_by_date: Schedule data grouped by date
 
         Returns:
-            PreparedWeek containing normalized slots and affected dates
+            PreparedWeek containing normalized windows and affected dates
         """
-        # Only validate for internal conflicts; existing slots are handled later.
+        # Only validate for internal conflicts; existing windows are handled later.
         self._validate_no_overlaps(instructor_id, schedule_by_date, ignore_existing=True)
 
-        slots_to_create: list[AvailabilitySlotInput] = []
+        windows_to_create: list[AvailabilityWindowInput] = []
         instructor_today = get_user_today_by_id(instructor_id, self.db)
 
         affected_dates: set[date] = set()
@@ -1342,210 +1335,34 @@ class AvailabilityService(BaseService):
             if not ALLOW_PAST and target_date < instructor_today:
                 continue
 
-            slots = schedule_by_date.get(target_date, [])
-            if not slots:
+            windows = schedule_by_date.get(target_date, [])
+            if not windows:
                 continue
 
             affected_dates.add(target_date)
-            for slot in slots:
-                slot_input = cast(
-                    AvailabilitySlotInput,
+            for window in windows:
+                window_input = cast(
+                    AvailabilityWindowInput,
                     {
                         "instructor_id": instructor_id,
                         "specific_date": target_date,
-                        "start_time": slot["start_time"],
-                        "end_time": slot["end_time"],
+                        "start_time": window["start_time"],
+                        "end_time": window["end_time"],
                     },
                 )
-                slots_to_create.append(slot_input)
+                windows_to_create.append(window_input)
 
-        return PreparedWeek(slots=slots_to_create, affected_dates=affected_dates)
+        return PreparedWeek(windows=windows_to_create, affected_dates=affected_dates)
 
-    async def _save_week_slots_transaction(
-        self,
-        instructor_id: str,
-        week_start: date,
-        week_dates: list[date],
-        week_data: WeekSpecificScheduleCreate,
-        prepared: PreparedWeek,
-        actor: Any | None = None,
-    ) -> int:
-        """
-        Execute the database transaction to save slots.
-
-        Args:
-            instructor_id: The instructor ID
-            week_data: Original week data for clear_existing flag
-            prepared: Normalized slots and affected dates ready for persistence
-
-        Returns:
-            Number of slots created
-
-        Raises:
-            RepositoryException: If database operation fails
-        """
-        affected_dates = sorted(prepared.affected_dates)
-        deleted_count = 0
-        created_count = 0
-        change_detected = False
-        if week_data.clear_existing:
-            snapshot_dates = list(week_dates)
-        elif affected_dates:
-            snapshot_dates = list(affected_dates)
-        else:
-            snapshot_dates = list(week_dates)
-
-        existing_slots_cache: dict[date, list[AvailabilitySlot]] = {}
-
-        def get_existing_slots(target_date: date) -> list[AvailabilitySlot]:
-            cached = existing_slots_cache.get(target_date)
-            if cached is None:
-                slots_for_day = list(self.repository.get_slots_by_date(instructor_id, target_date))
-                existing_slots_cache[target_date] = slots_for_day
-                return slots_for_day
-            return cached
-
-        slots_by_date: dict[date, list[ProcessedSlot]] = {}
-        for slot in prepared.slots:
-            target_date = slot["specific_date"]
-            normalized_slot: ProcessedSlot = {
-                "start_time": slot["start_time"],
-                "end_time": slot["end_time"],
-            }
-            slots_by_date.setdefault(target_date, []).append(normalized_slot)
-
-        for slot_list in slots_by_date.values():
-            slot_list.sort(key=lambda s: (s["start_time"], s["end_time"]))
-
-        try:
-            with self.transaction():
-                instructor_today = get_user_today_by_id(instructor_id, self.db)
-                before_payload = self._build_week_audit_payload(
-                    instructor_id,
-                    week_start,
-                    snapshot_dates,
-                    clear_existing=bool(week_data.clear_existing),
-                    slot_cache=existing_slots_cache,
-                )
-
-                # If clearing existing, delete only slots for TODAY and future within this week
-                if week_data.clear_existing:
-                    dates_to_clear = (
-                        list(week_dates)
-                        if ALLOW_PAST
-                        else [d for d in week_dates if d >= instructor_today]
-                    )
-                    if dates_to_clear:
-                        with availability_perf_span(
-                            "repository.delete_slots_by_dates",
-                            endpoint=WEEK_SAVE_ENDPOINT,
-                            instructor_id=instructor_id,
-                        ):
-                            deleted_count = self.repository.delete_slots_by_dates(
-                                instructor_id, dates_to_clear
-                            )
-                            change_detected = change_detected or deleted_count > 0
-                            for cleared_date in dates_to_clear:
-                                existing_slots_cache[cleared_date] = []
-                    else:
-                        deleted_count = 0
-                    logger.info(
-                        f"Deleted {deleted_count} existing slots for instructor {instructor_id}"
-                    )
-
-                existing_by_date: dict[date, list[AvailabilitySlot]] | None = None
-                if not week_data.clear_existing and slots_by_date:
-                    existing_by_date = {}
-                    for target_date in affected_dates:
-                        existing_by_date[target_date] = list(get_existing_slots(target_date))
-
-                if slots_by_date:
-                    self._validate_no_overlaps(
-                        instructor_id,
-                        slots_by_date,
-                        ignore_existing=bool(week_data.clear_existing),
-                        existing_by_date=existing_by_date,
-                    )
-
-                slots_to_create: list[dict[str, Any]] = []
-                for target_date in sorted(slots_by_date.keys()):
-                    if not ALLOW_PAST and target_date < instructor_today:
-                        continue
-                    existing_slots_cache.setdefault(
-                        target_date, existing_slots_cache.get(target_date, [])
-                    )
-                    for processed_slot in slots_by_date[target_date]:
-                        slots_to_create.append(
-                            {
-                                "instructor_id": instructor_id,
-                                "specific_date": target_date,
-                                "start_time": processed_slot["start_time"],
-                                "end_time": processed_slot["end_time"],
-                            }
-                        )
-
-                # Bulk create all slots at once
-                if slots_to_create:
-                    with availability_perf_span(
-                        "repository.bulk_create_slots",
-                        endpoint=WEEK_SAVE_ENDPOINT,
-                        instructor_id=instructor_id,
-                    ):
-                        created_slots = self.bulk_repository.bulk_create_slots(slots_to_create)
-                    created_count = len(created_slots)
-                    change_detected = change_detected or created_count > 0
-                    logger.info(f"Created {created_count} new slots for instructor {instructor_id}")
-                    for created_slot in created_slots:
-                        existing_slots_cache.setdefault(created_slot.specific_date, []).append(
-                            created_slot
-                        )
-
-                if change_detected or week_data.clear_existing:
-                    self._enqueue_week_save_event(
-                        instructor_id=instructor_id,
-                        week_start=week_start,
-                        week_dates=week_dates,
-                        prepared=prepared,
-                        created_count=created_count,
-                        deleted_count=deleted_count,
-                        clear_existing=bool(week_data.clear_existing),
-                    )
-                    after_payload = self._build_week_audit_payload(
-                        instructor_id,
-                        week_start,
-                        snapshot_dates,
-                        clear_existing=bool(week_data.clear_existing),
-                        created=created_count,
-                        deleted=deleted_count,
-                        slot_cache=existing_slots_cache,
-                    )
-                    self._write_availability_audit(
-                        instructor_id,
-                        week_start,
-                        "save_week",
-                        actor=actor,
-                        before=before_payload,
-                        after=after_payload,
-                    )
-
-                return created_count
-        except RepositoryException as e:
-            logger.error(
-                f"Database error saving week availability for instructor {instructor_id}: {e}"
-            )
-            raise
-        except Exception as e:
-            logger.error(
-                f"Unexpected error saving week availability for instructor {instructor_id}: {e}"
-            )
-            raise
+    # DEPRECATED: _save_week_slots_transaction removed - bitmap-only storage now
+    # This method was never called and contained dead slot-based code
 
     async def _warm_cache_after_save(
         self,
         instructor_id: str,
         monday: date,
         affected_dates: set[date],
-        slot_count: int,
+        window_count: int,
     ) -> dict[str, list[TimeSlotResponse]]:
         """
         Warm cache with new availability data.
@@ -1554,7 +1371,7 @@ class AvailabilityService(BaseService):
             instructor_id: The instructor ID
             monday: Monday of the week
             affected_dates: Dates touched by the operation (including spillover)
-            slot_count: Number of slots created
+            window_count: Number of windows created
 
         Returns:
             Updated availability data
@@ -1583,16 +1400,16 @@ class AvailabilityService(BaseService):
 
                 for week_start in week_starts_sorted:
                     warmed = await warmer.warm_with_verification(
-                        instructor_id, week_start, expected_slot_count=None
+                        instructor_id, week_start, expected_window_count=None
                     )
                     if week_start == monday:
                         updated_availability = warmed
 
                 logger.debug(
-                    "Cache warmed successfully for instructor %s across %d week(s), slot_count=%d",
+                    "Cache warmed successfully for instructor %s across %d week(s), window_count=%d",
                     instructor_id,
                     len(week_starts_sorted),
-                    slot_count,
+                    window_count,
                 )
 
                 if updated_availability is not None:
@@ -1699,14 +1516,12 @@ class AvailabilityService(BaseService):
 
             edited_dates = {date.fromisoformat(day_str) for day_str in save_result.edited_dates}
 
-            slot_count = save_result.slots_created
-
             # 4. Warm cache and return response
             updated_availability = await self._warm_cache_after_save(
                 instructor_id,
                 monday,
                 edited_dates,
-                slot_count,
+                save_result.windows_created,
             )
 
             return updated_availability
@@ -1714,59 +1529,72 @@ class AvailabilityService(BaseService):
     @BaseService.measure_operation("add_specific_date")
     def add_specific_date_availability(
         self, instructor_id: str, availability_data: SpecificDateAvailabilityCreate
-    ) -> AvailabilitySlot:
+    ) -> dict[str, Any]:
         """
-        Add availability for a specific date.
+        Add availability for a specific date using bitmap storage.
 
         Args:
             instructor_id: The instructor's user ID
             availability_data: The specific date and time slot
 
         Returns:
-            Created availability slot information
+            Created availability window information as dict
         """
         with self.transaction():
-            # Check for duplicate slot
-            if self.repository.slot_exists(
-                instructor_id,
-                target_date=availability_data.specific_date,
-                start_time=availability_data.start_time,
-                end_time=availability_data.end_time,
-            ):
+            target_date = availability_data.specific_date
+            bitmap_repo = self._bitmap_repo()
+
+            # Get existing bits for the date
+            existing_bits = bitmap_repo.get_day_bits(instructor_id, target_date)
+            existing_windows_str: list[tuple[str, str]] = (
+                windows_from_bits(existing_bits) if existing_bits else []
+            )
+
+            # Convert new window to string format for comparison
+            new_window_str = (
+                availability_data.start_time.strftime("%H:%M:%S"),
+                availability_data.end_time.strftime("%H:%M:%S"),
+            )
+            if new_window_str in existing_windows_str:
                 raise ConflictException("This time slot already exists")
 
-            # Ensure the new slot does not overlap existing slots on that date
-            existing_for_date = self.repository.get_slots_by_date(
-                instructor_id, availability_data.specific_date
-            )
-            candidate_slots: list[ProcessedSlot] = [
-                ProcessedSlot(start_time=slot.start_time, end_time=slot.end_time)
-                for slot in existing_for_date
+            # Check for overlaps - convert strings to time objects for validation
+            candidate_windows_str = existing_windows_str + [new_window_str]
+            candidate_windows_time: list[tuple[time, time]] = [
+                (time.fromisoformat(start_str), time.fromisoformat(end_str))
+                for start_str, end_str in candidate_windows_str
             ]
-            candidate_slots.append(
-                ProcessedSlot(
-                    start_time=availability_data.start_time,
-                    end_time=availability_data.end_time,
-                )
-            )
             self._validate_no_overlaps(
                 instructor_id,
-                {availability_data.specific_date: candidate_slots},
+                {
+                    target_date: [
+                        ProcessedSlot(start_time=start, end_time=end)
+                        for start, end in candidate_windows_time
+                    ]
+                },
                 ignore_existing=True,
             )
 
-            # Create new slot
-            slot = self.repository.create_slot(
-                instructor_id=instructor_id,
-                target_date=availability_data.specific_date,
-                start_time=availability_data.start_time,
-                end_time=availability_data.end_time,
-            )
+            # Add new window to existing bits (use string format)
+            if existing_bits:
+                new_bits = bits_from_windows(candidate_windows_str)
+            else:
+                new_bits = bits_from_windows([new_window_str])
+
+            # Save updated bits
+            bitmap_repo.upsert_week(instructor_id, [(target_date, new_bits)])
 
             # Invalidate cache
-            self._invalidate_availability_caches(instructor_id, [availability_data.specific_date])
+            self._invalidate_availability_caches(instructor_id, [target_date])
 
-            return slot  # Just return the model object
+            # Return window-like dict for compatibility
+            return {
+                "id": f"{instructor_id}:{target_date.isoformat()}:{availability_data.start_time}:{availability_data.end_time}",
+                "instructor_id": instructor_id,
+                "specific_date": target_date,
+                "start_time": availability_data.start_time,
+                "end_time": availability_data.end_time,
+            }
 
     @BaseService.measure_operation("get_blackout_dates")
     def get_blackout_dates(self, instructor_id: str) -> list[BlackoutDate]:
@@ -1837,6 +1665,37 @@ class AvailabilityService(BaseService):
                 logger.error(f"Error deleting blackout date: {e}")
                 raise
 
+    @BaseService.measure_operation("get_week_windows_as_slot_like")
+    def get_week_windows_as_slot_like(
+        self, instructor_id: str, start_date: date, end_date: date
+    ) -> list[dict[str, Any]]:
+        """
+        Get availability windows as slot-like objects for compatibility.
+
+        Returns list of dicts with specific_date (date), start_time (time), end_time (time).
+        """
+        bitmap_repo = self._bitmap_repo()
+        windows: list[dict[str, Any]] = []
+        current_date = start_date
+        while current_date <= end_date:
+            bits = bitmap_repo.get_day_bits(instructor_id, current_date)
+            if bits:
+                day_windows_str: list[tuple[str, str]] = windows_from_bits(bits)
+                for start_str, end_str in day_windows_str:
+                    start_time_obj = time.fromisoformat(start_str)
+                    end_time_obj = (
+                        time.fromisoformat(end_str) if end_str != "24:00:00" else time(0, 0)
+                    )
+                    windows.append(
+                        {
+                            "specific_date": current_date,
+                            "start_time": start_time_obj,
+                            "end_time": end_time_obj,
+                        }
+                    )
+            current_date += timedelta(days=1)
+        return windows
+
     @BaseService.measure_operation("compute_public_availability")
     def compute_public_availability(
         self, instructor_id: str, start_date: date, end_date: date
@@ -1846,13 +1705,24 @@ class AvailabilityService(BaseService):
 
         Returns dict: { 'YYYY-MM-DD': [(start_time, end_time), ...] }
         """
-        # Fetch availability windows
-        slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
-
-        # Group by date
+        # Fetch availability windows from bitmap
+        bitmap_repo = self._bitmap_repo()
         by_date: dict[date, list[tuple[time, time]]] = {}
-        for s in slots:
-            by_date.setdefault(s.specific_date, []).append((s.start_time, s.end_time))
+        current_date = start_date
+        while current_date <= end_date:
+            bits = bitmap_repo.get_day_bits(instructor_id, current_date)
+            if bits:
+                windows_str: list[tuple[str, str]] = windows_from_bits(bits)
+                # Convert to time objects for return type
+                windows_time: list[tuple[time, time]] = [
+                    (
+                        time.fromisoformat(start_str),
+                        time.fromisoformat(end_str) if end_str != "24:00:00" else time(0, 0),
+                    )
+                    for start_str, end_str in windows_str
+                ]
+                by_date[current_date] = windows_time
+            current_date += timedelta(days=1)
 
         # Helpers
         from datetime import time as dtime
@@ -1933,7 +1803,7 @@ class AvailabilityService(BaseService):
         schedule_by_date: dict[date, list[ProcessedSlot]],
         *,
         ignore_existing: bool,
-        existing_by_date: dict[date, list[AvailabilitySlot]] | None = None,
+        existing_by_date: dict[date, list[ProcessedSlot]] | None = None,
     ) -> None:
         """Ensure proposed slots obey the half-open interval rules."""
 
@@ -1964,7 +1834,7 @@ class AvailabilityService(BaseService):
             existing_pairs: list[tuple[time, time]] = []
             if existing_by_date is not None:
                 for existing_slot in existing_by_date.get(target_date, []) or []:
-                    existing_pairs.append((existing_slot.start_time, existing_slot.end_time))
+                    existing_pairs.append((existing_slot["start_time"], existing_slot["end_time"]))
             else:
                 bits = self._bitmap_repo().get_day_bits(instructor_id, target_date)
                 if bits:

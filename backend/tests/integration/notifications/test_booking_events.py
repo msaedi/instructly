@@ -6,8 +6,8 @@ import os
 from unittest.mock import patch
 
 import pytest
+from tests._utils.bitmap_avail import get_day_windows, seed_day
 
-from app.models.availability import AvailabilitySlot
 from app.models.event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
@@ -28,7 +28,8 @@ def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
     yield
 
 
-def _next_available_slot(db, instructor_id: str) -> tuple[Service, AvailabilitySlot]:
+def _next_available_slot(db, instructor_id: str) -> tuple[Service, date, tuple[str, str]]:
+    """Get next available window for instructor. Returns (service, date, (start_time, end_time))."""
     profile = (
         db.query(InstructorProfile)
         .filter(InstructorProfile.user_id == instructor_id)
@@ -42,17 +43,14 @@ def _next_available_slot(db, instructor_id: str) -> tuple[Service, AvailabilityS
     service = active_services[0]
 
     tomorrow = date.today() + timedelta(days=1)
-    slot = (
-        db.query(AvailabilitySlot)
-        .filter(
-            AvailabilitySlot.instructor_id == instructor_id,
-            AvailabilitySlot.specific_date == tomorrow,
-        )
-        .first()
-    )
-    if slot is None:
-        raise RuntimeError("Instructor has no availability slot for tomorrow")
-    return service, slot
+    windows = get_day_windows(db, instructor_id, tomorrow)
+    if not windows:
+        # Create default availability if none exists
+        seed_day(db, instructor_id, tomorrow, [("09:00", "12:00")])
+        windows = get_day_windows(db, instructor_id, tomorrow)
+    if not windows:
+        raise RuntimeError("Instructor has no availability for tomorrow")
+    return service, tomorrow, windows[0]
 
 
 def _select_duration(service: Service) -> int:
@@ -73,15 +71,17 @@ async def _create_booking(
     student,
     instructor,
 ):
-    service, slot = _next_available_slot(db, instructor.id)
+    service, slot_date, (start_str, end_str) = _next_available_slot(db, instructor.id)
     duration_minutes = _select_duration(service)
-    end_dt = (datetime.combine(slot.specific_date, slot.start_time) + timedelta(minutes=duration_minutes)).time()
+    from datetime import time as dt_time
+    start_time = dt_time.fromisoformat(start_str)
+    end_dt = (datetime.combine(slot_date, start_time) + timedelta(minutes=duration_minutes)).time()
 
     booking_data = BookingCreate(
         instructor_id=instructor.id,
         instructor_service_id=service.id,
-        booking_date=slot.specific_date,
-        start_time=slot.start_time,
+        booking_date=slot_date,
+        start_time=start_time,
         selected_duration=duration_minutes,
         end_time=end_dt,
         location_type="remote",

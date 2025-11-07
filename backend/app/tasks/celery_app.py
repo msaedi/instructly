@@ -7,12 +7,16 @@ configures task serialization, timezone, and autodiscovery.
 """
 
 import os
-from typing import Any, Dict, Optional, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type, cast
 
 from celery import Celery, Task
+from celery.schedules import crontab
 from celery.signals import setup_logging
 
 from app.core.config import settings
+
+if TYPE_CHECKING:
+    from app.services.retention_service import RetentionResult
 
 # Import production config if available
 if settings.environment == "production":
@@ -173,6 +177,11 @@ def config_loggers(*args: Any, **kwargs: Any) -> None:
         level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
+    # Reduce verbosity of Celery beat scheduler logs (keep task logs at INFO)
+    # Beat scheduler logs "Sending due task" every time it dispatches - suppress these
+    beat_logger = logging.getLogger("celery.beat")
+    beat_logger.setLevel(logging.WARNING)  # Only show WARNING and above for beat scheduler
+
 
 # Create the Celery app instance
 celery_app = create_celery_app()
@@ -262,3 +271,43 @@ def health_check() -> Dict[str, str]:
         "worker": current_task.request.hostname if current_task else "unknown",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@celery_app.task(name="app.tasks.availability_retention.run")  # type: ignore[misc]
+def run_availability_retention() -> "RetentionResult":
+    """
+    Purge stale availability_days rows when retention is enabled.
+    """
+    from datetime import date
+
+    from app.database import SessionLocal
+    from app.services.retention_service import RetentionService
+
+    run_day = date.today()
+    if not settings.availability_retention_enabled:
+        return {
+            "inspected_days": 0,
+            "purged_days": 0,
+            "ttl_days": settings.availability_retention_days,
+            "keep_recent_days": settings.availability_retention_keep_recent_days,
+            "dry_run": settings.availability_retention_dry_run,
+            "cutoff_date": run_day,
+        }
+
+    db = SessionLocal()
+    try:
+        service = RetentionService(db)
+        return service.purge_availability_days(today=run_day)
+    finally:
+        db.close()
+
+
+if settings.availability_retention_enabled:
+    celery_app.conf.beat_schedule.update(
+        {
+            "availability-retention-daily": {
+                "task": "app.tasks.availability_retention.run",
+                "schedule": crontab(minute=0, hour=2),
+            }
+        }
+    )

@@ -110,6 +110,31 @@ def seed_bits_bitmap(
     return days_written
 
 
+def _save_windows_bitmap(
+    session: Session,
+    instructor_id: str,
+    week_start: date,
+    windows_by_date: Dict[date, Iterable[Tuple[str, str]]],
+    clear_existing: bool = True,
+) -> int:
+    """Save windows using bitmap AvailabilityService API."""
+    from app.services.availability_service import AvailabilityService
+
+    svc = AvailabilityService(db=session)
+    # Convert to the format expected by save_week_bits: Dict[date, List[Tuple[str, str]]]
+    windows_by_day = {d: list(spans) for d, spans in windows_by_date.items()}
+    result = svc.save_week_bits(
+        instructor_id=instructor_id,
+        week_start=week_start,
+        windows_by_day=windows_by_day,
+        base_version=None,
+        override=False,
+        clear_existing=clear_existing,
+    )
+    # Return count of windows created for parity with old callers
+    return result.windows_created
+
+
 def seed_week_bits_for_booking(
     session: Session,
     *,
@@ -122,28 +147,15 @@ def seed_week_bits_for_booking(
     """
     Seed availability so booking flows can pass regardless of guardrails.
 
-    Returns counters for slots and bitmap rows created.
+    Returns counters for windows created.
     """
     windows_by_date = _build_windows_by_date(week_start, windows_by_weekday)
-    counters = {"days_written": 0, "slots_created": 0}
+    counters = {"days_written": 0, "windows_created": 0}
 
-    effective_mode: Literal["auto", "bitmap", "legacy", "both"] = mode
-    if effective_mode == "auto":
-        effective_mode = "both"
-
-    if effective_mode in ("both", "legacy"):
-        counters["slots_created"] = seed_slots_legacy(
-            session,
-            instructor_id=instructor_id,
-            windows_by_date=windows_by_date,
-            clear_existing=clear_existing,
-        )
-    if effective_mode in ("both", "bitmap"):
-        counters["days_written"] = seed_bits_bitmap(
-            session,
-            instructor_id=instructor_id,
-            windows_by_date=windows_by_date,
-            clear_existing=clear_existing,
-        )
+    # Always use bitmap mode (legacy slot ops removed)
+    counters["windows_created"] = _save_windows_bitmap(
+        session, instructor_id, week_start, windows_by_date, clear_existing
+    )
+    counters["days_written"] = len([d for d, spans in windows_by_date.items() if spans])
 
     return counters

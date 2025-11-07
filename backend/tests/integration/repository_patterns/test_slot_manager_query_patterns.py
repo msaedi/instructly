@@ -1,90 +1,50 @@
 # backend/tests/integration/repository_patterns/test_slot_manager_query_patterns.py
 """
-Document all query patterns used in SlotManager.
+Bitmap query patterns that replaced the old SlotManagerRepository.
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
-- Removed InstructorAvailability references
-- Updated queries to work directly with AvailabilitySlot
-- All slots now have instructor_id and specific_date fields
-
-This serves as the specification for the SlotManagerRepository
-that will be implemented in the repository pattern.
+These tests document how window existence, gap analysis, and booking lookups work
+now that availability is stored in AvailabilityDay rows.
 """
 
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from sqlalchemy.orm import Session
+from tests.integration.repository_patterns._bitmap_helpers import (
+    delete_day,
+    flatten_range,
+    seed_day,
+    window_exists,
+)
 
-from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 
 
 class TestSlotManagerQueryPatterns:
-    """Document every query pattern that needs repository implementation."""
+    """Query snippets that SlotManagerRepository would expose."""
 
-    def test_query_pattern_check_slot_exists(self, db: Session):
-        """Document query for checking if exact slot already exists."""
-        instructor_id = generate_ulid()
+    def test_query_pattern_check_window_exists(self, db: Session, test_instructor_with_availability: User):
+        instructor_id = test_instructor_with_availability.id
         target_date = date.today()
-        start_time = time(9, 0)
-        end_time = time(10, 0)
+        seed_day(db, instructor_id, target_date, [(time(9, 0), time(10, 0))])
+        assert window_exists(db, instructor_id, target_date, time(9, 0), time(10, 0))
+        assert not window_exists(db, instructor_id, target_date, time(11, 0), time(12, 0))
 
-        # Document the exact query pattern - UPDATED for single table
-        exists = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.specific_date == target_date,
-                AvailabilitySlot.start_time == start_time,
-                AvailabilitySlot.end_time == end_time,
-            )
-            .first()
-            is not None
-        )
+    def test_query_pattern_get_windows_for_date(self, db: Session, test_instructor_with_availability: User):
+        instructor_id = test_instructor_with_availability.id
+        target_date = date.today() + timedelta(days=1)
+        seed_day(db, instructor_id, target_date, [(time(10, 0), time(11, 0)), (time(11, 0), time(12, 0))])
+        flat = flatten_range(db, instructor_id, target_date, target_date)
+        assert flat == [
+            {"date": target_date, "start_time": "10:00:00", "end_time": "12:00:00"},
+        ]
 
-        # Repository method:
-        # def slot_exists(self, instructor_id: int, date: date, start_time: time, end_time: time) -> bool
-
-        assert isinstance(exists, bool)
-
-    def test_query_pattern_get_slot_by_id(self, db: Session, test_instructor_with_availability: User):
-        """Document query for getting a slot by ID."""
-        # Get a real slot
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
-            .first()
-        )
-
-        if slot:
-            slot_id = slot.id
-
-            # Document the query pattern
-            slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
-
-            # Repository method:
-            # def get_slot_by_id(self, slot_id: int) -> Optional[AvailabilitySlot]
-
-            if slot:
-                assert hasattr(slot, "instructor_id")
-                assert hasattr(slot, "specific_date")
-                assert hasattr(slot, "start_time")
-                assert hasattr(slot, "end_time")
-
-    def test_query_pattern_check_slot_has_booking(self, db: Session, test_booking):
-        """Document query for checking if slot has bookings."""
-        # Note: Per Work Stream #9, Booking no longer has availability_slot_id
-        # This pattern now checks bookings by time overlap
-
-        # Use the booking's time information instead
+    def test_query_pattern_check_time_has_booking(self, db: Session, test_booking: Booking):
+        """Bookings are discovered by time overlap instead of slot IDs."""
         instructor_id = test_booking.instructor_id
         booking_date = test_booking.booking_date
         start_time = test_booking.start_time
         end_time = test_booking.end_time
-
-        # Check if there's a booking at this time
         has_booking = (
             db.query(Booking)
             .filter(
@@ -97,214 +57,40 @@ class TestSlotManagerQueryPatterns:
             .first()
             is not None
         )
+        assert has_booking is True
 
-        # Repository method:
-        # def time_has_booking(self, instructor_id: int, date: date, start_time: time, end_time: time) -> bool
-
-        assert isinstance(has_booking, bool)
-        assert has_booking == True  # test_booking exists
-
-    def test_query_pattern_get_booking_for_slot(self, db: Session, test_booking):
-        """Document query for getting booking details for a time slot."""
-        # Note: Per Work Stream #9, we now query bookings by time instead of slot_id
-        instructor_id = test_booking.instructor_id
-        booking_date = test_booking.booking_date
-        start_time = test_booking.start_time
-        end_time = test_booking.end_time
-
-        # Document the query pattern for finding bookings by time
+    def test_query_pattern_get_booking_for_window(self, db: Session, test_booking: Booking):
+        """Resolving booking metadata is still a time-based query."""
         booking = (
             db.query(Booking)
             .filter(
-                Booking.instructor_id == instructor_id,
-                Booking.booking_date == booking_date,
-                Booking.start_time == start_time,
-                Booking.end_time == end_time,
+                Booking.instructor_id == test_booking.instructor_id,
+                Booking.booking_date == test_booking.booking_date,
+                Booking.start_time == test_booking.start_time,
+                Booking.end_time == test_booking.end_time,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
             .first()
         )
+        assert booking is not None
+        assert booking.id == test_booking.id
 
-        # Repository method:
-        # def get_booking_for_time_slot(self, instructor_id: int, date: date, start_time: time, end_time: time) -> Optional[Booking]
-
-        if booking:
-            assert hasattr(booking, "status")
-            assert hasattr(booking, "student_id")
-            assert hasattr(booking, "service_name")
-
-    def test_query_pattern_get_slots_ordered_by_time(self, db: Session, test_instructor_with_availability: User):
-        """Document query for getting all slots for a date ordered by time."""
+    def test_query_pattern_get_windows_for_instructor_date(
+        self, db: Session, test_instructor_with_availability: User
+    ):
         instructor_id = test_instructor_with_availability.id
         target_date = date.today()
-
-        # Document the query pattern - UPDATED for single table
-        slots = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == instructor_id, AvailabilitySlot.specific_date == target_date)
-            .order_by(AvailabilitySlot.start_time)
-            .all()
-        )
-
-        # Repository method:
-        # def get_slots_by_date_ordered(self, instructor_id: int, date: date) -> List[AvailabilitySlot]
-
-        assert isinstance(slots, list)
-        # Verify ordering
-        for i in range(1, len(slots)):
-            assert slots[i - 1].start_time <= slots[i].start_time
-
-    def test_query_pattern_get_booked_slot_ids_for_slots(self, db: Session, test_booking):
-        """Document query for finding which time slots have bookings."""
-        # Note: Per Work Stream #9, we check by time ranges instead of slot IDs
-        instructor_id = test_booking.instructor_id
-        booking_date = test_booking.booking_date
-
-        # Get all bookings for the instructor on this date
-        bookings = (
-            db.query(Booking)
-            .filter(
-                Booking.instructor_id == instructor_id,
-                Booking.booking_date == booking_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .all()
-        )
-
-        # Extract booked time ranges
-        booked_time_ranges = {(b.start_time, b.end_time) for b in bookings}
-
-        # Repository method:
-        # def get_booked_time_ranges(self, instructor_id: int, date: date) -> Set[Tuple[time, time]]
-
-        assert isinstance(booked_time_ranges, set)
-        assert (test_booking.start_time, test_booking.end_time) in booked_time_ranges
-
-    def test_query_pattern_count_slots_for_date(self, db: Session, test_instructor_with_availability: User):
-        """Document query for counting slots on a specific date."""
-        instructor_id = test_instructor_with_availability.id
-        target_date = date.today()
-
-        # Document the query pattern - UPDATED for single table
-        slot_count = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == instructor_id, AvailabilitySlot.specific_date == target_date)
-            .count()
-        )
-
-        # Repository method:
-        # def count_slots_for_date(self, instructor_id: int, date: date) -> int
-
-        assert isinstance(slot_count, int)
-        assert slot_count >= 0
-
-    def test_query_pattern_has_bookings_on_date(self, db: Session, test_instructor_with_availability: User):
-        """Document query for checking if any slots have bookings on a date."""
-        instructor_id = test_instructor_with_availability.id
-        target_date = date.today()
-
-        # Document the query pattern - UPDATED for Work Stream #9
-        # Since bookings may not have availability_slot_id, check by instructor and date
-        has_bookings = (
-            db.query(Booking)
-            .filter(
-                Booking.instructor_id == instructor_id,
-                Booking.booking_date == target_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .count()
-            > 0
-        )
-
-        # Repository method:
-        # def date_has_bookings(self, instructor_id: int, date: date) -> bool
-
-        assert isinstance(has_bookings, bool)
-
-    def test_query_pattern_check_slots_have_bookings(self, db: Session):
-        """Document query for checking if specific slots have bookings."""
-        # Note: Per Work Stream #9, Booking no longer has availability_slot_id
-        # This test documents the pattern for systems that need to check
-        # if slots have bookings by time overlap instead
-
-        instructor_id = generate_ulid()
-        target_date = date.today()
-
-        # Get slots first
-        slots = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == instructor_id, AvailabilitySlot.specific_date == target_date)
-            .all()
-        )
-
-        # Check bookings by time overlap
-        booking_count = 0
-        for slot in slots:
-            count = (
-                db.query(Booking)
-                .filter(
-                    Booking.instructor_id == instructor_id,
-                    Booking.booking_date == target_date,
-                    Booking.start_time < slot.end_time,
-                    Booking.end_time > slot.start_time,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                )
-                .count()
-            )
-            booking_count += count
-
-        # Repository method:
-        # def count_bookings_for_slots_by_time(self, instructor_id: int, date: date, slots: List[AvailabilitySlot]) -> int
-
-        assert isinstance(booking_count, int)
-        assert booking_count >= 0
-
-    def test_query_pattern_get_slots_by_instructor_and_date(self, db: Session, test_instructor_with_availability: User):
-        """Document query for getting slots by instructor and date."""
-        instructor_id = test_instructor_with_availability.id
-        target_date = date.today()
-
-        # Document the query pattern - SIMPLIFIED for single table
-        slots = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.specific_date == target_date,
-            )
-            .order_by(AvailabilitySlot.start_time)
-            .all()
-        )
-
-        # Repository method:
-        # def get_slots_for_instructor_date(self, instructor_id: int, target_date: date) -> List[AvailabilitySlot]
-
-        assert isinstance(slots, list)
-        for slot in slots:
-            assert slot.instructor_id == instructor_id
-            assert slot.specific_date == target_date
+        windows = flatten_range(db, instructor_id, target_date, target_date)
+        assert all(win["date"] == target_date for win in windows)
 
 
 class TestSlotManagerComplexQueries:
-    """Document complex query patterns for optimization and analysis."""
+    """Higher-level patterns (booking status, gaps, optimization)."""
 
-    def test_complex_pattern_slots_with_booking_status(self, db: Session, test_instructor_with_availability: User):
-        """Document pattern for getting slots with their booking status."""
-        instructor_id = test_instructor_with_availability.id
-        target_date = date.today()
-
-        # First get all slots for the date
-        slots = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == instructor_id, AvailabilitySlot.specific_date == target_date)
-            .order_by(AvailabilitySlot.start_time)
-            .all()
-        )
-
-        # Then check which slots have bookings by time overlap
-        # Per Work Stream #9, bookings no longer reference slots directly
-        booked_time_ranges = []
-
-        # Get all bookings for the instructor on this date
+    def test_complex_pattern_windows_with_booking_status(self, db: Session, test_booking: Booking):
+        instructor_id = test_booking.instructor_id
+        target_date = test_booking.booking_date
+        windows = flatten_range(db, instructor_id, target_date, target_date)
         bookings = (
             db.query(Booking)
             .filter(
@@ -314,61 +100,38 @@ class TestSlotManagerComplexQueries:
             )
             .all()
         )
-
-        # Map slots to their booking status by time overlap
-        for booking in bookings:
-            booked_time_ranges.append(
-                {"start_time": booking.start_time, "end_time": booking.end_time, "status": booking.status}
+        for window in windows:
+            has_booking = any(
+                (b.start_time.strftime("%H:%M:%S"), b.end_time.strftime("%H:%M:%S"))
+                == (window["start_time"], window["end_time"])
+                for b in bookings
             )
-
-        # Repository method:
-        # def get_slots_with_booking_status_by_time(self, instructor_id: int, date: date) -> List[Tuple[AvailabilitySlot, Optional[BookingStatus]]]
-
-        # This pattern shows we need to check time overlaps
-        assert isinstance(slots, list)
-        assert isinstance(bookings, list)
+            assert isinstance(has_booking, bool)
 
     def test_complex_pattern_gap_analysis(self, db: Session, test_instructor_with_availability: User):
-        """Document pattern for analyzing gaps between slots."""
         instructor_id = test_instructor_with_availability.id
         target_date = date.today()
-
-        # Get all slots ordered by time - SIMPLIFIED for single table
-        slots = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.specific_date == target_date,
-            )
-            .order_by(AvailabilitySlot.start_time)
-            .all()
+        seed_day(
+            db,
+            instructor_id,
+            target_date,
+            [(time(9, 0), time(10, 0)), (time(11, 0), time(12, 0)), (time(13, 0), time(15, 0))],
         )
-
-        # Repository method:
-        # def get_ordered_slots_for_gap_analysis(self, instructor_id: int, date: date) -> List[AvailabilitySlot]
-
-        # Gap analysis is done in business logic, but needs ordered slots
-        assert isinstance(slots, list)
-        # Verify proper ordering for gap analysis
-        for i in range(1, len(slots)):
-            assert slots[i - 1].start_time <= slots[i].start_time
-            # Gaps would be calculated between slots[i-1].end_time and slots[i].start_time
+        windows = flatten_range(db, instructor_id, target_date, target_date)
+        assert len(windows) == 3
+        for i in range(1, len(windows)):
+            assert windows[i - 1]["start_time"] <= windows[i]["start_time"]
 
     def test_complex_pattern_availability_optimization(self, db: Session, test_instructor_with_availability: User):
-        """Document pattern for availability optimization queries."""
         instructor_id = test_instructor_with_availability.id
-        target_date = date.today()
-
-        # Get all slots for the date
-        all_slots = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == instructor_id, AvailabilitySlot.specific_date == target_date)
-            .order_by(AvailabilitySlot.start_time)
-            .all()
+        target_date = date.today() + timedelta(days=2)
+        seed_day(
+            db,
+            instructor_id,
+            target_date,
+            [(time(9, 0), time(10, 0)), (time(10, 30), time(11, 30)), (time(14, 0), time(15, 0))],
         )
-
-        # Get bookings by time range instead of slot IDs
-        # Per Work Stream #9, bookings use time-based references
+        windows = flatten_range(db, instructor_id, target_date, target_date)
         bookings = (
             db.query(Booking)
             .filter(
@@ -378,46 +141,30 @@ class TestSlotManagerComplexQueries:
             )
             .all()
         )
-
-        # Map bookings to time ranges for optimization analysis
-        booked_time_ranges = []
-        for booking in bookings:
-            booked_time_ranges.append(
-                {"start_time": booking.start_time, "end_time": booking.end_time, "booking_id": booking.id}
-            )
-
-        # Repository methods needed:
-        # def get_slots_for_optimization(self, instructor_id: int, date: date) -> List[AvailabilitySlot]
-        # def get_bookings_for_date(self, instructor_id: int, date: date) -> List[Booking]
-
-        assert len(all_slots) >= 0
-        assert len(bookings) >= 0
+        # Optimization logic would compare windows to booked ranges; we just ensure the data is structured.
+        assert isinstance(windows, list)
+        assert isinstance(bookings, list)
 
 
 class TestSlotManagerTransactionPatterns:
-    """Document transaction patterns in SlotManager."""
+    """Transaction-themed bitmap operations."""
 
-    def test_transaction_pattern_create_and_merge(self, db: Session):
-        """Document transaction pattern for create with auto-merge."""
-        # This shows the pattern of:
-        # 1. Create slot
-        # 2. Check for adjacent slots
-        # 3. Potentially merge slots
-        # All in one transaction
+    def test_transaction_pattern_create_and_merge(self, db: Session, test_instructor: User):
+        instructor_id = test_instructor.id
+        target_date = date.today() + timedelta(days=3)
+        with db.begin_nested():
+            seed_day(db, instructor_id, target_date, [(time(14, 0), time(15, 0))])
+            seed_day(
+                db,
+                instructor_id,
+                target_date,
+                [(time(14, 0), time(15, 0)), (time(15, 0), time(16, 0))],
+            )
+        windows = flatten_range(db, instructor_id, target_date, target_date)
+        assert windows == [{"date": target_date, "start_time": "14:00:00", "end_time": "16:00:00"}]
 
-        # The repository will need to support transaction management
-        # Repository method:
-        # def create_slot_with_merge(self, slot_data: dict, auto_merge: bool) -> AvailabilitySlot
-
-        # This is handled by service layer transaction management
-
-    def test_transaction_pattern_delete_slot(self, db: Session):
-        """Document transaction pattern for slot deletion."""
-        # Simple delete operation in single-table design:
-        # 1. Delete slot
-        # No need to update parent availability
-
-        # Repository method:
-        # def delete_slot(self, slot_id: int) -> bool
-
-        # This shows simpler transaction in single-table design
+    def test_transaction_pattern_delete_window(self, db: Session, test_instructor_with_availability: User):
+        instructor_id = test_instructor_with_availability.id
+        target_date = date.today()
+        deleted = delete_day(db, instructor_id, target_date)
+        assert deleted in (0, 1)

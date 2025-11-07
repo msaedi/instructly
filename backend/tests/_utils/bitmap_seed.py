@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Dict, Iterable, List, Tuple
 
+from backend.tests._utils import bitmap_avail as BA
 from sqlalchemy.orm import Session
 
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -23,9 +24,53 @@ def _resolve_windows_to_bits():
 _WINDOWS_TO_BITS = _resolve_windows_to_bits()
 
 
-def next_monday(day: date) -> date:
-    """Return the next Monday on/after *day*."""
-    return day + timedelta(days=(7 - day.weekday()) % 7)
+def next_monday(day: date | None = None) -> date:
+    """Return the next Monday on/after *day* (or today if None)."""
+    today = day or date.today()
+    days_until_monday = (7 - today.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7  # If today is Monday, get next Monday
+    return today + timedelta(days=days_until_monday)
+
+
+def seed_full_week(
+    db: Session,
+    instructor_id: str,
+    start: str = "09:00:00",
+    end: str = "18:00:00",
+    weeks: int = 1,
+) -> None:
+    """
+    Seed continuous availability windows for the next `weeks` weeks, Mon..Sun,
+    so any booking tests have time slots to work with.
+    Also includes tomorrow if it's not already covered.
+    """
+    from datetime import date, timedelta
+
+    mon = next_monday()
+    tomorrow = date.today() + timedelta(days=1)
+
+    # Build windows dict starting from tomorrow if needed, then the weeks
+    windows: Dict[str, List[Tuple[str, str]]] = {}
+
+    # Always include tomorrow if it's not already in the weeks
+    if tomorrow < mon:
+        windows[str(tomorrow)] = [(start, end)]
+
+    # Add the weeks
+    for w in range(weeks):
+        week_start = mon + timedelta(days=7 * w)
+        for i in range(7):
+            d = week_start + timedelta(days=i)
+            windows[str(d)] = [(start, end)]
+
+    # Seed all windows
+    if windows:
+        # Use the earliest date as the week_start for seed_week
+        earliest_date = min(date.fromisoformat(d) for d in windows.keys())
+        # Find the Monday of that week
+        week_start_for_seed = earliest_date - timedelta(days=earliest_date.weekday())
+        BA.seed_week(db, instructor_id, week_start_for_seed, windows)
 
 
 def seed_week_bits(
@@ -74,4 +119,28 @@ def seed_week_bits(
     return days_written
 
 
-__all__ = ["next_monday", "seed_week_bits"]
+def clear_week_bits(
+    db: Session,
+    instructor_id: str,
+    week_start: date,
+    weeks: int = 1,
+) -> None:
+    """Clear bitmap availability for the specified week range."""
+    from datetime import timedelta
+
+    from app.models.availability_day import AvailabilityDay
+
+    # Calculate date range
+    start_date = week_start
+    end_date = week_start + timedelta(days=7 * weeks - 1)
+
+    # Delete AvailabilityDay rows for the date range
+    db.query(AvailabilityDay).filter(
+        AvailabilityDay.instructor_id == instructor_id,
+        AvailabilityDay.day_date >= start_date,
+        AvailabilityDay.day_date <= end_date,
+    ).delete()
+    db.commit()
+
+
+__all__ = ["next_monday", "seed_week_bits", "seed_full_week", "clear_week_bits"]

@@ -6,15 +6,28 @@ This file is automatically loaded by pytest and sets up the test environment.
 CRITICAL: This file now includes safety checks to prevent accidental
 production database usage during tests.
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
-All fixtures now create AvailabilitySlot objects directly with instructor_id and date.
+UPDATED FOR WORK STREAM #10: Bitmap-only availability design.
+All fixtures now create availability using AvailabilityDayRepository and bitmap windows.
 """
+
+# Fallback in case this file is run in isolation or a different rootdir is inferred
+try:
+    import backend  # noqa: F401
+except ModuleNotFoundError:
+    from pathlib import Path
+    import sys
+
+    _REPO_ROOT = Path(__file__).resolve().parents[2]  # <repo>/
+    if str(_REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(_REPO_ROOT))
 
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 import os
 import sys
-from typing import Sequence
+from typing import Dict, List, Sequence, Tuple
+
+from ulid import ULID
 
 # CRITICAL: Set testing mode BEFORE any app imports!
 os.environ.setdefault("is_testing", "true")
@@ -62,7 +75,7 @@ from unittest.mock import AsyncMock, Mock
 
 from fastapi.testclient import TestClient
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.auth import get_password_hash
@@ -76,7 +89,6 @@ from app.models import SearchEvent, SearchHistory
 # Ensure address and region models are registered so Base.metadata.create_all creates their tables
 from app.models.address import InstructorServiceArea, NYCNeighborhood, UserAddress  # noqa: F401
 from app.models.audit_log import AuditLog
-from app.models.availability import AvailabilitySlot
 from app.models.availability_day import AvailabilityDay  # noqa: F401
 from app.models.badge import (  # noqa: F401 ensures badge tables
     BadgeDefinition,
@@ -98,9 +110,11 @@ from app.models.referrals import (  # noqa: F401 ensures tables are registered
 from app.models.region_boundary import RegionBoundary  # noqa: F401
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.config_service import ConfigService
 from app.services.permission_service import PermissionService
 from app.services.template_service import TemplateService
+from app.utils.bitset import bits_from_windows
 
 try:  # pragma: no cover - allow tests to run from repo root or backend/
     from backend.tests.factories.booking_builders import create_booking_pg_safe
@@ -145,11 +159,19 @@ def _ensure_boundary_geometry(boundary: RegionBoundary, borough: str) -> bool:
     boundary.region_metadata = metadata
     return True
 
+def unique_email(prefix: str = "test.user") -> str:
+    """Generate a unique email for tests to avoid collisions."""
+    # Use example.com instead of insta.test to avoid Pydantic EmailStr validation issues
+    # example.com is a reserved domain specifically for documentation/examples and passes validation
+    return f"{prefix}+{ULID()}@example.com"
+
+
 __all__ = [
     "add_service_area",
     "add_service_areas_for_boroughs",
     "seed_service_areas_from_legacy",
     "_ensure_region_boundary",
+    "unique_email",
 ]
 
 def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
@@ -362,8 +384,42 @@ try:
 except Exception as e:
     raise RuntimeError(f"Failed to connect to test database: {e}")
 
-# Create test session factory
-TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+# Create test session factory with expire_on_commit=False to prevent stale ORM objects
+TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine, expire_on_commit=False)
+
+
+def ensure_outbox_table() -> None:
+    """Ensure event_outbox table exists (guard DDL to prevent conflicts)."""
+    insp = inspect(test_engine)
+    if not insp.has_table("event_outbox"):
+        with test_engine.begin() as conn:
+            conn.execute(text("""
+            CREATE TABLE event_outbox (
+                id VARCHAR(26) PRIMARY KEY,
+                event_type VARCHAR(100) NOT NULL,
+                aggregate_id VARCHAR(64) NOT NULL,
+                idempotency_key VARCHAR(255) UNIQUE NOT NULL,
+                payload JSONB NOT NULL,
+                status VARCHAR(20) NOT NULL,
+                attempt_count INTEGER NOT NULL,
+                next_attempt_at TIMESTAMPTZ,
+                last_error TEXT,
+                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+            )
+            """))
+            if conn.dialect.name != "sqlite":
+                conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS notification_delivery (
+                    id VARCHAR(26) PRIMARY KEY,
+                    outbox_id VARCHAR(26) NOT NULL,
+                    recipient_email VARCHAR(255) NOT NULL,
+                    notification_type VARCHAR(50) NOT NULL,
+                    status VARCHAR(20) NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                    FOREIGN KEY (outbox_id) REFERENCES event_outbox(id)
+                )
+                """))
 
 
 def _prepare_database() -> None:
@@ -374,62 +430,22 @@ def _prepare_database() -> None:
 
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":
-            conn.execute(text("DROP TABLE IF EXISTS notification_delivery CASCADE"))
-            conn.execute(text("DROP TABLE IF EXISTS event_outbox CASCADE"))
+            insp = inspect(test_engine)
+            if insp.has_table("notification_delivery"):
+                conn.execute(text("DROP TABLE IF EXISTS notification_delivery CASCADE"))
+            if insp.has_table("event_outbox"):
+                conn.execute(text("DROP TABLE IF EXISTS event_outbox CASCADE"))
             conn.commit()
 
     Base.metadata.create_all(bind=test_engine)
 
+    # Ensure outbox table exists (guarded to prevent conflicts)
+    ensure_outbox_table()
+
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
-            conn.execute(
-                text(
-                    """
-                    ALTER TABLE availability_slots
-                    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ
-                    """
-                )
-            )
-            conn.execute(
-                text(
-                    "ALTER TABLE availability_slots "
-                    "DROP CONSTRAINT IF EXISTS availability_no_overlap"
-                )
-            )
-            conn.execute(
-                text(
-                    """
-                    ALTER TABLE availability_slots
-                    ADD COLUMN IF NOT EXISTS slot_span tsrange
-                    GENERATED ALWAYS AS (
-                        tsrange(
-                            (specific_date::timestamp + start_time),
-                            CASE
-                                WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00'
-                                    THEN (specific_date::timestamp + interval '1 day')
-                                ELSE (specific_date::timestamp + end_time)
-                            END,
-                            '[)'
-                        )
-                    ) STORED
-                    """
-                )
-            )
-            conn.execute(
-                text(
-                    """
-                    ALTER TABLE availability_slots
-                    ADD CONSTRAINT availability_no_overlap
-                    EXCLUDE USING gist (
-                        instructor_id WITH =,
-                        specific_date WITH =,
-                        slot_span WITH &&
-                    )
-                    WHERE (deleted_at IS NULL)
-                    """
-                )
-            )
+            # availability_slots table removed - bitmap-only storage now
         conn.execute(
             text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS ck_bookings_location_type")
         )
@@ -701,6 +717,31 @@ def client(db: Session):
     test_client.close()  # Explicitly close the client
 
 
+@pytest.fixture(autouse=True)
+def _auth_test_mode(monkeypatch):
+    """
+    Force app into 'local/test' auth mode so cookie-only/session tests pass.
+    Patch the actual settings object used by the app.
+    """
+    from app.core.config import settings
+
+    # Patch the actual settings object used by the app
+    for name, val in [
+        ("app_env", "local"),
+        ("allow_cookie_only_auth", True),
+        ("disable_csrf_for_tests", True),
+        ("test_mode_auth", True),
+    ]:
+        if hasattr(settings, name):
+            monkeypatch.setattr(settings, name, val, raising=False)
+
+    # Fallback environment flags for code paths that read os.environ
+    monkeypatch.setenv("APP_ENV", "local", prepend=False)
+    monkeypatch.setenv("ALLOW_COOKIE_ONLY_AUTH", "1", prepend=False)
+    monkeypatch.setenv("DISABLE_CSRF_FOR_TESTS", "1", prepend=False)
+    monkeypatch.setenv("TEST_MODE_AUTH", "1", prepend=False)
+
+
 @pytest.fixture(scope="function")
 def db():
     """
@@ -741,7 +782,7 @@ def db():
 
         # Delete in dependency order to avoid FK violations
         cleanup_db.query(Booking).delete()
-        cleanup_db.query(AvailabilitySlot).delete()
+        cleanup_db.query(AvailabilityDay).delete()  # Bitmap-only storage now
         cleanup_db.query(Service).delete()  # This is InstructorService
 
         # Clean badge-related data (will cascade when users are deleted, but explicit is better)
@@ -858,14 +899,16 @@ def test_password():
 @pytest.fixture
 def test_student(db: Session, test_password: str) -> User:
     """Create a test student user."""
-    # Check if user already exists and delete it
-    existing_user = db.query(User).filter(User.email == "test.student@example.com").first()
+    # Use unique email to avoid collisions
+    student_email = unique_email("test.student")
+    # Check if user already exists and delete it (shouldn't happen with unique emails, but safety check)
+    existing_user = db.query(User).filter(User.email == student_email).first()
     if existing_user:
         db.delete(existing_user)
         db.commit()
 
     student = User(
-        email="test.student@example.com",
+        email=student_email,
         hashed_password=get_password_hash(test_password),
         first_name="Test",
         last_name="Student",
@@ -900,8 +943,10 @@ def _public_profile_kwargs(**profile_kwargs):
 @pytest.fixture
 def test_instructor(db: Session, test_password: str) -> User:
     """Create a test instructor user with profile and services."""
-    # Check if user already exists and delete it
-    existing_user = db.query(User).filter(User.email == "test.instructor@example.com").first()
+    # Use unique email to avoid collisions
+    instructor_email = unique_email("test.instructor")
+    # Check if user already exists and delete it (shouldn't happen with unique emails, but safety check)
+    existing_user = db.query(User).filter(User.email == instructor_email).first()
     if existing_user:
         # Delete profile first if it exists (cascade will handle services)
         if hasattr(existing_user, "instructor_profile") and existing_user.instructor_profile:
@@ -911,7 +956,7 @@ def test_instructor(db: Session, test_password: str) -> User:
 
     # Create instructor user
     instructor = User(
-        email="test.instructor@example.com",
+        email=instructor_email,
         hashed_password=get_password_hash(test_password),
         first_name="Test",
         last_name="Instructor",
@@ -1046,8 +1091,10 @@ def test_instructor(db: Session, test_password: str) -> User:
 @pytest.fixture
 def test_instructor_2(db: Session, test_password: str) -> User:
     """Create a second test instructor user with profile."""
-    # Check if user already exists and delete it
-    existing_user = db.query(User).filter(User.email == "test.instructor2@example.com").first()
+    # Use unique email to avoid collisions
+    instructor_email = unique_email("test.instructor2")
+    # Check if user already exists and delete it (shouldn't happen with unique emails, but safety check)
+    existing_user = db.query(User).filter(User.email == instructor_email).first()
     if existing_user:
         # Delete profile first if it exists (cascade will handle services)
         if hasattr(existing_user, "instructor_profile") and existing_user.instructor_profile:
@@ -1057,7 +1104,7 @@ def test_instructor_2(db: Session, test_password: str) -> User:
 
     # Create instructor user
     instructor = User(
-        email="test.instructor2@example.com",
+        email=instructor_email,
         hashed_password=get_password_hash(test_password),
         first_name="Test",
         last_name="Instructor 2",
@@ -1149,35 +1196,75 @@ def test_instructor_2(db: Session, test_password: str) -> User:
 
 
 @pytest.fixture
+def bitmap_repo(db: Session) -> AvailabilityDayRepository:
+    """Provide AvailabilityDayRepository instance for tests."""
+    return AvailabilityDayRepository(db)
+
+
+@pytest.fixture
+def seed_bitmap_week(
+    db: Session,
+    bitmap_repo: AvailabilityDayRepository,
+) -> callable:
+    """
+    Fixture that returns a helper function to seed a week of availability.
+
+    Usage:
+        seed_week_fn = seed_bitmap_week
+        seed_week_fn(instructor_id, monday, {
+            "2025-01-06": [("09:00", "10:00"), ("14:00", "15:00")],
+            "2025-01-07": [("10:00", "11:00")],
+        })
+    """
+
+    def _seed_week(
+        instructor_id: str,
+        monday: date,
+        windows_by_day: Dict[str, List[Tuple[str, str]]],
+    ) -> None:
+        """Seed availability for a week."""
+        from pathlib import Path
+        import sys
+
+        # Add tests directory to path if needed
+        tests_dir = Path(__file__).parent
+        if str(tests_dir) not in sys.path:
+            sys.path.insert(0, str(tests_dir))
+
+        from _utils.bitmap_avail import seed_week
+
+        seed_week(db, instructor_id, monday, windows_by_day)
+
+    return _seed_week
+
+
+@pytest.fixture
 def test_instructor_with_availability(db: Session, test_instructor: User) -> User:
     """
     Create a test instructor with availability for the next 7 days.
 
-    UPDATED: Creates slots directly with instructor_id and date.
+    UPDATED: Creates availability using bitmap storage (AvailabilityDayRepository).
     """
-    # Add availability for the next 7 days
+    # Add availability for the next 7 days using bitmap storage
     today = date.today()
+    repo = AvailabilityDayRepository(db)
 
+    items = []
     for i in range(7):
         target_date = today + timedelta(days=i)
-
-        # Create time slots directly (9-12 and 14-17)
-        slots = [
-            AvailabilitySlot(
-                instructor_id=test_instructor.id, specific_date=target_date, start_time=time(9, 0), end_time=time(12, 0)
-            ),
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=target_date,
-                start_time=time(14, 0),
-                end_time=time(17, 0),
-            ),
+        # Create windows: 9-12 and 14-17
+        windows = [
+            ("09:00:00", "12:00:00"),
+            ("14:00:00", "17:00:00"),
         ]
-        for slot in slots:
-            db.add(slot)
+        bits = bits_from_windows(windows)
+        items.append((target_date, bits))
 
-    db.flush()
-    db.commit()
+    if items:
+        repo.upsert_week(test_instructor.id, items)
+        db.flush()
+        db.commit()
+
     return test_instructor
 
 
@@ -1808,7 +1895,28 @@ def sample_admin_for_privacy(db):
     return user
 
 
+from backend.tests._inventory import dump_inventory, record_runtime_skip
+import pytest
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Capture runtime skip reasons."""
+    outcome = yield
+    rep = outcome.get_result()
+    if rep.when == "call" and rep.skipped:
+        # Extract skip reason
+        reason = ""
+        if hasattr(rep, "longreprtext") and rep.longreprtext:
+            reason = rep.longreprtext.splitlines()[-1][:200]
+        elif hasattr(rep, "longrepr") and rep.longrepr:
+            reason = str(rep.longrepr)[:200]
+        record_runtime_skip(item.nodeid, reason)
+
+
 def pytest_sessionfinish(session, exitstatus):
     """Cleanup after all tests are done."""
+    # Dump inventory before cleanup
+    dump_inventory()
     # Stop the global Resend mock
     global_resend_mock.stop()

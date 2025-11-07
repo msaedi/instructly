@@ -12,13 +12,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.availability import AvailabilitySlot
-from app.models.booking import Booking, BookingStatus
-from app.models.instructor import InstructorProfile
-from app.models.service_catalog import InstructorService
-from app.models.user import User
-from app.repositories.availability_day_repository import AvailabilityDayRepository
-from app.utils.bitset import bits_from_windows, windows_from_bits
 
 try:  # pragma: no cover - helper only available in repo environments
     from backend.tests._utils.service_seed import ensure_instructor_service_for_tests
@@ -46,7 +39,11 @@ def _format_slot(day: date, start: time) -> str:
 
 def _existing_fixture(
     session: Session, *, instructor_id: str, student_id: str, now: datetime, horizon_days: int = 14
-) -> Optional[Booking]:
+) -> Optional:
+    """Check if a fixture booking already exists."""
+    # Lazy import to avoid import-time failures
+    from app.models.booking import Booking, BookingStatus
+
     horizon = now + timedelta(days=horizon_days)
     return (
         session.query(Booking)
@@ -62,7 +59,11 @@ def _existing_fixture(
     )
 
 
-def _ensure_profile(session: Session, instructor: User) -> InstructorProfile:
+def _ensure_profile(session: Session, instructor) -> object:
+    """Ensure instructor profile exists."""
+    # Lazy import to avoid import-time failures
+    from app.models.instructor import InstructorProfile
+
     profile = (
         session.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).one_or_none()
     )
@@ -86,10 +87,14 @@ def _ensure_profile(session: Session, instructor: User) -> InstructorProfile:
 def _ensure_service(
     session: Session,
     *,
-    profile: InstructorProfile,
+    profile: object,
     duration_minutes: int,
     service_name: str,
-) -> InstructorService:
+) -> object:
+    """Ensure instructor service exists."""
+    # Lazy import to avoid import-time failures
+    from app.models.service_catalog import InstructorService
+
     service: Optional[InstructorService] = (
         session.query(InstructorService)
         .filter(InstructorService.instructor_profile_id == profile.id)
@@ -129,46 +134,31 @@ def _ensure_bitmap_window(
     start: time,
     end: time,
 ) -> None:
-    repo = AvailabilityDayRepository(session)
-    existing_bits = repo.get_day_bits(instructor_id, target_day)
-    windows = []
-    if existing_bits:
-        windows = windows_from_bits(existing_bits)
+    """Ensure bitmap availability window exists for the target day."""
+    # Lazy import to avoid import-time failures
+    from app.services.availability_service import AvailabilityService
+
+    svc = AvailabilityService(db=session)
+
+    # Calculate week_start (Monday of the week containing target_day)
+    week_start = target_day - timedelta(days=target_day.weekday())
+
+    # Build windows_by_day dict: {date: [("HH:MM:SS", "HH:MM:SS"), ...]}
+    windows_by_day = {}
     start_str = start.strftime("%H:%M:%S")
     end_str = end.strftime("%H:%M:%S")
-    if (start_str, end_str) not in windows:
-        windows.append((start_str, end_str))
-        windows.sort()
-        repo.upsert_week(instructor_id, [(target_day, bits_from_windows(windows))])
 
+    # Add the target window
+    windows_by_day[target_day] = [(start_str, end_str)]
 
-def _ensure_legacy_slot(
-    session: Session,
-    *,
-    instructor_id: str,
-    target_day: date,
-    start: time,
-    end: time,
-) -> None:
-    slot = (
-        session.query(AvailabilitySlot)
-        .filter(
-            AvailabilitySlot.instructor_id == instructor_id,
-            AvailabilitySlot.specific_date == target_day,
-            AvailabilitySlot.start_time == start,
-            AvailabilitySlot.end_time == end,
-        )
-        .one_or_none()
-    )
-    if slot:
-        return
-    session.add(
-        AvailabilitySlot(
-            instructor_id=instructor_id,
-            specific_date=target_day,
-            start_time=start,
-            end_time=end,
-        )
+    # Use save_week_bits with clear_existing=False to merge with existing
+    svc.save_week_bits(
+        instructor_id=instructor_id,
+        week_start=week_start,
+        windows_by_day=windows_by_day,
+        base_version=None,
+        override=False,
+        clear_existing=False,
     )
 
 
@@ -196,10 +186,19 @@ def seed_chat_fixture_booking(
     location: str,
     service_name: str,
 ) -> None:
+    """Create a minimal chat/booking fixture using bitmap availability."""
     # Guard flag
     default_enabled = settings.site_mode.lower() not in {"prod", "production", "beta", "live"}
     seed_enabled = _bool_env(os.getenv("SEED_CHAT_FIXTURE"), default_enabled)
     if not seed_enabled:
+        return
+
+    # Lazy imports to avoid import-time failures
+    try:
+        from app.models.booking import Booking, BookingStatus
+        from app.models.user import User
+    except Exception as e:
+        print(f"chat fixture skipped: imports unavailable: {e}")
         return
 
     now = datetime.now(CHAT_TIMEZONE)
@@ -255,7 +254,6 @@ def seed_chat_fixture_booking(
     if max_day < min_day:
         min_day, max_day = max_day, min_day
 
-    is_bitmap = os.getenv("AVAILABILITY_V2_BITMAPS", "0").lower() in {"1", "true", "yes"}
     min_advance_hours = profile.min_advance_booking_hours or 24
     min_start = now + timedelta(hours=min_advance_hours)
 
@@ -285,22 +283,14 @@ def seed_chat_fixture_booking(
 
             try:
                 with session.begin():
-                    if is_bitmap:
-                        _ensure_bitmap_window(
-                            session,
-                            instructor_id=instructor.id,
-                            target_day=candidate_day,
-                            start=start_time,
-                            end=end_time,
-                        )
-                    else:
-                        _ensure_legacy_slot(
-                            session,
-                            instructor_id=instructor.id,
-                            target_day=candidate_day,
-                            start=start_time,
-                            end=end_time,
-                        )
+                    # Always use bitmap mode (slot-era removed)
+                    _ensure_bitmap_window(
+                        session,
+                        instructor_id=instructor.id,
+                        target_day=candidate_day,
+                        start=start_time,
+                        end=end_time,
+                    )
 
                     hourly_rate = Decimal(str(service.hourly_rate or 80)).quantize(Decimal("0.01"))
                     total_price = (

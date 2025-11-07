@@ -37,6 +37,7 @@ Router Endpoints:
     POST /blackout-dates - Add a blackout date
     DELETE /blackout-dates/{id} - Remove a blackout date
 """
+
 from datetime import date, datetime, time, timedelta, timezone
 from email.utils import format_datetime
 from functools import wraps
@@ -54,7 +55,6 @@ from ..api.dependencies.services import (
     get_cache_service_dep,
     get_conflict_checker,
     get_presentation_service,
-    get_slot_manager,
     get_week_operation_service,
 )
 from ..core.config import settings
@@ -100,7 +100,8 @@ from ..services.bulk_operation_service import BulkOperationService
 from ..services.cache_service import CacheService
 from ..services.conflict_checker import ConflictChecker
 from ..services.presentation_service import PresentationService
-from ..services.slot_manager import SlotManager
+
+# SlotManager removed - bitmap-only storage now
 from ..services.week_operation_service import WeekOperationService
 from ..utils.bitset import windows_from_bits
 
@@ -350,7 +351,6 @@ async def save_week_availability(
                 week_start=monday,
                 week_end=week_end,
                 windows_created=save_result.windows_created,
-                slots_created=save_result.slots_created,
                 windows_updated=0,
                 windows_deleted=0,
                 days_written=save_result.days_written,
@@ -407,14 +407,14 @@ async def copy_week_availability(
                 service_message = result.get("message")
             if service_message is None:
                 service_message = "Week copied successfully"
-            slots_created = metadata.get("slots_created")
-            if slots_created is None:
-                slots_created = result.get("slots_created", 0)
+            windows_copied = metadata.get("windows_copied")
+            if windows_copied is None:
+                windows_copied = result.get("windows_copied", result.get("windows_created", 0))
             return CopyWeekResponse(
                 message=str(service_message),
                 source_week_start=payload.from_week_start,
                 target_week_start=payload.to_week_start,
-                windows_copied=int(cast(int | str | None, slots_created) or 0),
+                windows_copied=int(cast(int | str | None, windows_copied) or 0),
             )
         except DomainException as e:
             raise e.to_http_exception()
@@ -448,7 +448,7 @@ async def apply_to_date_range(
             end_date=payload.end_date,
             actor=current_user,
         )
-        windows_created_raw = result.get("windows_created", result.get("slots_created", 0))
+        windows_created_raw = result.get("windows_created", 0)
         weeks_applied_raw = result.get("weeks_applied", 0)
         weeks_affected_raw = result.get("weeks_affected", 0)
         days_written_raw = result.get("days_written", windows_created_raw)
@@ -482,7 +482,6 @@ async def apply_to_date_range(
             end_date=payload.end_date,
             weeks_applied=weeks_applied,
             windows_created=windows_created,
-            slots_created=windows_created,
             weeks_affected=weeks_affected,
             days_written=days_written,
             skipped_past_targets=skipped_past_targets,
@@ -517,12 +516,18 @@ def add_specific_date_availability(
     verify_instructor(current_user)
 
     try:
-        slot = availability_service.add_specific_date_availability(
+        slot_dict = availability_service.add_specific_date_availability(
             instructor_id=current_user.id, availability_data=payload
         )
 
-        # Pydantic v2 way - use model_validate instead of from_orm
-        return AvailabilityWindowResponse.model_validate(slot)
+        # Convert dict to response model
+        return AvailabilityWindowResponse(
+            id=slot_dict.get("id", ""),
+            instructor_id=slot_dict.get("instructor_id", ""),
+            specific_date=slot_dict.get("specific_date"),
+            start_time=slot_dict.get("start_time"),
+            end_time=slot_dict.get("end_time"),
+        )
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -556,16 +561,16 @@ def get_all_availability(
             end_date=end_date,
         )
 
-        # FIX: Map model fields to schema fields correctly
+        # Map dict fields to schema fields
         result = []
         for slot in slots:
             result.append(
                 AvailabilityWindowResponse(
-                    id=slot.id,
-                    instructor_id=slot.instructor_id,
-                    specific_date=slot.specific_date,
-                    start_time=slot.start_time,
-                    end_time=slot.end_time,
+                    id=slot.get("id", ""),
+                    instructor_id=slot.get("instructor_id", ""),
+                    specific_date=slot.get("specific_date"),
+                    start_time=slot.get("start_time"),
+                    end_time=slot.get("end_time"),
                 )
             )
         return result
@@ -611,38 +616,19 @@ def update_availability_window(
     window_id: str,
     payload: AvailabilityWindowUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
-    slot_manager: SlotManager = Depends(get_slot_manager),
+    availability_service: AvailabilityService = Depends(get_availability_service),
 ) -> AvailabilityWindowResponse:
     """
-    Update an availability time slot.
+    Update an availability window.
 
-    CLEAN ARCHITECTURE: Returns proper schema response.
-    No manual response building.
+    DEPRECATED: Individual window updates not supported in bitmap storage.
+    Use POST /instructors/availability/week to update entire days.
     """
     verify_instructor(current_user)
-
-    try:
-        # Update the slot - note that AvailabilityWindowUpdate only has start_time and end_time
-        updated_slot = slot_manager.update_slot(
-            slot_id=window_id,
-            start_time=payload.start_time,
-            end_time=payload.end_time,
-        )
-
-        # FIX: Map model fields to schema fields correctly
-        return AvailabilityWindowResponse(
-            id=updated_slot.id,
-            instructor_id=updated_slot.instructor_id,
-            specific_date=updated_slot.specific_date,
-            start_time=updated_slot.start_time,
-            end_time=updated_slot.end_time,
-        )
-
-    except DomainException as e:
-        raise e.to_http_exception()
-    except Exception as e:
-        logger.error(f"Unexpected error updating slot: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    raise HTTPException(
+        status_code=501,
+        detail="Individual window updates not supported. Use POST /instructors/availability/week to update availability.",
+    )
 
 
 @router.delete(
@@ -653,19 +639,19 @@ def update_availability_window(
 def delete_availability_window(
     window_id: str,
     current_user: User = Depends(get_current_active_user),
-    slot_manager: SlotManager = Depends(get_slot_manager),
+    availability_service: AvailabilityService = Depends(get_availability_service),
 ) -> DeleteWindowResponse:
-    """Delete an availability time slot."""
-    verify_instructor(current_user)
+    """
+    Delete an availability window.
 
-    try:
-        slot_manager.delete_slot(slot_id=window_id)
-        return DeleteWindowResponse(window_id=window_id)
-    except DomainException as e:
-        raise e.to_http_exception()
-    except Exception as e:
-        logger.error(f"Unexpected error deleting slot: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    DEPRECATED: Individual window deletion not supported in bitmap storage.
+    Use POST /instructors/availability/week to remove windows from days.
+    """
+    verify_instructor(current_user)
+    raise HTTPException(
+        status_code=501,
+        detail="Individual window deletion not supported. Use POST /instructors/availability/week to remove availability.",
+    )
 
 
 @router.get(
