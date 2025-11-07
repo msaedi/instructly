@@ -1,46 +1,208 @@
 // frontend/app/(auth)/instructor/dashboard/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  type ReactNode,
+  type ComponentType,
+  type SVGProps,
+  type RefObject,
+  type MutableRefObject,
+} from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Modal from '@/components/Modal';
-import { Calendar, Eye, Trash2, Camera, SquareArrowDownLeft, ListTodo, User, MessageSquare, Bell, Star, DollarSign } from 'lucide-react';
-import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
+import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Bell, Menu, X, ChevronDown } from 'lucide-react';
+import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 import { getCurrentWeekRange } from '@/types/common';
 import { protectedApi } from '@/features/shared/api/client';
 import EditProfileModal from '@/components/modals/EditProfileModal';
-import DeleteProfileModal from '@/components/modals/DeleteProfileModal';
 import { fetchWithAuth, API_ENDPOINTS, getConnectStatus, createStripeIdentitySession, createSignedUpload } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import { InstructorProfile } from '@/types/instructor';
-import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
+import { normalizeInstructorServices } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { httpPut } from '@/features/shared/api/http';
+import { messageService } from '@/services/messageService';
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
-type PreferredPublicSpace = { address: string };
+type PreferredPublicSpace = { address: string; label?: string };
+type DashboardPanel = 'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability' | 'account';
+
+const DASHBOARD_PANEL_KEYS = new Set<DashboardPanel>([
+  'dashboard',
+  'profile',
+  'bookings',
+  'earnings',
+  'reviews',
+  'availability',
+  'account',
+]);
+
+const isDashboardPanel = (value: string | null): value is DashboardPanel => {
+  return value !== null && DASHBOARD_PANEL_KEYS.has(value as DashboardPanel);
+};
+
+const MOBILE_NAV_PRIMARY: Array<{ key: DashboardPanel; label: string }> = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'bookings', label: 'Bookings' },
+  { key: 'availability', label: 'Availability' },
+];
+
+const MOBILE_NAV_SECONDARY: Array<{ key: DashboardPanel; label: string }> = [
+  { key: 'profile', label: 'Profile' },
+  { key: 'earnings', label: 'Earnings' },
+  { key: 'reviews', label: 'Reviews' },
+  { key: 'account', label: 'Account' },
+];
+
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
+function DashboardPopover({
+  icon: Icon,
+  label,
+  isOpen,
+  onToggle,
+  children,
+  containerRef,
+  badgeCount,
+}: {
+  icon: IconComponent;
+  label: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+  /**
+   * DOM ref used for positioning/portals. Nullable by design because refs are null until after mount.
+   * Accepts both object and mutable refs.
+   */
+  containerRef?: RefObject<HTMLDivElement> | MutableRefObject<HTMLDivElement | null>;
+  badgeCount?: number;
+}) {
+  const containerEl = containerRef?.current ?? null;
+  const refProp = containerRef ?? undefined;
+  const containerReady = containerEl !== null;
+
+  const hasBadge = typeof badgeCount === 'number' && badgeCount > 0;
+  const badgeLabel = hasBadge ? (badgeCount > 9 ? '9+' : String(badgeCount)) : '';
+  const computedLabel = hasBadge ? `${label} (${badgeLabel} unread)` : label;
+  return (
+    <div className="relative" ref={refProp} data-container-ready={containerReady ? 'true' : 'false'}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-label={computedLabel}
+        className="group relative inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors duration-150 focus:outline-none select-none"
+        title={label}
+      >
+        <Icon
+          className="w-6 h-6 transition-colors group-hover:fill-current"
+          style={{ fill: isOpen ? 'currentColor' : undefined }}
+        />
+        {hasBadge && (
+          <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#7E22CE] px-1 text-[10px] font-semibold leading-none text-white">
+            {badgeLabel}
+          </span>
+        )}
+      </button>
+      {isOpen && (
+        <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function InstructorDashboardNew() {
   const router = useRouter();
-  const { logout } = useAuth();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [profile, setProfile] = useState<InstructorProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editVariant, setEditVariant] = useState<'full' | 'about' | 'areas' | 'services'>('full');
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [editVariant] = useState<'about' | 'areas' | 'services' | 'full'>('full');
+  // Delete profile modal removed
   const titleCardRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [sidebarOffset, setSidebarOffset] = useState<number>(0);
   const lastStableOffsetRef = useRef<number>(0);
   const [isOffsetFrozen, setIsOffsetFrozen] = useState(false);
-  const [activePanel, setActivePanel] = useState<'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability'>('dashboard');
+  const [activePanel, setActivePanelState] = useState<DashboardPanel>(() => {
+    const initialPanel = searchParams.get('panel');
+    return isDashboardPanel(initialPanel) ? initialPanel : 'dashboard';
+  });
+  useEffect(() => {
+    const paramPanel = searchParams.get('panel');
+    if (isDashboardPanel(paramPanel)) {
+      setActivePanelState((prev) => (prev === paramPanel ? prev : paramPanel));
+    } else {
+      setActivePanelState((prev) => (prev === 'dashboard' ? prev : 'dashboard'));
+    }
+  }, [searchParams]);
+  const handlePanelChange = useCallback(
+    (panel: DashboardPanel, options?: { replace?: boolean }) => {
+      setActivePanelState(panel);
+      const currentSearch = searchParams.toString();
+      const currentHref = currentSearch ? `${pathname}?${currentSearch}` : pathname;
+
+      const nextParams = new URLSearchParams(searchParams.toString());
+      if (panel === 'dashboard') {
+        nextParams.delete('panel');
+      } else {
+        nextParams.set('panel', panel);
+      }
+      const nextSearch = nextParams.toString();
+      const nextHref = nextSearch ? `${pathname}?${nextSearch}` : pathname;
+
+      if (nextHref === currentHref) {
+        return;
+      }
+
+      const navOptions = { scroll: false };
+      const useReplace = options?.replace ?? false;
+      if (useReplace) {
+        router.replace(nextHref, navOptions);
+      } else {
+        router.push(nextHref, navOptions);
+      }
+    },
+    [pathname, router, searchParams]
+  );
+
+  // Notifications dropdown state (declare before any conditional returns)
+  const notifRef = useRef<HTMLDivElement | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  // Messages dropdown state
+  const msgRef = useRef<HTMLDivElement | null>(null);
+  const [showMessages, setShowMessages] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showMoreMobile, setShowMoreMobile] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState<number>(0);
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const outsideNotif = notifRef.current ? !notifRef.current.contains(target) : true;
+      const outsideMsg = msgRef.current ? !msgRef.current.contains(target) : true;
+      if (outsideNotif && outsideMsg) {
+        setShowNotifications(false);
+        setShowMessages(false);
+      }
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, []);
 
   const ProfilePanel = useMemo(
     () => dynamic(() => import('../profile/embedded').then((m) => m.default), { ssr: false }),
@@ -60,6 +222,10 @@ export default function InstructorDashboardNew() {
   );
   const AvailabilityPanel = useMemo(
     () => dynamic(() => import('../availability/embedded').then((m) => m.default), { ssr: false }),
+    []
+  );
+  const AccountPanel = useMemo(
+    () => dynamic(() => import('../settings/embedded').then((m) => m.default), { ssr: false }),
     []
   );
 
@@ -159,16 +325,13 @@ export default function InstructorDashboardNew() {
 
   const [isStartingStripeOnboarding, setIsStartingStripeOnboarding] = useState(false);
   const [isRefreshingConnect, setIsRefreshingConnect] = useState(false);
-  const [serviceAreaNames, setServiceAreaNames] = useState<string[] | null>(null);
   const [serviceAreaSelections, setServiceAreaSelections] = useState<NeighborhoodSelection[]>([]);
   const [preferredTeachingLocations, setPreferredTeachingLocations] = useState<PreferredTeachingLocation[]>([]);
   const [preferredPublicSpaces, setPreferredPublicSpaces] = useState<PreferredPublicSpace[]>([]);
   const [bookedMinutes, setBookedMinutes] = useState(0);
   const [hasUpcomingBookings, setHasUpcomingBookings] = useState<boolean | null>(null);
+  const [upcomingBookingsCount, setUpcomingBookingsCount] = useState<number>(0);
   const [completedBookingsCount, setCompletedBookingsCount] = useState<number>(0);
-  const [availabilitySummary, setAvailabilitySummary] = useState<
-    Record<string, Array<{ start_time: string; end_time: string }>> | null
-  >(null);
   // Suggestions state removed; no longer used
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
@@ -263,14 +426,13 @@ export default function InstructorDashboardNew() {
           }
           const selections = Array.from(selectionMap.values());
           setServiceAreaSelections(selections);
-          const names = selections.map((selection) => selection.name).filter((name) => name.length > 0);
-          setServiceAreaNames(names.length > 0 ? names : null);
+          // no-op: names previously displayed; now removed
         } else {
-          setServiceAreaNames(null);
+          // no-op
           setServiceAreaSelections([]);
         }
       } catch {
-        setServiceAreaNames(null);
+        // no-op
         setServiceAreaSelections([]);
       }
     } catch (err) {
@@ -301,43 +463,7 @@ export default function InstructorDashboardNew() {
 
   // Weekly range for availability/bookings (Mon–Sun)
   const weekRange = getCurrentWeekRange(1);
-
-  useEffect(() => {
-    let ignore = false;
-    if (!profile?.user_id) {
-      setAvailabilitySummary(null);
-      return;
-    }
-
-    void (async () => {
-      try {
-        const res = await fetchWithAuth(
-          `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}?start_date=${weekRange.start_date}`
-        );
-        if (!res.ok) {
-          if (!ignore) setAvailabilitySummary(null);
-          logger.warn('Failed to fetch weekly availability summary', { status: res.status });
-          return;
-        }
-        const data = (await res.json()) as Record<
-          string,
-          Array<{ start_time: string; end_time: string }>
-        >;
-        if (!ignore) {
-          setAvailabilitySummary(data);
-        }
-      } catch (err) {
-        if (!ignore) {
-          setAvailabilitySummary(null);
-        }
-        logger.warn('Error loading weekly availability summary', err);
-      }
-    })();
-
-    return () => {
-      ignore = true;
-    };
-  }, [profile?.user_id, weekRange.start_date]);
+  const { data: availability } = useInstructorAvailability(profile?.user_id || '', weekRange.start_date);
 
   // Helpers to calculate minutes from HH:MM or HH:MM:SS
   const parseTimeToMinutes = useCallback((time: string): number => {
@@ -362,6 +488,19 @@ export default function InstructorDashboardNew() {
     })();
     return () => { ignore = true; };
   }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      try {
+        const res = await messageService.getUnreadCount();
+        if (!ignore) setUnreadMessageCount(res?.unread_count ?? 0);
+      } catch {
+        if (!ignore) setUnreadMessageCount(0);
+      }
+    })();
+    return () => { ignore = true; };
+  }, []);
   const diffMinutes = useCallback((start: string, end: string): number => {
     const s = parseTimeToMinutes(start);
     const e = parseTimeToMinutes(end);
@@ -370,15 +509,17 @@ export default function InstructorDashboardNew() {
 
   // Sum available minutes from weekly availability
   const availableMinutes = useMemo(() => {
-    if (!availabilitySummary) return 0;
-    return Object.values(availabilitySummary).reduce((total, slots) => {
-      const windows = Array.isArray(slots) ? slots : [];
-      return (
-        total +
-        windows.reduce((acc, slot) => acc + diffMinutes(slot.start_time, slot.end_time), 0)
-      );
-    }, 0);
-  }, [availabilitySummary, diffMinutes]);
+    if (!availability || !availability.availability_by_date) return 0;
+    let total = 0;
+    const dayMap = availability.availability_by_date as Record<string, { available_slots?: Array<{ start_time: string; end_time: string }> }>;
+    Object.values(dayMap).forEach((day) => {
+      const slots = Array.isArray(day?.available_slots) ? day.available_slots : [];
+      slots.forEach((slot) => {
+        total += diffMinutes(slot.start_time, slot.end_time);
+      });
+    });
+    return total;
+  }, [availability, diffMinutes]);
 
   // Fetch upcoming bookings for the week and compute booked minutes
   useEffect(() => {
@@ -394,9 +535,17 @@ export default function InstructorDashboardNew() {
         );
         let mins = 0;
         withinWeek.forEach((b) => { mins += diffMinutes(b.start_time, b.end_time); });
-        if (!ignore) setBookedMinutes(mins);
+        if (!ignore) {
+          setBookedMinutes(mins);
+          setUpcomingBookingsCount(withinWeek.length);
+          setHasUpcomingBookings(withinWeek.length > 0);
+        }
       } catch {
-        if (!ignore) setBookedMinutes(0);
+        if (!ignore) {
+          setBookedMinutes(0);
+          setUpcomingBookingsCount(0);
+          setHasUpcomingBookings(false);
+        }
       }
     })();
     return () => { ignore = true; };
@@ -404,18 +553,6 @@ export default function InstructorDashboardNew() {
 
   const availableHours = Math.round(availableMinutes / 60);
   const bookedHours = Math.round(bookedMinutes / 60);
-
-  // Fetch upcoming booking presence
-  useEffect(() => {
-    (async () => {
-      try {
-        const up = await protectedApi.getBookings({ upcoming: true, limit: 1 });
-        setHasUpcomingBookings((up.data?.items?.length || 0) > 0);
-      } catch {
-        setHasUpcomingBookings(false);
-      }
-    })();
-  }, []);
 
   // Gate access until cleared to go live
   useEffect(() => {
@@ -455,26 +592,14 @@ export default function InstructorDashboardNew() {
       setServiceAreaSelections(payload.neighborhoods);
       setPreferredTeachingLocations(payload.preferredTeaching);
       setPreferredPublicSpaces(payload.preferredPublic);
-      const names = payload.neighborhoods.map((item) => item.name).filter((name) => name.length > 0);
-      setServiceAreaNames(names.length > 0 ? names : null);
+      // no-op
     } catch (err) {
       logger.error('Failed to save service areas from dashboard', err);
       throw err;
     }
   }, []);
 
-  const handleProfileDelete = () => {
-    logger.info('Instructor profile deleted, logging out and redirecting home');
-    logout();
-    router.push('/');
-  };
-
-  const handleViewPublicProfile = () => {
-    if (profile) {
-      logger.debug('Navigating to public profile', { userId: profile.user_id });
-      router.push(`/instructors/${profile.user_id}`);
-    }
-  };
+  // Public profile view button removed with title bar
 
   // After mount, show a client-rendered spinner while loading
   if (isLoading) {
@@ -490,11 +615,20 @@ export default function InstructorDashboardNew() {
       <div className="min-h-screen">
         <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <Link href="/" className="inline-block">
+            <Link
+              href="/instructor/dashboard"
+              className="inline-block"
+              onClick={() => {
+                handlePanelChange('dashboard', { replace: true });
+                setShowMessages(false);
+                setShowNotifications(false);
+                setIsMobileMenuOpen(false);
+              }}
+            >
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
-              <UserProfileDropdown />
+              <UserProfileDropdown hideDashboardItem />
             </div>
           </div>
         </header>
@@ -517,26 +651,175 @@ export default function InstructorDashboardNew() {
 
   if (!profile) return null;
 
-
-
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
       <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
-          <Link href="/" className="inline-block">
+          <Link
+            href="/instructor/dashboard"
+            className="inline-block"
+            onClick={() => {
+              handlePanelChange('dashboard', { replace: true });
+              setShowMessages(false);
+              setShowNotifications(false);
+              setIsMobileMenuOpen(false);
+            }}
+          >
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="flex items-center gap-2 pr-0 sm:pr-4">
-            <Link href="/instructor/messages" className="inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] group select-none" aria-label="Messages" title="Messages">
-              <MessageSquare className="w-6 h-6 fill-transparent transition-colors group-hover:fill-current group-active:fill-current group-focus:fill-current" />
-            </Link>
-            <Link href="/instructor/notifications" className="inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] group select-none" aria-label="Notifications" title="Notifications">
-              <Bell className="w-6 h-6 fill-transparent transition-colors group-hover:fill-current group-active:fill-current group-focus:fill-current" />
-            </Link>
-            <UserProfileDropdown />
+            <DashboardPopover
+              icon={MessageSquare}
+              label="Messages"
+              isOpen={showMessages}
+              onToggle={() => {
+                setShowMessages((prev) => {
+                  const next = !prev;
+                  if (!prev && next && unreadMessageCount > 0) {
+                    setUnreadMessageCount(0);
+                  }
+                  return next;
+                });
+                setShowNotifications(false);
+                setIsMobileMenuOpen(false);
+              }}
+              containerRef={msgRef}
+              badgeCount={unreadMessageCount}
+            >
+              <ul className="max-h-80 overflow-auto p-2 space-y-2">
+                <li className="px-2 py-2 text-sm text-gray-600">
+                  You’ll see student replies here once someone messages you.
+                </li>
+                <li>
+                  <button
+                    className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
+                    onClick={() => {
+                      setUnreadMessageCount(0);
+                      setShowMessages(false);
+                      router.push('/instructor/messages');
+                    }}
+                  >
+                    Open inbox
+                  </button>
+                </li>
+              </ul>
+            </DashboardPopover>
+            <DashboardPopover
+              icon={Bell}
+              label="Notifications"
+              isOpen={showNotifications}
+              onToggle={() => {
+                setShowNotifications((v) => !v);
+                setShowMessages(false);
+                setIsMobileMenuOpen(false);
+              }}
+              containerRef={notifRef}
+              badgeCount={upcomingBookingsCount}
+            >
+              <ul className="max-h-80 overflow-auto p-2 space-y-2">
+                <li className="text-sm text-gray-600 px-2 py-2">
+                  No alerts right now. We’ll nudge you when there’s something to review.
+                </li>
+                <li>
+                  <button
+                    className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
+                    onClick={() => {
+                      setShowNotifications(false);
+                      router.push('/instructor/settings');
+                    }}
+                  >
+                    Notification settings
+                  </button>
+                </li>
+              </ul>
+            </DashboardPopover>
+            <UserProfileDropdown hideDashboardItem />
+            <button
+              type="button"
+              className="md:hidden p-2 rounded-lg text-[#7E22CE] border border-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 hover:bg-transparent active:bg-transparent"
+              aria-label={isMobileMenuOpen ? 'Close dashboard navigation menu' : 'Open dashboard navigation menu'}
+              aria-expanded={isMobileMenuOpen}
+              onClick={() => {
+                setIsMobileMenuOpen((prev) => {
+                  const next = !prev;
+                  if (!next) setShowMoreMobile(false);
+                  return next;
+                });
+              }}
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
           </div>
         </div>
+        {isMobileMenuOpen && (
+          <nav className="mt-4 border-t border-gray-200 pt-4 md:hidden" aria-label="Instructor navigation">
+            <div className="space-y-4">
+              <div>
+                <div className="px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Quick access</div>
+                <ul className="space-y-2">
+                  {MOBILE_NAV_PRIMARY.map((item) => (
+                    <li key={item.key}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handlePanelChange(item.key);
+                          setIsMobileMenuOpen(false);
+                          setShowMoreMobile(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          activePanel === item.key
+                            ? 'bg-purple-50 text-[#7E22CE] border border-purple-200'
+                            : 'text-gray-700 hover:bg-purple-50 hover:text-[#7E22CE]'
+                        }`}
+                        aria-current={activePanel === item.key ? 'page' : undefined}
+                      >
+                        {item.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="border-t border-gray-200 pt-3">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between px-4 py-2 text-sm font-medium text-gray-600 hover:text-[#7E22CE]"
+                  onClick={() => setShowMoreMobile((prev) => !prev)}
+                  aria-expanded={showMoreMobile}
+                  aria-controls="mobile-nav-more"
+                >
+                  More tools
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showMoreMobile ? 'rotate-180' : ''}`} aria-hidden="true" />
+                </button>
+                {showMoreMobile && (
+                  <ul id="mobile-nav-more" className="mt-2 space-y-2 px-1">
+                    {MOBILE_NAV_SECONDARY.map((item) => (
+                      <li key={item.key}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handlePanelChange(item.key);
+                            setIsMobileMenuOpen(false);
+                            setShowMoreMobile(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                            activePanel === item.key
+                              ? 'bg-purple-50 text-[#7E22CE] border border-purple-200'
+                              : 'text-gray-700 hover:bg-purple-50 hover:text-[#7E22CE]'
+                          }`}
+                          aria-current={activePanel === item.key ? 'page' : undefined}
+                        >
+                          {item.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </nav>
+        )}
       </header>
 
       {/* Sidebar placed inline next to title card, matching student layout */}
@@ -555,7 +838,7 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('dashboard')}
+                      onClick={() => handlePanelChange('dashboard')}
                       aria-current={activePanel === 'dashboard' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'dashboard'
@@ -563,13 +846,27 @@ export default function InstructorDashboardNew() {
                           : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
                       }`}
                     >
-                      Home
+                      Dashboard
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('profile')}
+                      onClick={() => handlePanelChange('account')}
+                      aria-current={activePanel === 'account' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'account'
+                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
+                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                      }`}
+                    >
+                      Account
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => handlePanelChange('profile')}
                       aria-current={activePanel === 'profile' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'profile'
@@ -577,13 +874,13 @@ export default function InstructorDashboardNew() {
                           : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
                       }`}
                     >
-                      Profile
+                      Instructor Profile
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('bookings')}
+                      onClick={() => handlePanelChange('bookings')}
                       aria-current={activePanel === 'bookings' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'bookings'
@@ -597,7 +894,7 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('earnings')}
+                      onClick={() => handlePanelChange('earnings')}
                       aria-current={activePanel === 'earnings' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'earnings'
@@ -611,21 +908,7 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setActivePanel('reviews')}
-                      aria-current={activePanel === 'reviews' ? 'page' : undefined}
-                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
-                        activePanel === 'reviews'
-                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
-                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
-                      }`}
-                    >
-                      Reviews
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => setActivePanel('availability')}
+                      onClick={() => handlePanelChange('availability')}
                       aria-current={activePanel === 'availability' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'availability'
@@ -636,6 +919,20 @@ export default function InstructorDashboardNew() {
                       Availability
                     </button>
                   </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => handlePanelChange('reviews')}
+                      aria-current={activePanel === 'reviews' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'reviews'
+                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
+                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                      }`}
+                    >
+                      Reviews
+                    </button>
+                  </li>
                 </ul>
               </nav>
             </div>
@@ -644,19 +941,15 @@ export default function InstructorDashboardNew() {
             {activePanel === 'dashboard' && (
               <>
 
-        {/* Page Header with subtle purple accent */}
+        {/* Welcome bar */}
         <div ref={titleCardRef} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
             <div className="flex items-center gap-3 min-w-0">
-              <div
-                aria-hidden="true"
-                className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center select-none"
-              >
+              <div aria-hidden="true" className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center select-none">
                 <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
-
               <div className="min-w-0">
                 <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
                 <p className="text-gray-600 text-sm">Your profile, schedule, and earnings at a glance</p>
@@ -664,69 +957,79 @@ export default function InstructorDashboardNew() {
             </div>
             <div className="sm:ml-auto">
               {(() => {
-                const releaseTs = Date.UTC(2025, 11, 1, 0, 0, 0); // Dec 1, 2025 (UTC)
+                const releaseTs = Date.UTC(2025, 11, 1, 0, 0, 0);
                 const isEnabled = Date.now() >= releaseTs;
                 return (
                   <button
-                    onClick={handleViewPublicProfile}
+                    onClick={() => { if (profile) router.push(`/instructors/${profile.user_id}`); }}
                     disabled={!isEnabled}
                     aria-disabled={!isEnabled}
                     title={isEnabled ? 'View your public instructor page' : 'Public profile available Dec 1, 2025'}
-                    className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
-                      isEnabled
-                        ? 'bg-white border border-purple-200 text-[#7E22CE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-1'
-                        : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
-                    }`}
+                    className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${isEnabled ? 'bg-white border border-purple-200 text-[#7E22CE]' : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'}`}
                   >
                     <Eye className="h-4 w-4" />
                     <span>Public profile</span>
                   </button>
                 );
               })()}
+            </div>
           </div>
         </div>
-        </div>
-
-        {/* Action items card removed per request */}
 
         {/* Snapshot Cards directly under header */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-8">
           {/* Bookings card - clickable with outline icon */}
-          <button onClick={() => setActivePanel('bookings')} className="group block w-full text-left bg-white rounded-lg border border-gray-200 p-5 sm:p-6 hover:shadow-md h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]" aria-label="Open bookings">
+          <button
+            onClick={() => handlePanelChange('bookings')}
+            className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            aria-label="Open bookings"
+          >
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-lg font-semibold text-gray-700 mb-2 group-hover:text-[#7E22CE]">Bookings</h3>
-                <p className="text-3xl font-bold text-gray-900">{completedBookingsCount}</p>
-                <p className="text-sm text-gray-500 mt-1">{hasUpcomingBookings === false ? 'No booking today' : '\u00A0'}</p>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Bookings</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{completedBookingsCount}</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                  {(hasUpcomingBookings === false || completedBookingsCount === 0) ? 'No lessons scheduled today' : '\u00A0'}
+                </p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-[#7E22CE]" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
               </div>
             </div>
           </button>
 
           {/* Earnings card - clickable with outline icon */}
-          <button onClick={() => setActivePanel('earnings')} className="group block w-full text-left bg-white rounded-lg border border-gray-200 p-5 sm:p-6 hover:shadow-md h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]" aria-label="Open earnings">
+          <button
+            onClick={() => handlePanelChange('earnings')}
+            className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            aria-label="Open earnings"
+          >
             <div className="flex items-start justify-between h-full">
               <div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 group-hover:text-[#7E22CE]">Earnings</h3>
-                <p className="text-3xl font-bold text-gray-900">$0</p>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Earnings</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">$0</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-[#7E22CE]" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
               </div>
             </div>
           </button>
           {/* Reviews card - clickable with outline icon */}
-          <button onClick={() => setActivePanel('reviews')} className="group block w-full text-left bg-white rounded-lg border border-gray-200 p-5 sm:p-6 hover:shadow-md h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]" aria-label="Open reviews">
+          <button
+            onClick={() => handlePanelChange('reviews')}
+            className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            aria-label="Open reviews"
+          >
             <div className="flex items-start justify-between h-full">
               <div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 group-hover:text-[#7E22CE]">Reviews</h3>
-                <p className="text-3xl font-bold text-gray-900">-</p>
-                <p className="text-sm text-gray-500 mt-1">Not yet available</p>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Reviews</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">-</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">Not yet available</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Star className="w-6 h-6 text-[#7E22CE]" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
               </div>
             </div>
           </button>
@@ -935,7 +1238,7 @@ export default function InstructorDashboardNew() {
           <div className="p-5 sm:p-6 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow h-full flex flex-col relative">
             <div className="flex items-start gap-4 w-full">
               <button
-                onClick={() => setActivePanel('availability')}
+                onClick={() => handlePanelChange('availability')}
                 aria-label="Manage Availability"
                 className="group relative w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] transition shrink-0 overflow-hidden"
               >
@@ -966,7 +1269,7 @@ export default function InstructorDashboardNew() {
               <button
                 type="button"
                 className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg bg-[#7E22CE] text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
-                onClick={() => setActivePanel('availability')}
+                onClick={() => handlePanelChange('availability')}
               >
                 Open Calendar
               </button>
@@ -977,187 +1280,14 @@ export default function InstructorDashboardNew() {
 
 
 
-        {/* Tasks */}
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-8">
-          {/* Tasks checklist */}
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6 shadow-sm ring-1 ring-purple-100">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <ListTodo className="w-6 h-6 text-[#7E22CE]" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-700">Action items</h3>
-                <p className="text-xs text-gray-600 mt-0.5">Complete these steps to go live</p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <section>
-                <h4 className="text-xs font-semibold text-gray-800 mb-1">Required</h4>
-                <ul className="space-y-1">
-                  <li
-                    className="flex items-center justify-between border border-gray-100 rounded-md px-2 py-1 clickable hover:bg-gray-50 cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => router.push('/instructor/availability')}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push('/instructor/availability'); }}
-                  >
-                    <span className="text-gray-700 text-sm">Set your availability</span>
-                  </li>
-                </ul>
-              </section>
-              {/* Optional section removed; will be shown as announcement banner elsewhere */}
-            </div>
-          </div>
-          {/* Settings card removed per request */}
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
-          <div className="flex justify-between items-start mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                <User className="w-5 h-5 text-[#7E22CE]" />
-              </div>
-              <h2 className="text-lg font-semibold text-gray-700">Profile Information</h2>
-        </div>
-
-
-
-          </div>
-
-          <div className="space-y-6">
-            <div className="rounded-lg border border-gray-200 p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex flex-col items-start gap-2">
-                  <ProfilePictureUpload
-                    ariaLabel="Upload profile photo"
-                    trigger={
-                      <div id="profile-photo-upload" className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
-                        <Camera className="w-6 h-6 text-[#7E22CE]" />
-                      </div>
-                    }
-                  />
-                  <h3 className="text-lg font-semibold text-gray-700">About You</h3>
-                </div>
-                <button onClick={() => { setEditVariant('about'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
-              </div>
-              <p className="text-gray-600 text-xs">Experience: {profile.years_experience} years</p>
-              <p className="text-gray-700 text-sm mt-2">{profile.bio}</p>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-gray-700">Skills & Pricing</h3>
-                <button onClick={() => { setEditVariant('services'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
-              </div>
-              <div className="space-y-2">
-                {profile.services.map((service) => {
-                  const displayName = displayServiceName(service, hydrateCatalogNameById);
-
-                  if (
-                    process.env.NODE_ENV !== 'production' &&
-                    !service.service_catalog_name &&
-                    !hydrateCatalogNameById(service.service_catalog_id || '')
-                  ) {
-                    logger.warn('[service-name] missing catalog name (dashboard)', {
-                      serviceCatalogId: service.service_catalog_id,
-                    });
-                  }
-
-                  return (
-                  <div key={service.id} className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-100">
-                    <div>
-                      <span className="font-medium text-gray-700">{displayName}</span>
-                      {service.description && <p className="text-sm text-gray-600 mt-1">{service.description}</p>}
-                    </div>
-                    <span className="font-bold text-[#7E22CE] text-lg">${service.hourly_rate}/hr</span>
-                  </div>
-                );
-                })}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-gray-700">Service Areas</h3>
-                <button onClick={() => { setEditVariant('areas'); setShowEditModal(true); }} className="text-[#7E22CE] hover:underline text-sm">Edit</button>
-              </div>
-              {(() => {
-                const derivedBoroughs = profile ? getServiceAreaBoroughs(profile) : [];
-                const areaSource = serviceAreaSelections.length > 0
-                  ? serviceAreaSelections.map((item) => item.name)
-                  : (serviceAreaNames && serviceAreaNames.length > 0
-                    ? serviceAreaNames
-                    : derivedBoroughs);
-                const hasAreas = areaSource && areaSource.length > 0;
-                return (
-                  <div className="space-y-4">
-                    {hasAreas ? (
-                      <div className="flex flex-wrap gap-2">
-                        {areaSource.map((area) => (
-                          <span key={area} className="px-2 py-1 text-xs rounded-full bg-purple-50 text-[#7E22CE] border border-purple-200">{area}</span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-gray-500 text-sm">No service areas selected.</p>
-                    )}
-                    {preferredTeachingLocations.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Preferred Teaching Locations</p>
-                        <div className="flex flex-wrap gap-2">
-                          {preferredTeachingLocations.map((location) => {
-                            const label = location.label?.trim() || location.address;
-                            return (
-                              <span
-                                key={`teaching-${location.address}`}
-                                className="px-2 py-1 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-200"
-                                data-testid="preferred-teaching-chip"
-                              >
-                                {label}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    {preferredPublicSpaces.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Preferred Public Spaces</p>
-                        <div className="flex flex-wrap gap-2">
-                          {preferredPublicSpaces.map((location) => (
-                            <span
-                              key={`public-${location.address}`}
-                              className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 border border-green-200"
-                              data-testid="preferred-public-chip"
-                            >
-                              {location.address}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-        </div>
-
-
-          </div>
-          <div className="mt-6 flex justify-end">
-          <button
-            onClick={() => {
-              logger.debug('Opening delete profile modal');
-              setShowDeleteModal(true);
-            }}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
-          >
-              <Trash2 className="h-4 w-4" />
-              <span>Delete Profile</span>
-          </button>
-          </div>
-        </div>
-
+        {/* Action row removed per request */}
 
       </>
+            )}
+            {activePanel === 'account' && (
+              <div className="min-h-[60vh] overflow-visible">
+                <AccountPanel />
+              </div>
             )}
             {activePanel === 'profile' && (
               <div className="min-h-[60vh] overflow-visible">
@@ -1333,9 +1463,7 @@ export default function InstructorDashboardNew() {
           </div>
         </div>
       </Modal>
-      {showDeleteModal && (
-        <DeleteProfileModal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} onSuccess={handleProfileDelete} />
-      )}
+      {/* Delete profile modal removed per request */}
     </div>
   );
 }

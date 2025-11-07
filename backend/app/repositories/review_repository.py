@@ -177,6 +177,7 @@ class ReviewRepository(BaseRepository[Review]):
         instructor_id: str,
         instructor_service_id: Optional[str] = None,
         min_rating: Optional[int] = None,
+        rating: Optional[int] = None,
         with_text: Optional[bool] = None,
     ) -> Query[Any]:
         q = q.filter(
@@ -187,7 +188,9 @@ class ReviewRepository(BaseRepository[Review]):
         )
         if instructor_service_id:
             q = q.filter(Review.instructor_service_id == instructor_service_id)
-        if min_rating is not None:
+        if rating is not None:
+            q = q.filter(Review.rating == int(rating))
+        elif min_rating is not None:
             q = q.filter(Review.rating >= int(min_rating))
         if with_text is True:
             q = q.filter(func.length(func.trim(func.coalesce(Review.review_text, ""))) > 0)
@@ -201,6 +204,7 @@ class ReviewRepository(BaseRepository[Review]):
         offset: int = 0,
         *,
         min_rating: Optional[int] = None,
+        rating: Optional[int] = None,
         with_text: Optional[bool] = None,
     ) -> List[Review]:
         try:
@@ -210,6 +214,7 @@ class ReviewRepository(BaseRepository[Review]):
                 instructor_id=instructor_id,
                 instructor_service_id=instructor_service_id,
                 min_rating=min_rating,
+                rating=rating,
                 with_text=with_text,
             )
             return cast(
@@ -226,6 +231,7 @@ class ReviewRepository(BaseRepository[Review]):
         instructor_service_id: Optional[str] = None,
         *,
         min_rating: Optional[int] = None,
+        rating: Optional[int] = None,
         with_text: Optional[bool] = None,
     ) -> int:
         try:
@@ -235,6 +241,7 @@ class ReviewRepository(BaseRepository[Review]):
                 instructor_id=instructor_id,
                 instructor_service_id=instructor_service_id,
                 min_rating=min_rating,
+                rating=rating,
                 with_text=with_text,
             )
             return int(q.scalar() or 0)

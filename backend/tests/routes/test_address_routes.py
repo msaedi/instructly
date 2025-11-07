@@ -232,7 +232,14 @@ def test_places_autocomplete_google_no_mapbox_ids(db, client, monkeypatch):
     monkeypatch.setattr(settings, "geocoding_provider", "google", raising=False)
 
     class StubGoogleProvider:
-        async def autocomplete(self, query: str, session_token=None):
+        async def autocomplete(
+            self,
+            query: str,
+            session_token=None,
+            *,
+            country=None,
+            location_bias=None,
+        ):
             return [
                 AutocompleteResult(
                     text="320 East 46th Street",

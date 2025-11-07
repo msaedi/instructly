@@ -71,7 +71,7 @@ function JoinInner() {
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="bg-white/95 dark:bg-gray-800/95 py-8 px-4 shadow-[0_20px_40px_rgba(126,34,206,0.12)] rounded-[28px] border border-white/60 dark:border-gray-700/60 backdrop-blur-sm sm:px-10">
           <div className="text-center mb-6">
             <h1 className="text-4xl font-bold text-[#7E22CE] transition-colors">
               {BRAND.name}
@@ -104,16 +104,21 @@ function JoinInner() {
               {submitting ? 'Validating…' : 'Join!'}
             </button>
           </form>
-          <p className="mt-6 text-xs text-gray-500 text-center">
-            <span className="block">Don’t have a code? We’re handpicking our founding instructors. Request to join our Profile Clinic.</span>
-            <span className="block h-2" aria-hidden="true"></span>
-            <span className="block">
-              Apply at{' '}
-              <a className="underline" href="https://instainstru.com/teach" target="_blank" rel="noopener noreferrer">instainstru.com/teach</a>{' '}
-              or email{' '}
-              <a className="underline" href="mailto:teach@instainstru.com">teach@instainstru.com</a>.
-            </span>
-          </p>
+          <div className="mt-8">
+            <div className="mx-auto h-px w-24 bg-gradient-to-r from-transparent via-[#7E22CE]/40 to-transparent" />
+            <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 px-4 py-5 text-center text-xs text-gray-600 space-y-3">
+              <p>
+                By clicking Join, you agree to iNSTAiNSTRU&apos;s{' '}
+                <a href="/legal#terms" className="text-[#7E22CE] hover:underline">Terms of Service</a> and{' '}
+                <a href="/legal#privacy" className="text-[#7E22CE] hover:underline">Privacy Policy</a>.
+              </p>
+              <p>
+                Don’t have a code? We’re handpicking our founding instructors. Request to{' '}
+                <a className="text-[#7E22CE] hover:underline" href="mailto:teach@instainstru.com">join</a>{' '}
+                our Profile Clinic.
+              </p>
+            </div>
+          </div>
           <p className="mt-6 text-xs text-gray-500 text-center">
             Already have an account?{' '}
             <a href="/login" className="text-[#7E22CE] hover:underline">Sign in</a>

@@ -9,10 +9,10 @@
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     {% block header %}
-    {%- set header_bg_color = '#6B46C1' -%}
+    {%- set header_bg_color = '#7E22CE' -%}
     {%- set header_text_color = '#E9D5FF' -%}
     {% block header_colors %}{% endblock %}
-    <div style="background: linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%); padding: 30px; text-align: center; border-radius: 12px 12px 0 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <div style="background: #7E22CE; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         <h1 style="color: white; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.5px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">{{ brand_name }}</h1>
         <p style="color: {{ header_text_color }}; margin: 10px 0 0 0; font-size: 14px;">{% block header_subtitle %}{{ header_subtitle or '' }}{% endblock %}</p>
     </div>
@@ -24,11 +24,11 @@
 
     {% block footer %}
     <div style="text-align: center; padding: 20px; color: #6B7280; font-size: 12px;">
-        <p style="margin: 0 0 8px 0;">© {{ current_year }} <span style="color: #6B46C1; font-weight: 600;">{{ brand_name }}</span>. All rights reserved.</p>
+        <p style="margin: 0 0 8px 0;">© {{ current_year }} <span style="color: #7E22CE; font-weight: 600;">{{ brand_name }}</span>. All rights reserved.</p>
         <p style="margin: 0;">
-            <a href="{{ frontend_url }}/help" style="color: #6B46C1; text-decoration: none; font-weight: 500;">Help Center</a> |
-            <a href="{{ frontend_url }}/terms" style="color: #6B46C1; text-decoration: none; font-weight: 500;">Terms of Service</a> |
-            <a href="{{ frontend_url }}/privacy" style="color: #6B46C1; text-decoration: none; font-weight: 500;">Privacy Policy</a>
+            <a href="{{ frontend_url }}/help" style="color: #7E22CE; text-decoration: none; font-weight: 500;">Help Center</a> |
+            <a href="{{ frontend_url }}/terms" style="color: #7E22CE; text-decoration: none; font-weight: 500;">Terms of Service</a> |
+            <a href="{{ frontend_url }}/privacy" style="color: #7E22CE; text-decoration: none; font-weight: 500;">Privacy Policy</a>
         </p>
     </div>
     {% endblock %}

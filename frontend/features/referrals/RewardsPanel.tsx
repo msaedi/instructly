@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 // Use project-local SWR helper to avoid missing type dep on swr
@@ -57,9 +56,15 @@ const emptyCopy: Record<TabKey, string> = {
 
 type RewardsPanelProps = {
   inviterName?: string;
+  hideHeader?: boolean;
+  compactShare?: boolean;
+  hideShareIcon?: boolean;
+  minimalTabs?: boolean;
+  compactInvite?: boolean;
+  compactTabs?: boolean;
 };
 
-export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
+export default function RewardsPanel({ inviterName, hideHeader = false, compactShare = false, hideShareIcon = false, minimalTabs = false, compactInvite = false, compactTabs = false }: RewardsPanelProps = {}) {
   const [activeTab, setActiveTab] = useState<TabKey>('unlocked');
   const [isProcessing, setIsProcessing] = useState<'share' | 'copy' | null>(null);
 
@@ -87,16 +92,7 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
 
   const shareUrl = summary?.share_url ?? '';
 
-  const formattedSlug = useMemo(() => {
-    if (!summary || !shareUrl) return '';
-    try {
-      const url = new URL(shareUrl);
-      const slug = url.pathname.split('/').filter(Boolean).pop();
-      return slug ? `/r/${slug}` : `/r/${summary.code}`;
-    } catch {
-      return `/r/${summary?.code ?? ''}`;
-    }
-  }, [shareUrl, summary]);
+  // formattedSlug previously shown under the link; no longer displayed
 
   const rewardsForTab = useMemo<RewardOut[]>(() => {
     if (!summary) {
@@ -164,38 +160,43 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
 
   return (
     <main className="space-y-8">
-      <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Your rewards</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Share your link and you both receive iNSTAiNSTRU credits when a friend books their first lesson.
-          </p>
-        </div>
-      </header>
+      {!hideHeader && (
+        <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Your rewards</h1>
+            <p className="mt-2 text-sm text-gray-600">
+              Share your link and you both receive iNSTAiNSTRU credits when a friend books their first lesson.
+            </p>
+          </div>
+        </header>
+      )}
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#7E22CE]/10 text-[#7E22CE]">
-              <Gift className="h-6 w-6" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-sm font-medium text-gray-500">Share your link</p>
-              <p className="text-lg font-semibold text-gray-900" aria-label="Referral link">
-                {summary ? shareUrl : 'Loading…'}
-              </p>
-              {summary && (
-                <p className="mt-1 text-xs text-gray-500">Direct shortcut: {formattedSlug}</p>
-              )}
+      <section className={`${compactShare ? '' : 'rounded-2xl border border-gray-200 bg-white p-6 shadow-sm'}`}>
+        <div className={`flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-4 ${compactShare ? 'p-0' : ''}`}>
+          <div className={`flex items-start gap-3 ${hideShareIcon ? 'flex-1 min-w-0' : ''}`}>
+            {!hideShareIcon && (
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#7E22CE]/10 text-[#7E22CE]">
+                <Gift className="h-6 w-6" aria-hidden="true" />
+              </span>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-700">Share your link</p>
+              <input
+                readOnly
+                value={summary ? shareUrl : ''}
+                placeholder="Loading…"
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800"
+                aria-label="Referral link"
+              />
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-col gap-2 sm:flex-row flex-shrink-0">
             <button
               type="button"
               onClick={handleShare}
               disabled={!summary || isProcessing !== null}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-white border border-purple-200 text-[#7E22CE] px-4 py-2 text-sm font-semibold transition hover:bg-purple-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Share2 className="h-4 w-4" aria-hidden="true" />
               Share
@@ -204,7 +205,7 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
               type="button"
               onClick={handleCopy}
               disabled={!summary || isProcessing !== null}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Copy className="h-4 w-4" aria-hidden="true" />
               Copy
@@ -214,26 +215,25 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
       </section>
 
       {summary && (
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <section className={`${compactInvite ? '' : 'rounded-2xl border border-gray-200 bg-white p-6 shadow-sm'}`}>
           <InviteByEmail shareUrl={shareUrl} {...(inviterName ? { fromName: inviterName } : {})} />
-          <p className="mt-3 text-xs text-gray-500">
-            Your friends get $20 off their first lesson. You get $20 after they complete it.
-          </p>
         </section>
       )}
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4">
+      <section className={`${compactTabs ? '' : 'rounded-2xl border border-gray-200 bg-white p-6 shadow-sm'}`}>
+        <div className={`flex flex-wrap items-center ${minimalTabs ? 'gap-4' : 'gap-2'} border-b border-gray-200 ${minimalTabs ? 'pb-2' : 'pb-4'}`}>
           {(['unlocked', 'pending', 'redeemed'] as TabKey[]).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                activeTab === tab
-                  ? 'bg-[#7E22CE] text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={
+                minimalTabs
+                  ? `px-0 py-0 text-sm font-medium transition ${activeTab === tab ? 'text-[#7E22CE]' : 'text-gray-600 hover:text-[#7E22CE]'}`
+                  : `rounded-full px-4 py-2 text-sm font-medium transition ${
+                      activeTab === tab ? 'bg-[#7E22CE] text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`
+              }
               aria-pressed={activeTab === tab}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -309,13 +309,7 @@ export default function RewardsPanel({ inviterName }: RewardsPanelProps = {}) {
         </div>
       </section>
 
-      <p className="text-xs text-gray-500">
-        If your friend books, you both receive iNSTAiNSTRU credits. Credits expire if unused.{' '}
-        <Link href="/referrals-terms" className="text-[#7E22CE] underline">
-          Terms apply
-        </Link>
-        .
-      </p>
+      {/* Footer terms removed per embedded design */}
     </main>
   );
 }

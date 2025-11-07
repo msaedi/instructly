@@ -15,6 +15,9 @@ export async function loadSearchListSchema() {
       description: z.string().optional(),
       duration_options: z.array(z.number()).nonempty(),
       is_active: z.boolean().optional(),
+      levels_taught: z.array(z.string()).optional().default([]),
+      age_groups: z.array(z.string()).optional().default([]),
+      location_types: z.array(z.string()).optional().default([]),
     });
 
     const InstructorItem = z.object({

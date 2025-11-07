@@ -312,6 +312,10 @@ export interface Instructor {
     id: string;
     /** Service catalog ID (ULID string) */
     service_catalog_id: string;
+    /** Optional catalog name */
+    service_catalog_name?: string;
+    /** Optional human-readable skill */
+    skill?: string;
     /** Hourly rate */
     hourly_rate: number;
     /** Service description */
@@ -320,7 +324,21 @@ export interface Instructor {
     duration_options?: number[];
     /** Whether service is active */
     is_active?: boolean;
+    /** Age groups served */
+    age_groups?: string[];
+    /** Skill levels taught */
+    levels_taught?: string[];
+    /** Available modalities */
+    location_types?: string[];
   }>;
+
+  /** Additional context used by search highlighting */
+  _matchedServiceContext?: {
+    levels?: string[];
+    age_groups?: string[];
+    location_types?: string[];
+  };
+  _matchedServiceCatalogId?: string | null;
 
   /** Optional relevance score for search results */
   relevance_score?: number;

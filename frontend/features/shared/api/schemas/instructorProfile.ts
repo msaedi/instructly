@@ -1,11 +1,21 @@
 export async function loadInstructorProfileSchema() {
   if (process.env.NODE_ENV !== 'production') {
     const { z } = await import('zod');
+    const PreferredPlace = z.object({
+      address: z.string(),
+      label: z.string().optional().nullable(),
+    });
     const Service = z.object({
       id: z.string(),
       hourly_rate: z.number(),
       skill: z.string().optional(),
       duration_options: z.array(z.number()).optional().default([60]),
+      description: z.string().optional().nullable(),
+      location_types: z.array(z.string()).optional().default([]),
+      levels_taught: z.array(z.string()).optional().default([]),
+      age_groups: z.array(z.string()).optional().default([]),
+      service_catalog_id: z.string().optional(),
+      service_catalog_name: z.string().optional(),
     });
     const Neighborhood = z.object({
       neighborhood_id: z.string(),
@@ -20,6 +30,8 @@ export async function loadInstructorProfileSchema() {
       service_area_summary: z.string().optional().nullable(),
       service_area_boroughs: z.array(z.string()).optional().default([]),
       service_area_neighborhoods: z.array(Neighborhood).optional().default([]),
+      preferred_teaching_locations: z.array(PreferredPlace).optional().default([]),
+      preferred_public_spaces: z.array(PreferredPlace).optional().default([]),
     });
     return { schema: Profile };
   }

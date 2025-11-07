@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ArrowLeft, Calendar } from 'lucide-react';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
@@ -16,7 +17,7 @@ function BookingsPageImpl() {
       {!embedded && (
         <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <Link href="/" className="inline-block">
+            <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-0 sm:pr-4">
@@ -43,26 +44,15 @@ function BookingsPageImpl() {
             </Link>
           </div>
         )}
-        {/* Title card hidden when embedded; Tabs card becomes first-card anchor */}
-        {!embedded && (
-          <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200 relative">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Calendar className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Bookings</h1>
-                  <p className="text-sm text-gray-600">Upcoming and past bookings</p>
-                </div>
-              </div>
-              <span className="hidden sm:inline" />
-            </div>
-          </div>
-        )}
+        <SectionHeroCard
+          id={embedded ? 'bookings-first-card' : undefined}
+          icon={Calendar}
+          title="Bookings"
+          subtitle="Track upcoming sessions and review completed lessons all in one place."
+        />
 
         {/* Tabs Card */}
-        <div id={embedded ? 'bookings-first-card' : undefined} className="bg-white rounded-lg border border-gray-200">
+        <div className="bg-white rounded-lg border border-gray-200">
           <div className="border-b border-gray-200 px-4 sm:px-6 pt-4">
             <div className="flex items-center gap-4">
               <button

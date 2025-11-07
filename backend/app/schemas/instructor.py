@@ -13,7 +13,7 @@ from datetime import datetime
 import logging
 from typing import Any, List, Optional, Sequence
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
 
 from ..core.constants import (
     MAX_BIO_LENGTH,
@@ -101,6 +101,7 @@ class PreferredPublicSpaceIn(BaseModel):
     """Preferred public space input payload."""
 
     address: str = Field(..., min_length=1, max_length=512)
+    label: str | None = Field(default=None, min_length=1, max_length=64)
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -110,11 +111,25 @@ class PreferredTeachingLocationOut(PreferredTeachingLocationIn):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @model_serializer
+    def serialize(self) -> dict[str, Any]:
+        data: dict[str, Any] = {"address": self.address}
+        if self.label is not None:
+            data["label"] = self.label
+        return data
+
 
 class PreferredPublicSpaceOut(PreferredPublicSpaceIn):
     """Preferred public space response payload."""
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_serializer
+    def serialize(self) -> dict[str, Any]:
+        data: dict[str, Any] = {"address": self.address}
+        if self.label is not None:
+            data["label"] = self.label
+        return data
 
 
 class ServiceBase(StandardizedModel):

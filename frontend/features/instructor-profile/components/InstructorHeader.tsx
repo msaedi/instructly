@@ -129,7 +129,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   return (
     <div className="w-full p-6 bg-white rounded-xl border border-gray-200">
       <div className="flex gap-8">
-        {/* Left section - matching Services & Pricing width */}
+        {/* Left section - matching Skills and pricing width */}
         <div className="flex-[1.4] max-w-lg">
           <div className="flex gap-6 items-start">
             {/* Profile Photo */}

@@ -185,7 +185,7 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
             <img
               src={previewUrl || existingUrl || ''}
               alt="Profile"
-              className="absolute top-0 object-cover rounded-full"
+              className="absolute top-0 object-cover rounded-full transition-transform duration-150 ease-in-out group-hover:scale-105"
               style={{ width: overlaySize, height: overlaySize, left: '50%', transform: 'translateX(-50%)', filter: isUploading ? 'grayscale(20%) opacity(0.9)' : undefined }}
             />
           )}

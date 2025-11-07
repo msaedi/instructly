@@ -31,6 +31,7 @@ interface PlacesAutocompleteInputProps
   minQueryLength?: number;
   debounceMs?: number;
   suggestionLimit?: number;
+  suggestionScope?: 'default' | 'us' | 'global';
   inputProps?: InputHTMLAttributes<HTMLInputElement> & {
     [dataAttribute: `data-${string}`]: unknown;
   };
@@ -60,6 +61,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
       minQueryLength = DEFAULT_MIN_QUERY,
       debounceMs = DEFAULT_DEBOUNCE,
       suggestionLimit = 8,
+      suggestionScope = 'default',
       disabled,
       onBlur,
       onFocus,
@@ -128,7 +130,11 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
 
       debounceRef.current = setTimeout(async () => {
         try {
-          const url = withApiBase(`/api/addresses/places/autocomplete?q=${encodeURIComponent(trimmed)}`);
+          const params = new URLSearchParams({ q: trimmed });
+          if (suggestionScope && suggestionScope !== 'default') {
+            params.set('scope', suggestionScope);
+          }
+          const url = withApiBase(`/api/addresses/places/autocomplete?${params.toString()}`);
           const response = await fetch(url, {
             method: 'GET',
             credentials: 'include',
@@ -193,7 +199,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
           clearTimeout(debounceRef.current);
         }
       };
-    }, [value, disabled, minQueryLength, debounceMs, suggestionLimit]);
+    }, [value, disabled, minQueryLength, debounceMs, suggestionLimit, suggestionScope]);
 
     const getDisplayText = useMemo(
       () =>

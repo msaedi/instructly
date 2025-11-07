@@ -9,12 +9,16 @@ import { RoleName } from '@/types/enums';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 
-export default function UserProfileDropdown() {
+interface UserProfileDropdownProps {
+  hideDashboardItem?: boolean;
+}
+
+export default function UserProfileDropdown({ hideDashboardItem = false }: UserProfileDropdownProps) {
   const { user, logout, isLoading } = useAuth();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const [isMobileViewport] = useState(false);
   const [instructorOnboardingComplete, setInstructorOnboardingComplete] = useState(true);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -61,7 +65,7 @@ export default function UserProfileDropdown() {
       const rect = buttonRef.current.getBoundingClientRect();
       setDropdownPosition({
         top: rect.bottom + window.scrollY + 8,
-        left: rect.right - 180 + window.scrollX,
+        right: window.innerWidth - (rect.right + window.scrollX),
       });
     }
   }, [isOpen]);
@@ -97,6 +101,8 @@ export default function UserProfileDropdown() {
     setIsOpen(false);
     void logout();
   };
+
+  const showDashboardShortcut = !(hideDashboardItem && instructorOnboardingComplete);
 
   // Don't render until mounted to avoid hydration mismatch
   if (!isMounted || isLoading) {
@@ -142,68 +148,43 @@ export default function UserProfileDropdown() {
       {isOpen && typeof window !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
-          className={`bg-white border border-gray-200 py-2 w-[180px] rounded-lg shadow-xl animate-fadeIn`}
-          style={{ position: 'absolute', top: dropdownPosition.top, left: dropdownPosition.left, zIndex: 10000 }}
+          className={`bg-white border border-gray-200 py-1 rounded-lg shadow-xl animate-fadeIn inline-block`}
+          style={{ position: 'absolute', top: dropdownPosition.top, right: dropdownPosition.right, zIndex: 10000, width: 'auto', minWidth: '140px' }}
         >
           {/* Menu items */}
-          <div className={`${isMobileViewport ? 'py-2' : 'py-1'}`}>
+          <div className={`${isMobileViewport ? 'py-1' : 'py-0.5'}`}>
             {/* Different menu for instructors vs students */}
             {(user?.roles || []).includes(RoleName.INSTRUCTOR) ? (
               // Instructor menu
               <>
-                <button
-                  onClick={() => handleNavigation(
-                    instructorOnboardingComplete ? '/instructor/dashboard' : '/instructor/onboarding/skill-selection'
-                  )}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  {instructorOnboardingComplete ? (
-                    <>
-                      <User className="h-4 w-4" aria-hidden="true" />
-                      Dashboard
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="h-4 w-4 text-purple-600" aria-hidden="true" />
-                      <span className="text-[#7E22CE] font-medium whitespace-nowrap">Finish Onboarding</span>
-                    </>
-                  )}
-                </button>
+                {showDashboardShortcut && (
+                  <button
+                    onClick={() => handleNavigation(
+                      instructorOnboardingComplete ? '/instructor/dashboard' : '/instructor/onboarding/skill-selection'
+                    )}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    {instructorOnboardingComplete ? (
+                      <>
+                        <User className="h-4 w-4" aria-hidden="true" />
+                        Dashboard
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-4 w-4 text-purple-600" aria-hidden="true" />
+                        <span className="text-[#7E22CE] font-medium whitespace-nowrap">Finish Onboarding</span>
+                      </>
+                    )}
+                  </button>
+                )}
 
-                {/* Onboarding quick links (desktop/web and mobile alike) */}
-                <div className="my-1 border-t border-gray-100" />
-                <div className="px-4 py-1 text-[10px] uppercase tracking-wide text-gray-400">Onboarding</div>
-                <button
-                  onClick={() => handleNavigation('/instructor/profile')}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Account setup
-                </button>
-                <button
-                  onClick={() => handleNavigation('/instructor/onboarding/skill-selection')}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Add skills
-                </button>
-                <button
-                  onClick={() => handleNavigation('/instructor/onboarding/verification')}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Verify identity
-                </button>
-                <button
-                  onClick={() => handleNavigation('/instructor/onboarding/payment-setup')}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Payment setup
-                </button>
               </>
             ) : (
               // Student menu
               <>
                 <button
                   onClick={() => handleNavigation('/student/dashboard')}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <User className="h-4 w-4" aria-hidden="true" />
                   My Account
@@ -211,7 +192,7 @@ export default function UserProfileDropdown() {
 
                 <button
                   onClick={() => handleNavigation('/student/dashboard?tab=rewards')}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <Gift className="h-4 w-4" aria-hidden="true" />
                   Rewards
@@ -219,7 +200,7 @@ export default function UserProfileDropdown() {
 
                 <button
                   onClick={() => handleNavigation('/student/lessons')}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <Calendar className="h-4 w-4" aria-hidden="true" />
                   My Lessons
@@ -227,11 +208,9 @@ export default function UserProfileDropdown() {
               </>
             )}
 
-            <hr className="my-1 border-gray-100" />
-
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#7E22CE] hover:bg-purple-50 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#7E22CE] hover:bg-purple-50 transition-colors"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
               Sign Out

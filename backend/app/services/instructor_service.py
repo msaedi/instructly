@@ -711,13 +711,16 @@ class InstructorService(BaseService):
             )
 
             for place in teaching_places:
-                entry: Dict[str, Any] = {"address": place.address}
+                teaching_entry: Dict[str, Any] = {"address": place.address}
                 if place.label:
-                    entry["label"] = place.label
-                teaching_locations.append(entry)
+                    teaching_entry["label"] = place.label
+                teaching_locations.append(teaching_entry)
 
             for place in public_places:
-                public_spaces.append({"address": place.address})
+                public_entry: Dict[str, Any] = {"address": place.address}
+                if place.label:
+                    public_entry["label"] = place.label
+                public_spaces.append(public_entry)
 
         service_area_records = []
         if profile.user and hasattr(profile.user, "service_areas"):
@@ -809,6 +812,8 @@ class InstructorService(BaseService):
                     "hourly_rate": service.hourly_rate,
                     "description": service.description,
                     "age_groups": service.age_groups,
+                    "levels_taught": service.levels_taught,
+                    "location_types": service.location_types,
                     "duration_options": service.duration_options,
                     "is_active": service.is_active,
                 }

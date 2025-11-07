@@ -2,6 +2,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import TfaModal from '@/components/security/TfaModal';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Heart, User, CreditCard, Bell, Eye, EyeOff, X, Gift } from 'lucide-react';
@@ -1181,7 +1182,7 @@ function NotificationsTab() {
   );
 }
 
-function TfaModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+/* function TfaModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
   const [step, setStep] = useState<'idle' | 'show' | 'verify' | 'enabled' | 'disabled'>('idle');
   const [qr, setQr] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
@@ -1378,7 +1379,7 @@ function TfaModal({ onClose, onChanged }: { onClose: () => void; onChanged: () =
       </div>
     </div>
   );
-}
+} */
 
 export default function StudentDashboard() {
   return (

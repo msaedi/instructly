@@ -88,13 +88,17 @@ export const reviewsApi = {
     instructorServiceId?: string,
     limit: number = 10,
     page: number = 1,
-    opts?: { minRating?: number; withText?: boolean }
+    opts?: { minRating?: number; rating?: number; withText?: boolean }
   ): Promise<ReviewListPageResponse> => {
     const p = new URLSearchParams();
     if (instructorServiceId) p.set('instructor_service_id', instructorServiceId);
     p.set('limit', String(limit));
     p.set('page', String(page));
-    if (opts?.minRating != null) p.set('min_rating', String(opts.minRating));
+    if (opts?.rating != null) {
+      p.set('rating', String(opts.rating));
+    } else if (opts?.minRating != null) {
+      p.set('min_rating', String(opts.minRating));
+    }
     if (opts?.withText != null) p.set('with_text', String(Boolean(opts.withText)));
     const res = await fetchAPI(`/api/reviews/instructor/${instructorId}/recent?${p.toString()}`);
     if (!res.ok) throw new Error(await getErrorMessage(res));

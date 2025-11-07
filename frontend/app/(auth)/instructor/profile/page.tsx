@@ -5,7 +5,8 @@ import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, ExternalLink, Info } from 'lucide-react';
+import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown, Camera, Info } from 'lucide-react';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
@@ -23,6 +24,7 @@ import {
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
 import { submitServiceAreasOnce } from './serviceAreaSubmit';
+import SkillsPricingInline from '@/features/instructor-profile/SkillsPricingInline';
 
 type Profile = {
   first_name: string;
@@ -127,7 +129,6 @@ function ProfilePageImpl() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Success toast handled via Sonner; no local success banner state
-  const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile>({
     first_name: '',
     last_name: '',
@@ -158,6 +159,7 @@ function ProfilePageImpl() {
   const [openDetails, setOpenDetails] = useState(false);
   const [openServiceAreas, setOpenServiceAreas] = useState(false);
   const [openPreferences, setOpenPreferences] = useState(false);
+  const [openSkills, setOpenSkills] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -209,14 +211,12 @@ function ProfilePageImpl() {
           firstName = userData['first_name'] || '';
           lastName = userData['last_name'] || '';
           userZip = userData['zip_code'] || '';
-          try { setUserId(userData?.['id'] ? String(userData['id']) : null); } catch {}
           logger.debug('Prefill: /auth/me body', { first_name: firstName, last_name: lastName, id: userData['id'], zip_code: userZip });
         } else if (data && data.user) {
           // Fallback to instructor payload's embedded user if available
           firstName = data.user['first_name'] || '';
           lastName = data.user['last_name'] || '';
           userZip = data.user['zip_code'] || '';
-          try { setUserId(data.user?.['id'] ? String(data.user['id']) : null); } catch {}
           logger.debug('Prefill: using instructor.user fallback', { first_name: firstName, last_name: lastName, zip_code: userZip });
         }
 
@@ -694,7 +694,7 @@ function ProfilePageImpl() {
       {!embedded && (
         <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between max-w-full relative">
-            <Link href="/" className="inline-block">
+            <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
             </Link>
             {/* Onboarding progress removed for standalone page */}
@@ -760,6 +760,13 @@ function ProfilePageImpl() {
           </>
         )}
 
+      <SectionHeroCard
+        id={embedded ? 'profile-first-card' : undefined}
+        icon={UserIcon}
+        title="Instructor profile"
+        subtitle="Update your story, teaching services, and booking preferences so students know what to expect."
+      />
+
       {error && (
         <div className="mb-6 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3">{error}</div>
       )}
@@ -768,19 +775,22 @@ function ProfilePageImpl() {
       {/* Mobile: stacked white sections with mobile-only dividers; Desktop: spaced cards */}
       <div className={embedded ? 'mt-0 sm:mt-0 sm:space-y-6' : 'mt-0 sm:mt-6 sm:space-y-6'}>
         {/* Personal Information Section */}
-        <div id={embedded ? 'profile-first-card' : undefined} className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+        <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
             <button
               type="button"
               className="w-full flex items-center justify-between mb-4 text-left"
               onClick={() => setOpenPersonal((v) => !v)}
               aria-expanded={openPersonal}
             >
-              <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <UserIcon className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <span>Personal Information</span>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <UserIcon className="w-6 h-6 text-[#7E22CE]" />
               </div>
+              <div className="flex flex-col text-left">
+                <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Personal Information</span>
+                <span className="text-sm text-gray-500">Basic details that appear on your profile and booking receipts.</span>
+              </div>
+            </div>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPersonal ? 'rotate-180' : ''}`} />
             </button>
             {openPersonal && (
@@ -842,28 +852,37 @@ function ProfilePageImpl() {
             onClick={() => setOpenDetails((v) => !v)}
             aria-expanded={openDetails}
           >
-            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
+            <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <BookOpen className="w-6 h-6 text-[#7E22CE]" />
               </div>
-              <span>Profile Details</span>
+              <div className="flex flex-col text-left">
+                <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Profile Details</span>
+                <span className="text-sm text-gray-500">Tell students about your experience, style, and teaching approach.</span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={(e) => { e.stopPropagation(); if (userId) router.push(`/instructors/${userId}`); }}
-                aria-label="View public profile"
-                title="View public profile"
-                className="inline-flex items-center px-2.5 py-1.5 text-xs rounded-md border border-purple-200 bg-purple-50 text-[#7E22CE] hover:bg-purple-100 transition-colors disabled:opacity-50"
-                disabled={!userId}
-              >
-                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                <span className="hidden sm:inline">View public profile</span>
-              </button>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openDetails ? 'rotate-180' : ''}`} />
             </div>
           </button>
           {openDetails && (
           <div className="py-2">
+            {embedded && (
+              <div className="mb-4">
+                <ProfilePictureUpload
+                  size={101}
+                  ariaLabel="Upload profile photo"
+                  trigger={
+                    <div
+                      className="w-[101px] h-[101px] rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 cursor-pointer transition-transform duration-150 ease-in-out hover:scale-[1.02]"
+                      title="Upload profile photo"
+                    >
+                      <Camera className="w-7 h-7 text-[#7E22CE]" />
+                    </div>
+                  }
+                />
+              </div>
+            )}
             <div className="mb-2">
               <p className="text-gray-600 mt-1">Introduce Yourself</p>
             </div>
@@ -909,33 +928,44 @@ function ProfilePageImpl() {
                 <button
                   type="button"
                   onClick={() => {
-                    const base = (profile.bio || '').trim();
-                    const prefix = base.length > 0 ? base : 'I am a dedicated instructor who helps students learn efficiently and enjoy the process.';
-                    const pool = [
+                    const sentences = [
                       'I focus on building strong fundamentals and lasting confidence.',
                       'Each lesson is tailored to your goals, pace, and learning style.',
                       'We combine technique drills with practical applications you can use right away.',
                       'I provide clear takeaways, measurable milestones, and simple practice plans.',
                       'My approach balances encouragement with constructive, actionable feedback.',
                       'You will know what to improve next and how to practice effectively between sessions.',
-                      'I bring real-world examples, curated resources, and step‑by‑step guidance.',
+                      'I bring real-world examples, curated resources, and step-by-step guidance.',
                       'Consistency matters—together we set realistic targets and celebrate progress.',
                       'Whether you are a beginner or leveling up, I will meet you where you are.',
-                      'My goal is to make learning engaging, stress‑free, and genuinely rewarding.'
+                      'My goal is to make learning engaging, stress-free, and genuinely rewarding.',
+                      'Lessons come with curated resources, homework guides, and accountability check-ins.',
+                      'We track your milestones so you can clearly see how far you have come.',
+                      'Expect a calm, upbeat environment where questions are encouraged and celebrated.',
+                      'I adapt my teaching to visual, auditory, or hands-on learners on the fly.',
                     ];
-                    let assembled = prefix.endsWith('.') ? prefix : `${prefix}.`;
-                    for (const sentence of pool) {
-                      if (assembled.length >= 400) break;
-                      assembled += ` ${sentence}`;
+
+                    const current = (profile.bio || '').trim();
+                    const defaultIntro =
+                      'I am a dedicated instructor who helps students learn efficiently and enjoy the process.';
+
+                    const firstSentence = current.split('.').map((part) => part.trim()).filter(Boolean)[0];
+                    const intro =
+                      firstSentence && firstSentence.length >= 10 && firstSentence.length <= 160
+                        ? `${firstSentence}.`
+                        : defaultIntro;
+
+                    const shuffled = [...sentences].sort(() => Math.random() - 0.5);
+                    let assembled = intro.endsWith('.') ? intro : `${intro}.`;
+                    let index = 0;
+
+                    while (assembled.length < 400) {
+                      assembled += ` ${shuffled[index % shuffled.length]}`;
+                      index += 1;
+                      if (index > shuffled.length * 2) break;
                     }
-                    // If still short, repeat from the pool until we reach the floor, but cap length for readability
-                    let i = 0;
-                    while (assembled.length < 400 && i < pool.length * 2) {
-                      assembled += ` ${pool[i % pool.length]}`;
-                      i += 1;
-                    }
-                    // Soft cap to avoid overly long bios
-                    const next = assembled.slice(0, 560);
+
+                    const next = assembled.slice(0, 560).replace(/\s+/g, ' ').trim();
                     setProfile((p) => ({ ...p, bio: next }));
                     setBioTouched(true);
                   }}
@@ -959,11 +989,14 @@ function ProfilePageImpl() {
             onClick={() => setOpenServiceAreas((v) => !v)}
             aria-expanded={openServiceAreas}
           >
-            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
+            <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <MapPin className="w-6 h-6 text-[#7E22CE]" />
               </div>
-              <span>Service Areas</span>
+              <div className="flex flex-col text-left">
+                <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Service Areas</span>
+                <span className="text-sm text-gray-500">Select the neighborhoods where you’re available for lessons.</span>
+              </div>
             </div>
             <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openServiceAreas ? 'rotate-180' : ''}`} />
           </button>
@@ -1251,6 +1284,35 @@ function ProfilePageImpl() {
           </div>
           )}
         </div>
+        {/* Mobile divider before Skills & Pricing */}
+        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+
+        {/* Skills & Pricing Section */}
+        <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between mb-4 text-left"
+            onClick={() => setOpenSkills((v) => !v)}
+            aria-expanded={openSkills}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <BookOpen className="w-6 h-6 text-[#7E22CE]" />
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Skills & Pricing</span>
+                <span className="text-sm text-gray-500">Manage the subjects you teach, durations, and rates students see.</span>
+              </div>
+            </div>
+            <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openSkills ? 'rotate-180' : ''}`} />
+          </button>
+          {openSkills && (
+            <div className="py-2">
+              <SkillsPricingInline />
+            </div>
+          )}
+        </div>
+
         {/* Mobile divider before Booking Preferences */}
         <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
@@ -1262,46 +1324,32 @@ function ProfilePageImpl() {
             onClick={() => setOpenPreferences((v) => !v)}
             aria-expanded={openPreferences}
           >
-            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">
+            <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <SettingsIcon className="w-6 h-6 text-[#7E22CE]" />
               </div>
-              <span>Booking Preferences</span>
+              <div className="flex flex-col text-left">
+                <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Booking Preferences</span>
+                <span className="text-sm text-gray-500">Fine-tune lead time, buffers, and other scheduling requirements.</span>
+              </div>
             </div>
             <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
           </button>
           {openPreferences && (
           <>
           <p className="text-gray-600 mt-1 mb-3">Control availability and booking preferences</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-white rounded-lg">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Years of Experience</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={70}
-                  step={1}
-                  inputMode="numeric"
-                  value={profile.years_experience}
-                  onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
-                  onChange={(e) => {
-                    const n = Math.max(1, Math.min(70, parseInt(e.target.value || '0', 10)));
-                    setProfile((p) => ({ ...p, years_experience: isNaN(n) ? 1 : n }));
-                  }}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 no-spinner"
-                />
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="bg-white rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Advance Notice (business hours)</label>
-                  <Tooltip.Provider delayDuration={2000} skipDelayDuration={100}>
+                  <Tooltip.Provider delayDuration={150} skipDelayDuration={0}>
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-50 text-[#7E22CE]">
+                        <span tabIndex={0} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-50 text-[#7E22CE] focus:outline-none">
                           <Info className="w-3.5 h-3.5" aria-hidden="true" />
                         </span>
                       </Tooltip.Trigger>
-                      <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 shadow-sm pointer-events-none select-none max-w-xs">
+                      <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 shadow-sm select-none max-w-xs">
                         The minimum time required between booking and the start of a lesson. For example, if set to 2 hours, students can’t book a session that starts in less than 2 hours from now.
                         <Tooltip.Arrow className="fill-gray-200" />
                       </Tooltip.Content>
@@ -1326,14 +1374,14 @@ function ProfilePageImpl() {
               <div className="bg-white rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Buffer Time (hours)</label>
-                  <Tooltip.Provider delayDuration={2000} skipDelayDuration={100}>
+                  <Tooltip.Provider delayDuration={150} skipDelayDuration={0}>
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-50 text-[#7E22CE]">
+                        <span tabIndex={0} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-50 text-[#7E22CE] focus:outline-none">
                           <Info className="w-3.5 h-3.5" aria-hidden="true" />
                         </span>
                       </Tooltip.Trigger>
-                      <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 shadow-sm pointer-events-none select-none max-w-xs">
+                      <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 shadow-sm select-none max-w-xs">
                         The minimum gap between two sessions. For example, if set to 15 minutes, and someone books 9:00–10:00, the next session will be bookable starting at 10:15.
                         <Tooltip.Arrow className="fill-gray-200" />
                       </Tooltip.Content>
@@ -1359,7 +1407,6 @@ function ProfilePageImpl() {
           </>
           )}
         </div>
-
         {/* Inline actions - standalone save */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <button

@@ -21,7 +21,7 @@ export interface ServiceAreaNeighborhood {
   neighborhood_id: string;
   ntacode?: string | null;
   name?: string | null;
-  borough?: string | null;
+  borough?: string | { name?: string | null; label?: string | null } | null;
 }
 
 export interface InstructorBasic {
@@ -90,6 +90,18 @@ export interface InstructorProfile {
   /** Human-readable summary provided by backend */
   service_area_summary?: string | null;
 
+  /** Preferred teaching locations configured by instructor */
+  preferred_teaching_locations?: Array<{
+    address: string;
+    label?: string;
+  }>;
+
+  /** Preferred public spaces configured by instructor */
+  preferred_public_spaces?: Array<{
+    address: string;
+    label?: string;
+  }>;
+
   /** Years of teaching experience */
   years_experience: number;
 
@@ -99,8 +111,18 @@ export interface InstructorProfile {
     first_name: string;
     /** User's last initial for privacy */
     last_initial: string;
+    /** Whether this user has uploaded a profile picture */
+    has_profile_picture?: boolean;
+    /** Current profile picture version for cache busting */
+    profile_picture_version?: number;
     // Email removed for privacy
   };
+
+  /** Top-level profile picture indicator (mirrors user.has_profile_picture) */
+  has_profile_picture?: boolean;
+
+  /** Top-level profile picture version (mirrors user.profile_picture_version) */
+  profile_picture_version?: number;
 
   /** Services offered by this instructor */
   services: InstructorService[];
@@ -172,6 +194,9 @@ export interface InstructorService {
 
   /** Age groups this service is offered to (e.g., 'kids', 'adults') */
   age_groups?: string[];
+
+  /** Skill levels taught (e.g., 'beginner', 'intermediate', 'advanced') */
+  levels_taught?: string[];
 
   /** Instructor ID (ULID string, when not nested) */
   instructor_id?: string;

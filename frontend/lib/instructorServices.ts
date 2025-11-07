@@ -145,6 +145,12 @@ export async function normalizeInstructorServices(services: unknown): Promise<UI
         skill: typeof record['skill'] === 'string' && record['skill'].trim().length > 0 ? record['skill'].trim() : displayName,
         duration_options: durationOptions,
         hourly_rate: Number.isFinite(hourlyRate) ? hourlyRate : 0,
+        ...(Array.isArray(record['levels_taught']) && record['levels_taught'].length
+          ? { levels_taught: (record['levels_taught'] as unknown[]).map((lvl) => String(lvl)) }
+          : {}),
+        ...(Array.isArray(record['location_types']) && record['location_types'].length
+          ? { location_types: (record['location_types'] as unknown[]).map((loc) => String(loc)) }
+          : {}),
       };
 
       return normalized;

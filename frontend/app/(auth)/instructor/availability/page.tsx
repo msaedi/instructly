@@ -25,6 +25,7 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 
 const autosaveEnv = process.env['NEXT_PUBLIC_AVAIL_AUTOSAVE']?.toLowerCase();
 const AVAIL_AUTOSAVE_ENABLED = autosaveEnv === '1' || autosaveEnv === 'true';
@@ -313,7 +314,7 @@ function AvailabilityPageImpl() {
       {!embedded && (
         <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <Link href="/" className="inline-block">
+            <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4"><UserProfileDropdown /></div>
@@ -338,21 +339,14 @@ function AvailabilityPageImpl() {
             </Link>
           </div>
         )}
-        {!embedded && (
-          <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-[#7E22CE]" />
-              </div>
-              <div>
-                <h2 className="text-3xl font-bold text-gray-600 mb-2">Set Availability</h2>
-                <p className="text-gray-600">Set the times you’re available to teach.</p>
-              </div>
-            </div>
-          </div>
-        )}
+        <SectionHeroCard
+          id={embedded ? 'availability-first-card' : undefined}
+          icon={Calendar}
+          title="Availability"
+          subtitle="Map out the days and hours you’re available so students can book the right times."
+        />
 
-        <div id={embedded ? 'availability-first-card' : undefined} className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
         {header}
 
       {/* Tip below the week navigator */}

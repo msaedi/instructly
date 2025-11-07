@@ -7,6 +7,7 @@ export interface PreferredTeachingLocationPayload {
 
 export interface PreferredPublicSpacePayload {
   address: string;
+  label?: string;
 }
 
 export interface InstructorUpdatePayload {

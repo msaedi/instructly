@@ -440,7 +440,8 @@ button:not(:disabled),
 [role="button"],
 a {
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
+  transition: none;
+  transform: none;
 }
 
 input,
@@ -453,34 +454,18 @@ select,
 /* Reusable utility for clickable surfaces (cards, rows) */
 .clickable {
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
+  transition: none;
+  transform: none;
 }
 
 .clickable:hover {
   background-color: rgba(0, 0, 0, 0.04);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  transform: scale(1.02);
 }
 
 .clickable:active {
   transform: scale(1.0);
 }
-
-/* Buttons: magnify only on hover (no color change) */
-/* Generic hover treatment (applies to all buttons) */
-button:not(:disabled):hover,
-[role="button"]:not(:disabled):hover {
-  transform: scale(1.02);
-}
-
-/* Ensure text scales smoothly with interactive elements to avoid jitter on hover */
-button:not(:disabled),
-[role="button"]:not(:disabled),
-.clickable,
-a[role="button"] {
-  transform-origin: center center;
-}
-
 /* Neutralize Tailwind hover color utilities for buttons (no color change)
    Exclude brand purple backgrounds so they remain solid on hover */
 button[class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(:disabled):hover,
@@ -606,6 +591,7 @@ button:not(:disabled):active,
   transform: scale(1.0);
 }
 
+
 /* Avoid text blurring on touch when pressing buttons by disabling transform on tap */
 @media (hover: none) {
   button:not(:disabled):hover,
@@ -619,7 +605,7 @@ button:not(:disabled):active,
 button:not(:disabled):active,
 [role="button"]:not(:disabled):active,
 a[role="button"]:active {
-  transform: scale(1.01);
+  transform: none;
 }
 
 /* Links: avoid color/brightness filter that causes subpixel blurring */
@@ -839,4 +825,11 @@ html {
   transform: translate(-4px, -4px);
   z-index: 20;
   pointer-events: none;
+}
+
+.template-title-input:focus,
+.template-title-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
 }

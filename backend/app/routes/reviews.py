@@ -174,21 +174,26 @@ def get_recent_reviews(
     limit: int = Query(10, ge=1, le=50),
     page: int = Query(1, ge=1),
     min_rating: Optional[int] = Query(None, ge=1, le=5),
+    rating: Optional[int] = Query(None, ge=1, le=5),
     with_text: Optional[bool] = Query(None),
     service: ReviewService = Depends(get_review_service),
 ) -> ReviewListPageResponse:
+    if rating is not None:
+        min_rating = None
     reviews: List[Any] = service.get_recent_reviews(
         instructor_id=instructor_id,
         instructor_service_id=instructor_service_id,
         limit=limit,
         page=page,
         min_rating=min_rating,
+        rating=rating,
         with_text=with_text,
     )
     total = service.count_recent_reviews(
         instructor_id=instructor_id,
         instructor_service_id=instructor_service_id,
         min_rating=min_rating,
+        rating=rating,
         with_text=with_text,
     )
     items: List[ReviewItem] = []

@@ -20,6 +20,262 @@ import { withApiBase } from '@/lib/apiBase';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
+const instructorServicesCache = new Map<string, Instructor['services']>();
+
+const getServiceDisplayName = (service: Instructor['services'][number]): string => {
+  const candidates: Array<unknown> = [
+    (service as { service_catalog_name?: unknown }).service_catalog_name,
+    (service as { name?: unknown }).name,
+    (service as { title?: unknown }).title,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+
+  return '';
+};
+const instructorServicesPromises = new Map<string, Promise<Instructor['services'] | null>>();
+
+const normalizeProfileServices = (services: unknown): Instructor['services'] => {
+  if (!Array.isArray(services)) return [];
+
+  return services
+    .map((service) => {
+      if (!isRecord(service)) return null;
+
+      const id = getString(service, 'id', '');
+      const serviceCatalogId =
+        getString(service, 'service_catalog_id', '') || getString(service, 'service_catalog', '');
+      const hourlyRateRaw = service['hourly_rate'];
+      const hourlyRate =
+        typeof hourlyRateRaw === 'number'
+          ? hourlyRateRaw
+          : typeof hourlyRateRaw === 'string'
+            ? Number(hourlyRateRaw)
+            : getNumber(service, 'hourly_rate', 0);
+      const normalizedRate = Number.isFinite(hourlyRate) ? hourlyRate : 0;
+      const descriptionRaw = service['description'];
+      const description = typeof descriptionRaw === 'string' ? descriptionRaw : undefined;
+      const durationOptions = getArray(service, 'duration_options')
+        .map((value) => {
+          if (typeof value === 'number') return value;
+          const parsed = Number(value);
+          return Number.isFinite(parsed) ? parsed : null;
+        })
+        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+      const isActiveValue = service['is_active'];
+      const isActive = typeof isActiveValue === 'boolean' ? isActiveValue : undefined;
+
+      const normalized: Instructor['services'][number] = {
+        id: id || serviceCatalogId || '',
+        service_catalog_id: serviceCatalogId || id || '',
+        hourly_rate: normalizedRate,
+      };
+
+      const catalogName =
+        getString(service, 'service_catalog_name', '') ||
+        getString(service, 'name', '');
+
+      if (catalogName) {
+        (normalized as Instructor['services'][number] & { service_catalog_name?: string }).service_catalog_name =
+          catalogName;
+      }
+
+      if (description) {
+        normalized.description = description;
+      }
+      if (durationOptions.length > 0) {
+        normalized.duration_options = durationOptions;
+      }
+      if (typeof isActive === 'boolean') {
+        normalized.is_active = isActive;
+      }
+
+      const displayName = getServiceDisplayName(normalized);
+      const fallbackName = getString(service, 'name', '') || getString(service, 'title', '');
+      if (!displayName && fallbackName) {
+        normalized.service_catalog_name = fallbackName;
+      }
+
+      if (!normalized.id || !normalized.service_catalog_id) {
+        return null;
+      }
+
+      return normalized;
+    })
+    .filter((value): value is Instructor['services'][number] => value !== null);
+};
+
+const mergeInstructorServices = (
+  existing: Instructor['services'] | undefined,
+  incoming: Instructor['services']
+): Instructor['services'] => {
+  if (!incoming.length) {
+    return existing ?? [];
+  }
+
+  if (!existing || !existing.length) {
+    return incoming;
+  }
+
+  const makeKey = (service: Instructor['services'][number]) => {
+    const base = `${service.service_catalog_id || ''}|${service.id}`;
+    const name = getServiceDisplayName(service);
+    return name ? `${base}|${name.toLowerCase()}` : base;
+  };
+
+  const incomingKeys = new Set(incoming.map((service) => makeKey(service)));
+
+  const merged = [...incoming];
+
+  for (const service of existing) {
+    const key = makeKey(service);
+    if (!incomingKeys.has(key)) {
+      merged.push(service);
+    }
+  }
+
+  return merged;
+};
+
+const dedupeAndOrderServices = (
+  services: Instructor['services'],
+  highlightCatalogId?: string | null
+): Instructor['services'] => {
+  if (!Array.isArray(services) || services.length === 0) {
+    return [];
+  }
+
+  const seenKeys = new Map<string, Instructor['services'][number]>();
+  const orderedKeys: string[] = [];
+
+  services.forEach((service) => {
+    if (!service) return;
+    const catalogKey = (service.service_catalog_id || '').trim().toLowerCase();
+    const nameKey = getServiceDisplayName(service).trim().toLowerCase();
+    const idKey = (service.id || '').trim().toLowerCase();
+
+    const key = catalogKey || nameKey || idKey;
+    if (!key) return;
+
+    if (!seenKeys.has(key)) {
+      seenKeys.set(key, { ...service });
+      orderedKeys.push(key);
+    } else {
+      const existing = seenKeys.get(key)!;
+      if (!existing.service_catalog_name && service.service_catalog_name) {
+        existing.service_catalog_name = service.service_catalog_name;
+      }
+      if (!existing.description && service.description) {
+        existing.description = service.description;
+      }
+      if (
+        (!existing.duration_options || existing.duration_options.length === 0) &&
+        Array.isArray(service.duration_options) &&
+        service.duration_options.length > 0
+      ) {
+        existing.duration_options = [...service.duration_options];
+      }
+      if (typeof existing.is_active !== 'boolean' && typeof service.is_active === 'boolean') {
+        existing.is_active = service.is_active;
+      }
+      if (!existing.service_catalog_id && service.service_catalog_id) {
+        existing.service_catalog_id = service.service_catalog_id;
+      }
+      if (!existing.id && service.id) {
+        existing.id = service.id;
+      }
+    }
+  });
+
+  const highlightKey = highlightCatalogId ? highlightCatalogId.trim().toLowerCase() : null;
+  if (highlightKey) {
+    for (let i = 0; i < orderedKeys.length; i += 1) {
+      const key = orderedKeys[i];
+      if (!key) continue;
+      const service = seenKeys.get(key);
+      if (!service) continue;
+      const catalogKey = (service.service_catalog_id || '').trim().toLowerCase();
+      if (catalogKey === highlightKey) {
+        if (i > 0) {
+          orderedKeys.splice(i, 1);
+          orderedKeys.unshift(key);
+        }
+        break;
+      }
+    }
+  }
+
+  return orderedKeys
+    .map((key) => (key ? seenKeys.get(key) : undefined))
+    .filter((svc): svc is Instructor['services'][number] => Boolean(svc));
+};
+
+async function hydrateInstructorServices(instructors: Instructor[]): Promise<Instructor[]> {
+  if (!Array.isArray(instructors) || instructors.length === 0) {
+    return instructors;
+  }
+
+  const hydrated = await Promise.all(
+    instructors.map(async (instructor) => {
+      const instructorId = instructor?.user_id || instructor?.id;
+      if (!instructorId) {
+        return instructor;
+      }
+
+      const existingServices = Array.isArray(instructor.services) ? instructor.services : [];
+      if (existingServices.length > 1) {
+        return instructor;
+      }
+
+      const cachedServices = instructorServicesCache.get(instructorId);
+      if (cachedServices) {
+        return {
+          ...instructor,
+          services: mergeInstructorServices(existingServices, cachedServices),
+        };
+      }
+
+      let pending = instructorServicesPromises.get(instructorId);
+      if (!pending) {
+        pending = (async () => {
+          try {
+            const response = await publicApi.getInstructorProfile(instructorId);
+            if (response.status !== 200 || !response.data) {
+              return null;
+            }
+            const normalized = normalizeProfileServices((response.data as { services?: unknown }).services);
+            if (normalized.length) {
+              instructorServicesCache.set(instructorId, normalized);
+            }
+            return normalized.length ? normalized : null;
+          } catch {
+            return null;
+          } finally {
+            instructorServicesPromises.delete(instructorId);
+          }
+        })();
+        instructorServicesPromises.set(instructorId, pending);
+      }
+
+      const fetchedServices = await pending;
+      if (!fetchedServices || !fetchedServices.length) {
+        return instructor;
+      }
+
+      return {
+        ...instructor,
+        services: mergeInstructorServices(existingServices, fetchedServices),
+      };
+    })
+  );
+
+  return hydrated;
+}
+
 // GeoJSON feature interface for coverage areas
 interface GeoJSONFeature {
   properties?: {
@@ -138,8 +394,50 @@ function SearchPageContent() {
               const instructor = isRecord(result) ? result['instructor'] : undefined;
               const service = isRecord(result) ? result['service'] : undefined;
               const offering = isRecord(result) ? result['offering'] : undefined;
+              const matchedServiceCatalogId = getString(service, 'id', '') || null;
 
-              return {
+              const levelsFromOffering = getArray(offering, 'levels_taught')
+                .map((value) => (typeof value === 'string' ? value : null))
+                .filter((value): value is string => Boolean(value));
+              const levelsFromService = getArray(service, 'levels_taught')
+                .map((value) => (typeof value === 'string' ? value : null))
+                .filter((value): value is string => Boolean(value));
+              const levelsTaught = levelsFromOffering.length > 0 ? levelsFromOffering : levelsFromService;
+
+              const ageFromOffering = getArray(offering, 'age_groups')
+                .map((value) => (typeof value === 'string' ? value : null))
+                .filter((value): value is string => Boolean(value));
+              const ageFromService = getArray(service, 'age_groups')
+                .map((value) => (typeof value === 'string' ? value : null))
+                .filter((value): value is string => Boolean(value));
+              const ageGroups = ageFromOffering.length > 0 ? ageFromOffering : ageFromService;
+
+              const locationFromOffering = getArray(offering, 'location_types')
+                .map((value) => (typeof value === 'string' ? value : null))
+                .filter((value): value is string => Boolean(value));
+              const locationFromService = getArray(service, 'location_types')
+                .map((value) => (typeof value === 'string' ? value : null))
+                .filter((value): value is string => Boolean(value));
+              const locationTypes = locationFromOffering.length > 0 ? locationFromOffering : locationFromService;
+
+              const servicePayload = {
+                id: getString(service, 'id') || '1',
+                service_catalog_id: getString(service, 'id') || '1',
+                service_catalog_name: getString(service, 'name', ''),
+                hourly_rate:
+                  getNumber(offering, 'hourly_rate') || getNumber(service, 'actual_min_price', 0),
+                description:
+                  getString(offering, 'description') || getString(service, 'description', ''),
+                duration_options: getArray(offering, 'duration_options').length > 0
+                  ? (getArray(offering, 'duration_options') as number[])
+                  : [60],
+                levels_taught: levelsTaught,
+                age_groups: ageGroups,
+                location_types: locationTypes,
+                is_active: true,
+              };
+
+              const mapped = {
                 id: getString(instructor, 'id', ''),
                 user_id: getString(instructor, 'id', ''),
                 bio: getString(instructor, 'bio', ''),
@@ -162,22 +460,17 @@ function SearchPageContent() {
                   first_name: getString(instructor, 'first_name', 'Unknown'),
                   last_initial: getString(instructor, 'last_initial', ''),
                 },
-                services: [
-                  {
-                    id: getString(service, 'id') || '1',
-                    service_catalog_id: getString(service, 'id') || '1',
-                    hourly_rate:
-                      getNumber(offering, 'hourly_rate') || getNumber(service, 'actual_min_price', 0),
-                    description:
-                      getString(offering, 'description') || getString(service, 'description', ''),
-                    duration_options: getArray(offering, 'duration_options').length > 0
-                      ? getArray(offering, 'duration_options') as number[]
-                      : [60],
-                    is_active: true,
-                  },
-                ],
+                services: [servicePayload],
+                _matchedServiceContext: {
+                  levels: levelsTaught,
+                  age_groups: ageGroups,
+                  location_types: locationTypes,
+                },
                 relevance_score: getNumber(result, 'match_score', 0),
-              } as Instructor & { relevance_score: number };
+                _matchedServiceCatalogId: matchedServiceCatalogId,
+              } as Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null };
+
+              return mapped;
             }
           );
           instructorsData.sort(
@@ -206,7 +499,31 @@ function SearchPageContent() {
             has_next: boolean;
             has_prev: boolean;
           }>(loadSearchListSchema, response.data, { endpoint: 'GET /instructors' });
-          instructorsData = validated.items as unknown as Instructor[];
+          const casted = validated.items as unknown as Instructor[];
+          instructorsData = casted.map((item) => {
+            const matchId = serviceCatalogId || null;
+            const highlightedService = Array.isArray(item.services)
+              ? item.services.find((svc) => (svc.service_catalog_id || '').trim().toLowerCase() === (matchId || '').trim().toLowerCase()) || item.services[0]
+              : undefined;
+            const levels = Array.isArray(highlightedService?.levels_taught)
+              ? highlightedService.levels_taught
+              : [];
+            const ageGroups = Array.isArray(highlightedService?.age_groups)
+              ? highlightedService.age_groups
+              : [];
+            const locationTypes = Array.isArray(highlightedService?.location_types)
+              ? highlightedService.location_types
+              : [];
+            return {
+              ...item,
+              _matchedServiceCatalogId: matchId,
+              _matchedServiceContext: {
+                levels,
+                age_groups: ageGroups,
+                location_types: locationTypes,
+              },
+            };
+          });
           totalResults = validated.total;
           const totalPages = Math.ceil(totalResults / 20);
           setHasMore(pageNum < totalPages);
@@ -216,10 +533,36 @@ function SearchPageContent() {
         return;
       }
 
+      const needsHydration = instructorsData.some(
+        (item) => !Array.isArray(item?.services) || item.services.length <= 1
+      );
+      let finalResults = instructorsData;
+      if (needsHydration) {
+        try {
+          const hydratedResults = await hydrateInstructorServices(instructorsData);
+          if (hydratedResults.length) {
+            finalResults = hydratedResults;
+          }
+        } catch {
+          // ignore hydration errors; fallback to base results
+        }
+      }
+
+      finalResults = finalResults.map((instructor) => {
+        const highlightId =
+          (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ?? null;
+        const services = Array.isArray(instructor.services) ? instructor.services : [];
+        const deduped = dedupeAndOrderServices(services, highlightId);
+        return {
+          ...instructor,
+          services: deduped,
+        };
+      });
+
       if (append) {
-        setInstructors(prev => [...prev, ...instructorsData]);
+        setInstructors((prev) => [...prev, ...finalResults]);
       } else {
-        setInstructors(instructorsData);
+        setInstructors(finalResults);
 
         // Track search only for initial loads, not pagination
         if (pageNum === 1) {
@@ -340,6 +683,7 @@ function SearchPageContent() {
           }
         }
       }
+
       return false;
     });
 
@@ -638,6 +982,9 @@ function SearchPageContent() {
               <>
                 <div className={`flex flex-col ${isStacked ? 'gap-20' : 'gap-4 md:gap-6'}`}>
                   {filteredInstructors.map((instructor) => {
+                    const highlightServiceCatalogId =
+                      (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ??
+                      (serviceCatalogId || null);
                     const enhancedInstructor = {
                       ...instructor,
                       rating: instructor.rating || 4.8,
@@ -663,6 +1010,7 @@ function SearchPageContent() {
                       >
                         <InstructorCard
                           instructor={enhancedInstructor}
+                          {...(highlightServiceCatalogId ? { highlightServiceCatalogId } : {})}
                           {...(nextAvailableByInstructor[instructor.user_id] && { nextAvailableSlot: nextAvailableByInstructor[instructor.user_id] })}
                           onViewProfile={() => handleInteraction('view_profile')}
                           compact={isStacked}

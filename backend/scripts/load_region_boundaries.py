@@ -210,7 +210,14 @@ def load_city(
                  ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(:geom), 4326)),
                  ST_Centroid(ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(:geom), 4326))),
                  CAST(:meta AS JSONB), NOW(), NOW())
-            ON CONFLICT (id) DO NOTHING
+            ON CONFLICT (region_type, region_code)
+            DO UPDATE SET
+                region_name = EXCLUDED.region_name,
+                parent_region = EXCLUDED.parent_region,
+                boundary = EXCLUDED.boundary,
+                centroid = EXCLUDED.centroid,
+                region_metadata = EXCLUDED.region_metadata,
+                updated_at = NOW()
             """
         )
         for _, row in out.iterrows():
