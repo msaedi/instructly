@@ -181,6 +181,7 @@ class AvailabilityService(BaseService):
             conflict_repository or RepositoryFactory.create_conflict_checker_repository(db)
         )
         self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
+        self.booking_repository = RepositoryFactory.create_booking_repository(db)
         self.audit_repository = RepositoryFactory.create_audit_repository(db)
 
     # ----- V2 (bitmaps) helpers -----
@@ -1887,6 +1888,38 @@ class AvailabilityService(BaseService):
                 ):
                     active_start, active_end, active_origin = start, end, origin
                     active_end_min = end_min
+
+    @BaseService.measure_operation("delete_orphan_availability_for_instructor")
+    def delete_orphan_availability_for_instructor(
+        self,
+        instructor_id: str,
+        *,
+        keep_days_with_bookings: bool = True,
+    ) -> int:
+        """
+        Delete orphaned AvailabilityDay rows for an instructor.
+
+        Bitmap-era invariant: availability is not cascaded on instructor delete, so we
+        proactively purge orphaned days that have no bookings while preserving any day
+        that has (or had) a booking on that date.
+        """
+
+        protected_dates = None
+        if keep_days_with_bookings:
+            protected_dates = self.booking_repository.get_distinct_booking_dates(instructor_id)
+
+        deleted = self._bitmap_repo().delete_days_for_instructor(
+            instructor_id, exclude_dates=protected_dates
+        )
+
+        if deleted:
+            logger.info(
+                "availability_cleanup: instructor_id=%s purged_days=%s keep_days_with_bookings=%s",
+                instructor_id,
+                deleted,
+                keep_days_with_bookings,
+            )
+        return deleted
 
     @staticmethod
     def _minutes_range(start: time, end: time) -> tuple[int, int]:

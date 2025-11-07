@@ -499,6 +499,23 @@ class InstructorService(BaseService):
 
         logger.info(f"Deleted instructor profile for user {user_id}")
 
+        try:
+            from .availability_service import AvailabilityService
+
+            availability_service = AvailabilityService(self.db)
+            purged = availability_service.delete_orphan_availability_for_instructor(
+                user_id, keep_days_with_bookings=True
+            )
+            logger.info(
+                "instructor_delete: purged_orphan_days=%s instructor_id=%s", purged, user_id
+            )
+        except Exception as cleanup_error:  # pragma: no cover - defensive log
+            logger.warning(
+                "instructor_delete: failed to purge orphan availability for %s (%s)",
+                user_id,
+                cleanup_error,
+            )
+
     # Private helper methods
 
     def _validate_catalog_ids(self, catalog_ids: List[str]) -> None:

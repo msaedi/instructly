@@ -139,6 +139,12 @@ Bitmap availability rows are persisted indefinitely unless they violate the rete
 The retention task runs daily at 02:00 when enabled, emits one audit log per run, and records Prometheus metrics
 (`availability_days_purged_total`, `availability_retention_run_seconds`) for observability.
 
+Instructor deletion does **not** cascade to `availability_days`. Instead, the delete flow calls
+`AvailabilityService.delete_orphan_availability_for_instructor`, which immediately purges every
+AvailabilityDay row for that instructor that does **not** have a booking on the same calendar date.
+Days with bookings are preserved for auditing/history, and the scheduled retention job provides the
+long-tail safety net (180/30 day TTL, keep-with-booking rule) for any rows that appear later.
+
 ## Testing
 
 Source-guard tests ensure no legacy code reappears:

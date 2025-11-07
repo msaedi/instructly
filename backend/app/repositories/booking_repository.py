@@ -258,6 +258,22 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting bookings for week: {str(e)}")
             raise RepositoryException(f"Failed to get weekly bookings: {str(e)}")
 
+    def get_distinct_booking_dates(self, instructor_id: str) -> List[date]:
+        """Return distinct booking dates for the instructor."""
+        try:
+            rows = (
+                self.db.query(Booking.booking_date)
+                .filter(Booking.instructor_id == instructor_id, Booking.booking_date.isnot(None))
+                .distinct()
+                .all()
+            )
+            return [cast(date, row[0]) for row in rows if row[0] is not None]
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self.logger.error(
+                "Error loading distinct booking dates for instructor %s: %s", instructor_id, exc
+            )
+            raise RepositoryException("Failed to load booking dates") from exc
+
     def count_instructor_completed_last_30d(self, instructor_id: str) -> int:
         """Return the number of completed bookings for an instructor in the last 30 days."""
 

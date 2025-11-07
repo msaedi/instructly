@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, Iterable, List, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
 
@@ -63,3 +63,19 @@ class AvailabilityDayRepository:
             count += 1
         self.db.flush()
         return count
+
+    def delete_days_for_instructor(
+        self,
+        instructor_id: str,
+        *,
+        exclude_dates: Optional[Iterable[date]] = None,
+    ) -> int:
+        """Delete AvailabilityDay rows for an instructor, optionally excluding specific dates."""
+        query = self.db.query(AvailabilityDay).filter(
+            AvailabilityDay.instructor_id == instructor_id
+        )
+        if exclude_dates:
+            query = query.filter(~AvailabilityDay.day_date.in_(list(exclude_dates)))
+        deleted = query.delete(synchronize_session=False)
+        self.db.flush()
+        return int(deleted or 0)
