@@ -2,21 +2,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-// import removed; background handled globally
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName, SearchType } from '@/types/enums';
 import { NotificationBar } from '@/components/NotificationBar';
-import { UpcomingLessons } from '@/components/UpcomingLessons';
-import { BookAgain } from '@/components/BookAgain';
-import { RecentSearches } from '@/components/RecentSearches';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
-import { getActivityBackground } from '@/lib/services/assetService';
 import {
   Search,
   Zap,
@@ -37,11 +34,52 @@ import {
 
   X,
 } from 'lucide-react';
-import { PrivacySettings } from '@/components/PrivacySettings';
 import { recordSearch } from '@/lib/searchTracking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { fetchWithAuth } from '@/lib/api';
 import { useBeta } from '@/contexts/BetaContext';
+
+const HERO_IMAGE = '/images/hero-abstract.svg';
+
+const SectionSkeleton = ({ height = '200px' }: { height?: string }) => (
+  <div
+    className="w-full rounded-3xl bg-gray-100/80 dark:bg-gray-800/60 animate-pulse"
+    style={{ height }}
+    aria-hidden="true"
+  />
+);
+
+const UpcomingLessonsSection = dynamic(
+  () =>
+    import('@/components/UpcomingLessons').then((mod) => ({
+      default: mod.UpcomingLessons,
+    })),
+  { ssr: false, loading: () => <SectionSkeleton height="170px" /> }
+);
+
+const BookAgainSection = dynamic(
+  () =>
+    import('@/components/BookAgain').then((mod) => ({
+      default: mod.BookAgain,
+    })),
+  { ssr: false, loading: () => <SectionSkeleton height="180px" /> }
+);
+
+const RecentSearchesSection = dynamic(
+  () =>
+    import('@/components/RecentSearches').then((mod) => ({
+      default: mod.RecentSearches,
+    })),
+  { ssr: false, loading: () => <SectionSkeleton height="140px" /> }
+);
+
+const PrivacySettingsSection = dynamic(
+  () =>
+    import('@/components/PrivacySettings').then((mod) => ({
+      default: mod.PrivacySettings,
+    })),
+  { ssr: false, loading: () => <SectionSkeleton height="200px" /> }
+);
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -324,107 +362,73 @@ export default function HomePage() {
       {isClient && <NotificationBar />}
 
       {/* Upcoming Lessons: hide for instructors */}
-      {isClient && (!isInstructor) && <UpcomingLessons />}
+      {isClient && !isInstructor && <UpcomingLessonsSection />}
 
       {/* Hero Section */}
-      <section className="py-16 relative" style={{ paddingTop: '60px' }}>
-        {/* Small background image positioned to the left */}
-        {isClient && (
-          <div
-            className="absolute left-10 top-1/2 -translate-y-1/6"
-            style={{
-              width: '400px',
-              height: '400px',
-              backgroundImage: `url('${getActivityBackground('home', 'desktop')}')`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-              opacity: 0.7,
-              filter: 'blur(0px)',
-            }}
-            aria-hidden="true"
-          />
-        )}
-
-        {/* Small background image positioned to the right - different image */}
-        {isClient && (
-          <div
-            className="absolute -right-10 top-0"
-            style={{
-              width: '400px',
-              height: '400px',
-              backgroundImage: `url('${getActivityBackground('music', 'desktop')}')`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-              opacity: 0.7,
-              filter: 'blur(0px)',
-            }}
-            aria-hidden="true"
-          />
-        )}
-
-        <div className="relative z-10">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 data-testid="home-hero-title" className="text-5xl font-bold mb-8" suppressHydrationWarning aria-label="Instant Learning with iNSTAiNSTRU">
-            <div className="leading-tight">
-              {isClient && isAuthenticated ? (
-                <span className="text-[#7E22CE]">Your Next Lesson Awaits</span>
-              ) : (
-                <span className="text-gray-900 dark:text-gray-100">Instant learning with</span>
-              )}
-            </div>
-            {(!isClient || !isAuthenticated) && <div className="leading-tight text-gray-900 dark:text-gray-100">iNSTAiNSTRU</div>}
-          </h1>
-
-          {!hideStudentUi && (
-          <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
-            <div
-              className="relative border border-[#E5E5E5] dark:border-gray-600 rounded-full focus-within:border-[#7E22CE] dark:focus-within:border-purple-400 bg-white dark:bg-gray-700 overflow-hidden"
-              style={{ width: '720px', height: '64px', margin: '0 auto' }}
+      <section className="relative overflow-hidden py-16">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-12 px-4 lg:flex-row lg:items-center">
+          <div className="w-full text-center lg:w-1/2 lg:text-left">
+            <h1
+              data-testid="home-hero-title"
+              className="text-4xl font-bold leading-tight text-gray-900 dark:text-gray-100 sm:text-5xl"
+              suppressHydrationWarning
+              aria-label="Instant Learning with iNSTAiNSTRU"
             >
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={
-                  isClient && isAuthenticated ? 'What do you want to learn?' : 'Ready to learn something new?'
-                }
-                className="w-full h-full text-base bg-transparent border-none focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
-                style={{
-                  padding: '0 70px 0 20px',
-                  fontSize: '16px',
-                }}
-              />
-              <button
-                type="submit"
-                className="absolute bg-[#FFD700] border-none rounded-full cursor-pointer flex items-center justify-center transition-all duration-200 ease-in-out hover:bg-[#FFC700] hover:scale-105"
-                style={{
-                  width: '52px',
-                  height: '52px',
-                  position: 'absolute',
-                  right: '6px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)',
-                }}
-                aria-label="Search"
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 215, 0, 0.4)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 215, 0, 0.3)';
-                }}
-              >
-                <Search className="h-5 w-5 text-white" aria-hidden="true" />
-              </button>
-            </div>
-          </form>
-          )}
-        </div>
+              {isClient && isAuthenticated ? (
+                <>
+                  <span className="text-[#7E22CE]">Your next lesson awaits</span>
+                  <span className="block text-rouge-900 dark:text-gray-100">Book trusted instructors today</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-gray-900 dark:text-gray-100">Instant learning with</span>
+                  <span className="block text-[#7E22CE]">iNSTAiNSTRU</span>
+                </>
+              )}
+            </h1>
+            <p className="mt-4 text-base text-gray-600 dark:text-gray-300">
+              Discover curated instructors for music, fitness, academics, and more. Book in minutes and stay on track
+              with flexible schedules and transparent pricing.
+            </p>
+
+            {!hideStudentUi && (
+              <form onSubmit={handleSearch} className="mt-8 w-full max-w-2xl">
+                <div className="relative flex h-16 w-full items-center rounded-full border border-gray-200 bg-white shadow-lg transition focus-within:border-[#7E22CE]/60 dark:border-gray-700 dark:bg-gray-800">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={
+                      isClient && isAuthenticated ? 'What do you want to learn?' : 'Ready to learn something new?'
+                    }
+                    className="flex-1 bg-transparent px-6 text-base text-gray-900 placeholder-gray-500 focus:outline-none dark:text-gray-100 dark:placeholder-gray-400"
+                  />
+                  <button
+                    type="submit"
+                    className="absolute right-2 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#FFD700] text-white transition hover:bg-[#FACC15] focus:outline-none"
+                    aria-label="Search for instructors"
+                  >
+                    <Search className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
+          <div className="relative w-full max-w-2xl lg:w-1/2">
+            <div className="pointer-events-none absolute inset-0 -z-10 rounded-[40px] bg-gradient-to-r from-[#7E22CE]/20 via-[#22D3EE]/20 to-[#FFD700]/30 blur-3xl" />
+            <Image
+              src={HERO_IMAGE}
+              alt="Learners exploring lessons across arts, music, fitness, and tutoring"
+              width={1200}
+              height={800}
+              priority
+              sizes="(max-width: 768px) 90vw, (max-width: 1280px) 45vw, 520px"
+              className="w-full rounded-[36px] shadow-2xl ring-1 ring-black/5"
+            />
+          </div>
         </div>
       </section>
-
       {/* Categories */}
       {!hideStudentUi && (
       <section className="py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
@@ -598,11 +602,11 @@ export default function HomePage() {
       {isClient && (
         isAuthenticated && userHasBookingHistory === null ? (
           !isInstructor && (
-            <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+            <BookAgainSection onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
           )
         ) : isAuthenticated && userHasBookingHistory ? (
           !isInstructor && (
-            <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+            <BookAgainSection onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
           )
         ) : (
           // User has no booking history OR not authenticated - show How It Works
@@ -640,7 +644,7 @@ export default function HomePage() {
       )}
 
       {/* Your Recent Searches - Only shows for authenticated users with search history (client-only) */}
-      {isClient && <RecentSearches />}
+      {isClient && <RecentSearchesSection />}
 
       {/* Available Now & Trending (client-only to avoid hydration mismatches) */}
       {isClient && (
@@ -958,7 +962,7 @@ export default function HomePage() {
               </button>
             </div>
             <div className="p-6">
-              <PrivacySettings />
+              <PrivacySettingsSection />
             </div>
           </div>
         </div>
