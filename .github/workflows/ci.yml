@@ -39,7 +39,15 @@ jobs:
 
       - name: Contract check
         working-directory: frontend
-        run: node scripts/contract-check.mjs
+        run: |
+          node scripts/contract-check.mjs --write --minify
+          cd ..
+          if ! git diff --quiet --exit-code; then
+            echo "❌ Contract drift detected. Run 'npm run contract:write:min' locally to update snapshots."
+            git status --short
+            git diff --stat
+            exit 1
+          fi
 
   lint-build:
     needs: contract-check

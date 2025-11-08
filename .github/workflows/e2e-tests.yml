@@ -116,6 +116,7 @@ jobs:
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
       E2E_CROSS_ORIGIN: "0"
       E2E_ENABLE_INVITES: "0"
+      E2E_PROJECT: ${{ matrix.project }}
 
     services:
       postgres:
@@ -265,6 +266,10 @@ jobs:
             print(f"❌ Database check failed: {e}")
             sys.exit(1)
         PY
+
+    - name: Auth smoke check (optional)
+      working-directory: ./backend
+      run: python scripts/dev/auth_direct_check.py
 
     - name: Start backend API
       working-directory: ./backend

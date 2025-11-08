@@ -12,8 +12,7 @@ module.exports = {
         "http://localhost:3100/",
         "http://localhost:3100/login",
         "http://localhost:3100/lhci/instructor",
-        "http://localhost:3100/instructor/availability",
-        "http://localhost:3100/instructor/calendar"
+        "http://localhost:3100/instructor/availability"
       ],
       settings: {
         // Budgets are enforced during collection

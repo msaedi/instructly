@@ -143,6 +143,17 @@ target the project that matches your flow, e.g. `npx playwright test --project=i
 `--project=admin` for the invite suite. CI mirrors this in `.github/workflows/frontend-e2e.yml`, which fans out into a
 `{ instructor, admin, anon }` job matrix.
 
+### Contract types
+Regenerate the OpenAPI-generated declarations (and their minified snapshot) with:
+
+```bash
+cd frontend
+npm run contract:write:min
+```
+
+The script updates `frontend/types/generated/api.d.ts` and writes a minified copy to
+`backend/.artifacts/api.expected.d.ts`, keeping the tracked snapshot under the pre-commit size guardrails.
+
 Cross-origin E2E (SameSite smoke + admin invite redemption) are **off by default**. Enable them locally with:
 
 ```bash

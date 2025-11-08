@@ -3582,17 +3582,20 @@ export type paths = {
         post?: never;
         /**
          * Delete Availability Window
-         * @description Delete an availability time slot.
+         * @description Delete an availability window.
+         *
+         *     DEPRECATED: Individual window deletion not supported in bitmap storage.
+         *     Use POST /instructors/availability/week to remove windows from days.
          */
         delete: operations["delete_availability_window_instructors_availability__window_id__delete"];
         options?: never;
         head?: never;
         /**
          * Update Availability Window
-         * @description Update an availability time slot.
+         * @description Update an availability window.
          *
-         *     CLEAN ARCHITECTURE: Returns proper schema response.
-         *     No manual response building.
+         *     DEPRECATED: Individual window updates not supported in bitmap storage.
+         *     Use POST /instructors/availability/week to update entire days.
          */
         patch: operations["update_availability_window_instructors_availability__window_id__patch"];
         trace?: never;
@@ -4529,6 +4532,8 @@ export type components = {
         AdminReferralsHealthOut: {
             /** Backlog Pending Due */
             backlog_pending_due: number;
+            /** Last Run Age S */
+            last_run_age_s?: number | null;
             /** Pending Total */
             pending_total: number;
             /** Unlocked Total */
@@ -4753,6 +4758,25 @@ export type components = {
         /** ApplyToDateRangeResponse */
         ApplyToDateRangeResponse: {
             /**
+             * Dates Processed
+             * @default 0
+             */
+            dates_processed: number;
+            /**
+             * Dates With Slots
+             * @default 0
+             */
+            dates_with_slots: number;
+            /**
+             * Dates With Windows
+             * @default 0
+             */
+            dates_with_windows: number;
+            /** Days Written */
+            days_written: number;
+            /** Edited Dates */
+            edited_dates?: string[];
+            /**
              * End Date
              * Format: date
              */
@@ -4760,18 +4784,23 @@ export type components = {
             /** Message */
             message: string;
             /**
+             * Skipped Past Targets
+             * @default 0
+             */
+            skipped_past_targets: number;
+            /**
              * Start Date
              * Format: date
              */
             start_date: string;
+            /** Weeks Affected */
+            weeks_affected: number;
             /** Weeks Applied */
             weeks_applied: number;
             /** Windows Created */
             windows_created: number;
-            /** Weeks Affected */
-            weeks_affected?: number;
-            /** Days Written */
-            days_written?: number;
+            /** Written Dates */
+            written_dates?: string[];
         };
         /**
          * AuthTokenResponse
@@ -8277,14 +8306,11 @@ export type components = {
         PreferredPublicSpaceIn: {
             /** Address */
             address: string;
+            /** Label */
+            label?: string | null;
         };
-        /**
-         * PreferredPublicSpaceOut
-         * @description Preferred public space response payload.
-         */
         PreferredPublicSpaceOut: {
-            /** Address */
-            address: string;
+            [key: string]: unknown;
         };
         /**
          * PreferredTeachingLocationIn
@@ -8296,15 +8322,8 @@ export type components = {
             /** Label */
             label?: string | null;
         };
-        /**
-         * PreferredTeachingLocationOut
-         * @description Preferred teaching location response payload.
-         */
         PreferredTeachingLocationOut: {
-            /** Address */
-            address: string;
-            /** Label */
-            label?: string | null;
+            [key: string]: unknown;
         };
         /** PriceFloorConfig */
         PriceFloorConfig: {
@@ -10813,8 +10832,24 @@ export type components = {
         };
         /** WeekAvailabilityUpdateResponse */
         WeekAvailabilityUpdateResponse: {
+            /**
+             * Days Written
+             * @default 0
+             */
+            days_written: number;
+            /** Edited Dates */
+            edited_dates?: string[];
             /** Message */
             message: string;
+            /** Skipped Dates */
+            skipped_dates?: string[];
+            /**
+             * Skipped Past Window
+             * @default 0
+             */
+            skipped_past_window: number;
+            /** Version */
+            version?: string | null;
             /**
              * Week End
              * Format: date
@@ -10825,22 +10860,19 @@ export type components = {
              * Format: date
              */
             week_start: string;
+            /** Week Version */
+            week_version?: string | null;
+            /**
+             * Weeks Affected
+             * @default 0
+             */
+            weeks_affected: number;
             /** Windows Created */
             windows_created: number;
             /** Windows Deleted */
             windows_deleted: number;
             /** Windows Updated */
             windows_updated: number;
-            /**
-             * Version
-             * @description Deprecated alias for week_version (optimistic concurrency token)
-             */
-            version?: string | null;
-            /**
-             * Week Version
-             * @description Server-provided optimistic concurrency token (ETag) for this week
-             */
-            week_version?: string | null;
         };
         /**
          * WeekSpecificScheduleCreate
@@ -10848,26 +10880,26 @@ export type components = {
          */
         WeekSpecificScheduleCreate: {
             /**
-             * Clear Existing
-             * @description Whether to clear existing entries for the week before saving
-             * @default true
-             */
-            clear_existing: boolean;
-            /** Schedule */
-            schedule: {
-                [key: string]: unknown;
-            }[];
-            /**
              * Base Version
              * @description Client's baseline week version when saving (If-Match fallback)
              */
             base_version?: string | null;
             /**
+             * Clear Existing
+             * @description Whether to clear existing entries for the week before saving
+             * @default true
+             */
+            clear_existing: boolean;
+            /**
              * Override
              * @description If true, bypass server-side version checks when saving
              * @default false
              */
-            override?: boolean;
+            override: boolean;
+            /** Schedule */
+            schedule: {
+                [key: string]: unknown;
+            }[];
             /**
              * Version
              * @description Deprecated alias for base_version (optimistic concurrency token)
@@ -11246,6 +11278,7 @@ export interface operations {
             query: {
                 q: string;
                 provider?: string | null;
+                scope?: string | null;
             };
             header?: never;
             path?: never;
@@ -14501,6 +14534,7 @@ export interface operations {
                 limit?: number;
                 page?: number;
                 min_rating?: number | null;
+                rating?: number | null;
                 with_text?: boolean | null;
             };
             header?: never;
@@ -16012,7 +16046,10 @@ export interface operations {
     };
     save_week_availability_instructors_availability_week_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Set to true to bypass version conflict checks when saving availability */
+                override?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;

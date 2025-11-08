@@ -16,6 +16,7 @@ const INSTRUCTOR_EMAIL = process.env['E2E_INSTRUCTOR_EMAIL'] || 'sarah.chen@exam
 const INSTRUCTOR_PASSWORD = process.env['E2E_INSTRUCTOR_PASSWORD'] || 'Test1234';
 const ADMIN_EMAIL = process.env['E2E_ADMIN_EMAIL'] || 'admin@instainstru.com';
 const ADMIN_PASSWORD = process.env['E2E_ADMIN_PASSWORD'] || 'ChangeMeSuperSecure123!';
+const PROJECT = process.env['E2E_PROJECT'] || 'instructor';
 
 type StateConfig = {
   email: string;
@@ -23,10 +24,21 @@ type StateConfig = {
   statePath: string;
 };
 
-const STATE_CONFIGS: StateConfig[] = [
-  { email: INSTRUCTOR_EMAIL, password: INSTRUCTOR_PASSWORD, statePath: INSTRUCTOR_STATE },
-  { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, statePath: ADMIN_STATE },
-];
+const STATE_CONFIGS: StateConfig[] = (() => {
+  if (PROJECT === 'anon') {
+    return [];
+  }
+  if (PROJECT === 'admin') {
+    return [{ email: ADMIN_EMAIL, password: ADMIN_PASSWORD, statePath: ADMIN_STATE }];
+  }
+  if (PROJECT === 'instructor') {
+    return [{ email: INSTRUCTOR_EMAIL, password: INSTRUCTOR_PASSWORD, statePath: INSTRUCTOR_STATE }];
+  }
+  return [
+    { email: INSTRUCTOR_EMAIL, password: INSTRUCTOR_PASSWORD, statePath: INSTRUCTOR_STATE },
+    { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, statePath: ADMIN_STATE },
+  ];
+})();
 
 async function ensureDir(dir: string) {
   try {
@@ -82,6 +94,10 @@ async function loginWithSession({ email, password, statePath }: StateConfig): Pr
 
 async function globalSetup(_config: FullConfig) {
   await ensureDir(STORAGE_DIR);
+  if (STATE_CONFIGS.length === 0) {
+    // anon project does not require storage state
+    return;
+  }
   const lockPath = path.join(STORAGE_DIR, '.lock');
 
   const acquireLock = async () => {
