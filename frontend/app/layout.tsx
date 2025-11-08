@@ -1,7 +1,7 @@
 // frontend/app/layout.tsx
 import { BRAND } from '@/app/config/brand';
 import type { Metadata } from 'next';
-import localFont from 'next/font/local';
+import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { logger } from '@/lib/logger';
 import { Providers } from './providers';
@@ -19,18 +19,19 @@ import { APP_URL, APP_ENV, NODE_ENV, ENABLE_LOGGING } from '@/lib/publicEnv';
  *
  * Modern, clean sans-serif font for UI elements and body text
  */
-const geistSans = localFont({
-  src: [{ path: '../public/fonts/Geist-Regular.woff2', style: 'normal', weight: '400' }],
+const _geistSans = Geist({
   variable: '--font-geist-sans',
-  display: 'swap',
-  preload: true,
+  subsets: ['latin'],
 });
 
-const geistMono = localFont({
-  src: [{ path: '../public/fonts/Geist-Mono.woff2', style: 'normal', weight: '400' }],
+/**
+ * Geist Mono Font Configuration
+ *
+ * Monospace font for code snippets, technical information, or fixed-width needs
+ */
+const _geistMono = Geist_Mono({
   variable: '--font-geist-mono',
-  display: 'swap',
-  preload: true,
+  subsets: ['latin'],
 });
 
 /**
@@ -141,7 +142,7 @@ export default function RootLayout({
   });
 
   return (
-    <html lang="en" className={`h-full ${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className="h-full">
       <head>
         {/* Leaflet CSS */}
         <link
@@ -151,7 +152,10 @@ export default function RootLayout({
           crossOrigin=""
         />
       </head>
-      <body className="h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" style={{ isolation: 'isolate' }}>
+      <body
+        className={`h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 ${_geistSans.variable} ${_geistMono.variable}`}
+        style={{ isolation: 'isolate' }}
+      >
         <BackgroundProvider>
           {/* Global fixed background with blur-up and readability overlay */}
           <GlobalBackground />
