@@ -137,11 +137,26 @@ enable the `invite_e2e` input. The workflow now seeds via
 rest of our end-to-end suites.
 
 ### Playwright projects & skips
-We run the E2E suite in three Playwright projects (`instructor`, `admin`, `anon`). Specs are gated with
-`test.skip(({ }, info) => info.project.name !== '<role>')`, so when all projects run together Playwright still
-“discovers” the other files and reports them as skipped. To keep local output tidy, run the project that matches
-your flow, e.g. `npx playwright test --project=instructor` for availability work or `--project=admin` for the invite
-suite. CI should mirror this via a `{ instructor, admin, anon }` matrix so each role-specific suite runs in its own job.
+We run the E2E suite in three Playwright projects (`instructor`, `admin`, `anon`). Specs are gated per project, so
+running all projects at once will still “discover” non-matching specs and mark them skipped. To keep local output tidy,
+target the project that matches your flow, e.g. `npx playwright test --project=instructor` for availability work or
+`--project=admin` for the invite suite. CI mirrors this in `.github/workflows/frontend-e2e.yml`, which fans out into a
+`{ instructor, admin, anon }` job matrix.
+
+Cross-origin E2E (SameSite smoke + admin invite redemption) are **off by default**. Enable them locally with:
+
+```bash
+cd frontend
+PLAYWRIGHT_BASE_URL=http://localhost:3100 \
+E2E_CROSS_ORIGIN=1 \
+E2E_BETA_BASE_URL=http://beta-local.instainstru.com:3100 \
+E2E_PREVIEW_BASE_URL=http://localhost:3100 \
+CI_LOCAL_E2E=1 \
+npx playwright test --project=instructor --reporter=line
+```
+
+You can also set `E2E_ENABLE_INVITES=1` instead of `CI_LOCAL_E2E=1` to exercise the invite redemption flow without
+affecting other smoke tests.
 
 📚 API Documentation
 Once the backend is running, visit:

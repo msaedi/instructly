@@ -71,6 +71,10 @@ jobs:
     needs: [unit-tests]  # Don't spin up services if unit tests fail
     runs-on: ubuntu-latest
     timeout-minutes: 30  # Prevent orphaned runs
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [instructor, admin, anon]
     concurrency:
       group: e2e-${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -106,6 +110,12 @@ jobs:
       # Test user credentials (keep in sync with seed data)
       E2E_USER_EMAIL: john.smith@example.com
       E2E_USER_PASSWORD: Test1234
+      E2E_INSTRUCTOR_EMAIL: sarah.chen@example.com
+      E2E_INSTRUCTOR_PASSWORD: ${{ secrets.E2E_INSTRUCTOR_PASSWORD }}
+      E2E_ADMIN_EMAIL: admin@instainstru.com
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_CROSS_ORIGIN: "0"
+      E2E_ENABLE_INVITES: "0"
 
     services:
       postgres:
@@ -164,12 +174,10 @@ jobs:
         echo "::add-mask::${{ env.JWT_SECRET }}"
         echo "::add-mask::${{ env.SECRET_KEY }}"
         echo "::add-mask::${{ env.DATABASE_URL }}"
-        echo "::add-mask::${{ env.E2E_USER_EMAIL }}"
-        echo "::add-mask::${{ env.E2E_USER_PASSWORD }}"
+        echo "::add-mask::${{ secrets.E2E_INSTRUCTOR_PASSWORD }}"
+        echo "::add-mask::${{ secrets.E2E_ADMIN_PASSWORD }}"
         echo "::add-mask::postgresql://postgres:postgres@localhost:5432/test_db"
         echo "::add-mask::test-secret-key-for-ci-only"
-        echo "::add-mask::Test1234"
-        echo "::add-mask::john.smith@example.com"
         echo "::add-mask::Bearer "
         echo "::add-mask::sk_live_"
         echo "::add-mask::sk_test_"
@@ -484,13 +492,13 @@ jobs:
         fi
         echo "✅ Bundle verification complete"
 
-    - name: Run CI E2E tests
+    - name: Run Playwright (${{ matrix.project }})
       working-directory: ./frontend
       run: |
         set -euo pipefail
         # Run tests excluding any quarantined tests (allow failure to capture exit code)
         set +e
-        npx playwright test --grep-invert @quarantine
+        npx playwright test --project='${{ matrix.project }}' --reporter=line --grep-invert @quarantine
         EXIT_CODE=$?
         set -e
         echo "Test exit code: $EXIT_CODE"
@@ -521,7 +529,8 @@ jobs:
 
         # Summary for GitHub Actions
         echo ""
-        echo "### Test Summary" >> $GITHUB_STEP_SUMMARY || true
+        echo "### Test Summary (${{ matrix.project }})" >> $GITHUB_STEP_SUMMARY || true
+        echo "- Project: ${{ matrix.project }}" >> $GITHUB_STEP_SUMMARY || true
         echo "- Exit code: $EXIT_CODE" >> $GITHUB_STEP_SUMMARY || true
         echo "- Quarantined tests: $QUARANTINE_COUNT" >> $GITHUB_STEP_SUMMARY || true
 
@@ -531,7 +540,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: failure()
       with:
-        name: playwright-report
+        name: playwright-report-${{ matrix.project }}
         path: frontend/playwright-report/
         retention-days: 7
 
@@ -539,7 +548,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: failure()
       with:
-        name: server-logs
+        name: server-logs-${{ matrix.project }}
         path: |
           backend/backend.log
           frontend/frontend.log
@@ -549,7 +558,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results
+        name: test-results-${{ matrix.project }}
         path: frontend/test-results/
         retention-days: 7
 
@@ -557,7 +566,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success()
       with:
-        name: server-logs-success
+        name: server-logs-success-${{ matrix.project }}
         path: |
           backend/backend.log
           frontend/frontend.log

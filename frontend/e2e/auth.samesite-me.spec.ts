@@ -2,20 +2,37 @@ import { test, expect, request as pwRequest, chromium } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+const CROSS_ORIGIN_ENABLED = process.env.E2E_CROSS_ORIGIN === '1';
+
+test.skip(!CROSS_ORIGIN_ENABLED, 'Cross-origin E2E disabled (set E2E_CROSS_ORIGIN=1 to enable).');
+
 test.beforeEach(({}, testInfo) => {
   test.skip(testInfo.project.name !== 'instructor', `Instructor-only spec (current project: ${testInfo.project.name})`);
 });
 
-const localFrontend = process.env.PLAYWRIGHT_BASE_URL || process.env.E2E_BASE_URL || 'http://localhost:3100';
-const betaFrontend =
-  process.env.E2E_BETA_BASE_URL || process.env.BETA_BASE_URL || 'http://beta-local.instainstru.com:3100';
+const defaultFrontend = process.env.PLAYWRIGHT_BASE_URL || process.env.E2E_BASE_URL || 'http://localhost:3100';
+const previewFrontend = process.env.E2E_PREVIEW_BASE_URL || defaultFrontend;
+const betaFrontend = process.env.E2E_BETA_BASE_URL || previewFrontend;
 
-const localApi =
-  process.env.PLAYWRIGHT_API_BASE ||
+const defaultApi =
   process.env.E2E_API_BASE_URL ||
+  process.env.PLAYWRIGHT_API_BASE ||
   process.env.NEXT_PUBLIC_API_BASE ||
   'http://localhost:8000';
-const betaApi = process.env.E2E_BETA_API_BASE_URL || process.env.BETA_API_BASE_URL || 'http://api.beta-local.instainstru.com:8000';
+const betaApi = process.env.E2E_BETA_API_BASE_URL || defaultApi;
+
+const normalizeOrigin = (value: string) => {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value;
+  }
+};
+
+const betaOrigin = normalizeOrigin(betaFrontend);
+
+const apiForOrigin = (origin: string) =>
+  normalizeOrigin(origin) === betaOrigin ? betaApi : defaultApi;
 
 const rawHosts = process.env.SAMESITE_FE_ORIGINS
   ? process.env.SAMESITE_FE_ORIGINS.split(',')
@@ -23,10 +40,10 @@ const rawHosts = process.env.SAMESITE_FE_ORIGINS
       .filter(Boolean)
       .map((origin) => ({
         fe: origin,
-        api: origin.includes('beta-local.instainstru.com') ? betaApi : localApi,
+        api: apiForOrigin(origin),
       }))
   : [
-      { fe: localFrontend, api: localApi },
+      { fe: previewFrontend, api: defaultApi },
       { fe: betaFrontend, api: betaApi },
     ];
 
