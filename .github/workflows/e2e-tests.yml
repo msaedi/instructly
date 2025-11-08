@@ -76,7 +76,7 @@ jobs:
       matrix:
         project: [instructor, admin, anon]
     concurrency:
-      group: e2e-${{ github.workflow }}-${{ github.ref }}
+      group: e2e-${{ github.workflow }}-${{ github.ref }}-${{ matrix.project }}
       cancel-in-progress: true
 
     # Job-level env applies to build and start (important for Next.js)

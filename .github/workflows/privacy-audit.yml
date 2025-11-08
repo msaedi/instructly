@@ -26,6 +26,12 @@ env:
 jobs:
   privacy-check:
     runs-on: ubuntu-latest
+    env:
+      SITE_MODE: int
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      PROD_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
     steps:
       - uses: actions/checkout@v4
 
@@ -165,18 +171,12 @@ jobs:
             psql -h 127.0.0.1 -U postgres -d appdb -c \
             "SELECT name, default_version FROM pg_available_extensions WHERE name='vector';"
 
-      - name: Seed test data
-        env:
-          SITE_MODE: int
-          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/appdb
-        run: |
-          cd backend
-          python scripts/prep_db.py int --migrate --seed-all --force --yes
+      - name: Migrate schema
+        working-directory: backend
+        run: python scripts/prep_db.py int --migrate --force --yes
 
       - name: Ensure region_boundaries unique index
         working-directory: backend
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/appdb
         run: |
           python - <<'PY'
           import os
@@ -203,6 +203,10 @@ jobs:
           cur.close()
           conn.close()
           PY
+
+      - name: Seed test data
+        working-directory: backend
+        run: python scripts/prep_db.py int --seed-all --force --yes
 
       - name: Start backend server
         env:
