@@ -9,7 +9,6 @@ from datetime import date, time, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from sqlalchemy.orm import Session
 
 from app.core.ulid_helper import generate_ulid
 from app.repositories.availability_repository import AvailabilityRepository
@@ -24,22 +23,23 @@ class TestWeekOperationCacheWarming:
     """Test cache warming after operations."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mock dependencies."""
-        mock_db = Mock(spec=Session)
-        mock_db.transaction = Mock()
-        mock_db.expire_all = Mock()
-        mock_db.flush = Mock()
-
         mock_availability = Mock(spec=AvailabilityService)
         mock_conflict = Mock(spec=ConflictChecker)
         mock_cache = Mock(spec=CacheService)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
 
-        return WeekOperationService(
-            mock_db, mock_availability, mock_conflict, mock_cache, mock_repository, mock_availability_repository
+        service = WeekOperationService(
+            unit_db, mock_availability, mock_conflict, mock_cache, mock_repository, mock_availability_repository
         )
+        service.event_outbox_repository = Mock()
+        service.availability_repository.get_slots_by_date = Mock(return_value=[])
+        if isinstance(service.availability_service, Mock):
+            service.availability_service.compute_week_version.return_value = "v1"
+        service.audit_repository = Mock()
+        return service
 
     @pytest.mark.asyncio
     async def test_copy_week_with_cache_warming(self, service):
@@ -107,14 +107,19 @@ class TestWeekOperationGetSlots:
     """Test get slots functionality with single-table design."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with repository."""
-        mock_db = Mock(spec=Session)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
-        return WeekOperationService(
-            mock_db, repository=mock_repository, availability_repository=mock_availability_repository
+        service = WeekOperationService(
+            unit_db, repository=mock_repository, availability_repository=mock_availability_repository
         )
+        service.event_outbox_repository = Mock()
+        service.availability_repository.get_slots_by_date = Mock(return_value=[])
+        if isinstance(service.availability_service, Mock):
+            service.availability_service.compute_week_version.return_value = "v1"
+        service.audit_repository = Mock()
+        return service
 
     def test_get_week_slots(self, service):
         """Test getting week slots directly."""
@@ -154,19 +159,17 @@ class TestWeekOperationApplyPattern:
     """Test apply pattern edge cases with single-table design."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mocks."""
-        mock_db = Mock(spec=Session)
-        mock_db.expire_all = Mock()
-        mock_db.flush = Mock()
-
         mock_availability = Mock(spec=AvailabilityService)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
 
-        return WeekOperationService(
-            mock_db, mock_availability, repository=mock_repository, availability_repository=mock_availability_repository
+        service = WeekOperationService(
+            unit_db, mock_availability, repository=mock_repository, availability_repository=mock_availability_repository
         )
+        service.event_outbox_repository = Mock()
+        return service
 
     @pytest.mark.asyncio
     async def test_apply_pattern_empty_pattern(self, service):
@@ -189,7 +192,8 @@ class TestWeekOperationApplyPattern:
         result = await service.apply_pattern_to_date_range(instructor_id, from_week, start_date, end_date)
 
         assert result["slots_created"] == 0
-        assert result["dates_processed"] == 7
+        dates_processed = result.get("dates_processed", result.get("days_written"))
+        assert dates_processed == 7
 
     @pytest.mark.asyncio
     async def test_apply_pattern_partial_week(self, service):
@@ -213,7 +217,8 @@ class TestWeekOperationApplyPattern:
 
         result = await service.apply_pattern_to_date_range(instructor_id, from_week, start_date, end_date)
 
-        assert result["dates_processed"] == 3
+        dates_processed = result.get("dates_processed", result.get("days_written"))
+        assert dates_processed == 3
         assert result["slots_created"] == 1
 
 
@@ -221,14 +226,15 @@ class TestWeekOperationErrorHandling:
     """Test error handling in week operations."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mocks."""
-        mock_db = Mock(spec=Session)
         mock_repository = Mock(spec=WeekOperationRepository)
         mock_availability_repository = Mock(spec=AvailabilityRepository)
-        return WeekOperationService(
-            mock_db, repository=mock_repository, availability_repository=mock_availability_repository
+        service = WeekOperationService(
+            unit_db, repository=mock_repository, availability_repository=mock_availability_repository
         )
+        service.event_outbox_repository = Mock()
+        return service
 
     @pytest.mark.asyncio
     async def test_copy_week_handles_no_source_slots(self, service):
@@ -245,6 +251,8 @@ class TestWeekOperationErrorHandling:
         # Mock availability service for result
         service.availability_service = Mock()
         service.availability_service.get_week_availability.return_value = {}
+        service.availability_service.compute_week_version.return_value = "v1"
+        service._week_slot_counts = Mock(return_value={})
 
         # Disable cache
         service.cache_service = None

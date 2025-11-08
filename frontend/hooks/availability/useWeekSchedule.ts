@@ -1,23 +1,16 @@
 // frontend/hooks/availability/useWeekSchedule.ts
 
-/**
- * useWeekSchedule Hook
- *
- * Core hook for managing week-based availability schedules.
- * Handles week navigation, data fetching, state management, and
- * unsaved changes tracking.
- *
- * @module hooks/availability/useWeekSchedule
- */
-
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
+
+import type {
+  WeekBits,
   WeekSchedule,
   ExistingSlot,
   WeekDateInfo,
   AvailabilityMessage,
   TimeSlot,
 } from '@/types/availability';
+import type { DayBits } from '@/lib/calendar/bitset';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import {
   getCurrentWeekStart,
@@ -26,135 +19,189 @@ import {
   getPreviousMonday,
   getNextMonday,
 } from '@/lib/availability/dateHelpers';
+import { fromWindows, newEmptyBits, toWindows } from '@/lib/calendar/bitset';
 import { logger } from '@/lib/logger';
+
+type WeekBitsSetter = WeekBits | ((prev: WeekBits) => WeekBits);
+
+const ZERO_DAY: DayBits = newEmptyBits();
+
+function cloneDayBits(bits: DayBits): DayBits {
+  return bits.slice();
+}
+
+function cloneWeekBits(source: WeekBits): WeekBits {
+  const next: WeekBits = {};
+  Object.entries(source).forEach(([date, bits]) => {
+    next[date] = cloneDayBits(bits);
+  });
+  return next;
+}
+
+function extractDetailFromResponse(payload: unknown): string | undefined {
+  if (!payload) return undefined;
+  if (typeof payload === 'string') return payload;
+  const record = payload as Record<string, unknown>;
+  if (typeof record?.['detail'] === 'string') {
+    return record['detail'] as string;
+  }
+  const detailField = record?.['detail'];
+  if (Array.isArray(detailField)) {
+    const collected = detailField
+      .map((entry) => {
+        if (typeof entry === 'string') return entry;
+        const entryRecord = entry as Record<string, unknown> | undefined;
+        if (entryRecord && typeof entryRecord['msg'] === 'string') {
+          return entryRecord['msg'] as string;
+        }
+        return undefined;
+      })
+      .filter(Boolean) as string[];
+    if (collected.length) {
+      return collected.join('; ');
+    }
+  }
+  if (typeof record?.['message'] === 'string') {
+    return record['message'] as string;
+  }
+  try {
+    return JSON.stringify(payload);
+  } catch {
+    return undefined;
+  }
+}
+
+function dayBitsEqual(a?: DayBits, b?: DayBits): boolean {
+  for (let i = 0; i < ZERO_DAY.length; i += 1) {
+    const av = a ? a[i] ?? 0 : 0;
+    const bv = b ? b[i] ?? 0 : 0;
+    if (av !== bv) return false;
+  }
+  return true;
+}
+
+function weekBitsEqual(a: WeekBits, b: WeekBits): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    if (!dayBitsEqual(a[key], b[key])) return false;
+  }
+  return true;
+}
+
+function scheduleToBits(schedule: WeekSchedule): WeekBits {
+  const next: WeekBits = {};
+  Object.entries(schedule).forEach(([date, windows]) => {
+    if (windows && windows.length > 0) {
+      next[date] = fromWindows(windows);
+    }
+  });
+  return next;
+}
+
+function bitsToSchedule(bitsRecord: WeekBits): WeekSchedule {
+  const schedule: WeekSchedule = {};
+  Object.entries(bitsRecord).forEach(([date, bits]) => {
+    const windows = toWindows(bits);
+    if (windows.length > 0) {
+      schedule[date] = windows;
+    }
+  });
+  return schedule;
+}
 
 /**
  * Hook return type with all schedule management functionality
  */
 export interface UseWeekScheduleReturn {
-  // State
-  /** Current week's Monday date */
   currentWeekStart: Date;
-  /** Current week's schedule (modified in UI) */
+  weekBits: WeekBits;
+  savedWeekBits: WeekBits;
   weekSchedule: WeekSchedule;
-  /** Saved week's schedule (from backend) */
   savedWeekSchedule: WeekSchedule;
-  /** Whether schedule has unsaved changes */
   hasUnsavedChanges: boolean;
-  /** Loading state for data fetching */
   isLoading: boolean;
-  /** Array of existing slots with IDs */
   existingSlots: ExistingSlot[];
-  /** Week date information */
   weekDates: WeekDateInfo[];
-  /** User feedback message */
   message: AvailabilityMessage | null;
 
-  // Actions
-  /** Navigate to previous/next week */
   navigateWeek: (direction: 'prev' | 'next') => void;
-  /** Update the week schedule */
+  setWeekBits: (next: WeekBitsSetter) => void;
+  setSavedWeekBits: (next: WeekBitsSetter) => void;
   setWeekSchedule: (schedule: WeekSchedule | ((prev: WeekSchedule) => WeekSchedule)) => void;
-  /** Set feedback message */
   setMessage: (message: AvailabilityMessage | null) => void;
-  /** Refresh schedule from backend */
   refreshSchedule: () => Promise<void>;
-  /** Jump to the current week's Monday */
   goToCurrentWeek: () => void;
-  /** Check if a date is in the past */
   isDateInPast: (dateStr: string) => boolean;
-  /** Format current week for display */
   currentWeekDisplay: string;
-  /** ETag/version for optimistic concurrency */
   version?: string;
-  /** Server-sourced Last-Modified header for the week */
+  etag?: string;
   lastModified?: string;
+  setVersion: (next?: string) => void;
+  allowPastEdits?: boolean;
+  setAllowPastEdits: (next?: boolean) => void;
 }
 
-/**
- * Custom hook for managing week-based availability schedules
- *
- * @param options - Configuration options
- * @returns {UseWeekScheduleReturn} Schedule state and management functions
- *
- * @example
- * ```tsx
- * function AvailabilityPage() {
- *   const {
- *     weekSchedule,
- *     hasUnsavedChanges,
- *     navigateWeek,
- *     setWeekSchedule
- *   } = useWeekSchedule();
- *
- *   // Use the schedule data and functions
- * }
- * ```
- */
 export function useWeekSchedule(
   options: {
-    /** Auto-hide message timeout in ms (default: 5000) */
     messageTimeout?: number;
+    selectedWeekStart?: Date;
+    onWeekStartChange?: (weekStart: Date) => void;
   } = {}
 ): UseWeekScheduleReturn {
-  const { messageTimeout = 5000 } = options;
+  const { messageTimeout = 5000, selectedWeekStart, onWeekStartChange } = options;
 
-  // Core state
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
-    const weekStart = getCurrentWeekStart();
-    logger.debug('Initializing week start', { weekStart: formatDateForAPI(weekStart) });
-    return weekStart;
+    const initial = selectedWeekStart
+      ? getCurrentWeekStart(selectedWeekStart)
+      : getCurrentWeekStart();
+    logger.debug('Initializing week start', {
+      weekStart: formatDateForAPI(initial),
+      source: selectedWeekStart ? 'external' : 'today',
+      ...(selectedWeekStart
+        ? { selectedInput: formatDateForAPI(selectedWeekStart) }
+        : {}),
+    });
+    return initial;
   });
 
-  const [weekSchedule, setWeekSchedule] = useState<WeekSchedule>({});
-  const [savedWeekSchedule, setSavedWeekSchedule] = useState<WeekSchedule>({});
+  const [weekBitsState, setWeekBitsState] = useState<WeekBits>({});
+  const [savedWeekBitsState, setSavedWeekBitsState] = useState<WeekBits>({});
   const [existingSlots, setExistingSlots] = useState<ExistingSlot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<AvailabilityMessage | null>(null);
-  const [version, setVersion] = useState<string | undefined>(undefined);
+  const [etag, setEtag] = useState<string | undefined>(undefined);
   const [lastModified, setLastModified] = useState<string | undefined>(undefined);
+  const [allowPastEdits, setAllowPastEditsState] = useState<boolean | undefined>(undefined);
 
-  // Computed values
-  const weekDates = useMemo(() => {
-    return getWeekDates(currentWeekStart);
-  }, [currentWeekStart]);
+  const currentWeekStartMs = currentWeekStart.getTime();
 
-  const hasUnsavedChanges = useMemo(() => {
-    const scheduleKeys = Object.keys(weekSchedule);
-    const savedKeys = Object.keys(savedWeekSchedule);
+  useEffect(() => {
+    if (!selectedWeekStart) return;
+    const normalized = getCurrentWeekStart(selectedWeekStart);
+    if (normalized.getTime() === currentWeekStartMs) return;
+    logger.debug('Syncing week start from external selection', {
+      previous: formatDateForAPI(currentWeekStart),
+      next: formatDateForAPI(normalized),
+    });
+    setCurrentWeekStart(normalized);
+  }, [selectedWeekStart, currentWeekStartMs, currentWeekStart]);
 
-    // Different number of days with slots
-    if (scheduleKeys.length !== savedKeys.length) {
-      return true;
-    }
+  const weekDates = useMemo(() => getWeekDates(currentWeekStart), [currentWeekStart]);
 
-    // Check each day's slots
-    for (const date of scheduleKeys) {
-      const currentSlots = weekSchedule[date] || [];
-      const savedSlots = savedWeekSchedule[date] || [];
+  const weekSchedule = useMemo(
+    () => bitsToSchedule(weekBitsState),
+    [weekBitsState]
+  );
 
-      if (currentSlots.length !== savedSlots.length) {
-        return true;
-      }
+  const savedWeekSchedule = useMemo(
+    () => bitsToSchedule(savedWeekBitsState),
+    [savedWeekBitsState]
+  );
 
-      // Check each slot
-      for (let i = 0; i < currentSlots.length; i++) {
-        const current = currentSlots[i];
-        const saved = savedSlots[i];
-
-        if (
-          !current ||
-          !saved ||
-          current.start_time !== saved.start_time ||
-          current.end_time !== saved.end_time
-        ) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }, [weekSchedule, savedWeekSchedule]);
+  const hasUnsavedChanges = useMemo(
+    () => !weekBitsEqual(weekBitsState, savedWeekBitsState),
+    [weekBitsState, savedWeekBitsState]
+  );
 
   const currentWeekDisplay = useMemo(() => {
     const start = weekDates[0]?.date;
@@ -162,9 +209,6 @@ export function useWeekSchedule(
     return start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }, [weekDates]);
 
-  /**
-   * Check if a date is in the past
-   */
   const isDateInPast = useCallback((dateStr: string): boolean => {
     const date = new Date(dateStr);
     const today = new Date();
@@ -173,106 +217,137 @@ export function useWeekSchedule(
     return date < today;
   }, []);
 
-  /**
-   * Auto-hide messages after timeout
-   */
   useEffect(() => {
     if (message && messageTimeout > 0) {
-      const timer = setTimeout(() => {
-        setMessage(null);
-      }, messageTimeout);
-
+      const timer = setTimeout(() => setMessage(null), messageTimeout);
       return () => clearTimeout(timer);
     }
     return undefined;
   }, [message, messageTimeout]);
 
-  /**
-   * Fetch week schedule from API
-   */
+  const setWeekBits = useCallback((next: WeekBitsSetter) => {
+    setWeekBitsState((prev) => {
+      const resolved = typeof next === 'function' ? (next as (p: WeekBits) => WeekBits)(prev) : next;
+      return cloneWeekBits(resolved);
+    });
+  }, []);
+
+  const setSavedWeekBits = useCallback((next: WeekBitsSetter) => {
+    setSavedWeekBitsState((prev) => {
+      const resolved = typeof next === 'function' ? (next as (p: WeekBits) => WeekBits)(prev) : next;
+      return cloneWeekBits(resolved);
+    });
+  }, []);
+
+  const setVersion = useCallback((next?: string) => {
+    setEtag(next);
+    if (typeof window !== 'undefined') {
+      const win = window as Window & { __week_version?: string };
+      if (next) {
+        win.__week_version = next;
+      } else {
+        delete win.__week_version;
+      }
+    }
+  }, []);
+
+  const setAllowPastEdits = useCallback((next?: boolean) => {
+    setAllowPastEditsState(next);
+  }, []);
+
+  const setWeekSchedule = useCallback(
+    (next: WeekSchedule | ((prev: WeekSchedule) => WeekSchedule)) => {
+      setWeekBitsState((prev) => {
+        const currentSchedule = bitsToSchedule(prev);
+        const resolved =
+          typeof next === 'function' ? (next as (p: WeekSchedule) => WeekSchedule)(currentSchedule) : next;
+        return cloneWeekBits(scheduleToBits(resolved));
+      });
+    },
+    []
+  );
+
   const fetchWeekSchedule = useCallback(async () => {
     setIsLoading(true);
     logger.time('fetchWeekSchedule');
 
     try {
       const mondayDate = formatDateForAPI(currentWeekStart);
-      const sundayDate = formatDateForAPI(
-        new Date(currentWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000)
-      );
+      logger.info('Fetching week schedule', { mondayDate });
 
-      logger.info('Fetching week schedule', { mondayDate, sundayDate });
-
-      // Fetch detailed slots with IDs
-      const detailedResponse = await fetchWithAuth(
-        `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY}?start_date=${mondayDate}&end_date=${sundayDate}`
-      );
-
-      if (detailedResponse.ok) {
-        const detailedData = await detailedResponse.json();
-        logger.debug('Fetched detailed slots', { count: detailedData.length });
-
-        const slots: ExistingSlot[] = detailedData.map((slot: { id: string; specific_date: string; start_time: string; end_time: string }) => ({
-          id: slot.id,
-          date: slot.specific_date,
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-        }));
-        setExistingSlots(slots);
-      } else {
-        logger.error('Failed to fetch detailed slots', new Error('API error'), {
-          status: detailedResponse.status,
-        });
-      }
-
-      // Fetch week view for display
       const response = await fetchWithAuth(
         `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}?start_date=${mondayDate}`
       );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch availability');
+        const errorBody = await response.json().catch(() => undefined);
+        const detail = extractDetailFromResponse(errorBody) || response.statusText || 'Unknown error';
+        const messageText = `Failed to load availability (${response.status}): ${detail}`;
+        logger.error('Failed to fetch weekly availability', new Error(messageText), {
+          status: response.status,
+          detail: errorBody,
+        });
+        setMessage({
+          type: 'error',
+          text: messageText,
+        });
+        return;
       }
 
       const data = await response.json();
-      const etag = response.headers.get('ETag') || undefined;
-      const lm = response.headers.get('Last-Modified') || undefined;
-      setVersion(etag || undefined);
-      setLastModified(lm || undefined);
+      const headerEtag = response.headers.get('ETag') || undefined;
+      const headerLastModified = response.headers.get('Last-Modified') || undefined;
+      const allowPastHeader = response.headers.get('X-Allow-Past');
 
-      // Set data directly - API is standardized
-      const cleanedData: WeekSchedule = {};
-      Object.entries(data).forEach(([date, slots]) => {
+      const cleaned: WeekSchedule = {};
+      Object.entries(data as Record<string, TimeSlot[] | undefined>).forEach(([date, slots]) => {
         if (slots && Array.isArray(slots) && slots.length > 0) {
-          cleanedData[date] = slots as TimeSlot[];
+          cleaned[date] = slots;
         }
       });
 
+      const nextBits = scheduleToBits(cleaned);
+
       logger.info('Week schedule loaded successfully', {
         weekStart: mondayDate,
-        daysWithAvailability: Object.keys(cleanedData).length,
+        daysWithAvailability: Object.keys(nextBits).length,
       });
 
-      setWeekSchedule(cleanedData);
-      setSavedWeekSchedule(cleanedData);
+      setWeekBits(nextBits);
+      setSavedWeekBits(nextBits);
+      setVersion(headerEtag || undefined);
+      setLastModified(headerLastModified);
+      if (allowPastHeader !== null) {
+        const normalized = allowPastHeader.trim().toLowerCase();
+        setAllowPastEdits(
+          normalized === '1' || normalized === 'true' || normalized === 'yes'
+        );
+      }
     } catch (error) {
+      const fallback = error instanceof Error ? error.message : 'Unexpected error';
+      const messageText = `Failed to load availability: ${fallback}`;
       logger.error('Failed to load availability', error);
       setMessage({
         type: 'error',
-        text: 'Failed to load availability. Please try again.',
+        text: messageText,
       });
     } finally {
       logger.timeEnd('fetchWeekSchedule');
       setIsLoading(false);
     }
-  }, [currentWeekStart]);
+  }, [currentWeekStart, setWeekBits, setSavedWeekBits, setVersion, setAllowPastEdits]);
 
-  /**
-   * Navigate between weeks
-   */
+  const updateWeekStart = useCallback(
+    (next: Date) => {
+      const normalized = getCurrentWeekStart(next);
+      setCurrentWeekStart(normalized);
+      onWeekStartChange?.(normalized);
+    },
+    [onWeekStartChange]
+  );
+
   const navigateWeek = useCallback(
     (direction: 'prev' | 'next') => {
-      // Autosave is enabled; suppress prompt
-
       const newDate =
         direction === 'next'
           ? getNextMonday(currentWeekStart)
@@ -284,44 +359,36 @@ export function useWeekSchedule(
         to: formatDateForAPI(newDate),
       });
 
-      setCurrentWeekStart(newDate);
+      updateWeekStart(newDate);
     },
-    [currentWeekStart]
+    [currentWeekStart, updateWeekStart]
   );
 
-  /**
-   * Refresh schedule from backend
-   */
   const refreshSchedule = useCallback(async () => {
     logger.debug('Refreshing schedule');
     await fetchWeekSchedule();
   }, [fetchWeekSchedule]);
 
-  /**
-   * Jump to the current week (Monday as start)
-   */
   const goToCurrentWeek = useCallback(() => {
     const wk = getCurrentWeekStart();
-    setCurrentWeekStart(wk);
-  }, []);
+    updateWeekStart(wk);
+  }, [updateWeekStart]);
 
-  /**
-   * Reset state when week changes
-   */
   useEffect(() => {
     logger.debug('Week changed, resetting state', {
       weekStart: formatDateForAPI(currentWeekStart),
     });
 
-    setWeekSchedule({});
-    setSavedWeekSchedule({});
+    setWeekBits({});
+    setSavedWeekBits({});
     setExistingSlots([]);
     void fetchWeekSchedule();
-  }, [currentWeekStart, fetchWeekSchedule]);
+  }, [currentWeekStart, fetchWeekSchedule, setWeekBits, setSavedWeekBits]);
 
   return {
-    // State
     currentWeekStart,
+    weekBits: weekBitsState,
+    savedWeekBits: savedWeekBitsState,
     weekSchedule,
     savedWeekSchedule,
     hasUnsavedChanges,
@@ -329,16 +396,19 @@ export function useWeekSchedule(
     existingSlots,
     weekDates,
     message,
-
-    // Actions
     navigateWeek,
+    setWeekBits,
+    setSavedWeekBits,
     setWeekSchedule,
     setMessage,
     refreshSchedule,
     goToCurrentWeek,
     isDateInPast,
     currentWeekDisplay,
-    ...(version && { version }),
-    ...(lastModified && { lastModified }),
+    ...(etag ? { version: etag, etag } : {}),
+    ...(lastModified ? { lastModified } : {}),
+    setVersion,
+    ...(allowPastEdits !== undefined ? { allowPastEdits } : {}),
+    setAllowPastEdits,
   };
 }

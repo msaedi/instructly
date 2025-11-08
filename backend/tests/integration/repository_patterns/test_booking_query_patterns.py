@@ -396,6 +396,7 @@ class TestBookingQueryPatterns:
         - update(booking_id, update_data)
         - Standard find/count/exists methods
 
-        NOTE: After Work Stream #9, Booking is completely independent of AvailabilitySlot.
+        NOTE: After Work Stream #9, Booking is completely independent of availability slots.
+        Availability is stored in bitmap format (availability_days table).
         All queries should be time-based rather than slot-based.
         """

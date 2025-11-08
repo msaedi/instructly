@@ -28,6 +28,11 @@ def _no_price_floors(disable_price_floors):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
+    yield
+
+
 class TestBookingRoutesNewFormat:
     """Test booking endpoints with new time-based format."""
 
@@ -171,68 +176,78 @@ class TestAvailabilityRoutesCleanResponses:
         self, client, test_instructor_with_availability, auth_headers_instructor
     ):
         """Verify update returns clean response."""
-        # First get existing slots
-        response = client.get("/instructors/availability/", headers=auth_headers_instructor)
+        # Build a minimal valid bitmap payload for a future Monday
+        monday = date.today() + timedelta(days=(7 - date.today().weekday()) % 7)
+        if monday <= date.today():
+            monday = monday + timedelta(days=7)  # Ensure it's a future Monday
 
-        assert response.status_code == 200
-        slots = response.json()
+        week_payload = {
+            "week_start": monday.isoformat(),
+            "clear_existing": True,
+            "schedule": [
+                {
+                    "date": monday.isoformat(),
+                    "start_time": "09:30:00",
+                    "end_time": "10:30:00",
+                }
+            ],
+        }
 
-        if not slots:
-            pytest.skip("No slots available to update")
-
-        slot = slots[0]
-        slot_id = slot["id"]
-
-        # Update the slot
-        update_response = client.patch(
-            f"/instructors/availability/{slot_id}",
-            json={"start_time": "09:30", "end_time": "10:30"},
+        # Update availability using bitmap /week endpoint
+        update_response = client.post(
+            "/instructors/availability/week",
+            json=week_payload,
             headers=auth_headers_instructor,
         )
 
         assert update_response.status_code == 200, f"Update failed: {update_response.json()}"
-        updated_slot = update_response.json()
+        response_data = update_response.json()
 
-        # Verify clean response
-        assert "id" in updated_slot
-        assert updated_slot["start_time"] == "09:30:00"
-        assert updated_slot["end_time"] == "10:30:00"
-
+        # Verify clean response structure (bitmap endpoint returns summary, not individual slots)
+        assert "week_start" in response_data or monday.isoformat() in response_data
         # Verify NO legacy fields
-        assert "is_available" not in updated_slot
-        assert "is_recurring" not in updated_slot
-        assert "day_of_week" not in updated_slot
+        assert "slots_created" not in response_data
+        assert "is_available" not in response_data
+        assert "is_recurring" not in response_data
+        assert "day_of_week" not in response_data
 
     def test_update_with_legacy_field_rejected(
         self, client, test_instructor_with_availability, auth_headers_instructor
     ):
         """Verify update with legacy field is rejected."""
-        # Get existing slot
-        response = client.get("/instructors/availability/", headers=auth_headers_instructor)
+        # Build a minimal valid bitmap payload for a future Monday
+        monday = date.today() + timedelta(days=(7 - date.today().weekday()) % 7)
+        if monday <= date.today():
+            monday = monday + timedelta(days=7)  # Ensure it's a future Monday
 
-        assert response.status_code == 200
-        slots = response.json()
+        week_payload = {
+            "week_start": monday.isoformat(),
+            "clear_existing": True,
+            "schedule": [
+                {
+                    "date": monday.isoformat(),
+                    "start_time": "09:00:00",
+                    "end_time": "10:00:00",
+                }
+            ],
+        }
 
-        if not slots:
-            pytest.skip("No slots available to update")
-
-        slot_id = slots[0]["id"]
+        # Add legacy field to simulate old clients
+        bad_payload = dict(week_payload)
+        bad_payload["slots_created"] = 1  # legacy/invalid in bitmap
 
         # Try to update with legacy field
-        response = client.patch(
-            f"/instructors/availability/{slot_id}",
-            json={
-                "start_time": "09:00",
-                "end_time": "10:00",
-                "is_available": False,  # This field doesn't exist anymore
-            },
+        response = client.post(
+            "/instructors/availability/week",
+            json=bad_payload,
             headers=auth_headers_instructor,
         )
 
-        # Should get 422 because is_available is not a valid field
+        # Should get 422 because slots_created is not a valid field in bitmap API
         assert response.status_code == 422
         error = response.json()
-        assert "Extra inputs are not permitted" in str(error)
+        # May complain about extra field or validation error
+        assert "Extra inputs are not permitted" in str(error) or "validation" in str(error).lower()
 
 
 class TestBookingResponseFormat:

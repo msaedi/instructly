@@ -1,507 +1,491 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { WeekDateInfo, WeekSchedule, TimeSlot } from '@/types/availability';
-import { AVAILABILITY_CONSTANTS } from '@/types/availability';
-import { at } from '@/lib/ts/safe';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import clsx from 'clsx';
 
-type BookedPreview = {
-  date: string; // YYYY-MM-DD
-  start_time: string; // HH:MM:SS
-  end_time: string; // HH:MM:SS
-};
+import type { WeekBits, WeekDateInfo } from '@/types/availability';
+import type { DayBits } from '@/lib/calendar/bitset';
+import { idx, newEmptyBits, toggle } from '@/lib/calendar/bitset';
+import type { BookedSlotPreview } from '@/types/booking';
 
-export interface InteractiveGridProps {
+interface InteractiveGridProps {
   weekDates: WeekDateInfo[];
-  weekSchedule: WeekSchedule;
-  bookedSlots?: BookedPreview[];
+  weekBits: WeekBits;
+  onBitsChange: (next: WeekBits | ((prev: WeekBits) => WeekBits)) => void;
+  bookedSlots?: BookedSlotPreview[];
   startHour?: number;
   endHour?: number;
+  timezone?: string;
   isMobile?: boolean;
   activeDayIndex?: number;
   onActiveDayChange?: (index: number) => void;
-  onScheduleChange: (schedule: WeekSchedule) => void;
-  timezone?: string; // IANA timezone for rendering (e.g., "America/New_York")
+  allowPastEditing?: boolean;
 }
 
 const HALF_HOURS_PER_HOUR = 2;
 
-// Helper function removed - can be added back if needed for cell index calculations
+const HOURS_LABEL = (hour: number) => {
+  if (hour === 24) return '12:00 AM (+1d)';
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const display = hour % 12 || 12;
+  return `${display}:00 ${period}`;
+};
 
-function parseHHMMSS(t: string) {
-  const parts = t.split(':');
-  const hStr = at(parts, 0);
-  const mStr = at(parts, 1);
-  const h = hStr ? parseInt(hStr, 10) : 0;
-  const m = mStr ? parseInt(mStr, 10) : 0;
-  return { h, m };
-}
+const isSlotSelected = (bits: DayBits | undefined, slotIndex: number): boolean => {
+  if (!bits) return false;
+  const byte = Math.floor(slotIndex / 8);
+  const bit = slotIndex % 8;
+  return ((bits[byte] ?? 0) & (1 << bit)) > 0;
+};
 
-function toHHMMSS(hours: number, minutes: number): string {
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-}
+const isSlotBooked = (
+  booked: BookedSlotPreview[] | undefined,
+  date: string,
+  slotIndex: number,
+  startHour: number
+): boolean => {
+  if (!booked?.length) return false;
+  const hour = startHour + Math.floor(slotIndex / HALF_HOURS_PER_HOUR);
+  const minute = slotIndex % 2 === 1 ? 30 : 0;
+  const nextMinutes = minute === 0 ? 30 : 0;
+  const nextHour = minute === 0 ? hour : hour + 1;
+  const start = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
+  const end = `${String(nextHour).padStart(2, '0')}:${String(nextMinutes).padStart(2, '0')}:00`;
+  return booked.some(
+    (slot) => slot.date === date && !(end <= slot.start_time || start >= slot.end_time)
+  );
+};
 
-function buildDayCellSet(slots: TimeSlot[], startHour: number, endHour: number): Set<number> {
-  const set = new Set<number>();
-  for (const slot of slots || []) {
-    const { h: sh, m: sm } = parseHHMMSS(slot.start_time);
-    const { h: eh, m: em } = parseHHMMSS(slot.end_time);
-
-    // Clamp to grid
-    const start = Math.max(startHour, sh);
-    const end = Math.min(endHour, eh);
-
-    const startIdx = (start - startHour) * HALF_HOURS_PER_HOUR + (sm >= 30 ? 1 : 0);
-    // End index points to the end boundary in half-hour cells (exclusive)
-    // Example: end at :30 should add exactly one cell from the hour start
-    const endIdx = (end - startHour) * HALF_HOURS_PER_HOUR + (em >= 30 ? 1 : 0);
-    // Fill each half-hour cell
-    for (let i = startIdx; i < endIdx; i++) set.add(i);
+const getNowInTimezone = (tz?: string) => {
+  const now = new Date();
+  if (!tz) {
+    return {
+      isoDate: now.toISOString().slice(0, 10),
+      minutes: now.getHours() * 60 + now.getMinutes(),
+    };
   }
-  return set;
-}
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const parts = formatter.formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '0';
+  const isoDate = `${get('year')}-${get('month')}-${get('day')}`;
+  const minutes = parseInt(get('hour'), 10) * 60 + parseInt(get('minute'), 10);
+  return { isoDate, minutes };
+};
 
-function cellsToSlots(cells: Set<number>, startHour: number): TimeSlot[] {
-  if (cells.size === 0) return [];
-  const indices = Array.from(cells).sort((a, b) => a - b);
-  const result: TimeSlot[] = [];
-  const firstIdx = at(indices, 0);
-  if (firstIdx === undefined) return [];
-  let runStart = firstIdx;
-  let prev = firstIdx;
-  for (let i = 1; i < indices.length; i++) {
-    const idx = at(indices, i);
-    if (idx === undefined) continue;
-    if (idx !== prev + 1) {
-      // flush
-      const startH = Math.floor(runStart / HALF_HOURS_PER_HOUR) + startHour;
-      const startM = runStart % 2 === 1 ? 30 : 0;
-      const endCell = prev + 1;
-      const endH = Math.floor(endCell / HALF_HOURS_PER_HOUR) + startHour;
-      const endM = endCell % 2 === 1 ? 30 : 0;
-      result.push({ start_time: toHHMMSS(startH, startM), end_time: toHHMMSS(endH, endM) });
-      runStart = idx;
-    }
-    prev = idx;
-  }
-  // flush last
-  if (runStart !== undefined && prev !== undefined) {
-    const startH = Math.floor(runStart / HALF_HOURS_PER_HOUR) + startHour;
-    const startM = runStart % 2 === 1 ? 30 : 0;
-    const endCell = prev + 1;
-    const endH = Math.floor(endCell / HALF_HOURS_PER_HOUR) + startHour;
-    const endM = endCell % 2 === 1 ? 30 : 0;
-    result.push({ start_time: toHHMMSS(startH, startM), end_time: toHHMMSS(endH, endM) });
-  }
-  return result;
-}
-
-function isCellBooked(booked: BookedPreview[] | undefined, date: string, cellIdx: number, startHour: number) {
-  if (!booked || booked.length === 0) return false;
-  const startH = Math.floor(cellIdx / HALF_HOURS_PER_HOUR) + startHour;
-  const startM = cellIdx % 2 === 1 ? 30 : 0;
-  const start = toHHMMSS(startH, startM);
-  const end = toHHMMSS(startM === 0 ? startH : startH + 1, startM === 0 ? 30 : 0);
-  return booked.some((s) => s.date === date && !(end <= s.start_time || start >= s.end_time));
-}
+const getSlotIndex = (startHour: number, row: number) => {
+  const hour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
+  const minute = row % 2 === 1 ? 30 : 0;
+  return idx(hour, minute);
+};
 
 export default function InteractiveGrid({
   weekDates,
-  weekSchedule,
+  weekBits,
+  onBitsChange,
   bookedSlots = [],
-  startHour = AVAILABILITY_CONSTANTS.DEFAULT_START_HOUR,
-  endHour = AVAILABILITY_CONSTANTS.DEFAULT_END_HOUR,
+  startHour = 6,
+  endHour = 22,
+  timezone,
   isMobile = false,
   activeDayIndex = 0,
-  onActiveDayChange,
-  onScheduleChange,
-  timezone,
+  onActiveDayChange: _onActiveDayChange,
+  allowPastEditing = false,
 }: InteractiveGridProps) {
-  // Local helper reserved for future use (kept minimal to avoid unused warnings)
-  // Remove unused computed hours to satisfy strict type checks
   const rows = useMemo(() => (endHour - startHour) * HALF_HOURS_PER_HOUR, [startHour, endHour]);
-  const [dragging, setDragging] = useState<
-    | null
-    | {
-        date: string;
-        mode: 'add' | 'remove';
-        startCell: number;
-        currentCell: number;
-        startTs: number;
-      }
-  >(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const gridRef = useRef<HTMLDivElement | null>(null);
 
-  // Accessibility: focused cell (roving tabindex)
-  const [focusDay, setFocusDay] = useState<number>(0);
-  const [focusRow, setFocusRow] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragValue, setDragValue] = useState<boolean | null>(null);
+  const dragValueRef = useRef<boolean | null>(null);
+  const pendingRef = useRef<Record<string, Set<number>>>({});
+  const rafRef = useRef<number | null>(null);
+  const lastHoverRowRef = useRef<{ date: string; row: number } | null>(null);
 
-  // Virtualization (window-based)
-  const [rowHeight, setRowHeight] = useState<number>(0);
-  const [visibleStart, setVisibleStart] = useState<number>(0);
-  const [visibleEnd, setVisibleEnd] = useState<number>(rows - 1);
-  const virtualizationEnabled = rows > 46; // enable for large ranges
-
-  // Now-line positioning updates every 5 minutes
-  const [, setNowTick] = useState(0); // Triggers now line recalculation
-  useEffect(() => {
-    const id = setInterval(() => setNowTick((x) => x + 1), 5 * 60 * 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Helpers to get "now" in a specific timezone (without external libs)
-  const getNowInTimezone = useCallback(
-    (tz?: string): { isoDate: string; hour: number; minute: number } => {
-      const d = new Date();
-      if (!tz) {
-        const isoDate = d.toISOString().slice(0, 10);
-        return { isoDate, hour: d.getHours(), minute: d.getMinutes() };
-      }
-      const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: tz,
-        hour12: false,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).formatToParts(d);
-      const get = (type: string) => parts.find((p) => p.type === type)?.value || '';
-      const isoDate = `${get('year')}-${get('month')}-${get('day')}`;
-      const hour = parseInt(get('hour') || '0', 10);
-      const minute = parseInt(get('minute') || '0', 10);
-      return { isoDate, hour, minute };
+  const applyImmediate = useCallback(
+    (date: string, slotIndex: number, desired: boolean) => {
+      onBitsChange((prev) => {
+        const current = prev[date] ?? newEmptyBits();
+        if (isSlotSelected(current, slotIndex) === desired) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [date]: toggle(current, slotIndex, desired),
+        };
+      });
     },
-    []
+    [onBitsChange]
   );
 
-  const todayIdx = useMemo(() => {
-    const { isoDate } = getNowInTimezone(timezone);
-    return weekDates.findIndex((d) => d.fullDate === isoDate);
-  }, [weekDates, timezone, getNowInTimezone]);
-
-  const nowLine = useMemo(() => {
-    if (todayIdx < 0) return null;
-    const { hour, minute } = getNowInTimezone(timezone);
-    const halfCells = (hour - startHour) * HALF_HOURS_PER_HOUR + (minute >= 30 ? 1 : 0) + (minute % 30) / 30;
-    const perc = Math.max(0, Math.min(halfCells / rows, 1));
-    return { column: todayIdx, topPercent: perc * 100 };
-  }, [todayIdx, startHour, rows, timezone, getNowInTimezone]);
-
-  const isPastCell = (date: string, cellIdx: number) => {
-    const { isoDate, hour, minute } = getNowInTimezone(timezone);
-    // Compare dates first
-    if (date < isoDate) return true;
-    if (date > isoDate) return false;
-    // Same date: compare end of cell vs now
-    const cellEndHour = Math.floor((cellIdx + 1) / HALF_HOURS_PER_HOUR) + startHour;
-    const cellEndMin = (cellIdx + 1) % 2 === 1 ? 30 : 0;
-    if (cellEndHour < hour) return true;
-    if (cellEndHour > hour) return false;
-    return cellEndMin <= minute;
-  };
-
-  // Keyboard interactions
-  const toggleSingleCell = useCallback((date: string, cellIdx: number) => {
-    const currentSet = buildDayCellSet(weekSchedule[date] || [], startHour, endHour);
-    const nextSet = new Set(currentSet);
-    if (nextSet.has(cellIdx)) nextSet.delete(cellIdx);
-    else nextSet.add(cellIdx);
-    const nextSlots = cellsToSlots(nextSet, startHour);
-    onScheduleChange({ ...weekSchedule, [date]: nextSlots });
-  }, [weekSchedule, onScheduleChange, startHour, endHour]);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, dayIdx: number, rowIdx: number, date: string) => {
-    let nextDay = dayIdx;
-    let nextRow = rowIdx;
-    if (e.key === 'ArrowRight') {
-      nextDay = Math.min(weekDates.length - 1, dayIdx + 1);
-      e.preventDefault();
-    } else if (e.key === 'ArrowLeft') {
-      nextDay = Math.max(0, dayIdx - 1);
-      e.preventDefault();
-    } else if (e.key === 'ArrowDown') {
-      nextRow = Math.min(rows - 1, rowIdx + 1);
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      nextRow = Math.max(0, rowIdx - 1);
-      e.preventDefault();
-    } else if (e.key === ' ' || e.key === 'Enter') {
-      toggleSingleCell(date, rowIdx);
-      e.preventDefault();
-    }
-
-    if (nextDay !== dayIdx || nextRow !== rowIdx) {
-      setFocusDay(nextDay);
-      setFocusRow(nextRow);
-      // Scroll cell into view if virtualized
-      if (virtualizationEnabled && gridRef.current && rowHeight > 0) {
-        const topPx = nextRow * rowHeight;
-        const bottomPx = topPx + rowHeight;
-        const rect = gridRef.current.getBoundingClientRect();
-        const viewportTop = Math.max(0, -rect.top);
-        // Viewport calculations available for future use:
-        // const viewportBottom = viewportTop + window.innerHeight - Math.max(0, rect.top + rect.height - window.innerHeight);
-        if (topPx < viewportTop + visibleStart * rowHeight || bottomPx > (visibleEnd + 1) * rowHeight) {
-          // Force update range around target
-          const buffer = 6;
-          const start = Math.max(0, Math.floor(nextRow - buffer));
-          const end = Math.min(rows - 1, Math.ceil(nextRow + buffer));
-          setVisibleStart(start);
-          setVisibleEnd(end);
-        }
-      }
-    }
-  };
-
-  const handleMouseDown = (date: string, cellIdx: number) => {
-    const existing = buildDayCellSet(weekSchedule[date] || [], startHour, endHour);
-    const mode: 'add' | 'remove' = existing.has(cellIdx) ? 'remove' : 'add';
-    setDragging({ date, mode, startCell: cellIdx, currentCell: cellIdx, startTs: Date.now() });
-  };
-
-  const handleMouseEnter = (date: string, cellIdx: number) => {
-    setDragging((prev) => (prev && prev.date === date ? { ...prev, currentCell: cellIdx } : prev));
-  };
-
-  const handleMouseUp = () => {
-    if (!dragging) return;
-    const { date, mode } = dragging;
-    const diff = Math.abs(dragging.currentCell - dragging.startCell);
-    const quickClick = Date.now() - dragging.startTs < 250;
-    // Treat small, quick clicks as single-cell toggles to avoid accidental full-hour selection
-    if (diff <= 1 && quickClick) {
-      toggleSingleCell(date, dragging.startCell);
-      setDragging(null);
+  const flushPending = useCallback(() => {
+    const desired = dragValueRef.current;
+    if (desired === null) {
+      pendingRef.current = {};
       return;
     }
-    const a = Math.min(dragging.startCell, dragging.currentCell);
-    const b = Math.max(dragging.startCell, dragging.currentCell);
-    const range = new Set<number>();
-    for (let i = a; i <= b; i++) range.add(i);
 
-    const currentSet = buildDayCellSet(weekSchedule[date] || [], startHour, endHour);
-    const nextSet = new Set(currentSet);
-    range.forEach((i) => {
-      if (mode === 'add') nextSet.add(i);
-      else nextSet.delete(i);
-    });
+    const payload = pendingRef.current;
+    pendingRef.current = {};
+    const dates = Object.keys(payload);
+    if (!dates.length) {
+      return;
+    }
 
-    const nextSlots = cellsToSlots(nextSet, startHour);
-    onScheduleChange({ ...weekSchedule, [date]: nextSlots });
-    setDragging(null);
-  };
-
-  // Swipe handlers for mobile single-day view
-  useEffect(() => {
-    if (!isMobile || !containerRef.current || !onActiveDayChange) return;
-    const el = containerRef.current;
-    let startX = 0;
-    let tracking = false;
-    const onTouchStart = (e: TouchEvent) => {
-      tracking = true;
-      startX = e.touches[0]?.clientX || 0;
-    };
-    const onTouchEnd = (e: TouchEvent) => {
-      if (!tracking) return;
-      const dx = (e.changedTouches[0]?.clientX || 0) - startX;
-      if (Math.abs(dx) > 40) {
-        const delta = dx > 0 ? -1 : 1;
-        const idx = Math.max(0, Math.min(weekDates.length - 1, (activeDayIndex || 0) + delta));
-        onActiveDayChange(idx);
+    onBitsChange((prev) => {
+      let changed = false;
+      const next: WeekBits = { ...prev };
+      for (const date of dates) {
+        const indices = Array.from(payload[date] ?? []);
+        if (!indices.length) continue;
+        const current = next[date] ?? newEmptyBits();
+        let updated = current;
+        indices.forEach((slotIndex) => {
+          const selected = isSlotSelected(updated, slotIndex);
+          if (selected !== desired) {
+            updated = toggle(updated, slotIndex, desired);
+          }
+        });
+        if (updated !== current) {
+          next[date] = updated;
+          changed = true;
+        }
       }
-      tracking = false;
-    };
-    el.addEventListener('touchstart', onTouchStart);
-    el.addEventListener('touchend', onTouchEnd);
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [isMobile, activeDayIndex, onActiveDayChange, weekDates.length]);
+      return changed ? next : prev;
+    });
+  }, [onBitsChange]);
 
-  // Measure row height then compute visible range from window viewport
-  useEffect(() => {
-    if (!gridRef.current) return;
-    // Try to measure from first rendered cell
-    const el = gridRef.current.querySelector('[data-cell="0-0"]') as HTMLElement | null;
-    if (el) {
-      const h = el.getBoundingClientRect().height;
-      if (h && Math.abs(h - rowHeight) > 0.5) setRowHeight(h);
-    } else {
-      // Fallback heuristics
-      setRowHeight(isMobile ? 40 : 28);
+  const scheduleFlush = useCallback(() => {
+    if (rafRef.current !== null) return;
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
+      flushPending();
+    });
+  }, [flushPending]);
+
+  const cancelScheduledFlush = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     }
-  }, [gridRef, isMobile, startHour, endHour, rowHeight]);
+  }, []);
+
+  const enqueueUpdate = useCallback(
+    (date: string, slotIndex: number, desired: boolean) => {
+      const currentBits = weekBits[date];
+      if (isSlotSelected(currentBits, slotIndex) === desired) {
+        return;
+      }
+      let setForDate = pendingRef.current[date];
+      if (!setForDate) {
+        setForDate = new Set<number>();
+        pendingRef.current[date] = setForDate;
+      }
+      setForDate.add(slotIndex);
+      scheduleFlush();
+    },
+    [scheduleFlush, weekBits]
+  );
+
+  const finishDrag = useCallback(() => {
+    if (!isDragging) return;
+    cancelScheduledFlush();
+    flushPending();
+    pendingRef.current = {};
+    setIsDragging(false);
+    setDragValue(null);
+    dragValueRef.current = null;
+    lastHoverRowRef.current = null;
+  }, [cancelScheduledFlush, flushPending, isDragging]);
 
   useEffect(() => {
-    if (!virtualizationEnabled || rowHeight <= 0) return;
-    const updateVisible = () => {
-      if (!gridRef.current) return;
-      const rect = gridRef.current.getBoundingClientRect();
-      const viewportTop = Math.max(0, -rect.top);
-      const viewportBottom = Math.min(rect.height, window.innerHeight - rect.top);
-      const bufferPx = rowHeight * 4;
-      const startPx = Math.max(0, viewportTop - bufferPx);
-      const endPx = Math.min(rect.height, viewportBottom + bufferPx);
-      const start = Math.max(0, Math.floor(startPx / rowHeight));
-      const end = Math.min(rows - 1, Math.ceil(endPx / rowHeight));
-      setVisibleStart(start);
-      setVisibleEnd(end);
+    dragValueRef.current = dragValue;
+  }, [dragValue]);
+
+  useEffect(() => {
+    const handleWindowUp = () => {
+      finishDrag();
     };
-    updateVisible();
-    window.addEventListener('scroll', updateVisible, { passive: true });
-    window.addEventListener('resize', updateVisible);
+    window.addEventListener('mouseup', handleWindowUp);
+    return () => window.removeEventListener('mouseup', handleWindowUp);
+  }, [finishDrag]);
+
+  useEffect(() => {
     return () => {
-      window.removeEventListener('scroll', updateVisible);
-      window.removeEventListener('resize', updateVisible);
+      lastHoverRowRef.current = null;
     };
-  }, [virtualizationEnabled, rowHeight, rows]);
+  }, []);
 
-  const renderColumn = (dateInfo: WeekDateInfo, colIndex: number) => {
-    const date = dateInfo.fullDate;
-    const existing = buildDayCellSet(weekSchedule[date] || [], startHour, endHour);
-    const dxActive = dragging && dragging.date === date ? dragging : null;
-    const isLastColumn = isMobile ? true : colIndex === weekDates.length - 1;
-    const startRow = virtualizationEnabled ? visibleStart : 0;
-    const endRow = virtualizationEnabled ? visibleEnd : rows - 1;
-    const topSpacer = virtualizationEnabled && rowHeight > 0 ? (
-      <div style={{ height: `${startRow * rowHeight}px` }} />
-    ) : null;
-    const bottomSpacer = virtualizationEnabled && rowHeight > 0 ? (
-      <div style={{ height: `${(rows - 1 - endRow) * rowHeight}px` }} />
-    ) : null;
-    return (
-      <div className="relative" key={date}>
-        <div role="grid" aria-label={`Availability for ${date}`}
-             aria-rowcount={rows} aria-colcount={1}>
-          {topSpacer}
-          {Array.from({ length: endRow - startRow + 1 }).map((_, idx) => {
-            const r = startRow + idx;
-            // Styling flags available for future use:
-            // const isHourLine = r % 2 === 0; // full hour rows
-            const isSelected = existing.has(r);
-            const inDragRange = dxActive ? r >= Math.min(dxActive.startCell, dxActive.currentCell) && r <= Math.max(dxActive.startCell, dxActive.currentCell) : false;
-            const booked = isCellBooked(bookedSlots, date, r, startHour);
-            const past = isPastCell(date, r);
-            const isFirst = r === 0;
-            // const isLastRow = r === rows - 1; // Available for conditional styling
-            // Uniform bottom borders for a cleaner, lighter grid
-            const bottomBorder = 'border-b border-gray-200';
-            const bookedTooltip = booked ? 'Booked: reservation stays; editing affects future availability' : undefined;
-            const isFocused = focusDay === colIndex && focusRow === r;
-            const labelHour = Math.floor(r / HALF_HOURS_PER_HOUR) + startHour;
-            const labelMin = r % 2 === 1 ? '30' : '00';
-            const ariaLabel = `${dateInfo.date.toLocaleDateString('en-US', { weekday: 'long' })} ${labelHour.toString().padStart(2, '0')}:${labelMin}`;
-            return (
-              <div
-                key={r}
-                onMouseDown={() => handleMouseDown(date, r)}
-                onMouseEnter={() => handleMouseEnter(date, r)}
-                onMouseUp={handleMouseUp}
-                title={bookedTooltip}
-                role="gridcell"
-                aria-selected={isSelected}
-                aria-label={ariaLabel}
-                tabIndex={isFocused ? 0 : -1}
-                onFocus={() => { setFocusDay(colIndex); setFocusRow(r); }}
-                onKeyDown={(e) => handleKeyDown(e, colIndex, r, date)}
-                data-cell={`${colIndex}-${r}`}
-                className={`relative ${isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8'} border-l ${isLastColumn ? 'border-r' : ''} ${isFirst ? 'border-t border-gray-200' : ''} ${bottomBorder} ${isSelected ? 'bg-[#EDE3FA]' : (past ? 'bg-gray-50' : 'bg-white')} ${inDragRange ? 'ring-2 ring-[#D4B5F0] ring-inset' : ''} ${past ? 'opacity-70' : ''} cursor-pointer`}
-              >
-                {/* booked overlay */}
-                {booked && (
-                  <div className="h-full w-full bg-[repeating-linear-gradient(45deg,rgba(156,163,175,0.35),rgba(156,163,175,0.35)_6px,rgba(156,163,175,0.2)_6px,rgba(156,163,175,0.2)_12px)]"></div>
-                )}
-              </div>
-            );
-          })}
-          {bottomSpacer}
-        </div>
-        {/* Now line */}
-        {nowLine && nowLine.column === colIndex && nowLine.topPercent >= 0 && nowLine.topPercent <= 100 && (
-          <div className="pointer-events-none absolute left-0 right-0" style={{ top: `${nowLine.topPercent}%` }}>
-            <div className="h-px bg-red-500"></div>
-            <div className="absolute -left-1 -top-2 h-2 w-2 rounded-full bg-red-500"></div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const [nowInfo, setNowInfo] = useState(() => getNowInTimezone(timezone));
 
-  const dayColumns = useMemo(() => {
-    if (isMobile) {
-      const idx = activeDayIndex || 0;
-      const dayInfo = weekDates[idx];
-      if (!dayInfo) return [];
-      return [renderColumn(dayInfo, idx)];
-    }
-    return weekDates.map((d, i) => renderColumn(d, i));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- all dependencies are used in renderColumn function
-  }, [weekDates, isMobile, activeDayIndex, weekSchedule, dragging, bookedSlots, nowLine, renderColumn]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const tick = () => setNowInfo(getNowInTimezone(timezone));
+    tick();
+    const interval = window.setInterval(tick, 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, [timezone]);
+
+  const displayDates = useMemo(() => {
+    if (!isMobile) return weekDates;
+    const dateInfo = weekDates[activeDayIndex] ?? weekDates[0];
+    return dateInfo ? [dateInfo] : [];
+  }, [isMobile, activeDayIndex, weekDates]);
+
+  const { isoDate: todayIso, minutes: nowMinutes } = nowInfo;
+
+  const isPastSlot = useCallback(
+    (date: string, slotIndex: number) => {
+      if (allowPastEditing) return false;
+      if (date < todayIso) return true;
+      if (date > todayIso) return false;
+      const slotEndMinutes =
+        (startHour + Math.floor((slotIndex + 1) / HALF_HOURS_PER_HOUR)) * 60 +
+        ((slotIndex + 1) % 2 === 1 ? 30 : 0);
+      return slotEndMinutes <= nowMinutes;
+    },
+    [allowPastEditing, nowMinutes, startHour, todayIso]
+  );
+
+  const isPastForStyle = useCallback(
+    (date: string, slotIndex: number) => {
+      if (date < todayIso) return true;
+      if (date > todayIso) return false;
+      const slotEndMinutes = (slotIndex + 1) * 30;
+      return slotEndMinutes <= nowMinutes;
+    },
+    [nowMinutes, todayIso]
+  );
+
+  const handleMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>, date: string, row: number, slotIndex: number) => {
+      event.preventDefault();
+      const desired = !isSlotSelected(weekBits[date], slotIndex);
+      pendingRef.current = {};
+      setIsDragging(true);
+      setDragValue(desired);
+      dragValueRef.current = desired;
+      lastHoverRowRef.current = { date, row };
+      applyImmediate(date, slotIndex, desired);
+    },
+    [applyImmediate, weekBits]
+  );
+
+  const handleMouseEnter = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>, date: string, row: number, slotIndex: number) => {
+      const desired = dragValueRef.current;
+      if (!isDragging || desired === null || event.buttons === 0) return;
+
+      const previous = lastHoverRowRef.current;
+      if (!previous || previous.date !== date) {
+        enqueueUpdate(date, slotIndex, desired);
+        lastHoverRowRef.current = { date, row };
+        return;
+      }
+
+      const delta = row - previous.row;
+      if (delta === 0) {
+        enqueueUpdate(date, slotIndex, desired);
+      } else {
+        const step = delta > 0 ? 1 : -1;
+        for (let r = previous.row + step; step > 0 ? r <= row : r >= row; r += step) {
+          const interpolatedIndex = getSlotIndex(startHour, r);
+          enqueueUpdate(date, interpolatedIndex, desired);
+        }
+      }
+
+      lastHoverRowRef.current = { date, row };
+    },
+    [enqueueUpdate, isDragging, startHour]
+  );
+
+  const handleMouseUp = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      finishDrag();
+    },
+    [finishDrag]
+  );
+
+  const handleKeyToggle = useCallback(
+    (event: ReactKeyboardEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      event.preventDefault();
+      const desired = !isSlotSelected(weekBits[date], slotIndex);
+      applyImmediate(date, slotIndex, desired);
+    },
+    [applyImmediate, weekBits]
+  );
 
   return (
-    <div ref={containerRef} className="relative w-full overflow-x-auto">
-      <div ref={gridRef} className="grid" role="grid" aria-rowcount={rows} aria-colcount={isMobile ? 1 : weekDates.length}
-           style={{ gridTemplateColumns: `80px repeat(${isMobile ? 1 : weekDates.length}, minmax(0, 1fr))` }}>
-        {/* Empty spacer header to align with day headers (with right border for vertical grid line) */}
+    <div className="w-full overflow-x-auto">
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: `80px repeat(${displayDates.length}, minmax(0, 1fr))`,
+          columnGap: '0px',
+        }}
+      >
+        {/* Corner spacer */}
         <div className="sticky left-0 top-0 z-20 bg-white/80 backdrop-blur px-2 py-1 border-r border-gray-200" />
-        {/* Day headers */}
-        {weekDates.map((d, i) => {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const dd = new Date(d.date);
-          dd.setHours(0, 0, 0, 0);
-          const isToday = dd.getTime() === today.getTime();
-          const isPastDate = dd.getTime() < today.getTime();
+        {displayDates.map((info, idx) => {
+          const isToday = info.fullDate === todayIso;
+          const dateObj = info.date;
+          const dow = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+          const dayNum = dateObj.getDate();
+          const headerClasses = clsx(
+            'relative sticky top-0 z-20 bg-white/80 backdrop-blur px-2 pt-1 pb-0 text-center'
+          );
+          const isPastDate = info.fullDate < todayIso;
           return (
-            <div
-              key={`hdr-${d.fullDate}`}
-              className={`relative sticky top-0 z-20 bg-white/80 backdrop-blur px-2 pt-1 pb-0 text-center ${
-                isMobile && i !== (activeDayIndex || 0) ? 'hidden' : ''
-              }`}
-            >
-              {i > 0 && (
+            <div key={info.fullDate} className={headerClasses}>
+              {idx > 0 && (
                 <span className="absolute left-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
               )}
-              {i === weekDates.length - 1 && (
+              {idx === displayDates.length - 1 && (
                 <span className="absolute right-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
               )}
-              <div className={`text-[10px] tracking-wide uppercase ${isPastDate ? 'text-gray-400' : 'text-gray-500'}`}>{d.date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-              <div className="flex items-center justify-center">
-                <span className={`inline-flex items-center justify-center text-2xl font-medium ${isToday ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827]' : (isPastDate ? 'text-gray-400' : 'text-gray-900')}`}>
-                  {d.date.getDate()}
+              <div
+                className={clsx(
+                  'text-[10px] tracking-wide uppercase',
+                  isPastDate ? 'text-gray-400' : 'text-gray-500'
+                )}
+              >
+                {dow}
+              </div>
+              <div className="mt-0.5">
+                <span
+                  className={clsx(
+                    'inline-flex items-center justify-center text-2xl font-medium',
+                    isToday
+                      ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827]'
+                      : isPastDate
+                        ? 'text-gray-400'
+                        : 'text-gray-900'
+                  )}
+                >
+                  {dayNum}
                 </span>
               </div>
             </div>
           );
         })}
 
-        {/* time rows (render per half-hour to perfectly align with grid lines) */}
-        <div className="border-r border-gray-200">
-          {Array.from({ length: rows }).map((_, r) => {
-            const isFirst = r === 0;
-            const bottomBorder = 'border-b border-gray-200';
-            const labelHour = Math.floor(r / 2) + startHour;
-            const showLabel = r % 2 === 0; // label at the start of each hour
+        {/* Time gutter */}
+        <div className="sticky left-0 z-10 flex flex-col bg-white/80 px-2 py-1 backdrop-blur border-r border-gray-200">
+          {Array.from({ length: rows }, (_, row) => {
+            const showLabel = row % HALF_HOURS_PER_HOUR === 0;
+            const labelHour = Math.floor(row / HALF_HOURS_PER_HOUR) + startHour;
+            const isFirst = row === 0;
             return (
-              <div key={`gutter-${r}`} className={`${isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8'} ${isFirst ? 'border-t border-gray-200' : ''} ${bottomBorder} flex items-center`}>
-                {showLabel && (
-                  <div className="text-xs text-gray-500 px-1 whitespace-nowrap">{formatHour(labelHour)}</div>
+              <div
+                key={`time-${row}`}
+                className={clsx(
+                  'flex items-center border-b border-gray-200 text-xs text-gray-500',
+                  isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
+                  isFirst && 'border-t border-gray-200'
                 )}
+              >
+                {showLabel ? HOURS_LABEL(labelHour) : ''}
               </div>
             );
           })}
         </div>
-        {dayColumns}
+
+        {/* Day grids */}
+        {displayDates.map((info, columnIndex) => {
+          const date = info.fullDate;
+          const dayBits = weekBits[date] ?? newEmptyBits();
+          const isToday = date === todayIso;
+          const windowStartMinutes = startHour * 60;
+          const windowEndMinutes = endHour * 60;
+          const totalMinutes = Math.max(0, windowEndMinutes - windowStartMinutes);
+          const withinWindow = nowMinutes >= windowStartMinutes && nowMinutes <= windowEndMinutes;
+          const relativeMinutes = nowMinutes - windowStartMinutes;
+          const topPercent = totalMinutes > 0 ? (relativeMinutes / totalMinutes) * 100 : 0;
+          const showNowLine = isToday && withinWindow && totalMinutes > 0;
+          const pendingForDate = pendingRef.current[date];
+          const isLastColumn = columnIndex === displayDates.length - 1;
+          return (
+            <div key={date} className="relative flex flex-col">
+              {Array.from({ length: rows }, (_, row) => {
+                const slotIndex = getSlotIndex(startHour, row);
+                const booked = isSlotBooked(bookedSlots, date, row, startHour);
+                const behaviourPast = isPastSlot(date, slotIndex);
+                const selected = isSlotSelected(dayBits, slotIndex);
+                const isPreview = !!pendingForDate?.has(slotIndex);
+                const visualPast = isPastForStyle(date, slotIndex);
+                const fillClass = selected ? 'bg-[#EDE3FA]' : visualPast ? 'bg-gray-50' : 'bg-white';
+                const fadeClass = visualPast ? 'opacity-70' : 'opacity-100';
+                const labelHour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
+                const labelMinute = row % 2 === 1 ? '30' : '00';
+                const weekdayLabel = info.date.toLocaleDateString('en-US', { weekday: 'long' });
+                const ariaLabel = `${weekdayLabel} ${String(labelHour).padStart(2, '0')}:${labelMinute}`;
+                return (
+                  <button
+                    key={`${date}-${row}`}
+                    type="button"
+                    role="gridcell"
+                    data-testid="availability-cell"
+                    data-date={date}
+                    data-time={`${String(labelHour).padStart(2, '0')}:${labelMinute}:00`}
+                    aria-selected={selected}
+                    aria-disabled={behaviourPast}
+                    aria-label={ariaLabel}
+                    className={clsx(
+                      'group relative w-full flex-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] cursor-pointer',
+                      'border-b border-l border-gray-200',
+                      isLastColumn && 'border-r border-gray-200',
+                      row === 0 && 'border-t border-gray-200',
+                      isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
+                      isPreview && 'ring-2 ring-[#D4B5F0] ring-inset',
+                      fillClass,
+                      fadeClass
+                    )}
+                    onMouseDown={(event) => handleMouseDown(event, date, row, slotIndex)}
+                    onMouseEnter={(event) => handleMouseEnter(event, date, row, slotIndex)}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={(event) => {
+                      if (event.buttons === 0) finishDrag();
+                    }}
+                    onKeyDown={(event) => handleKeyToggle(event, date, slotIndex)}
+                  >
+                    {booked && (
+                      <span className="pointer-events-none absolute inset-0 rounded-sm bg-[repeating-linear-gradient(45deg,rgba(156,163,175,0.35),rgba(156,163,175,0.35)_6px,rgba(156,163,175,0.2)_6px,rgba(156,163,175,0.2)_12px)]" />
+                    )}
+                    <span className="sr-only">
+                      {info.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </span>
+                    <span className="absolute inset-x-1 bottom-1 text-[10px] text-gray-400 opacity-0 transition-opacity group-hover:opacity-100">
+                      {selected ? 'Selected' : booked ? 'Booked' : 'Available'}
+                    </span>
+                  </button>
+                );
+              })}
+              {showNowLine && (
+                <>
+                  <div
+                    className="now-line"
+                    data-testid="now-line"
+                    style={{ top: `${topPercent}%` }}
+                  />
+                  <span
+                    className="now-dot"
+                    style={{ top: `${topPercent}%`, left: '0' }}
+                  />
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
-}
-
-function formatHour(h: number): string {
-  const period = h >= 12 ? 'PM' : 'AM';
-  const disp = h % 12 || 12;
-  return `${disp}:00 ${period}`;
 }

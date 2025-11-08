@@ -32,6 +32,13 @@ The "Uber of instruction" - A marketplace platform for instantly booking private
 - **Infrastructure**: Render Standard plan (backend) + Vercel (frontend)
 - **Monitoring**: Custom production monitoring middleware
 
+## ✅ Recent Backend Updates
+
+- Bitmap availability now normalizes `"24:00:00"` windows at the helper level, so midnight ranges survive GET/booking flows.
+- `PATCH /instructors/availability/bulk-update` is deprecated and responds with `410 Gone`; use the week POST APIs instead.
+- Week-copy logic no longer probes the legacy slot repository—bitmap rows are always used when copying/applying patterns.
+- Retention purge logic now references `availability_days`, matching the bitmap tables described in [docs/architecture/availability-bitmap.md](docs/architecture/availability-bitmap.md).
+
 ## 📋 Prerequisites
 
 - Python 3.9+
@@ -128,6 +135,39 @@ To exercise the same flow in GitHub Actions, run **e2e-tests → Run workflow** 
 enable the `invite_e2e` input. The workflow now seeds via
 `python scripts/prep_db.py int --migrate --seed-all --force --yes`, matching the
 rest of our end-to-end suites.
+
+### Playwright projects & skips
+We run the E2E suite in three Playwright projects (`instructor`, `admin`, `anon`). Specs are gated per project, so
+running all projects at once will still “discover” non-matching specs and mark them skipped. To keep local output tidy,
+target the project that matches your flow, e.g. `npx playwright test --project=instructor` for availability work or
+`--project=admin` for the invite suite. CI mirrors this in `.github/workflows/frontend-e2e.yml`, which fans out into a
+`{ instructor, admin, anon }` job matrix.
+
+### Contract types
+Regenerate the OpenAPI-generated declarations (and their minified snapshot) with:
+
+```bash
+cd frontend
+npm run contract:write:min
+```
+
+The script updates `frontend/types/generated/api.d.ts` and writes a minified copy to
+`backend/.artifacts/api.expected.d.ts`, keeping the tracked snapshot under the pre-commit size guardrails.
+
+Cross-origin E2E (SameSite smoke + admin invite redemption) are **off by default**. Enable them locally with:
+
+```bash
+cd frontend
+PLAYWRIGHT_BASE_URL=http://localhost:3100 \
+E2E_CROSS_ORIGIN=1 \
+E2E_BETA_BASE_URL=http://beta-local.instainstru.com:3100 \
+E2E_PREVIEW_BASE_URL=http://localhost:3100 \
+CI_LOCAL_E2E=1 \
+npx playwright test --project=instructor --reporter=line
+```
+
+You can also set `E2E_ENABLE_INVITES=1` instead of `CI_LOCAL_E2E=1` to exercise the invite redemption flow without
+affecting other smoke tests.
 
 📚 API Documentation
 Once the backend is running, visit:

@@ -14,9 +14,10 @@ import time
 # Add parent directory to path so we can import app modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
 from app.database import get_db
-from app.models.availability import AvailabilitySlot
 from app.models.instructor import InstructorProfile
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.availability_window import WeekSpecificScheduleCreate
 from app.services.availability_service import AvailabilityService
 from app.services.conflict_checker import ConflictChecker
@@ -55,33 +56,16 @@ async def test_apply_pattern_performance():
         # Clear any existing availability for the test dates to avoid conflicts
         print("\n🧹 Clearing test date ranges...")
 
-        # Clear source week (using AvailabilitySlot directly)
-        existing_source = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.specific_date >= from_week_start,
-                AvailabilitySlot.specific_date < from_week_start + timedelta(days=7),
-            )
-            .all()
-        )
+        # Clear source week using bitmap repository
+        repo = AvailabilityDayRepository(db)
+        for i in range(7):
+            day = from_week_start + timedelta(days=i)
+            repo.delete_day(instructor_id, day)
 
-        for slot in existing_source:
-            db.delete(slot)
-
-        # Clear target range
-        existing_target = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.specific_date >= start_date,
-                AvailabilitySlot.specific_date <= end_date,
-            )
-            .all()
-        )
-
-        for slot in existing_target:
-            db.delete(slot)
+        # Clear target range using bitmap repository
+        for i in range((end_date - start_date).days + 1):
+            day = start_date + timedelta(days=i)
+            repo.delete_day(instructor_id, day)
 
         db.commit()
         print("✅ Test ranges cleared")

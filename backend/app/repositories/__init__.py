@@ -36,6 +36,7 @@ Benefits:
 """
 
 # Import specific repositories as they are created
+from .availability_day_repository import AvailabilityDayRepository
 from .availability_repository import AvailabilityRepository
 from .base_repository import BaseRepository, IRepository
 from .booking_repository import BookingRepository
@@ -52,7 +53,8 @@ from .referral_repository import (
     WalletTransactionRepository,
 )
 from .search_event_repository import SearchEventRepository
-from .slot_manager_repository import SlotManagerRepository
+
+# SlotManagerRepository removed - bitmap-only storage now
 from .week_operation_repository import WeekOperationRepository
 
 __all__ = [
@@ -60,7 +62,8 @@ __all__ = [
     "IRepository",
     "RepositoryFactory",
     "AvailabilityRepository",
-    "SlotManagerRepository",
+    "AvailabilityDayRepository",
+    # "SlotManagerRepository",  # Removed - bitmap-only storage now
     "ConflictCheckerRepository",
     "BulkOperationRepository",
     "BookingRepository",

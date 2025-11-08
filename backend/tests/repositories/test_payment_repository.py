@@ -26,6 +26,11 @@ from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.repositories.payment_repository import PaymentRepository
 
+try:  # pragma: no cover - allow running from backend/ root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
+
 
 class TestPaymentRepository:
     """Test suite for PaymentRepository."""
@@ -118,22 +123,21 @@ class TestPaymentRepository:
     def test_booking(self, db: Session, test_user: User, test_instructor: tuple) -> Booking:
         """Create a test booking."""
         instructor_user, _, instructor_service = test_instructor
-        booking = Booking(
-            id=str(ulid.ULID()),
+        booking = create_booking_pg_safe(
+            db,
             student_id=test_user.id,
             instructor_id=instructor_user.id,
-            instructor_service_id=instructor_service.id,  # Use real service ID
+            instructor_service_id=instructor_service.id,
             booking_date=datetime.now().date(),
-            start_time=time(14, 0),  # 2:00 PM
-            end_time=time(15, 0),  # 3:00 PM
+            start_time=time(14, 0),
+            end_time=time(15, 0),
             service_name="Test Service",
             hourly_rate=50.00,
             total_price=50.00,
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
+            offset_index=0,
         )
-        db.add(booking)
-        db.flush()
         return booking
 
     # ========== Customer Management Tests ==========
@@ -358,22 +362,21 @@ class TestPaymentRepository:
         """Test platform revenue stats with successful payments."""
         # Create multiple successful payments
         for i in range(3):
-            booking = Booking(
-                id=str(ulid.ULID()),
+            booking = create_booking_pg_safe(
+                db,
                 student_id=test_booking.student_id,
                 instructor_id=test_booking.instructor_id,
-                instructor_service_id=test_booking.instructor_service_id,  # Use the same service ID
-                booking_date=datetime.now().date(),
-                start_time=time(14, 0),  # 2 PM
-                end_time=time(15, 0),  # 3 PM
+                instructor_service_id=test_booking.instructor_service_id,
+                booking_date=datetime.now().date() + timedelta(days=i + 1),
+                start_time=time(14, 0),
+                end_time=time(15, 0),
                 service_name="Test Service",
                 hourly_rate=50.00,
                 total_price=50.00,
                 duration_minutes=60,
                 status=BookingStatus.CONFIRMED,
+                offset_index=i,
             )
-            db.add(booking)
-            db.flush()
 
             payment_repo.create_payment_record(
                 booking.id, f"pi_{ulid.ULID()}", 5000 + (i * 1000), 500 + (i * 100), "succeeded"
@@ -428,22 +431,21 @@ class TestPaymentRepository:
 
         # Create multiple bookings and payments
         for i in range(3):
-            booking = Booking(
-                id=str(ulid.ULID()),
+            booking = create_booking_pg_safe(
+                db,
                 student_id=test_user.id,
                 instructor_id=instructor_user.id,
-                instructor_service_id=instructor_service.id,  # Use real service ID
+                instructor_service_id=instructor_service.id,
                 booking_date=datetime.now().date(),
-                start_time=time(14, 0),  # 2 PM
-                end_time=time(15, 0),  # 3 PM
+                start_time=time(14, 0),
+                end_time=time(15, 0),
                 service_name="Test Service",
                 hourly_rate=50.00,
                 total_price=50.00,
                 duration_minutes=60,
                 status=BookingStatus.CONFIRMED,
+                offset_index=i,
             )
-            db.add(booking)
-            db.flush()
 
             payment_repo.create_payment_record(booking.id, f"pi_{ulid.ULID()}", 5000 + (i * 1000), 500, "succeeded")
 
@@ -512,10 +514,10 @@ class TestPaymentRepository:
         db.flush()
 
         # Create a booking first
-        booking = Booking(
-            id=str(ulid.ULID()),
+        booking = create_booking_pg_safe(
+            db,
             student_id=test_user.id,
-            instructor_id=test_user.id,  # Using same user for simplicity
+            instructor_id=test_user.id,
             instructor_service_id=service.id,
             booking_date=datetime.now().date(),
             start_time=time(10, 0),
@@ -526,8 +528,6 @@ class TestPaymentRepository:
             duration_minutes=60,
             status=BookingStatus.PENDING,
         )
-        db.add(booking)
-        db.flush()
 
         # Create payment event
         event = payment_repo.create_payment_event(
@@ -590,8 +590,8 @@ class TestPaymentRepository:
         db.flush()
 
         # Create a booking
-        booking = Booking(
-            id=str(ulid.ULID()),
+        booking = create_booking_pg_safe(
+            db,
             student_id=test_user.id,
             instructor_id=test_user.id,
             instructor_service_id=service.id,
@@ -604,8 +604,6 @@ class TestPaymentRepository:
             duration_minutes=60,
             status=BookingStatus.PENDING,
         )
-        db.add(booking)
-        db.flush()
 
         # Create multiple events
         events_data = [
@@ -673,8 +671,8 @@ class TestPaymentRepository:
         db.flush()
 
         # Create a booking
-        booking = Booking(
-            id=str(ulid.ULID()),
+        booking = create_booking_pg_safe(
+            db,
             student_id=test_user.id,
             instructor_id=test_user.id,
             instructor_service_id=service.id,
@@ -687,8 +685,6 @@ class TestPaymentRepository:
             duration_minutes=60,
             status=BookingStatus.PENDING,
         )
-        db.add(booking)
-        db.flush()
 
         # Create events with small delays to ensure order
         _event1 = payment_repo.create_payment_event(booking.id, "setup_intent_created", {"step": 1})

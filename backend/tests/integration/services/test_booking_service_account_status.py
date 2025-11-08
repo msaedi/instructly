@@ -12,11 +12,11 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessRuleException
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
+from tests._utils.bitmap_avail import get_day_windows, seed_day
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.conftest import add_service_areas_for_boroughs
@@ -27,6 +27,11 @@ except ModuleNotFoundError:  # pragma: no cover
 @pytest.fixture(autouse=True)
 def _no_price_floors(disable_price_floors):
     """Legacy account-status flows rely on $50 hourly rates."""
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
     yield
 
 
@@ -82,24 +87,25 @@ class TestBookingServiceAccountStatus:
         profile = suspended_instructor.instructor_profile
         service = next((s for s in profile.instructor_services if s.is_active), None)
 
-        # Get an available slot
+        # Get an available window from bitmap storage
         tomorrow = date.today() + timedelta(days=1)
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == suspended_instructor.id, AvailabilitySlot.specific_date == tomorrow
-            )
-            .first()
-        )
+        windows = get_day_windows(db, suspended_instructor.id, tomorrow)
+        if not windows:
+            seed_day(db, suspended_instructor.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, suspended_instructor.id, tomorrow)
+
+        start_str, _ = windows[0]  # end_str not needed, end_time calculated from start_time + duration
+        from datetime import time as dt_time
+        start_time = dt_time.fromisoformat(start_str)
 
         booking_service = BookingService(db, mock_notification_service)
         booking_data = BookingCreate(
             instructor_id=suspended_instructor.id,
             instructor_service_id=service.id,
             booking_date=tomorrow,
-            start_time=slot.start_time,
+            start_time=start_time,
             selected_duration=60,
-            end_time=time(slot.start_time.hour + 1, slot.start_time.minute),
+            end_time=time(start_time.hour + 1, start_time.minute),
             location_type="neutral",
             meeting_location="Online",
             student_note="Test booking",
@@ -119,24 +125,25 @@ class TestBookingServiceAccountStatus:
         profile = deactivated_instructor.instructor_profile
         service = next((s for s in profile.instructor_services if s.is_active), None)
 
-        # Get an available slot
+        # Get an available window from bitmap storage
         tomorrow = date.today() + timedelta(days=1)
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == deactivated_instructor.id, AvailabilitySlot.specific_date == tomorrow
-            )
-            .first()
-        )
+        windows = get_day_windows(db, deactivated_instructor.id, tomorrow)
+        if not windows:
+            seed_day(db, deactivated_instructor.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, deactivated_instructor.id, tomorrow)
+
+        start_str, _ = windows[0]  # end_str not needed, end_time calculated from start_time + duration
+        from datetime import time as dt_time
+        start_time = dt_time.fromisoformat(start_str)
 
         booking_service = BookingService(db, mock_notification_service)
         booking_data = BookingCreate(
             instructor_id=deactivated_instructor.id,
             instructor_service_id=service.id,
             booking_date=tomorrow,
-            start_time=slot.start_time,
+            start_time=start_time,
             selected_duration=60,
-            end_time=time(slot.start_time.hour + 1, slot.start_time.minute),
+            end_time=time(start_time.hour + 1, start_time.minute),
             location_type="neutral",
             meeting_location="Online",
             student_note="Test booking",
@@ -160,25 +167,25 @@ class TestBookingServiceAccountStatus:
         profile = test_instructor_with_availability.instructor_profile
         service = next((s for s in profile.instructor_services if s.is_active), None)
 
-        # Get an available slot
+        # Get an available window from bitmap storage
         tomorrow = date.today() + timedelta(days=1)
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == tomorrow,
-            )
-            .first()
-        )
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+
+        start_str, _ = windows[0]  # end_str not needed, end_time calculated from start_time + duration
+        from datetime import time as dt_time
+        start_time = dt_time.fromisoformat(start_str)
 
         booking_service = BookingService(db, mock_notification_service)
         booking_data = BookingCreate(
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,
             booking_date=tomorrow,
-            start_time=slot.start_time,
+            start_time=start_time,
             selected_duration=60,
-            end_time=time(slot.start_time.hour + 1, slot.start_time.minute),
+            end_time=time(start_time.hour + 1, start_time.minute),
             location_type="neutral",
             meeting_location="Online",
             student_note="Test booking",

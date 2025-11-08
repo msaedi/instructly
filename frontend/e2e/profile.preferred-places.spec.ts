@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
+import { isInstructor } from './utils/projects';
 
 const LIVE_MODE = Boolean(process.env.E2E_APP_ORIGIN && process.env.E2E_API_ORIGIN);
 const APP_ORIGIN = process.env.E2E_APP_ORIGIN ?? 'http://localhost:3100';
@@ -14,9 +15,19 @@ const generateGuestId = (): string => {
   }
 };
 
+test.beforeAll(({}, workerInfo) => {
+  test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
+});
 test.skip(Boolean(process.env.CI) && !process.env.CI_LOCAL_E2E, 'local-only smoke; opt-in via CI_LOCAL_E2E=1');
 
 test('preferred places: add two -> save -> reload -> persisted', async ({ page }) => {
+  const suffix = Date.now().toString(36);
+  const teachingAddress1 = `1 Bryant Park, New York, NY ${suffix}`;
+  const teachingLabel1 = `Office ${suffix}`;
+  const teachingAddress2 = `320 E 46th St, New York, NY ${suffix}`;
+  const teachingLabel2 = `Home ${suffix}`;
+  const publicPlace1 = `New York Public Library ${suffix}`;
+  const publicPlace2 = `Times Square ${suffix}`;
 
   const fulfillJson = async (
     route: import('@playwright/test').Route,
@@ -251,50 +262,60 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
   await page.waitForURL('**/instructor/profile**');
   await page.waitForLoadState('networkidle');
 
+  const serviceAreasCard = page.getByTestId('service-areas-card').first();
+  await serviceAreasCard.waitFor();
+  await serviceAreasCard.scrollIntoViewIfNeeded();
+  await serviceAreasCard.click();
+  const preferredPlacesCard = page.getByTestId('preferred-places-card').first();
+  await preferredPlacesCard.waitFor();
+  await preferredPlacesCard.scrollIntoViewIfNeeded();
+  await preferredPlacesCard.click();
+
   const teachingInput = page.getByTestId('ptl-input');
   await teachingInput.waitFor();
 
-  await teachingInput.fill('1 Bryant Park, New York, NY');
+  await teachingInput.fill(teachingAddress1);
   await page.getByTestId('ptl-add').click();
   await page.getByTestId('ptl-chip-0').waitFor();
-  await page.getByTestId('ptl-chip-label-0').fill('Office');
+  await page.getByTestId('ptl-chip-label-0').fill(teachingLabel1);
 
-  await teachingInput.fill('320 E 46th St, New York, NY');
+  await teachingInput.fill(teachingAddress2);
   await page.getByTestId('ptl-add').click();
   await page.getByTestId('ptl-chip-1').waitFor();
-  await page.getByTestId('ptl-chip-label-1').fill('Home');
+  await page.getByTestId('ptl-chip-label-1').fill(teachingLabel2);
 
   const publicInput = page.getByTestId('pps-input');
-  await publicInput.fill('New York Public Library');
+  await publicInput.fill(publicPlace1);
   await page.getByTestId('pps-add').click();
   await page.getByTestId('pps-chip-0').waitFor();
 
-  await publicInput.fill('Times Square');
+  await publicInput.fill(publicPlace2);
   await page.getByTestId('pps-add').click();
   await page.getByTestId('pps-chip-1').waitFor();
 
   const saveResponsePromise = page.waitForResponse((response) =>
-    response.url().endsWith('/instructors/me') &&
-    response.request().method() === 'PUT' &&
-    response.status() === 200
+    response.url().includes('/instructors/me') &&
+    response.request().method() === 'PUT'
   );
 
-  await Promise.all([
-    saveResponsePromise,
-    page.getByRole('button', { name: /save & continue/i }).click(),
-  ]);
-
-  await page.waitForURL('**/instructor/onboarding/skill-selection**');
+  await page.getByRole('button', { name: /save changes/i }).click();
+  const saveResponse = await saveResponsePromise;
+  expect(saveResponse.status()).toBeLessThan(400);
 
   await page.goto(`${APP_ORIGIN}/instructor/profile`);
   await page.waitForURL('**/instructor/profile**');
   await page.waitForLoadState('networkidle');
 
-  await expect(page.getByTestId('ptl-chip-0')).toContainText('1 Bryant Park, New York, NY');
-  await expect(page.getByTestId('ptl-chip-label-0')).toHaveValue('Office');
-  await expect(page.getByTestId('ptl-chip-1')).toContainText('320 E 46th St, New York, NY');
-  await expect(page.getByTestId('ptl-chip-label-1')).toHaveValue('Home');
+  await page.getByTestId('service-areas-card').click();
+  const preferredPlacesCardReload = page.getByTestId('preferred-places-card').first();
+  await preferredPlacesCardReload.scrollIntoViewIfNeeded();
+  await preferredPlacesCardReload.click();
 
-  await expect(page.getByTestId('pps-chip-0')).toContainText('New York Public Library');
-  await expect(page.getByTestId('pps-chip-1')).toContainText('Times Square');
+  await expect(page.getByTestId('ptl-chip-0')).toContainText(teachingAddress1);
+  await expect(page.getByTestId('ptl-chip-label-0')).toHaveValue(teachingLabel1);
+  await expect(page.getByTestId('ptl-chip-1')).toContainText(teachingAddress2);
+  await expect(page.getByTestId('ptl-chip-label-1')).toHaveValue(teachingLabel2);
+
+  await expect(page.getByTestId('pps-chip-0')).toContainText(publicPlace1);
+  await expect(page.getByTestId('pps-chip-1')).toContainText(publicPlace2);
 });

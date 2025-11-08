@@ -77,10 +77,16 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
 
             # Add performance metrics to response headers (useful for debugging)
             if hasattr(request.state, "query_count"):
-                response.headers["X-DB-Query-Count"] = str(request.state.query_count)
+                db_count = str(request.state.query_count)
+                response.headers.setdefault("x-db-query-count", db_count)
+                response.headers["X-DB-Query-Count"] = response.headers["x-db-query-count"]
             if hasattr(request.state, "cache_hits"):
-                response.headers["X-Cache-Hits"] = str(request.state.cache_hits)
-                response.headers["X-Cache-Misses"] = str(request.state.cache_misses)
+                hits = str(request.state.cache_hits)
+                misses = str(request.state.cache_misses)
+                response.headers.setdefault("x-cache-hits", hits)
+                response.headers.setdefault("x-cache-misses", misses)
+                response.headers["X-Cache-Hits"] = response.headers["x-cache-hits"]
+                response.headers["X-Cache-Misses"] = response.headers["x-cache-misses"]
 
             return response
 

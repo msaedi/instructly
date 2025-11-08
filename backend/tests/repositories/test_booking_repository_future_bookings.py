@@ -10,7 +10,7 @@ Tests various scenarios including:
 - Date filtering
 """
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
 from sqlalchemy.orm import Session
@@ -24,6 +24,11 @@ try:  # pragma: no cover - fallback for direct backend test invocation
     from backend.tests.conftest import add_service_areas_for_boroughs
 except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import add_service_areas_for_boroughs
+
+try:  # pragma: no cover - allow running from backend/ or repo root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
 
 
 class TestBookingRepositoryFutureBookings:
@@ -61,25 +66,33 @@ class TestBookingRepositoryFutureBookings:
         service_id: int,
         booking_date: date,
         status: BookingStatus = BookingStatus.CONFIRMED,
+        start_hour: int = 14,
+        duration_minutes: int = 60,
+        offset_index: int | None = None,
     ) -> Booking:
         """Helper to create a booking."""
-        booking = Booking(
-            instructor_id=instructor_id,
+        start_time = time(start_hour % 24, 0)
+        end_time = (datetime.combine(booking_date, start_time) + timedelta(minutes=duration_minutes)).time()
+        booking = create_booking_pg_safe(
+            db,
             student_id=student_id,
+            instructor_id=instructor_id,
             instructor_service_id=service_id,
             booking_date=booking_date,
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            start_time=start_time,
+            end_time=end_time,
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,
-            duration_minutes=60,
+            duration_minutes=duration_minutes,
             status=status,
             meeting_location="Online",
             location_type="neutral",
+            offset_index=offset_index,
         )
-        db.add(booking)
-        db.flush()
+        if status == BookingStatus.CANCELLED:
+            booking.cancelled_at = datetime.now(timezone.utc)
+            db.flush()
         return booking
 
     def test_no_future_bookings(self, booking_repository: BookingRepository, test_instructor: User):
@@ -99,7 +112,9 @@ class TestBookingRepositoryFutureBookings:
         """Test with a single future booking."""
         today = self.get_user_today(test_instructor.id, db)
         tomorrow = today + timedelta(days=1)
-        booking = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
+        booking = self.create_booking(
+            db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, offset_index=0
+        )
         db.commit()
 
         future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor.id)
@@ -122,7 +137,14 @@ class TestBookingRepositoryFutureBookings:
         bookings = []
         for i in range(1, 4):
             future_date = today + timedelta(days=i)
-            booking = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, future_date)
+            booking = self.create_booking(
+                db,
+                test_instructor.id,
+                test_student.id,
+                instructor_service.id,
+                future_date,
+                offset_index=i,
+            )
             bookings.append(booking)
         db.commit()
 
@@ -149,15 +171,43 @@ class TestBookingRepositoryFutureBookings:
         yesterday = today - timedelta(days=1)
         last_week = today - timedelta(days=7)
 
-        past_booking1 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, yesterday)
-        past_booking2 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, last_week)
+        past_booking1 = self.create_booking(
+            db,
+            test_instructor.id,
+            test_student.id,
+            instructor_service.id,
+            yesterday,
+            offset_index=0,
+        )
+        past_booking2 = self.create_booking(
+            db,
+            test_instructor.id,
+            test_student.id,
+            instructor_service.id,
+            last_week,
+            offset_index=1,
+        )
 
         # Create future bookings
         tomorrow = today + timedelta(days=1)
         next_week = today + timedelta(days=7)
 
-        future_booking1 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
-        future_booking2 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, next_week)
+        future_booking1 = self.create_booking(
+            db,
+            test_instructor.id,
+            test_student.id,
+            instructor_service.id,
+            tomorrow,
+            offset_index=2,
+        )
+        future_booking2 = self.create_booking(
+            db,
+            test_instructor.id,
+            test_student.id,
+            instructor_service.id,
+            next_week,
+            offset_index=3,
+        )
 
         db.commit()
 
@@ -189,11 +239,23 @@ class TestBookingRepositoryFutureBookings:
 
         # Create confirmed and cancelled bookings
         confirmed_booking = self.create_booking(
-            db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CONFIRMED
+            db,
+            test_instructor.id,
+            test_student.id,
+            instructor_service.id,
+            tomorrow,
+            BookingStatus.CONFIRMED,
+            offset_index=0,
         )
 
         _cancelled_booking = self.create_booking(
-            db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CANCELLED
+            db,
+            test_instructor.id,
+            test_student.id,
+            instructor_service.id,
+            tomorrow,
+            BookingStatus.CANCELLED,
+            offset_index=1,
         )
 
         db.commit()
@@ -218,11 +280,23 @@ class TestBookingRepositoryFutureBookings:
 
         # Create confirmed and cancelled bookings
         _confirmed_booking = self.create_booking(
-            db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CONFIRMED
+            db,
+            test_instructor.id,
+            test_student.id,
+            instructor_service.id,
+            tomorrow,
+            BookingStatus.CONFIRMED,
+            offset_index=0,
         )
 
         _cancelled_booking = self.create_booking(
-            db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CANCELLED
+            db,
+            test_instructor.id,
+            test_student.id,
+            instructor_service.id,
+            tomorrow,
+            BookingStatus.CANCELLED,
+            offset_index=1,
         )
 
         db.commit()
@@ -251,9 +325,15 @@ class TestBookingRepositoryFutureBookings:
         in_3_days = today + timedelta(days=3)
         in_5_days = today + timedelta(days=5)
 
-        booking1 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
-        booking2 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, in_3_days)
-        booking3 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, in_5_days)
+        booking1 = self.create_booking(
+            db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, offset_index=0
+        )
+        booking2 = self.create_booking(
+            db, test_instructor.id, test_student.id, instructor_service.id, in_3_days, offset_index=1
+        )
+        booking3 = self.create_booking(
+            db, test_instructor.id, test_student.id, instructor_service.id, in_5_days, offset_index=2
+        )
 
         db.commit()
 
@@ -279,7 +359,9 @@ class TestBookingRepositoryFutureBookings:
         """Test that bookings on today's date are considered future bookings."""
         today = self.get_user_today(test_instructor.id, db)
 
-        booking = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, today)
+        booking = self.create_booking(
+            db, test_instructor.id, test_student.id, instructor_service.id, today, offset_index=0
+        )
 
         db.commit()
 
@@ -311,9 +393,16 @@ class TestBookingRepositoryFutureBookings:
         ]
 
         bookings = []
-        for status in statuses:
+        for index, status in enumerate(statuses):
             booking = self.create_booking(
-                db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, status
+                db,
+                test_instructor.id,
+                test_student.id,
+                instructor_service.id,
+                tomorrow,
+                status,
+                start_hour=14 + index * 2,
+                offset_index=index,
             )
             bookings.append(booking)
 

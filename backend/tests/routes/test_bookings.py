@@ -35,6 +35,11 @@ def _no_price_floors(disable_price_floors):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch):
+    yield
+
+
 class TestBookingRoutes:
     """Test booking API endpoints with time-based pattern."""
 

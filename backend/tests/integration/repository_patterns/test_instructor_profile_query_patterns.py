@@ -12,15 +12,20 @@ from typing import List
 import pytest
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
+from tests._utils.bitmap_avail import seed_day
 
 from app.core.ulid_helper import generate_ulid
 from app.models.address import InstructorServiceArea
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.region_boundary import RegionBoundary
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
+
+try:  # pragma: no cover - allow execution from backend/ or repo root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
 
 try:  # pragma: no cover - fallback when tests run from backend/
     from backend.tests.conftest import add_service_areas_for_boroughs  # noqa: I001
@@ -359,35 +364,30 @@ class TestInstructorProfileQueryPatterns:
         """Document query for profile with availability statistics."""
         instructor = test_instructors_with_profiles[0]
 
-        # Create some availability for testing
+        # Create some availability for testing using bitmap storage
         today = date.today()
         for i in range(5):
-            slot = AvailabilitySlot(
-                instructor_id=instructor.id,
-                specific_date=today + timedelta(days=i),
-                start_time=time(10, 0),
-                end_time=time(11, 0),
-            )
-            db.add(slot)
+            seed_day(db, instructor.id, today + timedelta(days=i), [("10:00", "11:00")])
         db.commit()
 
-        # Complex query with subquery for availability stats
+        # Complex query with subquery for availability stats (using AvailabilityDay)
+        from app.models import AvailabilityDay
         availability_subquery = (
             db.query(
-                AvailabilitySlot.instructor_id,
-                func.count(AvailabilitySlot.id).label("total_slots"),
-                func.min(AvailabilitySlot.specific_date).label("first_available"),
-                func.max(AvailabilitySlot.specific_date).label("last_available"),
+                AvailabilityDay.instructor_id,
+                func.count(AvailabilityDay.day_date).label("total_days"),
+                func.min(AvailabilityDay.day_date).label("first_available"),
+                func.max(AvailabilityDay.day_date).label("last_available"),
             )
-            .filter(AvailabilitySlot.specific_date >= today)
-            .group_by(AvailabilitySlot.instructor_id)
+            .filter(AvailabilityDay.day_date >= today)
+            .group_by(AvailabilityDay.instructor_id)
             .subquery()
         )
 
         query = (
             db.query(
                 InstructorProfile,
-                availability_subquery.c.total_slots,
+                availability_subquery.c.total_days,
                 availability_subquery.c.first_available,
                 availability_subquery.c.last_available,
             )
@@ -401,8 +401,8 @@ class TestInstructorProfileQueryPatterns:
         # def get_profile_with_availability_summary(self, user_id: int) -> Dict
 
         assert result is not None
-        profile, total_slots, first_available, last_available = result
-        assert total_slots >= 5
+        profile, total_days, first_available, last_available = result
+        assert total_days >= 5
         assert first_available == today
         assert last_available == today + timedelta(days=4)
 
@@ -420,20 +420,21 @@ class TestInstructorProfileQueryPatterns:
             )
 
             for j in range(i + 1):  # Different number of bookings
-                booking = Booking(
+                create_booking_pg_safe(
+                    db,
                     instructor_id=instructor_id,
                     student_id=test_student.id,
+                    instructor_service_id=service.id,
                     booking_date=date.today() - timedelta(days=j),
                     start_time=time(10, 0),
                     end_time=time(11, 0),
                     status=BookingStatus.COMPLETED,
-                    instructor_service_id=service.id,
                     service_name="Test Service",
                     hourly_rate=50.0,
                     total_price=50.0,
                     duration_minutes=60,
+                    offset_index=j,
                 )
-                db.add(booking)
         db.commit()
 
         # Query with booking statistics

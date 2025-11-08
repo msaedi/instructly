@@ -169,6 +169,8 @@ def main(limit: Optional[int] = None, dry_run: Optional[bool] = None) -> Dict[st
         limit = 200 if limit is None else limit
         dry_run = False if dry_run is None else dry_run
 
+    assert limit is not None
+    assert dry_run is not None
     result = _execute(limit=limit, dry_run=dry_run)
     result_dict = _result_to_dict(result)
 

@@ -1,5 +1,23 @@
+
 from fastapi.testclient import TestClient
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _verbose_availability_logs(monkeypatch):
+    """Enable verbose logging for availability operations."""
+    monkeypatch.setenv("AVAILABILITY_PERF_DEBUG", "1", prepend=False)
+    monkeypatch.setenv("SUPPRESS_PAST_AVAILABILITY_EVENTS", "0", prepend=False)
+    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true", prepend=False)
+    # Patch settings if available
+    try:
+        from app.core.config import settings
+        if hasattr(settings, "availability_perf_debug"):
+            monkeypatch.setattr(settings, "availability_perf_debug", True, raising=False)
+        if hasattr(settings, "suppress_past_availability_events"):
+            monkeypatch.setattr(settings, "suppress_past_availability_events", False, raising=False)
+    except Exception:
+        pass
 
 
 @pytest.fixture()

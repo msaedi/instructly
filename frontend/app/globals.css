@@ -107,6 +107,10 @@ body {
   --spacing-xl: 3rem;
   --spacing-2xl: 4rem;
 
+  /* Availability calendar spacing */
+  --slot-gap-x: 0px;
+  --slot-gap-y: 8px;
+
   /* Border Radius */
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
@@ -800,6 +804,27 @@ html {
 /* For browsers that support color-scheme */
 .time-input-purple {
   color-scheme: light;
+}
+
+.now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #ef4444;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.now-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #ef4444;
+  transform: translate(-4px, -4px);
+  z-index: 20;
+  pointer-events: none;
 }
 
 .template-title-input:focus,

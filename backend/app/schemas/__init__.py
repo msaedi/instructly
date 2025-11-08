@@ -6,14 +6,8 @@ Clean Architecture: Exports only schemas that match our new architecture.
 No legacy patterns, no dead code, no backward compatibility.
 """
 
-# Availability schemas - Clean single-table design
-from .availability import (
-    AvailabilitySlot,
-    AvailabilitySlotBase,
-    AvailabilitySlotCreate,
-    AvailabilitySlotResponse,
-    AvailabilitySlotUpdate,
-)
+# Availability schemas - Bitmap-only storage now
+# AvailabilitySlot schemas removed - bitmap-only storage now
 
 # Availability window schemas - Date-specific operations
 from .availability_window import (
@@ -127,13 +121,7 @@ __all__ = [
     "ServiceBase",
     "ServiceCreate",
     "ServiceResponse",
-    # Availability schemas - Clean single-table
-    "AvailabilitySlotBase",
-    "AvailabilitySlotCreate",
-    "AvailabilitySlotUpdate",
-    "AvailabilitySlot",
-    "AvailabilitySlotResponse",
-    # Availability window schemas - Date operations
+    # Availability window schemas - Date operations (bitmap-only storage)
     "AvailabilityWindowBase",
     "AvailabilityWindowUpdate",
     "AvailabilityWindowResponse",

@@ -9,13 +9,16 @@ This module handles:
 - Health check verification
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
+from typing import Any, Final, cast
 
 from .config import settings
 
-logger = logging.getLogger(__name__)
+logger: Final[logging.Logger] = logging.getLogger(__name__)
 
 
 class ProductionStartup:
@@ -86,9 +89,11 @@ class ProductionStartup:
         try:
             from sqlalchemy import text
 
-            from ..database import engine
+            from app import database as database_module
 
-            with engine.connect() as conn:
+            engine_obj = cast(Any, getattr(database_module, "engine"))
+
+            with engine_obj.connect() as conn:
                 conn.execute(text("SELECT 1"))
             logger.info("✓ Database connection verified")
         except Exception as e:
@@ -115,14 +120,16 @@ class ProductionStartup:
         try:
             from sqlalchemy import text
 
-            from ..database import engine
+            from app import database as database_module
+
+            engine_obj = cast(Any, getattr(database_module, "engine"))
 
             # Create multiple connections to fill pool
-            connections = []
+            connections: list[Any] = []
             pool_size = int(os.getenv("DATABASE_POOL_SIZE", "5"))
 
             for i in range(min(pool_size, 3)):  # Warm up to 3 connections
-                conn = engine.connect()
+                conn = engine_obj.connect()
                 conn.execute(text("SELECT 1"))
                 connections.append(conn)
 
@@ -146,21 +153,21 @@ class ProductionStartup:
             return
 
         # Start periodic health check task
-        from ..monitoring.production_monitor import periodic_health_check
+        from app.monitoring.production_monitor import periodic_health_check
 
         # Create background task for monitoring
         asyncio.create_task(periodic_health_check())
         logger.info("✓ Background monitoring task started")
 
         # Log initial metrics
-        from ..monitoring.production_monitor import monitor
+        from app.monitoring.production_monitor import monitor
 
-        summary = monitor.get_performance_summary()
+        summary: dict[str, Any] = monitor.get_performance_summary()
         logger.info(f"Initial system state: {summary['memory']['rss_mb']}MB RSS")
 
 
 # Lazy imports for heavy dependencies
-_heavy_imports_loaded = False
+_heavy_imports_loaded: bool = False
 
 
 def lazy_import_heavy_dependencies() -> None:
@@ -176,8 +183,10 @@ def lazy_import_heavy_dependencies() -> None:
     try:
         # ML/AI libraries (if used)
         if os.getenv("ENABLE_ML_FEATURES", "false").lower() == "true":
-            import numpy  # noqa
-            import pandas  # noqa
+            import importlib
+
+            importlib.import_module("numpy")
+            importlib.import_module("pandas")
 
             logger.info("✓ ML dependencies loaded")
     except ImportError:
@@ -193,8 +202,8 @@ class ServiceCircuitBreaker:
     def __init__(self, service_name: str, failure_threshold: int = 3) -> None:
         self.service_name = service_name
         self.failure_threshold = failure_threshold
-        self.failure_count = 0
-        self.is_open = False
+        self.failure_count: int = 0
+        self.is_open: bool = False
 
     def record_success(self) -> None:
         """Record successful call."""
@@ -216,7 +225,7 @@ class ServiceCircuitBreaker:
 
 
 # Global circuit breakers
-circuit_breakers = {
+circuit_breakers: dict[str, ServiceCircuitBreaker] = {
     "email": ServiceCircuitBreaker("email", 5),
     "sms": ServiceCircuitBreaker("sms", 3),
     "payment": ServiceCircuitBreaker("payment", 3),

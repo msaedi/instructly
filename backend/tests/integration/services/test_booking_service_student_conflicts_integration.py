@@ -12,13 +12,17 @@ from sqlalchemy.orm import Session
 from app.auth import get_password_hash
 from app.core.enums import RoleName
 from app.core.exceptions import ConflictException
-from app.models.availability import AvailabilitySlot
 from app.models.booking import BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
+
+try:  # pragma: no cover - support both backend/ and repo root PYTHONPATH setups
+    from backend.tests._utils import seed_week_bits_for_booking
+except ModuleNotFoundError:  # pragma: no cover
+    from tests._utils import seed_week_bits_for_booking
 
 try:  # pragma: no cover - fallback for direct backend pytest invocation
     from backend.tests.conftest import add_service_areas_for_boroughs
@@ -29,6 +33,11 @@ except ModuleNotFoundError:  # pragma: no cover
 @pytest.fixture(autouse=True)
 def _no_price_floors(disable_price_floors):
     """Conflicts regression keeps legacy $60/$80 rates unchecked."""
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
     yield
 
 
@@ -125,13 +134,16 @@ class TestStudentConflictValidationIntegration:
 
         # Add availability for tomorrow
         tomorrow = date.today() + timedelta(days=1)
-        slot = AvailabilitySlot(
+        week_start = tomorrow - timedelta(days=tomorrow.weekday())
+        weekday_index = (tomorrow - week_start).days
+        seed_week_bits_for_booking(
+            db,
             instructor_id=instructor.id,
-            specific_date=tomorrow,
-            start_time=time(9, 0),
-            end_time=time(17, 0),
+            week_start=week_start,
+            windows_by_weekday={weekday_index: [("09:00:00", "17:00:00")]},
+            mode="auto",
+            clear_existing=True,
         )
-        db.add(slot)
         db.commit()
 
         return instructor
@@ -193,13 +205,16 @@ class TestStudentConflictValidationIntegration:
 
         # Add availability for tomorrow
         tomorrow = date.today() + timedelta(days=1)
-        slot = AvailabilitySlot(
+        week_start = tomorrow - timedelta(days=tomorrow.weekday())
+        weekday_index = (tomorrow - week_start).days
+        seed_week_bits_for_booking(
+            db,
             instructor_id=instructor.id,
-            specific_date=tomorrow,
-            start_time=time(9, 0),
-            end_time=time(17, 0),
+            week_start=week_start,
+            windows_by_weekday={weekday_index: [("09:00:00", "17:00:00")]},
+            mode="auto",
+            clear_existing=True,
         )
-        db.add(slot)
         db.commit()
 
         return instructor
@@ -273,7 +288,7 @@ class TestStudentConflictValidationIntegration:
                 student_user, booking2_data, selected_duration=booking2_data.selected_duration
             )
 
-        assert str(exc_info.value) == "You already have a booking scheduled at this time"
+        assert str(exc_info.value) == "Student already has a booking that overlaps this time"
 
     @pytest.mark.asyncio
     async def test_student_can_book_adjacent_sessions_integration(
@@ -426,7 +441,7 @@ class TestStudentConflictValidationIntegration:
                 student2, booking2_data, selected_duration=booking2_data.selected_duration
             )
 
-        assert str(exc_info.value) == "This time slot conflicts with an existing booking"
+        assert str(exc_info.value) == "Instructor already has a booking that overlaps this time"
 
     @pytest.mark.asyncio
     async def test_student_can_book_after_cancellation_integration(

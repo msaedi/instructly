@@ -116,13 +116,16 @@ class SenderProfileResolved(TypedDict):
     reply_to: str | None
 
 
+if os.getenv("CI"):
+    _DEFAULT_SECRET_KEY: SecretStr | object = SecretStr("ci-test-secret-key-not-for-production")
+else:
+    _DEFAULT_SECRET_KEY = ...
+
+
 class Settings(BaseSettings):
     # Use a default secret key for CI/testing environments
     secret_key: SecretStr = Field(
-        default=cast(
-            object,
-            SecretStr("ci-test-secret-key-not-for-production") if os.getenv("CI") else ...,
-        ),
+        default=_DEFAULT_SECRET_KEY,
         description="Secret key for JWT tokens",
     )  # type: ignore[assignment]  # defaults to ellipsis outside CI; SecretStr default provided for CI runs
     algorithm: str = "HS256"
@@ -350,6 +353,12 @@ class Settings(BaseSettings):
             return False
         return self.metrics_basic_auth_user is not None and self.metrics_basic_auth_pass is not None
 
+    def env_bool(self, name: str, default: bool = False) -> bool:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
     @field_validator("metrics_ip_allowlist", mode="before")
     @classmethod
     def _parse_metrics_ip_allowlist(cls, value: object) -> list[str]:
@@ -385,6 +394,28 @@ class Settings(BaseSettings):
     )
     privacy_data_deletion_enabled: bool = (
         True  # Enable user data deletion (GDPR right to be forgotten)
+    )
+    availability_retention_enabled: bool = Field(
+        default=False,
+        alias="AVAILABILITY_RETENTION_ENABLED",
+        description="Enable scheduled purge of stale availability_days rows",
+    )
+    availability_retention_days: int = Field(
+        default=180,
+        alias="AVAILABILITY_RETENTION_DAYS",
+        ge=0,
+        description="TTL in days before bitmap availability entries become purge candidates",
+    )
+    availability_retention_keep_recent_days: int = Field(
+        default=30,
+        alias="AVAILABILITY_RETENTION_KEEP_RECENT_DAYS",
+        ge=0,
+        description="Minimum recent history (days) to always keep even if TTL exceeded",
+    )
+    availability_retention_dry_run: bool = Field(
+        default=False,
+        alias="AVAILABILITY_RETENTION_DRY_RUN",
+        description="When true, retention logs counts without deleting availability_days rows",
     )
 
     # Production database protection
@@ -428,6 +459,43 @@ class Settings(BaseSettings):
     public_availability_cache_ttl: int = Field(
         default=300,
         description="Cache TTL in seconds for public availability data",  # 5 minutes
+    )
+
+    past_edit_window_days: int = Field(
+        default=0,
+        alias="PAST_EDIT_WINDOW_DAYS",
+        ge=0,
+        description="Maximum number of days in the past that bitmap edits will write; 0 = no limit",
+    )
+    clamp_copy_to_future: bool = Field(
+        default=False,
+        alias="CLAMP_COPY_TO_FUTURE",
+        description="Skip bitmap apply/copy writes for target dates before today",
+    )
+    feature_disable_slot_writes: bool = Field(
+        default=True,
+        alias="FEATURE_DISABLE_SLOT_WRITES",
+        description="When true, legacy availability_slots writes are disabled",
+    )
+    seed_disable_slots: bool = Field(
+        default=True,
+        alias="SEED_DISABLE_SLOTS",
+        description="When true, seed scripts skip inserting availability_slots rows",
+    )
+    include_empty_days_in_tests: bool = Field(
+        default=False,
+        alias="INCLUDE_EMPTY_DAYS_IN_TESTS",
+        description="When true, weekly availability responses include empty days (test-only helper)",
+    )
+    instant_deliver_in_tests: bool = Field(
+        default=True,
+        alias="INSTANT_DELIVER_IN_TESTS",
+        description="When true, availability outbox events are marked sent immediately during tests",
+    )
+    suppress_past_availability_events: bool = Field(
+        default=False,
+        alias="SUPPRESS_PAST_AVAILABILITY_EVENTS",
+        description="When true, availability events with only past dates are suppressed",
     )
 
     # Rate Limiting Configuration
@@ -705,6 +773,45 @@ class Settings(BaseSettings):
                 self.checkr_fake = True
             elif is_prod:
                 self.checkr_fake = False
+        return self
+
+    @model_validator(mode="after")
+    def _default_bitmap_guardrails(self) -> "Settings":
+        """Apply environment-based defaults for bitmap past-edit guardrails."""
+
+        fields_set = cast(Set[str], getattr(self, "model_fields_set", set()))
+        env = os.environ
+        normalized_mode, is_prod, is_non_prod = _classify_site_mode(env.get("SITE_MODE"))
+        guardrails_enabled = normalized_mode in {
+            "prod",
+            "production",
+            "beta",
+            "live",
+            "stg",
+            "stage",
+            "staging",
+        }
+        if (
+            not guardrails_enabled
+            and is_non_prod
+            and normalized_mode not in {"local", "dev", "development"}
+        ):
+            # Treat non-local staging-style modes (e.g., preview) as guardrail-enabled.
+            guardrails_enabled = normalized_mode not in {"int", "test"}
+
+        if "past_edit_window_days" not in fields_set and "PAST_EDIT_WINDOW_DAYS" not in env:
+            self.past_edit_window_days = 30 if guardrails_enabled else 0
+        self.past_edit_window_days = max(0, self.past_edit_window_days)
+
+        if "clamp_copy_to_future" not in fields_set and "CLAMP_COPY_TO_FUTURE" not in env:
+            self.clamp_copy_to_future = guardrails_enabled
+
+        if (
+            "suppress_past_availability_events" not in fields_set
+            and "SUPPRESS_PAST_AVAILABILITY_EVENTS" not in env
+        ):
+            self.suppress_past_availability_events = guardrails_enabled
+
         return self
 
     def refresh_sender_profiles(self, raw_json: str | None = None) -> None:

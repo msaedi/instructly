@@ -16,8 +16,11 @@ Note: The Service model has been replaced with a three-table catalog system:
 """
 
 from .address import InstructorServiceArea, NYCNeighborhood, UserAddress
-from .availability import AvailabilitySlot, BlackoutDate
+from .audit_log import AuditLog
+from .availability import BlackoutDate
+from .availability_day import AvailabilityDay  # noqa: F401
 from .booking import Booking, BookingStatus
+from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
 from .favorite import UserFavorite
 from .instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
 from .message import Message, MessageNotification
@@ -61,14 +64,19 @@ __all__ = [
     "InstructorService",
     "ServiceAnalytics",
     # Availability models
-    "AvailabilitySlot",
     "BlackoutDate",
+    "AvailabilityDay",
     # Authentication models
     "PasswordResetToken",
     # Booking models
     "Booking",
     "BookingStatus",
+    "AuditLog",
     "PlatformConfig",
+    # Notification outbox
+    "EventOutbox",
+    "EventOutboxStatus",
+    "NotificationDelivery",
     # Payment models
     "PaymentIntent",
     "PaymentMethod",

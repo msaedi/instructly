@@ -56,9 +56,12 @@ class User(Base):
     Relationships:
         roles: Many-to-many with Role through user_roles table
         instructor_profile: One-to-one with InstructorProfile (instructors only)
-        availability_slots: One-to-many with AvailabilitySlot (instructors only)
         blackout_dates: One-to-many with BlackoutDate (instructors only)
         password_reset_tokens: One-to-many with PasswordResetToken
+
+    Note:
+        Availability data is stored in availability_days table (bitmap format).
+        See app.models.availability_day for the AvailabilityDay model.
 
     Note:
         The old recurring_availability relationship has been removed as part
@@ -113,13 +116,8 @@ class User(Base):
         order_by="InstructorPreferredPlace.position",
     )
 
-    # Availability relationships - Single-table design
-    availability_slots = relationship(
-        "AvailabilitySlot",
-        back_populates="instructor",
-        cascade="all, delete-orphan",
-    )
-
+    # Availability relationships
+    # Note: Availability data is stored in availability_days table (bitmap format)
     blackout_dates = relationship(
         "BlackoutDate", back_populates="instructor", cascade="all, delete-orphan"
     )

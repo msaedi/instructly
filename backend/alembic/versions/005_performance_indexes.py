@@ -9,6 +9,7 @@ This migration adds all performance-related indexes that weren't
 created with their base tables. These are primarily composite
 and partial indexes for common query patterns.
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -33,19 +34,8 @@ def upgrade() -> None:
     )
 
     # Availability performance indexes
-    # This index is optimized for week view queries
-    op.create_index(
-        "idx_availability_week_lookup",
-        "availability_slots",
-        ["instructor_id", "specific_date", "start_time"],
-    )
-
-    # Partial index for future dates (common query)
-    op.create_index(
-        "idx_availability_future",
-        "availability_slots",
-        ["instructor_id", "specific_date"],
-    )
+    # Note: Availability is now stored in availability_days table (bitmap format)
+    # No indexes needed here - bitmap queries use availability_days indexes from migration 006
 
     # Partial index for upcoming bookings (confirmed only)
     op.create_index(
@@ -83,12 +73,8 @@ def upgrade() -> None:
         ["instructor_id", "booking_date", "start_time", "end_time"],
     )
 
-    # Index for availability slots by time (for overlap queries)
-    op.create_index(
-        "idx_availability_time_range",
-        "availability_slots",
-        ["instructor_id", "specific_date", "end_time"],
-    )
+    # Note: Availability overlap queries now use availability_days bitmap table
+    # No index needed here - bitmap queries use availability_days indexes from migration 006
 
     # Instructor search and filtering indexes
     print("Creating instructor search indexes...")
@@ -268,14 +254,11 @@ def downgrade() -> None:
 
     # Drop booking and availability indexes (use IF EXISTS for safety)
     try:
-        op.execute("DROP INDEX IF EXISTS idx_availability_time_range")
         op.execute("DROP INDEX IF EXISTS idx_bookings_time_conflicts")
         op.execute("DROP INDEX IF EXISTS idx_bookings_instructor_status")
         op.execute("DROP INDEX IF EXISTS idx_bookings_student_status")
         op.execute("DROP INDEX IF EXISTS idx_bookings_student_date")
         op.execute("DROP INDEX IF EXISTS idx_bookings_upcoming")
-        op.execute("DROP INDEX IF EXISTS idx_availability_future")
-        op.execute("DROP INDEX IF EXISTS idx_availability_week_lookup")
         op.execute("DROP INDEX IF EXISTS idx_bookings_date_status")
         print("- Dropped booking and availability indexes")
     except Exception as e:

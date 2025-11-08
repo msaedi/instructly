@@ -1,0 +1,15 @@
+{
+  "week_start": "2025-10-20",
+  "clear_existing": true,
+  "schedule": [
+    {"date": "2025-10-20", "start_time": "09:00", "end_time": "12:00"},
+    {"date": "2025-10-20", "start_time": "14:00", "end_time": "20:00"},
+    {"date": "2025-10-21", "start_time": "14:00", "end_time": "20:00"},
+    {"date": "2025-10-22", "start_time": "09:00", "end_time": "12:00"},
+    {"date": "2025-10-22", "start_time": "14:00", "end_time": "20:00"},
+    {"date": "2025-10-23", "start_time": "14:00", "end_time": "20:00"},
+    {"date": "2025-10-24", "start_time": "09:00", "end_time": "12:00"},
+    {"date": "2025-10-24", "start_time": "14:00", "end_time": "18:00"},
+    {"date": "2025-10-25", "start_time": "10:00", "end_time": "16:00"}
+  ]
+}

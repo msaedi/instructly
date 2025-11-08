@@ -1,19 +1,22 @@
 'use client';
 
 import WeekNavigator from '@/components/availability/WeekNavigator';
-import InteractiveGrid from '@/components/availability/InteractiveGrid';
+import WeekView from '@/components/calendar/WeekView';
 import Link from 'next/link';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useAvailability } from '@/hooks/availability/useAvailability';
 import { useBookedSlots } from '@/hooks/availability/useBookedSlots';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/queries/useAuth';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
+import type { WeekBits } from '@/types/availability';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
 import { Calendar, ArrowLeft } from 'lucide-react';
+import ConflictModal from '@/components/availability/ConflictModal';
 import { useEmbedded } from '../_embedded/EmbeddedContext';
+import { logger } from '@/lib/logger';
 import {
   Select,
   SelectTrigger,
@@ -21,7 +24,14 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+
+const autosaveEnv = process.env['NEXT_PUBLIC_AVAIL_AUTOSAVE']?.toLowerCase();
+const AVAIL_AUTOSAVE_ENABLED = autosaveEnv === '1' || autosaveEnv === 'true';
+const AUTOSAVE_DELAY_MS = 1200;
+const refetchAfterSaveEnv = process.env['NEXT_PUBLIC_AVAILABILITY_REFETCH_AFTER_SAVE']?.toLowerCase();
+const REFETCH_AFTER_SAVE = refetchAfterSaveEnv === '1' || refetchAfterSaveEnv === 'true';
 
 
 function AvailabilityPageImpl() {
@@ -30,11 +40,11 @@ function AvailabilityPageImpl() {
   const userData = user as unknown as UserData;
   const {
     currentWeekStart,
-    weekSchedule,
-    // hasUnsavedChanges, // autosave flow no longer uses this flag here
+    weekBits,
+    savedWeekBits,
     isLoading,
     navigateWeek,
-    setWeekSchedule,
+    setWeekBits,
     setMessage,
     message,
     refreshSchedule,
@@ -43,17 +53,65 @@ function AvailabilityPageImpl() {
     saveWeek,
     applyToFutureWeeks,
     goToCurrentWeek,
+    allowPastEdits,
   } = useAvailability();
+
+  const serializeBits = useCallback((bits: WeekBits) => {
+    return Object.fromEntries(
+      Object.entries(bits)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, dayBits]) => [date, Array.from(dayBits)])
+    );
+  }, []);
+
+  const serializedWeekBits = useMemo(
+    () => JSON.stringify(serializeBits(weekBits)),
+    [serializeBits, weekBits]
+  );
+  const serializedSavedWeekBits = useMemo(
+    () => JSON.stringify(serializeBits(savedWeekBits)),
+    [serializeBits, savedWeekBits]
+  );
+  const hasPendingChanges = serializedWeekBits !== serializedSavedWeekBits;
 
   const [activeDay, setActiveDay] = useState(0);
   const [repeatWeeks, setRepeatWeeks] = useState<number>(4);
   const [isMobile, setIsMobile] = useState(false);
   const [startHour, setStartHour] = useState<number>(AVAILABILITY_CONSTANTS.DEFAULT_START_HOUR);
   const [endHour, setEndHour] = useState<number>(AVAILABILITY_CONSTANTS.DEFAULT_END_HOUR);
-  const [showConflictModal, setShowConflictModal] = useState(false);
   const [lastUpdatedLocal, setLastUpdatedLocal] = useState<string | null>(null);
-  const [modalFocusTrap, setModalFocusTrap] = useState<HTMLDivElement | null>(null);
-  const saveDebounceRef = useRef<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [conflictState, setConflictState] = useState<{ serverVersion?: string } | null>(null);
+  const [isConflictRefreshing, setIsConflictRefreshing] = useState(false);
+  const [isConflictOverwriting, setIsConflictOverwriting] = useState(false);
+  const autosaveTimer = useRef<number | null>(null);
+  const autosaveEnabled = AVAIL_AUTOSAVE_ENABLED;
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    if (typeof window === 'undefined') return;
+    const legacyPath = '/instructors/availability?';
+    const originalFetch = window.fetch;
+    const patched: typeof window.fetch = (input, init) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : typeof Request !== 'undefined' && input instanceof Request
+              ? input.url
+              : undefined;
+      if (typeof url === 'string' && url.includes(legacyPath)) {
+        logger.warn('[availability-editor] Detected legacy availability fetch', { url });
+      }
+      return originalFetch(input, init);
+    };
+
+    window.fetch = patched;
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, []);
 
   useEffect(() => {
     const mq = () => window.matchMedia('(max-width: 640px)').matches;
@@ -92,39 +150,11 @@ function AvailabilityPageImpl() {
     }
   }, [lastModified, version]);
 
-  // Handle ESC to close modal when open
-  useEffect(() => {
-    if (!showConflictModal) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowConflictModal(false);
-      if (e.key === 'Tab' && modalFocusTrap) {
-        // Simple focus trap: keep focus within modal
-        const focusable = modalFocusTrap.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (!first || !last) return;
-        const active = document.activeElement as HTMLElement | null;
-        if (e.shiftKey) {
-          if (active === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (active === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [showConflictModal, modalFocusTrap]);
-
 
   function formatHour(h: number): string {
+    if (h === 24) {
+      return '12:00 AM (+1d)';
+    }
     const period = h >= 12 ? 'PM' : 'AM';
     const disp = h % 12 || 12;
     return `${disp}:00 ${period}`;
@@ -138,15 +168,145 @@ function AvailabilityPageImpl() {
     return undefined;
   }, [message, setMessage]);
 
+  useEffect(() => {
+    if (!message) return;
+    if (message.type === 'error') {
+      toast.error(message.text, {
+        description: 'Please try again or refresh.',
+        action: {
+          label: 'Retry',
+          onClick: () => {
+            void refreshSchedule();
+          },
+        },
+      });
+    } else if (message.type === 'success') {
+      toast.success(message.text);
+    } else {
+      toast(message.text);
+    }
+  }, [message, refreshSchedule]);
+
+  const handleBitsChange = useCallback((next: WeekBits | ((prev: WeekBits) => WeekBits)) => {
+    setWeekBits(next);
+    setMessage(null);
+  }, [setWeekBits, setMessage]);
+
+  const handleDiscardChanges = useCallback(() => {
+    setWeekBits(savedWeekBits);
+    setMessage(null);
+    setConflictState(null);
+    toast.info('Reverted to last saved schedule.');
+  }, [savedWeekBits, setWeekBits, setMessage]);
+
+  const persistWeek = useCallback(
+    async ({ override = false }: { override?: boolean } = {}) => {
+      setIsSaving(true);
+      try {
+        const result = await saveWeek({
+          clearExisting: true,
+          override,
+        });
+
+        if (!result.success) {
+          if (result.code === 409) {
+            const nextState = result.serverVersion ? { serverVersion: result.serverVersion } : {};
+            setConflictState(nextState);
+            toast.warning('Week availability changed in another session. Choose how to proceed.');
+          } else {
+            toast.error(result.message || 'Failed to save availability');
+          }
+          return false;
+        }
+
+        toast.success(result.message || 'Availability saved');
+
+        if (REFETCH_AFTER_SAVE) {
+          try {
+            await refreshSchedule();
+            setMessage(null);
+          } catch {
+            toast.error('Saved, but failed to refresh the latest schedule.');
+          }
+        } else {
+          logger.debug('Refetch after save disabled; retaining current week snapshot');
+          setMessage(null);
+        }
+
+        setConflictState(null);
+        return true;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [saveWeek, refreshSchedule, setMessage]
+  );
+
+  const handleSaveWeek = useCallback(() => {
+    void persistWeek();
+  }, [persistWeek]);
+
+  const handleConflictRefresh = useCallback(async () => {
+    setIsConflictRefreshing(true);
+    try {
+      await refreshSchedule();
+      setMessage(null);
+      setConflictState(null);
+      toast.info('Week reloaded');
+    } catch {
+      toast.error('Failed to refresh the latest schedule.');
+    } finally {
+      setIsConflictRefreshing(false);
+    }
+  }, [refreshSchedule, setMessage]);
+
+  const handleConflictOverwrite = useCallback(async () => {
+    setIsConflictOverwriting(true);
+    const success = await persistWeek({ override: true });
+    if (success) {
+      setConflictState(null);
+    }
+    setIsConflictOverwriting(false);
+  }, [persistWeek]);
+
+  useEffect(() => {
+    if (!autosaveEnabled || typeof window === 'undefined') {
+      return;
+    }
+    if (!hasPendingChanges || isLoading || isSaving || conflictState) {
+      if (autosaveTimer.current) {
+        window.clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = null;
+      }
+      return;
+    }
+
+    if (autosaveTimer.current) {
+      window.clearTimeout(autosaveTimer.current);
+    }
+
+    autosaveTimer.current = window.setTimeout(() => {
+      autosaveTimer.current = null;
+      void persistWeek();
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => {
+      if (autosaveTimer.current) {
+        window.clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = null;
+      }
+    };
+  }, [autosaveEnabled, conflictState, hasPendingChanges, isLoading, isSaving, persistWeek]);
+
   const header = useMemo(() => (
     <WeekNavigator
       currentWeekStart={currentWeekStart}
       onNavigate={navigateWeek}
-      hasUnsavedChanges={false}
+      hasUnsavedChanges={hasPendingChanges}
       showSubtitle={false}
       disabled={isLoading}
     />
-  ), [currentWeekStart, navigateWeek, isLoading]);
+  ), [currentWeekStart, navigateWeek, isLoading, hasPendingChanges]);
 
   return (
     <div className="min-h-screen">
@@ -239,23 +399,8 @@ function AvailabilityPageImpl() {
               return;
             }
             toast.success(`Applied through ${endISO}`);
-            // Immediately persist the current week as well to avoid unsaved banners during navigation
-            try {
-              const result = await saveWeek({ clearExisting: true, scheduleOverride: weekSchedule });
-              if (!result.success) {
-                if (result.code === 409) {
-                  setShowConflictModal(true);
-                } else {
-                  toast.error(result.message || 'Failed to save availability');
-                }
-                return;
-              }
-            } catch {
-              toast.error('Failed to save availability');
-              return;
-            }
-            await refreshSchedule();
-            setMessage(null);
+            const persisted = await persistWeek();
+            if (!persisted) return;
           }}
           className="inline-flex items-center justify-center px-3 py-1 rounded-md text-white bg-[#7E22CE] hover:!bg-[#7E22CE] text-sm whitespace-nowrap"
         >
@@ -272,7 +417,7 @@ function AvailabilityPageImpl() {
             <Select value={String(startHour)} onValueChange={(v) => {
               const sv = parseInt(v, 10);
               setStartHour(sv);
-              if (sv >= endHour) setEndHour(Math.min(sv + 1, 23));
+              if (sv >= endHour) setEndHour(Math.min(sv + 1, 24));
             }}>
               <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -291,7 +436,7 @@ function AvailabilityPageImpl() {
             }}>
               <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {Array.from({ length: 24 }, (_, h) => h).map((h) => (
+                {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => (
                   <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
                 ))}
               </SelectContent>
@@ -300,37 +445,17 @@ function AvailabilityPageImpl() {
         </div>
       </div>
 
-      {showConflictModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="conflict-title" aria-describedby="conflict-desc">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setShowConflictModal(false)}></div>
-          <div
-            className="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-sm"
-            ref={setModalFocusTrap}
-          >
-            <h3 id="conflict-title" className="text-lg font-semibold text-gray-900">Schedule changed</h3>
-            <p id="conflict-desc" className="text-sm text-gray-600 mt-2">This week was updated in another tab or device. Refresh to load the latest snapshot?</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-                onClick={() => setShowConflictModal(false)}
-                autoFocus
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 text-sm rounded-md bg-[#7E22CE] text-white hover:bg-[#7E22CE]"
-                onClick={async () => {
-                  setShowConflictModal(false);
-                  await refreshSchedule();
-                  toast.info('Week reloaded');
-                }}
-              >
-                Refresh
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConflictModal
+        open={Boolean(conflictState)}
+        onClose={() => setConflictState(null)}
+        onRefresh={handleConflictRefresh}
+        onOverwrite={handleConflictOverwrite}
+        isRefreshing={isConflictRefreshing}
+        isOverwriting={isConflictOverwriting}
+        {...(conflictState?.serverVersion
+          ? { serverVersion: conflictState.serverVersion }
+          : {})}
+      />
 
       {/* Mobile day chips */}
       {isMobile && (
@@ -348,44 +473,65 @@ function AvailabilityPageImpl() {
       )}
 
       {/* Interactive Grid */}
+      {allowPastEdits === false && (
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          Past-day changes are ignored on save.
+        </div>
+      )}
       <div className="mt-2">
-        <InteractiveGrid
-          weekDates={weekDateInfo}
-          weekSchedule={weekSchedule}
-          bookedSlots={bookedSlots}
-          onScheduleChange={(s) => {
-            setWeekSchedule(s);
-            if (typeof window !== 'undefined') {
-              if (saveDebounceRef.current) window.clearTimeout(saveDebounceRef.current);
-              saveDebounceRef.current = window.setTimeout(async () => {
-                try {
-                  const result = await saveWeek({ clearExisting: true, scheduleOverride: s });
-                  if (!result.success) {
-                    if (result.code === 409) {
-                      setShowConflictModal(true);
-                    } else {
-                      toast.error(result.message || 'Failed to save availability');
-                    }
-                    return;
-                  }
-                  setMessage(null);
-                } catch {
-                  toast.error('Failed to save availability');
-                }
-              }, 700);
-            }
-          }}
-          isMobile={isMobile}
-          activeDayIndex={activeDay}
-          onActiveDayChange={setActiveDay}
-          {...(userData?.timezone && { timezone: userData.timezone })}
-          startHour={startHour}
-          endHour={endHour}
-        />
+        {isLoading ? (
+          <div className="space-y-2" aria-hidden="true">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-[420px] w-full" />
+          </div>
+        ) : (
+          <WeekView
+            weekDates={weekDateInfo}
+            weekBits={weekBits}
+            bookedSlots={bookedSlots}
+            onBitsChange={handleBitsChange}
+            isMobile={isMobile}
+            activeDayIndex={activeDay}
+            onActiveDayChange={setActiveDay}
+            {...(userData?.timezone && { timezone: userData.timezone })}
+            startHour={startHour}
+            endHour={endHour}
+            allowPastEditing={allowPastEdits === true}
+          />
+        )}
       </div>
-      </div>
-      </div>
+      <div className="pb-16" />
     </div>
+  </div>
+
+  {hasPendingChanges && (
+      <div className="fixed bottom-4 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 px-4">
+        <div className="flex items-center justify-between gap-4 rounded-full border border-gray-200 bg-white px-6 py-3 shadow-lg">
+          <div className="text-sm text-gray-800">
+            <div className="font-medium">Unsaved changes</div>
+            <div className="text-xs text-gray-500">Past-day edits are historical and included in copies.</div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleDiscardChanges}
+              className="rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveWeek}
+              disabled={isSaving || !hasPendingChanges}
+              className="rounded-full bg-[#7E22CE] px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#6b1ebe] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSaving ? 'Saving…' : 'Save Week'}
+            </button>
+          </div>
+        </div>
+      </div>
+  )}
+</div>
   );
 }
 

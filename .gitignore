@@ -1,6 +1,8 @@
 # Local build/test artifacts and caches
 **/.artifacts/*
 !.artifacts/mypy-baseline.txt
+!backend/.artifacts/
+!backend/.artifacts/api.expected.d.ts
 **/.eslintcache
 frontend/.lighthouseci/
 node_modules/
@@ -13,6 +15,12 @@ __pycache__/
 *.db
 .vscode/
 .idea/
+
+# allow generated API types in frontend (only this path/file)
+!frontend/
+!frontend/types/
+!frontend/types/generated/
+!frontend/types/generated/api.d.ts
 
 # Additional Python files
 *.pyo
@@ -103,3 +111,10 @@ frontend/app/(auth)/instructor/profile/page.tsx.backup
 
 # Local patch artifacts
 scripts/patches/
+
+# mypy bisect logs
+backend/.mypy_bisect_logs/
+.census_branch.txt
+.census_headsha.txt
+TEST_INVENTORY.json
+backend/TEST_INVENTORY.json

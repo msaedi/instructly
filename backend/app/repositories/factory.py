@@ -19,14 +19,17 @@ ModelT = TypeVar("ModelT")
 # Avoid circular imports
 if TYPE_CHECKING:
     from .address_repository import InstructorServiceAreaRepository
+    from .audit_repository import AuditRepository
     from .availability_repository import AvailabilityRepository
     from .badge_repository import BadgeRepository
     from .booking_repository import BookingRepository
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
+    from .event_outbox_repository import EventOutboxRepository
     from .instructor_preferred_place_repository import InstructorPreferredPlaceRepository
     from .instructor_profile_repository import InstructorProfileRepository
     from .message_repository import MessageRepository
+    from .notification_delivery_repository import NotificationDeliveryRepository
     from .payment_repository import PaymentRepository
     from .platform_config_repository import PlatformConfigRepository
     from .rbac_repository import RBACRepository
@@ -41,7 +44,8 @@ if TYPE_CHECKING:
     from .search_event_repository import SearchEventRepository
     from .search_history_repository import SearchHistoryRepository
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
-    from .slot_manager_repository import SlotManagerRepository
+
+    # SlotManagerRepository removed - bitmap-only storage now
     from .user_repository import UserRepository
     from .week_operation_repository import WeekOperationRepository
 
@@ -68,12 +72,7 @@ class RepositoryFactory:
         """
         return BaseRepository(db, model)
 
-    @staticmethod
-    def create_slot_manager_repository(db: Session) -> "SlotManagerRepository":
-        """Create repository for slot management operations."""
-        from .slot_manager_repository import SlotManagerRepository
-
-        return SlotManagerRepository(db)
+    # create_slot_manager_repository removed - SlotManagerRepository deleted (bitmap-only storage)
 
     @staticmethod
     def create_availability_repository(db: Session) -> "AvailabilityRepository":
@@ -102,6 +101,27 @@ class RepositoryFactory:
         from .booking_repository import BookingRepository
 
         return BookingRepository(db)
+
+    @staticmethod
+    def create_event_outbox_repository(db: Session) -> "EventOutboxRepository":
+        """Create repository for event outbox operations."""
+        from .event_outbox_repository import EventOutboxRepository
+
+        return EventOutboxRepository(db)
+
+    @staticmethod
+    def create_audit_repository(db: Session) -> "AuditRepository":
+        """Create repository for audit log operations."""
+        from .audit_repository import AuditRepository
+
+        return AuditRepository(db)
+
+    @staticmethod
+    def create_notification_delivery_repository(db: Session) -> "NotificationDeliveryRepository":
+        """Create repository for notification delivery records."""
+        from .notification_delivery_repository import NotificationDeliveryRepository
+
+        return NotificationDeliveryRepository(db)
 
     @staticmethod
     def get_booking_repository(db: Session) -> "BookingRepository":

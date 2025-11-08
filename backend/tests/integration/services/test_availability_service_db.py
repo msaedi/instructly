@@ -12,14 +12,17 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot
+from app.core.exceptions import AvailabilityOverlapException
 from app.models.user import User
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.availability_window import (
     BlackoutDateCreate,
     SpecificDateAvailabilityCreate,
     WeekSpecificScheduleCreate,
 )
 from app.services.availability_service import AvailabilityService
+from app.utils.bitset import bits_from_windows
+from tests._utils.bitmap_avail import get_day_windows, seed_day
 
 
 def get_next_monday(from_date=None):
@@ -43,22 +46,16 @@ class TestAvailabilityServiceQueries:
         service = AvailabilityService(db)
 
         # Create test data
-        monday = get_next_monday() - timedelta(days=date.today().weekday())
+        monday = get_next_monday()
 
-        # Create availability slots directly for multiple days
+        repo = AvailabilityDayRepository(db)
+        items = []
         for i in range(3):  # Mon, Tue, Wed
             day_date = monday + timedelta(days=i)
+            windows = [(f"{hour:02d}:00:00", f"{hour + 2:02d}:00:00") for hour in [9, 14]]
+            items.append((day_date, bits_from_windows(windows)))
 
-            # Add slots directly with instructor_id and specific_date
-            for hour in [9, 14]:
-                slot = AvailabilitySlot(
-                    instructor_id=test_instructor.id,
-                    specific_date=day_date,  # Changed from date to specific_date
-                    start_time=time(hour, 0),
-                    end_time=time(hour + 2, 0),
-                )
-                db.add(slot)
-
+        repo.upsert_week(test_instructor.id, items)
         db.commit()
 
         # Test the query
@@ -72,7 +69,7 @@ class TestAvailabilityServiceQueries:
     def test_get_week_availability_with_no_slots(self, db: Session, test_instructor: User):
         """Test how days without slots are handled in queries."""
         service = AvailabilityService(db)
-        monday = get_next_monday() - timedelta(days=date.today().weekday())
+        monday = get_next_monday()
 
         # Don't create any slots for this day
         # (In the old design, we'd create InstructorAvailability with is_cleared=True)
@@ -109,9 +106,11 @@ class TestAvailabilityServiceQueries:
         # Execute save (async)
         result = await service.save_week_availability(instructor_id=test_instructor.id, week_data=week_data)
 
-        # Verify result format
+        # Verify result format and that bitmaps were persisted
         assert isinstance(result, dict)
-        assert len(result) >= 2  # Should have data for both days
+        week_map = service.get_week_availability(test_instructor.id, monday)
+        assert len(week_map[monday.isoformat()]) == 1
+        assert len(week_map[(monday + timedelta(days=1)).isoformat()]) == 1
 
     def test_save_week_with_existing_bookings(self, db: Session, test_instructor_with_availability: User, test_booking):
         """Test that save preserves booked slots."""
@@ -145,40 +144,31 @@ class TestAvailabilityServiceQueries:
             instructor_id=test_instructor.id, availability_data=availability_data
         )
 
-        # The service likely returns an AvailabilitySlot object, not a dict
-        assert result.specific_date == test_date
-        assert result.start_time == time(10, 0)
-        assert result.end_time == time(12, 0)
+        # The service returns a dict with availability details
+        assert result["specific_date"] == test_date
+        assert result["start_time"] == time(10, 0)
+        assert result["end_time"] == time(12, 0)
 
-        # Verify in database - query slots directly
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor.id,
-                AvailabilitySlot.specific_date == test_date,  # Changed from date to specific_date
-            )
-            .first()
-        )
-        assert slot is not None
-        assert slot.start_time == time(10, 0)
-        assert slot.end_time == time(12, 0)
+        # Verify in database - query bitmap windows
+        windows = get_day_windows(db, test_instructor.id, test_date)
+        assert len(windows) >= 1
+        # Check that the window contains our time range
+        window_times = [(time.fromisoformat(start), time.fromisoformat(end)) for start, end in windows]
+        assert any(start <= time(10, 0) and end >= time(12, 0) for start, end in window_times)
 
-    def test_get_slots_by_date(self, db: Session, test_instructor_with_availability: User):
-        """Test repository method to get slots by date."""
-        service = AvailabilityService(db)
-
-        # Test with date range - using repository directly
+    def test_get_windows_by_date(self, db: Session, test_instructor_with_availability: User):
+        """Test getting availability windows by date from bitmap storage."""
+        # Ensure we have availability for today
         today = date.today()
+        seed_day(db, test_instructor_with_availability.id, today, [("09:00", "12:00"), ("14:00", "17:00")])
 
-        # Get slots for today
-        slots = service.repository.get_slots_by_date(test_instructor_with_availability.id, today)
+        # Get windows for today using bitmap helper
+        windows = get_day_windows(db, test_instructor_with_availability.id, today)
 
-        # Verify we get AvailabilitySlot objects
-        if slots:
-            for slot in slots:
-                assert isinstance(slot, AvailabilitySlot)
-                assert slot.specific_date == today  # Changed from date to specific_date
-                assert slot.instructor_id == test_instructor_with_availability.id
+        # Verify we get windows as tuples
+        assert len(windows) == 2
+        assert ("09:00:00", "12:00:00") in windows or ("09:00", "12:00") in windows
+        assert ("14:00:00", "17:00:00") in windows or ("14:00", "17:00") in windows
 
     def test_blackout_date_operations(self, db: Session, test_instructor: User):
         """Test blackout date query patterns."""
@@ -216,19 +206,14 @@ class TestAvailabilityServiceTransactions:
         service = AvailabilityService(db)
         monday = get_next_monday() + timedelta(days=14)
 
-        # First, add some slots
+        # First, seed bitmap availability for three days
+        repo = AvailabilityDayRepository(db)
+        seed_items = []
         for i in range(3):
-            slot = AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=monday + timedelta(days=i),  # Changed from date to specific_date
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            )
-            db.add(slot)
+            seed_day = monday + timedelta(days=i)
+            seed_items.append((seed_day, bits_from_windows([("09:00:00", "10:00:00")])))
+        repo.upsert_week(test_instructor.id, seed_items)
         db.commit()
-
-        # Count existing slots for this instructor
-        _count_before = db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).count()
 
         # Create new week data with clear_existing=True
         week_data = WeekSpecificScheduleCreate(
@@ -249,10 +234,14 @@ class TestAvailabilityServiceTransactions:
         # Verify it worked
         assert isinstance(result, dict)
 
-        # Check that old slots were cleared and new one added
-        monday_slots = service.repository.get_slots_by_date(test_instructor.id, monday)
-        assert len(monday_slots) == 1
-        assert monday_slots[0].start_time == time(14, 0)
+        # Check that old windows were cleared and new one added
+        week_map = service.get_week_availability(
+            test_instructor.id,
+            monday,
+            include_empty=True,
+        )
+        monday_windows = week_map[monday.isoformat()]
+        assert monday_windows == [{"start_time": "14:00:00", "end_time": "16:00:00"}]
 
     def test_concurrent_slot_creation(self, db: Session, test_instructor: User):
         """Test handling of concurrent slot creation."""
@@ -269,24 +258,19 @@ class TestAvailabilityServiceTransactions:
         # Add first slot
         _result1 = service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot1)
 
-        # Adding overlapping slot should work (service allows overlaps)
-        result2 = service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot2)
+        # Adding overlapping slot should now raise AvailabilityOverlapException
+        with pytest.raises(AvailabilityOverlapException):
+            service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot2)
 
-        # Verify second slot was added (assuming service returns AvailabilitySlot object)
-        assert result2.start_time == time(10, 0)
-        assert result2.end_time == time(12, 0)
-
-        # Document actual behavior: service allows overlapping slots
-        slots = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor.id,
-                AvailabilitySlot.specific_date == test_date,  # Changed from date to specific_date
-            )
-            .all()
-        )
-
-        assert len(slots) == 2  # Both slots exist
+        # Document actual behavior: overlapping windows are rejected
+        windows = get_day_windows(db, test_instructor.id, test_date)
+        # Should only have the first window (9-11), not the overlapping one (10-12)
+        assert len(windows) == 1
+        start_str, end_str = windows[0]
+        start_time = time.fromisoformat(start_str)
+        end_time = time.fromisoformat(end_str)
+        assert start_time == time(9, 0)
+        assert end_time == time(11, 0)
 
 
 class TestAvailabilityServiceCacheIntegration:

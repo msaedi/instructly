@@ -247,6 +247,7 @@ class TestGuestToUserConversion:
         # Verify guest searches are marked as converted
         guest_searches = db.query(SearchHistory).filter_by(guest_session_id=guest_session_id).all()
         for search in guest_searches:
+            db.refresh(search)
             assert search.converted_to_user_id == user.id
             assert search.converted_at is not None
 

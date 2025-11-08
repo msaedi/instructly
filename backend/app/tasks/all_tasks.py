@@ -14,8 +14,10 @@ from app.tasks import (
     analytics,  # noqa: F401
     codebase_metrics,  # noqa: F401
     monitoring_tasks,  # noqa: F401
+    notification_tasks,  # noqa: F401
     privacy_audit_task,  # noqa: F401
     referrals,  # noqa: F401
+    retention_tasks,  # noqa: F401
 )
 
 # Import the Celery app first
@@ -39,6 +41,10 @@ ALL_TASKS = [
     "app.tasks.codebase_metrics.append_history",
     # Referrals
     "app.tasks.referrals.run_unlocker",
+    "retention.purge_soft_deleted",
+    # Notification outbox
+    "outbox.dispatch_pending",
+    "outbox.deliver_event",
     # Health check (defined in celery_app.py)
     "app.tasks.health_check",
 ]

@@ -26,66 +26,34 @@ Methods removed:
 For single slot CRUD operations, use AvailabilityRepository.
 """
 
-from datetime import date, time
+from datetime import date
 import logging
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, cast
 
 from sqlalchemy import and_
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import RepositoryException
-from ..models.availability import AvailabilitySlot
 from ..models.booking import Booking, BookingStatus
-from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
 
-class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
+class BulkOperationRepository:
     """
     Repository for bulk operation validation and execution.
 
-    This repository provides validation queries to ensure bulk operations
-    are safe to perform, as well as the bulk operations themselves.
+    NOTE: Slot-based bulk operations removed. This repository now only provides
+    booking validation methods. All availability operations use bitmap storage.
     """
 
     def __init__(self, db: Session):
-        """Initialize with AvailabilitySlot model."""
-        super().__init__(db, AvailabilitySlot)
+        """Initialize repository."""
+        self.db = db
         self.logger = logging.getLogger(__name__)
 
-    # Ownership Validation
-
-    def get_slot_for_instructor(
-        self, slot_id: str, instructor_id: str
-    ) -> Optional[AvailabilitySlot]:
-        """
-        Get a slot only if it belongs to the instructor.
-
-        Used to validate ownership before allowing bulk operations.
-
-        Args:
-            slot_id: The slot ID
-            instructor_id: The instructor ID to verify ownership
-
-        Returns:
-            AvailabilitySlot if owned by instructor, None otherwise
-        """
-        try:
-            slot: AvailabilitySlot | None = (
-                self.db.query(AvailabilitySlot)
-                .filter(
-                    AvailabilitySlot.id == slot_id,
-                    AvailabilitySlot.instructor_id == instructor_id,
-                )
-                .first()
-            )
-            return slot
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error getting slot for instructor: {str(e)}")
-            raise RepositoryException(f"Failed to get slot: {str(e)}")
+    # Ownership Validation - REMOVED (slot operations deprecated)
 
     # Booking Validation
 
@@ -122,99 +90,16 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error checking bookings: {str(e)}")
             raise RepositoryException(f"Failed to check bookings: {str(e)}")
 
-    # Data Retrieval for Validation
+    # Data Retrieval for Validation - REMOVED (slot operations deprecated)
 
-    def get_slots_by_ids(self, slot_ids: List[str]) -> List[Tuple[str, date, time, time]]:
+    # Cache Support - REMOVED (slot operations deprecated)
+
+    # Bulk Operations - REMOVED (slot operations deprecated)
+
+    def bulk_create_slots(self, slots: List[Dict[str, Any]]) -> List[dict[str, Any]]:
         """
-        Get slots with their dates for validation and cache invalidation.
-
-        Used when bulk operations need to validate multiple slots at once.
-
-        Args:
-            slot_ids: List of slot IDs to retrieve
-
-        Returns:
-            List of tuples (slot_id, specific_date, start_time, end_time)
+        DEPRECATED: Slot-based bulk operations removed. Use bitmap storage instead.
         """
-        try:
-            results = (
-                self.db.query(
-                    AvailabilitySlot.id,
-                    AvailabilitySlot.specific_date,
-                    AvailabilitySlot.start_time,
-                    AvailabilitySlot.end_time,
-                )
-                .filter(AvailabilitySlot.id.in_(slot_ids))
-                .all()
-            )
-
-            return [(row.id, row.specific_date, row.start_time, row.end_time) for row in results]
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error getting slots by IDs: {str(e)}")
-            raise RepositoryException(f"Failed to get slots: {str(e)}")
-
-    # Cache Support
-
-    def get_unique_dates_from_operations(
-        self, instructor_id: str, operation_dates: List[date]
-    ) -> List[date]:
-        """
-        Get unique dates that actually exist for cache invalidation.
-
-        Used to determine which cache entries need invalidation after bulk operations.
-
-        Args:
-            instructor_id: The instructor ID
-            operation_dates: List of dates from operations
-
-        Returns:
-            List of unique dates that exist in database
-        """
-        try:
-            results = (
-                self.db.query(AvailabilitySlot.specific_date)
-                .filter(
-                    AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.specific_date.in_(operation_dates),
-                )
-                .distinct()
-                .all()
-            )
-
-            return [row.specific_date for row in results]
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error getting unique dates: {str(e)}")
-            raise RepositoryException(f"Failed to get dates: {str(e)}")
-
-    # Bulk Operations
-
-    def bulk_create_slots(self, slots: List[Dict[str, Any]]) -> List[AvailabilitySlot]:
-        """
-        Create multiple slots efficiently.
-
-        This is the primary bulk operation for creating multiple availability slots
-        in a single database transaction.
-
-        Args:
-            slots: List of slot data dictionaries with instructor_id, specific_date, start_time, end_time
-
-        Returns:
-            List of created AvailabilitySlot objects
-
-        Raises:
-            RepositoryException: If creation fails due to duplicates or constraints
-        """
-        try:
-            slot_objects = [AvailabilitySlot(**slot_data) for slot_data in slots]
-            self.db.bulk_save_objects(slot_objects, return_defaults=True)
-            self.db.flush()
-            return slot_objects
-
-        except IntegrityError as e:
-            self.logger.error(f"Integrity error in bulk create: {str(e)}")
-            raise RepositoryException(f"Duplicate slot or constraint violation: {str(e)}")
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error bulk creating slots: {str(e)}")
-            raise RepositoryException(f"Failed to bulk create slots: {str(e)}")
+        raise NotImplementedError(
+            "Slot-based bulk operations removed. All availability operations must use bitmap storage via AvailabilityDayRepository."
+        )

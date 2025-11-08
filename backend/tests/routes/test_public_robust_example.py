@@ -3,12 +3,12 @@
 Example of how to write robust tests that work with any configuration.
 """
 
-from datetime import date, time
+from datetime import date
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.availability import AvailabilitySlot
+from tests._utils.bitmap_avail import seed_day
 from tests.helpers.configuration_helpers import (
     assert_full_detail_response,
     assert_minimal_detail_response,
@@ -22,13 +22,9 @@ class TestPublicAPIRobustExample:
 
     def test_adapts_to_current_configuration(self, client, db: Session, test_instructor):
         """Test that adapts to whatever configuration is active."""
-        # Create test data
+        # Create test data using bitmap storage
         today = date.today()
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-        )
-        db.add(slot)
-        db.commit()
+        seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
 
         # Make request
         response = client.get(
@@ -58,11 +54,7 @@ class TestPublicAPIRobustExample:
         with override_public_api_config(detail_level="full"):
             # This test will ALWAYS use full detail, regardless of .env settings
             today = date.today()
-            slot = AvailabilitySlot(
-                instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-            )
-            db.add(slot)
-            db.commit()
+            seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
 
             response = client.get(
                 f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
@@ -79,11 +71,7 @@ class TestPublicAPIRobustExample:
     def test_with_context_manager_override(self, client, db: Session, test_instructor):
         """Test using context manager for temporary override."""
         today = date.today()
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-        )
-        db.add(slot)
-        db.commit()
+        seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
 
         # Test with multiple configurations in one test
         with override_public_api_config(detail_level="minimal", days=7):
@@ -114,13 +102,9 @@ class TestPublicAPIRobustExample:
 
     def test_critical_functionality_all_detail_levels(self, client, db: Session, test_instructor):
         """Test critical functionality works with all detail levels."""
-        # Create test data
+        # Create test data using bitmap storage
         today = date.today()
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-        )
-        db.add(slot)
-        db.commit()
+        seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
 
         # Test with each detail level
         for detail_level in ["full", "summary", "minimal"]:

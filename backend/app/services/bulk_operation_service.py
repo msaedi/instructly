@@ -8,14 +8,13 @@ Handles bulk availability operations including:
 - Batch processing with rollback capability
 - Week validation and preview
 
-All operations work directly with AvailabilitySlot objects
-using instructor_id + date.
+All operations work with bitmap storage in availability_days table.
 """
 
 from contextlib import contextmanager
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Set, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Set, Tuple, TypedDict, cast
 
 from sqlalchemy.orm import Session
 
@@ -30,15 +29,24 @@ from ..schemas.availability_window import (
     ValidationSlotDetail,
     ValidationSummary,
 )
+from .availability_service import AvailabilityService
 from .base import BaseService
 from .conflict_checker import ConflictChecker
-from .slot_manager import SlotManager
+
+# SlotManager removed - bitmap-only storage now
 
 if TYPE_CHECKING:
     from ..repositories.bulk_operation_repository import BulkOperationRepository
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
+
+
+class WindowDict(TypedDict):
+    """Window dictionary with start_time and end_time as strings."""
+
+    start_time: str
+    end_time: str
 
 
 class BulkOperationService(BaseService):
@@ -52,20 +60,22 @@ class BulkOperationService(BaseService):
     def __init__(
         self,
         db: Session,
-        slot_manager: Optional[SlotManager] = None,
+        slot_manager: Optional[Any] = None,  # DEPRECATED: Not used, kept for compatibility
         conflict_checker: Optional[ConflictChecker] = None,
         cache_service: Optional["CacheService"] = None,
         repository: Optional["BulkOperationRepository"] = None,
+        availability_service: Optional[AvailabilityService] = None,
     ):
         """Initialize bulk operation service."""
         super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
-        self.slot_manager = slot_manager or SlotManager(db)
+        # slot_manager removed - bitmap-only storage now
         self.conflict_checker = conflict_checker or ConflictChecker(db)
         self.cache_service = cache_service
         self.repository = repository or RepositoryFactory.create_bulk_operation_repository(db)
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
         self.week_operation_repository = RepositoryFactory.create_week_operation_repository(db)
+        self.availability_service = availability_service or AvailabilityService(db=db)
 
     @BaseService.measure_operation("bulk_update")
     async def process_bulk_update(
@@ -296,10 +306,10 @@ class BulkOperationService(BaseService):
                 continue
 
             if op.action == "remove" and op.slot_id:
-                # Query the slot's date using repository
-                slots_data = self.repository.get_slots_by_ids([op.slot_id])
-                for slot_id, slot_date, _, _ in slots_data:
-                    affected_dates.add(slot_date)
+                # DEPRECATED: Slot-based operations removed - bitmap-only storage now
+                # Cannot query slot date directly - skip this check
+                # Affected dates will be determined from operation.date if present
+                pass
             elif op.date:
                 # Handle both string and date objects
                 if isinstance(op.date, str):
@@ -356,12 +366,14 @@ class BulkOperationService(BaseService):
             week_start=validation_data.week_start,
         )
 
-        # Get actual current state from database
-        existing_slots = self._get_existing_week_slots(instructor_id, validation_data.week_start)
+        # Get actual current state from database (bitmap-based)
+        existing_windows = self._get_existing_week_windows(
+            instructor_id, validation_data.week_start
+        )
 
         # Generate operations
         operations = self._generate_operations_from_states(
-            existing_slots=existing_slots,
+            existing_windows=existing_windows,
             current_week=validation_data.current_week,
             saved_week=validation_data.saved_week,
             week_start=validation_data.week_start,
@@ -444,7 +456,15 @@ class BulkOperationService(BaseService):
         """Validate time constraints and alignment."""
         # Check for past dates using instructor's timezone
         instructor_today = get_user_today_by_id(instructor_id, self.db)
-        operation_date = cast(date, operation.date)  # validated upstream
+        operation_date = operation.date
+        start_time = operation.start_time
+        end_time = operation.end_time
+
+        if operation_date is None:
+            return "Missing date for add operation"
+        if start_time is None or end_time is None:
+            return "Missing start_time or end_time for add operation"
+
         if operation_date < instructor_today:
             return (
                 f"Cannot add availability for past date {operation_date.isoformat()} "
@@ -454,8 +474,6 @@ class BulkOperationService(BaseService):
         # Check if it's today and time has passed
         if operation_date == instructor_today:
             now = datetime.now().time()
-            start_time = cast(time, operation.start_time)  # validated upstream
-            end_time = cast(time, operation.end_time)  # validated upstream
             if end_time <= now:
                 return (
                     f"Cannot add availability for past time slot {start_time.strftime('%H:%M')}-"
@@ -468,20 +486,29 @@ class BulkOperationService(BaseService):
         self, instructor_id: str, operation: SlotOperation
     ) -> Optional[str]:
         """Check for booking conflicts and blackout dates."""
-        operation_date = cast(date, operation.date)  # validated upstream
-        start_time = cast(time, operation.start_time)  # validated upstream
-        end_time = cast(time, operation.end_time)  # validated upstream
-        # Check if slot already exists
-        if self.availability_repository.slot_exists(
-            instructor_id,
-            target_date=operation_date,
-            start_time=start_time,
-            end_time=end_time,
-        ):
-            return (
-                f"Time slot {start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')} "
-                f"already exists on {operation_date.isoformat()}"
-            )
+        operation_date = operation.date
+        start_time = operation.start_time
+        end_time = operation.end_time
+        if operation_date is None or start_time is None or end_time is None:
+            return "Missing date/start_time/end_time for add operation"
+
+        # DEPRECATED: slot_exists removed - bitmap-only storage now
+        # Check overlap using bitmap data instead
+        from app.repositories.availability_day_repository import AvailabilityDayRepository
+
+        bitmap_repo = AvailabilityDayRepository(self.db)
+        assert operation_date is not None
+        existing_bits = bitmap_repo.get_day_bits(instructor_id, operation_date)
+        if existing_bits:
+            from app.utils.bitset import windows_from_bits
+
+            existing_windows = windows_from_bits(existing_bits)
+            new_window_str = (start_time.strftime("%H:%M:%S"), end_time.strftime("%H:%M:%S"))
+            if new_window_str in existing_windows:
+                return (
+                    f"Time slot {start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')} "
+                    f"already exists on {operation_date.isoformat()}"
+                )
         return None
 
     async def _create_slot_for_operation(
@@ -490,24 +517,28 @@ class BulkOperationService(BaseService):
         """Create the actual slot if not validation only."""
         if validate_only:
             return None
-
+        start_label = "unknown"
+        end_label = "unknown"
+        date_label = "unknown-date"
         try:
             # Create slot directly using slot manager
-            operation_date = cast(date, operation.date)  # validated upstream
-            start_time = cast(time, operation.start_time)  # validated upstream
-            end_time = cast(time, operation.end_time)  # validated upstream
-            new_slot = self.slot_manager.create_slot(
-                instructor_id=instructor_id,
-                target_date=operation_date,
-                start_time=start_time,
-                end_time=end_time,
-                auto_merge=True,
+            operation_date = operation.date
+            start_time = operation.start_time
+            end_time = operation.end_time
+            if operation_date is None or start_time is None or end_time is None:
+                raise ValueError("Missing date/start_time/end_time for slot operation")
+            assert start_time is not None and end_time is not None
+            assert operation_date is not None
+            start_label = start_time.strftime("%H:%M")
+            end_label = end_time.strftime("%H:%M")
+            date_label = operation_date.isoformat()
+            # DEPRECATED: Slot-based operations removed - bitmap-only storage now
+            raise NotImplementedError(
+                "Slot-based bulk operations removed. Use bitmap operations instead."
             )
-            return new_slot
         except Exception as e:
             raise Exception(
-                f"Failed to create slot {start_time.strftime('%H:%M')}-"
-                f"{end_time.strftime('%H:%M')} on {operation_date.isoformat()}: {str(e)}"
+                f"Failed to create slot {start_label}-{end_label} on {date_label}: {str(e)}"
             )
 
     @BaseService.measure_operation("process_add_operation")
@@ -578,22 +609,66 @@ class BulkOperationService(BaseService):
             )
 
     async def _validate_remove_operation(
-        self, instructor_id: str, slot_id: Optional[str]
+        self, instructor_id: str, operation: SlotOperation
     ) -> Tuple[Optional[Any], Optional[str]]:
-        """Validate slot exists and belongs to instructor."""
-        if not slot_id:
+        """
+        Validate window exists for remove operation.
+
+        In bitmap world, remove operations use date + time instead of slot_id.
+        """
+        # Check if we have date + time (bitmap mode) or slot_id (legacy, not supported)
+        if operation.slot_id:
             return (
                 None,
-                "Missing slot_id for remove operation - cannot identify which slot to remove",
+                "slot_id-based remove operations not supported in bitmap storage - use date + time",
             )
 
-        # Find the slot using repository
-        slot = self.repository.get_slot_for_instructor(slot_id, instructor_id)
+        if not operation.date or not operation.start_time or not operation.end_time:
+            return (
+                None,
+                "Missing date, start_time, or end_time for remove operation - cannot identify which window to remove",
+            )
 
-        if not slot:
-            return None, f"Slot {slot_id} not found or not owned by instructor {instructor_id}"
+        # Check if window exists in database using bitmap
+        operation_date = operation.date
+        start_time = operation.start_time if hasattr(operation.start_time, "hour") else None
+        end_time = operation.end_time if hasattr(operation.end_time, "hour") else None
 
-        return slot, None
+        if not start_time or not end_time:
+            # Handle string times
+            from datetime import datetime
+
+            if isinstance(operation.start_time, str):
+                start_time = datetime.strptime(operation.start_time, "%H:%M:%S").time()
+            if isinstance(operation.end_time, str):
+                end_time = datetime.strptime(operation.end_time, "%H:%M:%S").time()
+
+        # Guard against None before .strftime()
+        if start_time is None or end_time is None:
+            return None, "Invalid window time - start_time or end_time is None"
+
+        # Get week start for the operation date
+        week_start = operation_date - timedelta(days=operation_date.weekday())
+        existing_windows = self._get_existing_week_windows(instructor_id, week_start)
+
+        date_str = operation_date.isoformat()
+        day_windows = existing_windows.get(date_str, [])
+
+        start_str = start_time.strftime("%H:%M:%S")
+        end_str = end_time.strftime("%H:%M:%S")
+
+        window_exists = any(
+            w.get("start_time") == start_str and w.get("end_time") == end_str for w in day_windows
+        )
+
+        if not window_exists:
+            return (
+                None,
+                f"Window {start_str}-{end_str} on {date_str} not found for instructor {instructor_id}",
+            )
+
+        # Return a placeholder object to indicate validation passed
+        return {"date": operation_date, "start_time": start_time, "end_time": end_time}, None
 
     async def _check_remove_operation_bookings(self, slot_id: str) -> Optional[str]:
         """Check if slot has active bookings."""
@@ -606,8 +681,10 @@ class BulkOperationService(BaseService):
             return True
 
         try:
-            self.slot_manager.delete_slot(slot_id)
-            return True
+            # DEPRECATED: Slot-based operations removed - bitmap-only storage now
+            raise NotImplementedError(
+                "Slot-based bulk operations removed. Use bitmap operations instead."
+            )
         except Exception as e:
             raise Exception(f"Failed to remove slot {slot_id}: {str(e)}")
 
@@ -625,7 +702,7 @@ class BulkOperationService(BaseService):
         Allows removal regardless of bookings (layer independence).
         """
         # 1. Validate operation
-        slot, error = await self._validate_remove_operation(instructor_id, operation.slot_id)
+        slot, error = await self._validate_remove_operation(instructor_id, operation)
         if error:
             return OperationResult(
                 operation_index=operation_index,
@@ -634,7 +711,12 @@ class BulkOperationService(BaseService):
                 reason=error,
             )
 
-        slot_id = cast(str, operation.slot_id)
+        # In bitmap world, we use date + time as identifier
+        slot_id = (
+            f"{operation.date}_{operation.start_time}_{operation.end_time}"
+            if operation.date
+            else "unknown"
+        )
 
         # 2. Check bookings (not needed with layer independence)
         if error := await self._check_remove_operation_bookings(slot_id):
@@ -680,8 +762,9 @@ class BulkOperationService(BaseService):
         self, instructor_id: str, slot_id: str
     ) -> Tuple[Optional[Any], Optional[str]]:
         """Find the slot to update and verify ownership."""
-        # Find the slot using repository
-        slot = self.repository.get_slot_for_instructor(slot_id, instructor_id)
+        # DEPRECATED: get_slot_for_instructor removed - bitmap-only storage now
+        # Individual slot operations not supported in bitmap storage
+        slot = None
 
         if not slot:
             return None, f"Slot {slot_id} not found or not owned by instructor {instructor_id}"
@@ -714,12 +797,10 @@ class BulkOperationService(BaseService):
 
         try:
             slot_id = cast(str, operation.slot_id)  # validated upstream
-            updated_slot = self.slot_manager.update_slot(
-                slot_id=slot_id,
-                start_time=new_start,
-                end_time=new_end,
+            # DEPRECATED: Slot-based operations removed - bitmap-only storage now
+            raise NotImplementedError(
+                "Slot-based bulk operations removed. Use bitmap operations instead."
             )
-            return updated_slot
         except Exception as e:
             raise Exception(
                 f"Failed to update slot {slot_id} to {new_start.strftime('%H:%M')}-"
@@ -807,39 +888,47 @@ class BulkOperationService(BaseService):
                 reason=str(e),
             )
 
-    def _get_existing_week_slots(
+    def _get_existing_week_windows(
         self, instructor_id: str, week_start: date
-    ) -> Dict[str, List[Dict[str, str]]]:
-        """Get existing slots for a week from database."""
-        end_date = week_start + timedelta(days=6)
+    ) -> Dict[str, List[WindowDict]]:
+        """
+        Return existing availability for the week as windows (bitmap → windows).
 
-        # Use repository to get week slots
-        slots = self.week_operation_repository.get_week_slots(instructor_id, week_start, end_date)
+        Returns:
+            Dict mapping date strings to lists of window dicts with start_time/end_time.
+            Example: {"YYYY-MM-DD": [{"start_time":"09:00:00","end_time":"10:00:00"}, ...], ...}
+        """
+        # Use AvailabilityService to get week availability (bitmap-based)
+        week_map = self.availability_service.get_week_availability(
+            instructor_id, week_start, use_cache=False
+        )
 
-        # Organize by date
-        slots_by_date: Dict[str, List[Dict[str, str]]] = {}
-        for slot in slots:
-            date_str = slot.specific_date.isoformat()
-            if date_str not in slots_by_date:
-                slots_by_date[date_str] = []
-            slots_by_date[date_str].append(
-                {
-                    "id": slot.id,
-                    "start_time": slot.start_time.strftime("%H:%M:%S"),
-                    "end_time": slot.end_time.strftime("%H:%M:%S"),
-                }
-            )
-
-        return slots_by_date
+        # Convert to the format expected by _generate_operations_from_states
+        # week_map is already in the right format: {date_str: [{"start_time": "...", "end_time": "..."}, ...]}
+        # The values from get_week_availability are already dicts with start_time/end_time keys
+        # Convert them to WindowDict TypedDict for type safety
+        result: Dict[str, List[WindowDict]] = {}
+        for date_str, windows in week_map.items():
+            result[date_str] = [
+                WindowDict(start_time=str(w["start_time"]), end_time=str(w["end_time"]))
+                for w in windows
+            ]
+        return result
 
     def _generate_operations_from_states(
         self,
-        existing_slots: Dict[str, List[Dict[str, str]]],
+        existing_windows: Dict[str, List[WindowDict]],
         current_week: Dict[str, List[Any]],
         saved_week: Dict[str, List[Any]],
         week_start: date,
     ) -> List[SlotOperation]:
-        """Generate operations by comparing states."""
+        """
+        Generate operations by comparing states.
+
+        Note: In bitmap world, we don't have slot IDs, so remove operations
+        are identified by date + time window. The validation will check if
+        the window exists in the database.
+        """
         operations = []
 
         # Process each day
@@ -849,9 +938,9 @@ class BulkOperationService(BaseService):
 
             current_slots = current_week.get(date_str, [])
             saved_slots = saved_week.get(date_str, [])
-            existing_db_slots = existing_slots.get(date_str, [])
+            existing_db_windows = existing_windows.get(date_str, [])
 
-            # Find slots to remove
+            # Find windows to remove (saved but not in current)
             for saved_slot in saved_slots:
                 still_exists = any(
                     s.start_time == saved_slot.start_time and s.end_time == saved_slot.end_time
@@ -859,8 +948,8 @@ class BulkOperationService(BaseService):
                 )
 
                 if not still_exists:
-                    # Find the DB slot ID
-                    # Handle both string and time object formats
+                    # In bitmap world, we identify windows by date + time, not ID
+                    # Check if this window exists in the database
                     saved_start = saved_slot.start_time
                     saved_end = saved_slot.end_time
 
@@ -870,19 +959,25 @@ class BulkOperationService(BaseService):
                     if hasattr(saved_end, "strftime"):
                         saved_end = saved_end.strftime("%H:%M:%S")
 
-                    db_slot = next(
-                        (
-                            s
-                            for s in existing_db_slots
-                            if s["start_time"] == saved_start and s["end_time"] == saved_end
-                        ),
-                        None,
+                    # Check if window exists in database
+                    window_exists = any(
+                        w.get("start_time") == saved_start and w.get("end_time") == saved_end
+                        for w in existing_db_windows
                     )
 
-                    if db_slot:
-                        operations.append(SlotOperation(action="remove", slot_id=db_slot["id"]))
+                    if window_exists:
+                        # In bitmap world, remove operations use date + time instead of slot_id
+                        # We'll use a synthetic identifier or handle it in validation
+                        operations.append(
+                            SlotOperation(
+                                action="remove",
+                                date=check_date,
+                                start_time=saved_start,
+                                end_time=saved_end,
+                            )
+                        )
 
-            # Find slots to add
+            # Find windows to add
             for current_slot in current_slots:
                 is_new = not any(
                     s.start_time == current_slot.start_time and s.end_time == current_slot.end_time

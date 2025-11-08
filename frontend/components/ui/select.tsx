@@ -5,37 +5,13 @@ import { cn } from '@/lib/utils';
 
 type SelectRootProps = React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>;
 
-function setBodyScrollbarReservation(enable: boolean) {
-  if (typeof window === 'undefined') return;
-  const docEl = document.documentElement;
-  const scrollbarWidth = Math.max(0, window.innerWidth - docEl.clientWidth);
-  if (enable && scrollbarWidth > 0) {
-    document.body.style.setProperty('--sbw', `${scrollbarWidth}px`);
-    document.body.classList.add('sb-reserve');
-    // Force scrollbar to remain visible even if a library attempts to lock body scroll
-    try {
-      document.body.style.setProperty('overflow-y', 'scroll', 'important');
-    } catch {}
-  } else {
-    document.body.classList.remove('sb-reserve');
-    document.body.style.removeProperty('--sbw');
-    try {
-      document.body.style.removeProperty('overflow-y');
-    } catch {}
-  }
-}
-
-export function Select(props: SelectRootProps) {
-  const { onOpenChange, ...rest } = props;
-  const handleOpenChange = React.useCallback(
-    (open: boolean) => {
-      setBodyScrollbarReservation(open);
-      onOpenChange?.(open);
-    },
-    [onOpenChange]
+export function Select({ onOpenChange, ...rest }: SelectRootProps) {
+  return (
+    <SelectPrimitive.Root
+      {...rest}
+      {...(onOpenChange !== undefined ? { onOpenChange } : {})}
+    />
   );
-  React.useEffect(() => () => setBodyScrollbarReservation(false), []);
-  return <SelectPrimitive.Root onOpenChange={handleOpenChange} {...rest} />;
 }
 export const SelectGroup = SelectPrimitive.Group;
 export const SelectValue = SelectPrimitive.Value;
@@ -51,9 +27,9 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'w-full inline-flex items-center justify-between rounded-md border px-3 py-2 text-sm',
-      'focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500',
-      'bg-white text-gray-900',
+      'w-full inline-flex h-9 items-center justify-between gap-2 rounded-md border bg-white px-3 text-sm text-gray-900 transition-shadow',
+      'focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]',
+      'data-[state=open]:shadow-[0_0_0_2px_rgba(212,181,240,1)]',
       error ? 'border-red-400' : 'border-gray-300',
       className
     )}
@@ -87,38 +63,55 @@ const SelectScrollDownButton = React.forwardRef<
 ));
 SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName;
 
+type SelectContentProps = Omit<
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>,
+  'modal' | 'onOpenAutoFocus' | 'onCloseAutoFocus' | 'disableOutsidePointerEvents'
+> & {
+  position?: 'popper' | 'item-aligned';
+};
+
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = 'popper', ...props }, ref) => (
-  <SelectPrimitive.Portal>
-    <SelectPrimitive.Content
-      ref={ref}
-      position={position}
-      // Prevent body scroll locking to avoid scrollbar disappearing/layout shift
-      // @ts-expect-error modal prop is supported in Radix Select Content
-      modal={false}
-      className={cn(
-        'z-50 overflow-hidden rounded-md border border-gray-200 bg-white shadow-md',
-        'data-[state=open]:animate-in data-[state=closed]:animate-out',
-        'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-        'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-        'data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2',
-        className
-      )}
-      {...props}
-    >
-      <SelectScrollUpButton />
-      <SelectPrimitive.Viewport className={cn(
-        'p-1 max-h-56 overflow-auto',
-        position === 'popper' && 'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]'
-      )}>
-        {children}
-      </SelectPrimitive.Viewport>
-      <SelectScrollDownButton />
-    </SelectPrimitive.Content>
-  </SelectPrimitive.Portal>
-));
+  SelectContentProps
+>(({ className, children, position = 'popper', style, ...props }, ref) => {
+  const sizeStyle =
+    position === 'popper'
+      ? {
+          width: 'var(--radix-select-trigger-width)',
+          maxWidth: 'min(var(--radix-select-trigger-width), calc(100vw - 2rem))',
+          maxHeight: 'min(18rem, calc(100vh - 4rem))',
+        }
+      : {
+          maxHeight: 'min(18rem, calc(100vh - 4rem))',
+        };
+
+  return (
+    <SelectPrimitive.Portal>
+      <SelectPrimitive.Content
+        ref={ref}
+        position={position}
+        sideOffset={4}
+        collisionPadding={8}
+        className={cn(
+          'z-50 overflow-hidden rounded-md border border-gray-200 bg-white shadow-md',
+          'data-[state=open]:animate-in data-[state=closed]:animate-out',
+          'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+          'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+          'data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2',
+          className
+        )}
+        style={{ ...sizeStyle, ...style }}
+        {...props}
+      >
+        <SelectScrollUpButton />
+        <SelectPrimitive.Viewport className="max-h-[18rem] overflow-auto p-1">
+          {children}
+        </SelectPrimitive.Viewport>
+        <SelectScrollDownButton />
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Portal>
+  );
+});
 SelectContent.displayName = SelectPrimitive.Content.displayName;
 
 const SelectLabel = React.forwardRef<

@@ -1,4 +1,6 @@
 # backend/app/models/service_catalog.py
+from __future__ import annotations
+
 """
 Service catalog models for InstaInstru platform.
 
@@ -329,25 +331,31 @@ class InstructorService(Base):
     @property
     def name(self) -> str:
         """Get service name from catalog entry."""
-        return self.catalog_entry.name if self.catalog_entry else "Unknown Service"
+        entry = self.catalog_entry
+        name_value = getattr(entry, "name", None)
+        if isinstance(name_value, str):
+            return name_value
+        return "Unknown Service"
 
     @property
     def category(self) -> str:
         """Get category name from catalog entry."""
-        return (
-            self.catalog_entry.category.name
-            if self.catalog_entry and self.catalog_entry.category
-            else "Unknown"
-        )
+        entry = self.catalog_entry
+        category = getattr(entry, "category", None)
+        name_value = getattr(category, "name", None)
+        if isinstance(name_value, str):
+            return name_value
+        return "Unknown"
 
     @property
     def category_slug(self) -> str:
         """Get category slug from catalog entry."""
-        return (
-            self.catalog_entry.category.slug
-            if self.catalog_entry and self.catalog_entry.category
-            else "unknown"
-        )
+        entry = self.catalog_entry
+        category = getattr(entry, "category", None)
+        slug_value = getattr(category, "slug", None)
+        if isinstance(slug_value, str):
+            return slug_value
+        return "unknown"
 
     def session_price(self, duration_minutes: int) -> float:
         """

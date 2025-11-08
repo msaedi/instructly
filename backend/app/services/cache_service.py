@@ -18,6 +18,7 @@ from functools import wraps
 import hashlib
 import json
 import logging
+import os
 import threading
 from typing import Any, Callable, Dict, List, Optional, ParamSpec, TypeVar, Union, cast
 
@@ -25,6 +26,12 @@ from fastapi import Depends
 from redis import ConnectionError, Redis, from_url
 from redis.exceptions import RedisError
 from sqlalchemy.orm import Session
+
+from app.middleware.perf_counters import (
+    note_cache_hit,
+    note_cache_miss,
+    record_cache_key,
+)
 
 from ..core.config import settings
 from ..database import get_db
@@ -219,6 +226,7 @@ class CacheService(BaseService):
         """
         super().__init__(db)
         self.logger = logging.getLogger(__name__)
+        self.force_memory_cache = os.getenv("AVAILABILITY_TEST_MEMORY_CACHE") == "1"
 
         # Initialize components
         self.circuit_breaker = self._create_circuit_breaker()
@@ -243,6 +251,9 @@ class CacheService(BaseService):
 
     def _setup_redis_connection(self) -> None:
         """Setup Redis connection with fallback to in-memory cache."""
+        if self.force_memory_cache:
+            self.redis = None
+            return
         if self.redis is None:
             try:
                 self.redis = from_url(
@@ -278,41 +289,124 @@ class CacheService(BaseService):
             "availability_invalidations": 0,
         }
 
+    # Internal helpers -------------------------------------------------
+
+    def _backend_get(self, key: str) -> Optional[Any]:
+        """Fetch raw value from the active backend without instrumentation."""
+        redis_client = self.redis
+
+        try:
+            if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
+
+                def _get_from_redis() -> Optional[Any]:
+                    assert redis_client is not None
+                    return redis_client.get(key)
+
+                return self.circuit_breaker.call(_get_from_redis)
+
+            if redis_client is None:
+                cached = self._memory_cache.get(key)
+                if cached is None:
+                    return None
+
+                expires_at = self._memory_expiry.get(key)
+                if expires_at is None or datetime.now() < expires_at:
+                    return cached
+
+                # Key expired in memory cache; clean up and treat as miss
+                self._memory_cache.pop(key, None)
+                self._memory_expiry.pop(key, None)
+                return None
+
+            return None
+
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error(f"Cache backend get error for key {key}: {exc}")
+            self._stats["errors"] += 1
+            return None
+
+    def _backend_set(self, key: str, value: Any, ttl: Optional[int]) -> bool:
+        """Persist value to the active backend without serialization concerns."""
+        redis_client = self.redis
+
+        try:
+            expiration = ttl if ttl is not None else self.TTL_TIERS.get("warm", 3600)
+            assert expiration is not None
+
+            if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
+
+                def _set_in_redis() -> bool:
+                    assert redis_client is not None
+                    redis_client.setex(key, expiration, value)
+                    return True
+
+                result = self.circuit_breaker.call(_set_in_redis)
+                if result:
+                    self._stats["sets"] += 1
+                    return True
+            elif redis_client is None:
+                self._memory_cache[key] = value
+                self._memory_expiry[key] = datetime.now() + timedelta(seconds=expiration)
+                self._stats["sets"] += 1
+                return True
+
+            return False
+
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error(f"Cache backend set error for key {key}: {exc}")
+            self._stats["errors"] += 1
+            return False
+
+    @BaseService.measure_operation("cache_get_json")
+    def get_json(self, key: str) -> Optional[Any]:
+        """Fetch a JSON payload while routing through perf instrumentation."""
+        record_cache_key(key)
+        raw_value = self._backend_get(key)
+        if raw_value is None:
+            self._stats["misses"] += 1
+            note_cache_miss(key)
+            return None
+
+        self._stats["hits"] += 1
+        note_cache_hit(key)
+
+        if isinstance(raw_value, (bytes, str)):
+            try:
+                return json.loads(raw_value)
+            except Exception:
+                return raw_value
+
+        return raw_value
+
+    @BaseService.measure_operation("cache_set_json")
+    def set_json(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+        """Persist a JSON-serializable payload uniformly for all backends."""
+        payload = json.dumps(value, default=str)
+        self._backend_set(key, payload, ttl)
+
     # Core Cache Operations
 
     @BaseService.measure_operation("cache_get")
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache with circuit breaker protection."""
-
-        redis_client = self.redis
-
-        def _get_from_redis() -> Optional[Any]:
-            assert redis_client is not None
-            value = redis_client.get(key)
-            if value is not None:
-                return json.loads(value)
-            return None
-
         try:
-            if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
-                value = self.circuit_breaker.call(_get_from_redis)
-                if value is not None:
-                    self._stats["hits"] += 1
-                    return value
-            elif redis_client is None:
-                # In-memory fallback
-                if key in self._memory_cache:
-                    expires_at = self._memory_expiry.get(key)
-                    if expires_at is None or datetime.now() < expires_at:
-                        self._stats["hits"] += 1
-                        return self._memory_cache[key]
-                    else:
-                        # Expired
-                        del self._memory_cache[key]
-                        del self._memory_expiry[key]
+            record_cache_key(key)
+            raw_value = self._backend_get(key)
+            if raw_value is None:
+                self._stats["misses"] += 1
+                note_cache_miss(key)
+                return None
 
-            self._stats["misses"] += 1
-            return None
+            self._stats["hits"] += 1
+            note_cache_hit(key)
+
+            if isinstance(raw_value, (bytes, str)):
+                try:
+                    return json.loads(raw_value)
+                except Exception:
+                    return raw_value
+
+            return raw_value
 
         except Exception as e:
             logger.error(f"Cache get error for key {key}: {e}")
@@ -418,6 +512,23 @@ class CacheService(BaseService):
             self._stats["errors"] += 1
             return 0
 
+    @BaseService.measure_operation("cache_clear_prefix")
+    def clear_prefix(self, prefix: str) -> int:
+        """
+        Delete all keys that begin with the supplied prefix.
+
+        Args:
+            prefix: Cache key prefix (e.g., "catalog:services:")
+
+        Returns:
+            Number of keys removed.
+        """
+        if not prefix:
+            return 0
+
+        pattern = prefix if prefix.endswith("*") else f"{prefix}*"
+        return self.delete_pattern(pattern)
+
     def _delete_pattern_redis(self, pattern: str) -> int:
         """Delete pattern from Redis using SCAN."""
         count = 0
@@ -451,11 +562,17 @@ class CacheService(BaseService):
             if redis_client:
                 values = redis_client.mget(keys)
                 for key, value in zip(keys, values):
+                    record_cache_key(key)
                     if value is not None:
-                        result[key] = json.loads(value)
+                        try:
+                            result[key] = json.loads(value)
+                        except Exception:
+                            result[key] = value
                         self._stats["hits"] += 1
+                        note_cache_hit(key)
                     else:
                         self._stats["misses"] += 1
+                        note_cache_miss(key)
             else:
                 # In-memory
                 for key in keys:
@@ -523,7 +640,8 @@ class CacheService(BaseService):
     ) -> Optional[Dict[str, Any]]:
         """Get cached week availability."""
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
-        result = self.get(key)
+        record_cache_key(key)
+        result = cast(Optional[Dict[str, Any]], self.get(key))
 
         # Track availability-specific metrics
         if result is not None:
@@ -558,7 +676,7 @@ class CacheService(BaseService):
     ) -> Optional[List[Dict[str, Any]]]:
         """Get cached instructor availability for date range."""
         key = self.key_builder.build("availability", "range", instructor_id, start_date, end_date)
-        result = self.get(key)
+        result = cast(Optional[List[Dict[str, Any]]], self.get(key))
 
         # Track availability-specific metrics
         if result is not None:
@@ -582,7 +700,7 @@ class CacheService(BaseService):
     ) -> Optional[Dict[str, List[Dict[str, Any]]]]:
         """Get cached instructor weekly availability pattern."""
         key = self.key_builder.build("availability", "weekly", instructor_id)
-        result = self.get(key)
+        result = cast(Optional[Dict[str, List[Dict[str, Any]]]], self.get(key))
 
         # Track availability-specific metrics
         if result is not None:

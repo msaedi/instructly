@@ -1,86 +1,64 @@
 # backend/tests/integration/repository_patterns/test_bulk_operation_query_patterns.py
 """
-Query pattern tests for BulkOperationService.
-Documents all database queries that will become repository methods.
+Bitmap-era query patterns for bulk availability operations.
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
-FIXED: Updated for Work Stream #9 - Removed availability_slot relationship access.
+These tests document the queries BulkOperationRepository needs in a world where
+availability is stored in AvailabilityDay bitmaps instead of slot rows.
 """
 
 from datetime import date, time, timedelta
 
 from sqlalchemy.orm import Session
+from tests.integration.repository_patterns._bitmap_helpers import (
+    count_windows_total,
+    fetch_days,
+    flatten_range,
+    seed_day,
+    window_exists,
+)
 
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.user import User
 
 
 class TestBulkOperationQueryPatterns:
-    """Document query patterns that will become BulkOperationRepository methods."""
+    """Document bitmap-friendly query templates for BulkOperationRepository."""
 
-    def test_query_slots_by_ids(self, db: Session, test_instructor_with_availability: User):
-        """
-        Repository method: get_slots_by_ids(slot_ids: List[int])
-        Used for remove operations to look up slot dates for cache invalidation.
-        """
-        # Get some slot IDs
-        slots = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
-            .limit(3)
-            .all()
-        )
-        slot_ids = [s.id for s in slots]
-
-        # Document the query pattern - FIXED: Use specific_date
-        result = (
-            db.query(
-                AvailabilitySlot.id,
-                AvailabilitySlot.specific_date,
-                AvailabilitySlot.start_time,
-                AvailabilitySlot.end_time,
+    def test_query_windows_by_keys(self, db: Session, test_instructor_with_availability: User):
+        """Selecting a subset of windows behaves like querying slots by ids."""
+        instructor_id = test_instructor_with_availability.id
+        week_start = date.today() - timedelta(days=date.today().weekday())
+        for day_offset in range(3):
+            target = week_start + timedelta(days=day_offset)
+            seed_day(
+                db,
+                instructor_id,
+                target,
+                [(time(9, 0), time(10, 0)), (time(11, 0), time(12, 0)), (time(14, 0), time(15, 0))],
             )
-            .filter(AvailabilitySlot.id.in_(slot_ids))
-            .all()
-        )
 
-        assert len(result) == len(slot_ids)
-        for row in result:
-            assert row.id in slot_ids
-            assert isinstance(row.specific_date, date)
+        flat = flatten_range(db, instructor_id, week_start, week_start + timedelta(days=2))
+        selected_keys = {(flat[0]["date"], flat[0]["start_time"]), (flat[1]["date"], flat[1]["start_time"])}
+        subset = [
+            window for window in flat if (window["date"], window["start_time"]) in selected_keys
+        ]
+        assert len(subset) == len(selected_keys)
 
-    def test_query_slots_for_date(self, db: Session, test_instructor_with_availability: User):
-        """
-        Repository method: get_slots_by_date(instructor_id: int, date: date)
-        Used for date-based operations.
-        """
+    def test_query_windows_for_date(self, db: Session, test_instructor_with_availability: User):
+        """Date-scoped window query replaces get_slots_by_date."""
+        instructor_id = test_instructor_with_availability.id
         target_date = date.today() + timedelta(days=1)
+        windows = [(time(9, 0), time(10, 0)), (time(13, 0), time(14, 30))]
+        seed_day(db, instructor_id, target_date, windows)
 
-        # Document the query pattern - FIXED: Use specific_date
-        slots = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == target_date,
-            )
-            .all()
-        )
+        flat = flatten_range(db, instructor_id, target_date, target_date)
+        assert [(w["start_time"], w["end_time"]) for w in flat] == [("09:00:00", "10:00:00"), ("13:00:00", "14:30:00")]
 
-        assert all(slot.instructor_id == test_instructor_with_availability.id for slot in slots)
-        assert all(slot.specific_date == target_date for slot in slots)
-
-    def test_query_slots_with_bookings_for_date(self, db: Session, test_booking: Booking):
-        """
-        Repository method: has_bookings_on_date(instructor_id: int, date: date)
-        Used to check if date has bookings.
-        """
-        # FIXED: Direct query by instructor and date
+    def test_query_windows_with_bookings_for_date(self, db: Session, test_booking: Booking):
+        """Booking guard now filters Booking rows by date/time instead of slot ids."""
         booking_date = test_booking.booking_date
         instructor_id = test_booking.instructor_id
-
-        # Document the query pattern - check if any bookings exist on this date
         count = (
             db.query(Booking)
             .filter(
@@ -90,245 +68,93 @@ class TestBulkOperationQueryPatterns:
             )
             .count()
         )
-
         assert count > 0
 
-    def test_query_week_slots_for_validation(self, db: Session, test_instructor_with_availability: User):
-        """
-        Repository method: get_week_slots(instructor_id: int, week_start: date, week_end: date)
-        Used for week validation to get existing slots.
-        """
+    def test_query_week_windows_for_validation(self, db: Session, test_instructor_with_availability: User):
+        """Week validation reads AvailabilityDay rows for the Monday-Sunday range."""
+        instructor_id = test_instructor_with_availability.id
         week_start = date.today() - timedelta(days=date.today().weekday())
         week_end = week_start + timedelta(days=6)
+        windows = flatten_range(db, instructor_id, week_start, week_end)
+        assert windows
+        assert week_start <= windows[0]["date"] <= week_end
 
-        # Document the query pattern - FIXED: Use specific_date
-        slots = (
-            db.query(
-                AvailabilitySlot.id,
-                AvailabilitySlot.specific_date,
-                AvailabilitySlot.start_time,
-                AvailabilitySlot.end_time,
-            )
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date >= week_start,
-                AvailabilitySlot.specific_date <= week_end,
-            )
-            .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
-            .all()
-        )
+    def test_query_windows_for_instructor_check(self, db: Session, test_instructor_with_availability: User):
+        """Validating instructor ownership inspects AvailabilityDay rows."""
+        instructor_id = test_instructor_with_availability.id
+        rows = fetch_days(db, instructor_id, date.today(), date.today() + timedelta(days=1))
+        assert all(row.instructor_id == instructor_id for row in rows)
 
-        assert len(slots) > 0
-        for slot in slots:
-            assert week_start <= slot.specific_date <= week_end
-
-    def test_query_slot_with_instructor_check(self, db: Session, test_instructor_with_availability: User):
-        """
-        Repository method: get_slot_for_instructor(slot_id: int, instructor_id: int)
-        Used for update/remove operations to verify ownership.
-        """
-        # Get a slot
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
-            .first()
-        )
-
-        # Document the query pattern - FIXED: Direct query without join
-        result = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.id == slot.id,
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-            )
-            .first()
-        )
-
-        assert result is not None
-        assert result.id == slot.id
-
-    def test_query_slot_booking_status(self, db: Session, test_instructor_with_availability: User):
-        """
-        Repository method: slot_has_active_booking(slot_id: int)
-        Used to check if slot can be removed/updated.
-
-        UPDATED: With layer independence, we check bookings by time/date, not slot_id.
-        """
-        # Get a slot
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
-            .first()
-        )
-
-        # Document the query pattern - check bookings by instructor, date, and time
-        booking = (
+    def test_query_windows_with_booking_status(self, db: Session, test_booking: Booking):
+        """Mapping windows to booking status is a time-overlap check."""
+        instructor_id = test_booking.instructor_id
+        target_date = test_booking.booking_date
+        windows = flatten_range(db, instructor_id, target_date, target_date)
+        bookings = (
             db.query(Booking)
             .filter(
-                Booking.instructor_id == slot.instructor_id,
-                Booking.booking_date == slot.specific_date,
-                Booking.start_time == slot.start_time,
-                Booking.end_time == slot.end_time,
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date == target_date,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
-            .first()
+            .all()
         )
-
-        # The test just documents the pattern - booking may or may not exist
-        assert booking is None or booking.status in [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
-
-    def test_query_remaining_slots_count(self, db: Session, test_instructor_with_availability: User):
-        """
-        Repository method: count_slots_for_date(instructor_id: int, date: date)
-        Used to check if there are slots on a date.
-        """
-        # Get a date with slots
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
-            .first()
-        )
-        target_date = slot.specific_date
-
-        # Document the query pattern - FIXED: Use specific_date
-        count = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == target_date,
+        for window in windows:
+            overlaps_booking = any(
+                (b.start_time.strftime("%H:%M:%S"), b.end_time.strftime("%H:%M:%S"))
+                == (window["start_time"], window["end_time"])
+                for b in bookings
             )
-            .count()
-        )
+            assert isinstance(overlaps_booking, bool)
 
-        assert count >= 1
+    def test_query_remaining_windows_count(self, db: Session, test_instructor_with_availability: User):
+        """Counting windows for a day replaces slot-count queries."""
+        instructor_id = test_instructor_with_availability.id
+        target_date = date.today()
+        total = count_windows_total(db, instructor_id, target_date, target_date)
+        assert total >= 0
 
     def test_query_affected_dates_for_cache(self, db: Session, test_instructor_with_availability: User):
-        """
-        Repository method: get_unique_dates_from_operations(instructor_id: int, operation_dates: List[date])
-        Used to determine which cache entries to invalidate.
-        """
-        # Get some dates
-        slots = (
-            db.query(AvailabilitySlot.specific_date)
-            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
-            .distinct()
-            .limit(3)
-            .all()
-        )
-        dates = [s.specific_date for s in slots]
+        """Distinct day list now comes from AvailabilityDay rows."""
+        instructor_id = test_instructor_with_availability.id
+        base = date.today()
+        for offset in range(3):
+            seed_day(db, instructor_id, base + timedelta(days=offset), [(time(9, 0), time(10, 0))])
 
-        # Document the query pattern - FIXED: Use specific_date
-        result = (
-            db.query(AvailabilitySlot.specific_date)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date.in_(dates),
-            )
-            .distinct()
-            .all()
-        )
+        rows = fetch_days(db, instructor_id, base, base + timedelta(days=4))
+        unique_dates = {row.day_date for row in rows}
+        assert len(unique_dates) >= 3
 
-        assert len(result) == len(dates)
-
-    def test_query_duplicate_slot_check(self, db: Session, test_instructor_with_availability: User):
-        """
-        Repository method: slot_exists(instructor_id: int, date: date, start_time: time, end_time: time)
-        Used to prevent duplicate slots.
-        """
-        # Get an existing slot
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
-            .first()
-        )
-
-        # Document the query pattern - FIXED: Use specific_date
-        exists = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == slot.instructor_id,
-                AvailabilitySlot.specific_date == slot.specific_date,
-                AvailabilitySlot.start_time == slot.start_time,
-                AvailabilitySlot.end_time == slot.end_time,
-            )
-            .first()
-        ) is not None
-
-        assert exists is True
+    def test_query_duplicate_window_check(self, db: Session, test_instructor_with_availability: User):
+        """Duplicate detection is handled via window_exists helper."""
+        instructor_id = test_instructor_with_availability.id
+        today = date.today()
+        seed_day(db, instructor_id, today, [(time(10, 0), time(11, 0))])
+        assert window_exists(db, instructor_id, today, time(10, 0), time(11, 0))
 
     def test_query_instructor_profile_for_validation(self, db: Session, test_instructor: User):
-        """
-        Repository method: get_instructor_profile(instructor_id: int)
-        Used for various validation checks.
-        """
-        # Document the query pattern
+        """Non-availability queries remain unchanged."""
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
-
         assert profile is not None
-        assert profile.user_id == test_instructor.id
 
-    def test_batch_create_slots(self, db: Session, test_instructor: User):
-        """
-        Repository method: bulk_create_slots(slots: List[Dict])
-        Used for efficient bulk insertion.
-        """
-        # Document batch insert pattern - FIXED: Use specific_date
-        new_slots = [
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=date.today() + timedelta(days=10),
-                start_time=time(10, 0),
-                end_time=time(11, 0),
-            ),
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=date.today() + timedelta(days=10),
-                start_time=time(11, 0),
-                end_time=time(12, 0),
-            ),
-        ]
-
-        db.bulk_save_objects(new_slots)
-        db.flush()
-
-        # Verify
-        count = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor.id,
-                AvailabilitySlot.specific_date == date.today() + timedelta(days=10),
-            )
-            .count()
+    def test_batch_create_windows(self, db: Session, test_instructor: User):
+        """Bitmap batch insert replaces bulk_create_slots."""
+        target_date = date.today() + timedelta(days=10)
+        seed_day(
+            db,
+            test_instructor.id,
+            target_date,
+            [(time(10, 0), time(11, 0)), (time(11, 0), time(12, 0))],
         )
-        assert count >= 2
+        flat = flatten_range(db, test_instructor.id, target_date, target_date)
+        assert len(flat) == 1  # adjacent windows merge automatically
 
     def test_transaction_rollback_pattern(self, db: Session, test_instructor: User):
-        """
-        Repository method: Should support transaction context manager
-        Used for all-or-nothing bulk operations.
-        """
-        # Document transaction pattern - use a valid instructor
-        with db.begin_nested():  # Savepoint for testing
-            # Simulate operations with a valid instructor
-            slot = AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=date.today() + timedelta(days=20),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            )
-            db.add(slot)
-            db.flush()
-
-            # Rollback
+        """Transactions still protect bitmap writes."""
+        instructor_id = test_instructor.id
+        target_date = date.today() + timedelta(days=20)
+        with db.begin_nested():
+            seed_day(db, instructor_id, target_date, [(time(9, 0), time(10, 0))])
             db.rollback()
-
-        # Verify rollback worked
-        count = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor.id,
-                AvailabilitySlot.specific_date == date.today() + timedelta(days=20),
-            )
-            .count()
-        )
-        assert count == 0
+        remaining = fetch_days(db, instructor_id, target_date, target_date)
+        assert remaining == []

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import logging
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 import uuid
 from uuid import UUID
 
 import sqlalchemy as sa
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -244,8 +245,9 @@ class ReferralAttributionRepository(BaseRepository[ReferralAttribution]):
             )
         )
 
-        result = self.db.execute(stmt)
-        created = result.rowcount == 1 if result is not None else False
+        result = cast(CursorResult[Any], self.db.execute(stmt))
+        rowcount = cast(int, getattr(result, "rowcount", 0))
+        created = rowcount == 1
         if created:
             self.db.flush()
         return created
@@ -325,7 +327,8 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         expire_ts: datetime,
         rule_version: str,
     ) -> ReferralReward:
-        reward = (
+        existing_reward = cast(
+            Optional[ReferralReward],
             self.db.query(ReferralReward)
             .filter(
                 ReferralReward.referrer_user_id == owner_id,
@@ -333,10 +336,10 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
                 ReferralReward.side == side,
             )
             .with_for_update()
-            .first()
+            .first(),
         )
-        if reward:
-            return cast(ReferralReward, reward)
+        if existing_reward is not None:
+            return existing_reward
 
         reward = ReferralReward(
             id=uuid.uuid4(),

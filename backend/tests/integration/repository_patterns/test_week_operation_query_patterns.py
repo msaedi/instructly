@@ -22,11 +22,13 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.ulid_helper import generate_ulid
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.repositories.availability_repository import AvailabilityRepository
 from app.repositories.week_operation_repository import WeekOperationRepository
 from app.services.availability_service import AvailabilityService
 from app.services.conflict_checker import ConflictChecker
 from app.services.week_operation_service import WeekOperationService
+from app.utils.bitset import windows_from_bits
 
 
 class TestWeekOperationQueryPatterns:
@@ -52,28 +54,39 @@ class TestWeekOperationQueryPatterns:
         """Create WeekOperationRepository for testing."""
         return WeekOperationRepository(db)
 
-    def test_get_week_slots_pattern(self, db: Session, repository: WeekOperationRepository):
-        """Document pattern for getting all slots in a week.
+    def test_get_week_availability_pattern(self, db: Session):
+        """Document pattern for getting all availability in a week (bitmap).
 
         Repository method signature:
-        def get_week_slots(instructor_id: int, start_date: date, end_date: date) -> List[AvailabilitySlot]
+        def get_week_rows(instructor_id: str, week_start: date) -> List[AvailabilityDay]
+        Or via service: def get_week_availability(instructor_id: str, start_date: date) -> Dict[str, List[Dict[str, str]]]
 
-        With single-table design, this is a simple query directly on availability_slots.
+        NOTE: Bitmap-only storage now. Use AvailabilityDayRepository or AvailabilityService.
         """
         instructor_id = generate_ulid()
         week_start = date(2025, 6, 23)  # Monday
         week_end = week_start + timedelta(days=6)
 
-        # Execute the query pattern using repository
-        result = repository.get_week_slots(instructor_id, week_start, week_end)
+        # Bitmap-era: query AvailabilityDay rows for the week
+        day_repo = AvailabilityDayRepository(db)
+        rows = day_repo.get_week_rows(instructor_id, week_start)
 
-        # Simple query pattern:
+        # Or via service for windows format:
+        svc = AvailabilityService(db=db)
+        week_map = svc.get_week_availability(instructor_id, week_start, use_cache=False)
+
+        # Query pattern:
         # - Filter by instructor_id
-        # - Filter by specific_date range (not date)
-        # - Order by specific_date and start_time
+        # - Filter by day_date range (week_start to week_end)
+        # - Order by day_date
         # - No joins needed!
 
-        assert isinstance(result, list)
+        assert isinstance(rows, list)
+        assert isinstance(week_map, dict)
+        # Verify all dates are within the week
+        for day_date in week_map.keys():
+            parsed_date = date.fromisoformat(day_date)
+            assert week_start <= parsed_date <= week_end
 
     def test_bulk_create_slots_pattern(self, db: Session, repository: WeekOperationRepository):
         """Document pattern for bulk creating slots.
@@ -162,31 +175,66 @@ class TestWeekOperationQueryPatterns:
         # FIXED: No more booked_slot_ids - bookings are independent
         assert "total_bookings" in result
 
-    def test_get_slots_with_booking_status_pattern(self, db: Session, repository: WeekOperationRepository):
-        """Document pattern for getting slots with booking status.
+    def test_get_windows_with_booking_status_pattern(self, db: Session):
+        """Document pattern for getting windows with booking status (bitmap).
 
         Repository method signature:
-        def get_slots_with_booking_status(instructor_id: int, target_date: date) -> List[Dict]
+        def get_week_rows(instructor_id: str, week_start: date) -> List[AvailabilityDay]
+        Then use ConflictChecker to check booking overlaps.
 
-        UPDATED: Checks time overlaps, not slot IDs
+        UPDATED: Checks time overlaps with bookings, not slot IDs
         """
+        from app.services.conflict_checker import ConflictChecker
+
         instructor_id = generate_ulid()
         target_date = date(2025, 6, 23)
 
-        result = repository.get_slots_with_booking_status(instructor_id, target_date)
+        # Bitmap-era: get windows from AvailabilityDay
+        day_repo = AvailabilityDayRepository(db)
+        day_row = day_repo.get_day_bits(instructor_id, target_date)
+
+        windows_with_status = []
+        if day_row:
+            windows = windows_from_bits(day_row)
+            # Get booked times for the date
+            conflict_checker = ConflictChecker(db)
+            booked_times = conflict_checker.get_booked_times_for_date(instructor_id, target_date)
+
+            # Check each window for booking overlap
+            for start_str, end_str in windows:
+                is_booked = False
+                for booked_info in booked_times:
+                    # booked_info has "start_time" and "end_time" as ISO format strings
+                    booked_start_str = booked_info["start_time"]
+                    booked_end_str = booked_info["end_time"]
+                    # Convert to HH:MM:SS format for comparison
+                    if "T" in booked_start_str:
+                        booked_start_str = booked_start_str.split("T")[1].split("+")[0][:8]
+                    if "T" in booked_end_str:
+                        booked_end_str = booked_end_str.split("T")[1].split("+")[0][:8]
+                    # Check for overlap
+                    if start_str < booked_end_str and end_str > booked_start_str:
+                        is_booked = True
+                        break
+
+                windows_with_status.append({
+                    "start_time": start_str,
+                    "end_time": end_str,
+                    "is_booked": is_booked,
+                })
 
         # Pattern:
-        # 1. Get all slots for the date from availability_slots
-        # 2. Get bookings for the same date/instructor
-        # 3. Check time overlaps to determine if slot has booking
-        # 4. Return slot info with is_booked flag
+        # 1. Get availability day bits for the date
+        # 2. Convert bits to windows
+        # 3. Get bookings for the same date/instructor
+        # 4. Check time overlaps to determine if window has booking
+        # 5. Return window info with is_booked flag
 
-        assert isinstance(result, list)
-        if result:
-            assert "id" in result[0]
-            assert "start_time" in result[0]
-            assert "end_time" in result[0]
-            assert "is_booked" in result[0]
+        assert isinstance(windows_with_status, list)
+        if windows_with_status:
+            assert "start_time" in windows_with_status[0]
+            assert "end_time" in windows_with_status[0]
+            assert "is_booked" in windows_with_status[0]
 
     def test_bulk_delete_slots_pattern(self, db: Session, repository: WeekOperationRepository):
         """Document pattern for bulk deleting slots.

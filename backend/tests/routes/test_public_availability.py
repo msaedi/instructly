@@ -17,10 +17,11 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.availability import AvailabilitySlot, BlackoutDate
+from app.models.availability import BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
+from tests._utils.bitmap_avail import seed_day
 
 
 @pytest.fixture
@@ -67,33 +68,13 @@ class TestPublicAvailability:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
-        # Create availability slots
-        slots = [
-            # Today - multiple slots
-            AvailabilitySlot(
-                instructor_id=instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-            ),
-            AvailabilitySlot(
-                instructor_id=instructor.id, specific_date=today, start_time=time(10, 0), end_time=time(11, 0)
-            ),
-            AvailabilitySlot(
-                instructor_id=instructor.id, specific_date=today, start_time=time(14, 0), end_time=time(15, 0)
-            ),
-            # Tomorrow - one slot (will be booked)
-            AvailabilitySlot(
-                instructor_id=instructor.id,
-                specific_date=today + timedelta(days=1),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            ),
-            # Day after tomorrow - blackout date with slots
-            AvailabilitySlot(
-                instructor_id=instructor.id,
-                specific_date=today + timedelta(days=2),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            ),
-        ]
+        # Create availability using bitmap storage
+        # Today - multiple windows
+        seed_day(db, instructor.id, today, [("09:00", "10:00"), ("10:00", "11:00"), ("14:00", "15:00")])
+        # Tomorrow - one window (will be booked)
+        seed_day(db, instructor.id, today + timedelta(days=1), [("09:00", "10:00")])
+        # Day after tomorrow - blackout date with availability
+        seed_day(db, instructor.id, today + timedelta(days=2), [("09:00", "10:00")])
 
         # Create a booking for tomorrow
         booking = Booking(
@@ -113,7 +94,7 @@ class TestPublicAvailability:
         # Create blackout date
         blackout = BlackoutDate(instructor_id=instructor.id, date=today + timedelta(days=2), reason="Personal day")
 
-        return {"instructor": instructor, "slots": slots, "booking": booking, "blackout": blackout, "service": service}
+        return {"instructor": instructor, "booking": booking, "blackout": blackout, "service": service}
 
     def test_get_public_availability_no_auth_required(self, public_client, test_instructor, full_detail_settings):
         """Test that public endpoint doesn't require authentication."""
@@ -132,9 +113,7 @@ class TestPublicAvailability:
         data = mock_instructor_with_availability
         instructor = data["instructor"]
 
-        # Add test data to database
-        for slot in data["slots"]:
-            db.add(slot)
+        # Add test data to database (availability already created via seed_day)
         db.add(data["booking"])
         db.add(data["blackout"])
         db.commit()
@@ -273,11 +252,8 @@ class TestPublicAvailability:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
-        # Create slot
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-        )
-        db.add(slot)
+        # Create availability using bitmap storage
+        seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
 
         # Create cancelled booking
         booking = Booking(
@@ -346,23 +322,11 @@ class TestPublicAvailability:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
-        # Create slots
-        slots = [
-            # Today - all booked
-            AvailabilitySlot(
-                instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-            ),
-            # Tomorrow - available
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=today + timedelta(days=1),
-                start_time=time(9, 0),
-                end_time=time(11, 0),  # 2 hour slot
-            ),
-        ]
-
-        for slot in slots:
-            db.add(slot)
+        # Create availability using bitmap storage
+        # Today - all booked
+        seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
+        # Tomorrow - available
+        seed_day(db, test_instructor.id, today + timedelta(days=1), [("09:00", "11:00")])
 
         # Book today's slot
         booking = Booking(
@@ -426,11 +390,8 @@ class TestPublicAvailability:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
-        # Create a 2-hour slot
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(11, 0)
-        )
-        db.add(slot)
+        # Create a 2-hour window using bitmap storage
+        seed_day(db, test_instructor.id, today, [("09:00", "11:00")])
 
         # Book first hour
         booking = Booking(
@@ -470,11 +431,8 @@ class TestPublicAvailability:
         """Test minimal detail level response."""
         today = date.today()
 
-        # Create a slot
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-        )
-        db.add(slot)
+        # Create availability using bitmap storage
+        seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
         db.commit()
 
         response = public_client.get(
@@ -502,24 +460,8 @@ class TestPublicAvailability:
         """Test summary detail level response."""
         today = date.today()
 
-        # Create morning and afternoon slots
-        slots = [
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=today,
-                start_time=time(9, 0),
-                end_time=time(11, 0),  # 2 hours
-            ),
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=today,
-                start_time=time(14, 0),
-                end_time=time(16, 0),  # 2 hours
-            ),
-        ]
-
-        for slot in slots:
-            db.add(slot)
+        # Create morning and afternoon windows using bitmap storage
+        seed_day(db, test_instructor.id, today, [("09:00", "11:00"), ("14:00", "16:00")])
         db.commit()
 
         response = public_client.get(

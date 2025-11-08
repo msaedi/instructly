@@ -13,30 +13,29 @@ FIXES:
 """
 
 from datetime import date, time, timedelta
-from unittest.mock import Mock, PropertyMock, patch
+from unittest.mock import Mock, patch
 
 import pytest
-from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot, BlackoutDate
+from app.models.availability import BlackoutDate
 from app.repositories.availability_repository import AvailabilityRepository
 from app.schemas.availability_window import (
     SpecificDateAvailabilityCreate,
     WeekSpecificScheduleCreate,
 )
 from app.services.availability_service import AvailabilityService
+from app.utils.bitset import bits_from_windows
 
 
 class TestAvailabilityServiceBusinessLogic:
     """Test business logic that will remain in service layer."""
 
     @pytest.fixture
-    def service(self):
-        """Create service with mocked repository."""
-        db = Mock(spec=Session)
-        service = AvailabilityService(db)
+    def service(self, unit_db):
+        """Create service with mocked repository and real session."""
+        service = AvailabilityService(unit_db)
 
         # Mock the repository
         mock_repository = Mock(spec=AvailabilityRepository)
@@ -135,10 +134,9 @@ class TestAvailabilityServiceQueryHelpers:
     """Test repository interaction patterns."""
 
     @pytest.fixture
-    def service(self):
-        """Create service with mocked repository."""
-        db = Mock(spec=Session)
-        service = AvailabilityService(db)
+    def service(self, unit_db):
+        """Create service with mocked repository and real session."""
+        service = AvailabilityService(unit_db)
 
         # Mock the repository
         mock_repository = Mock(spec=AvailabilityRepository)
@@ -148,37 +146,28 @@ class TestAvailabilityServiceQueryHelpers:
 
     def test_get_week_availability(self, service):
         """Test getting week availability with single-table design."""
-        # Mock repository response - now returns AvailabilitySlot objects directly
-        test_date = date.today()
+        # Mock bitmap response instead of slot repository
+        monday = date.today()
+        tuesday = monday + timedelta(days=1)
 
-        # Create properly configured mock slots
-        mock_slot1 = Mock(spec=AvailabilitySlot)
-        mock_slot1.specific_date = test_date  # Fixed: date -> specific_date
-        mock_slot1.start_time = time(9, 0)
-        mock_slot1.end_time = time(10, 0)
-        # Configure the mock to return proper isoformat
-        type(mock_slot1).specific_date = PropertyMock(return_value=test_date)
-
-        mock_slot2 = Mock(spec=AvailabilitySlot)
-        mock_slot2.specific_date = test_date  # Fixed: date -> specific_date
-        mock_slot2.start_time = time(14, 0)
-        mock_slot2.end_time = time(15, 0)
-        # Configure the mock to return proper isoformat
-        type(mock_slot2).specific_date = PropertyMock(return_value=test_date)
-
-        service.repository.get_week_availability.return_value = [mock_slot1, mock_slot2]
+        bits_map = {
+            monday: bits_from_windows([("09:00:00", "10:00:00")]),
+            tuesday: bits_from_windows([("14:00:00", "15:00:00")]),
+        }
+        service.get_week_bits = Mock(return_value=bits_map)
 
         # Call the service method
-        result = service.get_week_availability(instructor_id=123, start_date=test_date)
+        result = service.get_week_availability(instructor_id=123, start_date=monday)
 
         # Verify the result format
-        date_str = test_date.isoformat()
-        assert date_str in result
-        assert len(result[date_str]) == 2
-        assert result[date_str][0]["start_time"] == "09:00:00"
-        assert result[date_str][0]["end_time"] == "10:00:00"
-        # Verify is_available is NOT in the response (Work Stream #10)
-        assert "is_available" not in result[date_str][0]
+        monday_str = monday.isoformat()
+        tuesday_str = tuesday.isoformat()
+        assert monday_str in result
+        assert tuesday_str in result
+        assert result[monday_str][0]["start_time"] == "09:00:00"
+        assert result[monday_str][0]["end_time"] == "10:00:00"
+        assert result[tuesday_str][0]["start_time"] == "14:00:00"
+        assert result[tuesday_str][0]["end_time"] == "15:00:00"
 
     def test_delete_slots_by_dates(self, service):
         """Test deleting slots by dates via repository."""
@@ -211,10 +200,9 @@ class TestAvailabilityServiceCacheHandling:
     """Test cache handling in availability service."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mocked repository."""
-        db = Mock(spec=Session)
-        service = AvailabilityService(db)
+        service = AvailabilityService(unit_db)
 
         # Mock the repository
         mock_repository = Mock(spec=AvailabilityRepository)
@@ -226,37 +214,35 @@ class TestAvailabilityServiceCacheHandling:
         """Test service behavior without cache."""
         assert service.cache_service is None
 
-    def test_service_with_cache(self):
+    def test_service_with_cache(self, unit_db):
         """Test service behavior with cache."""
-        db = Mock(spec=Session)
         cache_service = Mock()
-        service = AvailabilityService(db, cache_service=cache_service)
+        service = AvailabilityService(unit_db, cache_service=cache_service)
 
         assert service.cache_service is not None
 
-    def test_cache_fallback_on_error(self):
+    def test_cache_fallback_on_error(self, unit_db):
         """Test that service continues working when cache fails."""
-        db = Mock(spec=Session)
         cache_service = Mock()
         cache_service.get_week_availability.side_effect = Exception("Cache error")
 
-        service = AvailabilityService(db, cache_service=cache_service)
+        service = AvailabilityService(unit_db, cache_service=cache_service)
 
         # Mock repository
         mock_repository = Mock(spec=AvailabilityRepository)
         service.repository = mock_repository
 
-        # Mock successful repository query - now returns slots directly
+        # Mock successful repository query - returns bitmap windows as dict
         test_date = date.today()
-        mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.specific_date = test_date  # Fixed: date -> specific_date
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
-        # Configure the mock properly
-        type(mock_slot).specific_date = PropertyMock(return_value=test_date)
+        mock_window = {
+            "start_time": "09:00:00",
+            "end_time": "10:00:00",
+        }
 
-        # Repository returns list of slots
-        service.repository.get_week_availability.return_value = [mock_slot]
+        # Repository returns week map with windows
+        service.repository.get_week_availability.return_value = {
+            test_date.isoformat(): [mock_window]
+        }
 
         # Should still work despite cache error
         result = service.get_week_availability(
@@ -270,10 +256,9 @@ class TestAvailabilityServiceErrorHandling:
     """Test error handling that should remain in service."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mocked repository."""
-        db = Mock(spec=Session)
-        service = AvailabilityService(db)
+        service = AvailabilityService(unit_db)
 
         # Mock the repository
         mock_repository = Mock(spec=AvailabilityRepository)
@@ -322,10 +307,9 @@ class TestAvailabilityServiceNoBackwardCompatibility:
     """Test that the service follows Work Stream #10 - no backward compatibility."""
 
     @pytest.fixture
-    def service(self):
+    def service(self, unit_db):
         """Create service with mocked repository."""
-        db = Mock(spec=Session)
-        service = AvailabilityService(db)
+        service = AvailabilityService(unit_db)
 
         # Mock the repository
         mock_repository = Mock(spec=AvailabilityRepository)
@@ -335,15 +319,16 @@ class TestAvailabilityServiceNoBackwardCompatibility:
 
     def test_no_is_available_in_responses(self, service):
         """Test that responses don't include the removed is_available field."""
-        # Mock repository response
+        # Mock repository response - returns bitmap windows as dict
         test_date = date.today()
-        mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.specific_date = test_date
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
-        type(mock_slot).specific_date = PropertyMock(return_value=test_date)
+        mock_window = {
+            "start_time": "09:00:00",
+            "end_time": "10:00:00",
+        }
 
-        service.repository.get_week_availability.return_value = [mock_slot]
+        service.repository.get_week_availability.return_value = {
+            test_date.isoformat(): [mock_window]
+        }
 
         result = service.get_week_availability(instructor_id=123, start_date=test_date)
 
@@ -354,14 +339,18 @@ class TestAvailabilityServiceNoBackwardCompatibility:
 
     def test_get_availability_for_date_no_is_available(self, service):
         """Test that get_availability_for_date doesn't return is_available."""
-        # Mock repository response
+        # Mock repository response - returns bitmap windows as dict
         test_date = date.today()
-        mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.specific_date = test_date
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
+        mock_window = {
+            "start_time": "09:00:00",
+            "end_time": "10:00:00",
+        }
 
-        service.repository.get_slots_by_date.return_value = [mock_slot]
+        # get_availability_for_date returns windows for the date
+        service.repository.get_day_bits = Mock(return_value=None)  # No availability
+        service.repository.get_week_availability.return_value = {
+            test_date.isoformat(): [mock_window]
+        }
 
         result = service.get_availability_for_date(instructor_id=123, target_date=test_date)
 

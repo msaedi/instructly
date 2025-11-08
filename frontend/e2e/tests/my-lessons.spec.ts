@@ -1,5 +1,6 @@
-import { test, expect, Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
 import { addDays, format } from 'date-fns';
+import { isAnon } from '../utils/projects';
 
 // Test data
 const studentCredentials = {
@@ -1091,21 +1092,28 @@ test.describe('Mobile Responsiveness', () => {
 });
 
 test.describe('Error Handling', () => {
-  test('should redirect to login when unauthorized', async ({ page }) => {
-    // Ensure no token is set
-    await page.addInitScript(() => localStorage.removeItem('access_token'));
-    await page.goto('/student/lessons');
-    // Accept either redirect to login or guarded My Lessons header
-    const redirectedToLogin = await page
-      .waitForURL(/\/login\?redirect=%2Fstudent%2Flessons$/, { timeout: 7000 })
-      .then(() => true)
-      .catch(() => page.url().includes('/login?redirect=%2Fstudent%2Flessons'));
+  test.describe('Unauthorized redirect', () => {
+    test.use({ storageState: undefined });
+    test.beforeAll(({}, workerInfo) => {
+      test.skip(!isAnon(workerInfo), `Anon-only test (current project: ${workerInfo.project.name})`);
+    });
 
-    if (redirectedToLogin) {
-      await expect(page).toHaveURL('/login?redirect=%2Fstudent%2Flessons');
-    } else {
-      await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
-    }
+    test('should redirect to login when unauthorized', async ({ page }) => {
+      // Ensure no token is set
+      await page.addInitScript(() => localStorage.removeItem('access_token'));
+      await page.goto('/student/lessons');
+      // Accept either redirect to login or guarded My Lessons header
+      const redirectedToLogin = await page
+        .waitForURL(/\/login\?redirect=%2Fstudent%2Flessons$/, { timeout: 7000 })
+        .then(() => true)
+        .catch(() => page.url().includes('/login?redirect=%2Fstudent%2Flessons'));
+
+      if (redirectedToLogin) {
+        await expect(page).toHaveURL('/login?redirect=%2Fstudent%2Flessons');
+      } else {
+        await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
+      }
+    });
   });
 
   test('should show error state when API fails', async ({ page }) => {
@@ -1114,7 +1122,11 @@ test.describe('Error Handling', () => {
       localStorage.setItem('access_token', 'mock_access_token');
     });
 
-    await page.route('**/auth/me', async (route) => {
+    const authPattern = '**/auth/me';
+    const historyPattern = '**/bookings?*exclude_future_confirmed=true*';
+    const upcomingPattern = '**/bookings/upcoming*';
+
+    const authHandler = async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -1127,24 +1139,38 @@ test.describe('Error Handling', () => {
           is_active: true,
         }),
       });
-    });
+    };
 
-    // Override the mock to return error
-    await page.route('**/bookings/*', async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'Server error' }),
-      });
-    });
+    const errorPayload = {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Server error' }),
+    };
 
-    await page.goto('/student/lessons');
-    await page.waitForLoadState('networkidle');
+    const historyHandler = async (route: Route) => {
+      await route.fulfill(errorPayload);
+    };
 
-    // Verify error state
-    await expect(page.locator('text=Failed to load lessons')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('text=There was an error loading your lessons')).toBeVisible();
-    await expect(page.locator('button:has-text("Retry")')).toBeVisible();
+    const upcomingHandler = async (route: Route) => {
+      await route.fulfill(errorPayload);
+    };
+
+    await page.route(authPattern, authHandler);
+    await page.route(historyPattern, historyHandler);
+    await page.route(upcomingPattern, upcomingHandler);
+
+    try {
+      await page.goto('/student/lessons');
+      await page.waitForLoadState('networkidle');
+
+      await expect(page.locator('text=Failed to load lessons')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('text=There was an error loading your lessons')).toBeVisible();
+      await expect(page.locator('button:has-text("Retry")')).toBeVisible();
+    } finally {
+      await page.unroute(authPattern, authHandler);
+      await page.unroute(historyPattern, historyHandler);
+      await page.unroute(upcomingPattern, upcomingHandler);
+    }
   });
 
   test('should return to My Lessons after login', async ({ page }) => {

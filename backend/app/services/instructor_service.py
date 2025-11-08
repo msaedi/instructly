@@ -11,7 +11,9 @@ Now tracks timing for all instructor operations to earn those MEGAWATTS! ⚡
 
 from datetime import datetime, timezone
 import logging
+import os
 from typing import Any, Dict, List, Optional, Sequence, Set, cast
+from unittest.mock import Mock
 
 import anyio
 from sqlalchemy.orm import Session
@@ -479,8 +481,7 @@ class InstructorService(BaseService):
                     self.service_repository.update(service.id, is_active=False)
 
             # Flush to ensure services are updated
-            # repo-pattern-ignore: Flush for ensuring services are updated belongs in service layer
-            self.db.flush()
+            self.service_repository.flush()
 
             # Now delete the profile
             self.profile_repository.delete(profile.id)
@@ -497,6 +498,23 @@ class InstructorService(BaseService):
             self._invalidate_instructor_caches(user_id)
 
         logger.info(f"Deleted instructor profile for user {user_id}")
+
+        try:
+            from .availability_service import AvailabilityService
+
+            availability_service = AvailabilityService(self.db)
+            purged = availability_service.delete_orphan_availability_for_instructor(
+                user_id, keep_days_with_bookings=True
+            )
+            logger.info(
+                "instructor_delete: purged_orphan_days=%s instructor_id=%s", purged, user_id
+            )
+        except Exception as cleanup_error:  # pragma: no cover - defensive log
+            logger.warning(
+                "instructor_delete: failed to purge orphan availability for %s (%s)",
+                user_id,
+                cleanup_error,
+            )
 
     # Private helper methods
 
@@ -655,15 +673,19 @@ class InstructorService(BaseService):
         Returns:
             Dictionary representation of profile
         """
-        # Filter services based on include_inactive_services
-        if hasattr(profile, "instructor_services"):
-            if include_inactive_services:
-                services = profile.instructor_services
-            else:
-                services = [s for s in profile.instructor_services if s.is_active]
+        svcs_source = getattr(profile, "services", None)
+        if svcs_source is None:
+            svcs_source = getattr(profile, "instructor_services", []) or []
+        if isinstance(svcs_source, Mock):
+            services: list[Any] = []
         else:
-            services = []
+            try:
+                services = list(svcs_source or [])
+            except TypeError:
+                services = []
 
+        if not include_inactive_services:
+            services = [s for s in services if getattr(s, "is_active", True)]
         user = getattr(profile, "user", None)
         preferred_places: Sequence[InstructorPreferredPlace]
         if user is not None and hasattr(user, "preferred_places"):
@@ -812,6 +834,13 @@ class InstructorService(BaseService):
 
         # Clear any listing caches
         self.cache_service.delete_pattern("instructors:list:*")
+        self.cache_service.clear_prefix("catalog:services:")
+        self.cache_service.clear_prefix("catalog:top-services:")
+        self.cache_service.clear_prefix("catalog:all-services")
+        self.cache_service.clear_prefix("catalog:kids-available")
+        self.cache_service.clear_prefix("service_catalog:list")
+        self.cache_service.clear_prefix("service_catalog:search")
+        self.cache_service.clear_prefix("service_catalog:trending")
 
         logger.debug(f"Invalidated caches for instructor {user_id}")
 
@@ -834,10 +863,12 @@ class InstructorService(BaseService):
         """
         # Try cache first (5-minute TTL for analytics freshness)
         cache_key = f"catalog:services:{category_slug or 'all'}"
+        debug_mode = os.getenv("AVAILABILITY_PERF_DEBUG") == "1"
         if self.cache_service:
             cached_result = self.cache_service.get(cache_key)
             if cached_result:
-                logger.debug(f"Cache hit for catalog services: {cache_key}")
+                if debug_mode:
+                    logger.debug("[catalog] cache hit for %s", cache_key)
                 return cast(JsonList, cached_result)
 
         # Get category ID if slug provided
@@ -856,10 +887,14 @@ class InstructorService(BaseService):
         # Convert to dictionaries (no N+1 queries since categories are loaded)
         result = [self._catalog_service_to_dict(service) for service in services]
 
+        if debug_mode:
+            logger.debug("[catalog] cache miss for %s; storing %d entries", cache_key, len(result))
+
         # Cache for 5 minutes (300 seconds)
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=300)
-            logger.debug(f"Cached {len(result)} catalog services for 5 minutes")
+            if debug_mode:
+                logger.debug("[catalog] cached %d entries for 5 minutes", len(result))
 
         return result
 

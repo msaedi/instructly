@@ -16,6 +16,11 @@ from app.models.user import User
 from app.services.booking_service import BookingService
 
 
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
+    yield
+
+
 def _bootstrap_instructor_and_service(db: Session) -> tuple[User, InstructorProfile, InstructorService]:
     instructor = User(
         id=str(ulid.ULID()),

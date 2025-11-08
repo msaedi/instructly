@@ -13,7 +13,8 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import LargeBinary
+from sqlalchemy.dialects.postgresql import BYTEA, JSONB
 
 
 def _get_public_tables(exclude: list[str]) -> list[str]:
@@ -174,6 +175,135 @@ def upgrade() -> None:
     op.create_index("ix_alert_history_created_at", "alert_history", ["created_at"])
     op.create_index("ix_alert_history_alert_type", "alert_history", ["alert_type"])
     op.create_index("ix_alert_history_severity", "alert_history", ["severity"])
+
+    print("Creating notification outbox tables...")
+    event_outbox_payload_default = sa.text("'{}'::jsonb") if is_postgres else sa.text("'{}'")
+    notification_payload_default = sa.text("'{}'::jsonb") if is_postgres else sa.text("'{}'")
+
+    op.create_table(
+        "event_outbox",
+        sa.Column("id", sa.String(length=26), primary_key=True, nullable=False),
+        sa.Column("event_type", sa.String(length=100), nullable=False),
+        sa.Column("aggregate_id", sa.String(length=64), nullable=False),
+        sa.Column("idempotency_key", sa.String(length=255), nullable=False),
+        sa.Column("payload", json_type, nullable=False, server_default=event_outbox_payload_default),
+        sa.Column("status", sa.String(length=20), nullable=False, server_default=sa.text("'PENDING'")),
+        sa.Column("attempt_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column(
+            "next_attempt_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("last_error", sa.Text(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
+        sa.UniqueConstraint("idempotency_key", name="uq_event_outbox_idempotency_key"),
+    )
+    op.create_index("ix_event_outbox_event_type", "event_outbox", ["event_type"])
+    op.create_index("ix_event_outbox_status_next_attempt", "event_outbox", ["status", "next_attempt_at"])
+
+    op.create_table(
+        "notification_delivery",
+        sa.Column("id", sa.String(length=26), primary_key=True, nullable=False),
+        sa.Column("idempotency_key", sa.String(length=255), nullable=False),
+        sa.Column("event_type", sa.String(length=100), nullable=False),
+        sa.Column("payload", json_type, nullable=False, server_default=notification_payload_default),
+        sa.Column("attempt_count", sa.Integer(), nullable=False, server_default="1"),
+        sa.Column(
+            "delivered_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
+        sa.UniqueConstraint("idempotency_key", name="uq_notification_delivery_idempotency"),
+    )
+    op.create_index(
+        "ix_notification_delivery_event_type_delivered_at",
+        "notification_delivery",
+        ["event_type", "delivered_at"],
+    )
+
+    print("Creating availability_days table...")
+    bits_type = BYTEA if is_postgres else LargeBinary  # 6 bytes (48 half-hours)
+    op.create_table(
+        "availability_days",
+        sa.Column("instructor_id", sa.String(length=26), nullable=False),
+        sa.Column("day_date", sa.Date(), nullable=False),
+        sa.Column("bits", bits_type, nullable=False),  # expect len=6 (30-min res)
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.PrimaryKeyConstraint("instructor_id", "day_date"),
+    )
+    op.create_index(
+        "ix_avail_days_instructor_date",
+        "availability_days",
+        ["instructor_id", "day_date"],
+    )
+
+    print("Creating audit_log table...")
+    op.create_table(
+        "audit_log",
+        sa.Column("id", sa.String(length=26), primary_key=True, nullable=False),
+        sa.Column("entity_type", sa.String(length=50), nullable=False),
+        sa.Column("entity_id", sa.String(length=64), nullable=False),
+        sa.Column("action", sa.String(length=30), nullable=False),
+        sa.Column("actor_id", sa.String(length=26), nullable=True),
+        sa.Column("actor_role", sa.String(length=30), nullable=True),
+        sa.Column(
+            "occurred_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("before", json_type, nullable=True),
+        sa.Column("after", json_type, nullable=True),
+    )
+
+    if is_postgres:
+        op.execute(
+            "CREATE INDEX ix_audit_log_entity ON audit_log (entity_type, entity_id, occurred_at DESC);"
+        )
+        op.execute(
+            "CREATE INDEX ix_audit_log_actor ON audit_log (actor_id, occurred_at DESC);"
+        )
+        op.execute(
+            "CREATE INDEX ix_audit_log_action ON audit_log (action, occurred_at DESC);"
+        )
+    else:
+        op.create_index(
+            "ix_audit_log_entity",
+            "audit_log",
+            ["entity_type", "entity_id", "occurred_at"],
+        )
+        op.create_index(
+            "ix_audit_log_actor",
+            "audit_log",
+            ["actor_id", "occurred_at"],
+        )
+        op.create_index(
+            "ix_audit_log_action",
+            "audit_log",
+            ["action", "occurred_at"],
+        )
 
     # Background check guard rails on instructor profiles
     print("Adding background check fields to instructor_profiles...")
@@ -821,7 +951,10 @@ def upgrade() -> None:
     op.create_check_constraint(
         "check_time_order",
         "bookings",
-        "start_time < end_time",
+        "CASE "
+        "WHEN end_time = TIME '00:00:00' AND start_time <> TIME '00:00:00' THEN TRUE "
+        "ELSE start_time < end_time "
+        "END",
     )
 
     # Add check constraint for message content length
@@ -901,6 +1034,32 @@ def downgrade() -> None:
 
     print("Dropping platform_config table...")
     op.drop_table("platform_config")
+
+    print("Dropping availability_days table...")
+    op.drop_index("ix_avail_days_instructor_date", table_name="availability_days")
+    op.drop_table("availability_days")
+
+    print("Dropping audit_log table...")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS ix_audit_log_entity;")
+        op.execute("DROP INDEX IF EXISTS ix_audit_log_actor;")
+        op.execute("DROP INDEX IF EXISTS ix_audit_log_action;")
+        op.execute("DROP TABLE IF EXISTS audit_log;")
+    else:
+        op.drop_index("ix_audit_log_action", table_name="audit_log")
+        op.drop_index("ix_audit_log_actor", table_name="audit_log")
+        op.drop_index("ix_audit_log_entity", table_name="audit_log")
+        op.drop_table("audit_log")
+
+    print("Dropping notification outbox tables...")
+    op.drop_index(
+        "ix_notification_delivery_event_type_delivered_at",
+        table_name="notification_delivery",
+    )
+    op.drop_table("notification_delivery")
+    op.drop_index("ix_event_outbox_status_next_attempt", table_name="event_outbox")
+    op.drop_index("ix_event_outbox_event_type", table_name="event_outbox")
+    op.drop_table("event_outbox")
 
     print("Dropping instructor_preferred_places table...")
     if is_postgres:

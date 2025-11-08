@@ -12,30 +12,37 @@ Handles all booking-related business logic including:
 UPDATED IN v65: Added performance metrics and refactored long methods.
 All methods now under 50 lines with comprehensive observability! ⚡
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 import logging
+import os
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+from zoneinfo import ZoneInfo
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import stripe
 
 from ..core.bgc_policy import is_verified, must_be_verified_for_public
 from ..core.enums import RoleName
 from ..core.exceptions import (
+    BookingConflictException,
     BusinessRuleException,
-    ConflictException,
     NotFoundException,
     ValidationException,
 )
+from ..models.audit_log import AuditLog
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService
 from ..models.user import User
+from ..repositories.availability_day_repository import AvailabilityDayRepository
 from ..repositories.factory import RepositoryFactory
 from ..schemas.booking import BookingCreate, BookingUpdate
+from .audit_redaction import redact
 from .base import BaseService
 from .config_service import ConfigService
 from .notification_service import NotificationService
@@ -43,13 +50,21 @@ from .pricing_service import PricingService
 from .student_credit_service import StudentCreditService
 
 if TYPE_CHECKING:
-    from ..models.availability_slot import AvailabilitySlot
+    # AvailabilitySlot removed - bitmap-only storage now
+    from ..repositories.audit_repository import AuditRepository
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.booking_repository import BookingRepository
     from ..repositories.conflict_checker_repository import ConflictCheckerRepository
+    from ..repositories.event_outbox_repository import EventOutboxRepository
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
+
+AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
+
+INSTRUCTOR_CONFLICT_MESSAGE = "Instructor already has a booking that overlaps this time"
+STUDENT_CONFLICT_MESSAGE = "Student already has a booking that overlaps this time"
+GENERIC_CONFLICT_MESSAGE = "This time slot conflicts with an existing booking"
 
 
 class BookingService(BaseService):
@@ -66,6 +81,8 @@ class BookingService(BaseService):
     conflict_checker_repository: "ConflictCheckerRepository"
     cache_service: Optional["CacheService"]
     notification_service: NotificationService
+    event_outbox_repository: "EventOutboxRepository"
+    audit_repository: "AuditRepository"
 
     def __init__(
         self,
@@ -102,6 +119,286 @@ class BookingService(BaseService):
         self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
             db
         )
+        self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
+        self.audit_repository = RepositoryFactory.create_audit_repository(db)
+
+    def _booking_event_identity(self, booking: Booking, event_type: str) -> tuple[str, str]:
+        """Return idempotency key and version for a booking domain event."""
+        timestamp: datetime | None = None
+        if event_type == "booking.cancelled" and booking.cancelled_at:
+            timestamp = booking.cancelled_at
+        elif event_type == "booking.completed" and booking.completed_at:
+            timestamp = booking.completed_at
+        elif booking.updated_at:
+            timestamp = booking.updated_at
+        else:
+            timestamp = booking.created_at or datetime.now(timezone.utc)
+
+        assert timestamp is not None, "timestamp should always be computed for booking event"
+        ts = timestamp.astimezone(timezone.utc)
+        version = ts.isoformat()
+        key = f"booking:{booking.id}:{event_type}:{version}"
+        return key, version
+
+    def _serialize_booking_event_payload(
+        self, booking: Booking, event_type: str, version: str
+    ) -> dict[str, Any]:
+        """Build JSON-safe payload for outbox events."""
+        return {
+            "booking_id": booking.id,
+            "event_type": event_type,
+            "version": version,
+            "status": booking.status.value
+            if isinstance(booking.status, BookingStatus)
+            else str(booking.status),
+            "student_id": booking.student_id,
+            "instructor_id": booking.instructor_id,
+            "booking_date": booking.booking_date.isoformat() if booking.booking_date else None,
+            "start_time": booking.start_time.isoformat() if booking.start_time else None,
+            "end_time": booking.end_time.isoformat() if booking.end_time else None,
+            "total_price": str(booking.total_price),
+            "created_at": booking.created_at.isoformat() if booking.created_at else None,
+            "updated_at": booking.updated_at.isoformat() if booking.updated_at else None,
+            "cancelled_at": booking.cancelled_at.isoformat() if booking.cancelled_at else None,
+            "completed_at": booking.completed_at.isoformat() if booking.completed_at else None,
+        }
+
+    def _enqueue_booking_outbox_event(self, booking: Booking, event_type: str) -> None:
+        """Persist an outbox entry for the given booking event inside the current transaction."""
+        self.repository.flush()  # Ensure timestamps are populated before computing identity
+        idempotency_key, version = self._booking_event_identity(booking, event_type)
+        payload = self._serialize_booking_event_payload(booking, event_type, version)
+        self.event_outbox_repository.enqueue(
+            event_type=event_type,
+            aggregate_id=booking.id,
+            payload=payload,
+            idempotency_key=idempotency_key,
+        )
+
+    @staticmethod
+    def _time_to_minutes(value: time) -> int:
+        """Return minutes since midnight for a time value."""
+        return value.hour * 60 + value.minute
+
+    @staticmethod
+    def _minutes_to_time(value: int) -> time:
+        """Convert minutes since midnight to a time (wrap 24:00 as 00:00)."""
+        if value >= 24 * 60:
+            return time(0, 0)
+        return time(value // 60, value % 60)
+
+    @staticmethod
+    def _bitmap_str_to_minutes(value: str) -> int:
+        """Convert bitmap strings (e.g., '24:00:00') into minute offsets."""
+        parts = value.split(":")
+        hour = int(parts[0]) if parts and parts[0] else 0
+        minute = int(parts[1]) if len(parts) > 1 and parts[1] else 0
+        if hour >= 24:
+            return 24 * 60
+        return hour * 60 + minute
+
+    @staticmethod
+    def _booking_window_to_minutes(booking: Booking) -> tuple[int, int]:
+        """Convert a booking's start/end times into minute offsets."""
+        if not booking.start_time or not booking.end_time:
+            return 0, 0
+        start = BookingService._time_to_minutes(booking.start_time)
+        end = BookingService._time_to_minutes(booking.end_time)
+        if end <= start:
+            end = 24 * 60
+        return start, end
+
+    def _resolve_actor_payload(
+        self, actor: Any | None, default_role: str = "system"
+    ) -> dict[str, Any]:
+        """Extract actor metadata (id/role) from user-like objects."""
+        if actor is None:
+            return {"role": default_role}
+
+        if isinstance(actor, dict):
+            actor_id = actor.get("id") or actor.get("actor_id") or actor.get("user_id")
+            raw_role = actor.get("role") or actor.get("actor_role") or actor.get("role_name")
+            resolved_role = str(raw_role) if raw_role is not None else default_role
+            return {"id": actor_id, "role": resolved_role}
+
+        actor_id = getattr(actor, "id", None)
+        role_value: Any = getattr(actor, "role", None) or getattr(actor, "role_name", None)
+
+        if role_value is None:
+            roles = getattr(actor, "roles", None)
+            if isinstance(roles, (list, tuple)):
+                for role_obj in roles:
+                    candidate = getattr(role_obj, "name", None)
+                    if candidate:
+                        role_value = candidate
+                        break
+        if role_value is None:
+            role_value = default_role
+
+        return {"id": actor_id, "role": str(role_value)}
+
+    def _snapshot_booking(self, booking: Booking) -> dict[str, Any]:
+        """Return a redacted snapshot of a booking suitable for audit logging."""
+        data = booking.to_dict()
+        status_value = data.get("status")
+        if isinstance(status_value, BookingStatus):
+            data["status"] = status_value.value
+        return redact(data) or {}
+
+    def _write_booking_audit(
+        self,
+        booking: Booking,
+        action: str,
+        *,
+        actor: Any | None,
+        before: dict[str, Any] | None,
+        after: dict[str, Any] | None,
+        default_role: str = "system",
+    ) -> None:
+        """Persist an audit row capturing the change."""
+        actor_payload = self._resolve_actor_payload(actor, default_role=default_role)
+        audit_entry = AuditLog.from_change(
+            entity_type="booking",
+            entity_id=booking.id,
+            action=action,
+            actor=actor_payload,
+            before=before,
+            after=after,
+        )
+        if AUDIT_ENABLED:
+            self.audit_repository.write(audit_entry)
+
+    def _calculate_and_validate_end_time(
+        self,
+        booking_date: date,
+        start_time: time,
+        selected_duration: int,
+    ) -> time:
+        """
+        Calculate the booking end time and enforce the half-open [start, end) rule.
+
+        Allows bookings that end exactly at midnight (treated as 24:00) but rejects
+        any ranges that otherwise wrap past the booking date.
+        """
+        start_datetime = datetime.combine(booking_date, start_time)
+        end_datetime = start_datetime + timedelta(minutes=selected_duration)
+        end_time = end_datetime.time()
+        midnight = time(0, 0)
+
+        if end_datetime.date() == booking_date:
+            if end_time <= start_time:
+                raise ValidationException("Booking end time must be after the start time")
+            return end_time
+
+        next_day = booking_date + timedelta(days=1)
+        if end_datetime.date() == next_day and end_time == midnight and start_time != midnight:
+            return end_time
+
+        raise ValidationException("Bookings must start and end on the same calendar day")
+
+    @staticmethod
+    def _half_hour_index(hh: int, mm: int) -> int:
+        """Map HH:MM to the half-hour slot index used by bitmap availability."""
+        return hh * 2 + (1 if mm >= 30 else 0)
+
+    @staticmethod
+    def _local_date(dt: datetime, tz: ZoneInfo) -> date:
+        """Convert a timezone-aware datetime into the provided timezone and return its date."""
+        return dt.astimezone(tz).date()
+
+    def _resolve_local_booking_day(
+        self,
+        booking_data: BookingCreate,
+        instructor_profile: InstructorProfile,
+    ) -> date:
+        local_day: date = booking_data.booking_date
+        instructor_user = getattr(instructor_profile, "user", None)
+        timezone_name = getattr(instructor_user, "timezone", None)
+        if timezone_name and booking_data.start_time:
+            try:
+                start_dt_utc = datetime.combine(
+                    booking_data.booking_date,
+                    booking_data.start_time,
+                    tzinfo=timezone.utc,
+                )
+                instructor_zone = ZoneInfo(timezone_name)
+                local_day = self._local_date(start_dt_utc, instructor_zone)
+            except Exception:
+                # Fall back to the provided booking_date if timezone conversion fails
+                local_day = booking_data.booking_date
+        return local_day
+
+    def _validate_against_availability_bits(
+        self,
+        booking_data: BookingCreate,
+        instructor_profile: InstructorProfile,
+    ) -> None:
+        start_time_value = booking_data.start_time
+        end_time_value = booking_data.end_time
+        if start_time_value is None or end_time_value is None:
+            raise ValidationException(
+                "Start and end time must be specified for availability checks"
+            )
+
+        start_index = self._half_hour_index(start_time_value.hour, start_time_value.minute)
+        midnight = time(0, 0)
+        if end_time_value == midnight and start_time_value != midnight:
+            end_index = 48
+        else:
+            end_index = self._half_hour_index(end_time_value.hour, end_time_value.minute)
+
+        if not (0 <= start_index < 48) or not (0 < end_index <= 48) or start_index >= end_index:
+            raise BusinessRuleException("Requested time is not available")
+
+        local_day = self._resolve_local_booking_day(booking_data, instructor_profile)
+        repo = AvailabilityDayRepository(self.db)
+        bits = repo.get_day_bits(booking_data.instructor_id, local_day) or b""
+
+        for idx in range(start_index, end_index):
+            byte_i = idx // 8
+            bit_mask = 1 << (idx % 8)
+            if byte_i >= len(bits) or (bits[byte_i] & bit_mask) == 0:
+                raise BusinessRuleException("Requested time is not available")
+
+    def _build_conflict_details(
+        self, booking_data: BookingCreate, student_id: Optional[str]
+    ) -> dict[str, str]:
+        """Construct structured conflict metadata for error responses."""
+        end_time_value = booking_data.end_time
+        return {
+            "instructor_id": booking_data.instructor_id,
+            "student_id": student_id or "",
+            "booking_date": booking_data.booking_date.isoformat(),
+            "start_time": booking_data.start_time.isoformat(),
+            "end_time": end_time_value.isoformat() if end_time_value else "",
+        }
+
+    def _resolve_integrity_conflict_message(
+        self, integrity_error: IntegrityError
+    ) -> Tuple[str, Optional[str]]:
+        """
+        Determine the appropriate conflict message and scope from a database IntegrityError.
+        """
+        constraint_name: str = ""
+        orig = getattr(integrity_error, "orig", None)
+        diag = getattr(orig, "diag", None)
+
+        if diag is not None:
+            constraint_name = getattr(diag, "constraint_name", "") or ""
+
+        if not constraint_name and orig is not None:
+            text = str(orig)
+            if "bookings_no_overlap_per_instructor" in text:
+                constraint_name = "bookings_no_overlap_per_instructor"
+            elif "bookings_no_overlap_per_student" in text:
+                constraint_name = "bookings_no_overlap_per_student"
+
+        if constraint_name == "bookings_no_overlap_per_instructor":
+            return INSTRUCTOR_CONFLICT_MESSAGE, "instructor"
+        if constraint_name == "bookings_no_overlap_per_student":
+            return STUDENT_CONFLICT_MESSAGE, "student"
+
+        return GENERIC_CONFLICT_MESSAGE, None
 
     @BaseService.measure_operation("create_booking")
     async def create_booking(
@@ -146,23 +443,47 @@ class BookingService(BaseService):
             )
 
         # 3. Calculate end time for conflict checking
-        start_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
-        end_datetime = start_datetime + timedelta(minutes=selected_duration)
-        calculated_end_time = end_datetime.time()
-
-        # Update booking_data end_time for conflict checking
+        calculated_end_time = self._calculate_and_validate_end_time(
+            booking_data.booking_date,
+            booking_data.start_time,
+            selected_duration,
+        )
         booking_data.end_time = calculated_end_time
 
-        # 4. Check conflicts and apply business rules
+        # 4. Ensure requested interval fits published availability (bitmap V2)
+        self._validate_against_availability_bits(booking_data, instructor_profile)
+
+        # 5. Check conflicts and apply business rules
         await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
-        # 5. Create the booking with transaction
-        with self.transaction():
-            booking = await self._create_booking_record(
-                student, booking_data, service, instructor_profile, selected_duration
-            )
+        # 6. Create the booking with transaction
+        transactional_repo = cast(Any, self.repository)
+        try:
+            with transactional_repo.transaction():
+                booking = await self._create_booking_record(
+                    student, booking_data, service, instructor_profile, selected_duration
+                )
+                self._enqueue_booking_outbox_event(booking, "booking.created")
+                audit_after = self._snapshot_booking(booking)
+                self._write_booking_audit(
+                    booking,
+                    "create",
+                    actor=student,
+                    before=None,
+                    after=audit_after,
+                    default_role=RoleName.STUDENT.value,
+                )
+        except IntegrityError as exc:
+            message, scope = self._resolve_integrity_conflict_message(exc)
+            conflict_details = self._build_conflict_details(booking_data, student.id)
+            if scope:
+                conflict_details["conflict_scope"] = scope
+            raise BookingConflictException(
+                message=message,
+                details=conflict_details,
+            ) from exc
 
-        # 6. Handle post-creation tasks
+        # 7. Handle post-creation tasks
         await self._handle_post_booking_tasks(booking)
 
         return booking
@@ -212,95 +533,120 @@ class BookingService(BaseService):
             )
 
         # 3. Calculate end time
-        start_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
-        end_datetime = start_datetime + timedelta(minutes=selected_duration)
-        calculated_end_time = end_datetime.time()
+        calculated_end_time = self._calculate_and_validate_end_time(
+            booking_data.booking_date,
+            booking_data.start_time,
+            selected_duration,
+        )
         booking_data.end_time = calculated_end_time
 
-        # 4. Check conflicts and apply business rules
+        # 4. Ensure requested interval fits published availability (bitmap V2)
+        self._validate_against_availability_bits(booking_data, instructor_profile)
+
+        # 5. Check conflicts and apply business rules
         await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
-        # 5. Create booking with PENDING status initially
-        with self.transaction():
-            booking = await self._create_booking_record(
-                student, booking_data, service, instructor_profile, selected_duration
-            )
+        # 6. Create booking with PENDING status initially
+        transactional_repo = cast(Any, self.repository)
+        try:
+            with transactional_repo.transaction():
+                booking = await self._create_booking_record(
+                    student, booking_data, service, instructor_profile, selected_duration
+                )
 
-            # If this booking was created via reschedule, persist linkage for analytics
-            if rescheduled_from_booking_id:
+                # If this booking was created via reschedule, persist linkage for analytics
+                if rescheduled_from_booking_id:
+                    try:
+                        updated_booking = self.repository.update(
+                            booking.id, rescheduled_from_booking_id=rescheduled_from_booking_id
+                        )
+                        if updated_booking is not None:
+                            booking = updated_booking
+                    except Exception:
+                        # Non-fatal; linkage is analytics-only
+                        pass
+
+                # Override status to PENDING until payment confirmed
+                booking.status = BookingStatus.PENDING
+                booking.payment_status = "pending_payment_method"
+                self._enqueue_booking_outbox_event(booking, "booking.created")
+
+                # 7. Create Stripe SetupIntent (with safe fallback for CI/mock environments)
+                stripe_service = StripeService(
+                    self.db,
+                    config_service=ConfigService(self.db),
+                    pricing_service=PricingService(self.db),
+                )
+
+                # Ensure customer exists (uses mock customer in non-configured environments)
+                stripe_customer = stripe_service.get_or_create_customer(student.id)
+
+                setup_intent: Any = None
                 try:
-                    # Use repository to persist linkage (repository handles flush within transaction)
-                    updated_booking = self.repository.update(
-                        booking.id, rescheduled_from_booking_id=rescheduled_from_booking_id
+                    # Attempt real Stripe call; tests patch this in CI
+                    setup_intent = stripe.SetupIntent.create(
+                        customer=stripe_customer.stripe_customer_id,
+                        payment_method_types=["card"],
+                        usage="off_session",  # Will be used for future off-session payments
+                        metadata={
+                            "booking_id": booking.id,
+                            "student_id": student.id,
+                            "instructor_id": booking_data.instructor_id,
+                            "amount_cents": int(booking.total_price * 100),
+                        },
                     )
-                    if updated_booking is not None:
-                        booking = updated_booking
-                except Exception:
-                    # Non-fatal; linkage is analytics-only
-                    pass
+                except Exception as e:
+                    # Any Stripe error – fall back to mock (non-network CI path)
+                    logger.warning(
+                        f"SetupIntent creation failed for booking {booking.id}: {e}. Falling back to mock.",
+                    )
+                    setup_intent = SimpleNamespace(
+                        id=f"seti_mock_{booking.id}",
+                        client_secret=f"seti_mock_secret_{booking.id}",
+                        status="requires_payment_method",
+                    )
 
-            # Override status to PENDING until payment confirmed
-            booking.status = BookingStatus.PENDING
-            booking.payment_status = "pending_payment_method"
+                # Store setup intent details
+                assert setup_intent is not None
+                booking.payment_intent_id = setup_intent.id
+                setattr(
+                    booking,
+                    "setup_intent_client_secret",
+                    getattr(setup_intent, "client_secret", None),
+                )
 
-            # 6. Create Stripe SetupIntent (with safe fallback for CI/mock environments)
-            stripe_service = StripeService(
-                self.db,
-                config_service=ConfigService(self.db),
-                pricing_service=PricingService(self.db),
-            )
+                # Create payment event using repository
+                from ..repositories.payment_repository import PaymentRepository
 
-            # Ensure customer exists (uses mock customer in non-configured environments)
-            stripe_customer = stripe_service.get_or_create_customer(student.id)
-
-            setup_intent: Any = None
-            try:
-                # Attempt real Stripe call; tests patch this in CI
-                setup_intent = stripe.SetupIntent.create(
-                    customer=stripe_customer.stripe_customer_id,
-                    payment_method_types=["card"],
-                    usage="off_session",  # Will be used for future off-session payments
-                    metadata={
-                        "booking_id": booking.id,
-                        "student_id": student.id,
-                        "instructor_id": booking_data.instructor_id,
-                        "amount_cents": int(booking.total_price * 100),
+                payment_repo = PaymentRepository(self.db)
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="setup_intent_created",
+                    event_data={
+                        "setup_intent_id": setup_intent.id,
+                        "status": setup_intent.status,
                     },
                 )
-            except Exception as e:
-                # Any Stripe error – fall back to mock (non-network CI path)
-                logger.warning(
-                    f"SetupIntent creation failed for booking {booking.id}: {e}. Falling back to mock.",
+
+                # Transaction handles flush/commit automatically
+                audit_after = self._snapshot_booking(booking)
+                self._write_booking_audit(
+                    booking,
+                    "create",
+                    actor=student,
+                    before=None,
+                    after=audit_after,
+                    default_role=RoleName.STUDENT.value,
                 )
-                setup_intent = SimpleNamespace(
-                    id=f"seti_mock_{booking.id}",
-                    client_secret=f"seti_mock_secret_{booking.id}",
-                    status="requires_payment_method",
-                )
-
-            # Store setup intent details
-            assert setup_intent is not None
-            booking.payment_intent_id = setup_intent.id
-            setattr(
-                booking,
-                "setup_intent_client_secret",
-                getattr(setup_intent, "client_secret", None),
-            )
-
-            # Create payment event using repository
-            from ..repositories.payment_repository import PaymentRepository
-
-            payment_repo = PaymentRepository(self.db)
-            payment_repo.create_payment_event(
-                booking_id=booking.id,
-                event_type="setup_intent_created",
-                event_data={
-                    "setup_intent_id": setup_intent.id,
-                    "status": setup_intent.status,
-                },
-            )
-
-            # Transaction handles flush/commit automatically
+        except IntegrityError as exc:
+            message, scope = self._resolve_integrity_conflict_message(exc)
+            conflict_details = self._build_conflict_details(booking_data, student.id)
+            if scope:
+                conflict_details["conflict_scope"] = scope
+            raise BookingConflictException(
+                message=message,
+                details=conflict_details,
+            ) from exc
 
         self.log_operation("create_booking_with_payment_setup_completed", booking_id=booking.id)
         return booking
@@ -455,7 +801,7 @@ class BookingService(BaseService):
             latest_time = time(21, 0)
 
         # Get availability data
-        availability_slots = await self._get_instructor_availability_windows(
+        availability_windows = await self._get_instructor_availability_windows(
             instructor_id, target_date, earliest_time, latest_time
         )
 
@@ -465,7 +811,7 @@ class BookingService(BaseService):
 
         # Find opportunities
         opportunities = self._calculate_booking_opportunities(
-            availability_slots,
+            availability_windows,
             existing_bookings,
             target_duration_minutes,
             earliest_time,
@@ -505,6 +851,13 @@ class BookingService(BaseService):
             # Validate user can cancel
             if user.id not in [booking.student_id, booking.instructor_id]:
                 raise ValidationException("You don't have permission to cancel this booking")
+
+            audit_before = self._snapshot_booking(booking)
+            default_role = (
+                RoleName.STUDENT.value
+                if user.id == booking.student_id
+                else RoleName.INSTRUCTOR.value
+            )
 
             # Check if cancellable
             if not booking.is_cancellable:
@@ -632,6 +985,16 @@ class BookingService(BaseService):
 
             # Cancel the booking
             booking.cancel(user.id, reason)
+            self._enqueue_booking_outbox_event(booking, "booking.cancelled")
+            audit_after = self._snapshot_booking(booking)
+            self._write_booking_audit(
+                booking,
+                "cancel",
+                actor=user,
+                before=audit_before,
+                after=audit_after,
+                default_role=default_role,
+            )
 
         # Send notifications
         try:
@@ -816,6 +1179,8 @@ class BookingService(BaseService):
             if user.id != booking.instructor_id:
                 raise ValidationException("Only the instructor can update booking details")
 
+            audit_before = self._snapshot_booking(booking)
+
             # Update allowed fields using repository
             update_dict = {}
             if update_data.instructor_note is not None:
@@ -832,6 +1197,15 @@ class BookingService(BaseService):
             refreshed_booking = self.repository.get_booking_with_details(booking_id)
             if not refreshed_booking:
                 raise NotFoundException("Booking not found")
+            audit_after = self._snapshot_booking(refreshed_booking)
+            self._write_booking_audit(
+                refreshed_booking,
+                "update",
+                actor=user,
+                before=audit_before,
+                after=audit_after,
+                default_role=RoleName.INSTRUCTOR.value,
+            )
             booking = refreshed_booking
 
         # Cache invalidation outside transaction
@@ -878,11 +1252,23 @@ class BookingService(BaseService):
                     f"Only confirmed bookings can be completed - current status: {booking.status}"
                 )
 
+            audit_before = self._snapshot_booking(booking)
+
             # Mark as complete using repository method
             completed_booking = self.repository.complete_booking(booking_id)
             if completed_booking is None:
                 raise NotFoundException("Booking not found")
             booking = completed_booking
+            self._enqueue_booking_outbox_event(booking, "booking.completed")
+            audit_after = self._snapshot_booking(booking)
+            self._write_booking_audit(
+                booking,
+                "complete",
+                actor=instructor,
+                before=audit_before,
+                after=audit_after,
+                default_role=RoleName.INSTRUCTOR.value,
+            )
 
         # External operations outside transaction
         # Reload booking with details for cache invalidation
@@ -1139,7 +1525,14 @@ class BookingService(BaseService):
         )
 
         if existing_conflicts:
-            raise ConflictException("This time slot conflicts with an existing booking")
+            conflict_details = self._build_conflict_details(
+                booking_data, getattr(student, "id", None)
+            )
+            conflict_details["conflict_scope"] = "instructor"
+            raise BookingConflictException(
+                message=INSTRUCTOR_CONFLICT_MESSAGE,
+                details=conflict_details,
+            )
 
         # Check for student time conflicts
         if student:
@@ -1152,7 +1545,12 @@ class BookingService(BaseService):
             )
 
             if student_conflicts:
-                raise ConflictException("You already have a booking scheduled at this time")
+                conflict_details = self._build_conflict_details(booking_data, student.id)
+                conflict_details["conflict_scope"] = "student"
+                raise BookingConflictException(
+                    message=STUDENT_CONFLICT_MESSAGE,
+                    details=conflict_details,
+                )
 
         # Check minimum advance booking time
         # For instructors with >=24 hour min advance, enforce on date granularity to avoid HH:MM boundary flakiness
@@ -1196,10 +1594,9 @@ class BookingService(BaseService):
         Returns:
             Created booking instance
         """
-        # Calculate end time based on selected duration
-        start_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
-        end_datetime = start_datetime + timedelta(minutes=selected_duration)
-        calculated_end_time = end_datetime.time()
+        if booking_data.end_time is None:
+            raise ValidationException("End time must be calculated before creating a booking")
+        end_time_value = booking_data.end_time
 
         # Calculate pricing based on selected duration
         total_price = service.session_price(selected_duration)
@@ -1214,7 +1611,7 @@ class BookingService(BaseService):
             instructor_service_id=service.id,
             booking_date=booking_data.booking_date,
             start_time=booking_data.start_time,
-            end_time=calculated_end_time,
+            end_time=end_time_value,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=total_price,
@@ -1284,9 +1681,9 @@ class BookingService(BaseService):
         target_date: date,
         earliest_time: time,
         latest_time: time,
-    ) -> List["AvailabilitySlot"]:
+    ) -> List[dict[str, Any]]:
         """
-        Get instructor's availability slots for the date.
+        Get instructor's availability windows for the date (bitmap storage).
 
         Args:
             instructor_id: The instructor ID
@@ -1295,18 +1692,40 @@ class BookingService(BaseService):
             latest_time: Latest time boundary
 
         Returns:
-            List of availability slots
+            List of availability windows as dicts
         """
-        availability_slots: List[
-            "AvailabilitySlot"
-        ] = self.availability_repository.get_slots_by_date(instructor_id, target_date)
+        # Use bitmap storage to get windows
+        from ..repositories.availability_day_repository import AvailabilityDayRepository
+        from ..utils.bitset import windows_from_bits
 
-        # Filter slots within time range
-        return [
-            slot
-            for slot in availability_slots
-            if not (slot.end_time <= earliest_time or slot.start_time >= latest_time)
-        ]
+        repo = AvailabilityDayRepository(self.db)
+        bits = repo.get_day_bits(instructor_id, target_date)
+        if not bits:
+            return []
+
+        windows_str: list[tuple[str, str]] = windows_from_bits(bits)
+        earliest_minutes = self._time_to_minutes(earliest_time)
+        latest_minutes = self._time_to_minutes(latest_time)
+        if latest_minutes <= earliest_minutes and latest_time == time(0, 0):
+            latest_minutes = 24 * 60
+        if latest_minutes <= earliest_minutes and latest_time == time(0, 0):
+            latest_minutes = 24 * 60
+        result: list[dict[str, Any]] = []
+        for start_str, end_str in windows_str:
+            start_minutes = self._bitmap_str_to_minutes(start_str)
+            end_minutes = self._bitmap_str_to_minutes(end_str)
+            if end_minutes <= earliest_minutes or start_minutes >= latest_minutes:
+                continue
+            result.append(
+                {
+                    "start_time": self._minutes_to_time(start_minutes),
+                    "end_time": self._minutes_to_time(end_minutes),
+                    "specific_date": target_date,
+                    "_start_minutes": start_minutes,
+                    "_end_minutes": end_minutes,
+                }
+            )
+        return result
 
     async def _get_existing_bookings_for_date(
         self,
@@ -1337,7 +1756,7 @@ class BookingService(BaseService):
 
     def _calculate_booking_opportunities(
         self,
-        availability_slots: List["AvailabilitySlot"],
+        availability_windows: List[dict[str, Any]],  # Bitmap windows as dicts
         existing_bookings: List[Booking],
         target_duration_minutes: int,
         earliest_time: time,
@@ -1346,10 +1765,10 @@ class BookingService(BaseService):
         target_date: date,
     ) -> List[Dict[str, Any]]:
         """
-        Calculate available booking opportunities from slots and bookings.
+        Calculate available booking opportunities from windows and bookings.
 
         Args:
-            availability_slots: Available time slots
+            availability_windows: Available time windows (as dicts)
             existing_bookings: Existing bookings
             target_duration_minutes: Desired duration
             earliest_time: Earliest boundary
@@ -1361,11 +1780,16 @@ class BookingService(BaseService):
             List of booking opportunities
         """
         opportunities: List[Dict[str, Any]] = []
+        earliest_minutes = self._time_to_minutes(earliest_time)
+        latest_minutes = self._time_to_minutes(latest_time)
+        if latest_minutes <= earliest_minutes and latest_time == time(0, 0):
+            latest_minutes = 24 * 60
 
-        for slot in availability_slots:
-            # Adjust slot boundaries to requested time range
-            slot_start = max(slot.start_time, earliest_time)
-            slot_end = min(slot.end_time, latest_time)
+        for window in availability_windows:
+            slot_start = max(window["_start_minutes"], earliest_minutes)
+            slot_end = min(window["_end_minutes"], latest_minutes)
+            if slot_end <= slot_start:
+                continue
 
             # Find opportunities within this slot
             opportunities.extend(
@@ -1383,8 +1807,8 @@ class BookingService(BaseService):
 
     def _find_opportunities_in_slot(
         self,
-        slot_start: time,
-        slot_end: time,
+        slot_start: int,
+        slot_end: int,
         existing_bookings: List[Booking],
         target_duration_minutes: int,
         instructor_id: str,
@@ -1394,8 +1818,8 @@ class BookingService(BaseService):
         Find booking opportunities within a single availability slot.
 
         Args:
-            slot_start: Start of availability slot
-            slot_end: End of availability slot
+            slot_start: Start of availability slot (minutes since midnight)
+            slot_end: End of availability slot (minutes since midnight)
             existing_bookings: List of existing bookings
             target_duration_minutes: Desired booking duration
             instructor_id: Instructor ID
@@ -1405,45 +1829,36 @@ class BookingService(BaseService):
             List of opportunities in this slot
         """
         opportunities: List[Dict[str, Any]] = []
-        current_time = slot_start
+        current_minutes = slot_start
+        booking_windows = [
+            self._booking_window_to_minutes(booking) for booking in existing_bookings if booking
+        ]
 
-        while current_time < slot_end:
-            # Calculate potential end time
-            # Use a reference date for time calculations
-            # This is just for duration math, not timezone-specific
-            reference_date = date(2024, 1, 1)
-            start_dt = datetime.combine(reference_date, current_time)
-            end_dt = start_dt + timedelta(minutes=target_duration_minutes)
-            potential_end = end_dt.time()
+        while current_minutes + target_duration_minutes <= slot_end:
+            potential_end = current_minutes + target_duration_minutes
 
-            # Check if this exceeds slot boundary
-            if potential_end > slot_end:
-                break
-
-            # Check for conflicts with existing bookings
             has_conflict = False
-            for booking in existing_bookings:
-                if current_time < booking.end_time and potential_end > booking.start_time:
-                    # Conflict found, skip to after this booking
-                    current_time = booking.end_time
+            for booking_start, booking_end in booking_windows:
+                if current_minutes < booking_end and potential_end > booking_start:
+                    current_minutes = max(current_minutes, booking_end)
                     has_conflict = True
                     break
 
-            if not has_conflict:
-                # This is a valid opportunity
-                opportunities.append(
-                    {
-                        "start_time": current_time.isoformat(),
-                        "end_time": potential_end.isoformat(),
-                        "duration_minutes": target_duration_minutes,
-                        "available": True,
-                        "instructor_id": instructor_id,
-                        "date": target_date.isoformat(),
-                    }
-                )
+            if has_conflict:
+                continue
 
-                # Move to next potential slot
-                current_time = potential_end
+            opportunities.append(
+                {
+                    "start_time": self._minutes_to_time(current_minutes).isoformat(),
+                    "end_time": self._minutes_to_time(potential_end).isoformat(),
+                    "duration_minutes": target_duration_minutes,
+                    "available": True,
+                    "instructor_id": instructor_id,
+                    "date": target_date.isoformat(),
+                }
+            )
+
+            current_minutes = potential_end
 
         return opportunities
 

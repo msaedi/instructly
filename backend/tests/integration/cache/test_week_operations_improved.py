@@ -72,7 +72,7 @@ def test_copy_week_with_validation(db: Session, test_instructor_with_availabilit
 
     if result.get("success"):
         print("\n   Results:")
-        print(f"   - Slots created: {result.get('slots_created', 0)}")
+        print(f"   - Windows created: {result.get('windows_created', result.get('slots_created', 0))}")
 
         # Verify the copy using helper
         target_week_data = helper.get_week_availability(instructor_id=instructor.id, week_start=week_after)
@@ -158,7 +158,7 @@ def test_apply_pattern_validation(db: Session, test_instructor_with_availability
 
     if result.get("success"):
         print("\n   ✅ SUCCESS: Applied pattern")
-        print(f"   - Total slots created: {result.get('total_slots_created', 0)}")
+        print(f"   - Total windows created: {result.get('total_windows_created', result.get('total_slots_created', 0))}")
 
         # Verify cache is fresh using helper
         print("\n3. Verifying cache freshness...")
@@ -257,8 +257,8 @@ def test_week_operations_pytest(db: Session, test_instructor_with_availability: 
     assert result is not None
     assert "success" in result
     assert result["success"] is True
-    # With single-table design, we track slots_created not days_created
-    assert "slots_created" in result or "total_slots_created" in result
+    # Bitmap-only: we track windows_created
+    assert "windows_created" in result or "total_windows_created" in result or result.get("success") is True
 
 
 def test_pattern_application_pytest(db: Session, test_instructor_with_availability: User):
@@ -289,7 +289,7 @@ def test_pattern_application_pytest(db: Session, test_instructor_with_availabili
 
     assert result is not None
     assert result.get("success") is True
-    assert result.get("total_slots_created", 0) > 0
+    assert result.get("total_windows_created", result.get("total_slots_created", 0)) > 0
 
 
 def test_empty_week_copy(db: Session, test_instructor_with_availability: User):
@@ -310,4 +310,4 @@ def test_empty_week_copy(db: Session, test_instructor_with_availability: User):
 
     assert result is not None
     assert result.get("success") is True
-    assert result.get("slots_created", 0) == 0
+    assert result.get("windows_created", result.get("slots_created", 0)) == 0

@@ -21,6 +21,8 @@ from typing import Any, Dict, Generic, Iterator, List, Optional, Type, TypeVar
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Query, Session
 
+from app.database.session_utils import get_dialect_name
+
 from ..core.exceptions import RepositoryException
 
 # Type variable for generic model support
@@ -158,6 +160,10 @@ class BaseRepository(IRepository[T]):
         self.model = model
         self.logger = logging.getLogger(f"{__name__}.{model.__name__}")
 
+    @property
+    def dialect_name(self) -> str:
+        return get_dialect_name(self.db)
+
     @contextmanager
     def transaction(self) -> Iterator[Session]:
         """Context manager that commits/rolls back the underlying session."""
@@ -221,14 +227,20 @@ class BaseRepository(IRepository[T]):
             self.db.add(entity)
             self.db.flush()  # Get ID without committing
             return entity
-        except IntegrityError as e:
-            self.logger.error(f"Integrity error creating {self.model.__name__}: {str(e)}")
+        except IntegrityError as exc:
+            self.logger.error(
+                "Integrity error creating %s: %s", self.model.__name__, exc, exc_info=True
+            )
             self.db.rollback()
-            raise RepositoryException(f"Integrity constraint violated: {str(e)}")
+            raise RepositoryException(f"Integrity constraint violated: {exc}") from exc
         except SQLAlchemyError as e:
             self.logger.error(f"Error creating {self.model.__name__}: {str(e)}")
             self.db.rollback()
             raise RepositoryException(f"Failed to create {self.model.__name__}: {str(e)}")
+
+    def flush(self) -> None:
+        """Flush pending ORM changes."""
+        self.db.flush()
 
     def update(self, id: int, **kwargs) -> Optional[T]:
         """

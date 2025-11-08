@@ -26,15 +26,14 @@ from datetime import date, time
 import logging
 from typing import Any, Dict, List, Optional, Sequence, TypedDict, cast
 
-from sqlalchemy import and_, text
 from sqlalchemy.engine import Row
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import RepositoryException
-from ..models.availability import AvailabilitySlot
+
+# AvailabilitySlot removed - bitmap-only storage now
 from ..models.booking import Booking, BookingStatus
-from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
@@ -70,18 +69,21 @@ class WeekSlotStatus(TypedDict):
     booking_id: Optional[int]
 
 
-class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
+class WeekOperationRepository:
     """
     Repository for week operation data access.
 
-    Works with the single-table design where AvailabilitySlot
-    contains instructor_id, specific_date, start_time, and end_time.
+    NOTE: Slot-based operations removed. Use AvailabilityDayRepository for bitmap operations.
     """
 
     def __init__(self, db: Session):
-        """Initialize with AvailabilitySlot model."""
-        super().__init__(db, AvailabilitySlot)
+        """Initialize repository."""
+        self.db = db
         self.logger = logging.getLogger(__name__)
+
+    def flush(self) -> None:
+        """Flush pending ORM changes."""
+        self.db.flush()
 
     # Week Booking Queries
 
@@ -217,312 +219,58 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Slot Queries
 
-    def get_week_slots(
-        self, instructor_id: str, start_date: date, end_date: date
-    ) -> List[AvailabilitySlot]:
+    def get_week_slots(self, instructor_id: str, start_date: date, end_date: date) -> List[Any]:
         """
-        Get all slots for a week.
-
-        Simple direct query in single-table design.
-
-        Args:
-            instructor_id: The instructor ID
-            start_date: Start of week
-            end_date: End of week
-
-        Returns:
-            List of availability slots
+        DEPRECATED: Slot operations removed. Use bitmap storage.
         """
-        try:
-            return cast(
-                List[AvailabilitySlot],
-                self.db.query(AvailabilitySlot)
-                .filter(
-                    AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.specific_date >= start_date,
-                    AvailabilitySlot.specific_date <= end_date,
-                )
-                .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
-                .all(),
-            )
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error getting week slots: {str(e)}")
-            raise RepositoryException(f"Failed to get slots: {str(e)}")
+        raise NotImplementedError(
+            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
+        )
 
     def get_slots_with_booking_status(
         self, instructor_id: str, target_date: date
     ) -> List[SlotStatus]:
         """
-        Get all slots for a date with their booking status.
-
-        UPDATED: Uses time-based overlap to determine if slots are booked.
-        No longer relies on slot IDs in bookings.
-
-        Args:
-            instructor_id: The instructor ID
-            target_date: The date to check
-
-        Returns:
-            List of slot dictionaries with booking status
+        DEPRECATED: Slot operations removed. Use bitmap storage.
         """
-        try:
-            # Get all slots for the date
-            slots = cast(
-                List[AvailabilitySlot],
-                self.db.query(AvailabilitySlot)
-                .filter(
-                    AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.specific_date == target_date,
-                )
-                .all(),
-            )
-
-            if not slots:
-                return []
-
-            # For each slot, check if there's an overlapping booking
-            result: List[SlotStatus] = []
-            for slot in slots:
-                # Check if any booking overlaps with this slot
-                has_booking = (
-                    self.db.query(Booking)
-                    .filter(
-                        and_(
-                            Booking.instructor_id == instructor_id,
-                            Booking.booking_date == target_date,
-                            Booking.start_time < slot.end_time,
-                            Booking.end_time > slot.start_time,
-                            Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                        )
-                    )
-                    .first()
-                ) is not None
-
-                result.append(
-                    {
-                        "id": int(slot.id),
-                        "start_time": slot.start_time,
-                        "end_time": slot.end_time,
-                        "is_booked": has_booking,
-                    }
-                )
-
-            return result
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error getting slots with status: {str(e)}")
-            raise RepositoryException(f"Failed to get slots: {str(e)}")
+        raise NotImplementedError(
+            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
+        )
 
     def get_week_with_booking_status(
         self, instructor_id: str, start_date: date, end_date: date
     ) -> List[WeekSlotStatus]:
         """
-        Get week availability with booking status for each slot.
-
-        UPDATED: Uses time-based overlap instead of slot ID matching.
-        Each slot is checked for overlapping bookings.
-
-        Args:
-            instructor_id: The instructor ID
-            start_date: Start of range
-            end_date: End of range
-
-        Returns:
-            List of dicts with slot and booking information
+        DEPRECATED: Slot operations removed. Use bitmap storage.
         """
-        try:
-            # Use raw SQL for efficient overlap checking
-            query = text(
-                """
-                SELECT
-                    s.specific_date,
-                    s.id as slot_id,
-                    s.start_time,
-                    s.end_time,
-                    CASE
-                        WHEN EXISTS (
-                            SELECT 1 FROM bookings b
-                            WHERE b.instructor_id = s.instructor_id
-                              AND b.booking_date = s.specific_date
-                              AND b.start_time < s.end_time
-                              AND b.end_time > s.start_time
-                              AND b.status IN ('CONFIRMED', 'COMPLETED')
-                        ) THEN 'CONFIRMED'
-                        ELSE NULL
-                    END as booking_status,
-                    (
-                        SELECT b.id FROM bookings b
-                        WHERE b.instructor_id = s.instructor_id
-                          AND b.booking_date = s.specific_date
-                          AND b.start_time < s.end_time
-                          AND b.end_time > s.start_time
-                          AND b.status IN ('CONFIRMED', 'COMPLETED')
-                        LIMIT 1
-                    ) as booking_id
-                FROM availability_slots s
-                WHERE s.instructor_id = :instructor_id
-                  AND s.specific_date BETWEEN :start_date AND :end_date
-                ORDER BY s.specific_date, s.start_time
-                """
-            )
-
-            results = cast(
-                Sequence[Row[Any]],
-                self.db.execute(
-                    query,
-                    {
-                        "instructor_id": instructor_id,
-                        "start_date": start_date,
-                        "end_date": end_date,
-                    },
-                ).fetchall(),
-            )
-
-            week_view: List[WeekSlotStatus] = []
-            for row in results:
-                mapping = row._mapping
-                date_value = mapping.get("specific_date")
-                start_time_value = mapping.get("start_time")
-                end_time_value = mapping.get("end_time")
-                if not isinstance(date_value, date):
-                    continue
-                if not isinstance(start_time_value, time) or not isinstance(end_time_value, time):
-                    continue
-                week_view.append(
-                    {
-                        "date": date_value,
-                        "slot_id": int(mapping.get("slot_id", 0) or 0),
-                        "start_time": start_time_value,
-                        "end_time": end_time_value,
-                        "booking_status": cast(Optional[str], mapping.get("booking_status")),
-                        "booking_id": (
-                            int(mapping.get("booking_id"))
-                            if mapping.get("booking_id") is not None
-                            else None
-                        ),
-                    }
-                )
-
-            return week_view
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error getting week with status: {str(e)}")
-            raise RepositoryException(f"Failed to get week status: {str(e)}")
+        raise NotImplementedError(
+            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
+        )
 
     # Bulk Operations
 
     def bulk_create_slots(self, slots: Sequence[Dict[str, Any]]) -> int:
         """
-        Bulk create slots using high-performance bulk_insert_mappings.
-
-        Args:
-            slots: List of slot dictionaries with instructor_id, specific_date, start_time, end_time
-
-        Returns:
-            Number of slots created
+        DEPRECATED: Slot operations removed. Use bitmap storage.
         """
-        try:
-            slot_records = list(slots)
-            if not slot_records:
-                return 0
-
-            self.db.bulk_insert_mappings(AvailabilitySlot, slot_records)
-            self.db.flush()
-            return len(slot_records)
-
-        except IntegrityError as e:
-            self.logger.error(f"Integrity error bulk creating slots: {str(e)}")
-            raise RepositoryException(f"Duplicate slots or invalid data: {str(e)}")
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error bulk creating slots: {str(e)}")
-            raise RepositoryException(f"Failed to bulk create slots: {str(e)}")
+        raise NotImplementedError(
+            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
+        )
 
     def bulk_delete_slots(self, slot_ids: Sequence[int]) -> int:
         """
-        Bulk delete slots by IDs.
-
-        Uses IN clause for efficient deletion.
-
-        Args:
-            slot_ids: List of slot IDs to delete
-
-        Returns:
-            Number of slots deleted
+        DEPRECATED: Slot operations removed. Use bitmap storage.
         """
-        try:
-            slot_id_list = list(slot_ids)
-            if not slot_id_list:
-                return 0
-
-            result = (
-                self.db.query(AvailabilitySlot)
-                .filter(AvailabilitySlot.id.in_(slot_id_list))
-                .delete(synchronize_session=False)
-            )
-            self.db.flush()
-            return int(result)
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error bulk deleting slots: {str(e)}")
-            raise RepositoryException(f"Failed to delete slots: {str(e)}")
+        raise NotImplementedError(
+            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
+        )
 
     def delete_slots_preserving_booked_times(
         self, instructor_id: str, week_dates: List[date], preserve_booked: bool = True
     ) -> int:
         """
-        Delete slots from a week, optionally preserving slots that have bookings.
-
-        UPDATED: Uses time-based overlap to determine which slots to preserve.
-        This maintains the architectural principle that bookings are independent.
-
-        Args:
-            instructor_id: The instructor ID
-            week_dates: List of dates in the week
-            preserve_booked: If True, preserve slots with overlapping bookings
-
-        Returns:
-            Number of slots deleted
+        DEPRECATED: Slot operations removed. Use bitmap storage.
         """
-        try:
-            if preserve_booked:
-                # Use raw SQL for efficient deletion with overlap check
-                query = text(
-                    """
-                    DELETE FROM availability_slots s
-                    WHERE s.instructor_id = :instructor_id
-                      AND s.specific_date = ANY(:week_dates)
-                      AND NOT EXISTS (
-                          SELECT 1 FROM bookings b
-                          WHERE b.instructor_id = s.instructor_id
-                            AND b.booking_date = s.specific_date
-                            AND b.start_time < s.end_time
-                            AND b.end_time > s.start_time
-                            AND b.status IN ('CONFIRMED', 'COMPLETED')
-                      )
-                    """
-                )
-                result = self.db.execute(
-                    query,
-                    {
-                        "instructor_id": instructor_id,
-                        "week_dates": week_dates,
-                    },
-                )
-                deleted_count = result.rowcount
-            else:
-                # Delete all slots regardless of bookings
-                deleted_count = (
-                    self.db.query(AvailabilitySlot)
-                    .filter(
-                        AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.specific_date.in_(week_dates),
-                    )
-                    .delete(synchronize_session=False)
-                )
-
-            self.db.flush()
-            return int(deleted_count)
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error deleting slots: {str(e)}")
-            raise RepositoryException(f"Failed to delete slots: {str(e)}")
+        raise NotImplementedError(
+            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
+        )

@@ -17,7 +17,7 @@ import hashlib
 import inspect
 import logging
 import time
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, cast
 
 from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -27,6 +27,8 @@ from ..core.config import settings
 from ..services.cache_service import CacheService, get_cache_service
 
 logger = logging.getLogger(__name__)
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 class RateLimitKeyType(Enum):
@@ -305,11 +307,17 @@ def rate_limit(
             ...
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         # Check if the function is async
         import asyncio
 
         is_async = asyncio.iscoroutinefunction(func)
+
+        async def _call_wrapped(*args: Any, **kwargs: Any) -> Any:
+            result = func(*args, **kwargs)
+            if inspect.isawaitable(result):
+                return await result
+            return result
 
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -324,7 +332,7 @@ def rate_limit(
 
             if not request:
                 # Can't rate limit without request, just call function
-                return await func(*args, **kwargs) if is_async else func(*args, **kwargs)
+                return await _call_wrapped(*args, **kwargs)
 
             # Parse rate string (e.g., "5/minute" -> (5, 60))
             parts = rate_string.split("/")
@@ -350,7 +358,7 @@ def rate_limit(
 
             if not identifier:
                 # Can't identify request, allow it
-                return await func(*args, **kwargs) if is_async else func(*args, **kwargs)
+                return await _call_wrapped(*args, **kwargs)
 
             # Check rate limit
             rate_limiter = RateLimiter()
@@ -384,7 +392,7 @@ def rate_limit(
                 )
 
             # Add rate limit headers to response
-            response = await func(*args, **kwargs) if is_async else func(*args, **kwargs)
+            response = await _call_wrapped(*args, **kwargs)
 
             if isinstance(response, Response):
                 remaining = rate_limiter.get_remaining_requests(
@@ -419,7 +427,7 @@ def rate_limit(
             wrapper.__signature__ = inspect.signature(func)
         except Exception:
             pass
-        return wrapper
+        return cast(F, wrapper)
 
     return decorator
 

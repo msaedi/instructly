@@ -16,11 +16,6 @@ from pydantic import ValidationError
 import pytest
 
 from app.core.ulid_helper import generate_ulid
-from app.schemas.availability import (
-    AvailabilitySlot,
-    AvailabilitySlotCreate,
-    AvailabilitySlotResponse,
-)
 from app.schemas.availability_window import AvailabilityWindowResponse, TimeSlot
 from app.schemas.booking import (
     AvailabilityCheckRequest,
@@ -130,32 +125,17 @@ class TestBookingCleanArchitecture:
 class TestAvailabilityCleanArchitecture:
     """Test that availability schemas follow clean architecture."""
 
+    @pytest.mark.skip(reason="Slot-era deprecated - bitmap-only storage now")
     def test_no_is_available_in_slot_response(self):
         """Verify is_available has been removed from slot schemas."""
-        slot = AvailabilitySlotResponse(
-            id=generate_ulid(),
-            instructor_id=generate_ulid(),
-            specific_date=date.today(),
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-        # Should not have is_available - slot exists means available
-        assert not hasattr(slot, "is_available")
+        # Slot schemas removed - bitmap-only storage now
+        pass
 
+    @pytest.mark.skip(reason="Slot-era deprecated - bitmap-only storage now")
     def test_availability_slot_single_table_design(self):
-        """Test that AvailabilitySlot reflects single-table design."""
-        instructor_id = generate_ulid()
-        slot = AvailabilitySlotCreate(
-            instructor_id=instructor_id,
-            specific_date=date.today() + timedelta(days=1),
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-        # Should have instructor_id and date (single-table design)
-        assert slot.instructor_id == instructor_id
-        assert slot.specific_date == date.today() + timedelta(days=1)
-        # Should not have availability_id (no InstructorAvailability table)
-        assert not hasattr(slot, "availability_id")
+        """Test that availability schemas reflect bitmap design (deprecated - slot-era test)."""
+        # Slot schemas removed - bitmap-only storage now
+        pass
 
     def test_time_slot_no_is_available(self):
         """Test TimeSlot has no is_available field."""
@@ -236,20 +216,11 @@ class TestArchitecturalIntegrity:
         # BookingBase should not have availability_slot_id in its fields
         assert "availability_slot_id" not in BookingBase.model_fields
 
+    @pytest.mark.skip(reason="Slot-era deprecated - bitmap-only storage now")
     def test_schemas_reflect_single_table_design(self):
         """Test that schemas reflect single-table availability design."""
-        # AvailabilitySlot should have instructor_id and date
-        slot_id = generate_ulid()
-        instructor_id = generate_ulid()
-        slot = AvailabilitySlot(
-            id=slot_id,
-            instructor_id=instructor_id,
-            specific_date=date.today(),
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-        assert slot.instructor_id == instructor_id
-        assert slot.specific_date == date.today()
+        # AvailabilitySlot model removed - bitmap-only storage now
+        pass
 
     def test_clean_separation_of_concerns(self):
         """Test that booking and availability schemas are independent."""

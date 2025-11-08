@@ -30,6 +30,10 @@ def upgrade() -> None:
     """Create booking and password reset tables."""
     print("Creating booking system tables...")
 
+    bind = op.get_bind()
+    dialect_name = bind.dialect.name if bind is not None else "postgresql"
+    is_postgres = dialect_name == "postgresql"
+
     # Create bookings table with self-contained design
     op.create_table(
         "bookings",
@@ -138,6 +142,48 @@ def upgrade() -> None:
         "bookings",
         "location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online')",
     )
+
+    if is_postgres:
+        op.execute("CREATE EXTENSION IF NOT EXISTS btree_gist")
+        op.execute(
+            """
+            ALTER TABLE bookings
+              ADD COLUMN IF NOT EXISTS booking_span tsrange
+              GENERATED ALWAYS AS (
+                tsrange(
+                  (booking_date::timestamp + start_time),
+                  CASE
+                    WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00'
+                      THEN (booking_date::timestamp + interval '1 day')
+                    ELSE (booking_date::timestamp + end_time)
+                  END,
+                  '[)'
+                )
+              ) STORED
+            """
+        )
+        op.execute(
+            """
+            ALTER TABLE bookings
+              ADD CONSTRAINT bookings_no_overlap_per_instructor
+              EXCLUDE USING gist (
+                instructor_id WITH =,
+                booking_span WITH &&
+              )
+              WHERE (cancelled_at IS NULL)
+            """
+        )
+        op.execute(
+            """
+            ALTER TABLE bookings
+              ADD CONSTRAINT bookings_no_overlap_per_student
+              EXCLUDE USING gist (
+                student_id WITH =,
+                booking_span WITH &&
+              )
+              WHERE (cancelled_at IS NULL)
+            """
+        )
 
     # Create password_reset_tokens table
     op.create_table(
@@ -491,6 +537,10 @@ def downgrade() -> None:
     """Drop booking system tables."""
     print("Dropping booking system tables...")
 
+    bind = op.get_bind()
+    dialect_name = bind.dialect.name if bind is not None else "postgresql"
+    is_postgres = dialect_name == "postgresql"
+
     # ======== DROP PAYMENT TABLES (in reverse order) ========
     # Drop instructor_payout_events indexes and table first (due to FK to instructor_profiles)
     op.drop_index("idx_instructor_payout_events_payout_id", table_name="instructor_payout_events")
@@ -595,6 +645,11 @@ def downgrade() -> None:
     op.drop_index("idx_bookings_date", table_name="bookings")
     op.drop_index("idx_bookings_instructor_id", table_name="bookings")
     op.drop_index("idx_bookings_student_id", table_name="bookings")
+
+    if is_postgres:
+        op.execute("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_no_overlap_per_student")
+        op.execute("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_no_overlap_per_instructor")
+        op.execute("ALTER TABLE bookings DROP COLUMN IF EXISTS booking_span")
 
     # Drop bookings table
     op.drop_table("bookings")

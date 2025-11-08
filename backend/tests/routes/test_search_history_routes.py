@@ -161,6 +161,7 @@ class TestAuthWithGuestSession:
         # Verify searches were converted
         guest_searches = db.query(SearchHistory).filter_by(guest_session_id=guest_session_id).all()
         for search in guest_searches:
+            db.refresh(search)
             assert search.converted_to_user_id == user.id
             assert search.converted_at is not None
 
@@ -218,6 +219,7 @@ class TestAuthWithGuestSession:
         # Verify searches were converted
         guest_searches = db.query(SearchHistory).filter_by(guest_session_id=guest_session_id).all()
         for search in guest_searches:
+            db.refresh(search)
             assert search.converted_to_user_id == user_data["id"]
             assert search.converted_at is not None
 

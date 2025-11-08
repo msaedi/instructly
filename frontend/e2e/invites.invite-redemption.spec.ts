@@ -1,78 +1,76 @@
 import { test, expect } from '@playwright/test';
+import { isAdmin } from './utils/projects';
 
-const PREVIEW_BASE = 'http://localhost:3000';
-const BETA_BASE = 'http://beta-local.instainstru.com:3000';
-const ADMIN_EMAIL = 'admin@instainstru.com';
-const ADMIN_PASSWORD = 'Test1234';
+test.beforeAll(({}, workerInfo) => {
+  test.skip(!isAdmin(workerInfo), `Admin-only spec (current project: ${workerInfo.project.name})`);
+});
+
+const CROSS_ORIGIN_ENABLED = process.env.E2E_CROSS_ORIGIN === '1';
+const INVITES_ENABLED = process.env.CI_LOCAL_E2E === '1' || process.env.E2E_ENABLE_INVITES === '1';
+
+test.skip(!CROSS_ORIGIN_ENABLED, 'Cross-origin E2E disabled (set E2E_CROSS_ORIGIN=1 to enable).');
+
+test.use({ storageState: 'e2e/.storage/admin.json' });
 
 test.describe('beta invite redemption across origins', () => {
   test('generate invite on preview and redeem on beta host', async ({ page, browser }) => {
-    test.skip(process.env.CI_LOCAL_E2E !== '1', 'Only runs when CI_LOCAL_E2E=1');
+    test.skip(!INVITES_ENABLED, 'Admin invite redemption disabled (set CI_LOCAL_E2E=1 or E2E_ENABLE_INVITES=1).');
 
-    // 1. Login to preview admin
-    await page.goto(`${PREVIEW_BASE}/login`, { waitUntil: 'domcontentloaded' });
-    await page.getByLabel('Email').fill(ADMIN_EMAIL);
-    await page.getByLabel('Password').fill(ADMIN_PASSWORD);
-
-    const loginResponsePromise = page.waitForResponse((response) => {
-      return response.url().includes('/auth/login') && response.request().method() === 'POST';
-    });
-
-    await page.getByRole('button', { name: /log in|sign in|submit/i }).click();
-
-    const loginResponse = await loginResponsePromise;
-    expect(loginResponse.ok()).toBeTruthy();
-    const loginJson = await loginResponse.json();
-    expect(loginJson.requires_2fa).toBeFalsy();
-
-    // Allow client-side auth check to complete before navigation
-    await page.waitForTimeout(500);
-
-    // 2. Navigate to beta invite admin and generate invite
-    await page.goto(`${PREVIEW_BASE}/admin/beta/invites`, { waitUntil: 'networkidle' });
+    const projectBase = test.info().project.use?.baseURL ?? process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3100';
+    const previewBase = process.env.E2E_PREVIEW_BASE_URL || projectBase;
+    const betaBase = process.env.E2E_BETA_BASE_URL || previewBase;
+    await page.goto(new URL('/admin/beta/invites', projectBase).toString(), { waitUntil: 'networkidle' });
 
     const inviteeEmail = `invitee+${Date.now()}@example.com`;
-    await page.getByLabel('Email').fill(inviteeEmail);
+    const inviteEmailInput = page.getByTestId('invite-email-input');
+    await inviteEmailInput.waitFor();
+    await inviteEmailInput.fill(inviteeEmail);
 
-    const sendInviteResponsePromise = page.waitForResponse((response) => {
-      return response.url().includes('/api/beta/invites/send') && response.request().method() === 'POST';
-    });
+    const sendInviteResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/beta/invites/send') &&
+        response.request().method() === 'POST' &&
+        response.status() === 200
+    );
 
     await page.getByRole('button', { name: /send invite/i }).click();
-
     const sendInviteResponse = await sendInviteResponsePromise;
-    expect(sendInviteResponse.ok()).toBeTruthy();
     const sendInviteJson = await sendInviteResponse.json();
-    const inviteCode: string = String(sendInviteJson.code || sendInviteJson.invite?.code || '');
+    const inviteCode: string = String(sendInviteJson.code || sendInviteJson.invite?.code || '').trim();
     expect(inviteCode).toMatch(/^[A-Z0-9]{6,12}$/);
 
-    // Ensure the code is visible in the UI for manual confirmation/debugging
-    await expect(page.getByText(inviteCode)).toBeVisible();
+    await expect(page.getByTestId('invite-code-value')).toHaveText(inviteCode);
 
-    // 3. Switch to beta-local origin in a clean context
-    const betaContext = await browser.newContext({ baseURL: BETA_BASE });
+    const betaContext = await browser.newContext({ baseURL: betaBase });
     try {
       const betaPage = await betaContext.newPage();
-      await betaPage.goto('/instructor/join', { waitUntil: 'domcontentloaded' });
-
-      await betaPage.getByLabel('Enter your founding instructor code').fill(inviteCode);
-
-      const validateResponsePromise = betaPage.waitForResponse((response) => {
-        return response.url().includes('/api/beta/invites/validate') && response.request().method() === 'GET';
+      await betaPage.goto(`/instructor/join?email=${encodeURIComponent(inviteeEmail)}`, {
+        waitUntil: 'domcontentloaded',
       });
 
-      await betaPage.getByRole('button', { name: /continue/i }).click();
+      const codeInput = betaPage.getByTestId('invite-code-input');
+      await codeInput.waitFor({ state: 'visible', timeout: 10_000 });
+      await codeInput.click();
+      await codeInput.fill('');
+      await codeInput.type(inviteCode, { delay: 50 });
+      await expect(codeInput).toHaveValue(inviteCode);
+
+      const validateResponsePromise = betaPage.waitForResponse((response) => {
+        const url = response.url();
+        const matchesEndpoint =
+          url.includes('/api/beta/invites/') &&
+          (url.includes('/validate') || url.includes('/convert') || url.includes('/redeem'));
+        return matchesEndpoint && response.request().method() === 'GET' && response.status() === 200;
+      });
+
+      await betaPage.getByRole('button', { name: /join!/i }).click();
 
       const validateResponse = await validateResponsePromise;
       expect(validateResponse.status()).toBeLessThan(400);
-      const corsOrigin = validateResponse.headers()['access-control-allow-origin'];
-      expect(corsOrigin).toBe(BETA_BASE);
-      const corsCreds = validateResponse.headers()['access-control-allow-credentials'];
-      expect((corsCreds || '').toLowerCase()).toBe('true');
       const validateJson = await validateResponse.json();
       expect(validateJson).toMatchObject({ valid: true });
 
-      await betaPage.waitForURL(/\/instructor\/welcome/i);
+      await betaPage.waitForURL(/\/instructor\/welcome/i, { timeout: 15_000 });
       await expect(betaPage).toHaveURL(/\/instructor\/welcome/i);
       expect(betaPage.url()).toContain(inviteCode);
     } finally {

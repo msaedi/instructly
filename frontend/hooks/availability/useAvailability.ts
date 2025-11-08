@@ -5,11 +5,29 @@ import { useWeekSchedule } from '@/hooks/availability/useWeekSchedule';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { logger } from '@/lib/logger';
-import { WeekSchedule, TimeSlot } from '@/types/availability';
+import { WeekSchedule, TimeSlot, WeekBits } from '@/types/availability';
+import { fromWindows, toWindows } from '@/lib/calendar/bitset';
+
+export interface SaveWeekOptions {
+  clearExisting?: boolean;
+  scheduleOverride?: WeekSchedule;
+  override?: boolean;
+}
+
+export interface SaveWeekResult {
+  success: boolean;
+  message: string;
+  code?: number;
+  serverVersion?: string;
+  version?: string;
+  weekVersion?: string;
+}
 
 export interface UseAvailabilityReturn {
   // state from useWeekSchedule
   currentWeekStart: Date;
+  weekBits: WeekBits;
+  savedWeekBits: WeekBits;
   weekSchedule: WeekSchedule;
   savedWeekSchedule: WeekSchedule;
   hasUnsavedChanges: boolean;
@@ -19,19 +37,23 @@ export interface UseAvailabilityReturn {
 
   // actions
   navigateWeek: (dir: 'prev' | 'next') => void;
-  setWeekSchedule: (s: WeekSchedule | ((prev: WeekSchedule) => WeekSchedule)) => void;
+  setWeekBits: (next: WeekBits | ((prev: WeekBits) => WeekBits)) => void;
   setMessage: (m: { type: 'success' | 'error' | 'info'; text: string } | null) => void;
   refreshSchedule: () => Promise<void>;
   currentWeekDisplay: string;
   version?: string;
+  etag?: string;
   lastModified?: string;
   goToCurrentWeek: () => void;
+  allowPastEdits?: boolean;
 
   // API orchestrations (thin)
-  saveWeek: (opts?: { clearExisting?: boolean; scheduleOverride?: WeekSchedule }) => Promise<{ success: boolean; message: string; code?: number }>;
+  saveWeek: (opts?: SaveWeekOptions) => Promise<SaveWeekResult>;
   validateWeek: () => Promise<{ success: boolean; message: string; issues?: unknown[] }>;
   copyFromPreviousWeek: () => Promise<{ success: boolean; message: string }>;
-  applyToFutureWeeks: (endISO: string) => Promise<{ success: boolean; message: string }>;
+  applyToFutureWeeks: (
+    endISO: string
+  ) => Promise<{ success: boolean; message: string; weeksAffected?: number; daysWritten?: number }>;
 }
 
 function extractErrorMessage(err: unknown, fallback: string): string {
@@ -52,9 +74,63 @@ function extractErrorMessage(err: unknown, fallback: string): string {
   }
 }
 
+function bitsRecordToSchedule(bits: WeekBits): WeekSchedule {
+  const schedule: WeekSchedule = {};
+  Object.entries(bits).forEach(([date, dayBits]) => {
+    const windows = toWindows(dayBits);
+    if (windows.length > 0) {
+      schedule[date] = windows;
+    }
+  });
+  return schedule;
+}
+
+function scheduleToBits(schedule: WeekSchedule): WeekBits {
+  const record: WeekBits = {};
+  Object.entries(schedule).forEach(([date, windows]) => {
+    if (windows && windows.length > 0) {
+      record[date] = fromWindows(windows);
+    }
+  });
+  return record;
+}
+
+const BYTE_MASK = 0xff;
+
+const countSetBits = (value: number): number => {
+  let count = 0;
+  let cursor = value & BYTE_MASK;
+  while (cursor > 0) {
+    count += cursor & 1;
+    cursor >>= 1;
+  }
+  return count;
+};
+
+function computeBitsDelta(previous: WeekBits, next: WeekBits): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  const allDates = new Set([...Object.keys(previous), ...Object.keys(next)]);
+  allDates.forEach((date) => {
+    const prevBits = previous[date];
+    const nextBits = next[date];
+    for (let i = 0; i < 6; i += 1) {
+      const prevByte = prevBits ? prevBits[i] ?? 0 : 0;
+      const nextByte = nextBits ? nextBits[i] ?? 0 : 0;
+      const addedMask = nextByte & (~prevByte & BYTE_MASK);
+      const removedMask = prevByte & (~nextByte & BYTE_MASK);
+      added += countSetBits(addedMask);
+      removed += countSetBits(removedMask);
+    }
+  });
+  return { added, removed };
+}
+
 export function useAvailability(): UseAvailabilityReturn {
   const {
     currentWeekStart,
+    weekBits,
+    savedWeekBits,
     weekSchedule,
     savedWeekSchedule,
     hasUnsavedChanges,
@@ -62,67 +138,162 @@ export function useAvailability(): UseAvailabilityReturn {
     weekDates,
     message,
     navigateWeek,
-    setWeekSchedule,
+    setWeekBits,
+    setSavedWeekBits,
     setMessage,
     refreshSchedule,
     goToCurrentWeek,
     currentWeekDisplay,
     version,
+    etag,
     lastModified,
+    setVersion,
+    allowPastEdits,
+    setAllowPastEdits,
   } = useWeekSchedule();
 
-  const saveWeek: UseAvailabilityReturn['saveWeek'] = useCallback(async (opts) => {
-    const week_start = formatDateForAPI(currentWeekStart);
-    // Build a snapshot by overlaying local edits over last saved snapshot
-    const localSource: WeekSchedule = opts?.scheduleOverride ?? weekSchedule;
-    const merged: WeekSchedule = { ...savedWeekSchedule, ...localSource };
-    // Flatten into list of { date, start_time, end_time } per backend schema
-    const schedule: Array<{ date: string; start_time: string; end_time: string }> = [];
-    Object.entries(merged).forEach(([date, slots]) => {
-      (slots || []).forEach((s: TimeSlot) => {
-        schedule.push({ date, start_time: s.start_time, end_time: s.end_time });
+  const saveWeek: UseAvailabilityReturn['saveWeek'] = useCallback(
+    async (opts: SaveWeekOptions = {}) => {
+      const week_start = formatDateForAPI(currentWeekStart);
+      const bitsSource: WeekBits = opts.scheduleOverride ? scheduleToBits(opts.scheduleOverride) : weekBits;
+      const scheduleSource: WeekSchedule =
+        opts.scheduleOverride ?? bitsRecordToSchedule(bitsSource);
+      const clearExisting = opts.clearExisting ?? true;
+      const override = Boolean(opts.override);
+
+      const schedule: Array<{ date: string; start_time: string; end_time: string }> = [];
+      Object.entries(scheduleSource).forEach(([date, slots]) => {
+        (slots || []).forEach((slot: TimeSlot) => {
+          schedule.push({ date, start_time: slot.start_time, end_time: slot.end_time });
+        });
       });
-    });
 
-    logger.info('Saving weekly availability snapshot', {
-      week_start,
-      days: Object.keys(merged).length,
-      total_slots: schedule.length,
-    });
-
-    try {
-      const effectiveVersion =
-        (typeof window !== 'undefined' && (window as Window & { __week_version?: string }).__week_version) ||
-        version;
-
-      const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          week_start,
-          clear_existing: Boolean(opts?.clearExisting),
-          schedule,
-          version: effectiveVersion,
-        }),
+      schedule.sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        if (a.start_time !== b.start_time) return a.start_time.localeCompare(b.start_time);
+        return a.end_time.localeCompare(b.end_time);
       });
-      // Capture new version from response headers if present
-      const newVersion = res.headers?.get?.('ETag') || undefined;
-      if (newVersion && typeof window !== 'undefined') {
-        (window as Window & { __week_version?: string }).__week_version = newVersion;
-        logger.debug('Updated week version from POST', { newVersion });
-      }
-      if (!res.ok) {
+
+      const daysCount = Object.keys(scheduleSource).length;
+      const bitsDelta = computeBitsDelta(savedWeekBits, bitsSource);
+
+      logger.info('Saving weekly availability snapshot', {
+        week_start,
+        days: daysCount,
+        total_slots: schedule.length,
+      });
+
+      try {
+        const storedVersion =
+          typeof window !== 'undefined'
+            ? (window as Window & { __week_version?: string }).__week_version
+            : undefined;
+        const effectiveVersion = storedVersion || etag || undefined;
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (effectiveVersion) {
+          headers['If-Match'] = effectiveVersion;
+        }
+
+        logger.debug(
+          `saving If-Match=${effectiveVersion ?? 'none'} days=${daysCount} bitsDelta={added:${bitsDelta.added}, removed:${bitsDelta.removed}}`
+        );
+
+        const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            week_start,
+            clear_existing: clearExisting,
+            schedule,
+            base_version: effectiveVersion,
+            override,
+          }),
+        });
         const status = res.status;
-        const err = await res.json().catch(() => ({} as Record<string, unknown>));
-        return { success: false, message: extractErrorMessage(err, 'Failed to save availability'), code: status };
+        const responseEtag = res.headers?.get?.('ETag') || undefined;
+        const allowPastHeader = res.headers?.get?.('X-Allow-Past');
+        const responseJson = await res
+          .clone()
+          .json()
+          .catch(() => undefined) as {
+          message?: string;
+          version?: string;
+          week_version?: string;
+          current_version?: string;
+          error?: string;
+        } | undefined;
+
+        if (!res.ok) {
+          if (typeof allowPastHeader === 'string') {
+            const normalizedAllow = allowPastHeader.trim().toLowerCase();
+            setAllowPastEdits(
+              normalizedAllow === '1' || normalizedAllow === 'true' || normalizedAllow === 'yes'
+            );
+          }
+          const serverVersion =
+            typeof responseJson?.current_version === 'string'
+              ? responseJson?.current_version
+              : responseEtag;
+          if (serverVersion) {
+            if (typeof window !== 'undefined') {
+              (window as Window & { __week_version?: string }).__week_version = serverVersion;
+            }
+            setVersion(serverVersion);
+          }
+          let message: string;
+          if (status === 409 || responseJson?.error === 'version_conflict') {
+            message = 'Week availability changed in another session.';
+          } else {
+            const detail = extractErrorMessage(responseJson, 'Failed to save availability');
+            message = `Failed to save availability (${status}): ${detail}`;
+          }
+          return {
+            success: false,
+            message,
+            code: status,
+            ...(serverVersion ? { serverVersion } : {}),
+          };
+        }
+
+        const newVersion = responseEtag || responseJson?.week_version || responseJson?.version;
+        if (typeof allowPastHeader === 'string') {
+          const normalizedAllow = allowPastHeader.trim().toLowerCase();
+          setAllowPastEdits(
+            normalizedAllow === '1' || normalizedAllow === 'true' || normalizedAllow === 'yes'
+          );
+        }
+        if (newVersion && typeof window !== 'undefined') {
+          (window as Window & { __week_version?: string }).__week_version = newVersion;
+          logger.debug('Updated week version from POST', { newVersion });
+        }
+        if (newVersion) {
+          setVersion(newVersion);
+        }
+        setWeekBits(bitsSource);
+        setSavedWeekBits(bitsSource);
+
+        return {
+          success: true,
+          message: responseJson?.message || 'Availability saved',
+          ...(newVersion ? { version: newVersion, weekVersion: newVersion } : {}),
+        };
+      } catch (e) {
+        logger.error('saveWeek error', e);
+        return { success: false, message: 'Network error while saving' };
       }
-      // Avoid immediate refresh to prevent flicker/race while user is editing.
-      return { success: true, message: 'Availability saved' };
-    } catch (e) {
-      logger.error('saveWeek error', e);
-      return { success: false, message: 'Network error while saving' };
-    }
-  }, [currentWeekStart, weekSchedule, savedWeekSchedule, version]);
+    },
+    [
+      currentWeekStart,
+      weekBits,
+      savedWeekBits,
+      etag,
+      setVersion,
+      setSavedWeekBits,
+      setWeekBits,
+      setAllowPastEdits,
+    ]
+  );
 
   const validateWeek: UseAvailabilityReturn['validateWeek'] = useCallback(async () => {
     try {
@@ -167,44 +338,75 @@ export function useAvailability(): UseAvailabilityReturn {
     }
   }, [currentWeekStart, refreshSchedule]);
 
-  const applyToFutureWeeks: UseAvailabilityReturn['applyToFutureWeeks'] = useCallback(async (endISO) => {
-    try {
-      const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_APPLY_RANGE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from_week_start: formatDateForAPI(currentWeekStart),
-          start_date: formatDateForAPI(currentWeekStart),
-          end_date: endISO,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({} as Record<string, unknown>));
-        return { success: false, message: extractErrorMessage(err, 'Failed to apply to future weeks') };
+  const applyToFutureWeeks: UseAvailabilityReturn['applyToFutureWeeks'] = useCallback(
+    async (endISO) => {
+      try {
+        const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_APPLY_RANGE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from_week_start: formatDateForAPI(currentWeekStart),
+            start_date: formatDateForAPI(currentWeekStart),
+            end_date: endISO,
+          }),
+        });
+        const responseJson = await res
+          .clone()
+          .json()
+          .catch(() => undefined as { message?: string; weeks_affected?: number; days_written?: number } | undefined);
+
+        if (!res.ok) {
+          const err = (responseJson ?? {}) as Record<string, unknown>;
+          return { success: false, message: extractErrorMessage(err, 'Failed to apply to future weeks') };
+        }
+
+        const weeksAffected =
+          typeof responseJson?.weeks_affected === 'number' ? responseJson.weeks_affected : undefined;
+        const daysWritten =
+          typeof responseJson?.days_written === 'number' ? responseJson.days_written : undefined;
+
+        if (weeksAffected !== undefined || daysWritten !== undefined) {
+          logger.info('Applied schedule to future range', {
+            end_date: endISO,
+            weeksAffected,
+            daysWritten,
+          });
+        }
+
+        return {
+          success: true,
+          message: responseJson?.message || 'Applied schedule to future range',
+          ...(weeksAffected !== undefined ? { weeksAffected } : {}),
+          ...(daysWritten !== undefined ? { daysWritten } : {}),
+        };
+      } catch (e) {
+        logger.error('applyToFutureWeeks error', e);
+        return { success: false, message: 'Network error while applying' };
       }
-      return { success: true, message: 'Applied schedule to future range' };
-    } catch (e) {
-      logger.error('applyToFutureWeeks error', e);
-      return { success: false, message: 'Network error while applying' };
-    }
-  }, [currentWeekStart]);
+    },
+    [currentWeekStart]
+  );
 
   return {
     currentWeekStart,
+    weekBits,
+    savedWeekBits,
     weekSchedule,
     savedWeekSchedule,
     hasUnsavedChanges,
     isLoading,
-    weekDates: weekDates.map(info => info.date),
+    weekDates: weekDates.map((info) => info.date),
     message,
     navigateWeek,
-    setWeekSchedule,
+    setWeekBits,
     setMessage,
     refreshSchedule,
     goToCurrentWeek,
     currentWeekDisplay,
     ...(version && { version }),
+    ...(etag && { etag }),
     ...(lastModified && { lastModified }),
+    ...(allowPastEdits !== undefined ? { allowPastEdits } : {}),
     saveWeek,
     validateWeek,
     copyFromPreviousWeek,

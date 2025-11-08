@@ -10,10 +10,12 @@ import os
 from typing import Any, Dict, List, Mapping, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import PlainTextResponse
 import psutil
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from ..api.dependencies.authz import require_roles
 from ..api.dependencies.services import (
     get_availability_service,
     get_booking_service,
@@ -23,6 +25,7 @@ from ..api.dependencies.services import (
 from ..auth import get_current_user_optional as auth_get_current_user_optional
 from ..core.config import settings
 from ..database import get_db, get_db_pool_status
+from ..metrics import retention_metrics
 from ..middleware import rate_limiter as rate_limiter_module
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.user import User
@@ -39,9 +42,24 @@ from ..schemas.monitoring_responses import (
 from ..services.cache_service import CacheService
 
 router = APIRouter(prefix="/ops", tags=["monitoring"])
+metrics_lite_router = APIRouter(
+    prefix="/ops",
+    tags=["ops-internal"],
+    dependencies=[Depends(require_roles("admin"))],
+)
 
 
 RateLimitAdmin = cast(Any, getattr(rate_limiter_module, "RateLimitAdmin"))
+
+
+@metrics_lite_router.get(
+    "/metrics-lite",
+    include_in_schema=False,
+    response_class=PlainTextResponse,
+)
+def metrics_lite() -> str:
+    """Return retention metrics in plain text."""
+    return retention_metrics.render_text()
 
 
 def _ops_admin_required() -> bool:

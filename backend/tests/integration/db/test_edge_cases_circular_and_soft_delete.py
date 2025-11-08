@@ -8,9 +8,9 @@ This test suite verifies:
 3. Data integrity and cascade behaviors
 4. Edge cases that could break the system
 
-UPDATED FOR WORK STREAM #10: Single-table availability design
+UPDATED FOR WORK STREAM #10: Bitmap-only availability design
 - No more InstructorAvailability table
-- AvailabilitySlot has instructor_id and specific_date directly
+- AvailabilityDay stores bitmap availability directly
 - Focus on Service soft delete (availability has no soft delete)
 
 UPDATED FOR WORK STREAM #9: Layer independence
@@ -23,22 +23,47 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy.orm import Session
+from tests._utils.bitmap_avail import seed_day
 
 from app.core.enums import RoleName
 from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.services.booking_service import BookingService
+from app.services.cache_service import CacheService
 from app.services.instructor_service import InstructorService
 from app.services.permission_service import PermissionService
+
+try:  # pragma: no cover - support running from backend/ or repo root
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
 
 try:  # pragma: no cover - fallback for direct backend/ test runs
     from backend.tests.conftest import seed_service_areas_from_legacy
 except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import seed_service_areas_from_legacy
+
+
+@pytest.fixture(autouse=True)
+def _clear_service_cache_namespace(db: Session) -> None:
+    cache = CacheService(db)
+    prefixes = [
+        "catalog:services:",
+        "catalog:top-services:",
+        "catalog:all-services",
+        "catalog:kids-available",
+        "instructor:profile:",
+        "instructors:list:",
+    ]
+    for prefix in prefixes:
+        try:
+            cache.clear_prefix(prefix)
+        except Exception:
+            # Ignore cache backends that do not support the operation
+            pass
 
 
 class TestCircularDependencyEdgeCases:
@@ -88,7 +113,8 @@ class TestCircularDependencyEdgeCases:
             db.commit()
 
         # Create booking using time-based approach (Work Stream #9)
-        booking = Booking(
+        booking = create_booking_pg_safe(
+            db,
             student_id=student_user.id,
             instructor_id=instructor_user.id,
             instructor_service_id=service.id,
@@ -103,7 +129,6 @@ class TestCircularDependencyEdgeCases:
             location_type="neutral",
             meeting_location="Online",
         )
-        db.add(booking)
         db.commit()
 
         # Verify booking was created successfully
@@ -111,78 +136,68 @@ class TestCircularDependencyEdgeCases:
         assert booking.status == BookingStatus.CONFIRMED
         # No availability_slot_id to check - it doesn't exist in the model
 
-    def test_delete_availability_slot_bookings_persist(self, db: Session, instructor_user: User, student_user: User):
-        """Test that we CAN delete slots and bookings persist independently."""
-        # Create slot directly (single-table design)
-        slot = AvailabilitySlot(
-            instructor_id=instructor_user.id,
-            specific_date=date.today() + timedelta(days=1),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
-        )
-        db.add(slot)
-        db.flush()
+    def test_delete_availability_day_bookings_persist(self, db: Session, instructor_user: User, student_user: User):
+        """Test that we CAN delete availability days and bookings persist independently."""
+        # Create availability using bitmap storage
+        target_date = date.today() + timedelta(days=1)
+        seed_day(db, instructor_user.id, target_date, [("10:00", "11:00")])
+        db.commit()
 
-        # Create a booking at the same time (not referencing the slot)
+        # Create a booking at the same time (not referencing availability)
         service = instructor_user.instructor_profile.instructor_services[0]
-        booking = Booking(
+        booking = create_booking_pg_safe(
+            db,
             student_id=student_user.id,
             instructor_id=instructor_user.id,
             instructor_service_id=service.id,
-            booking_date=slot.specific_date,
-            start_time=slot.start_time,
-            end_time=slot.end_time,
+            booking_date=target_date,
+            start_time=time(10, 0),
+            end_time=time(11, 0),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=Decimal("50.00"),
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
         )
-        db.add(booking)
         db.commit()
 
-        slot_id = slot.id
         booking_id = booking.id
 
-        # Delete the slot
-        db.delete(slot)
+        # Delete the availability day
+        from app.models import AvailabilityDay
+        db.query(AvailabilityDay).filter(
+            AvailabilityDay.instructor_id == instructor_user.id,
+            AvailabilityDay.day_date == target_date,
+        ).delete()
         db.commit()
 
-        # Verify slot is deleted
-        assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first() is None
+        # Verify availability day is deleted
+        from tests._utils.bitmap_avail import get_day_windows
+        windows = get_day_windows(db, instructor_user.id, target_date)
+        assert len(windows) == 0
 
         # Verify booking still exists with its original status
         booking_after = db.query(Booking).filter(Booking.id == booking_id).first()
         assert booking_after is not None
         assert booking_after.status == BookingStatus.CONFIRMED
-        assert booking_after.booking_date == date.today() + timedelta(days=1)
+        assert booking_after.booking_date == target_date
         assert booking_after.start_time == time(10, 0)
         assert booking_after.end_time == time(11, 0)
 
-    def test_cascade_delete_instructor_slots(self, db: Session, instructor_user: User, student_user: User):
-        """Test behavior when trying to delete instructor with slots and bookings.
+    def test_cascade_delete_instructor_availability(self, db: Session, instructor_user: User, student_user: User):
+        """Bitmap-era policy: no cascade from Instructor → AvailabilityDay; availability must be cleaned manually."""
+        # Create availability using bitmap storage
+        target_date = date.today() + timedelta(days=1)
+        seed_day(db, instructor_user.id, target_date, [("10:00", "11:00"), ("11:00", "12:00")])
+        db.commit()
 
-        The database is configured to SET NULL on instructor_profiles when user is deleted,
-        which fails due to NOT NULL constraint. This test verifies this behavior.
-        """
-        # Create slots directly
-        slot1 = AvailabilitySlot(
-            instructor_id=instructor_user.id,
-            specific_date=date.today() + timedelta(days=1),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
-        )
-        slot2 = AvailabilitySlot(
-            instructor_id=instructor_user.id,
-            specific_date=date.today() + timedelta(days=1),
-            start_time=time(11, 0),
-            end_time=time(12, 0),
-        )
-        db.add_all([slot1, slot2])
-        db.flush()
+        from app.models import AvailabilityDay
+        availability_days = db.query(AvailabilityDay).filter(
+            AvailabilityDay.instructor_id == instructor_user.id,
+            AvailabilityDay.day_date == target_date,
+        ).all()
+        assert len(availability_days) == 1
 
-        slot1_id = slot1.id
-        slot2_id = slot2.id
         instructor_id = instructor_user.id
         profile_id = instructor_user.instructor_profile.id
 
@@ -211,48 +226,50 @@ class TestCircularDependencyEdgeCases:
         # Verify everything is deleted
         assert db.query(User).filter(User.id == instructor_id).first() is None
         assert db.query(InstructorProfile).filter(InstructorProfile.id == profile_id).first() is None
-        # Slots should also be deleted (CASCADE from user)
-        assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot1_id).first() is None
-        assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot2_id).first() is None
+        # Availability days now remain since there is no FK cascade in bitmap storage.
+        remaining_days = db.query(AvailabilityDay).filter(
+            AvailabilityDay.instructor_id == instructor_id
+        ).all()
+        assert len(remaining_days) == 1
 
-    def test_no_reverse_relationship_from_slot(self, db: Session, instructor_user: User):
-        """Verify that availability slots don't have a booking relationship."""
-        # Create slot directly
-        slot = AvailabilitySlot(
-            instructor_id=instructor_user.id,
-            specific_date=date.today() + timedelta(days=1),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
-        )
-        db.add(slot)
+    def test_no_reverse_relationship_from_availability(self, db: Session, instructor_user: User):
+        """Verify that availability days don't have a booking relationship."""
+        # Create availability using bitmap storage
+        target_date = date.today() + timedelta(days=1)
+        seed_day(db, instructor_user.id, target_date, [("10:00", "11:00")])
         db.commit()
 
-        # Verify slot has no booking attribute
-        assert not hasattr(slot, "booking")
-        assert not hasattr(slot, "booking_id")
+        from app.models import AvailabilityDay
+        availability_day = db.query(AvailabilityDay).filter(
+            AvailabilityDay.instructor_id == instructor_user.id,
+            AvailabilityDay.day_date == target_date,
+        ).first()
+        assert availability_day is not None
+
+        # Verify availability day has no booking attribute
+        assert not hasattr(availability_day, "booking")
+        assert not hasattr(availability_day, "booking_id")
 
     def test_query_bookings_by_time(self, db: Session, instructor_user: User, student_user: User):
         """Test querying bookings by time instead of slot reference."""
-        # Create slot directly
-        slot = AvailabilitySlot(
-            instructor_id=instructor_user.id,
-            specific_date=date.today() + timedelta(days=1),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
-        )
-        db.add(slot)
-        db.flush()
+        # Create availability using bitmap storage
+        target_date = date.today() + timedelta(days=1)
+        target_start = time(10, 0)
+        target_end = time(11, 0)
+        seed_day(db, instructor_user.id, target_date, [("10:00", "11:00")])
+        db.commit()
 
         # Create multiple bookings at the same time (one confirmed, one cancelled)
         service = instructor_user.instructor_profile.instructor_services[0]
 
-        booking1 = Booking(
+        booking1 = create_booking_pg_safe(
+            db,
             student_id=student_user.id,
             instructor_id=instructor_user.id,
             instructor_service_id=service.id,
-            booking_date=slot.specific_date,
-            start_time=slot.start_time,
-            end_time=slot.end_time,
+            booking_date=target_date,
+            start_time=target_start,
+            end_time=target_end,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=Decimal("50.00"),
@@ -260,13 +277,14 @@ class TestCircularDependencyEdgeCases:
             status=BookingStatus.CONFIRMED,
         )
 
-        booking2 = Booking(
+        create_booking_pg_safe(
+            db,
             student_id=student_user.id,
             instructor_id=instructor_user.id,
             instructor_service_id=service.id,
-            booking_date=slot.specific_date,
-            start_time=slot.start_time,
-            end_time=slot.end_time,
+            booking_date=target_date,
+            start_time=target_start,
+            end_time=target_end,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=Decimal("50.00"),
@@ -274,7 +292,6 @@ class TestCircularDependencyEdgeCases:
             status=BookingStatus.CANCELLED,
         )
 
-        db.add_all([booking1, booking2])
         db.commit()
 
         # Query active bookings by time (not by slot_id)
@@ -282,9 +299,9 @@ class TestCircularDependencyEdgeCases:
             db.query(Booking)
             .filter(
                 Booking.instructor_id == instructor_user.id,
-                Booking.booking_date == slot.specific_date,
-                Booking.start_time == slot.start_time,
-                Booking.end_time == slot.end_time,
+                Booking.booking_date == target_date,
+                Booking.start_time == target_start,
+                Booking.end_time == target_end,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
             .all()
@@ -476,24 +493,21 @@ class TestSoftDeleteEdgeCases:
         service.is_active = False
         db.commit()
 
-        # Create availability slot directly
-        slot = AvailabilitySlot(
-            instructor_id=instructor.id,
-            specific_date=date.today() + timedelta(days=1),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
-        )
-        db.add(slot)
+        # Create availability using bitmap storage
+        target_date = date.today() + timedelta(days=1)
+        target_start = time(10, 0)
+        target_end = time(11, 0)
+        seed_day(db, instructor.id, target_date, [("10:00", "11:00")])
         db.commit()
 
         # Attempt to book with soft-deleted service using time-based booking
         booking_data = BookingCreate(
             instructor_id=instructor.id,
             instructor_service_id=service.id,
-            booking_date=slot.specific_date,
-            start_time=slot.start_time,
+            booking_date=target_date,
+            start_time=target_start,
             selected_duration=60,
-            end_time=slot.end_time,
+            end_time=target_end,
             location_type="neutral",
             meeting_location="Online",
         )

@@ -21,14 +21,16 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessRuleException, NotFoundException, ValidationException
 from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
+from app.schemas.availability_window import WeekSpecificScheduleCreate
 from app.schemas.booking import BookingCreate, BookingUpdate
+from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
 from app.services.notification_service import NotificationService
+from tests._utils.bitmap_avail import get_day_windows, seed_day
 
 try:  # pragma: no cover - fallback when pytest runs from backend/
     from backend.tests.conftest import add_service_areas_for_boroughs
@@ -39,6 +41,11 @@ except ModuleNotFoundError:  # pragma: no cover
 @pytest.fixture(autouse=True)
 def _no_price_floors(disable_price_floors):
     """Edge-case flows use seeded $50 bookings."""
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
     yield
 
 
@@ -64,15 +71,16 @@ class TestBookingServiceErrorHandling:
         )
 
         tomorrow = date.today() + timedelta(days=1)
-        # Get slot directly (single-table design) - FIXED: date → specific_date
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == tomorrow,  # FIXED: date → specific_date
-            )
-            .first()
-        )
+        # Get windows from bitmap storage
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+
+        start_str, end_str = windows[0]
+        from datetime import time as dt_time
+        start_time = dt_time.fromisoformat(start_str)
+        end_time = dt_time.fromisoformat(end_str)
 
         booking_service = BookingService(db, mock_notification_service)
 
@@ -80,8 +88,8 @@ class TestBookingServiceErrorHandling:
         booking_data = BookingCreate(
             instructor_id=test_instructor_with_availability.id,
             booking_date=tomorrow,
-            start_time=slot.start_time,
-            end_time=slot.end_time,
+            start_time=start_time,
+            end_time=end_time,
             selected_duration=60,
             instructor_service_id=service.id,
             location_type="neutral",
@@ -372,15 +380,16 @@ class TestBookingServiceAvailabilityEdgeCases:
         """Test checking availability with non-existent service."""
         tomorrow = date.today() + timedelta(days=1)
 
-        # Get a valid slot to know the available times - FIXED: date → specific_date
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == tomorrow,  # FIXED: date → specific_date
-            )
-            .first()
-        )
+        # Get available windows from bitmap storage
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+
+        start_str, end_str = windows[0] if windows else ("09:00", "10:00")
+        from datetime import time as dt_time
+        start_time = dt_time.fromisoformat(start_str) if windows else time(9, 0)
+        end_time = dt_time.fromisoformat(end_str) if windows else time(10, 0)
 
         booking_service = BookingService(db, mock_notification_service)
 
@@ -388,8 +397,8 @@ class TestBookingServiceAvailabilityEdgeCases:
         result = await booking_service.check_availability(
             instructor_id=test_instructor_with_availability.id,
             booking_date=tomorrow,
-            start_time=slot.start_time if slot else time(9, 0),
-            end_time=slot.end_time if slot else time(10, 0),
+            start_time=start_time,
+            end_time=end_time,
             service_id=generate_ulid(),  # Non-existent service
         )
 
@@ -585,29 +594,53 @@ class TestStudentDoubleBookingPrevention:
             )
             db.add(piano_service)
 
-        # Add availability for second instructor
-        tomorrow = date.today() + timedelta(days=1)
-        piano_slot = AvailabilitySlot(
-            instructor_id=second_instructor.id,
-            specific_date=tomorrow,
-            start_time=time(9, 0),  # Available from 9 AM
-            end_time=time(17, 0),  # to 5 PM
+        # Add availability for both instructors using service-level week save
+        availability_service = AvailabilityService(db)
+        tomorrow = date.today() + timedelta(days=7)  # ensure future week to avoid fixture data collisions
+        monday = tomorrow - timedelta(days=tomorrow.weekday())
+        # Seed future schedules so both instructors have non-overlapping windows
+        schedule_second = [
+            {
+                "date": tomorrow.isoformat(),
+                "start_time": "09:00",
+                "end_time": "12:00",
+            },
+            {
+                "date": tomorrow.isoformat(),
+                "start_time": "13:00",
+                "end_time": "17:00",
+            },
+        ]
+        week_payload_second = WeekSpecificScheduleCreate(
+            week_start=monday,
+            clear_existing=True,
+            schedule=schedule_second,
         )
-        db.add(piano_slot)
-        db.commit()
+        await availability_service.save_week_availability(second_instructor.id, week_payload_second)
+
+        schedule_first = [
+            {
+                "date": tomorrow.isoformat(),
+                "start_time": "10:00",
+                "end_time": "11:00",
+            }
+        ]
+        week_payload_first = WeekSpecificScheduleCreate(
+            week_start=monday,
+            clear_existing=True,
+            schedule=schedule_first,
+        )
+        await availability_service.save_week_availability(
+            test_instructor_with_availability.id, week_payload_first
+        )
 
         booking_service = BookingService(db, mock_notification_service)
 
         # First booking: Math lesson 10:00-11:00 AM
-        # Get available slot for first instructor
-        _math_slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.specific_date == tomorrow,
-            )
-            .first()
-        )
+        # Ensure availability exists for first instructor
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "17:00")])
 
         booking1_data = BookingCreate(
             instructor_id=test_instructor_with_availability.id,
@@ -647,9 +680,7 @@ class TestStudentDoubleBookingPrevention:
             )
 
         # Verify the error message
-        assert "already have a booking" in str(exc_info.value) or "conflicts with an existing booking" in str(
-            exc_info.value
-        )
+        assert "Student already has a booking that overlaps this time" in str(exc_info.value)
 
         # Verify only the first booking exists
         student_bookings = booking_service.get_bookings_for_user(test_student)
@@ -727,16 +758,31 @@ class TestStudentDoubleBookingPrevention:
             )
             db.add(piano_service)
 
-        # Add availability for second instructor
+        # Add availability for both instructors using the service layer to avoid overlaps
+        availability_service = AvailabilityService(db)
         tomorrow = date.today() + timedelta(days=1)
-        piano_slot = AvailabilitySlot(
-            instructor_id=second_instructor.id,
-            specific_date=tomorrow,
-            start_time=time(9, 0),  # Available from 9 AM
-            end_time=time(17, 0),  # to 5 PM
+        monday = tomorrow - timedelta(days=tomorrow.weekday())
+
+        schedule_second = [
+            {
+                "date": tomorrow.isoformat(),
+                "start_time": "09:00",
+                "end_time": "12:00",
+            },
+            {
+                "date": tomorrow.isoformat(),
+                "start_time": "13:00",
+                "end_time": "17:00",
+            },
+        ]
+        week_payload_second = WeekSpecificScheduleCreate(
+            week_start=monday,
+            clear_existing=True,
+            schedule=schedule_second,
         )
-        db.add(piano_slot)
-        db.commit()
+        await availability_service.save_week_availability(second_instructor.id, week_payload_second)
+
+        db.expire_all()
 
         booking_service = BookingService(db, mock_notification_service)
 

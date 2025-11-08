@@ -4,13 +4,13 @@ Tests for public API configuration settings.
 These tests are dynamic and work with any configuration.
 """
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.availability import AvailabilitySlot
+from tests._utils.bitmap_avail import seed_day
 
 
 class TestPublicAPIConfiguration:
@@ -18,17 +18,10 @@ class TestPublicAPIConfiguration:
 
     def test_respects_configured_day_limit(self, client, db: Session, test_instructor):
         """Test that API respects public_availability_days setting."""
-        # Create availability for 30 days
+        # Create availability for 30 days using bitmap storage
         today = date.today()
         for i in range(30):
-            slot = AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=today + timedelta(days=i),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            )
-            db.add(slot)
-        db.commit()
+            seed_day(db, test_instructor.id, today + timedelta(days=i), [("09:00", "10:00")])
 
         # Request 30 days
         response = client.get(
@@ -59,13 +52,9 @@ class TestPublicAPIConfiguration:
     @patch("app.core.config.settings.public_availability_detail_level", "minimal")
     def test_minimal_detail_level(self, client, db: Session, test_instructor):
         """Test minimal detail level returns only basic info."""
-        # Create some availability
+        # Create some availability using bitmap storage
         today = date.today()
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-        )
-        db.add(slot)
-        db.commit()
+        seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
 
         response = client.get(
             f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
@@ -90,25 +79,9 @@ class TestPublicAPIConfiguration:
     @patch("app.core.config.settings.public_availability_detail_level", "summary")
     def test_summary_detail_level(self, client, db: Session, test_instructor):
         """Test summary detail level returns time ranges."""
-        # Create morning and evening slots
+        # Create morning and evening availability using bitmap storage
         today = date.today()
-        slots = [
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=today,
-                start_time=time(9, 0),  # Morning
-                end_time=time(11, 0),
-            ),
-            AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=today,
-                start_time=time(18, 0),  # Evening
-                end_time=time(20, 0),
-            ),
-        ]
-        for slot in slots:
-            db.add(slot)
-        db.commit()
+        seed_day(db, test_instructor.id, today, [("09:00", "11:00"), ("18:00", "20:00")])
 
         response = client.get(
             f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
@@ -149,19 +122,8 @@ class TestPublicAPIConfiguration:
 
     def test_cache_ttl_configuration(self, client, test_instructor, monkeypatch, db: Session):
         """Test that cache TTL uses configured value."""
-        from datetime import time as datetime_time
-
-        from app.models.availability import AvailabilitySlot
-
-        # Create some availability so there's data to cache
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id,
-            specific_date=date.today(),
-            start_time=datetime_time(9, 0),
-            end_time=datetime_time(10, 0),
-        )
-        db.add(slot)
-        db.commit()
+        # Create some availability so there's data to cache using bitmap storage
+        seed_day(db, test_instructor.id, date.today(), [("09:00", "10:00")])
 
         cache_ttl_used = None
 
@@ -190,17 +152,10 @@ class TestPublicAPIConfiguration:
 
     def test_default_date_range_uses_configured_days(self, client, test_instructor, db: Session):
         """Test that default end date uses configured days."""
-        # Create availability for many days
+        # Create availability for many days using bitmap storage
         today = date.today()
         for i in range(settings.public_availability_days + 5):
-            slot = AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=today + timedelta(days=i),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            )
-            db.add(slot)
-        db.commit()
+            seed_day(db, test_instructor.id, today + timedelta(days=i), [("09:00", "10:00")])
 
         # Don't provide end_date
         response = client.get(
@@ -223,17 +178,10 @@ class TestPublicAPIConfiguration:
 
     def test_requested_range_limited_by_config(self, client, test_instructor, db: Session):
         """Test that requested range is limited by configuration."""
-        # Create availability for many days
+        # Create availability for many days using bitmap storage
         today = date.today()
         for i in range(90):
-            slot = AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=today + timedelta(days=i),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            )
-            db.add(slot)
-        db.commit()
+            seed_day(db, test_instructor.id, today + timedelta(days=i), [("09:00", "10:00")])
 
         # Request 90 days
         response = client.get(
@@ -258,19 +206,9 @@ class TestPublicAPIConfiguration:
     @patch("app.core.config.settings.public_availability_detail_level", "full")
     def test_full_detail_level(self, client, db: Session, test_instructor):
         """Test full detail level returns all slot details."""
-        # Create some availability
+        # Create some availability using bitmap storage
         today = date.today()
-        slots = [
-            AvailabilitySlot(
-                instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
-            ),
-            AvailabilitySlot(
-                instructor_id=test_instructor.id, specific_date=today, start_time=time(14, 0), end_time=time(15, 0)
-            ),
-        ]
-        for slot in slots:
-            db.add(slot)
-        db.commit()
+        seed_day(db, test_instructor.id, today, [("09:00", "10:00"), ("14:00", "15:00")])
 
         response = client.get(
             f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}

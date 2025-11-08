@@ -6,8 +6,8 @@ from datetime import date, time, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from tests._utils.bitmap_avail import seed_day
 
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
@@ -33,27 +33,13 @@ def test_week_with_known_bookings(
 
     service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
 
-    # Create multiple slots directly (single-table design)
-    slots_data = [
-        {"start": time(9, 0), "end": time(10, 0)},
-        {"start": time(10, 0), "end": time(11, 0)},
-        {"start": time(14, 0), "end": time(15, 0)},
-    ]
+    # Create multiple windows using bitmap storage
+    windows = [("09:00", "10:00"), ("10:00", "11:00"), ("14:00", "15:00")]
+    seed_day(db, test_instructor_with_availability.id, test_date, windows)
+    db.commit()
 
-    slots = []
-    for slot_info in slots_data:
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor_with_availability.id,
-            specific_date=test_date,
-            start_time=slot_info["start"],
-            end_time=slot_info["end"],
-        )
-        db.add(slot)
-        slots.append(slot)
-
-    db.flush()
-
-    # Create bookings for 2 of the 3 slots with time-based pattern
+    # Create bookings for 2 of the 3 windows with time-based pattern
+    slot_times = [(time(9, 0), time(10, 0)), (time(10, 0), time(11, 0)), (time(14, 0), time(15, 0))]
     for i in range(2):
         booking = Booking(
             student_id=test_student.id,
@@ -61,8 +47,8 @@ def test_week_with_known_bookings(
             instructor_service_id=service.id,
             # availability_slot_id completely removed from architecture
             booking_date=test_date,
-            start_time=slots[i].start_time,
-            end_time=slots[i].end_time,
+            start_time=slot_times[i][0],
+            end_time=slot_times[i][1],
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,

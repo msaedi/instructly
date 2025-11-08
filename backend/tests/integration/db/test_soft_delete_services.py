@@ -5,9 +5,9 @@ Integration tests for service soft delete functionality.
 Tests the complete flow of soft/hard delete for instructor services
 including booking preservation and reactivation.
 
-UPDATED FOR WORK STREAM #10: Single-table availability design
+UPDATED FOR WORK STREAM #10: Bitmap-only availability design
 - Removed InstructorAvailability imports and usage
-- AvailabilitySlot now has instructor_id and specific_date directly
+- AvailabilityDay stores bitmap availability directly
 - Service soft delete logic remains unchanged
 
 UPDATED FOR WORK STREAM #9: Layer independence
@@ -19,10 +19,10 @@ from datetime import date, time, timedelta
 
 import pytest
 from sqlalchemy.orm import Session
+from tests._utils.bitmap_avail import get_day_windows, seed_day
 
 from app.core.enums import RoleName
 from app.core.ulid_helper import generate_ulid
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.user import User
@@ -62,52 +62,58 @@ class TestSoftDeleteServices:
 
         # If no bookings exist, create one to ensure the test is valid
         if booking_count == 0:
-            # First try to find an existing slot from the fixture
+            # First try to find existing availability from the fixture
             tomorrow = date.today() + timedelta(days=1)
-            existing_slot = (
-                db.query(AvailabilitySlot)
+            windows = get_day_windows(db, test_instructor_with_bookings.id, tomorrow)
+
+            if windows:
+                # Use existing availability
+                booking_date = tomorrow
+                start_time_str, end_time_str = windows[0]
+                from datetime import time as dt_time
+                start_time = dt_time.fromisoformat(start_time_str)
+                end_time = dt_time.fromisoformat(end_time_str)
+            else:
+                # Create new availability with unique times to avoid conflicts
+                booking_date = tomorrow
+                start_time = time(13, 0)  # Use afternoon time to avoid conflicts
+                end_time = time(16, 0)
+                seed_day(db, test_instructor_with_bookings.id, tomorrow, [("13:00", "16:00")])
+                db.flush()
+
+            existing_span = (
+                db.query(Booking)
                 .filter(
-                    AvailabilitySlot.instructor_id == test_instructor_with_bookings.id,
-                    AvailabilitySlot.specific_date >= date.today(),
+                    Booking.instructor_id == test_instructor_with_bookings.id,
+                    Booking.booking_date == booking_date,
+                    Booking.start_time == start_time,
+                    Booking.end_time == end_time,
+                    Booking.cancelled_at.is_(None),
                 )
                 .first()
             )
-
-            if existing_slot:
-                # Use the existing slot
-                slot = existing_slot
-                booking_date = existing_slot.specific_date
-            else:
-                # Create a new slot with unique times to avoid conflicts
-                slot = AvailabilitySlot(
+            if existing_span is None:
+                # Create a booking - using time-based booking (no availability_slot_id)
+                booking = Booking(
+                    student_id=test_student.id,
                     instructor_id=test_instructor_with_bookings.id,
-                    specific_date=tomorrow,
-                    start_time=time(13, 0),  # Use afternoon time to avoid conflicts
-                    end_time=time(16, 0),
+                    instructor_service_id=service_with_bookings["id"],
+                    # NO availability_slot_id - removed in Work Stream #9
+                    booking_date=booking_date,
+                    start_time=start_time,
+                    end_time=end_time,
+                    service_name=service_with_bookings["name"],
+                    hourly_rate=service_with_bookings["hourly_rate"],
+                    total_price=service_with_bookings["hourly_rate"] * ((end_time.hour - start_time.hour) or 1),
+                    duration_minutes=(end_time.hour - start_time.hour) * 60,
+                    status=BookingStatus.CONFIRMED,
+                    meeting_location="Test Location",
                 )
-                db.add(slot)
-                db.flush()
-                booking_date = tomorrow
-
-            # Create a booking - using time-based booking (no availability_slot_id)
-            booking = Booking(
-                student_id=test_student.id,
-                instructor_id=test_instructor_with_bookings.id,
-                instructor_service_id=service_with_bookings["id"],
-                # NO availability_slot_id - removed in Work Stream #9
-                booking_date=booking_date,
-                start_time=slot.start_time,
-                end_time=slot.end_time,
-                service_name=service_with_bookings["name"],
-                hourly_rate=service_with_bookings["hourly_rate"],
-                total_price=service_with_bookings["hourly_rate"] * ((slot.end_time.hour - slot.start_time.hour) or 1),
-                duration_minutes=(slot.end_time.hour - slot.start_time.hour) * 60,
-                status=BookingStatus.CONFIRMED,
-                meeting_location="Test Location",
-            )
-            db.add(booking)
-            db.commit()
-            booking_count = 1
+                db.add(booking)
+                db.commit()
+                booking_count = 1
+            else:
+                booking_count = 1
 
         assert booking_count > 0, "Test needs at least one booking to be valid"
 
@@ -257,15 +263,11 @@ class TestSoftDeleteServices:
         # Create a booking for the second service to ensure it gets soft deleted
         service_to_delete = initial_profile["services"][1]
 
-        # Create availability slot
+        # Create availability using bitmap storage
         tomorrow = date.today() + timedelta(days=1)
-        slot = AvailabilitySlot(
-            instructor_id=test_instructor.id,
-            specific_date=tomorrow,
-            start_time=time(10, 0),
-            end_time=time(11, 0),
-        )
-        db.add(slot)
+        target_start = time(10, 0)
+        target_end = time(11, 0)
+        seed_day(db, test_instructor.id, tomorrow, [("10:00", "11:00")])
         db.flush()
 
         # Create booking
@@ -274,8 +276,8 @@ class TestSoftDeleteServices:
             instructor_id=test_instructor.id,
             instructor_service_id=service_to_delete["id"],
             booking_date=tomorrow,
-            start_time=slot.start_time,
-            end_time=slot.end_time,
+            start_time=target_start,
+            end_time=target_end,
             service_name=service_to_delete["name"],
             hourly_rate=service_to_delete["hourly_rate"],
             total_price=service_to_delete["hourly_rate"],
@@ -382,13 +384,9 @@ class TestSoftDeleteServices:
             # Create a future availability slot directly (single-table design)
             future_date = date.today() + timedelta(days=7)  # Use 7 days to avoid conflicts
 
-            slot = AvailabilitySlot(
-                instructor_id=test_instructor.id,
-                specific_date=future_date,  # FIXED: date → specific_date
-                start_time=time(14, 0),
-                end_time=time(15, 0),
-            )
-            db.add(slot)
+            target_start = time(14, 0)
+            target_end = time(15, 0)
+            seed_day(db, test_instructor.id, future_date, [("14:00", "15:00")])
             db.commit()
 
             # Try to book with inactive service - FIXED: time-based booking
@@ -396,9 +394,9 @@ class TestSoftDeleteServices:
                 booking_data = BookingCreate(
                     instructor_id=test_instructor.id,
                     booking_date=future_date,
-                    start_time=slot.start_time,
+                    start_time=target_start,
                     selected_duration=60,
-                    end_time=slot.end_time,
+                    end_time=target_end,
                     instructor_service_id=inactive_service_id,
                     meeting_location="Test location",
                 )

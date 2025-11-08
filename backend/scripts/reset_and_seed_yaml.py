@@ -18,20 +18,22 @@ from decimal import Decimal
 import json
 import os
 import random
+from typing import Any, Dict, Sequence, Tuple
 
 # Add the scripts directory to Python path so imports work from anywhere
 sys.path.insert(0, str(Path(__file__).parent))
 
 from seed_catalog_only import seed_catalog
+from seed_utils import create_review_booking_pg_safe, find_free_slot_in_bitmap
 from seed_yaml_loader import SeedDataLoader
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, func, text
 from sqlalchemy.orm import Session
 import ulid
 
 from app.auth import get_password_hash
 from app.core.config import settings
 from app.core.enums import RoleName
-from app.models.availability import AvailabilitySlot
+from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import BGCConsent, InstructorProfile
 from app.models.payment import PlatformCredit, StripeConnectedAccount
@@ -40,7 +42,9 @@ from app.models.review import Review, ReviewStatus
 from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.models.user import User
 from app.repositories.address_repository import InstructorServiceAreaRepository
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
+from app.utils.bitset import bits_from_windows, new_empty_bits
 
 
 class DatabaseSeeder:
@@ -78,6 +82,32 @@ class DatabaseSeeder:
             print("ℹ️  No Stripe account mapping file found (config/stripe_test_accounts.json)")
             return {}
 
+    @staticmethod
+    def _get_env_int(key: str, default: int) -> int:
+        raw = os.getenv(key)
+        if raw is None or raw.strip() == "":
+            return default
+        try:
+            return int(raw)
+        except ValueError:
+            return default
+
+    @staticmethod
+    def _get_env_csv_ints(key: str, default: Sequence[int]) -> list[int]:
+        raw = os.getenv(key)
+        if raw is None or raw.strip() == "":
+            return list(default)
+        values: list[int] = []
+        for part in raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                values.append(int(part))
+            except ValueError:
+                continue
+        return values or list(default)
+
     def reset_database(self):
         """Clean test data from database"""
         with Session(self.engine) as session:
@@ -95,7 +125,7 @@ class DatabaseSeeder:
             )
             session.execute(
                 text(
-                    "DELETE FROM availability_slots WHERE instructor_id IN (SELECT id FROM users WHERE email LIKE '%@example.com')"
+                    "DELETE FROM availability_days WHERE instructor_id IN (SELECT id FROM users WHERE email LIKE '%@example.com')"
                 )
             )
             session.execute(
@@ -193,6 +223,7 @@ class DatabaseSeeder:
         self.create_students()
         self.create_instructors()
         self.create_availability()
+        self._prepare_bitmap_environment()
         self.create_coverage_areas()
         self.create_bookings()
         self.create_sample_platform_credits()
@@ -214,9 +245,36 @@ class DatabaseSeeder:
                 print("❌ Error: Roles not found. Make sure migrations ran successfully.")
                 return
 
+            created_count = 0
+            skipped_existing = 0
+
             for student_data in students:
                 # Determine role based on email
                 is_admin = student_data["email"] == "admin@instainstru.com"
+
+                existing_user = (
+                    session.query(User).filter(User.email == student_data["email"]).one_or_none()
+                )
+                role_to_assign = admin_role if is_admin else student_role
+
+                if existing_user:
+                    skipped_existing += 1
+                    # Ensure the expected role exists for the user
+                    has_role = (
+                        session.query(UserRoleJunction)
+                        .filter(
+                            UserRoleJunction.user_id == existing_user.id,
+                            UserRoleJunction.role_id == role_to_assign.id,
+                        )
+                        .first()
+                        is not None
+                    )
+                    if not has_role:
+                        session.add(UserRoleJunction(user_id=existing_user.id, role_id=role_to_assign.id))
+                    self.created_users[existing_user.email] = existing_user.id
+                    role_text = "admin" if is_admin else "student"
+                    print(f"  ℹ️  {role_text.title()} {existing_user.email} already exists; skipping create")
+                    continue
 
                 user = User(
                     email=student_data["email"],
@@ -232,16 +290,21 @@ class DatabaseSeeder:
                 session.flush()
 
                 # Assign role
-                role_to_assign = admin_role if is_admin else student_role
                 user_role = UserRoleJunction(user_id=user.id, role_id=role_to_assign.id)
                 session.add(user_role)
 
                 self.created_users[user.email] = user.id
                 role_text = "admin" if is_admin else "student"
                 print(f"  ✅ Created {role_text}: {user.first_name} {user.last_name}")
+                created_count += 1
 
             session.commit()
-        print(f"✅ Created {len(students)} users (students and admins)")
+        total = created_count + skipped_existing
+        summary = f"✅ Created {created_count} users"
+        if skipped_existing:
+            summary += f" (skipped {skipped_existing} existing)"
+        summary += f" (total defined: {total})"
+        print(summary)
 
     def create_instructors(self):
         """Create instructor accounts with profiles and services from YAML"""
@@ -663,21 +726,28 @@ class DatabaseSeeder:
                 # Create availability for the next N weeks
                 # Generate slots for past weeks (if configured), current week, and future weeks
                 for week_offset in range(-weeks_past, weeks_future + 1):
+                    week_start_date = self._get_week_start_for_offset(week_offset)
+                    day_windows: Dict[date, list[Tuple[str, str]]] = {}
+
                     for day_name, time_slots in days_data.items():
-                        # Calculate the date for this day
                         target_date = self._get_date_for_day(day_name, week_offset)
+                        normalized_slots: list[Tuple[str, str]] = []
+                        for start_str, end_str in time_slots:
+                            start_formatted = f"{start_str}:00" if len(start_str) == 5 else start_str
+                            end_formatted = f"{end_str}:00" if len(end_str) == 5 else end_str
+                            normalized_slots.append((start_formatted, end_formatted))
+                        if normalized_slots:
+                            day_windows.setdefault(target_date, []).extend(normalized_slots)
 
-                        for time_range in time_slots:
-                            start_time = time(*[int(x) for x in time_range[0].split(":")])
-                            end_time = time(*[int(x) for x in time_range[1].split(":")])
+                    repo = AvailabilityDayRepository(session)
+                    items: list[Tuple[date, bytes]] = []
+                    for offset in range(7):
+                        day_date = week_start_date + timedelta(days=offset)
+                        windows = day_windows.get(day_date, [])
+                        bits = bits_from_windows(windows) if windows else new_empty_bits()
+                        items.append((day_date, bits))
 
-                            slot = AvailabilitySlot(
-                                instructor_id=user_id,
-                                specific_date=target_date,
-                                start_time=start_time,
-                                end_time=end_time,
-                            )
-                            session.add(slot)
+                    repo.upsert_week(user_id, items)
 
                 session.commit()
                 print(
@@ -686,14 +756,17 @@ class DatabaseSeeder:
 
         print("✅ Created availability patterns for all instructors")
 
+    def _get_week_start_for_offset(self, week_offset: int) -> date:
+        today = date.today()
+        start_of_week = today - timedelta(days=today.weekday())
+        return start_of_week + timedelta(weeks=week_offset)
+
     def _get_date_for_day(self, day_name: str, week_offset: int) -> date:
         """Return the calendar date for a given day name within the week offset."""
         days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
         day_index = days.index(day_name.lower())
 
-        today = date.today()
-        start_of_week = today - timedelta(days=today.weekday())  # Monday of the current week
-        target_week_start = start_of_week + timedelta(weeks=week_offset)
+        target_week_start = self._get_week_start_for_offset(week_offset)
         return target_week_start + timedelta(days=day_index)
 
     def _day_name_to_number(self, day_name):
@@ -701,7 +774,83 @@ class DatabaseSeeder:
         days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
         return days.index(day_name.lower())
 
-    def create_bookings(self):
+    def _prepare_bitmap_environment(self):
+        if os.getenv("BITMAP_PIPELINE_COMPLETED") == "1":
+            print("  ℹ️  Bitmap pipeline already executed earlier in this run; skipping local seed/backfill.")
+            return
+        flag = os.getenv("SEED_AVAILABILITY", "0").lower() in {"1", "true", "yes"}
+        if not flag:
+            return
+
+        weeks = self._get_env_int("SEED_AVAILABILITY_WEEKS", 3)
+        print(f"🗓️  Seeding bitmap availability for {weeks} future week(s)…")
+        from scripts.seed_bitmap_availability import seed_bitmap_availability
+
+        result = seed_bitmap_availability(weeks)
+        if result:
+            for week_start, count in sorted(result.items()):
+                print(f"  ✅ Bitmap week {week_start}: upserted {count} instructor(s)")
+        else:
+            print("  ℹ️  Bitmap availability seeder had no work.")
+
+        backfill_days = self._get_env_int("BITMAP_BACKFILL_DAYS", 56)
+        from scripts.backfill_bitmaps import backfill_bitmaps_range
+
+        with Session(self.engine) as session:
+            stats = backfill_bitmaps_range(session, backfill_days)
+            if stats:
+                session.commit()
+                for instructor_id, days_written in sorted(stats.items()):
+                    print(f"  ↩︎ Backfilled {days_written} day(s) of bitmap availability for instructor {instructor_id}")
+            else:
+                session.rollback()
+                print("  ℹ️  No bitmap backfill required (coverage already present).")
+
+    def _sample_bitmap_coverage(
+        self,
+        session: Session,
+        instructor_ids: Sequence[str],
+        lookback_days: int,
+        horizon_days: int,
+        sample_size: int = 3,
+    ) -> dict:
+        window_start = date.today() - timedelta(days=lookback_days)
+        window_end = date.today() + timedelta(days=horizon_days)
+
+        sample_ids: list[str] = []
+        if instructor_ids:
+            shuffled = list(instructor_ids)
+            random.shuffle(shuffled)
+            sample_ids = shuffled[: min(sample_size, len(shuffled))]
+
+        sample_stats: list[tuple[str, int]] = []
+        for instructor_id in sample_ids:
+            count = (
+                session.query(func.count(AvailabilityDay.day_date))
+                .filter(
+                    AvailabilityDay.instructor_id == instructor_id,
+                    AvailabilityDay.day_date >= window_start,
+                    AvailabilityDay.day_date <= window_end,
+                )
+                .scalar()
+            )
+            sample_stats.append((instructor_id, count or 0))
+
+        total_rows = (
+            session.query(func.count(AvailabilityDay.day_date))
+            .filter(
+                AvailabilityDay.day_date >= window_start,
+                AvailabilityDay.day_date <= window_end,
+            )
+            .scalar()
+        )
+
+        return {
+            "sample": sample_stats,
+            "total_rows": total_rows or 0,
+        }
+
+    def create_bookings(self) -> int:
         """Create sample bookings for testing"""
         settings_cfg = self.loader.config.get("settings", {})
         booking_days_future = settings_cfg.get("booking_days_future", settings_cfg.get("booking_days_ahead", 7))
@@ -720,7 +869,7 @@ class DatabaseSeeder:
 
             if not students:
                 print("  ⚠️  No students found to create bookings")
-                return
+                return 0
 
             # Exclude Emma Fresh from getting bookings (for testing "How It Works" section)
             students = [s for s in students if s.email != "emma.fresh@example.com"]
@@ -759,57 +908,29 @@ class DatabaseSeeder:
                     # Pick a random duration from the service's options
                     duration = random.choice(service.duration_options)
 
-                    # Find an available slot in the next week
-                    slots = (
-                        session.query(AvailabilitySlot)
-                        .filter(
-                            AvailabilitySlot.instructor_id == instructor_id,
-                            AvailabilitySlot.specific_date >= date.today(),
-                            AvailabilitySlot.specific_date <= date.today() + timedelta(days=booking_days_future),
-                        )
-                        .all()
+                    candidate, _ = find_free_slot_in_bitmap(
+                        session,
+                        instructor_id=instructor_id,
+                        student_id=student.id,
+                        base_date=date.today(),
+                        horizon_days=booking_days_future,
+                        durations_minutes=[duration],
                     )
 
-                    if not slots:
+                    if not candidate:
                         continue
 
-                    # Pick a random slot
-                    slot = random.choice(slots)
+                    booking_date, start_time, end_time = candidate
 
-                    # Calculate end time based on duration
-                    start_datetime = datetime.combine(slot.specific_date, slot.start_time)
-                    end_datetime = start_datetime + timedelta(minutes=duration)
-
-                    # Make sure booking doesn't exceed slot end time
-                    if end_datetime.time() > slot.end_time:
-                        continue
-
-                    # Check if this time is already booked
-                    existing = (
-                        session.query(Booking)
-                        .filter(
-                            Booking.instructor_id == instructor_id,
-                            Booking.booking_date == slot.specific_date,
-                            Booking.start_time < end_datetime.time(),
-                            Booking.end_time > slot.start_time,
-                        )
-                        .first()
-                    )
-
-                    if existing:
-                        continue
-
-                    # Get service details from catalog
                     catalog_service = session.query(ServiceCatalog).filter_by(id=service.service_catalog_id).first()
 
-                    # Create booking
                     booking = Booking(
                         student_id=student.id,
                         instructor_id=instructor_id,
                         instructor_service_id=service.id,
-                        booking_date=slot.specific_date,
-                        start_time=slot.start_time,
-                        end_time=end_datetime.time(),
+                        booking_date=booking_date,
+                        start_time=start_time,
+                        end_time=end_time,
                         duration_minutes=duration,
                         service_name=catalog_service.name if catalog_service else "Service",
                         hourly_rate=service.hourly_rate,
@@ -823,13 +944,13 @@ class DatabaseSeeder:
                     booking_count += 1
 
             session.commit()
-            print(f"✅ Created {booking_count} sample bookings")
-
-            # Create historical bookings for suspended/deactivated instructors
             self._create_historical_bookings_for_inactive_instructors(session, booking_days_past)
+            self._create_completed_bookings_for_active_students(session, booking_days_past)
+            if booking_count:
+                print(f"  ✅ Created {booking_count} sample bookings")
+            return booking_count
 
-            # Create completed bookings for active students (for testing Book Again)
-        self._create_completed_bookings_for_active_students(session, booking_days_past)
+        return 0
 
     def _create_historical_bookings_for_inactive_instructors(self, session, booking_days_past: int):
         """Create past bookings for suspended/deactivated instructors for testing"""
@@ -891,6 +1012,49 @@ class DatabaseSeeder:
                 hour = random.randint(10, 17)
                 start_time = time(hour, 0)
                 end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+
+                # Skip if this student already has a booking overlapping this window
+                student_overlap = (
+                    session.query(Booking)
+                    .filter(
+                        Booking.student_id == student.id,
+                        Booking.booking_date == booking_date,
+                        Booking.start_time < end_time,
+                        Booking.end_time > start_time,
+                        Booking.status.in_(
+                            [
+                                BookingStatus.PENDING,
+                                BookingStatus.CONFIRMED,
+                                BookingStatus.COMPLETED,
+                            ]
+                        ),
+                    )
+                    .first()
+                )
+
+                if student_overlap:
+                    continue
+
+                instructor_overlap = (
+                    session.query(Booking)
+                    .filter(
+                        Booking.instructor_id == instructor.id,
+                        Booking.booking_date == booking_date,
+                        Booking.start_time < end_time,
+                        Booking.end_time > start_time,
+                        Booking.status.in_(
+                            [
+                                BookingStatus.PENDING,
+                                BookingStatus.CONFIRMED,
+                                BookingStatus.COMPLETED,
+                            ]
+                        ),
+                    )
+                    .first()
+                )
+
+                if instructor_overlap:
+                    continue
 
                 booking = Booking(
                     student_id=student.id,
@@ -985,6 +1149,49 @@ class DatabaseSeeder:
                 # Get service details from catalog
                 catalog_service = session.query(ServiceCatalog).filter_by(id=service.service_catalog_id).first()
 
+                # Prevent overlaps with the student's existing bookings
+                student_overlap = (
+                    session.query(Booking)
+                    .filter(
+                        Booking.student_id == student.id,
+                        Booking.booking_date == booking_date,
+                        Booking.start_time < end_time,
+                        Booking.end_time > start_time,
+                        Booking.status.in_(
+                            [
+                                BookingStatus.PENDING,
+                                BookingStatus.CONFIRMED,
+                                BookingStatus.COMPLETED,
+                            ]
+                        ),
+                    )
+                    .first()
+                )
+
+                if student_overlap:
+                    continue
+
+                instructor_overlap = (
+                    session.query(Booking)
+                    .filter(
+                        Booking.instructor_id == instructor.id,
+                        Booking.booking_date == booking_date,
+                        Booking.start_time < end_time,
+                        Booking.end_time > start_time,
+                        Booking.status.in_(
+                            [
+                                BookingStatus.PENDING,
+                                BookingStatus.CONFIRMED,
+                                BookingStatus.COMPLETED,
+                            ]
+                        ),
+                    )
+                    .first()
+                )
+
+                if instructor_overlap:
+                    continue
+
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor.id,
@@ -1010,7 +1217,7 @@ class DatabaseSeeder:
         if completed_count > 0:
             print(f"  🎯 Created {completed_count} completed bookings for active students (Book Again testing)")
 
-    def create_reviews(self):
+    def create_reviews(self, strict: bool = False) -> int:
         """Create 3 published reviews per active instructor to enable ratings display."""
         with Session(self.engine) as session:
             try:
@@ -1018,9 +1225,36 @@ class DatabaseSeeder:
                 student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
                 if not instructor_role or not student_role:
                     print("  ⚠️  Roles not found; skipping review seeding")
-                    return
+                    return 0
 
-                # Active instructors seeded from YAML
+                seed_horizon = self._get_env_int("SEED_REVIEW_HORIZON_DAYS", 21)
+                seed_lookback = self._get_env_int("SEED_REVIEW_LOOKBACK_DAYS", 90)
+                seed_day_start = self._get_env_int("SEED_REVIEW_DAY_START_HOUR", 9)
+                seed_day_end = self._get_env_int("SEED_REVIEW_DAY_END_HOUR", 18)
+                seed_step_minutes = self._get_env_int("SEED_REVIEW_STEP_MINUTES", 15)
+                seed_durations = self._get_env_csv_ints("SEED_REVIEW_DURATIONS", [60, 45, 30])
+                preferred_student_email = os.getenv("SEED_REVIEW_STUDENT_EMAIL", "").strip() or None
+
+                probe_snapshot: dict[str, Any] | None = None
+                probe_raw = os.getenv("BITMAP_PROBE_RESULT")
+                if probe_raw:
+                    try:
+                        probe_snapshot = json.loads(probe_raw)
+                    except json.JSONDecodeError:
+                        probe_snapshot = None
+
+                if probe_snapshot and int(probe_snapshot.get("total_rows", 0) or 0) == 0:
+                    sample_items = probe_snapshot.get("sample") or []
+                    sample_summary = ", ".join(
+                        f"{(item.get('instructor_id') or '')[-6:]}:{item.get('rows', 0)}"
+                        for item in sample_items[:3]
+                    ) or "none"
+                    print(
+                        f"  ⚠️  Bitmap coverage probe reported zero rows; skipping review seeding "
+                        f"(sample={sample_summary})"
+                    )
+                    return 0
+
                 active_instructors = (
                     session.query(User)
                     .join(UserRoleJunction)
@@ -1032,10 +1266,57 @@ class DatabaseSeeder:
                     .all()
                 )
 
+                instructor_ids = [instructor.id for instructor in active_instructors]
+                coverage_stats = self._sample_bitmap_coverage(
+                    session,
+                    instructor_ids,
+                    seed_lookback,
+                    seed_horizon,
+                )
+                sample_stats = coverage_stats["sample"]
+                total_rows = coverage_stats["total_rows"]
+
+                print(f"  🔍 Bitmap coverage probe (lookback {seed_lookback}d, horizon {seed_horizon}d):")
+                if sample_stats:
+                    print(f"  → Sampled {len(sample_stats)} instructor(s):")
+                    for inst_id, count in sample_stats:
+                        print(f"    • Instructor {inst_id[-8:]}: {count} bitmap row(s)")
+                    formatted_sample = ", ".join(f"{inst[-6:]}:{count}" for inst, count in sample_stats)
+                    print(f"  → Sample summary: {formatted_sample}")
+                else:
+                    print("  → No instructors found to sample")
+                print(f"  → Total bitmap rows in window: {total_rows}")
+
+                if total_rows == 0:
+                    message = (
+                        f"No bitmap availability found in the last {seed_lookback} days. "
+                        "Run: SEED_AVAILABILITY=1 ... prep_db.py --seed-all"
+                    )
+                    print(f"  ❌  {message}")
+                    if strict:
+                        raise RuntimeError(message)
+                    return 0
+
+                preferred_student = None
+                if preferred_student_email:
+                    preferred_student = (
+                        session.query(User)
+                        .join(UserRoleJunction)
+                        .filter(
+                            UserRoleJunction.role_id == student_role.id,
+                            User.email == preferred_student_email,
+                            User.account_status == "active",
+                        )
+                        .first()
+                    )
+                    if not preferred_student:
+                        print(
+                            f"  ⚠️  Preferred review student '{preferred_student_email}' not found; using random students."
+                        )
+
                 total_reviews_created = 0
 
                 for instructor in active_instructors:
-                    # Gather completed bookings for this instructor
                     completed_bookings = (
                         session.query(Booking)
                         .filter(
@@ -1046,7 +1327,6 @@ class DatabaseSeeder:
                         .all()
                     )
 
-                    # Ensure at least 3 completed bookings exist by synthesizing if needed
                     while len(completed_bookings) < 3:
                         services = (
                             session.query(InstructorService)
@@ -1057,59 +1337,64 @@ class DatabaseSeeder:
                         if not services:
                             break
 
-                        # Pick a random active student
-                        student = (
-                            session.query(User)
-                            .join(UserRoleJunction)
-                            .filter(
-                                UserRoleJunction.role_id == student_role.id,
-                                User.email.like("%@example.com"),
-                                User.account_status == "active",
+                        if preferred_student:
+                            student = preferred_student
+                        else:
+                            student = (
+                                session.query(User)
+                                .join(UserRoleJunction)
+                                .filter(
+                                    UserRoleJunction.role_id == student_role.id,
+                                    User.email.like("%@example.com"),
+                                    User.account_status == "active",
+                                )
+                                .first()
                             )
-                            .first()
-                        )
-                        if not student:
-                            break
+                            if not student:
+                                break
 
                         service = random.choice(services)
                         duration = random.choice(service.duration_options)
                         days_ago = random.randint(7, 56)
-                        booking_date = date.today() - timedelta(days=days_ago)
-                        hour = random.randint(10, 17)
-                        start_time = time(hour, 0)
-                        end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+                        base_date = date.today() - timedelta(days=days_ago)
+                        helper_completed_at = datetime.now(timezone.utc) - timedelta(days=days_ago - 1)
 
-                        # Create a completed booking in the past
-                        new_booking = Booking(
+                        new_booking = create_review_booking_pg_safe(
+                            session,
                             student_id=student.id,
                             instructor_id=instructor.id,
                             instructor_service_id=service.id,
-                            booking_date=booking_date,
-                            start_time=start_time,
-                            end_time=end_time,
-                            status=BookingStatus.COMPLETED,
+                            base_date=base_date,
                             location_type="neutral",
                             meeting_location="In-person",
                             service_name=service.catalog_entry.name if service.catalog_entry else "Service",
-                            service_area=None,
                             hourly_rate=service.hourly_rate,
                             total_price=service.hourly_rate * (duration / 60),
-                            duration_minutes=duration,
                             student_note="Seeded completed booking for reviews",
-                            completed_at=datetime.now(timezone.utc) - timedelta(days=days_ago - 1),
+                            completed_at=helper_completed_at,
+                            service_area=None,
+                            duration_minutes=duration,
+                            horizon_days=seed_horizon,
+                            lookback_days=seed_lookback,
+                            day_start_hour=seed_day_start,
+                            day_end_hour=seed_day_end,
+                            step_minutes=seed_step_minutes,
+                            durations_minutes=seed_durations,
                         )
-                        session.add(new_booking)
-                        session.flush()
+
+                        if not new_booking:
+                            print(
+                                f"  ⚠️  Skipping synthetic booking for reviews (instructor={instructor.id}); see structured log output."
+                            )
+                            break
+
                         completed_bookings.append(new_booking)
 
-                    # Create up to 3 reviews on completed bookings
                     for booking in completed_bookings[:3]:
-                        # Skip if a review already exists
                         exists = session.query(Review).filter(Review.booking_id == booking.id).first()
                         if exists:
                             continue
 
-                        # Rating distribution biased toward 4-5
                         rating_value = random.choices([5, 4, 3], weights=[60, 30, 10])[0]
                         sample_texts = [
                             "Great lesson, very helpful and patient.",
@@ -1122,7 +1407,6 @@ class DatabaseSeeder:
 
                         completed_at = booking.completed_at
                         if not completed_at:
-                            # Derive completion timestamp from booking date/time
                             base_dt = datetime.combine(
                                 booking.booking_date or date.today(),
                                 (booking.end_time or booking.start_time or time(23, 0)),
@@ -1146,10 +1430,14 @@ class DatabaseSeeder:
                         total_reviews_created += 1
 
                 session.commit()
-                print(f"✅ Seeded {total_reviews_created} reviews for active instructors")
+                print(f"✅ Seeded {total_reviews_created} published reviews for active instructors")
+                return total_reviews_created
             except Exception as e:
                 session.rollback()
                 print(f"  ⚠️  Skipped review seeding due to error: {e}")
+                if strict:
+                    raise
+                return 0
 
     def print_summary(self):
         """Print summary of created data"""
@@ -1194,7 +1482,7 @@ class DatabaseSeeder:
             print(f"  Bookings: {booking_count}")
             print(f"  Platform Credits: {credits_count}")
 
-    def create_sample_platform_credits(self):
+    def create_sample_platform_credits(self) -> int:
         """Create sample platform credits for specific test users."""
         from datetime import timedelta
 
@@ -1204,9 +1492,10 @@ class DatabaseSeeder:
             emma = session.query(User).filter(User.email == "emma.johnson@example.com").first()
             if not emma:
                 print("  ⚠️  Emma Johnson not found; skipping platform credit seeding")
-                return
+                return 0
 
             now = datetime.now(timezone.utc)
+            created = 0
 
             # $20 credit expiring in 30 days
             c1 = PlatformCredit(
@@ -1216,6 +1505,7 @@ class DatabaseSeeder:
                 expires_at=now + timedelta(days=30),
             )
             session.add(c1)
+            created += 1
 
             # $25 credit expiring in 90 days
             c2 = PlatformCredit(
@@ -1225,9 +1515,11 @@ class DatabaseSeeder:
                 expires_at=now + timedelta(days=90),
             )
             session.add(c2)
+            created += 1
 
             session.commit()
             print("✅ Seeded platform credits for emma.johnson@example.com: $20 (30d), $25 (90d)")
+            return created
 
 
 if __name__ == "__main__":

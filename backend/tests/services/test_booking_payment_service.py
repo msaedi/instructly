@@ -11,6 +11,11 @@ from app.models.user import User
 from app.services.booking_service import BookingService
 
 
+@pytest.fixture(autouse=True)
+def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
+    yield
+
+
 @pytest.mark.asyncio
 async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_student, test_instructor):
     """Booking at now + 23h59m => immediate (authorizing)."""

@@ -11,6 +11,7 @@ FIXED: Dynamic date checking instead of hardcoded day names for timezone compati
 """
 
 from datetime import date, time, timedelta
+import os
 from unittest.mock import Mock
 
 import pytest
@@ -131,7 +132,15 @@ class TestSupportingSystemsIntegration:
         mock_redis.setex.return_value = True
         mock_redis.ping.return_value = True
 
-        cache_service = CacheService(db, redis_client=mock_redis)
+        previous_flag = os.environ.get("AVAILABILITY_TEST_MEMORY_CACHE")
+        os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = "0"
+        try:
+            cache_service = CacheService(db, redis_client=mock_redis)
+        finally:
+            if previous_flag is None:
+                os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = "1"
+            else:
+                os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = previous_flag
         notification_service = NotificationService(db)
         notification_service.email_service.send_email = Mock(return_value={"id": "test"})
 
@@ -142,7 +151,7 @@ class TestSupportingSystemsIntegration:
                 {
                     "id": 1,
                     "instructor_id": full_booking.instructor_id,
-                    "date": full_booking.booking_date.isoformat(),
+                    "specific_date": full_booking.booking_date.isoformat(),
                     "start_time": "09:00",
                     "end_time": "17:00",
                 }

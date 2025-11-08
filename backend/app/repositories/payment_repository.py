@@ -1193,14 +1193,17 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             RepositoryException: If update fails
         """
         try:
-            credit = self.db.query(PlatformCredit).filter(PlatformCredit.id == credit_id).first()
-            if not credit:
+            credit_opt = cast(
+                Optional[PlatformCredit],
+                self.db.query(PlatformCredit).filter(PlatformCredit.id == credit_id).first(),
+            )
+            if credit_opt is None:
                 raise RepositoryException(f"Platform credit {credit_id} not found")
 
-            if credit.used_at:
+            if credit_opt.used_at:
                 raise RepositoryException(f"Platform credit {credit_id} already used")
 
-            credit = cast(PlatformCredit, credit)
+            credit = credit_opt
             credit.used_at = datetime.now(timezone.utc)
             credit.used_booking_id = used_booking_id
             self.db.flush()

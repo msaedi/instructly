@@ -71,8 +71,12 @@ jobs:
     needs: [unit-tests]  # Don't spin up services if unit tests fail
     runs-on: ubuntu-latest
     timeout-minutes: 30  # Prevent orphaned runs
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [instructor, admin, anon]
     concurrency:
-      group: e2e-${{ github.workflow }}-${{ github.ref }}
+      group: e2e-${{ github.workflow }}-${{ github.ref }}-${{ matrix.project }}
       cancel-in-progress: true
 
     # Job-level env applies to build and start (important for Next.js)
@@ -98,7 +102,10 @@ jobs:
       is_testing: 'true'
       CORS_ALLOW_ORIGINS: http://localhost:3100
       CORS_ALLOW_HEADERS: content-type,authorization,x-requested-with,x-csrf-token
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+      PROD_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       REDIS_URL: redis://localhost:6379/0
       JWT_SECRET: test-secret-key-for-ci-only
       SECRET_KEY: test-secret-key-for-ci-only
@@ -106,6 +113,14 @@ jobs:
       # Test user credentials (keep in sync with seed data)
       E2E_USER_EMAIL: john.smith@example.com
       E2E_USER_PASSWORD: Test1234
+      E2E_INSTRUCTOR_EMAIL: sarah.chen@example.com
+      E2E_INSTRUCTOR_PASSWORD: ${{ secrets.E2E_INSTRUCTOR_PASSWORD }}
+      E2E_ADMIN_EMAIL: admin@instainstru.com
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_CROSS_ORIGIN: "0"
+      E2E_ENABLE_INVITES: "0"
+      E2E_PROJECT: ${{ matrix.project }}
 
     services:
       postgres:
@@ -113,7 +128,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
+          POSTGRES_DB: instainstru_test
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 10s
@@ -164,12 +179,10 @@ jobs:
         echo "::add-mask::${{ env.JWT_SECRET }}"
         echo "::add-mask::${{ env.SECRET_KEY }}"
         echo "::add-mask::${{ env.DATABASE_URL }}"
-        echo "::add-mask::${{ env.E2E_USER_EMAIL }}"
-        echo "::add-mask::${{ env.E2E_USER_PASSWORD }}"
-        echo "::add-mask::postgresql://postgres:postgres@localhost:5432/test_db"
+        echo "::add-mask::${{ secrets.E2E_INSTRUCTOR_PASSWORD }}"
+        echo "::add-mask::${{ secrets.E2E_ADMIN_PASSWORD }}"
+        echo "::add-mask::postgresql://postgres:postgres@localhost:5432/instainstru_test"
         echo "::add-mask::test-secret-key-for-ci-only"
-        echo "::add-mask::Test1234"
-        echo "::add-mask::john.smith@example.com"
         echo "::add-mask::Bearer "
         echo "::add-mask::sk_live_"
         echo "::add-mask::sk_test_"
@@ -200,6 +213,11 @@ jobs:
           fi
         fi
         echo "✅ Ports 8000 and 3100 are free"
+
+    - name: Ensure test database exists
+      run: |
+        psql "postgresql://postgres:postgres@localhost:5432/postgres" -tAc "SELECT 1 FROM pg_database WHERE datname = 'instainstru_test'" | grep -q 1 \
+          || psql "postgresql://postgres:postgres@localhost:5432/postgres" -c "CREATE DATABASE instainstru_test"
 
     # Backend setup
     - name: Setup Python
@@ -261,9 +279,9 @@ jobs:
     - name: Start backend API
       working-directory: ./backend
       env:
-        TEST_DATABASE_URL: ${{ env.DATABASE_URL }}
-        STG_DATABASE_URL:  ${{ env.DATABASE_URL }}
-        PROD_DATABASE_URL: ${{ env.DATABASE_URL }}
+        TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        STG_DATABASE_URL:  ${{ env.STG_DATABASE_URL }}
+        PROD_DATABASE_URL: ${{ env.PROD_DATABASE_URL }}
       run: |
         set -euo pipefail
         # Start backend with logging to file and unbuffered output
@@ -431,6 +449,11 @@ jobs:
           echo "⚠️ Warning: SSR page /login not fully functional"
         fi
 
+    - name: Auth smoke check (optional)
+      if: ${{ matrix.project != 'anon' }}
+      working-directory: ./backend
+      run: python scripts/dev/auth_direct_check.py
+
     - name: Verify frontend bundle
       working-directory: ./frontend
       run: |
@@ -484,13 +507,13 @@ jobs:
         fi
         echo "✅ Bundle verification complete"
 
-    - name: Run CI E2E tests
+    - name: Run Playwright (${{ matrix.project }})
       working-directory: ./frontend
       run: |
         set -euo pipefail
         # Run tests excluding any quarantined tests (allow failure to capture exit code)
         set +e
-        npx playwright test --grep-invert @quarantine
+        npx playwright test --project='${{ matrix.project }}' --reporter=line --grep-invert @quarantine
         EXIT_CODE=$?
         set -e
         echo "Test exit code: $EXIT_CODE"
@@ -521,7 +544,8 @@ jobs:
 
         # Summary for GitHub Actions
         echo ""
-        echo "### Test Summary" >> $GITHUB_STEP_SUMMARY || true
+        echo "### Test Summary (${{ matrix.project }})" >> $GITHUB_STEP_SUMMARY || true
+        echo "- Project: ${{ matrix.project }}" >> $GITHUB_STEP_SUMMARY || true
         echo "- Exit code: $EXIT_CODE" >> $GITHUB_STEP_SUMMARY || true
         echo "- Quarantined tests: $QUARANTINE_COUNT" >> $GITHUB_STEP_SUMMARY || true
 
@@ -531,7 +555,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: failure()
       with:
-        name: playwright-report
+        name: playwright-report-${{ matrix.project }}
         path: frontend/playwright-report/
         retention-days: 7
 
@@ -539,7 +563,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: failure()
       with:
-        name: server-logs
+        name: server-logs-${{ matrix.project }}
         path: |
           backend/backend.log
           frontend/frontend.log
@@ -549,7 +573,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results
+        name: test-results-${{ matrix.project }}
         path: frontend/test-results/
         retention-days: 7
 
@@ -557,7 +581,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success()
       with:
-        name: server-logs-success
+        name: server-logs-success-${{ matrix.project }}
         path: |
           backend/backend.log
           frontend/frontend.log

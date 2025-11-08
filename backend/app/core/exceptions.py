@@ -141,11 +141,16 @@ class ServiceException(DomainException):
 class BookingConflictException(ConflictException):
     """Raised when a booking conflicts with existing bookings."""
 
-    def __init__(self, slot_id: str, message: Optional[str] = None):
+    def __init__(
+        self,
+        message: Optional[str] = None,
+        *,
+        details: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(
-            message=message or f"Slot {slot_id} is already booked",
+            message=message or "This time slot conflicts with an existing booking",
             code="BOOKING_CONFLICT",
-            details={"slot_id": slot_id},
+            details=details or {},
         )
 
 
@@ -159,6 +164,28 @@ class InsufficientNoticeException(BusinessRuleException):
             details={
                 "required_hours": required_hours,
                 "provided_hours": provided_hours,
+            },
+        )
+
+
+class AvailabilityOverlapException(ConflictException):
+    """Raised when an availability slot overlaps with an existing slot."""
+
+    def __init__(
+        self,
+        specific_date: str,
+        new_range: str,
+        conflicting_range: str,
+    ):
+        super().__init__(
+            message=(
+                f"Overlapping slot on {specific_date}: {new_range} conflicts with {conflicting_range}"
+            ),
+            code="AVAILABILITY_OVERLAP",
+            details={
+                "date": specific_date,
+                "new_slot": new_range,
+                "conflicting_slot": conflicting_range,
             },
         )
 

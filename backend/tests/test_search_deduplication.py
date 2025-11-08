@@ -202,9 +202,11 @@ async def test_soft_delete_preserves_events(search_service, search_repository, e
     deleted = search_service.delete_search(user_id=test_user.id, search_id=result.id)
     assert deleted is True
 
-    # Verify search_history is soft deleted
-    history = db.query(SearchHistory).filter(SearchHistory.id == result.id).first()
-    assert history.deleted_at is not None
+    # Verify search_history is soft deleted - reload from DB to see committed state
+    db.expire_all()
+    reloaded = db.get(SearchHistory, result.id)
+    assert reloaded is not None
+    assert reloaded.deleted_at is not None
 
     # Verify events are preserved
     events_after = (

@@ -111,6 +111,7 @@ class TestCacheDataStructures:
     @pytest.fixture
     def cache_service(self, db):
         """Create cache service with mocked Redis."""
+        import os
         # Mock Redis client
         mock_redis = Mock()
         mock_redis.get.return_value = None
@@ -118,7 +119,15 @@ class TestCacheDataStructures:
         mock_redis.delete.return_value = 1
         mock_redis.ping.return_value = True
 
-        return CacheService(db, redis_client=mock_redis)
+        previous_flag = os.environ.get("AVAILABILITY_TEST_MEMORY_CACHE")
+        os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = "0"
+        try:
+            return CacheService(db, redis_client=mock_redis)
+        finally:
+            if previous_flag is None:
+                os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = "1"
+            else:
+                os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = previous_flag
 
     def test_cache_week_availability_uses_clean_data(self, cache_service):
         """Test caching week availability doesn't store removed fields."""
@@ -261,28 +270,40 @@ class TestCacheWarmingStrategies:
 
         # Mock cache service
         mock_cache = Mock()
-        mock_cache.cache_week_availability.return_value = True
+        mock_cache.key_builder = CacheKeyBuilder()
+        mock_cache.TTL_TIERS = CacheService.TTL_TIERS
 
         # Create warming strategy
         strategy = CacheWarmingStrategy(mock_cache, db)
 
-        # FIXED: Patch AvailabilityService at its source location
-        with patch("app.services.availability_service.AvailabilityService") as mock_service_class:
-            # Mock the availability service
-            mock_service = Mock()
-            mock_service.get_week_availability.return_value = {
-                "2025-07-14": [{"id": 1, "start_time": "09:00", "end_time": "10:00"}]
-            }
-            mock_service_class.return_value = mock_service
+        # Use bitmap helper to construct week_map
+        # Construct minimal windows week map using bitmap helper format
+        week_map = {
+            "2025-07-14": [
+                {
+                    "start_time": "09:00",
+                    "end_time": "10:00",
+                }
+            ]
+        }
 
-            # Warm cache
-            _result = await strategy.warm_with_verification(
-                instructor_id=123, week_start=date(2025, 7, 14), expected_slot_count=1
-            )
+        # Use string instructor_id (ULID format)
+        instructor_id = "01K9D1TEST1234567890123456"
 
-            # Verify it used service layer
-            mock_service_class.assert_called_with(strategy.db, None)  # No cache passed
-            mock_service.get_week_availability.assert_called_with(123, date(2025, 7, 14))
+        # FIXED: Patch AvailabilityService.get_week_availability (the method actually called)
+        with patch("app.services.cache_strategies.get_user_today_by_id", return_value=date(2025, 7, 14)):
+            with patch(
+                "app.services.availability_service.AvailabilityService.get_week_availability"
+            ) as mock_get_week:
+                mock_get_week.return_value = week_map
+
+                # Warm cache (use expected_window_count, not expected_slot_count)
+                _result = await strategy.warm_with_verification(
+                    instructor_id=instructor_id, week_start=date(2025, 7, 14), expected_window_count=1
+                )
+
+                # Verify it used service layer method
+                mock_get_week.assert_called_with(instructor_id, date(2025, 7, 14), use_cache=False)
 
     @pytest.mark.asyncio
     async def test_cache_warming_handles_clean_data(self, db):
@@ -290,14 +311,18 @@ class TestCacheWarmingStrategies:
         from app.services.cache_strategies import CacheWarmingStrategy
 
         mock_cache = Mock()
+        mock_cache.key_builder = CacheKeyBuilder()
+        mock_cache.TTL_TIERS = CacheService.TTL_TIERS
         strategy = CacheWarmingStrategy(mock_cache, db)
 
-        # Mock availability data (clean format)
+        # Mock availability data (clean format using bitmap windows)
+        # Use string instructor_id (ULID format)
+        instructor_id = "01K9D1TEST1234567890123456"
         clean_data = {
             "2025-07-14": [
                 {
                     "id": 1,
-                    "instructor_id": 123,
+                    "instructor_id": instructor_id,
                     "specific_date": "2025-07-14",  # Fixed: date -> specific_date
                     "start_time": "09:00",
                     "end_time": "12:00",
@@ -307,24 +332,38 @@ class TestCacheWarmingStrategies:
             ]
         }
 
-        # FIXED: Patch at the source location
-        with patch("app.services.availability_service.AvailabilityService") as mock_service_class:
-            mock_service = Mock()
-            mock_service.get_week_availability.return_value = clean_data
-            mock_service_class.return_value = mock_service
+        # FIXED: Patch at the source location - patch get_week_availability (the method actually called)
+        with patch("app.services.cache_strategies.get_user_today_by_id", return_value=date(2025, 7, 14)):
+            with patch(
+                "app.services.availability_service.AvailabilityService.get_week_availability"
+            ) as mock_get_week:
+                mock_get_week.return_value = clean_data
 
-            # Warm cache
-            result = await strategy.warm_with_verification(instructor_id=123, week_start=date(2025, 7, 14))
+                # Warm cache
+                result = await strategy.warm_with_verification(instructor_id=instructor_id, week_start=date(2025, 7, 14))
 
-            # Verify clean data was cached
-            mock_cache.cache_week_availability.assert_called_with(123, date(2025, 7, 14), clean_data)
+                # Verify clean data was cached via JSON helpers
+                base_key = f"avail:week:{instructor_id}:2025-07-14"
+                ttl = CacheService.TTL_TIERS["hot"]
+                assert mock_cache.set_json.call_count == 2
+                composite_call = mock_cache.set_json.call_args_list[0]
+                assert composite_call.args[0] == f"{base_key}:with_slots"
+                assert composite_call.args[1]["map"] == clean_data
+                assert composite_call.args[1]["slots"] == []
+                assert composite_call.args[1]["_metadata"] == []
+                assert composite_call.kwargs["ttl"] == ttl
 
-            # Result should be clean
-            assert result == clean_data
-            for date_str, slots in result.items():
-                for slot in slots:
-                    assert "availability_slot_id" not in slot
-                    assert "is_available" not in slot
+                map_call = mock_cache.set_json.call_args_list[1]
+                assert map_call.args[0] == base_key
+                assert map_call.args[1] == clean_data
+                assert map_call.kwargs["ttl"] == ttl
+
+                # Result should be clean
+                assert result == clean_data
+                for date_str, slots in result.items():
+                    for slot in slots:
+                        assert "availability_slot_id" not in slot
+                        assert "is_available" not in slot
 
 
 class TestCacheIntegration:

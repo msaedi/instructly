@@ -4,6 +4,10 @@ import { BookingPreview, UpcomingBooking } from '@/types/booking';
 import { logger } from '@/lib/logger';
 import { getApiBase, withApiBase } from '@/lib/apiBase';
 
+type FetchWithAuthOptions = RequestInit & {
+  noCache?: boolean;
+};
+
 /**
  * API Client for InstaInstru Platform
  *
@@ -44,12 +48,13 @@ export function getApiUrl(): string {
  * });
  * ```
  */
-export const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
-  const method = options.method || 'GET';
+export const fetchWithAuth = async (endpoint: string, options: FetchWithAuthOptions = {}) => {
+  const { noCache = true, cache: cacheOption, ...requestInit } = options;
+  const method = requestInit.method || 'GET';
 
   // Log the API call
   logger.info(`API ${method} ${endpoint}`, {
-    hasBody: !!options.body,
+    hasBody: !!requestInit.body,
   });
 
   // Start timing the request
@@ -58,13 +63,25 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
 
   try {
     const url = withApiBase(endpoint);
-    const baseHeaders = { ...(options.headers || {}) } as Record<string, string>;
-    const response = await fetch(url, {
-      ...options,
+    const baseHeaders = { ...(requestInit.headers || {}) } as Record<string, string>;
+    if (noCache) {
+      baseHeaders['Cache-Control'] = 'no-cache';
+      baseHeaders['Pragma'] = 'no-cache';
+    }
+    const fetchOptions: RequestInit = {
+      ...requestInit,
       // Always include credentials to support cookie-based sessions across all endpoints
       credentials: 'include',
       headers: baseHeaders,
-    });
+    };
+
+    if (noCache) {
+      fetchOptions.cache = 'no-store';
+    } else if (cacheOption !== undefined) {
+      fetchOptions.cache = cacheOption;
+    }
+
+    const response = await fetch(url, fetchOptions);
 
     // Log response details
     logger.timeEnd(timerLabel);
@@ -116,6 +133,9 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
     throw error;
   }
 };
+
+export const etagHeader = (etag?: string): Record<string, string> =>
+  etag ? { 'If-None-Match': etag } : {};
 
 /**
  * Helper function for unauthenticated requests

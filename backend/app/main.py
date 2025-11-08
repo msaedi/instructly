@@ -14,7 +14,7 @@ import os
 import threading
 from time import monotonic
 from types import ModuleType
-from typing import TYPE_CHECKING, AsyncGenerator, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, Optional, Tuple, cast
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +30,9 @@ from starlette.status import (
 )
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.middleware.perf_counters import PerfCounterMiddleware, perf_counters_enabled
+
+from .api.dependencies.authz import public_guard
 from .core.config import assert_env, settings
 from .core.constants import (
     ALLOWED_ORIGINS,
@@ -54,6 +57,19 @@ from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
 from .middleware.prometheus_middleware import PrometheusMiddleware
+from .schemas.audit import AuditLogView
+from .schemas.availability_window import (
+    ValidateWeekRequest,
+    WeekSpecificScheduleCreate,
+)
+
+#
+# Ensure Pydantic forward references for availability schemas are resolved before router setup
+for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest, AuditLogView):
+    try:
+        _model.model_rebuild(force=True)
+    except Exception:  # pragma: no cover - defensive init
+        pass
 
 # Use the new ASGI middleware to avoid "No response returned" errors
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
@@ -65,6 +81,7 @@ from .repositories.instructor_profile_repository import InstructorProfileReposit
 from .routes import (
     account_management,
     addresses,
+    admin_audit,
     admin_background_checks,
     admin_badges,
     admin_config,
@@ -106,11 +123,7 @@ from .routes import (
     users_profile_picture,
     webhooks_checkr,
 )
-from .schemas.main_responses import (
-    HealthLiteResponse,
-    HealthResponse,
-    RootResponse,
-)
+from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
     FINAL_ADVERSE_JOB_TYPE,
     BackgroundCheckWorkflowService,
@@ -410,6 +423,21 @@ app = FastAPI(
 from .errors import register_error_handlers  # noqa: E402
 
 register_error_handlers(app)
+
+_original_openapi = cast(Callable[[], Dict[str, Any]], getattr(app, "openapi"))
+
+
+def _availability_safe_openapi() -> Dict[str, Any]:
+    """Ensure availability schemas are rebuilt before generating OpenAPI."""
+    for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest):
+        try:
+            _model.model_rebuild(force=True)
+        except Exception:
+            pass
+    return _original_openapi()
+
+
+setattr(app, "openapi", _availability_safe_openapi)
 
 
 def _next_expiry_run(now: datetime | None = None) -> datetime:
@@ -714,6 +742,9 @@ logger.info("CORS allow_origins=%s allow_credentials=%s", _DYN_ALLOWED_ORIGINS, 
 # Keep MonitoringMiddleware (pure ASGI-style) below CORS
 app.add_middleware(MonitoringMiddleware)
 
+if perf_counters_enabled():
+    app.add_middleware(PerfCounterMiddleware)
+
 # Performance and metrics middleware with SSE support
 # These middlewares now properly detect and bypass SSE endpoints
 app.add_middleware(PerformanceMiddleware)  # Performance monitoring with SSE bypass
@@ -744,37 +775,65 @@ class SSEAwareGZipMiddleware(GZipMiddleware):
 app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 
 # Include routers
-app.include_router(auth.router)
-app.include_router(two_factor_auth.router)
+PUBLIC_OPEN_PATHS = {
+    "/",
+    "/health",
+    "/auth/login",
+    "/auth/login-with-session",
+    "/auth/register",
+    "/api/auth/password-reset/request",
+    "/api/auth/password-reset/confirm",
+    "/api/auth/2fa/verify-login",
+    "/api/referrals/claim",
+}
+
+PUBLIC_OPEN_PREFIXES = (
+    "/api/public",
+    "/api/auth/password-reset/verify",
+    "/api/config",
+    "/r/",
+)
+
+public_guard_dependency = public_guard(
+    open_paths=sorted(PUBLIC_OPEN_PATHS),
+    open_prefixes=sorted(PUBLIC_OPEN_PREFIXES),
+)
+
+
+app.include_router(auth.router, dependencies=[Depends(public_guard_dependency)])
+app.include_router(two_factor_auth.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(instructors.router)
 app.include_router(instructor_background_checks.router)
 app.include_router(instructor_bookings.router)
 app.include_router(account_management.router)
 app.include_router(services.router)
-app.include_router(availability_windows.router)
-app.include_router(password_reset.router)
-app.include_router(bookings.router)
+app.include_router(availability_windows.router, dependencies=[Depends(public_guard_dependency)])
+app.include_router(password_reset.router, dependencies=[Depends(public_guard_dependency)])
+app.include_router(bookings.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(student_badges.router)
-app.include_router(pricing_preview.router)
-app.include_router(pricing_config_public.router)
+app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_dependency)])
+app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(favorites.router)
-app.include_router(payments.router)
+app.include_router(payments.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(messages.router)
 app.include_router(metrics.router)
+if os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}:
+    app.include_router(metrics.metrics_lite_router, include_in_schema=False)
 app.include_router(monitoring.router)
 app.include_router(alerts.router)
 app.include_router(analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(codebase_metrics.router)
-app.include_router(public.router)
-app.include_router(referrals.public_router)
-app.include_router(referrals.router)
+app.include_router(public.router, dependencies=[Depends(public_guard_dependency)])
+app.include_router(referrals.public_router, dependencies=[Depends(public_guard_dependency)])
+app.include_router(referrals.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(referrals.admin_router)
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
-app.include_router(addresses.router)
+app.include_router(addresses.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(redis_monitor.router)
 app.include_router(database_monitor.router)
 app.include_router(admin_config.router)
+app.include_router(admin_audit.router)
 app.include_router(privacy.router, prefix="/api", tags=["privacy"])
 app.include_router(stripe_webhooks.router)
 app.include_router(webhooks_checkr.router)
