@@ -20,14 +20,14 @@ import { APP_URL, APP_ENV, NODE_ENV, ENABLE_LOGGING } from '@/lib/publicEnv';
  * Modern, clean sans-serif font for UI elements and body text
  */
 const geistSans = localFont({
-  src: [{ path: '/fonts/Geist-Regular.woff2', style: 'normal', weight: '400' }],
+  src: [{ path: '../public/fonts/Geist-Regular.woff2', style: 'normal', weight: '400' }],
   variable: '--font-geist-sans',
   display: 'swap',
   preload: true,
 });
 
 const geistMono = localFont({
-  src: [{ path: '/fonts/Geist-Mono.woff2', style: 'normal', weight: '400' }],
+  src: [{ path: '../public/fonts/Geist-Mono.woff2', style: 'normal', weight: '400' }],
   variable: '--font-geist-mono',
   display: 'swap',
   preload: true,
