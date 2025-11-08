@@ -21,15 +21,39 @@ jobs:
       - name: Install frontend deps
         working-directory: frontend
         run: npm ci
-      - name: Build frontend
+
+      - name: Build frontend (production)
         working-directory: frontend
+        env:
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: '1'
         run: npm run build
+
+      - name: Start frontend server (prod)
+        working-directory: frontend
+        run: |
+          PORT=3100 npm run start & echo $! > .server.pid
+          npx wait-on http://localhost:3100
+
+      - name: Warm pages
+        run: |
+          curl -sSf http://localhost:3100/ >/dev/null
+          curl -sSf http://localhost:3100/login >/dev/null
+          curl -sSf http://localhost:3100/lhci/instructor >/dev/null
+          curl -sSf http://localhost:3100/instructor/availability >/dev/null
+
       - name: Run Lighthouse CI (hard gate)
         working-directory: frontend
         run: npx lhci autorun --config=lhci.config.js
+
       - name: Upload LHCI artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lhci-artifacts
           path: frontend/.lighthouseci
+
+      - name: Stop frontend server
+        if: always()
+        working-directory: frontend
+        run: kill "$(cat .server.pid)" || true
