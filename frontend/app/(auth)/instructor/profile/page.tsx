@@ -988,6 +988,7 @@ function ProfilePageImpl() {
             className="w-full flex items-center justify-between mb-4 text-left"
             onClick={() => setOpenServiceAreas((v) => !v)}
             aria-expanded={openServiceAreas}
+            data-testid="service-areas-card"
           >
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -1163,7 +1164,7 @@ function ProfilePageImpl() {
           )}
           {/* Preferred Teaching Location */}
           {openServiceAreas && (
-          <div className="mt-6">
+          <div className="mt-6" data-testid="preferred-places-card">
             <p className="text-gray-600 mt-1 mb-2">Preferred Teaching Location</p>
             <p className="text-xs text-gray-600 mb-2">Add a studio, gym, or home address if you teach from a fixed location.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start mt-3 sm:mt-0">

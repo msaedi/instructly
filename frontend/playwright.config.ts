@@ -10,21 +10,21 @@ import { env } from './lib/env';
 // dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const isCI = env.isCI();
+const skipWebServer = Boolean(process.env['SKIP_WEB_SERVER']);
 
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  globalSetup: './e2e/global-setup.ts',
+  globalSetup: './playwright.global-setup.ts',
   testDir: './e2e',
   /* Run tests in files in parallel */
   fullyParallel: !isCI, // Disable parallel in CI
+  ...(isCI ? {} : { workers: 2 }),
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: isCI,
   /* Retry on CI only - REDUCED to avoid 20 minute runs */
   retries: isCI ? 1 : 0,
-  /* Modest workers in CI to reduce resource contention */
-  ...(isCI && { workers: 2 }),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: isCI
     ? [
@@ -43,7 +43,6 @@ export default defineConfig({
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: env.getOrDefault('PLAYWRIGHT_BASE_URL', 'http://localhost:3100'),
-    storageState: 'e2e/.auth/state.json',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: isCI ? 'on-first-retry' : 'retain-on-failure',
@@ -62,8 +61,16 @@ export default defineConfig({
   /* Configure projects for major browsers */
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'instructor',
+      use: { ...devices['Desktop Chrome'], storageState: 'e2e/.storage/instructor.json' },
+    },
+    {
+      name: 'admin',
+      use: { ...devices['Desktop Chrome'], storageState: 'e2e/.storage/admin.json' },
+    },
+    {
+      name: 'anon',
+      use: { ...devices['Desktop Chrome'], storageState: undefined },
     },
 
     // Uncomment to test on other browsers
@@ -82,7 +89,7 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  ...(!env.isCI() && {
+  ...(!env.isCI() && !skipWebServer && {
     webServer: {
       command: 'npm run dev:test',
       url: 'http://localhost:3100',

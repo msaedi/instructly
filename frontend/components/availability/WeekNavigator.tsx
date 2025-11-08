@@ -81,8 +81,16 @@ export default function WeekNavigator({
     weekRangeDisplay = `${sMonth} ${sYear} – ${eMonth} ${eYear}`;
   }
 
+  const weekStartAttribute = new Date(currentWeekStart);
+  weekStartAttribute.setHours(0, 0, 0, 0);
+  const weekStartISO = weekStartAttribute.toISOString().slice(0, 10);
+
   return (
-    <div className="mb-6 bg-white rounded-lg border border-gray-200 p-5 shadow-sm ring-1 ring-purple-100">
+    <div
+      className="mb-6 bg-white rounded-lg border border-gray-200 p-5 shadow-sm ring-1 ring-purple-100"
+      data-testid="week-header"
+      data-week-start={weekStartISO}
+    >
       <div className="flex items-center justify-between">
         {/* Previous Week Button */}
         <button

@@ -34,6 +34,7 @@ export default function ConflictModal({
         aria-modal="true"
         aria-labelledby="availability-conflict-title"
         aria-describedby="availability-conflict-desc"
+        data-testid="conflict-modal"
         className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
       >
         <button
@@ -65,6 +66,7 @@ export default function ConflictModal({
               'inline-flex items-center justify-center rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100',
               (isRefreshing || isOverwriting) && 'cursor-not-allowed opacity-60'
             )}
+          data-testid="conflict-refresh"
           >
             {isRefreshing ? 'Refreshing…' : 'Refresh'}
           </button>
@@ -72,6 +74,7 @@ export default function ConflictModal({
             type="button"
             onClick={onOverwrite}
             disabled={isOverwriting || isRefreshing}
+            data-testid="conflict-overwrite"
             className={clsx(
               'inline-flex items-center justify-center rounded-full bg-[#7E22CE] px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#6b1ebe]',
               (isOverwriting || isRefreshing) && 'cursor-not-allowed opacity-60'

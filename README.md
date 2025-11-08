@@ -136,6 +136,13 @@ enable the `invite_e2e` input. The workflow now seeds via
 `python scripts/prep_db.py int --migrate --seed-all --force --yes`, matching the
 rest of our end-to-end suites.
 
+### Playwright projects & skips
+We run the E2E suite in three Playwright projects (`instructor`, `admin`, `anon`). Specs are gated with
+`test.skip(({ }, info) => info.project.name !== '<role>')`, so when all projects run together Playwright still
+“discovers” the other files and reports them as skipped. To keep local output tidy, run the project that matches
+your flow, e.g. `npx playwright test --project=instructor` for availability work or `--project=admin` for the invite
+suite. CI should mirror this via a `{ instructor, admin, anon }` matrix so each role-specific suite runs in its own job.
+
 📚 API Documentation
 Once the backend is running, visit:
 

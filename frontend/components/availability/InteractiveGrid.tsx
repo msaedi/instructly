@@ -433,6 +433,9 @@ export default function InteractiveGrid({
                     key={`${date}-${row}`}
                     type="button"
                     role="gridcell"
+                    data-testid="availability-cell"
+                    data-date={date}
+                    data-time={`${String(labelHour).padStart(2, '0')}:${labelMinute}:00`}
                     aria-selected={selected}
                     aria-disabled={behaviourPast}
                     aria-label={ariaLabel}

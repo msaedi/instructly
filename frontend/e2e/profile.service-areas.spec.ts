@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { isInstructor } from './utils/projects';
 
+test.beforeAll(({}, workerInfo) => {
+  test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
+});
 test.skip(Boolean(process.env.CI) && !process.env.CI_LOCAL_E2E, 'local-only smoke; opt-in via CI_LOCAL_E2E=1');
 
 test('service areas: select two -> save -> reload -> persisted', async ({ page }) => {
@@ -146,6 +150,11 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
 
   await page.goto('/instructor/profile');
 
+  const serviceAreasCard = page.getByTestId('service-areas-card');
+  await serviceAreasCard.waitFor();
+  await serviceAreasCard.scrollIntoViewIfNeeded();
+  await serviceAreasCard.click();
+
   await page.getByTestId('service-area-borough-manhattan').click();
 
   await page.getByTestId('service-area-chip-MN01').waitFor();
@@ -158,15 +167,19 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
     response.request().method() === 'PUT'
   );
 
-  await Promise.all([
-    putPromise,
-    page.getByRole('button', { name: /save & continue/i }).click(),
-  ]);
+  await page.getByRole('button', { name: /save changes/i }).click();
+  const putResponse = await putPromise;
+  expect(putResponse.status()).toBeLessThan(400);
 
-  await page.waitForURL('**/instructor/onboarding/skill-selection**');
+  await expect(page.getByText('Profile saved')).toBeVisible();
+  await expect(page.getByText('Profile saved')).toBeHidden();
+
   await page.goto('/instructor/profile');
   await page.waitForURL('**/instructor/profile**');
 
+  const serviceAreasCardReload = page.getByTestId('service-areas-card');
+  await serviceAreasCardReload.scrollIntoViewIfNeeded();
+  await serviceAreasCardReload.click();
   await page.getByTestId('service-area-borough-manhattan').click();
   await page.getByTestId('service-area-chip-MN01').waitFor();
 
@@ -174,6 +187,9 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
 
   await page.reload();
 
+  const serviceAreasCardReloadSecond = page.getByTestId('service-areas-card');
+  await serviceAreasCardReloadSecond.scrollIntoViewIfNeeded();
+  await serviceAreasCardReloadSecond.click();
   await page.getByTestId('service-area-borough-manhattan').click();
   await page.getByTestId('service-area-chip-MN01').waitFor();
 

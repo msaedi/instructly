@@ -1,4 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { isAnon } from '../utils/projects';
+
+test.beforeAll(({}, workerInfo) => {
+  test.skip(!isAnon(workerInfo), `Anon-only spec (current project: ${workerInfo.project.name})`);
+});
 
 test.describe('Smoke Tests', () => {
   test('homepage loads successfully', async ({ page }) => {
