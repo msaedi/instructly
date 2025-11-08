@@ -117,6 +117,7 @@ jobs:
       E2E_INSTRUCTOR_PASSWORD: ${{ secrets.E2E_INSTRUCTOR_PASSWORD }}
       E2E_ADMIN_EMAIL: admin@instainstru.com
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
       E2E_CROSS_ORIGIN: "0"
       E2E_ENABLE_INVITES: "0"
       E2E_PROJECT: ${{ matrix.project }}
@@ -180,7 +181,7 @@ jobs:
         echo "::add-mask::${{ env.DATABASE_URL }}"
         echo "::add-mask::${{ secrets.E2E_INSTRUCTOR_PASSWORD }}"
         echo "::add-mask::${{ secrets.E2E_ADMIN_PASSWORD }}"
-        echo "::add-mask::postgresql://postgres:postgres@localhost:5432/test_db"
+        echo "::add-mask::postgresql://postgres:postgres@localhost:5432/instainstru_test"
         echo "::add-mask::test-secret-key-for-ci-only"
         echo "::add-mask::Bearer "
         echo "::add-mask::sk_live_"
