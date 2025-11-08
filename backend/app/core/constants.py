@@ -40,8 +40,11 @@ DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturda
 # Frontend URLs
 DEFAULT_DEV_ORIGINS = [
     "http://localhost:3000",
+    "http://localhost:3100",
     "http://127.0.0.1:3000",
+    "http://127.0.0.1:3100",
     "http://beta-local.instainstru.com:3000",
+    "http://beta-local.instainstru.com:3100",
 ]
 
 
@@ -58,7 +61,10 @@ ALLOWED_ORIGINS = (
 )
 
 # CORS regex pattern for Vercel preview deployments
-CORS_ORIGIN_REGEX = r"^https://[a-zA-Z0-9-]+\.vercel\.app$"
+CORS_ORIGIN_REGEX = (
+    r"(^https://[a-zA-Z0-9-]+\.vercel\.app$)"
+    r"|(^https?://(localhost|127\.0\.0\.1|beta-local\.instainstru\.com)(:\d+)?$)"
+)
 
 # Error messages
 ERROR_INSTRUCTOR_ONLY = "Only instructors can perform this action"
