@@ -7,6 +7,9 @@ Migration files are excluded as they may reference the old table structure.
 """
 
 from pathlib import Path
+import shlex
+import shutil
+import subprocess
 
 import pytest
 
@@ -58,20 +61,36 @@ def test_no_availability_slot_symbols_in_backend() -> None:
 
 def test_no_availabilityslot_imports_in_tests() -> None:
     """Fail if any test file imports AvailabilitySlot."""
-    from pathlib import Path
-    import shlex
-    import subprocess
 
-    # Search for AvailabilitySlot references in test files
-    cmd = shlex.split('rg -n "\\bAvailabilitySlot\\b" backend/tests --type py')
+    rg_path = shutil.which("rg")
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    tests_root = Path(__file__).resolve().parents[3] / "tests"
 
-    if result.returncode != 0:
-        # ripgrep found no matches - success!
-        return
-
-    lines = result.stdout.strip().split("\n")
+    if rg_path and tests_root.exists():
+        cmd = shlex.split(f'rg -n "\\\\bAvailabilitySlot\\\\b" {tests_root} --type py')
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode not in (0, 1):
+            pytest.fail(f"ripgrep exited with {result.returncode}: {result.stderr}")
+        if result.returncode == 1 or not result.stdout.strip():
+            return
+        lines = result.stdout.strip().split("\n")
+    else:
+        lines = []
+        tests_dir = Path("backend/tests")
+        for py_file in tests_dir.rglob("*.py"):
+            if any(part in (".venv", "venv", "__pycache__", "legacy") for part in py_file.parts):
+                continue
+            try:
+                content = py_file.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+            if "AvailabilitySlot" not in content:
+                continue
+            for idx, line in enumerate(content.splitlines(), start=1):
+                if "AvailabilitySlot" in line:
+                    lines.append(f"{py_file}:{idx}:{line}")
+        if not lines:
+            return
     violations = []
 
     for line in lines:

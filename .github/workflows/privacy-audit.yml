@@ -155,14 +155,6 @@ jobs:
             psql -h 127.0.0.1 -U postgres -d appdb -c \
             "SELECT name, default_version FROM pg_available_extensions WHERE name='vector';"
 
-      - name: Run database migrations
-        env:
-          SITE_MODE: int
-          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/appdb
-        run: |
-          cd backend
-          python scripts/prep_db.py --migrate
-
       - name: Confirm extensions installed
         run: |
           docker compose -f compose.privacy.yml exec -T \
@@ -172,6 +164,14 @@ jobs:
             -e PGPASSWORD=postgres db \
             psql -h 127.0.0.1 -U postgres -d appdb -c \
             "SELECT name, default_version FROM pg_available_extensions WHERE name='vector';"
+
+      - name: Seed test data
+        env:
+          SITE_MODE: int
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/appdb
+        run: |
+          cd backend
+          python scripts/prep_db.py int --migrate --seed-all --force --yes
 
       - name: Ensure region_boundaries unique index
         working-directory: backend
@@ -185,21 +185,24 @@ jobs:
           conn = psycopg2.connect(os.environ['DATABASE_URL'])
           cur = conn.cursor()
           cur.execute(
-              "CREATE UNIQUE INDEX IF NOT EXISTS region_boundaries_rtype_rcode_idx "
-              "ON region_boundaries(region_type, region_code)"
+              """
+              DO $$
+              BEGIN
+                IF EXISTS (
+                  SELECT 1
+                  FROM information_schema.tables
+                  WHERE table_schema = 'public' AND table_name = 'region_boundaries'
+                ) THEN
+                  CREATE UNIQUE INDEX IF NOT EXISTS region_boundaries_rtype_rcode_idx
+                    ON region_boundaries(region_type, region_code);
+                END IF;
+              END $$;
+              """
           )
           conn.commit()
           cur.close()
           conn.close()
           PY
-
-      - name: Seed test data
-        env:
-          SITE_MODE: int
-          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/appdb
-        run: |
-          cd backend
-          python scripts/prep_db.py int --migrate --seed-all --force --yes
 
       - name: Start backend server
         env:
