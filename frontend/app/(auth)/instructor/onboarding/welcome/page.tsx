@@ -37,20 +37,21 @@ export default function WelcomeStep() {
           <h1 id="welcome-title" className="text-2xl sm:text-3xl font-bold text-gray-900 text-center mb-2">
             Welcome aboard!
           </h1>
-          <p className="text-lg text-gray-600 text-center mb-4">We&apos;re thrilled to have you join <span className="font-bold">iNSTAiNSTRU</span>!</p>
+          <p className="text-lg text-gray-600 text-center mb-4">
+            We&apos;re thrilled to have you on <span className="font-bold">iNSTAiNSTRU</span>!
+          </p>
           <div className="space-y-3 text-center text-gray-600 text-base">
             <p>
-              Instructors in your area earn around <span className="font-semibold text-gray-900">$75</span> per lesson.
+              Over <span className="font-semibold text-gray-900">500 students</span> searched for instructors in your area this week.
             </p>
-            <p>
-              Over <span className="font-semibold text-gray-900">500 students</span> are actively searching for instructors. Next up, you&apos;ll create your profile and could book your first lesson within 48 hours!
-            </p>
+            <p>Next up, create your profile so you&apos;re launch-ready.</p>
+            <p>We&apos;ll alert you the moment booking goes live!</p>
           </div>
 
           <div className="mt-8 flex justify-center">
             <Link
               ref={ctaRef}
-              href="/instructor/profile"
+              href="/instructor/onboarding/account-setup"
               className="inline-flex items-center justify-center w-52 h-12 rounded-lg bg-[#7E22CE] text-white text-base font-medium focus:outline-none focus:ring-4 focus:ring-[#7E22CE]/20 transition"
             >
               Let&apos;s get started

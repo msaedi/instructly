@@ -30,13 +30,24 @@ def _resolve_frontend_origin(base_override: str | None) -> str:
     return candidate
 
 
+def _resolve_invite_claim_origin(base_override: str | None) -> str:
+    site_mode = os.getenv("SITE_MODE", "").strip().lower()
+    if site_mode == "local" and settings.local_beta_frontend_origin:
+        return settings.local_beta_frontend_origin.rstrip("/")
+    base = (base_override or settings.invite_claim_base_url).rstrip("/")
+    return base
+
+
 def build_join_url(code: str, email: Optional[str], base_override: str | None = None) -> str:
-    params = {"invite_code": code}
-    if email:
-        params["email"] = email
+    params = {
+        "token": code,
+        "utm_source": "email",
+        "utm_medium": "invite",
+        "utm_campaign": "founding_instructor",
+    }
     query = urlencode(params)
-    base = _resolve_frontend_origin(base_override)
-    return f"{base}/instructor/join?{query}"
+    base = _resolve_invite_claim_origin(base_override)
+    return f"{base}/invite/claim?{query}"
 
 
 def build_welcome_url(code: str, email: Optional[str], base_override: str | None = None) -> str:

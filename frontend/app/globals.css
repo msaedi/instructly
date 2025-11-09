@@ -15,6 +15,25 @@
 @keyframes inst-leftArm { 0%,100%{transform:rotate(0deg);transform-origin:8px 8px;} 5%{transform:rotate(20deg);transform-origin:8px 8px;} 10%{transform:rotate(0deg);transform-origin:8px 8px;} 15%{transform:rotate(-20deg);transform-origin:8px 8px;} 20%{transform:rotate(0deg);transform-origin:8px 8px;} 25%{transform:rotate(20deg);transform-origin:8px 8px;} 30%{transform:rotate(0deg);transform-origin:8px 8px;} 37%,49%{transform:rotate(-30deg);transform-origin:8px 8px;} 41%,45%{transform:rotate(30deg);transform-origin:8px 8px;} 50%,100%{transform:rotate(0deg);transform-origin:8px 8px;} 55%{transform:rotate(-20deg);transform-origin:8px 8px;} 60%{transform:rotate(0deg);transform-origin:8px 8px;} 65%{transform:rotate(20deg);transform-origin:8px 8px;} 70%{transform:rotate(0deg);transform-origin:8px 8px;} 75%{transform:rotate(-20deg);transform-origin:8px 8px;} 80%{transform:rotate(0deg);transform-origin:8px 8px;} }
 @keyframes inst-rightArm { 0%,100%{transform:rotate(0deg);transform-origin:8px 8px;} 5%{transform:rotate(-20deg);transform-origin:8px 8px;} 10%{transform:rotate(0deg);transform-origin:8px 8px;} 15%{transform:rotate(20deg);transform-origin:8px 8px;} 20%{transform:rotate(0deg);transform-origin:8px 8px;} 25%{transform:rotate(-20deg);transform-origin:8px 8px;} 30%{transform:rotate(0deg);transform-origin:8px 8px;} 37%,49%{transform:rotate(30deg);transform-origin:8px 8px;} 41%,45%{transform:rotate(-30deg);transform-origin:8px 8px;} 50%,100%{transform:rotate(0deg);transform-origin:8px 8px;} 55%{transform:rotate(20deg);transform-origin:8px 8px;} 60%{transform:rotate(0deg);transform-origin:8px 8px;} 65%{transform:rotate(-20deg);transform-origin:8px 8px;} 70%{transform:rotate(0deg);transform-origin:8px 8px;} 75%{transform:rotate(20deg);transform-origin:8px 8px;} 80%{transform:rotate(0deg);transform-origin:8px 8px;} }
 
+@keyframes invite-pop {
+  0% {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-invite-pop {
+  animation: invite-pop 220ms ease-out;
+}
+
 .inst-anim-walk { animation: inst-walk 20s linear infinite; }
 .inst-anim-leftLeg { animation: inst-leftLeg 20s linear infinite; }
 .inst-anim-rightLeg { animation: inst-rightLeg 20s linear infinite; }
@@ -825,6 +844,23 @@ html {
   transform: translate(-4px, -4px);
   z-index: 20;
   pointer-events: none;
+}
+
+.focus-link {
+  outline: none;
+  box-shadow: none;
+  transition: color 150ms ease, text-decoration-thickness 150ms ease;
+}
+
+.focus-link:focus-visible {
+  outline: none;
+  box-shadow: none;
+  color: #5b21b6;
+  font-weight: 600;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 3px;
+  text-decoration-color: currentColor;
+}
 }
 
 .template-title-input:focus,

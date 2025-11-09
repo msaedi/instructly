@@ -439,7 +439,7 @@ function Step3SkillsPricingInner() {
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
-                  onClick={() => window.location.href = '/instructor/profile'}
+                  onClick={() => window.location.href = '/instructor/onboarding/account-setup'}
                   id="progress-step-1"
                   className="w-6 h-6 rounded-full border-2 border-[#7E22CE] bg-[#7E22CE] transition-colors cursor-pointer flex items-center justify-center"
                   title="Step 1: Account Setup"

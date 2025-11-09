@@ -2,8 +2,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import * as Tooltip from '@radix-ui/react-tooltip';
-import { Star, Heart, Info, Layers, MonitorSmartphone, Clock3, MapPin } from 'lucide-react';
+import { Star, Heart, Layers, MonitorSmartphone, Clock3, MapPin, ShieldCheck } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -23,13 +22,6 @@ import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { at } from '@/lib/ts/safe';
-import { VerifiedBadge } from '@/components/common/VerifiedBadge';
-import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
-import {
-  computeStudentFeePercent,
-  formatServiceSupportLabel,
-  formatServiceSupportTooltip,
-} from '@/lib/pricing/studentFee';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
 let catalogCache: ServiceCatalogItem[] | null = null;
@@ -70,23 +62,6 @@ export default function InstructorCard({
   const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
   const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
   const [pricingPreviewError, setPricingPreviewError] = useState<string | null>(null);
-  const { config: pricingConfig } = usePricingConfig();
-  const serviceSupportFeePercent = useMemo(
-    () => computeStudentFeePercent({ preview: pricingPreview, config: pricingConfig }),
-    [pricingConfig, pricingPreview],
-  );
-  const serviceSupportFeeLabel = useMemo(
-    () => formatServiceSupportLabel(serviceSupportFeePercent),
-    [serviceSupportFeePercent],
-  );
-  const serviceSupportAnnotationLabel = useMemo(
-    () => formatServiceSupportLabel(serviceSupportFeePercent, { includeFeeWord: false }),
-    [serviceSupportFeePercent],
-  );
-  const serviceSupportTooltip = useMemo(
-    () => formatServiceSupportTooltip(serviceSupportFeePercent),
-    [serviceSupportFeePercent],
-  );
   const effectiveAppliedCreditCents = useMemo(
     () => Math.max(0, Math.round(appliedCreditCents ?? 0)),
     [appliedCreditCents]
@@ -100,12 +75,12 @@ export default function InstructorCard({
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
   const bgcStatusValue = (instructor as { bgc_status?: string }).bgc_status;
-  const bgcCompletedAt = (instructor as { bgc_completed_at?: string | null }).bgc_completed_at ?? null;
   const backgroundCheckCompleted = Boolean((instructor as { background_check_completed?: boolean }).background_check_completed);
   const hasPassedBGC = typeof bgcStatusValue === 'string'
     ? bgcStatusValue.toLowerCase() === 'passed'
     : Boolean(backgroundCheckCompleted);
-  const shouldShowVerifiedBadge = hasPassedBGC;
+  const shouldShowVerificationChip = hasPassedBGC || !bgcStatusValue;
+  const verificationLabel = hasPassedBGC ? 'Background Check Verified' : 'Background Check Pending';
 
   // Fetch service catalog on mount with simple de-duplication
   useEffect(() => {
@@ -316,30 +291,39 @@ export default function InstructorCard({
             <div className="flex-1">
               {/* Name with verification badge and rating */}
               <div className={`flex flex-wrap items-center ${compact ? 'gap-2' : 'gap-3'}`}>
-                <div className="flex items-center gap-2">
-                  <h2 className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-[#7E22CE]`} data-testid="instructor-name">
-                    {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
-                  </h2>
-                  {shouldShowVerifiedBadge ? (
-                    <VerifiedBadge dateISO={bgcCompletedAt} className={compact ? 'ml-1' : 'ml-2'} />
-                  ) : null}
-                </div>
-                {showRating && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      router.push(`/instructors/${instructor.user_id}/reviews`);
-                    }}
-                    className={`flex items-center gap-1 text-gray-600 hover:text-[#7E22CE] transition-colors ${compact ? 'text-sm' : 'text-base'} font-medium`}
-                    aria-label="See all reviews"
-                  >
-                    <Star className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-yellow-500 fill-current`} />
-                    <span>{rating}</span>
-                    <span>·</span>
-                    <span>{reviewCount} reviews</span>
-                  </button>
-                )}
+                <h2
+                  className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-[#7E22CE]`}
+                  data-testid="instructor-name"
+                >
+                  {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
+                </h2>
               </div>
+              {showRating && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    router.push(`/instructors/${instructor.user_id}/reviews`);
+                  }}
+                  className={`mt-1 flex items-center gap-1 text-gray-600 hover:text-[#7E22CE] transition-colors ${compact ? 'text-sm' : 'text-base'} font-medium`}
+                  aria-label="See all reviews"
+                >
+                  <Star className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-yellow-500 fill-current`} />
+                  <span>{rating}</span>
+                  <span>·</span>
+                  <span>{reviewCount} reviews</span>
+                </button>
+              )}
+
+              {shouldShowVerificationChip ? (
+                <div
+                  className={`flex items-center gap-2 text-xs font-semibold text-emerald-600 ${
+                    showRating ? 'mt-1' : ''
+                  }`}
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>{verificationLabel}</span>
+                </div>
+              ) : null}
 
               {/* Services as pills */}
               <div className={`flex gap-2 ${compact ? 'mt-2 mb-1' : 'mt-3 mb-2'}`}>
@@ -513,33 +497,6 @@ export default function InstructorCard({
                     </p>
                   );
                 })()}
-                <p className="mt-1 text-xs text-gray-500">
-                  <span className="inline-flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
-                    <span>{serviceSupportAnnotationLabel}</span>
-                    <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
-                            aria-label="Learn about the Service & Support fee"
-                          >
-                            <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content
-                          side="top"
-                          sideOffset={6}
-                          className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
-                        >
-                          {serviceSupportTooltip}
-                          <Tooltip.Arrow className="fill-gray-900" />
-                        </Tooltip.Content>
-                      </Tooltip.Root>
-                    </Tooltip.Provider>
-                  </span>{' '}
-                  and credits apply at checkout.
-                </p>
               </div>
 
               {/* Favorite Button */}
@@ -615,15 +572,11 @@ export default function InstructorCard({
                     <span>{formatCentsToDisplay(pricingPreview.base_price_cents)}</span>
                   </div>
                   {pricingPreview.line_items.map((item) => {
+                    const lowerLabel = (item.label || '').toLowerCase();
+                    if (lowerLabel.startsWith('service & support')) {
+                      return null;
+                    }
                     const isCreditLine = item.amount_cents < 0;
-                    const normalizedLabel = (() => {
-                      const label = item.label.toLowerCase();
-                      if (label.startsWith('booking protection') || label.startsWith('service & support')) {
-                        return serviceSupportFeeLabel;
-                      }
-                      return item.label;
-                    })();
-                    const isServiceSupportLineItem = normalizedLabel === serviceSupportFeeLabel;
                     return (
                       <div
                         key={`${item.label}-${item.amount_cents}`}
@@ -631,34 +584,7 @@ export default function InstructorCard({
                           isCreditLine ? 'text-green-600 dark:text-green-400' : ''
                         }`}
                       >
-                        {isServiceSupportLineItem ? (
-                          <span className="inline-flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
-                            <span>{serviceSupportFeeLabel}</span>
-                            <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
-                              <Tooltip.Root>
-                                <Tooltip.Trigger asChild>
-                                  <button
-                                    type="button"
-                                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
-                                    aria-label="Learn about the Service & Support fee"
-                                  >
-                                    <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                                  </button>
-                                </Tooltip.Trigger>
-                                <Tooltip.Content
-                                  side="top"
-                                  sideOffset={6}
-                                  className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
-                                >
-                                  {serviceSupportTooltip}
-                                  <Tooltip.Arrow className="fill-gray-900" />
-                                </Tooltip.Content>
-                              </Tooltip.Root>
-                            </Tooltip.Provider>
-                          </span>
-                        ) : (
-                          <span>{normalizedLabel}</span>
-                        )}
+                        <span>{item.label}</span>
                         <span>{formatCentsToDisplay(item.amount_cents)}</span>
                       </div>
                     );
@@ -673,35 +599,7 @@ export default function InstructorCard({
                 <p className="text-xs text-red-600">{pricingPreviewError}</p>
               ) : null}
             </div>
-          ) : (
-            <p className={`${compact ? 'mb-2' : 'mb-4'} text-xs text-gray-500`}>
-              <span className="inline-flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
-                <span>{serviceSupportAnnotationLabel}</span>
-                <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
-                        aria-label="Learn about the Service & Support fee"
-                      >
-                        <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content
-                      side="top"
-                      sideOffset={6}
-                      className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
-                    >
-                      {serviceSupportTooltip}
-                      <Tooltip.Arrow className="fill-gray-900" />
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                </Tooltip.Provider>
-              </span>{' '}
-              and credits apply at checkout.
-            </p>
-          )}
+          ) : null}
 
           {/* Action Buttons - Stack vertically in compact mode */}
           <div className={`${compact ? 'flex flex-col gap-2' : 'flex gap-3'}`}>

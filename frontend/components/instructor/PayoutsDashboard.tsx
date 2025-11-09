@@ -254,7 +254,7 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => 
             <div>
               <p className="font-medium text-gray-900">Platform Fee Structure</p>
               <p className="text-sm text-gray-600">
-                InstaInstru charges a 15% service fee on each booking. This covers payment processing, platform maintenance, and customer support.
+                iNSTAiNSTRU charges a 15% service fee on each booking. This covers payment processing, platform maintenance, and customer support.
               </p>
             </div>
           </div>

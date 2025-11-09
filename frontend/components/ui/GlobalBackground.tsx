@@ -156,6 +156,7 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
     pathname?.startsWith('/signup') ||
     pathname?.startsWith('/login') ||
     pathname?.startsWith('/instructor/profile') ||
+    pathname?.startsWith('/instructor/onboarding/account-setup') ||
     pathname?.startsWith('/instructor/onboarding/skill-selection') ||
     pathname?.startsWith('/instructor/onboarding/verification') ||
     pathname?.startsWith('/instructor/onboarding/payment-setup')

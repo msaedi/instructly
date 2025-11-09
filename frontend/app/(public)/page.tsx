@@ -986,7 +986,8 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/terms"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="focus-link text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    style={{ textDecoration: 'none' }}
                   >
                     Terms
                   </Link>
@@ -994,7 +995,8 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/privacy"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="focus-link text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    style={{ textDecoration: 'none' }}
                   >
                     Privacy
                   </Link>
@@ -1016,7 +1018,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="border-t border-gray-300 dark:border-gray-700 pt-8 flex justify-between items-center">
-            <p className="text-gray-600 dark:text-gray-400">© 2025 InstaInstru, Inc.</p>
+            <p className="text-gray-600 dark:text-gray-400">© 2025 iNSTAiNSTRU, Inc.</p>
             <div className="flex space-x-4">
               <Link
                 href="#"

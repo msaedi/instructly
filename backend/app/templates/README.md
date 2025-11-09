@@ -28,10 +28,10 @@ html = template_service.render_template(
 email_service = EmailService(db)
 email_service.send_email(
     to_email="test@example.com",
-    subject="Emma invited you to try InstaInstru",
+    subject="Emma invited you to try iNSTAiNSTRU",
     html_content=html,
     from_email="invites@instainstru.com",
-    from_name="InstaInstru",
+    from_name="iNSTAiNSTRU",
 )
 ```
 

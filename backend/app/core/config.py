@@ -196,6 +196,10 @@ class Settings(BaseSettings):
 
     # Frontend URL - will use production URL if not set
     frontend_url: str = "https://beta.instainstru.com"
+    invite_claim_base_url: str = Field(
+        default="https://instainstru.com",
+        description="Public-facing root used for invite claim links",
+    )
     identity_return_path: str = "/instructor/onboarding/verification?identity_return=true"
     local_beta_frontend_origin: str = Field(
         default="http://beta-local.instainstru.com:3000",

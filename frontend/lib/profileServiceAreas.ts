@@ -35,7 +35,7 @@ function deriveBoroughsFromNeighborhoods(
 
 export function getServiceAreaBoroughs(source: ServiceAreaSource): string[] {
   if (source.service_area_boroughs && source.service_area_boroughs.length > 0) {
-    return source.service_area_boroughs
+    const normalized = source.service_area_boroughs
       .map((value) => {
         if (typeof value === 'string') return value.trim();
         if (value && typeof value === 'object') {
@@ -46,6 +46,7 @@ export function getServiceAreaBoroughs(source: ServiceAreaSource): string[] {
         return '';
       })
       .filter((value) => value.length > 0);
+    return Array.from(new Set(normalized));
   }
 
   return deriveBoroughsFromNeighborhoods(source.service_area_neighborhoods);

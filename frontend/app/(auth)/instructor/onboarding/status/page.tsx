@@ -236,7 +236,7 @@ export default function OnboardingStatusPage() {
             <div className="flex items-center">
               <div className="flex flex-col items-center relative">
                 <button
-                  onClick={() => window.location.href = '/instructor/profile'}
+                  onClick={() => window.location.href = '/instructor/onboarding/account-setup'}
                   className="w-6 h-6 rounded-full bg-[#7E22CE] flex items-center justify-center hover:bg-[#7E22CE] transition-colors cursor-pointer"
                   title="Step 1: Account Created - Click to edit profile"
                 >

@@ -60,32 +60,64 @@ function WelcomeInner() {
   const signupHref = `/signup?role=instructor&founding=true${code ? `&invite_code=${encodeURIComponent(code)}` : ''}${email ? `&email=${encodeURIComponent(email)}` : ''}&redirect=${encodeURIComponent('/instructor/onboarding/welcome')}`;
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 cursor-default">
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
         <div className="bg-white dark:bg-gray-800 py-10 px-8 shadow sm:rounded-lg">
-          <h1 className="text-3xl font-bold text-center mb-2">Welcome to the Founding Instructor Program! 🎉</h1>
-          <p className="text-center text-gray-600 dark:text-gray-300 mb-8">
-            {code ? (
-              <>
-                Your code <span className="font-mono font-semibold">{code}</span> is valid.
-              </>
-            ) : (
-              'Your code is valid.'
-            )}
-          </p>
-
-          <div className="space-y-3 text-gray-900 dark:text-gray-100">
-            <p className="font-semibold">As a founding instructor you get:</p>
-            <ul className="list-none space-y-2">
-              <li>✅ 0% platform fees for 60 days OR 10% for first year (you choose)</li>
-              <li>✅ $25 per completed lesson (up to 8 lessons = $200 bonus)</li>
-              <li>✅ Permanent &quot;Founding Instructor - NYC&quot; badge</li>
-              <li>✅ $50 for maintaining 10+ hrs/week availability for 4 weeks</li>
-              <li>✅ Priority placement in search results</li>
-            </ul>
+          <div className="text-center mb-4">
+            <h1 className="text-3xl font-bold tracking-tight text-[#7E22CE]">{`iNSTAiNSTRU`}</h1>
+            <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-4">
+              Welcome to the Founding Instructor Program
+            </p>
+            <div className="h-px w-full bg-gradient-to-r from-transparent via-[#7E22CE] to-transparent mt-4" />
+          </div>
+          <div className="text-center text-gray-600 dark:text-gray-300 mb-6 space-y-2">
+            <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              We’re thrilled to have you on iNSTAiNSTRU
+            </p>
+            <p className="text-base">
+              Over 500 students searched for instructors in your area this week.
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Next up, create your profile so you’re launch-ready; we’ll alert you the moment booking goes live!
+            </p>
           </div>
 
-          <div className="mt-8 flex justify-center">
+          <div className="space-y-3 text-gray-900 dark:text-gray-100 text-left">
+            <p className="text-lg font-semibold text-gray-800 dark:text-gray-200">Founding Instructor Perks</p>
+            <ul className="space-y-3">
+              {[
+                {
+                  title: 'Lifetime 8% Platform Fee',
+                  detail: 'Founding Instructors lock in our lowest commission rate—just 8%, guaranteed for life.',
+                },
+                {
+                  title: 'Skip the Higher Tiers',
+                  detail: 'Founding Instructors permanently bypass the 15% and 12% commission tiers.',
+                },
+                {
+                  title: 'No Activity Requirements',
+                  detail: 'No rolling 30-day thresholds, no step-downs, and no inactivity penalties.',
+                },
+                {
+                  title: 'All Standard Benefits Included',
+                  detail: 'Instant bookings, secure Stripe payments, verified-background badge, reviews & ratings, wallet credits, and referral rewards—all included from day one.',
+                },
+              ].map((perk) => (
+                <li key={perk.title} className="flex items-start gap-2">
+                  <span className="mt-1 text-[#7E22CE]" aria-hidden="true">✓</span>
+                  <div>
+                    <p className="text-sm font-semibold">{perk.title}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{perk.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-gray-500">
+              Perks apply once onboarding is complete. Limited to the first 100 Founding Instructors.
+            </p>
+          </div>
+
+          <div className="mt-6 flex justify-center">
             <Link
               href={signupHref}
               className="px-6 py-2 rounded-md text-white bg-[#7E22CE] hover:bg-[#7E22CE]"
@@ -94,8 +126,14 @@ function WelcomeInner() {
             </Link>
           </div>
 
-          <div className="mt-8 text-center text-sm text-gray-600 dark:text-gray-300">
-            <p>Questions? Email <a className="underline" href="mailto:founders@instainstru.com">founders@instainstru.com</a></p>
+          <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-300">
+            <p className="text-xs text-gray-500">
+              Need the fine print?{' '}
+              <a className="text-[#7E22CE] hover:underline" href="/legal">
+                See perk details
+              </a>
+              .
+            </p>
           </div>
         </div>
       </div>

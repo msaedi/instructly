@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
+import { UserAvatar } from '@/components/user/UserAvatar';
 import { logger } from '@/lib/logger';
 import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
@@ -107,6 +108,8 @@ export interface TimeSelectionModalProps {
     user: {
       first_name: string;
       last_initial: string;
+      has_profile_picture?: boolean;
+      profile_picture_version?: number;
     };
     services: Array<{
       id?: string;
@@ -188,6 +191,27 @@ export default function TimeSelectionModal({
     }
     return 'remote';
   }, [selectedService]);
+
+  const instructorAvatarUser = useMemo(
+    () => ({
+      id: instructor.user_id,
+      first_name: instructor.user.first_name,
+      ...(instructor.user.last_initial ? { last_name: `${instructor.user.last_initial}.` } : {}),
+      ...(typeof instructor.user.has_profile_picture === 'boolean'
+        ? { has_profile_picture: instructor.user.has_profile_picture }
+        : {}),
+      ...(typeof instructor.user.profile_picture_version === 'number'
+        ? { profile_picture_version: instructor.user.profile_picture_version }
+        : {}),
+    }),
+    [
+      instructor.user_id,
+      instructor.user.first_name,
+      instructor.user.last_initial,
+      instructor.user.has_profile_picture,
+      instructor.user.profile_picture_version,
+    ],
+  );
 
   // Get duration options from the selected service
   const durationOptions = useMemo(() => {
@@ -1440,7 +1464,13 @@ export default function TimeSelectionModal({
 
           {/* Instructor Name */}
           <div className="px-4 pt-4 pb-2 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200" />
+            <UserAvatar
+              user={instructorAvatarUser}
+              size={32}
+              className="w-8 h-8 rounded-full ring-1 ring-gray-200"
+              fallbackBgColor="#F3E8FF"
+              fallbackTextColor="#7E22CE"
+            />
             <p className="text-base font-bold text-black">
               {getInstructorDisplayName()}&apos;s availability
             </p>
@@ -1577,7 +1607,13 @@ export default function TimeSelectionModal({
 
             {/* Instructor Name */}
             <div className="px-8 pt-2 pb-6 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200" />
+              <UserAvatar
+                user={instructorAvatarUser}
+                size={32}
+                className="w-8 h-8 rounded-full ring-1 ring-gray-200"
+                fallbackBgColor="#F3E8FF"
+                fallbackTextColor="#7E22CE"
+              />
               <p className="text-base font-bold text-black">
                 {getInstructorDisplayName()}&apos;s availability
               </p>
