@@ -1,9 +1,8 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import WeekNavigator from '@/components/availability/WeekNavigator';
-import WeekView from '@/components/calendar/WeekView';
 import Link from 'next/link';
-import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useAvailability } from '@/hooks/availability/useAvailability';
 import { useBookedSlots } from '@/hooks/availability/useBookedSlots';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -14,7 +13,6 @@ import type { WeekBits } from '@/types/availability';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
 import { Calendar, ArrowLeft } from 'lucide-react';
-import ConflictModal from '@/components/availability/ConflictModal';
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { logger } from '@/lib/logger';
 import {
@@ -26,6 +24,26 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+
+const WeekView = dynamic(() => import('@/components/calendar/WeekView'), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-2" aria-hidden="true">
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-[420px] w-full" />
+    </div>
+  ),
+});
+
+const UserProfileDropdown = dynamic(() => import('@/components/UserProfileDropdown'), {
+  ssr: false,
+  loading: () => <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" aria-hidden="true" />,
+});
+
+const ConflictModal = dynamic(() => import('@/components/availability/ConflictModal'), {
+  ssr: false,
+  loading: () => null,
+});
 
 const autosaveEnv = process.env['NEXT_PUBLIC_AVAIL_AUTOSAVE']?.toLowerCase();
 const AVAIL_AUTOSAVE_ENABLED = autosaveEnv === '1' || autosaveEnv === 'true';
