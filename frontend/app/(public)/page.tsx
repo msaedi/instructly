@@ -1,19 +1,18 @@
 // frontend/app/(public)/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect } from 'react';
 // import removed; background handled globally
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName, SearchType } from '@/types/enums';
 import { NotificationBar } from '@/components/NotificationBar';
-import { UpcomingLessons } from '@/components/UpcomingLessons';
-import { BookAgain } from '@/components/BookAgain';
-import { RecentSearches } from '@/components/RecentSearches';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { getActivityBackground } from '@/lib/services/assetService';
@@ -37,11 +36,79 @@ import {
 
   X,
 } from 'lucide-react';
-import { PrivacySettings } from '@/components/PrivacySettings';
 import { recordSearch } from '@/lib/searchTracking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { fetchWithAuth } from '@/lib/api';
 import { useBeta } from '@/contexts/BetaContext';
+
+const HERO_PANEL_SIZE = 400;
+
+const ensureHeroPanelSize = (url: string | null): string | null => {
+  if (!url) return null;
+  const marker = '/cdn-cgi/image/';
+  const markerIndex = url.indexOf(marker);
+  if (markerIndex === -1) {
+    return url;
+  }
+
+  const paramsStart = markerIndex + marker.length;
+  const paramsEnd = url.indexOf('/', paramsStart);
+  if (paramsEnd === -1) {
+    return url;
+  }
+
+  const rawParams = url.slice(paramsStart, paramsEnd).split(',');
+  const filteredParams = rawParams.filter(
+    (param) => !param.startsWith('width=') && !param.startsWith('height=')
+  );
+  filteredParams.push(`width=${HERO_PANEL_SIZE}`, `height=${HERO_PANEL_SIZE}`);
+
+  return `${url.slice(0, paramsStart)}${filteredParams.join(',')}${url.slice(paramsEnd)}`;
+};
+
+const UpcomingLessons = dynamic(
+  () => import('@/components/UpcomingLessons').then((mod) => mod.UpcomingLessons),
+  {
+    ssr: false,
+    loading: () => (
+      <section className="py-12" aria-hidden="true">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="h-40 rounded-2xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
+        </div>
+      </section>
+    ),
+  }
+);
+
+const BookAgain = dynamic(
+  () => import('@/components/BookAgain').then((mod) => mod.BookAgain),
+  {
+    ssr: false,
+    loading: () => (
+      <section className="py-16 bg-transparent dark:bg-transparent" aria-hidden="true">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="h-48 rounded-2xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
+        </div>
+      </section>
+    ),
+  }
+);
+
+const RecentSearches = dynamic(
+  () => import('@/components/RecentSearches').then((mod) => mod.RecentSearches),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-[140px]" aria-hidden="true" />,
+  }
+);
+
+const PrivacySettings = dynamic(
+  () => import('@/components/PrivacySettings').then((mod) => mod.PrivacySettings),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-[120px]" aria-hidden="true" />,
+  }
+);
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,11 +119,16 @@ export default function HomePage() {
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [isInstructorLive, setIsInstructorLive] = useState<boolean | null>(null);
+  const [hasSessionCookie, setHasSessionCookie] = useState(false);
   const router = useRouter();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const isInstructor = isAuthenticated && hasRole(user, RoleName.INSTRUCTOR);
   const { config } = useBeta();
   const hideStudentUi = config.site === 'beta' && config.phase === 'instructor_only';
+  const shouldShowBookAgain =
+    isAuthenticated && !isInstructor && (userHasBookingHistory === null || userHasBookingHistory);
+  const shouldReserveNotificationBarSpace =
+    (hasSessionCookie && isAuthLoading) || isAuthenticated;
 
   // React Query hooks for fetching data with caching
   // These prevent duplicate API calls and improve performance
@@ -110,6 +182,25 @@ export default function HomePage() {
 
   const kidsServices = kidsServicesData || [];
   const categoriesFromDb = categoriesData || [];
+  const heroLeftImageSrc = ensureHeroPanelSize(getActivityBackground('home', 'desktop'));
+  const heroRightImageSrc = ensureHeroPanelSize(getActivityBackground('music', 'desktop'));
+  const sessionCookiePrefix = '__Host-sid';
+
+  useLayoutEffect(() => {
+    if (typeof document === 'undefined') return;
+    try {
+      const hasCookie = document.cookie.split('; ').some((cookie) => cookie.startsWith(sessionCookiePrefix));
+      setHasSessionCookie(hasCookie);
+    } catch {
+      setHasSessionCookie(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthLoading && !isAuthenticated) {
+      setHasSessionCookie(false);
+    }
+  }, [isAuthenticated, isAuthLoading]);
 
   // Set isClient to true after mount to avoid hydration issues
   useEffect(() => {
@@ -320,48 +411,72 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Notification Bar (client-only to avoid hydration mismatches) */}
-      {isClient && <NotificationBar />}
+      {/* Notification Bar – auth-only, reserve height when a valid session cookie exists */}
+      {shouldReserveNotificationBarSpace && (
+        <div className="min-h-[56px]">
+          {isAuthenticated ? <NotificationBar /> : null}
+        </div>
+      )}
 
-      {/* Upcoming Lessons: hide for instructors */}
-      {isClient && (!isInstructor) && <UpcomingLessons />}
+      {/* Upcoming Lessons: show only for authenticated students */}
+      {isAuthenticated && !isInstructor && <UpcomingLessons />}
 
       {/* Hero Section */}
       <section className="py-16 relative" style={{ paddingTop: '60px' }}>
         {/* Small background image positioned to the left */}
-        {isClient && (
+        {heroLeftImageSrc && (
           <div
-            className="absolute left-10 top-1/2 -translate-y-1/6"
-            style={{
-              width: '400px',
-              height: '400px',
-              backgroundImage: `url('${getActivityBackground('home', 'desktop')}')`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-              opacity: 0.7,
-              filter: 'blur(0px)',
-            }}
+            className="absolute left-10 top-1/2 -translate-y-1/6 pointer-events-none"
+            style={{ width: '400px', height: '400px' }}
             aria-hidden="true"
-          />
+          >
+            <div className="relative h-full w-full overflow-hidden">
+              <Image
+                src={heroLeftImageSrc}
+                alt=""
+                fill
+                priority
+                fetchPriority="high"
+                sizes="(max-width: 1024px) 0px, 400px"
+                className="object-cover"
+                style={{
+                  opacity: 0.7,
+                  filter: 'blur(0px)',
+                  contentVisibility: 'auto',
+                  objectPosition: 'center',
+                }}
+                draggable={false}
+              />
+            </div>
+          </div>
         )}
 
         {/* Small background image positioned to the right - different image */}
-        {isClient && (
+        {heroRightImageSrc && (
           <div
-            className="absolute -right-10 top-0"
-            style={{
-              width: '400px',
-              height: '400px',
-              backgroundImage: `url('${getActivityBackground('music', 'desktop')}')`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-              opacity: 0.7,
-              filter: 'blur(0px)',
-            }}
+            className="absolute -right-10 top-0 pointer-events-none"
+            style={{ width: '400px', height: '400px' }}
             aria-hidden="true"
-          />
+          >
+            <div className="relative h-full w-full overflow-hidden">
+              <Image
+                src={heroRightImageSrc}
+                alt=""
+                fill
+                priority
+                fetchPriority="high"
+                sizes="(max-width: 1024px) 0px, 400px"
+                className="object-cover"
+                style={{
+                  opacity: 0.7,
+                  filter: 'blur(0px)',
+                  contentVisibility: 'auto',
+                  objectPosition: 'center',
+                }}
+                draggable={false}
+              />
+            </div>
+          </div>
         )}
 
         <div className="relative z-10">
@@ -595,72 +710,61 @@ export default function HomePage() {
       )}
 
       {/* Book Again OR How It Works - render on client only to avoid SSR/client mismatch */}
-      {isClient && (
-        isAuthenticated && userHasBookingHistory === null ? (
-          !isInstructor && (
-            <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
-          )
-        ) : isAuthenticated && userHasBookingHistory ? (
-          !isInstructor && (
-            <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
-          )
-        ) : (
-          // User has no booking history OR not authenticated - show How It Works
-          <section className="py-16 bg-transparent dark:bg-transparent">
-            <div className="max-w-7xl mx-auto px-4">
-              <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-gray-100 mb-12">
-                How it works
-              </h2>
-              <div className="grid grid-cols-3 gap-8">
-                <div className="text-center">
-                  <div className="text-5xl font-bold text-[#7E22CE] dark:text-purple-400 mb-4">1</div>
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
-                    Choose a skill
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400">
-                    Browse or search from 100+ skills
-                  </p>
-                </div>
-                <div className="text-center">
-                  <div className="text-5xl font-bold text-[#7E22CE] dark:text-purple-400 mb-4">2</div>
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
-                    Schedule an instructor
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400">Pick a time that works for you</p>
-                </div>
-                <div className="text-center">
-                  <div className="text-5xl font-bold text-[#7E22CE] dark:text-purple-400 mb-4">3</div>
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Learn</h3>
-                  <p className="text-gray-600 dark:text-gray-400">Meet in-person and level up</p>
-                </div>
+      {shouldShowBookAgain ? (
+        <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+      ) : (
+        // User has no booking history OR not authenticated - show How It Works
+        <section className="py-16 bg-transparent dark:bg-transparent">
+          <div className="max-w-7xl mx-auto px-4">
+            <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-gray-100 mb-12">
+              How it works
+            </h2>
+            <div className="grid grid-cols-3 gap-8">
+              <div className="text-center">
+                <div className="text-5xl font-bold text-[#7E22CE] dark:text-purple-400 mb-4">1</div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+                  Choose a skill
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">Browse or search from 100+ skills</p>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-bold text-[#7E22CE] dark:text-purple-400 mb-4">2</div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+                  Schedule an instructor
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">Pick a time that works for you</p>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-bold text-[#7E22CE] dark:text-purple-400 mb-4">3</div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Learn</h3>
+                <p className="text-gray-600 dark:text-gray-400">Meet in-person and level up</p>
               </div>
             </div>
-          </section>
-        )
+          </div>
+        </section>
       )}
 
       {/* Your Recent Searches - Only shows for authenticated users with search history (client-only) */}
-      {isClient && <RecentSearches />}
+      <RecentSearches />
 
-      {/* Available Now & Trending (client-only to avoid hydration mismatches) */}
-      {isClient && (
-        <section className="py-16 bg-transparent dark:bg-transparent">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="grid grid-cols-2 gap-8">
-            {/* Available Now */}
-            <div>
-              <div className="flex items-center mb-6">
-                <Zap className="h-6 w-6 text-[#FFD700] mr-2" />
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  Available Right Now
-                </h2>
-              </div>
-              <div className="space-y-4">
-                {availableNow.map((instructor, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-[#FFFEF5] dark:hover:bg-gray-700/50 transition-colors duration-200"
-                  >
+      {/* Available Now & Trending */}
+      <section className="py-16 bg-transparent dark:bg-transparent">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-2 gap-8">
+          {/* Available Now */}
+          <div>
+            <div className="flex items-center mb-6">
+              <Zap className="h-6 w-6 text-[#FFD700] mr-2" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                Available Right Now
+              </h2>
+            </div>
+            <div className="space-y-4">
+              {availableNow.map((instructor, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-[#FFFEF5] dark:hover:bg-gray-700/50 transition-colors duration-200"
+                >
                     <h3 className="font-semibold text-gray-900 dark:text-gray-100">
                       {instructor.name}
                     </h3>
@@ -728,7 +832,6 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-      )}
 
       {/* Testimonials */}
       <section className="py-16 bg-transparent dark:bg-transparent">
