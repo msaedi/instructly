@@ -977,6 +977,28 @@ def upgrade() -> None:
             _enable_rls_with_permissive_policy(table_name)
         print(f"RLS ensured on {len(tables)} tables (permissive policies created if missing)")
 
+    # Ensure ON CONFLICT target exists for region boundaries loader
+    print("Ensuring region_boundaries unique index for loader UPSERT...")
+    conn = op.get_bind()
+    conn.execute(
+        sa.text(
+            """
+            DO $$
+            BEGIN
+              IF NOT EXISTS (
+                SELECT 1
+                FROM pg_indexes
+                WHERE tablename = 'region_boundaries'
+                  AND indexname = 'region_boundaries_rtype_rcode_idx'
+              ) THEN
+                CREATE UNIQUE INDEX region_boundaries_rtype_rcode_idx
+                  ON region_boundaries(region_type, region_code);
+              END IF;
+            END$$;
+            """
+        )
+    )
+
     # Add schema documentation
     print("Schema finalization complete!")
     print("")
@@ -1031,6 +1053,27 @@ def downgrade() -> None:
         for table_name in tables:
             _drop_permissive_policy_and_disable_rls(table_name)
         print(f"RLS disabled on {len(tables)} tables (policies dropped if existed)")
+
+    # Drop unique index if present to keep downgrade symmetrical
+    print("Dropping region_boundaries unique index if it exists...")
+    conn = op.get_bind()
+    conn.execute(
+        sa.text(
+            """
+            DO $$
+            BEGIN
+              IF EXISTS (
+                SELECT 1
+                FROM pg_indexes
+                WHERE tablename = 'region_boundaries'
+                  AND indexname = 'region_boundaries_rtype_rcode_idx'
+              ) THEN
+                DROP INDEX region_boundaries_rtype_rcode_idx;
+              END IF;
+            END$$;
+            """
+        )
+    )
 
     print("Dropping platform_config table...")
     op.drop_table("platform_config")

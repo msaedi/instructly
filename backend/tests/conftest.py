@@ -444,6 +444,28 @@ def _prepare_database() -> None:
 
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":
+            conn.execute(
+                text(
+                    """
+                    DO $$
+                    BEGIN
+                      IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_indexes
+                        WHERE tablename = 'region_boundaries'
+                          AND indexname = 'region_boundaries_rtype_rcode_idx'
+                      ) THEN
+                        CREATE UNIQUE INDEX region_boundaries_rtype_rcode_idx
+                          ON region_boundaries(region_type, region_code);
+                      END IF;
+                    END$$;
+                    """
+                )
+            )
+            conn.commit()
+
+    with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
             # availability_slots table removed - bitmap-only storage now
         conn.execute(

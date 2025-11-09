@@ -11,6 +11,7 @@ import sys
 from typing import Any, Dict, Optional
 
 import geopandas as gpd  # type: ignore
+import sqlalchemy as sa
 from sqlalchemy import create_engine, text
 import yaml  # type: ignore
 
@@ -161,6 +162,26 @@ def _add_ulids(df):
     return df
 
 
+def _assert_rb_unique_target_exists(conn) -> None:
+    """Ensure UNIQUE(region_type, region_code) exists before running UPSERT."""
+    exists = conn.execute(
+        sa.text(
+            """
+            SELECT 1
+            FROM pg_indexes
+            WHERE tablename = 'region_boundaries'
+              AND indexname = 'region_boundaries_rtype_rcode_idx'
+            LIMIT 1
+            """
+        )
+    ).fetchone()
+    if not exists:
+        raise RuntimeError(
+            "region_boundaries requires UNIQUE(region_type, region_code); "
+            "run migrations so index region_boundaries_rtype_rcode_idx exists."
+        )
+
+
 def load_city(
     city: str, source_url: Optional[str] = None, local_path: Optional[str] = None, force_refresh: bool = False
 ) -> int:
@@ -201,6 +222,7 @@ def load_city(
     # Avoid to_postgis JSON typing issues; write with explicit INSERTs
     inserted = 0
     with engine.begin() as conn:
+        _assert_rb_unique_target_exists(conn)
         sql = text(
             """
             INSERT INTO region_boundaries
