@@ -3,21 +3,25 @@ const budgets = require('./lhci.budgets.json');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const isMain = process.env.GITHUB_REF === 'refs/heads/main';
+const lhciPort =
+  (process.env.LHCI_PORT && Number.parseInt(process.env.LHCI_PORT, 10)) || 4010;
+const collectUrls = [
+  `http://localhost:${lhciPort}/`,
+  `http://localhost:${lhciPort}/login`,
+  `http://localhost:${lhciPort}/lhci/instructor`,
+  `http://localhost:${lhciPort}/instructor/availability`,
+];
 
 module.exports = {
   ci: {
     collect: {
-      numberOfRuns: 2,
-      startServerCommand: null,
-      url: [
-        'http://localhost:3100/',
-        'http://localhost:3100/login',
-        'http://localhost:3100/lhci/instructor',
-        'http://localhost:3100/instructor/availability',
-      ],
+      numberOfRuns: 3,
+      startServerCommand: `PORT=${lhciPort} NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 next start -p ${lhciPort}`,
+      startServerReadyPattern: 'started server on .*:(\\d+)',
+      url: collectUrls,
       settings: {
         budgets,
-        preset: 'desktop',
+        emulatedFormFactor: 'desktop',
         throttlingMethod: 'devtools',
       },
     },

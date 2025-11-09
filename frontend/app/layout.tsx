@@ -144,6 +144,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <head>
+        <link rel="preconnect" href="https://assets.instainstru.com" crossOrigin="" />
         {/* Leaflet CSS */}
         <link
           rel="stylesheet"
