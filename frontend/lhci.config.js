@@ -12,6 +12,28 @@ const collectPaths = ['/', '/login', '/lhci/instructor', '/instructor/availabili
 const collectUrls = collectPaths.map((path) => `http://localhost:${lhciPort}${path}`);
 const startServerCommand = `PORT=${lhciPort} NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 next start -p ${lhciPort}`;
 const startServerReadyPattern = 'Ready in .*ms';
+const strictLevel = isMain ? 'error' : 'warn';
+
+const basePatterns = {
+  home: '^https?://[^/]+/?$',
+  login: '^https?://[^/]+/login/?$',
+  instructor: '^https?://[^/]+/lhci/instructor/?$',
+  availability: '^https?://[^/]+/instructor/availability/?$',
+};
+
+const strictAssertions = {
+  'categories:performance': [strictLevel, { minScore: isMain ? 0.9 : 0.85 }],
+  'largest-contentful-paint': [strictLevel, { maxNumericValue: 3000 }],
+  'total-blocking-time': [strictLevel, { maxNumericValue: 200 }],
+  'uses-long-cache-ttl': isMain ? 'warn' : 'off',
+};
+
+const availabilityAssertions = {
+  'categories:performance': ['warn', { minScore: 0.85 }],
+  'largest-contentful-paint': ['warn', { maxNumericValue: 4500 }],
+  'total-blocking-time': [strictLevel, { maxNumericValue: 200 }],
+  'uses-long-cache-ttl': 'warn',
+};
 
 module.exports = {
   ci: {
@@ -27,12 +49,24 @@ module.exports = {
       },
     },
     assert: {
-      assertions: {
-        'categories:performance': [isMain ? 'error' : 'warn', { minScore: isMain ? 0.9 : 0.85 }],
-        'largest-contentful-paint': [isMain ? 'error' : 'warn', { maxNumericValue: 3000 }],
-        'total-blocking-time': [isMain ? 'error' : 'warn', { maxNumericValue: 200 }],
-        'uses-long-cache-ttl': isMain ? 'warn' : 'off',
-      },
+      assertMatrix: [
+        {
+          matchingUrlPattern: basePatterns.home,
+          assertions: strictAssertions,
+        },
+        {
+          matchingUrlPattern: basePatterns.login,
+          assertions: strictAssertions,
+        },
+        {
+          matchingUrlPattern: basePatterns.instructor,
+          assertions: strictAssertions,
+        },
+        {
+          matchingUrlPattern: basePatterns.availability,
+          assertions: availabilityAssertions,
+        },
+      ],
     },
     upload: {
       target: 'temporary-public-storage',

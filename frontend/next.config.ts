@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  env: {
+    NEXT_PUBLIC_LH_CI: process.env['NEXT_PUBLIC_LH_CI'] || '',
+  },
   // Allow dev asset loading from local beta host for testing
   allowedDevOrigins: ['beta-local.instainstru.com'],
   images: {

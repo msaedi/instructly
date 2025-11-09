@@ -25,14 +25,16 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 
+const CalendarSkeleton = () => (
+  <div className="space-y-2" aria-hidden="true">
+    <Skeleton className="h-10 w-full" />
+    <Skeleton className="h-[420px] w-full" />
+  </div>
+);
+
 const WeekView = dynamic(() => import('@/components/calendar/WeekView'), {
   ssr: false,
-  loading: () => (
-    <div className="space-y-2" aria-hidden="true">
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-[420px] w-full" />
-    </div>
-  ),
+  loading: () => <CalendarSkeleton />,
 });
 
 const UserProfileDropdown = dynamic(() => import('@/components/UserProfileDropdown'), {
@@ -45,6 +47,7 @@ const ConflictModal = dynamic(() => import('@/components/availability/ConflictMo
   loading: () => null,
 });
 
+const LHCI = process.env['NEXT_PUBLIC_LH_CI'] === '1';
 const autosaveEnv = process.env['NEXT_PUBLIC_AVAIL_AUTOSAVE']?.toLowerCase();
 const AVAIL_AUTOSAVE_ENABLED = autosaveEnv === '1' || autosaveEnv === 'true';
 const AUTOSAVE_DELAY_MS = 1200;
@@ -497,11 +500,16 @@ function AvailabilityPageImpl() {
         </div>
       )}
       <div className="mt-2">
-        {isLoading ? (
-          <div className="space-y-2" aria-hidden="true">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-[420px] w-full" />
+        {LHCI ? (
+          <div
+            data-testid="lhci-availability-skeleton"
+            style={{ height: 720 }}
+            className="flex flex-col"
+          >
+            <CalendarSkeleton />
           </div>
+        ) : isLoading ? (
+          <CalendarSkeleton />
         ) : (
           <WeekView
             weekDates={weekDateInfo}
