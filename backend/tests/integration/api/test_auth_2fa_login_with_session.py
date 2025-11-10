@@ -85,19 +85,20 @@ class TestLoginWithSessionTwoFactor:
         temp_token = login_response.json()["temp_token"]
 
         totp = pyotp.TOTP(secret)
-        code = totp.now()
-        verify_response = client.post(
-            "/api/auth/2fa/verify-login",
-            json={"temp_token": temp_token, "code": code},
-            headers={"X-Trust-Browser": "true"},
-        )
-        if verify_response.status_code == 400:
-            fallback_code = totp.at(int(time.time()) + 30)
-            verify_response = client.post(
+
+        def post_with_code(offset_seconds: int = 0):
+            timestamp = int(time.time()) + offset_seconds
+            code = totp.at(timestamp)
+            return client.post(
                 "/api/auth/2fa/verify-login",
-                json={"temp_token": temp_token, "code": fallback_code},
+                json={"temp_token": temp_token, "code": code},
                 headers={"X-Trust-Browser": "true"},
             )
+
+        verify_response = post_with_code()
+        if verify_response.status_code == 400:
+            # Single bounded retry one step back in case we crossed the boundary
+            verify_response = post_with_code(-30)
 
         assert verify_response.status_code == 200
         assert "access_token" in verify_response.json()

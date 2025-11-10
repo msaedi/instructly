@@ -327,9 +327,21 @@ const saveWeek = async (page: Page) => {
 };
 
 const refreshWeek = async (page: Page, mondayISO: string) => {
-  const refreshPromise = page.waitForResponse(
-    (res) => res.url().includes('/instructors/availability/week') && res.request().method() === 'GET'
-  );
+  const refreshPromise = page.waitForResponse((res) => {
+    if (!res.url().includes('/instructors/availability/week')) {
+      return false;
+    }
+    if (res.request().method() !== 'GET') {
+      return false;
+    }
+    try {
+      const url = new URL(res.url());
+      const weekStart = url.searchParams.get('start_date') ?? url.searchParams.get('week_start');
+      return weekStart === mondayISO;
+    } catch {
+      return false;
+    }
+  });
   await page.getByTestId('conflict-refresh').click();
   await refreshPromise;
   await alignCalendarToWeek(page, mondayISO);
@@ -447,6 +459,7 @@ test.describe('Availability 409 conflict flow', () => {
     const overwriteResponse = await overwritePromise;
     expect(overwriteResponse.status()).toBe(200);
     await expect(pageA.getByTestId('conflict-modal')).toBeHidden();
+    await alignCalendarToWeek(pageA, week.iso.base);
 
     const chosenCell = availabilityCell(pageA, week.iso.base, '11:00:00');
     const overwrittenCell = availabilityCell(pageA, week.iso.base, '16:00:00');

@@ -227,7 +227,14 @@ jobs:
           || psql "postgresql://postgres:postgres@localhost:5432/postgres" -c "CREATE DATABASE instainstru_test"
 
     # Backend setup
-    - name: Setup Python
+    - name: Setup Python (admin)
+      if: ${{ matrix.project == 'admin' }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Setup Python (non-admin)
+      if: ${{ matrix.project != 'admin' }}
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
@@ -608,7 +615,7 @@ jobs:
     - name: Cleanup heavy caches (admin only)
       if: ${{ matrix.project == 'admin' }}
       run: |
-        rm -rf ~/.cache || true
+        rm -rf ~/.cache/ms-playwright || true
         rm -rf frontend/.next/cache || true
 
     - name: Cleanup processes

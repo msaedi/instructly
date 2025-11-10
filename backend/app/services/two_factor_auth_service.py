@@ -1,5 +1,6 @@
 import base64
 from datetime import datetime, timezone
+import hashlib
 import io
 import logging
 import os
@@ -20,6 +21,19 @@ from .base import BaseService
 logger = logging.getLogger(__name__)
 
 
+def _derive_fallback_key() -> bytes:
+    secret = ""
+    try:
+        secret = settings.secret_key.get_secret_value()
+    except Exception:
+        secret = "local-default-secret"
+    digest = hashlib.sha256(secret.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest)
+
+
+_FALLBACK_TOTP_KEY = _derive_fallback_key()
+
+
 class TwoFactorAuthService(BaseService):
     def __init__(self, db: Session):
         super().__init__(db)
@@ -28,15 +42,16 @@ class TwoFactorAuthService(BaseService):
         key = (
             settings.totp_encryption_key.get_secret_value() if settings.totp_encryption_key else ""
         )
+        self._fernet: Fernet
         if not key:
-            # Generate ephemeral key in dev if not provided
-            self._fernet: Fernet = Fernet(Fernet.generate_key())
+            # Use deterministic fallback so CI instances share the same key
+            self._fernet = Fernet(_FALLBACK_TOTP_KEY)
         else:
             try:
                 self._fernet = Fernet(key)
             except Exception:
-                # Fall back to ephemeral to avoid startup failures
-                self._fernet = Fernet(Fernet.generate_key())
+                logger.warning("Invalid TOTP_ENCRYPTION_KEY provided; using fallback key")
+                self._fernet = Fernet(_FALLBACK_TOTP_KEY)
 
         default_window = 1 if getattr(settings, "is_testing", False) else 0
         env_window = os.getenv("TOTP_VALID_WINDOW")
