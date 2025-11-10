@@ -8,6 +8,7 @@ as the original embedded HTML version.
 """
 
 from datetime import date, datetime, time, timedelta
+import re
 from unittest.mock import patch
 
 import pytest
@@ -149,9 +150,10 @@ class TestBookingConfirmation:
         assert test_booking.meeting_location in student_html
         assert "75.00" in student_html  # Price
 
-        # Check no f-string bugs
-        assert "{" not in student_html or "{{" in student_html  # Only Jinja syntax
-        assert "}" not in student_html or "}}" in student_html
+        # Ensure no unrendered Jinja tokens slipped through
+        assert re.search(r'{{\s*.+?\s*}}', student_html) is None, "Found unrendered variable token"
+        assert re.search(r'{%\s*.+?\s*%}', student_html) is None, "Found unrendered block token"
+        assert re.search(r'{#\s*.+?\s*#}', student_html) is None, "Found unrendered comment token"
 
 
 class TestCancellationNotification:
