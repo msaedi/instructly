@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.database import get_db
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
 from app.services.auth_service import AuthService
+from app.services.search_history_service import SearchHistoryService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 from app.utils.cookies import (
     expire_parent_domain_cookie,
@@ -192,6 +193,21 @@ def verify_login(
 
     if site_mode != "local":
         expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
+
+    guest_session_id = payload.get("guest_session_id")
+    if guest_session_id:
+        try:
+            search_service = SearchHistoryService(tfa_service.db)
+            converted_count = search_service.convert_guest_searches_to_user(
+                guest_session_id=guest_session_id, user_id=user.id
+            )
+            logger.info(
+                "Converted %s guest searches during post-2FA login for user %s",
+                converted_count,
+                user.id,
+            )
+        except Exception as exc:
+            logger.error("Failed to convert guest searches after 2FA login: %s", exc)
 
     # Optionally set a trust cookie if client requested trust (header flag)
     trust_header = request.headers.get("X-Trust-Browser", "false").lower() == "true"

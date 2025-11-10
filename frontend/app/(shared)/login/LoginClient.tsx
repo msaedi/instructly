@@ -167,7 +167,9 @@ function LoginForm({ redirect }: { redirect: string }) {
       setErrors({ password: 'Invalid 2FA session. Please try logging in again.' });
       return;
     }
-    if (!twoFactorCode.trim() && !backupCode.trim()) {
+    const sanitizedTwoFactor = twoFactorCode.trim();
+    const sanitizedBackup = backupCode.trim();
+    if (!sanitizedTwoFactor && !sanitizedBackup) {
       setErrors({ twofa: 'Enter a 6-digit code or a backup code' });
       return;
     }
@@ -181,13 +183,14 @@ function LoginForm({ redirect }: { redirect: string }) {
         },
         body: {
           temp_token: tempToken,
-          code: twoFactorCode || undefined,
-          backup_code: backupCode || undefined,
+          code: sanitizedTwoFactor || undefined,
+          backup_code: sanitizedBackup || undefined,
         },
       });
       if (trustThisBrowser) {
         try { sessionStorage.setItem('tfa_trusted', 'true'); } catch {}
       }
+      await transferGuestSearchesToAccount();
       await checkAuth();
       try {
         if (redirect && redirect !== '/' && !redirect.startsWith('/login')) {

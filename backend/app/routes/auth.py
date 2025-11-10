@@ -10,6 +10,7 @@ UPDATED: Added rate limiting to protect against brute force attacks.
 
 from datetime import timedelta
 import logging
+from typing import cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -21,13 +22,13 @@ from ..core.config import settings
 from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
+from ..models.user import User
 from ..schemas import (
     UserCreate,
     UserLogin,
     UserUpdate,
 )
 from ..schemas.auth_responses import (
-    AuthTokenResponse,
     AuthUserResponse,
     AuthUserWithPermissionsResponse,
 )
@@ -47,6 +48,36 @@ from ..utils.strict import model_filter
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _should_trust_device(request: Request) -> bool:
+    is_trusted_cookie = request.cookies.get("tfa_trusted") == "1"
+    if is_trusted_cookie:
+        return True
+    if settings.environment != "production":
+        trusted_header = cast(str | None, request.headers.get("X-Trusted-Bypass"))
+        return (trusted_header or "false").lower() == "true"
+    return False
+
+
+def _issue_two_factor_challenge_if_needed(
+    user: User, request: Request, extra_claims: dict[str, str] | None = None
+) -> LoginResponse | None:
+    if not getattr(user, "totp_enabled", False):
+        return None
+
+    if _should_trust_device(request):
+        return None
+
+    temp_claims = {"sub": user.email, "tfa_pending": True}
+    if extra_claims:
+        temp_claims.update(extra_claims)
+
+    temp_token = create_access_token(
+        data=temp_claims,
+        expires_delta=timedelta(minutes=5),
+    )
+    return LoginResponse(requires_2fa=True, temp_token=temp_token)
 
 
 @router.post("/register", response_model=AuthUserResponse, status_code=status.HTTP_201_CREATED)
@@ -206,19 +237,9 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # If user has 2FA enabled and not trusted (no trust cookie), return requires_2fa
-    if getattr(user, "totp_enabled", False):
-        # Check trust cookie set by 2FA verification
-        is_trusted = request.cookies.get("tfa_trusted") == "1"
-        # Dev convenience: allow header-based trust when not in production (since cross-origin cookies may be restricted locally)
-        if not is_trusted and settings.environment != "production":
-            if request.headers.get("X-Trusted-Bypass", "false").lower() == "true":
-                is_trusted = True
-        if not is_trusted:
-            temp_token = create_access_token(
-                data={"sub": user.email, "tfa_pending": True}, expires_delta=timedelta(minutes=5)
-            )
-            return LoginResponse(requires_2fa=True, temp_token=temp_token)
+    two_factor_response = _issue_two_factor_challenge_if_needed(user, request)
+    if two_factor_response:
+        return two_factor_response
 
     # Create access token (HTTP concern - stays in route)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
@@ -298,7 +319,7 @@ async def change_password(
     return PasswordChangeResponse(message="Password changed successfully")
 
 
-@router.post("/login-with-session", response_model=AuthTokenResponse)
+@router.post("/login-with-session", response_model=LoginResponse)
 @rate_limit(
     f"{settings.rate_limit_auth_per_minute}/minute",
     key_type=RateLimitKeyType.IP,
@@ -310,7 +331,7 @@ async def login_with_session(
     login_data: UserLogin,
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
-) -> AuthTokenResponse:
+) -> LoginResponse:
     """
     Login with email and password, optionally converting guest searches.
 
@@ -339,17 +360,15 @@ async def login_with_session(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Convert guest searches if guest_session_id provided
+    extra_claims: dict[str, str] = {}
     if login_data.guest_session_id:
-        try:
-            search_service = SearchHistoryService(db)
-            converted_count = search_service.convert_guest_searches_to_user(
-                guest_session_id=login_data.guest_session_id, user_id=user.id
-            )
-            logger.info(f"Converted {converted_count} guest searches for user {user.id}")
-        except Exception as e:
-            logger.error(f"Failed to convert guest searches during login: {str(e)}")
-            # Don't fail login if conversion fails
+        extra_claims["guest_session_id"] = login_data.guest_session_id
+
+    two_factor_response = _issue_two_factor_challenge_if_needed(
+        user, request, extra_claims=extra_claims
+    )
+    if two_factor_response:
+        return two_factor_response
 
     # Create access token
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
@@ -372,8 +391,20 @@ async def login_with_session(
     if site_mode != "local":
         expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
 
-    response_payload = {"access_token": access_token, "token_type": "bearer"}
-    return AuthTokenResponse(**model_filter(AuthTokenResponse, response_payload))
+    # Convert guest searches if guest_session_id provided (only after full auth)
+    if login_data.guest_session_id:
+        try:
+            search_service = SearchHistoryService(db)
+            converted_count = search_service.convert_guest_searches_to_user(
+                guest_session_id=login_data.guest_session_id, user_id=user.id
+            )
+            logger.info(f"Converted {converted_count} guest searches for user {user.id}")
+        except Exception as e:
+            logger.error(f"Failed to convert guest searches during login: {str(e)}")
+            # Don't fail login if conversion fails
+
+    response_payload = {"access_token": access_token, "token_type": "bearer", "requires_2fa": False}
+    return LoginResponse(**model_filter(LoginResponse, response_payload))
 
 
 @router.get("/me", response_model=AuthUserWithPermissionsResponse)
