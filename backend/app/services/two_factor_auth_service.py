@@ -18,6 +18,8 @@ from .base import BaseService
 
 logger = logging.getLogger(__name__)
 
+TOTP_VALID_WINDOW = 1
+
 
 class TwoFactorAuthService(BaseService):
     def __init__(self, db: Session):
@@ -83,7 +85,7 @@ class TwoFactorAuthService(BaseService):
         except Exception:
             return False
         totp = pyotp.TOTP(secret)
-        return bool(totp.verify(code, valid_window=1))
+        return bool(totp.verify(code, valid_window=TOTP_VALID_WINDOW))
 
     @BaseService.measure_operation("tfa_generate_backup_codes")
     def generate_backup_codes(self, count: int = 10) -> list[str]:
