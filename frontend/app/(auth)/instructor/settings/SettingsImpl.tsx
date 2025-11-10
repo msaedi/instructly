@@ -275,7 +275,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <h3 className="text-sm font-medium text-gray-900">Profile Information</h3>
                     <p className="text-sm text-gray-500">Update your personal details and bio</p>
                   </div>
-                  <Link href="/instructor/profile" className="text-[#7E22CE] hover:text-[#6B1FA0] text-sm font-medium">
+                  <Link href="/instructor/onboarding/account-setup" className="text-[#7E22CE] hover:text-[#6B1FA0] text-sm font-medium">
                     Edit
                   </Link>
                 </div>
@@ -678,22 +678,22 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             {openAccount && (
               <div className="mt-3 text-sm text-gray-700 space-y-2">
                 <div>
-                  <a href="/acknowledgments" className="text-[#7E22CE] hover:underline">
+                  <a href="/acknowledgments" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
                     Acknowledgments
                   </a>
                 </div>
                 <div>
-                  <a href="/legal#privacy" className="text-[#7E22CE] hover:underline">
+                  <a href="/legal#privacy" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
                     Privacy Policy
                   </a>
                 </div>
                 <div>
-                  <a href="/legal#terms" className="text-[#7E22CE] hover:underline">
+                  <a href="/legal#terms" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
                     Terms &amp; Conditions
                   </a>
                 </div>
                 <div>
-                  <a href="/support" className="text-[#7E22CE] hover:underline">
+                  <a href="/support" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
                     iNSTAiNSTRU support
                   </a>
                 </div>

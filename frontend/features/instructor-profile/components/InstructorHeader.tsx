@@ -9,7 +9,6 @@ import { favoritesApi } from '@/services/api/favorites';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import type { InstructorProfile } from '@/types/instructor';
-import { VerifiedBadge } from '@/components/common/VerifiedBadge';
 
 interface InstructorHeaderProps {
   instructor: InstructorProfile;
@@ -20,14 +19,12 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isSaved, setIsSaved] = useState(instructor.is_favorited || false);
-  const [favoriteCount, setFavoriteCount] = useState(instructor.favorited_count || 0);
   const [isLoading, setIsLoading] = useState(false);
 
   // Update favorite status and count when instructor prop changes
   useEffect(() => {
     setIsSaved(instructor.is_favorited || false);
-    setFavoriteCount(instructor.favorited_count || 0);
-  }, [instructor.is_favorited, instructor.favorited_count]);
+  }, [instructor.is_favorited]);
 
   // Check favorite status on mount if user is logged in
   useEffect(() => {
@@ -51,7 +48,8 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
     ? ((instructor as { bgc_status?: string }).bgc_status || '').toLowerCase()
     : undefined;
   const backgroundCheckPassed = bgcStatus === 'passed';
-  const bgcCompletedAt = (instructor as { bgc_completed_at?: string | null }).bgc_completed_at ?? null;
+  const shouldShowMockedBadge = backgroundCheckPassed || !bgcStatus;
+  const verificationLabel = backgroundCheckPassed ? 'Background Check Verified' : 'Background Check Pending';
   const [shareCopied, setShareCopied] = useState(false);
   const handleShare = async () => {
     try {
@@ -87,8 +85,6 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
     // Optimistic update
     const newSavedState = !isSaved;
     setIsSaved(newSavedState);
-    // Update the count optimistically
-    setFavoriteCount(prevCount => newSavedState ? prevCount + 1 : Math.max(0, prevCount - 1));
     setIsLoading(true);
 
     try {
@@ -104,7 +100,6 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
     } catch (error) {
       // Revert on error
       setIsSaved(isSaved);
-      setFavoriteCount(instructor.favorited_count || 0);
       toast.error('Failed to update favorite');
       logger.error('Favorite toggle error', error as Error);
     } finally {
@@ -148,41 +143,39 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
             <div className="flex-1">
               <div className="flex flex-col space-y-2">
               {/* Name with Heart Button */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl lg:text-3xl font-bold text-[#7E22CE]" data-testid="instructor-profile-name">{displayName}</h1>
-                {backgroundCheckPassed ? (
-                  <VerifiedBadge dateISO={bgcCompletedAt} className="ml-2" />
-                ) : null}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={handleHeartClick}
                     disabled={isLoading}
-                    className="p-1 bg-transparent border-none hover:scale-110 transition-transform cursor-pointer disabled:opacity-50"
+                    className="p-0.5 bg-transparent border-none hover:scale-110 transition-transform cursor-pointer disabled:opacity-50"
                     aria-label={user ? "Toggle favorite" : "Sign in to save"}
                     title={!user ? "Sign in to save this instructor" : isSaved ? "Remove from favorites" : "Add to favorites"}
                     style={{ background: 'transparent', border: 'none' }}
                   >
                     <Heart
                       className="h-5 w-5"
-                      fill={isSaved ? '#ff0000' : 'none'}
-                      color={isSaved ? '#ff0000' : '#666'}
+                      fill={isSaved ? '#7E22CE' : 'none'}
+                      color="#7E22CE"
                     />
                   </button>
                   <button
                     onClick={handleShare}
-                    className="inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-purple-50 transition-transform cursor-pointer hover:scale-110"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-purple-50 transition-transform cursor-pointer hover:scale-110"
                     aria-label="Share profile"
                     title={shareCopied ? 'Link copied' : 'Share profile'}
                     style={{ background: 'transparent', border: 'none' }}
                   >
                     <Share2 className="h-5 w-5 text-[#7E22CE]" />
                   </button>
-                  {favoriteCount > 0 && (
-                    <span className="text-sm text-muted-foreground">
-                      ({favoriteCount})
-                    </span>
-                  )}
                 </div>
+                {shouldShowMockedBadge ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>{verificationLabel}</span>
+                  </span>
+                ) : null}
               </div>
 
               {/* Rating and Reviews */}

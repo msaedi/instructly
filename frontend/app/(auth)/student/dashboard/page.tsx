@@ -1661,7 +1661,8 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:text-[#7E22CE]"
+              style={{ outline: 'none', boxShadow: 'none' }}
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -1904,7 +1905,8 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:text-[#7E22CE]"
+              style={{ outline: 'none', boxShadow: 'none' }}
               onClick={() => setShowPasswords((v) => !v)}
               aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
             >

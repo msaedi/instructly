@@ -19,7 +19,7 @@ const DISCLOSURE_SECTIONS = [
     body: (
       <>
         <p className="mb-4 text-sm text-gray-700">
-          InstaInstru may request a consumer report prepared by Checkr, Inc. that contains information
+          iNSTAiNSTRU may request a consumer report prepared by Checkr, Inc. that contains information
           about you, including: criminal history records, sex offender registry records, and
           information used to verify your identity such as name, date of birth, Social Security number
           trace, and address history.
@@ -27,7 +27,7 @@ const DISCLOSURE_SECTIONS = [
         <p className="text-sm text-gray-700">
           These reports may be used now or in connection with your ongoing participation on the
           platform. Additional background reports may be obtained throughout your involvement with
-          InstaInstru to the extent permitted by law.
+          iNSTAiNSTRU to the extent permitted by law.
         </p>
       </>
     ),
@@ -80,7 +80,7 @@ const DISCLOSURE_SECTIONS = [
 const STATE_NOTICE_PLACEHOLDER = (
   <div className="text-sm text-gray-700 space-y-2">
     <p>
-      Certain states require additional disclosures or notices. InstaInstru will provide state-
+      Certain states require additional disclosures or notices. iNSTAiNSTRU will provide state-
       specific notices that apply to you based on your place of residence and work. Please review any
       supplemental documents provided during onboarding for full details.
     </p>
@@ -175,7 +175,7 @@ export function BackgroundCheckDisclosureModal({
           <section className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <h3 className="text-base font-semibold text-gray-900">Overview</h3>
             <p className="mt-2 text-sm text-gray-700">
-              By selecting “I acknowledge and authorize,” you consent to InstaInstru obtaining consumer
+              By selecting “I acknowledge and authorize,” you consent to iNSTAiNSTRU obtaining consumer
               reports about you from a consumer reporting agency for onboarding and participation on
               the platform. These reports may include criminal records, sex offender registry records,
               and identity verification information. Please review the full disclosure below, then
@@ -215,9 +215,9 @@ export function BackgroundCheckDisclosureModal({
             <h3 className="text-base font-semibold text-gray-900">Authorization</h3>
             <p className="mt-2 text-sm text-gray-700">
               By selecting “I acknowledge and authorize,” you confirm that you have read the disclosure
-              above and authorize InstaInstru to obtain and use consumer reports about you now and
+              above and authorize iNSTAiNSTRU to obtain and use consumer reports about you now and
               while you remain active on the platform. You understand that you may revoke this
-              authorization by contacting InstaInstru support.
+              authorization by contacting iNSTAiNSTRU support.
             </p>
           </section>
         </div>

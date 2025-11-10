@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { Layers, MonitorSmartphone } from 'lucide-react';
 import type { InstructorService } from '@/types/instructor';
 
 interface ServiceCardsProps {
@@ -94,6 +95,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
   const hourlyRateRaw = (service as unknown as Record<string, unknown>)?.['hourly_rate'] as unknown;
   const hourlyRate = typeof hourlyRateRaw === 'number' ? hourlyRateRaw : parseFloat(String(hourlyRateRaw ?? '0'));
   const price = Math.round(((isNaN(hourlyRate) ? 0 : hourlyRate) * selectedDuration) / 60);
+  const showHourlyPrice = durationOptions.length <= 1;
 
   // Generate helpful message for unavailable services
   const getUnavailableMessage = () => {
@@ -130,27 +132,30 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
           <div className="mt-3 flex w-full flex-col items-center gap-2">
             <div className="flex w-full min-h-[26px] items-center justify-center">
               {showsKidsBadge ? (
-                <span className="inline-flex items-center text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
+                <span className="inline-flex items-center text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-gray-700">
                   Kids lesson available
                 </span>
               ) : (
                 <span className="text-xs opacity-0">Kids lesson available</span>
               )}
             </div>
-            <div className="flex w-full min-h-[46px] items-center justify-center text-center">
+            <div className="flex w-full flex-col items-center text-center gap-2">
               {levelLabel ? (
-                <span className="inline-flex items-center bg-white text-[#7E22CE] text-xs font-semibold px-2 py-1 rounded-full border border-purple-200 shadow-sm leading-tight">
-                  Levels: {levelLabel}
-                </span>
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-700 leading-tight">
+                  <Layers className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
+                  <span>Levels: {levelLabel}</span>
+                </div>
               ) : (
                 <span className="text-xs opacity-0">Levels placeholder</span>
               )}
-            </div>
-            <div className="flex w-full min-h-[28px] items-center justify-center">
+              {levelLabel && locationLabel ? (
+                <div className="w-10/12 h-px bg-gradient-to-r from-transparent via-[#7E22CE]/40 to-transparent" />
+              ) : null}
               {locationLabel ? (
-                <span className="inline-flex items-center bg-white text-gray-700 text-xs font-medium px-2 py-1 rounded-full border border-gray-200 shadow-sm">
-                  Format: {locationLabel}
-                </span>
+                <div className="flex items-center justify-center gap-2 text-sm text-gray-700 leading-tight">
+                  <MonitorSmartphone className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
+                  <span>Format: {locationLabel}</span>
+                </div>
               ) : (
                 <span className="text-xs opacity-0">Format placeholder</span>
               )}
@@ -183,7 +188,9 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
                 </div>
               ) : null}
             </div>
-            <div className="text-lg font-semibold">${price}</div>
+            <div className="text-lg font-semibold">
+              {showHourlyPrice ? `$${price}/hr` : `$${price}`}
+            </div>
           </div>
           <div className="mt-auto flex justify-center">
             <button

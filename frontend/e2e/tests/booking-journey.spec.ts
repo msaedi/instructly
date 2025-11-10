@@ -302,7 +302,7 @@ test.describe('Student Booking Journey', () => {
     await page.waitForLoadState('networkidle');
 
     // Verify homepage loaded
-    await expect(page).toHaveTitle(/InstaInstru/i);
+    await expect(page).toHaveTitle(/iNSTAiNSTRU/i);
 
     // Step 2: Search for piano instructors
     await homePage.searchForInstrument(testData.search.instrument);

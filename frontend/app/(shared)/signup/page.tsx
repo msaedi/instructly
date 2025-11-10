@@ -613,7 +613,15 @@ function SignUpForm() {
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
             <div className="mt-1 relative">
               <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={formData.password} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-error' : 'password-hint'} />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-1/2 -translate-y-1/2 -mt-2.5 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" disabled={isLoading}>{showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}</button>
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-0 top-1/2 -translate-y-1/2 -mt-2.5 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:text-[#7E22CE]"
+                style={{ outline: 'none', boxShadow: 'none' }}
+                disabled={isLoading}
+              >
+                {showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}
+              </button>
               {errors.password && (<p id="password-error" className="mt-1 text-sm text-red-600 dark:text-red-400">At least 8 characters</p>)}
               {/* Strength hint */}
               {!errors.password && (
@@ -638,9 +646,19 @@ function SignUpForm() {
               By clicking below and creating an account,
               <br />
               I agree to iNSTAiNSTRU&apos;s{' '}
-              <Link href="/terms" className="text-[#7E22CE] hover:text-[#7E22CE] underline">Terms of Service</Link>{' '}
+              <Link
+                href="/terms"
+                className="focus-link text-[#7E22CE] hover:text-[#7E22CE]"
+              >
+                Terms of Service
+              </Link>{' '}
               and{' '}
-              <Link href="/privacy" className="text-[#7E22CE] hover:text-[#7E22CE] underline">Privacy Policy</Link>
+              <Link
+                href="/privacy"
+                className="focus-link text-[#7E22CE] hover:text-[#7E22CE]"
+              >
+                Privacy Policy
+              </Link>
             </p>
             <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed dark:bg-purple-600 dark:hover:bg-[#7E22CE]">{isLoading ? 'Creating account...' : (isInstructorFlow ? 'Sign up as Instructor' : 'Sign up as Student')}</button>
 
@@ -651,7 +669,7 @@ function SignUpForm() {
                   Looking to learn instead?{' '}
                   <Link
                     href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-                    className="font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
+                    className="focus-link font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
                   >
                     Sign up as a student
                   </Link>
@@ -661,7 +679,7 @@ function SignUpForm() {
                     Already have an account?{' '}
                     <Link
                       href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-                      className="font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
+                      className="focus-link font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
                       onClick={() => logger.info('Navigating to login from signup')}
                     >
                       Sign in
@@ -676,7 +694,7 @@ function SignUpForm() {
                   Looking to teach instead?{' '}
                   <Link
                     href={`/signup?role=instructor${redirect !== '/' ? `&redirect=${encodeURIComponent(redirect)}` : ''}`}
-                    className="font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
+                    className="focus-link font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
                   >
                     Sign up as Instructor
                   </Link>
@@ -684,7 +702,13 @@ function SignUpForm() {
                 <div className="mt-0.5">
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Already have an account?{' '}
-                    <Link href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} className="font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300" onClick={() => logger.info('Navigating to login from signup')}>Sign in</Link>
+                    <Link
+                      href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+                      className="focus-link font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
+                      onClick={() => logger.info('Navigating to login from signup')}
+                    >
+                      Sign in
+                    </Link>
                   </span>
                 </div>
               </div>

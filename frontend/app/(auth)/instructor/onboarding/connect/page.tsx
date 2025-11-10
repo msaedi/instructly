@@ -25,7 +25,7 @@ const determineTargetPath = (fromParam: string | null) => {
   }
 
   if (slug === 'profile') {
-    return '/instructor/profile';
+    return '/instructor/onboarding/account-setup';
   }
 
   const onboardingSlugs = new Set([

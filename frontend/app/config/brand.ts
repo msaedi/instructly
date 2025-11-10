@@ -3,7 +3,7 @@
 import { IS_PRODUCTION } from '@/lib/publicEnv';
 
 /**
- * Centralized Brand Configuration for InstaInstru
+ * Centralized Brand Configuration for iNSTAiNSTRU
  *
  * This file contains all brand-related constants to ensure consistency
  * across the application. Update here to change branding everywhere.
@@ -141,14 +141,14 @@ export const BRAND: BrandConfig = {
 
   // Legal
   legal: {
-    companyName: 'InstaInstru LLC',
+    companyName: 'iNSTAiNSTRU LLC',
     foundedYear: 2024,
   },
 
   // SEO
   seo: {
-    defaultTitle: 'InstaInstru - Book Expert Instructors Instantly',
-    titleTemplate: '%s | InstaInstru',
+    defaultTitle: 'iNSTAiNSTRU - Book Expert Instructors Instantly',
+    titleTemplate: '%s | iNSTAiNSTRU',
     defaultDescription:
       'Find and book expert instructors in NYC for yoga, music, languages, fitness, and more. Instant booking, verified instructors.',
     keywords: ['instructors', 'lessons', 'NYC', 'yoga', 'music', 'fitness', 'tutoring', 'coaching'],
@@ -219,15 +219,15 @@ export function getAppUrl(): string {
  * @example
  * ```tsx
  * const supportEmail = getEmailWithName('support');
- * // Returns: "InstaInstru Support <support@instainstru.com>"
+ * // Returns: "iNSTAiNSTRU Support <support@instainstru.com>"
  * ```
  */
 export function getEmailWithName(type: EmailType): string {
   const email = BRAND.email[type];
   const nameMap: Record<EmailType, string> = {
-    support: 'InstaInstru Support',
-    noreply: 'InstaInstru',
-    hello: 'InstaInstru Team',
+    support: 'iNSTAiNSTRU Support',
+    noreply: 'iNSTAiNSTRU',
+    hello: 'iNSTAiNSTRU Team',
   };
 
   return `${nameMap[type]} <${email}>`;

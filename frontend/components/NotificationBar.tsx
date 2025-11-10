@@ -43,7 +43,7 @@ export function NotificationBar() {
         id: 'welcome',
         type: 'announcement',
         message:
-          'Welcome to InstaInstru! Browse our verified instructors and book your first lesson.',
+          'Welcome to iNSTAiNSTRU! Browse our verified instructors and book your first lesson.',
         priority: 2,
       });
     }

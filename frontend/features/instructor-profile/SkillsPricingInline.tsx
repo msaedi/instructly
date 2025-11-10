@@ -73,8 +73,15 @@ export default function SkillsPricingInline({ className }: Props) {
         }
         if (all.status === 200 && all.data) {
           const map: Record<string, CatalogService[]> = {};
-          for (const c of all.data.categories.filter((c: { slug: string; services: unknown[] }) => c.slug !== 'kids')) {
-            map[c.slug] = c.services as CatalogService[];
+          for (const c of all.data.categories.filter(
+            (category: { slug: string; services: unknown[] }) => category.slug !== 'kids',
+          )) {
+            const deduped = Array.from(
+              new Map(
+                (c.services as CatalogService[]).map((svc) => [svc.id, svc]),
+              ).values(),
+            );
+            map[c.slug] = deduped;
           }
           setServicesByCategory(map);
         }
@@ -84,38 +91,65 @@ export default function SkillsPricingInline({ className }: Props) {
           const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
           if (meRes.ok) {
             const me = await meRes.json();
-            const mapped: SelectedService[] = (me.services || []).map((svc: unknown) => {
-              const s = svc as Record<string, unknown>;
-              const catalogId = String(s['service_catalog_id'] || '');
-              const serviceName = displayServiceName(
-                {
-                  service_catalog_id: catalogId,
-                  service_catalog_name: typeof s['service_catalog_name'] === 'string' ? (s['service_catalog_name'] as string) : (s['name'] as string | undefined) ?? null,
-                },
-                hydrateCatalogNameById,
+            const mapped: SelectedService[] = (me.services || [])
+              .map((svc: unknown) => {
+                const s = svc as Record<string, unknown>;
+                const catalogId = String(s['service_catalog_id'] || '');
+                const serviceName = displayServiceName(
+                  {
+                    service_catalog_id: catalogId,
+                    service_catalog_name:
+                      typeof s['service_catalog_name'] === 'string'
+                        ? (s['service_catalog_name'] as string)
+                        : (s['name'] as string | undefined) ?? null,
+                  },
+                  hydrateCatalogNameById,
+                );
+                return {
+                  catalog_service_id: catalogId,
+                  service_catalog_name:
+                    typeof s['service_catalog_name'] === 'string'
+                      ? (s['service_catalog_name'] as string)
+                      : null,
+                  name: serviceName,
+                  hourly_rate: String(s['hourly_rate'] ?? ''),
+                  ageGroup:
+                    Array.isArray(s['age_groups']) && (s['age_groups'] as string[]).length === 2
+                      ? 'both'
+                      : ((s['age_groups'] as string[]) || []).includes('kids')
+                      ? 'kids'
+                      : 'adults',
+                  description: (s['description'] as string) || '',
+                  equipment: Array.isArray(s['equipment_required'])
+                    ? (s['equipment_required'] as string[]).join(', ')
+                    : '',
+                  levels_taught:
+                    Array.isArray(s['levels_taught']) && (s['levels_taught'] as string[]).length
+                      ? (s['levels_taught'] as Array<'beginner' | 'intermediate' | 'advanced'>)
+                      : ['beginner', 'intermediate', 'advanced'],
+                  duration_options:
+                    Array.isArray(s['duration_options']) && (s['duration_options'] as number[]).length
+                      ? (s['duration_options'] as number[])
+                      : [60],
+                  location_types:
+                    Array.isArray(s['location_types']) && (s['location_types'] as string[]).length
+                      ? (s['location_types'] as Array<'in-person' | 'online'>)
+                      : ['in-person'],
+                } as SelectedService;
+              })
+              .filter((svc: SelectedService) => svc.catalog_service_id);
+
+            if (mapped.length) {
+              const deduped = Array.from(
+                new Map(
+                  mapped.map((mappedService: SelectedService) => [
+                    mappedService.catalog_service_id,
+                    mappedService,
+                  ]),
+                ).values(),
               );
-              return {
-                catalog_service_id: catalogId,
-                service_catalog_name: typeof s['service_catalog_name'] === 'string' ? (s['service_catalog_name'] as string) : null,
-                name: serviceName,
-                hourly_rate: String(s['hourly_rate'] ?? ''),
-                ageGroup:
-                  Array.isArray(s['age_groups']) && (s['age_groups'] as string[]).length === 2
-                    ? 'both'
-                    : ((s['age_groups'] as string[]) || []).includes('kids')
-                    ? 'kids'
-                    : 'adults',
-                description: (s['description'] as string) || '',
-                equipment: Array.isArray(s['equipment_required']) ? (s['equipment_required'] as string[]).join(', ') : '',
-                levels_taught:
-                  Array.isArray(s['levels_taught']) && (s['levels_taught'] as string[]).length
-                    ? (s['levels_taught'] as Array<'beginner' | 'intermediate' | 'advanced'>)
-                    : ['beginner', 'intermediate', 'advanced'],
-                duration_options: Array.isArray(s['duration_options']) && (s['duration_options'] as number[]).length ? (s['duration_options'] as number[]) : [60],
-                location_types: Array.isArray(s['location_types']) && (s['location_types'] as string[]).length ? (s['location_types'] as Array<'in-person' | 'online'>) : ['in-person'],
-              } as SelectedService;
-            });
-            if (mapped.length) setSelectedServices(mapped);
+              setSelectedServices(deduped);
+            }
           }
         } catch {}
       } catch {

@@ -1,18 +1,8 @@
 'use client';
-
-import { useMemo } from 'react';
-import * as Tooltip from '@radix-ui/react-tooltip';
-import { Info } from 'lucide-react';
 import {
   formatCentsToDisplay,
   type PricingPreviewResponse,
 } from '@/lib/api/pricing';
-import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
-import {
-  computeStudentFeePercent,
-  formatServiceSupportLabel,
-  formatServiceSupportTooltip,
-} from '@/lib/pricing/studentFee';
 
 interface SummarySectionProps {
   selectedDate: string | null;
@@ -41,23 +31,6 @@ export default function SummarySection({
   pricingError = null,
   hasBookingDraft = false,
 }: SummarySectionProps) {
-  const { config: pricingConfig } = usePricingConfig();
-  const serviceSupportFeePercent = useMemo(
-    () => computeStudentFeePercent({ preview: pricingPreview, config: pricingConfig }),
-    [pricingConfig, pricingPreview],
-  );
-  const serviceSupportVisibleLabel = useMemo(
-    () => formatServiceSupportLabel(serviceSupportFeePercent, { includeFeeWord: false }),
-    [serviceSupportFeePercent],
-  );
-  const serviceSupportAriaLabel = useMemo(
-    () => formatServiceSupportLabel(serviceSupportFeePercent),
-    [serviceSupportFeePercent],
-  );
-  const serviceSupportTooltip = useMemo(
-    () => formatServiceSupportTooltip(serviceSupportFeePercent),
-    [serviceSupportFeePercent],
-  );
   // Format date to human-readable format
   const formatDate = (dateStr: string, timeStr: string) => {
     // Parse the date string as local date, not UTC
@@ -137,15 +110,11 @@ export default function SummarySection({
                   <span>{formatCentsToDisplay(pricingPreview.base_price_cents)}</span>
                 </div>
                 {pricingPreview.line_items.map((item) => {
+                  const lowerLabel = (item.label || '').toLowerCase();
+                  if (lowerLabel.startsWith('service & support')) {
+                    return null;
+                  }
                   const isCredit = item.amount_cents < 0;
-                  const normalizedLabel = (() => {
-                    const label = item.label.toLowerCase();
-                    if (label.startsWith('booking protection') || label.startsWith('service & support')) {
-                      return serviceSupportAriaLabel;
-                    }
-                    return item.label;
-                  })();
-                  const isServiceSupportLineItem = normalizedLabel === serviceSupportAriaLabel;
                   return (
                     <div
                       key={`${item.label}-${item.amount_cents}`}
@@ -153,34 +122,7 @@ export default function SummarySection({
                         isCredit ? 'text-green-600 dark:text-green-400' : ''
                       }`}
                     >
-                      {isServiceSupportLineItem ? (
-                        <span className="inline-flex items-center gap-1" aria-label={serviceSupportAriaLabel}>
-                          <span>{serviceSupportAriaLabel}</span>
-                          <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <button
-                                  type="button"
-                                  className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
-                                  aria-label="Learn about the Service & Support fee"
-                                >
-                                  <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                                </button>
-                              </Tooltip.Trigger>
-                          <Tooltip.Content
-                            side="top"
-                            sideOffset={6}
-                            className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
-                          >
-                            {serviceSupportTooltip}
-                            <Tooltip.Arrow className="fill-gray-900" />
-                          </Tooltip.Content>
-                            </Tooltip.Root>
-                          </Tooltip.Provider>
-                        </span>
-                      ) : (
-                        <span>{normalizedLabel}</span>
-                      )}
+                      <span>{item.label}</span>
                       <span>{formatCentsToDisplay(item.amount_cents)}</span>
                     </div>
                   );
@@ -200,35 +142,6 @@ export default function SummarySection({
               <p className="mt-2 text-xs text-red-600">{pricingError}</p>
             )}
 
-            {!hasBookingDraft && (
-              <p className="mt-2 text-xs text-gray-500">
-                <span className="inline-flex items-center gap-1" aria-label={serviceSupportAriaLabel}>
-                  <span>{serviceSupportVisibleLabel}</span>
-                  <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
-                          aria-label="Learn about the Service & Support fee"
-                        >
-                          <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                      </Tooltip.Trigger>
-                  <Tooltip.Content
-                    side="top"
-                    sideOffset={6}
-                    className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
-                  >
-                    {serviceSupportTooltip}
-                    <Tooltip.Arrow className="fill-gray-900" />
-                  </Tooltip.Content>
-                    </Tooltip.Root>
-                  </Tooltip.Provider>
-                </span>{' '}
-                and credits apply at checkout.
-              </p>
-            )}
           </div>
         )}
 
