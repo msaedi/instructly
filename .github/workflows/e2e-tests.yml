@@ -70,7 +70,7 @@ jobs:
   e2e-tests:
     needs: [unit-tests]  # Don't spin up services if unit tests fail
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Prevent orphaned runs
+    timeout-minutes: 20  # Prevent orphaned runs
     strategy:
       fail-fast: false
       matrix:
@@ -400,21 +400,15 @@ jobs:
       working-directory: ./frontend
       run: npm ci
 
-    - name: Cache Next.js build cache
-      uses: actions/cache@v4
+    - name: Cache Playwright & Next caches
+      uses: actions/cache@v3
       with:
-        path: frontend/.next/cache
-        key: ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}
+        path: |
+          ~/.cache/ms-playwright
+          frontend/.next/cache
+        key: e2e-${{ runner.os }}-${{ matrix.project }}-${{ hashFiles('frontend/package-lock.json') }}
         restore-keys: |
-          ${{ runner.os }}-next-
-
-    - name: Cache Playwright browsers
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/ms-playwright
-        key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-playwright-
+          e2e-${{ runner.os }}-${{ matrix.project }}-
 
     - name: Install Playwright browsers
       working-directory: ./frontend
@@ -718,21 +712,15 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Cache Next.js build cache
-        uses: actions/cache@v4
+      - name: Cache Playwright & Next caches
+        uses: actions/cache@v3
         with:
-          path: frontend/.next/cache
-          key: ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}
+          path: |
+            ~/.cache/ms-playwright
+            frontend/.next/cache
+          key: invite-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-next-
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
+            invite-${{ runner.os }}-
 
       - name: Install Playwright browsers
         working-directory: frontend
@@ -912,21 +900,15 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Cache Next.js build cache
-        uses: actions/cache@v4
+      - name: Cache Playwright & Next caches
+        uses: actions/cache@v3
         with:
-          path: frontend/.next/cache
-          key: ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}
+          path: |
+            ~/.cache/ms-playwright
+            frontend/.next/cache
+          key: auth-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-next-
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
+            auth-${{ runner.os }}-
 
       - name: Install Playwright browsers
         working-directory: frontend
