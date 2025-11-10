@@ -1,20 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { toast } from 'sonner';
 import { createStripeIdentitySession, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { logger } from '@/lib/logger';
-import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { BGCStep } from '@/components/instructor/BGCStep';
 import { ShieldCheck } from 'lucide-react';
-// ProgressSteps temporarily removed during rollback
 import { BackgroundCheckDisclosureModal } from '@/components/consent/BackgroundCheckDisclosureModal';
 import { bgcConsent, type BGCConsentPayload } from '@/lib/api/bgc';
 import { DISCLOSURE_VERSION } from '@/config/constants';
+import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 
 export default function Step4Verification() {
   const router = useRouter();
@@ -32,6 +30,19 @@ export default function Step4Verification() {
   const [consentSubmitting, setConsentSubmitting] = useState(false);
   const [hasRecentConsent, setHasRecentConsent] = useState(false);
   const consentResolverRef = useRef<((value: boolean) => void) | null>(null);
+  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(() => ({
+    'account-setup': 'done',
+    'skill-selection': 'done',
+    'verify-identity': 'pending',
+  }));
+  const completedSteps = useMemo(
+    () => ({
+      'account-setup': stepStatus['account-setup'] === 'done',
+      'skill-selection': stepStatus['skill-selection'] === 'done',
+      'verify-identity': stepStatus['verify-identity'] === 'done',
+    }),
+    [stepStatus]
+  );
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -50,6 +61,13 @@ export default function Step4Verification() {
 
     void loadProfile();
   }, []);
+
+  useEffect(() => {
+    setStepStatus((prev) => ({
+      ...prev,
+      'verify-identity': verificationComplete ? 'done' : 'pending',
+    }));
+  }, [verificationComplete]);
 
   const ensureConsent = useCallback(async () => {
     if (hasRecentConsent) {
@@ -190,29 +208,7 @@ export default function Step4Verification() {
 
   return (
     <div className="min-h-screen">
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between max-w-full relative">
-          <Link href="/instructor/dashboard" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
-          </Link>
-
-          {/* ProgressSteps removed */}
-          <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '284px' }}>
-            <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-              <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
-              <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
-              <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
-              <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
-              <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
-              <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
-            </svg>
-          </div>
-
-          <div className="pr-4">
-            <UserProfileDropdown />
-          </div>
-        </div>
-      </header>
+      <OnboardingProgressHeader activeStep="verify-identity" stepStatus={stepStatus} completedSteps={completedSteps} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         <div className="mb-4 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">

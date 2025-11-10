@@ -41,7 +41,13 @@ function Step3SkillsPricingInner() {
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
   const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(
-    () => ({ 'account-setup': 'pending' })
+    () => ({ 'account-setup': 'pending', 'skill-selection': 'pending' })
+  );
+  const completedSteps = useMemo(
+    () => ({
+      'account-setup': stepStatus['account-setup'] === 'done',
+    }),
+    [stepStatus]
   );
   const { floors: pricingFloors } = usePricingFloors();
   const { config: pricingConfig } = usePricingConfig();
@@ -326,7 +332,7 @@ function Step3SkillsPricingInner() {
       // Navigate to next step
       // Determine completion: at least one selected with required info (price)
       const hasComplete = selected.some((s) => (s.hourly_rate || '').trim().length > 0);
-      setStepStatus((prev) => ({ ...prev, skills: hasComplete ? 'done' : 'failed' }));
+      setStepStatus((prev) => ({ ...prev, 'skill-selection': hasComplete ? 'done' : 'failed' }));
       window.location.href = nextUrl;
     } catch (e) {
       logger.error('Save services failed', e);
@@ -368,8 +374,8 @@ function Step3SkillsPricingInner() {
   if (loading) return <div className="p-8">Loading…</div>;
 
   return (
-    <div className="min-h-screen bg-[#FDFCFD]">
-      <OnboardingProgressHeader activeStep="skills" stepStatus={stepStatus} />
+    <div className="min-h-screen">
+      <OnboardingProgressHeader activeStep="skill-selection" stepStatus={stepStatus} completedSteps={completedSteps} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - mobile sections (white) with dividers; desktop card */}
@@ -835,7 +841,7 @@ function Step3SkillsPricingInner() {
           type="button"
           onClick={() => {
             const hasComplete = selected.some((s) => (s.hourly_rate || '').trim().length > 0);
-            setStepStatus((prev) => ({ ...prev, skills: hasComplete ? 'done' : 'failed' }));
+            setStepStatus((prev) => ({ ...prev, 'skill-selection': hasComplete ? 'done' : 'failed' }));
             window.location.href = '/instructor/onboarding/verification';
           }}
           className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"

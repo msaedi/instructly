@@ -29,12 +29,12 @@ export default function AccountSetupPage() {
 
   const handleSkip = () => {
     if (ctaPending) return;
-    router.push('/instructor/onboarding/status');
+    router.push('/instructor/onboarding/skill-selection');
   };
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="account-setup" walkerVariant="bounce" stepStatus={stepStatus} />
+      <OnboardingProgressHeader activeStep="account-setup" stepStatus={stepStatus} />
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         <div className="mb-4 sm:mb-6 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Tell students what to expect</h1>
@@ -51,6 +51,7 @@ export default function AccountSetupPage() {
             type="button"
             onClick={handleSkip}
             disabled={ctaPending}
+            data-testid="skip-account-setup"
             className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center disabled:opacity-60"
           >
             Skip for now

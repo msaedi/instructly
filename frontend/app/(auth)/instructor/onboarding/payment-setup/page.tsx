@@ -1,17 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
-import UserProfileDropdown from '@/components/UserProfileDropdown';
-// ProgressSteps temporarily removed during rollback
+import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 
 export default function Step3PaymentSetup() {
   const [connectLoading, setConnectLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [skillsSkipped, setSkillsSkipped] = useState<boolean>(false);
+  const [verificationComplete, setVerificationComplete] = useState(false);
   const [connectStatus, setConnectStatus] = useState<{
     has_account: boolean;
     onboarding_completed: boolean;
@@ -20,6 +19,22 @@ export default function Step3PaymentSetup() {
     details_submitted: boolean;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(
+    () => ({
+      'account-setup': 'done',
+      'skill-selection': 'pending',
+      'verify-identity': 'pending',
+      'payment-setup': 'pending',
+    })
+  );
+  const completedSteps = useMemo(
+    () => ({
+      'account-setup': stepStatus['account-setup'] === 'done',
+      'skill-selection': stepStatus['skill-selection'] === 'done',
+      'verify-identity': stepStatus['verify-identity'] === 'done',
+    }),
+    [stepStatus]
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -49,7 +64,7 @@ export default function Step3PaymentSetup() {
             }
             // Check if verification is complete
             if (profile.identity_verified_at || profile.identity_verification_session_id) {
-              // setVerificationComplete(true); // This line was removed as per the edit hint
+              setVerificationComplete(true);
             }
           }
         } catch {
@@ -100,33 +115,22 @@ export default function Step3PaymentSetup() {
     }
   }, []);
 
+  useEffect(() => {
+    setStepStatus({
+      'account-setup': 'done',
+      'skill-selection': skillsSkipped ? 'failed' : 'done',
+      'verify-identity': verificationComplete ? 'done' : 'pending',
+      'payment-setup': connectStatus?.onboarding_completed ? 'done' : 'pending',
+    });
+  }, [skillsSkipped, verificationComplete, connectStatus]);
+
   return (
     <div className="min-h-screen">
-      {/* Header - matching other pages */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between max-w-full relative">
-          <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
-          </Link>
-
-          {/* ProgressSteps removed */}
-          {/* Walking Stick Figure Animation - positioned between step 3 and 4 */}
-          <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '544px' }}>
-            <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-              <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
-              <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
-              <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
-              <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
-              <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
-              <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
-            </svg>
-          </div>
-
-          <div className="pr-4">
-            <UserProfileDropdown />
-          </div>
-        </div>
-      </header>
+      <OnboardingProgressHeader
+        activeStep="payment-setup"
+        stepStatus={stepStatus}
+        completedSteps={completedSteps}
+      />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - mobile sections with divider; desktop card */}
