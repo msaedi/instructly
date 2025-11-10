@@ -40,12 +40,13 @@ def test_replace_service_areas_uses_region_boundary(
     client: TestClient,
     db: Session,
     auth_headers_instructor: dict,
+    unique_nyc_region_code: str,
 ):
     region_id = str(ulid.ULID())
     boundary = RegionBoundary(
         id=region_id,
         region_type="nyc",
-        region_code="MN01",
+        region_code=unique_nyc_region_code,
         region_name="Test Neighborhood",
         parent_region="Manhattan",
     )
@@ -63,6 +64,6 @@ def test_replace_service_areas_uses_region_boundary(
     assert payload["total"] == 1
     first = payload["items"][0]
     assert first["neighborhood_id"] == region_id
-    assert first["ntacode"] == "MN01"
+    assert first["ntacode"] == unique_nyc_region_code
     assert first["name"] == "Test Neighborhood"
     assert first["borough"] == "Manhattan"

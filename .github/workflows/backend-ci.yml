@@ -162,6 +162,7 @@ jobs:
         ENVIRONMENT: test
         REDIS_URL: redis://localhost:6379
         BGC_ENCRYPTION_KEY: ${{ secrets.BGC_ENCRYPTION_KEY }}
+        TOTP_VALID_WINDOW: '1'
       run: |
         cd backend
         pytest -q --cov=app --cov-report=xml

@@ -48,7 +48,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Setup Node.js (admin)
+      if: ${{ matrix.project == 'admin' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+
     - name: Setup Node.js
+      if: ${{ matrix.project != 'admin' }}
       uses: actions/setup-node@v4
       with:
         node-version: '22.x'
@@ -401,6 +408,7 @@ jobs:
       run: npm ci
 
     - name: Cache Playwright & Next caches
+      if: ${{ matrix.project != 'admin' }}
       uses: actions/cache@v3
       with:
         path: |
@@ -596,6 +604,12 @@ jobs:
           backend/backend.log
           frontend/frontend.log
         retention-days: 3
+
+    - name: Cleanup heavy caches (admin only)
+      if: ${{ matrix.project == 'admin' }}
+      run: |
+        rm -rf ~/.cache || true
+        rm -rf frontend/.next/cache || true
 
     - name: Cleanup processes
       if: always()

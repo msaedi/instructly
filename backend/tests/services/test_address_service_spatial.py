@@ -58,7 +58,9 @@ def test_list_neighborhoods_pagination_and_format(db):
     assert {"id", "name", "borough", "code"}.issubset(page1[0].keys())
 
 
-def test_get_coverage_geojson_for_instructors_builds_featurecollection(db, test_instructor):
+def test_get_coverage_geojson_for_instructors_builds_featurecollection(
+    db, test_instructor, unique_nyc_region_code
+):
     service = AddressService(db)
     region_repo = RegionBoundaryRepository(db)
     area_repo = InstructorServiceAreaRepository(db)
@@ -73,7 +75,7 @@ def test_get_coverage_geojson_for_instructors_builds_featurecollection(db, test_
     region_repo.insert_wkt(
         region_id=region_id,
         region_type="nyc",
-        region_code="C01",
+        region_code=unique_nyc_region_code,
         region_name="Coverage One (Far)",
         parent_region="Queens",
         wkt_polygon=_square_wkt(-73.90, 40.70, -73.89, 40.71),

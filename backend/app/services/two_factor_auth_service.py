@@ -2,6 +2,7 @@ import base64
 from datetime import datetime, timezone
 import io
 import logging
+import os
 from typing import Any, Dict, Optional
 
 from cryptography.fernet import Fernet
@@ -17,8 +18,6 @@ from app.repositories.factory import RepositoryFactory
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
-
-TOTP_VALID_WINDOW = 1
 
 
 class TwoFactorAuthService(BaseService):
@@ -38,6 +37,19 @@ class TwoFactorAuthService(BaseService):
             except Exception:
                 # Fall back to ephemeral to avoid startup failures
                 self._fernet = Fernet(Fernet.generate_key())
+
+        default_window = 1 if getattr(settings, "is_testing", False) else 0
+        env_window = os.getenv("TOTP_VALID_WINDOW")
+        if env_window is not None:
+            try:
+                default_window = int(env_window)
+            except ValueError:
+                logger.warning(
+                    "Invalid TOTP_VALID_WINDOW value '%s', using default %s",
+                    env_window,
+                    default_window,
+                )
+        self._totp_valid_window = max(0, default_window)
 
     def _encrypt(self, value: str) -> str:
         token: bytes = self._fernet.encrypt(value.encode("utf-8"))
@@ -84,8 +96,11 @@ class TwoFactorAuthService(BaseService):
             secret = self._decrypt(user.totp_secret)
         except Exception:
             return False
+        token = (code or "").strip()
+        if not token.isdigit():
+            return False
         totp = pyotp.TOTP(secret)
-        return bool(totp.verify(code, valid_window=TOTP_VALID_WINDOW))
+        return bool(totp.verify(token, valid_window=self._totp_valid_window))
 
     @BaseService.measure_operation("tfa_generate_backup_codes")
     def generate_backup_codes(self, count: int = 10) -> list[str]:

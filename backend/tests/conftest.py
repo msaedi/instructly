@@ -24,6 +24,7 @@ except ModuleNotFoundError:
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 import os
+import secrets
 import sys
 from typing import Dict, List, Sequence, Tuple
 
@@ -843,6 +844,27 @@ def db():
         cleanup_db.rollback()
     finally:
         cleanup_db.close()
+
+
+@pytest.fixture
+def unique_nyc_region_code(db: Session):
+    """Yield a unique NYC region code and clean it up after the test."""
+    code = f"Z{secrets.token_hex(2).upper()}"
+    db.execute(
+        text("DELETE FROM region_boundaries WHERE region_type = 'nyc' AND region_code = :code"),
+        {"code": code},
+    )
+    db.commit()
+    try:
+        yield code
+    finally:
+        db.execute(
+            text(
+                "DELETE FROM region_boundaries WHERE region_type = 'nyc' AND region_code = :code"
+            ),
+            {"code": code},
+        )
+        db.commit()
 
 
 @pytest.fixture
