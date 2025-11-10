@@ -625,6 +625,11 @@ class Settings(BaseSettings):
     )
 
     # Cloudflare R2 (S3-compatible) configuration for asset uploads
+    r2_enabled: bool = Field(
+        default=True,
+        alias="R2_ENABLED",
+        description="Toggle Cloudflare R2 integration (set to false/0 to disable)",
+    )
     r2_account_id: str = Field(default="", description="Cloudflare R2 Account ID")
     r2_access_key_id: str = Field(default="", description="R2 access key ID")
     r2_secret_access_key: SecretStr = Field(

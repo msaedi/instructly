@@ -6,6 +6,8 @@ background checks). Encapsulates key generation, access policies, processing,
 and storage interactions with R2.
 """
 
+from __future__ import annotations
+
 import base64
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -25,8 +27,10 @@ from .base import BaseService
 from .cache_service import CacheService, get_cache_service
 from .image_processing_service import ImageProcessingService
 from .r2_storage_client import PresignedUrl, R2StorageClient
+from .storage_null_client import NullStorageClient
 
 logger = logging.getLogger(__name__)
+_FALLBACK_STORAGE_WARNED = False
 
 AssetPurpose = Literal["profile_picture", "background_check"]
 
@@ -43,6 +47,23 @@ class PresignedPut(TypedDict):
     expires_at: str
 
 
+def _is_r2_storage_configured() -> bool:
+    flag_enabled = getattr(settings, "r2_enabled", True)
+    if not flag_enabled:
+        return False
+    required = [
+        getattr(settings, "r2_bucket_name", ""),
+        getattr(settings, "r2_access_key_id", ""),
+        getattr(settings, "r2_account_id", ""),
+    ]
+    try:
+        secret = settings.r2_secret_access_key.get_secret_value()
+    except Exception:
+        secret = ""
+    required.append(secret)
+    return all(required)
+
+
 class PersonalAssetService(BaseService):
     def __init__(
         self,
@@ -53,10 +74,25 @@ class PersonalAssetService(BaseService):
         cache_service: Optional[CacheService] = None,
     ) -> None:
         super().__init__(db)
-        self.storage = storage if storage is not None else R2StorageClient()
+        self.storage = storage if storage is not None else self._build_storage()
         self.images = images if images is not None else ImageProcessingService()
         self.users = users_repo if users_repo is not None else UserRepository(db)
         self.cache = cache_service if cache_service is not None else get_cache_service(self.db)
+
+    def _build_storage(self) -> NullStorageClient | R2StorageClient:
+        global _FALLBACK_STORAGE_WARNED
+        if _is_r2_storage_configured():
+            try:
+                return R2StorageClient()
+            except Exception as exc:
+                if not _FALLBACK_STORAGE_WARNED:
+                    logger.warning("R2 storage misconfigured (%s); using NullStorageClient", exc)
+                    _FALLBACK_STORAGE_WARNED = True
+        else:
+            if not _FALLBACK_STORAGE_WARNED:
+                logger.warning("R2 storage not configured; using NullStorageClient")
+                _FALLBACK_STORAGE_WARNED = True
+        return NullStorageClient()
 
     # Cache helpers
     def _cache_key_profile_url(self, user_id: str, variant: str, version: int) -> str:
