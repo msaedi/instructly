@@ -44,7 +44,10 @@ def test_seed_all_orders_availability_before_reviews(monkeypatch):
         def reset_database(self):
             return None
 
-        def create_instructors(self):
+        def create_instructors(self, seed_tier_maintenance=True):
+            return 0
+
+        def seed_tier_maintenance_sessions(self, reason=""):
             return 0
 
         def create_students(self):
@@ -148,3 +151,103 @@ def test_seed_all_orders_availability_before_reviews(monkeypatch):
 
     expected_sequence = ["migrate", "future", "backfill", "system", "reviews", "credits", "badges"]
     assert call_order[: len(expected_sequence)] == expected_sequence, f"Unexpected call order: {call_order}"
+
+
+def test_seed_all_uses_student_counts(monkeypatch):
+    logs = []
+    monkeypatch.setattr(prep_db, "info", lambda tag, msg: logs.append(msg))
+
+    student_counts = iter([1, 4])
+
+    def fake_run_migrations(db_url, dry_run, tool_cmd):
+        return None
+
+    monkeypatch.setattr(prep_db, "run_migrations", fake_run_migrations)
+    monkeypatch.setattr(
+        prep_db,
+        "_run_future_bitmap_seeding",
+        lambda *args, **kwargs: {"weeks_requested": 4, "weeks_written": 4, "instructor_weeks": 5},
+    )
+    monkeypatch.setattr(
+        prep_db,
+        "_run_bitmap_backfill",
+        lambda *args, **kwargs: {"days_requested": 10, "instructors_touched": 2, "days_backfilled": 10},
+    )
+    monkeypatch.setattr(prep_db, "seed_system_data", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        prep_db,
+        "probe_bitmap_coverage",
+        lambda *args, **kwargs: {
+            "total_rows": 3,
+            "sample": [],
+            "lookback_days": 90,
+            "horizon_days": 21,
+            "instructor_count": 1,
+        },
+    )
+    monkeypatch.setattr(prep_db, "count_instructors", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(prep_db, "count_mock_students", lambda *_args, **_kwargs: next(student_counts))
+    monkeypatch.setattr(prep_db, "seed_chat_fixture_booking", lambda **_kwargs: "skipped-existing")
+
+    class StudentSeeder:
+        def __init__(self):
+            self.engine = types.SimpleNamespace(dispose=lambda: None)
+            self.loader = types.SimpleNamespace(
+                get_students=lambda: ["s1", "s2", "s3"],
+                get_instructors=lambda: ["i1"],
+            )
+
+        def reset_database(self):
+            return None
+
+        def create_instructors(self, seed_tier_maintenance=False):
+            return None
+
+        def create_students(self):
+            return None
+
+        def create_availability(self):
+            return None
+
+        def create_coverage_areas(self):
+            return None
+
+        def create_bookings(self):
+            return 0
+
+        def create_reviews(self, strict=False):
+            return 0
+
+        def seed_tier_maintenance_sessions(self, reason=""):
+            return 0
+
+        def create_sample_platform_credits(self):
+            return 0
+
+        def print_summary(self):
+            return None
+
+    monkeypatch.setitem(
+        sys.modules,
+        "scripts.reset_and_seed_yaml",
+        types.SimpleNamespace(DatabaseSeeder=StudentSeeder),
+    )
+    monkeypatch.setitem(sys.modules, "scripts.seed_data", types.SimpleNamespace(seed_demo_student_badges=lambda *args, **kwargs: 0))
+    monkeypatch.setattr(prep_db, "generate_embeddings", lambda *args, **kwargs: None)
+    monkeypatch.setattr(prep_db, "calculate_analytics", lambda *args, **kwargs: None)
+    monkeypatch.setattr(prep_db, "clear_cache", lambda *args, **kwargs: None)
+
+    stats = prep_db.run_seed_all_pipeline(
+        mode="stg",
+        db_url="postgresql://user:pass@localhost/db",
+        seed_db_url="postgresql://user:pass@localhost/db",
+        migrate=True,
+        dry_run=False,
+        env_snapshot=prep_db.build_env_snapshot("stg"),
+        include_mock_users=True,
+    )
+
+    assert stats["students_seeded"] == 4
+    student_log = next(msg for msg in logs if "Mock students defined=" in msg)
+    assert "defined=3" in student_log
+    assert "total_now=4" in student_log

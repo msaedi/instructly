@@ -472,6 +472,28 @@ def count_instructors(db_url: str) -> int:
         engine.dispose()
 
 
+def count_mock_students(db_url: str) -> int:
+    """Return number of mock students (example.com) assigned the student role."""
+
+    engine = create_engine(db_url)
+    query = text(
+        """
+        SELECT COUNT(*)
+        FROM users u
+        JOIN user_roles ur ON ur.user_id = u.id
+        JOIN roles r ON r.id = ur.role_id
+        WHERE r.name = :role_name
+          AND u.email LIKE :email_pattern
+        """
+    )
+    try:
+        with engine.connect() as conn:  # type: ignore[assignment]
+            result = conn.execute(query, {"role_name": "student", "email_pattern": "%@example.com"}).scalar()
+            return int(result or 0)
+    finally:
+        engine.dispose()
+
+
 def format_probe_sample(sample: list[dict[str, Any]]) -> str:
     if not sample:
         return "none"
@@ -557,7 +579,10 @@ def run_seed_all_pipeline(
     if dry_run:
         log_summary("dry-run: skipped ensure stage")
     elif not include_mock_users:
-        log_summary("skipped (mock user seeding disabled)")
+        log_summary(
+            f"ℹ️  Skipping mock users/instructors/bookings "
+            f"(include_mock_users=0 target={mode})"
+        )
     else:
         from scripts.reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
 
@@ -567,7 +592,7 @@ def run_seed_all_pipeline(
         seed_system_data(db_url, dry_run, mode, seed_db_url=seed_db_url)
         system_data_seeded = True
         log_summary("seeding instructor baseline prior to bitmap pipeline")
-        mock_seeder.create_instructors()
+        mock_seeder.create_instructors(seed_tier_maintenance=False)
         instructors_after = count_instructors(db_url) if not dry_run else instructors_before
         log_summary(f"instructor count after ensure={instructors_after}")
 
@@ -638,18 +663,47 @@ def run_seed_all_pipeline(
         instructors_defined = len(mock_seeder.loader.get_instructors())
         if students_defined == 0:
             log_summary("no mock students defined in loader; nothing to seed")
+        students_before = 0
+        students_after = students_defined if dry_run else 0
+        if not dry_run:
+            try:
+                students_before = count_mock_students(db_url)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                warn(f"Unable to count mock students prior to seeding: {exc}")
+                students_before = 0
         mock_seeder.create_students()
+        if not dry_run:
+            try:
+                students_after = count_mock_students(db_url)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                warn(f"Unable to count mock students after seeding: {exc}")
+                students_after = students_before
         mock_seeder.create_availability()
         mock_seeder.create_coverage_areas()
         bookings_created = mock_seeder.create_bookings() or 0
-        pipeline_result["students_seeded"] = students_defined
+        students_created = max(students_after - students_before, 0)
+        students_skipped = max(students_defined - students_created, 0)
+        log_summary(
+            "ℹ️  Mock students defined={defined}, created={created}, skipped={skipped}, total_now={total}".format(
+                defined=students_defined,
+                created=students_created,
+                skipped=students_skipped,
+                total=students_after,
+            )
+        )
+        tier_seeded = mock_seeder.seed_tier_maintenance_sessions(
+            reason="no mock students detected after student seeding stage"
+        )
+        pipeline_result["students_seeded"] = students_after
         pipeline_result["instructors_seeded"] = instructors_defined
         pipeline_result["bookings_created"] = bookings_created
+        if tier_seeded:
+            log_summary(f"seeded {tier_seeded} tier maintenance session(s) for instructor tiers")
         if skip_reviews:
             pipeline_result["reviews_skipped"] = True
             pipeline_result["reviews_created"] = 0
             log_summary(
-                f"seeded {students_defined} students, "
+                f"✅ Seeded {students_defined} students, "
                 f"{instructors_defined} instructors, "
                 f"{bookings_created} bookings; reviews skipped (probe rows=0)"
             )
@@ -658,7 +712,7 @@ def run_seed_all_pipeline(
             pipeline_result["reviews_created"] = reviews_created
             pipeline_result["reviews_skipped"] = False
             log_summary(
-                f"seeded {students_defined} students, "
+                f"✅ Seeded {students_defined} students, "
                 f"{instructors_defined} instructors, "
                 f"{bookings_created} bookings, "
                 f"{reviews_created} reviews"
@@ -752,24 +806,21 @@ def run_seed_all_pipeline(
                 warn("chat fixture config contains invalid integers; skipping fixture seeding")
             else:
                 try:
-                    with SessionLocal() as session:
-                        seed_chat_fixture_booking(
-                            session,
-                            instructor_email=os.getenv(
-                                "CHAT_INSTRUCTOR_EMAIL", "sarah.chen@example.com"
-                            ),
-                            student_email=os.getenv(
-                                "CHAT_STUDENT_EMAIL", "emma.johnson@example.com"
-                            ),
-                            start_hour=start_hour,
-                            duration_minutes=duration_minutes,
-                            days_ahead_min=days_ahead_min,
-                            days_ahead_max=days_ahead_max,
-                            location=os.getenv("CHAT_FIXTURE_LOCATION", "neutral"),
-                            service_name=os.getenv("CHAT_FIXTURE_SERVICE_NAME", "Lesson"),
-                        )
+                    fixture_status = seed_chat_fixture_booking(
+                        instructor_email=os.getenv("CHAT_INSTRUCTOR_EMAIL", "sarah.chen@example.com"),
+                        student_email=os.getenv("CHAT_STUDENT_EMAIL", "emma.johnson@example.com"),
+                        start_hour=start_hour,
+                        duration_minutes=duration_minutes,
+                        days_ahead_min=days_ahead_min,
+                        days_ahead_max=days_ahead_max,
+                        location=os.getenv("CHAT_FIXTURE_LOCATION", "neutral"),
+                        service_name=os.getenv("CHAT_FIXTURE_SERVICE_NAME", "Lesson"),
+                        session_factory=SessionLocal,
+                    )
+                    if fixture_status == "error":
+                        warn("chat fixture booking encountered an error; see log output above.")
                 except Exception as exc:  # pragma: no cover - best effort seeding
-                    warn(f"chat fixture booking failed: {exc}")
+                    warn(f"chat fixture booking failed unexpectedly: {exc}")
 
     return pipeline_result
 
@@ -1140,6 +1191,10 @@ to control the mock-data phases (stg/int default to include).
         print(auto_default_message)
     if mock_default_message:
         print(mock_default_message)
+    info(
+        "seed",
+        f"Inputs: target={mode} seed_all={1 if args.seed_all else 0} include_mock_users={1 if include_mock_users else 0}",
+    )
 
     info("db", f"Using URL for migrations: {redact(db_url)}")
     if seed_db_url != db_url:

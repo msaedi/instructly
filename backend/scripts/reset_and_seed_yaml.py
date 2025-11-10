@@ -306,7 +306,7 @@ class DatabaseSeeder:
         summary += f" (total defined: {total})"
         print(summary)
 
-    def create_instructors(self):
+    def create_instructors(self, *, seed_tier_maintenance: bool = True):
         """Create instructor accounts with profiles and services from YAML"""
         instructors = self.loader.get_instructors()
         password = self.loader.get_default_password()
@@ -492,7 +492,8 @@ class DatabaseSeeder:
                     f"  ✅ Created instructor: {user.first_name} {user.last_name} with {service_count} services{status_info}"
                 )
 
-            self._seed_tier_maintenance_sessions(session)
+            if seed_tier_maintenance:
+                self._seed_tier_maintenance_sessions(session)
             session.commit()
 
         # Count instructors by status
@@ -507,18 +508,61 @@ class DatabaseSeeder:
                 f"   ⚠️  Including test instructors: {status_counts['suspended']} suspended, {status_counts['deactivated']} deactivated"
             )
 
-    def _seed_tier_maintenance_sessions(self, session: Session) -> None:
+    def seed_tier_maintenance_sessions(self, reason: str = "") -> int:
+        """Seed tier maintenance sessions using a fresh session."""
+        with Session(self.engine) as session:
+            return self._seed_tier_maintenance_sessions(session, reason=reason)
+
+    def _student_slot_conflicts(
+        self,
+        session: Session,
+        student_id: str,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        pending_spans: set[tuple[str, date, time, time]],
+    ) -> bool:
+        span_key = (student_id, booking_date, start_time, end_time)
+        if span_key in pending_spans:
+            return True
+
+        overlap_sql = text(
+            """
+            SELECT 1
+            FROM bookings
+            WHERE student_id = :student_id
+              AND booking_date = :booking_date
+              AND start_time < :end_time
+              AND end_time > :start_time
+            LIMIT 1
+            """
+        )
+        with session.no_autoflush:
+            overlap = session.execute(
+                overlap_sql,
+                {
+                    "student_id": student_id,
+                    "booking_date": booking_date,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                },
+            ).scalar()
+        return bool(overlap)
+
+    def _seed_tier_maintenance_sessions(self, session: Session, reason: str = "") -> int:
         """Seed completed sessions in the last 30 days to preserve tier assignments."""
 
         if not self.instructor_seed_plan:
-            return
+            print("  ℹ️  Skipping tier maintenance seeding: instructor seed plan not initialized")
+            return 0
 
         now = datetime.now(timezone.utc)
         window_start = now - timedelta(days=30)
 
         student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
         if not student_role:
-            return
+            print("  ⚠️  Skipping tier maintenance seeding: student role not present")
+            return 0
 
         students = (
             session.query(User)
@@ -528,11 +572,22 @@ class DatabaseSeeder:
         )
 
         if not students:
-            print("  ⚠️  Skipping tier maintenance seeding: no seed students available")
-            return
+            include_flag = os.getenv("INCLUDE_MOCK_USERS", "")
+            gate_hint = ""
+            if include_flag.lower() in {"0", "false", "no"}:
+                gate_hint = "mock student seeding disabled (INCLUDE_MOCK_USERS=0)"
+            elif reason:
+                gate_hint = reason
+            else:
+                gate_hint = "no mock students available"
+            print(f"  ⚠️  Skipping tier maintenance seeding: {gate_hint}")
+            return 0
 
         rng = random.Random(42)
         total_seeded = 0
+        pending_student_spans: set[tuple[str, date, time, time]] = set()
+        skipped_conflicts = 0
+        max_attempts_per_booking = 8
 
         for email, plan in self.instructor_seed_plan.items():
             desired = int(plan.get("seed_completed_last_30d") or 0)
@@ -571,67 +626,92 @@ class DatabaseSeeder:
                 continue
 
             for _ in range(remaining):
-                if plan.get("seed_randomize_categories") and len(services) > 1:
-                    service = rng.choice(services)
-                else:
-                    service = services[0]
+                inserted = False
+                for _attempt in range(max_attempts_per_booking):
+                    if plan.get("seed_randomize_categories") and len(services) > 1:
+                        service = rng.choice(services)
+                    else:
+                        service = services[0]
 
-                duration_options = service.duration_options or [60]
-                duration = int(rng.choice(duration_options)) or 60
+                    duration_options = service.duration_options or [60]
+                    duration = int(rng.choice(duration_options)) or 60
 
-                days_ago = rng.randint(0, 29)
-                booking_date = (now - timedelta(days=days_ago)).date()
+                    days_ago = rng.randint(0, 29)
+                    booking_date = (now - timedelta(days=days_ago)).date()
 
-                start_hour = rng.randint(9, 18)
-                start_time = time(start_hour, 0)
-                start_dt_naive = datetime.combine(booking_date, start_time)
-                end_dt_naive = start_dt_naive + timedelta(minutes=duration)
-                end_time = end_dt_naive.time()
+                    start_hour = rng.randint(9, 18)
+                    start_time = time(start_hour, 0)
+                    start_dt_naive = datetime.combine(booking_date, start_time)
+                    end_dt_naive = start_dt_naive + timedelta(minutes=duration)
+                    end_time = end_dt_naive.time()
 
-                start_dt = start_dt_naive.replace(tzinfo=timezone.utc)
-                end_dt = end_dt_naive.replace(tzinfo=timezone.utc)
+                    start_dt = start_dt_naive.replace(tzinfo=timezone.utc)
+                    end_dt = end_dt_naive.replace(tzinfo=timezone.utc)
 
-                loc_types = [lt.lower() for lt in (service.location_types or [])]
-                is_remote = any(lt in {"online", "remote", "virtual"} for lt in loc_types)
-                location_type = "remote" if is_remote else "student_home"
-                meeting_location = "Online" if is_remote else "Student location"
+                    loc_types = [lt.lower() for lt in (service.location_types or [])]
+                    is_remote = any(lt in {"online", "remote", "virtual"} for lt in loc_types)
+                    location_type = "remote" if is_remote else "student_home"
+                    meeting_location = "Online" if is_remote else "Student location"
 
-                student = rng.choice(students)
+                    student = rng.choice(students)
 
-                hourly_rate = Decimal(str(service.hourly_rate)).quantize(Decimal("0.01"))
-                total_price = (hourly_rate * Decimal(duration) / Decimal(60)).quantize(Decimal("0.01"))
+                    if self._student_slot_conflicts(
+                        session,
+                        student.id,
+                        booking_date,
+                        start_time,
+                        end_time,
+                        pending_student_spans,
+                    ):
+                        continue
 
-                service_name = (
-                    service.catalog_entry.name
-                    if service.catalog_entry
-                    else (service.description or service.name)
-                )
+                    hourly_rate = Decimal(str(service.hourly_rate)).quantize(Decimal("0.01"))
+                    total_price = (hourly_rate * Decimal(duration) / Decimal(60)).quantize(Decimal("0.01"))
 
-                booking = Booking(
-                    student_id=student.id,
-                    instructor_id=user_id,
-                    instructor_service_id=service.id,
-                    booking_date=booking_date,
-                    start_time=start_time,
-                    end_time=end_time,
-                    duration_minutes=duration,
-                    service_name=service_name,
-                    hourly_rate=hourly_rate,
-                    total_price=total_price,
-                    status=BookingStatus.COMPLETED,
-                    location_type=location_type,
-                    meeting_location=meeting_location,
-                    service_area=None,
-                    student_note="Seeded maintenance session",
-                    created_at=start_dt - timedelta(days=1),
-                    confirmed_at=start_dt - timedelta(hours=2),
-                    completed_at=end_dt,
-                )
-                session.add(booking)
-                total_seeded += 1
+                    service_name = (
+                        service.catalog_entry.name
+                        if service.catalog_entry
+                        else (service.description or service.name)
+                    )
+
+                    booking = Booking(
+                        student_id=student.id,
+                        instructor_id=user_id,
+                        instructor_service_id=service.id,
+                        booking_date=booking_date,
+                        start_time=start_time,
+                        end_time=end_time,
+                        duration_minutes=duration,
+                        service_name=service_name,
+                        hourly_rate=hourly_rate,
+                        total_price=total_price,
+                        status=BookingStatus.COMPLETED,
+                        location_type=location_type,
+                        meeting_location=meeting_location,
+                        service_area=None,
+                        student_note="Seeded maintenance session",
+                        created_at=start_dt - timedelta(days=1),
+                        confirmed_at=start_dt - timedelta(hours=2),
+                        completed_at=end_dt,
+                    )
+                    session.add(booking)
+                    pending_student_spans.add((student.id, booking_date, start_time, end_time))
+                    total_seeded += 1
+                    inserted = True
+                    break
+
+                if not inserted:
+                    skipped_conflicts += 1
 
         if total_seeded:
             print(f"  🎯 Seeded {total_seeded} maintenance sessions to preserve tier assignments")
+        else:
+            print("  ℹ️  Tier maintenance seeding skipped: existing completed sessions already satisfy targets")
+        if skipped_conflicts:
+            print(
+                f"  ⚠️  Tier maintenance skipped {skipped_conflicts} attempt(s) due to overlapping student bookings"
+            )
+        return total_seeded
 
     def create_coverage_areas(self):
         """Assign deterministic primary/secondary/by_request neighborhoods using repository pattern.

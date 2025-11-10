@@ -5,13 +5,14 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 import os
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 import pytz
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.database import SessionLocal
 
 try:  # pragma: no cover - helper only available in repo environments
     from backend.tests._utils.service_seed import ensure_instructor_service_for_tests
@@ -57,6 +58,12 @@ def _existing_fixture(
         .order_by(Booking.booking_date.asc(), Booking.start_time.asc())
         .first()
     )
+
+
+def _get_user_by_email(session: Session, email: str):
+    from app.models.user import User
+
+    return session.query(User).filter(User.email == email).one_or_none()
 
 
 def _ensure_profile(session: Session, instructor) -> object:
@@ -162,6 +169,30 @@ def _ensure_bitmap_window(
     )
 
 
+def _has_booking_conflict(
+    session: Session,
+    *,
+    instructor_id: str,
+    target_day: date,
+    start_time: time,
+    end_time: time,
+) -> bool:
+    from app.models.booking import Booking, BookingStatus
+
+    conflict = (
+        session.query(Booking)
+        .filter(
+            Booking.instructor_id == instructor_id,
+            Booking.booking_date == target_day,
+            Booking.start_time < end_time,
+            Booking.end_time > start_time,
+            Booking.status.in_((BookingStatus.CONFIRMED.value, BookingStatus.PENDING.value)),
+        )
+        .first()
+    )
+    return conflict is not None
+
+
 def _candidate_times(day: date, *, base_hour: int, duration_minutes: int) -> Iterable[tuple[time, time, datetime]]:
     base_start = datetime.combine(day, time(hour=base_hour, minute=0))
     for offset in range(4):
@@ -175,7 +206,6 @@ def _candidate_times(day: date, *, base_hour: int, duration_minutes: int) -> Ite
 
 
 def seed_chat_fixture_booking(
-    session: Session,
     *,
     instructor_email: str,
     student_email: str,
@@ -185,35 +215,33 @@ def seed_chat_fixture_booking(
     days_ahead_max: int,
     location: str,
     service_name: str,
-) -> None:
+    session_factory: Callable[[], Session] = SessionLocal,
+) -> str:
     """Create a minimal chat/booking fixture using bitmap availability."""
-    # Guard flag
     default_enabled = settings.site_mode.lower() not in {"prod", "production", "beta", "live"}
     seed_enabled = _bool_env(os.getenv("SEED_CHAT_FIXTURE"), default_enabled)
     if not seed_enabled:
-        return
+        return "disabled"
 
-    # Lazy imports to avoid import-time failures
     try:
         from app.models.booking import Booking, BookingStatus
-        from app.models.user import User
     except Exception as e:
         print(f"chat fixture skipped: imports unavailable: {e}")
-        return
+        return "imports-missing"
 
-    now = datetime.now(CHAT_TIMEZONE)
-    instructor = session.query(User).filter(User.email == instructor_email).one_or_none()
-    student = session.query(User).filter(User.email == student_email).one_or_none()
-    if not instructor or not student:
-        print(
-            f"chat fixture skipped: missing users "
-            f"(instructor={'present' if instructor else 'absent'}, "
-            f"student={'present' if student else 'absent'})"
-        )
-        return
+    session = session_factory()
+    try:
+        now = datetime.now(CHAT_TIMEZONE)
+        instructor = _get_user_by_email(session, instructor_email)
+        student = _get_user_by_email(session, student_email)
+        if not instructor or not student:
+            print(
+                f"chat fixture skipped: missing users "
+                f"(instructor={'present' if instructor else 'absent'}, "
+                f"student={'present' if student else 'absent'})"
+            )
+            return "missing-users"
 
-    transaction_ctx = session.begin_nested() if session.in_transaction() else session.begin()
-    with transaction_ctx:
         profile = _ensure_profile(session, instructor)
         service = _ensure_service(
             session,
@@ -221,69 +249,61 @@ def seed_chat_fixture_booking(
             duration_minutes=duration_minutes,
             service_name=service_name,
         )
+        session.commit()
+
         allowed_durations = sorted({int(d) for d in (service.duration_options or []) if d})
         if not allowed_durations:
             allowed_durations = [duration_minutes or 60]
             service.duration_options = allowed_durations
+            session.commit()
         elif set(allowed_durations) != set(service.duration_options or []):
             service.duration_options = allowed_durations
+            session.commit()
 
-        preferred_duration = None
         if duration_minutes in allowed_durations:
-            preferred_duration = duration_minutes
+            slot_duration = duration_minutes
         elif 60 in allowed_durations:
-            preferred_duration = 60
+            slot_duration = 60
         else:
-            preferred_duration = allowed_durations[0]
+            slot_duration = allowed_durations[0]
 
-        slot_duration = preferred_duration
-        session.flush()
-
-    existing = _existing_fixture(session, instructor_id=instructor.id, student_id=student.id, now=now)
-    if existing:
-        start_dt = _localize(existing.booking_date, existing.start_time)
-        if start_dt > now:
-            print(
-                f"chat fixture booking present: {start_dt.isoformat()} "
-                f"({existing.status}) instructor={instructor.id} student={student.id}"
-            )
-            return
-
-    min_day = (now + timedelta(days=days_ahead_min)).date()
-    max_day = (now + timedelta(days=days_ahead_max)).date()
-    if max_day < min_day:
-        min_day, max_day = max_day, min_day
-
-    min_advance_hours = profile.min_advance_booking_hours or 24
-    min_start = now + timedelta(hours=min_advance_hours)
-
-    for delta in range((max_day - min_day).days + 1):
-        candidate_day = min_day + timedelta(days=delta)
-        for start_time, end_time, naive_start in _candidate_times(
-            candidate_day, base_hour=start_hour, duration_minutes=slot_duration
-        ):
-            localized_start = CHAT_TIMEZONE.localize(naive_start)
-            if localized_start <= min_start:
-                continue
-
-            # Skip if booking already scheduled at this slot for instructor
-            conflict = (
-                session.query(Booking)
-                .filter(
-                    Booking.instructor_id == instructor.id,
-                    Booking.booking_date == candidate_day,
-                    Booking.start_time < end_time,
-                    Booking.end_time > start_time,
-                    Booking.status.in_((BookingStatus.CONFIRMED.value, BookingStatus.PENDING.value)),
+        existing = _existing_fixture(session, instructor_id=instructor.id, student_id=student.id, now=now)
+        if existing:
+            start_dt = _localize(existing.booking_date, existing.start_time)
+            if start_dt > now:
+                print(
+                    f"chat fixture booking skipped: already exists at {start_dt.isoformat()} "
+                    f"({existing.status}) instructor={instructor.id} student={student.id}"
                 )
-                .first()
-            )
-            if conflict:
-                continue
+                return "skipped-existing"
 
-            try:
-                with session.begin():
-                    # Always use bitmap mode (slot-era removed)
+        min_day = (now + timedelta(days=days_ahead_min)).date()
+        max_day = (now + timedelta(days=days_ahead_max)).date()
+        if max_day < min_day:
+            min_day, max_day = max_day, min_day
+
+        min_advance_hours = profile.min_advance_booking_hours or 24
+        min_start = now + timedelta(hours=min_advance_hours)
+
+        for delta in range((max_day - min_day).days + 1):
+            candidate_day = min_day + timedelta(days=delta)
+            for start_time, end_time, naive_start in _candidate_times(
+                candidate_day, base_hour=start_hour, duration_minutes=slot_duration
+            ):
+                localized_start = CHAT_TIMEZONE.localize(naive_start)
+                if localized_start <= min_start:
+                    continue
+
+                if _has_booking_conflict(
+                    session,
+                    instructor_id=instructor.id,
+                    target_day=candidate_day,
+                    start_time=start_time,
+                    end_time=end_time,
+                ):
+                    continue
+
+                try:
                     _ensure_bitmap_window(
                         session,
                         instructor_id=instructor.id,
@@ -303,7 +323,7 @@ def seed_chat_fixture_booking(
                         instructor_service_id=service.id,
                         booking_date=candidate_day,
                         start_time=start_time,
-                        end_time=end_time.time(),
+                        end_time=end_time,
                         status=BookingStatus.CONFIRMED.value,
                         service_name=service_name or service.name,
                         hourly_rate=hourly_rate,
@@ -313,16 +333,24 @@ def seed_chat_fixture_booking(
                         meeting_location=location,
                     )
                     session.add(booking)
-                print(
-                    f"created chat fixture booking: {localized_start.isoformat()} "
-                    f"(CONFIRMED) instructor={instructor.id} student={student.id}"
-                )
-                return
-            except IntegrityError:
-                session.rollback()
-                continue
+                    session.commit()
+                    print(
+                        f"created chat fixture booking: {localized_start.isoformat()} "
+                        f"(CONFIRMED) instructor={instructor.id} student={student.id}"
+                    )
+                    return "created"
+                except IntegrityError:
+                    session.rollback()
+                    continue
 
-    print(
-        "chat fixture booking skipped: no available slot found within window "
-        f"{min_day.isoformat()}–{max_day.isoformat()}"
-    )
+        print(
+            "chat fixture booking skipped: no available slot found within window "
+            f"{min_day.isoformat()}–{max_day.isoformat()}"
+        )
+        return "no-slot"
+    except Exception as exc:  # pragma: no cover - defensive logging
+        session.rollback()
+        print(f"chat fixture booking failed: {exc}")
+        return "error"
+    finally:
+        session.close()

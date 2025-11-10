@@ -903,12 +903,11 @@ def main() -> int:
     # Always seed system/reference data first
     seed_system_data(verbose=verbose)
 
-    # Only seed mock data if requested
+    # Only seed mock data if requested (and not when explicitly system-only)
     if args.include_mock_users:
         seed_mock_data(verbose=verbose)
-    else:
-        if verbose:
-            print("\nℹ️  Skipping mock users/instructors/bookings (use --include-mock-users to add them)")
+    elif not args.system_only and verbose:
+        print("\nℹ️  Skipping mock users/instructors/bookings (use --include-mock-users to add them)")
 
     print("\n✅ Seeding complete")
     return 0

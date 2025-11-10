@@ -105,8 +105,12 @@ def _execute(monkeypatch, args):
         def reset_database(self):
             calls.append(("reset_database", (), {}))
 
-        def create_instructors(self):
-            calls.append(("create_instructors", (), {}))
+        def create_instructors(self, seed_tier_maintenance=True):
+            calls.append(("create_instructors", (), {"seed_tier_maintenance": seed_tier_maintenance}))
+            return 0
+
+        def seed_tier_maintenance_sessions(self, reason=""):
+            calls.append(("seed_tier_maintenance", (), {"reason": reason}))
             return 0
 
         def create_students(self):
