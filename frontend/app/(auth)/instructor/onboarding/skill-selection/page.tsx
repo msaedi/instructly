@@ -2,16 +2,15 @@
 
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
-import Link from 'next/link';
 import { BookOpen, CheckSquare, Lightbulb } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
-import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { usePricingConfig, usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
+import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 
@@ -41,6 +40,9 @@ function Step3SkillsPricingInner() {
   const [requestText, setRequestText] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
+  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(
+    () => ({ 'account-setup': 'pending' })
+  );
   const { floors: pricingFloors } = usePricingFloors();
   const { config: pricingConfig } = usePricingConfig();
   const defaultInstructorTierPct = useMemo(() => {
@@ -103,63 +105,6 @@ function Step3SkillsPricingInner() {
     void load();
   }, []);
 
-  // Evaluate Step 1 completion (profile) and paint state on mount
-  useEffect(() => {
-    const evaluate = async () => {
-      try {
-        const [meRes, profRes, areasRes, addrsRes] = await Promise.all([
-          fetchWithAuth(API_ENDPOINTS.ME),
-          fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE),
-          fetchWithAuth('/api/addresses/service-areas/me'),
-          fetchWithAuth('/api/addresses/me'),
-        ]);
-        const me = meRes.ok ? await meRes.json() : {};
-        const prof = profRes.ok ? await profRes.json() : {};
-        const areas = areasRes.ok ? await areasRes.json() : { items: [] };
-        // Resolve a postal/ZIP code from profile, user, or default address
-        let defaultZip = '';
-        try {
-          if (addrsRes && addrsRes.ok) {
-            const list = await addrsRes.json();
-            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
-            defaultZip = String((def as Record<string, unknown>)?.['postal_code'] || '').trim();
-          }
-        } catch {}
-        const zipFromUser = String((me?.zip_code || me?.postal_code || '') as string).trim();
-        const zipFromProfile = String((prof?.postal_code || '') as string).trim();
-        const resolvedPostal = zipFromProfile || zipFromUser || defaultZip;
-
-        const hasPic = Boolean(me?.has_profile_picture) || Number.isFinite(me?.profile_picture_version);
-        const personalInfoFilled = Boolean((me?.first_name || '').trim()) && Boolean((me?.last_name || '').trim()) && Boolean(resolvedPostal);
-        const bioOk = (String(prof?.bio || '').trim().length) >= 400;
-        const hasServiceArea = Array.isArray(areas?.items) && areas.items.length > 0;
-        const ok = hasPic && personalInfoFilled && bioOk && hasServiceArea;
-        const circle = document.getElementById('progress-step-1');
-        const line = document.getElementById('progress-line-1');
-        if (circle && line) {
-          const check = circle.querySelector('.icon-check') as HTMLElement | null;
-          const cross = circle.querySelector('.icon-cross') as HTMLElement | null;
-          if (ok) {
-            circle.classList.remove('border-gray-300');
-            circle.classList.add('border-[#7E22CE]', 'bg-[#7E22CE]');
-            if (check) check.classList.remove('hidden');
-            if (cross) cross.classList.add('hidden');
-            line.classList.remove('bg-gray-300');
-            line.classList.add('bg-[#7E22CE]');
-          } else {
-            circle.classList.remove('border-gray-300');
-            circle.classList.add('border-[#7E22CE]', 'bg-[#7E22CE]');
-            if (check) check.classList.add('hidden');
-            if (cross) cross.classList.remove('hidden');
-            line.classList.remove('bg-[#7E22CE]', 'bg-gray-300');
-            line.classList.add('bg-[repeating-linear-gradient(to_right,_#7E22CE_0,_#7E22CE_8px,_transparent_8px,_transparent_16px)]');
-          }
-        }
-      } catch {}
-    };
-    void evaluate();
-  }, []);
-
   // Guarded prefill: only attempt when authenticated and user has instructor role
   useEffect(() => {
     const shouldPrefill =
@@ -209,6 +154,40 @@ function Step3SkillsPricingInner() {
       cancelled = true;
     };
   }, [isAuthenticated, user]);
+
+  useEffect(() => {
+    const evaluateProfileStep = async () => {
+      try {
+        const [meRes, profRes, areasRes, addrsRes] = await Promise.all([
+          fetchWithAuth(API_ENDPOINTS.ME),
+          fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE),
+          fetchWithAuth('/api/addresses/service-areas/me'),
+          fetchWithAuth('/api/addresses/me'),
+        ]);
+        const me = meRes.ok ? await meRes.json() : {};
+        const prof = profRes.ok ? await profRes.json() : {};
+        const areas = areasRes.ok ? await areasRes.json() : { items: [] };
+        let defaultZip = '';
+        try {
+          if (addrsRes && addrsRes.ok) {
+            const list = await addrsRes.json();
+            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
+            defaultZip = String((def as Record<string, unknown>)?.['postal_code'] || '').trim();
+          }
+        } catch {}
+        const zipFromUser = String((me?.zip_code || me?.postal_code || '') as string).trim();
+        const zipFromProfile = String((prof?.postal_code || '') as string).trim();
+        const resolvedPostal = zipFromProfile || zipFromUser || defaultZip;
+        const hasPic = Boolean(me?.has_profile_picture) || Number.isFinite(me?.profile_picture_version);
+        const personalInfoFilled = Boolean((me?.first_name || '').trim()) && Boolean((me?.last_name || '').trim()) && Boolean(resolvedPostal);
+        const bioOk = (String(prof?.bio || '').trim().length) >= 400;
+        const hasServiceArea = Array.isArray(areas?.items) && areas.items.length > 0;
+        const ok = hasPic && personalInfoFilled && bioOk && hasServiceArea;
+        setStepStatus((prev) => ({ ...prev, 'account-setup': ok ? 'done' : 'failed' }));
+      } catch {}
+    };
+    void evaluateProfileStep();
+  }, []);
 
   useEffect(() => {
     if (selected.length === 0) return;
@@ -347,25 +326,7 @@ function Step3SkillsPricingInner() {
       // Navigate to next step
       // Determine completion: at least one selected with required info (price)
       const hasComplete = selected.some((s) => (s.hourly_rate || '').trim().length > 0);
-      const circle = document.getElementById('progress-step-2');
-      const line = document.getElementById('progress-line-2');
-      if (circle && line) {
-        if (hasComplete) {
-          circle.classList.add('border-[#7E22CE]', 'bg-purple-100');
-          circle.setAttribute('data-status', 'done');
-          line.classList.remove('bg-gray-300');
-          line.classList.add('bg-[#7E22CE]');
-          line.setAttribute('data-status', 'filled');
-        } else {
-          circle.classList.remove('border-[#7E22CE]');
-          circle.classList.add('border-gray-300');
-          circle.setAttribute('data-status', 'failed');
-          line.classList.remove('bg-[#7E22CE]');
-          line.classList.add('bg-gray-300');
-          line.setAttribute('data-status', 'dashed');
-        }
-      }
-
+      setStepStatus((prev) => ({ ...prev, skills: hasComplete ? 'done' : 'failed' }));
       window.location.href = nextUrl;
     } catch (e) {
       logger.error('Save services failed', e);
@@ -407,100 +368,8 @@ function Step3SkillsPricingInner() {
   if (loading) return <div className="p-8">Loading…</div>;
 
   return (
-    <div className="min-h-screen">
-      {/* Header - matching other pages */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between max-w-full relative">
-          <Link href="/instructor/dashboard" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
-          </Link>
-
-          {/* Progress Bar - 4 Steps - Absolutely centered */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
-            {/* Walking Stick Figure Animation - positioned on the line between step 1 and 2 */}
-            <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '24px' }}>
-              <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-                {/* Head */}
-                <circle cx="8" cy="4" r="2.5" stroke="#7E22CE" strokeWidth="1.2" fill="none" />
-                {/* Body */}
-                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#7E22CE" strokeWidth="1.2" />
-                {/* Left arm */}
-                <line x1="8" y1="8" x2="5" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftArm" />
-                {/* Right arm */}
-                <line x1="8" y1="8" x2="11" y2="10" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightArm" />
-                {/* Left leg */}
-                <line x1="8" y1="12" x2="6" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-leftLeg" />
-                {/* Right leg */}
-                <line x1="8" y1="12" x2="10" y2="17" stroke="#7E22CE" strokeWidth="1.2" className="inst-anim-rightLeg" />
-              </svg>
-            </div>
-
-            {/* Step 1 - Account Setup (dynamic state) */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/account-setup'}
-                  id="progress-step-1"
-                  className="w-6 h-6 rounded-full border-2 border-[#7E22CE] bg-[#7E22CE] transition-colors cursor-pointer flex items-center justify-center"
-                  title="Step 1: Account Setup"
-                >
-                  <svg className="icon-check hidden w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <svg className="icon-cross hidden w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
-              </div>
-              <div id="progress-line-1" className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            {/* Step 2 - Current (Skills) */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => {/* Already on this page */}}
-                  id="progress-step-2"
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
-                  title="Step 2: Skills & Pricing (Current)"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
-              </div>
-              <div id="progress-line-2" className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            {/* Step 3 - Upcoming */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/verification'}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
-                  title="Step 3: Verification"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
-              </div>
-              <div className="w-60 h-0.5 bg-gray-300"></div>
-            </div>
-
-            {/* Step 4 - Upcoming */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/payment-setup'}
-                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-[#7E22CE] text-[#7E22CE] transition-colors cursor-pointer"
-                  title="Step 4: Payment Setup"
-                ></button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Payment Setup</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pr-4">
-            <UserProfileDropdown />
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#FDFCFD]">
+      <OnboardingProgressHeader activeStep="skills" stepStatus={stepStatus} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - mobile sections (white) with dividers; desktop card */}
@@ -966,24 +835,7 @@ function Step3SkillsPricingInner() {
           type="button"
           onClick={() => {
             const hasComplete = selected.some((s) => (s.hourly_rate || '').trim().length > 0);
-            const circle = document.getElementById('progress-step-2');
-            const line = document.getElementById('progress-line-2');
-            if (circle && line) {
-              if (hasComplete) {
-                circle.classList.add('border-[#7E22CE]', 'bg-purple-100');
-                circle.setAttribute('data-status', 'done');
-                line.classList.remove('bg-gray-300');
-                line.classList.add('bg-[#7E22CE]');
-                line.setAttribute('data-status', 'filled');
-              } else {
-                circle.classList.remove('border-[#7E22CE]');
-                circle.classList.add('border-gray-300');
-                circle.setAttribute('data-status', 'failed');
-                line.classList.remove('bg-[#7E22CE]');
-                line.classList.add('bg-gray-300');
-                line.setAttribute('data-status', 'dashed');
-              }
-            }
+            setStepStatus((prev) => ({ ...prev, skills: hasComplete ? 'done' : 'failed' }));
             window.location.href = '/instructor/onboarding/verification';
           }}
           className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
