@@ -220,11 +220,6 @@ def public_guard(
 
         site_mode_raw = (os.getenv("SITE_MODE", "") or "").strip().lower()
         site_mode = site_mode_raw or settings.site_mode
-        allow_cookie = _cookie_auth_allowed(
-            site_mode,
-            env=getattr(settings, "environment", None),
-            explicit=getattr(settings, "allow_cookie_only_auth", None),
-        )
         phase_env = (os.getenv("PHASE", "") or "").strip().lower()
         beta_phase_env = (os.getenv("BETA_PHASE", "") or "").strip().lower()
         phase_hint = phase_env or beta_phase_env
@@ -241,10 +236,10 @@ def public_guard(
 
         effective_path_set = open_path_set.union(dynamic_paths)
         current_user: Optional[User] = getattr(request.state, "current_user", None)
-        if current_user is None and allow_cookie:
-            current_user = get_user_from_session_cookie(request, db)
         if current_user is None:
             current_user = get_user_from_bearer_header(request, db)
+        if current_user is None:
+            current_user = get_user_from_session_cookie(request, db)
         if current_user:
             setattr(request.state, "current_user", current_user)
 

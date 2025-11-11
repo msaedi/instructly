@@ -183,24 +183,26 @@ class TestAuth:
         r2 = client.get("/auth/me")
         assert r2.status_code == 200
 
-    def test_cookie_only_auth_denied_in_prod(
+    def test_cookie_only_auth_allowed_in_prod(
         self, db: Session, client: TestClient, test_student: User, test_password: str, monkeypatch
     ):
-        """Prod/preview: cookie-only must be rejected; header required."""
-        # Simulate prod mode
+        """Prod/preview should honor real session cookies on /api routes."""
         monkeypatch.setenv("SITE_MODE", "prod")
         monkeypatch.setattr(settings, "session_cookie_secure", True, raising=False)
-        # Login still returns a token (we won't use it here)
+        # Login still returns a token (and sets cookie)
         r = client.post(
             "/auth/login",
             data={"username": test_student.email, "password": test_password},
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert r.status_code == 200
-        # Cookie-only should fail in prod for /api routes
+        # Manually set the secure cookie since TestClient does not store HTTPS-only cookies
+        cookie_token = create_access_token({"sub": test_student.email})
+        client.cookies.set(settings.session_cookie_name, cookie_token)
+        # Cookie-only should succeed for API routes in hosted environments
         r2 = client.get("/api/addresses/me")
-        assert r2.status_code == 401
-        # With header it should succeed
+        assert r2.status_code == 200
+        # header path still works
         token = r.json().get("access_token")
         r3 = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert r3.status_code == 200
