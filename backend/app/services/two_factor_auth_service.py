@@ -39,32 +39,42 @@ class TwoFactorAuthService(BaseService):
         super().__init__(db)
         self.user_repository = RepositoryFactory.create_user_repository(db)
         # Ensure Fernet key is valid length (44 url-safe base64 bytes). Expect provided via env.
-        key = (
-            settings.totp_encryption_key.get_secret_value() if settings.totp_encryption_key else ""
-        )
+        raw_site_mode = (os.getenv("SITE_MODE", "") or "").strip().lower()
+        effective_mode = raw_site_mode or getattr(settings, "site_mode", "local")
+        hosted_modes = {"preview", "prod", "production", "live"}
+        hosted_context = effective_mode in hosted_modes
+
+        try:
+            key = settings.totp_encryption_key.get_secret_value()
+        except Exception:
+            key = ""
+        key = (key or "").strip()
+
         self._fernet: Fernet
-        if not key:
-            # Use deterministic fallback so CI instances share the same key
-            self._fernet = Fernet(_FALLBACK_TOTP_KEY)
-        else:
+        if hosted_context and not key:
+            raise RuntimeError(
+                "TOTP_ENCRYPTION_KEY must be set in hosted (preview/prod) environments"
+            )
+
+        if key:
             try:
                 self._fernet = Fernet(key)
             except Exception:
+                if hosted_context:
+                    raise RuntimeError(
+                        "Invalid TOTP_ENCRYPTION_KEY provided for hosted environment"
+                    )
                 logger.warning("Invalid TOTP_ENCRYPTION_KEY provided; using fallback key")
                 self._fernet = Fernet(_FALLBACK_TOTP_KEY)
+        else:
+            # Use deterministic fallback so CI/local instances share the same key
+            self._fernet = Fernet(_FALLBACK_TOTP_KEY)
 
-        default_window = 1 if getattr(settings, "is_testing", False) else 0
-        env_window = os.getenv("TOTP_VALID_WINDOW")
-        if env_window is not None:
-            try:
-                default_window = int(env_window)
-            except ValueError:
-                logger.warning(
-                    "Invalid TOTP_VALID_WINDOW value '%s', using default %s",
-                    env_window,
-                    default_window,
-                )
-        self._totp_valid_window = max(0, default_window)
+        configured_window = getattr(settings, "totp_valid_window", 0)
+        window = max(0, configured_window)
+        if window == 0 and getattr(settings, "is_testing", False):
+            window = 1
+        self._totp_valid_window = window
 
     def _encrypt(self, value: str) -> str:
         token: bytes = self._fernet.encrypt(value.encode("utf-8"))

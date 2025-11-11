@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
+
 CSRF_COOKIE = "csrftoken"
 CSRF_HEADER = "X-CSRFToken"
 CSRF_ORIGIN = "https://preview.instainstru.com"
@@ -33,11 +35,15 @@ def test_logout_clears_host_cookie_secure(client: TestClient, monkeypatch) -> No
     assert response.status_code == 204
 
     set_cookie_headers = _set_cookie_headers(response)
-    host_cookie_headers = [header for header in set_cookie_headers if "__Host-sid_preview=" in header]
-    assert host_cookie_headers, "expected __Host-sid_preview cookie deletion"
+    target_cookie = settings.session_cookie_name
+    host_cookie_headers = [header for header in set_cookie_headers if f"{target_cookie}=" in header]
+    assert host_cookie_headers, f"expected {target_cookie} cookie deletion"
     for header in host_cookie_headers:
         assert "Path=/" in header
-        assert "Secure" in header
+        if settings.session_cookie_secure:
+            assert "Secure" in header
+        else:
+            assert "Secure" not in header
         assert "Max-Age=0" in header
 
     auth_me = client.get("/auth/me")

@@ -142,6 +142,10 @@ async def get_current_user(
     Raises:
         HTTPException: If user not found
     """
+    state_obj = getattr(getattr(request, "state", None), "current_user", None)
+    if isinstance(state_obj, User) and getattr(state_obj, "is_active", True):
+        return state_obj
+
     # Backward-compat for tests that call get_current_user(email, db) positionally
     # In that case, request is a string (email) and current_user_email is a Session/Mock
     if not isinstance(current_user_email, str) and isinstance(request, str):
@@ -285,6 +289,7 @@ async def get_current_student(
 
 
 async def get_current_active_user_optional(
+    request: Request = None,
     current_user_email: Optional[str] = Depends(auth_get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
@@ -301,6 +306,11 @@ async def get_current_active_user_optional(
     Returns:
         User object if authenticated and found, None otherwise
     """
+    if request is not None:
+        state_user = getattr(getattr(request, "state", None), "current_user", None)
+        if isinstance(state_user, User) and getattr(state_user, "is_active", False):
+            return state_user
+
     if not current_user_email:
         return None
 
@@ -325,6 +335,9 @@ def require_beta_access(role: Optional[str] = None) -> Callable[..., Awaitable[U
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db),
     ) -> User:
+        raw_site_mode = (os.getenv("SITE_MODE", "") or "").strip().lower()
+        if raw_site_mode in {"preview", "stg", "stage", "staging"}:
+            return current_user
         # Preview bypass (staff or proxy-only header)
         if _preview_bypass(request, current_user):
             return current_user

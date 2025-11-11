@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, cast
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
-from jwt import PyJWTError
+from jwt import InvalidIssuerError, PyJWTError
 from passlib.context import CryptContext
 
 from .core.config import settings
@@ -59,6 +59,56 @@ def get_password_hash(password: str) -> str:
     """
     hashed = pwd_context.hash(password)
     return str(hashed)
+
+
+def _token_claim_requirements() -> tuple[bool, Optional[str], Optional[str]]:
+    """Return whether to enforce audience/issuer along with expected values."""
+
+    try:
+        site_mode = os.getenv("SITE_MODE", "").lower().strip()
+    except Exception:
+        site_mode = ""
+    enforce_aud = site_mode in {"preview", "prod", "production", "live", "beta"} and not bool(
+        getattr(settings, "is_testing", False)
+    )
+    if not enforce_aud:
+        return False, None, None
+    expected_aud = "preview" if site_mode == "preview" else "prod"
+    if site_mode == "preview":
+        expected_iss = f"https://{settings.preview_api_domain}"
+    else:
+        expected_iss = f"https://{settings.prod_api_domain}"
+    return True, expected_aud, expected_iss
+
+
+def decode_access_token(token: str, *, enforce_audience: bool | None = None) -> Dict[str, Any]:
+    """Decode a JWT access token enforcing preview/prod issuer/audience when required."""
+
+    enforce_default, expected_aud, expected_iss = _token_claim_requirements()
+    if enforce_audience is not None:
+        enforce = enforce_audience
+    else:
+        enforce = enforce_default
+
+    secret = _secret_value(settings.secret_key)
+    if enforce and expected_aud:
+        payload_raw = jwt.decode(
+            token,
+            secret,
+            algorithms=[settings.algorithm],
+            audience=expected_aud,
+        )
+        payload = cast(Dict[str, Any], payload_raw)
+        if expected_iss and payload.get("iss") != expected_iss:
+            raise InvalidIssuerError("Unexpected token issuer")
+        return payload
+    payload_raw = jwt.decode(
+        token,
+        secret,
+        algorithms=[settings.algorithm],
+        options={"verify_aud": False},
+    )
+    return cast(Dict[str, Any], payload_raw)
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
@@ -197,36 +247,7 @@ async def get_current_user(
 
         if not token:
             raise not_authenticated
-        # Decode JWT with appropriate audience enforcement
-        site_mode = os.getenv("SITE_MODE", "").lower().strip()
-        enforce_aud = (site_mode in {"preview", "prod", "production", "live"}) and not bool(
-            getattr(settings, "is_testing", False)
-        )
-        if enforce_aud:
-            expected_aud = "preview" if site_mode == "preview" else "prod"
-            payload_raw = jwt.decode(
-                token,
-                settings.secret_key.get_secret_value(),
-                algorithms=[settings.algorithm],
-                audience=expected_aud,
-            )
-            payload = cast(Dict[str, Any], payload_raw)
-            iss = payload.get("iss", "")
-            if site_mode == "preview":
-                if iss != f"https://{settings.preview_api_domain}":
-                    raise invalid_credentials
-            else:  # prod family
-                if iss != f"https://{settings.prod_api_domain}":
-                    raise invalid_credentials
-        else:
-            # Disable audience verification in tests and non-preview/prod modes
-            payload_raw = jwt.decode(
-                token,
-                settings.secret_key.get_secret_value(),
-                algorithms=[settings.algorithm],
-                options={"verify_aud": False},
-            )
-            payload = cast(Dict[str, Any], payload_raw)
+        payload = decode_access_token(token)
         email_obj = payload.get("sub")
         if not isinstance(email_obj, str):
             email: str | None = None
@@ -290,12 +311,9 @@ async def get_current_user_optional(
             return None
 
     try:
-        payload = jwt.decode(
-            token,
-            settings.secret_key.get_secret_value(),
-            algorithms=[settings.algorithm],
-        )
-        email: str = payload.get("sub")
+        payload = decode_access_token(token)
+        email_obj = payload.get("sub")
+        email: str | None = email_obj if isinstance(email_obj, str) else None
         if email is None:
             logger.warning("Token payload missing 'sub' field")
             return None

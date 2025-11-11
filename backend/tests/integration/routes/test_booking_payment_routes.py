@@ -232,25 +232,16 @@ class TestBookingPaymentRoutes:
 
     @pytest.fixture
     def auth_headers(self, student_user: User) -> dict:
-        """Create authentication headers for student user."""
-        # Mock JWT token
-        return {"Authorization": f"Bearer test_token_{student_user.id}"}
+        """Create real authentication headers for student user."""
+        from app.auth import create_access_token
+
+        token = create_access_token(data={"sub": student_user.email})
+        return {"Authorization": f"Bearer {token}"}
 
     @pytest.fixture
-    def authenticated_client(self, client: TestClient, student_user: User, auth_headers: dict) -> TestClient:
-        """Create authenticated test client."""
-        # Mock the authentication dependency
-        from app.api.dependencies import get_current_active_user
-
-        async def mock_get_user():
-            return student_user
-
-        async def mock_get_user_optional():
-            return student_user
-
-        client.app.dependency_overrides[get_current_active_user] = mock_get_user
-        from app.api.dependencies.auth import get_current_active_user_optional
-        client.app.dependency_overrides[get_current_active_user_optional] = mock_get_user_optional
+    def authenticated_client(self, client: TestClient, auth_headers: dict) -> TestClient:
+        """Attach Authorization headers so requests authenticate via bearer token."""
+        client.headers.update(auth_headers)
         return client
 
     # ========== POST /bookings/ Tests (Create with SetupIntent) ==========

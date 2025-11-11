@@ -23,11 +23,14 @@ except ModuleNotFoundError:
 
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
+import importlib
 import os
 import secrets
 import sys
 from typing import Dict, List, Sequence, Tuple
 
+from fastapi.testclient import TestClient
+import pytest
 from ulid import ULID
 
 # CRITICAL: Set testing mode BEFORE any app imports!
@@ -62,6 +65,36 @@ if "resend" not in sys.modules:
     resend_module_mock.Emails.send.return_value = {"id": "test-email-id", "status": "sent"}
     sys.modules["resend"] = resend_module_mock
 
+CONFIG_ENV_KEYS = [
+    "SESSION_COOKIE_NAME",
+    "SESSION_COOKIE_SAMESITE",
+    "SESSION_COOKIE_SECURE",
+    "EMAIL_PROVIDER",
+    "RESEND_API_KEY",
+    "TOTP_VALID_WINDOW",
+    "SITE_MODE",
+    "ENVIRONMENT",
+]
+
+
+@pytest.fixture
+def isolate_settings_env(monkeypatch):
+    """Temporarily clear Settings-related env vars and reload the config module."""
+
+    import app.core.config as cfg
+
+    snapshot = os.environ.copy()
+    for key in CONFIG_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+    importlib.reload(cfg)
+
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(snapshot)
+        importlib.reload(cfg)
+
 # Add the backend directory to Python path so imports work
 backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, backend_dir)
@@ -74,8 +107,6 @@ settings.rate_limit_enabled = False
 
 from unittest.mock import AsyncMock, Mock
 
-from fastapi.testclient import TestClient
-import pytest
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 

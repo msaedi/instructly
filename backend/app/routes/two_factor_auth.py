@@ -199,6 +199,7 @@ def verify_login(
         base_cookie_name,
         access_token,
         max_age=settings.access_token_expire_minutes * 60,
+        domain=settings.session_cookie_domain,
     )
 
     if site_mode != "local":
@@ -228,8 +229,8 @@ def verify_login(
             value="1",
             max_age=max_age,
             httponly=True,
-            secure=settings.environment == "production",
-            samesite="lax",
+            secure=bool(settings.session_cookie_secure),
+            samesite=settings.session_cookie_samesite or "lax",
             path="/",
         )
     return TFAVerifyLoginResponse(access_token=access_token, token_type="bearer")

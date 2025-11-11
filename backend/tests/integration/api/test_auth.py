@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, get_password_hash, verify_password
+from app.core.config import settings
 from app.core.enums import RoleName
 from app.models.user import User
 
@@ -129,9 +130,9 @@ class TestAuth:
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
-        # Ensure Set-Cookie is present for access_token
+        # Ensure Set-Cookie is present with configured session cookie name
         set_cookie = response.headers.get("set-cookie", "")
-        assert "access_token=" in set_cookie
+        assert f"{settings.session_cookie_name}=" in set_cookie
         # Note: Test functions should not return values in pytest
 
     def test_cookie_authentication_fallback(
@@ -154,8 +155,7 @@ class TestAuth:
         assert data["email"] == test_student.email
 
         # Test with cookie only (no Authorization header)
-        # Manually set the cookie in the client
-        client.cookies.set("access_token", token)
+        client.cookies.set(settings.session_cookie_name, token)
         response = client.get("/auth/me")
         assert response.status_code == 200
         data = response.json()
@@ -189,6 +189,7 @@ class TestAuth:
         """Prod/preview: cookie-only must be rejected; header required."""
         # Simulate prod mode
         monkeypatch.setenv("SITE_MODE", "prod")
+        monkeypatch.setattr(settings, "session_cookie_secure", True, raising=False)
         # Login still returns a token (we won't use it here)
         r = client.post(
             "/auth/login",
@@ -196,8 +197,8 @@ class TestAuth:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert r.status_code == 200
-        # Cookie-only should fail in prod
-        r2 = client.get("/auth/me")
+        # Cookie-only should fail in prod for /api routes
+        r2 = client.get("/api/addresses/me")
         assert r2.status_code == 401
         # With header it should succeed
         token = r.json().get("access_token")

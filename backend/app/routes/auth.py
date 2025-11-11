@@ -267,6 +267,7 @@ async def login(
         base_cookie_name,
         access_token,
         max_age=settings.access_token_expire_minutes * 60,
+        domain=settings.session_cookie_domain,
     )
 
     if site_mode != "local":
@@ -386,6 +387,7 @@ async def login_with_session(
         base_cookie_name,
         access_token,
         max_age=settings.access_token_expire_minutes * 60,
+        domain=settings.session_cookie_domain,
     )
 
     if site_mode != "local":

@@ -24,13 +24,15 @@ def _is_hosted() -> bool:
 
 
 def session_cookie_base_name(site_mode: Optional[str] = None) -> str:
-    """Return the base session cookie name for the provided site mode."""
+    """Return the configured base session cookie name."""
     mode = (site_mode or _current_site_mode()).lower()
-    if mode == "preview":
-        return "sid_preview"
-    if mode in {"prod", "beta", "production", "live"}:
-        return "sid_prod"
-    return "access_token"
+    configured = getattr(settings, "session_cookie_name", "") or "access_token"
+    if configured == "access_token":
+        if mode == "preview":
+            return "sid_preview"
+        if mode in {"prod", "beta", "production", "live"}:
+            return "sid_prod"
+    return configured
 
 
 def session_cookie_candidates(site_mode: Optional[str] = None) -> List[str]:
@@ -38,9 +40,15 @@ def session_cookie_candidates(site_mode: Optional[str] = None) -> List[str]:
     mode = (site_mode or _current_site_mode()).lower()
     base = session_cookie_base_name(mode)
     candidates: List[str] = []
-    if mode in _HOSTED_SITE_MODES:
-        candidates.append(f"__Host-{base}")
-    candidates.append(base)
+    if base:
+        candidates.append(base)
+    legacy = "access_token"
+    if mode == "preview":
+        legacy = "sid_preview"
+    elif mode in {"prod", "beta", "production", "live"}:
+        legacy = "sid_prod"
+    if legacy not in candidates:
+        candidates.append(legacy)
     return candidates
 
 
@@ -51,6 +59,7 @@ def set_session_cookie(
     *,
     max_age: Optional[int] = None,
     expires: Optional[datetime | int] = None,
+    domain: Optional[str] = None,
 ) -> str:
     """Set a session cookie scoped to the API host.
 
@@ -69,17 +78,26 @@ def set_session_cookie(
         The actual cookie name written to the response headers.
     """
 
-    hosted = _is_hosted()
-    cookie_name = f"__Host-{name}" if hosted else name
+    cookie_name = name or session_cookie_base_name()
 
     cookie_kwargs = {
         "key": cookie_name,
         "value": value,
         "httponly": True,
-        "samesite": "lax",
-        "secure": hosted,
+        "samesite": (settings.session_cookie_samesite or "lax"),
+        "secure": bool(settings.session_cookie_secure),
         "path": "/",
     }
+
+    cookie_domain = domain
+    if cookie_domain is None:
+        cookie_domain = settings.session_cookie_domain
+
+    if cookie_name.startswith("__Host-"):
+        cookie_domain = None
+
+    if cookie_domain:
+        cookie_kwargs["domain"] = cookie_domain
 
     if max_age is not None:
         cookie_kwargs["max_age"] = max_age

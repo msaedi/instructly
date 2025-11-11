@@ -70,6 +70,12 @@ def _classify_site_mode(raw_site_mode: str | None) -> tuple[str, bool, bool]:
     return normalized, is_prod, is_non_prod
 
 
+def _default_session_cookie_name() -> str:
+    """Return default session cookie name."""
+
+    return "__Host-sid"
+
+
 def resolve_referrals_step(
     *,
     raw_value: str | None = None,
@@ -152,6 +158,40 @@ class Settings(BaseSettings):
         alias="TEMP_TOKEN_AUD",
         description="Audience claim for temporary 2FA tokens",
     )
+    session_cookie_name: str = Field(
+        default_factory=_default_session_cookie_name,
+        alias="SESSION_COOKIE_NAME",
+        description="Session cookie name",
+    )
+    session_cookie_secure: bool = Field(
+        default=False,
+        alias="SESSION_COOKIE_SECURE",
+        description="Whether session cookies must be marked Secure",
+    )
+    session_cookie_samesite: Literal["lax", "strict", "none"] = Field(
+        default="lax",
+        alias="SESSION_COOKIE_SAMESITE",
+        description="SameSite attribute applied to session cookies",
+    )
+    session_cookie_domain: str | None = Field(
+        default=None,
+        description="Optional Domain attribute for session cookies (omit for __Host- cookies)",
+    )
+    email_provider: Literal["console", "resend"] = Field(
+        default="console",
+        alias="EMAIL_PROVIDER",
+        description="Email provider name",
+    )
+    resend_api_key: str | None = Field(
+        default=None,
+        alias="RESEND_API_KEY",
+        description="API key for Resend provider (optional)",
+    )
+    totp_valid_window: int = Field(
+        default=0,
+        alias="TOTP_VALID_WINDOW",
+        description="TOTP valid window tolerance",
+    )
 
     # Raw database URLs - DO NOT USE DIRECTLY! Use properties instead
     # Explicit env names (no backward compatibility):
@@ -183,7 +223,6 @@ class Settings(BaseSettings):
     is_testing: bool = False  # Set to True when running tests
 
     # Email settings
-    resend_api_key: str = ""
     from_email: str = "InstaInstru <hello@instainstru.com>"
     email_from_address: str | None = Field(
         default=None,
@@ -459,6 +498,52 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @model_validator(mode="after")
+    def _derive_cookie_policy(self) -> "Settings":
+        """Normalize session cookie attributes per site mode."""
+
+        raw_mode = (os.getenv("SITE_MODE", "") or "").strip().lower()
+        normalized, is_prod, is_non_prod = _classify_site_mode(raw_mode or self.site_mode)
+        hosted = normalized == "preview" or is_prod or normalized in {"stg", "stage", "staging"}
+
+        if hosted:
+            self.session_cookie_secure = True
+            self.session_cookie_samesite = "lax"
+            # __Host- cookies require Domain omission
+            self.session_cookie_domain = None
+        elif not is_prod and not is_non_prod:
+            # Unknown modes default to secure cookies unless explicitly disabled
+            self.session_cookie_secure = bool(self.session_cookie_secure)
+        # Keep caller-provided overrides for non-hosted environments (e.g., local HTTP)
+
+        if not bool(self.session_cookie_secure) and str(self.session_cookie_name or "").startswith(
+            "__Host-"
+        ):
+            logger.warning(
+                "SESSION_COOKIE_NAME %s uses __Host- prefix but SESSION_COOKIE_SECURE is false. "
+                "For local HTTP, set SESSION_COOKIE_NAME=sid_local (or similar) or enable HTTPS.",
+                self.session_cookie_name,
+            )
+        return self
+
+    @field_validator("session_cookie_secure", mode="before")
+    @classmethod
+    def _coerce_cookie_secure(cls, value: object) -> bool | object:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+    @field_validator("session_cookie_samesite", mode="before")
+    @classmethod
+    def _normalize_samesite(cls, value: object) -> str:
+        if value is None:
+            return "lax"
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"lax", "strict", "none"}:
+                return normalized
+        raise ValueError("SESSION_COOKIE_SAMESITE must be one of: lax, strict, none")
+
     # Public API Configuration
     public_availability_days: int = Field(
         default=30,
@@ -663,7 +748,6 @@ class Settings(BaseSettings):
     prometheus_bearer_token: str = Field(
         default="", description="Optional bearer token for Prometheus API"
     )
-    email_provider: str = Field(default="resend", description="Email provider name")
     email_enabled: bool = Field(default=True, description="Flag to enable/disable email sending")
 
     @property

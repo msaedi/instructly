@@ -98,7 +98,7 @@ def get_email_service(
     db: Session = Depends(get_db),
     cache: Optional[CacheService] = Depends(get_cache_service),
 ) -> EmailService | ConsoleEmailService:
-    provider = getattr(settings, "email_provider", "resend").lower()
+    provider = getattr(settings, "email_provider", "console").lower()
     missing_key = not settings.resend_api_key
     site_mode = getattr(settings, "site_mode", "local")
     is_ci = os.getenv("CI") == "true"
