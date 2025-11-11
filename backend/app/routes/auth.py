@@ -17,7 +17,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.services import get_auth_service
-from ..auth import create_access_token, get_current_user
+from ..auth import create_access_token, create_temp_token, get_current_user
 from ..core.config import settings
 from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..database import get_db
@@ -73,9 +73,9 @@ def _issue_two_factor_challenge_if_needed(
     if extra_claims:
         temp_claims.update(extra_claims)
 
-    temp_token = create_access_token(
+    temp_token = create_temp_token(
         data=temp_claims,
-        expires_delta=timedelta(minutes=5),
+        expires_delta=timedelta(seconds=60),
     )
     return LoginResponse(requires_2fa=True, temp_token=temp_token)
 

@@ -1,5 +1,6 @@
 from datetime import timedelta
 import logging
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 import jwt
@@ -150,12 +151,17 @@ def verify_login(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFAVerifyLoginResponse:
-    # temp_token is a normal JWT with sub=email and tfa_pending=true
+    # temp_token is a short-lived JWT with sub=email and tfa_pending=true
+    temp_secret = settings.temp_token_secret or settings.secret_key
+    secret_value = getattr(temp_secret, "get_secret_value", None)
+    secret_value = secret_value() if callable(secret_value) else str(temp_secret)
     try:
         payload = jwt.decode(
             req.temp_token,
-            settings.secret_key.get_secret_value(),
+            secret_value,
             algorithms=[settings.algorithm],
+            audience=settings.temp_token_aud,
+            issuer=settings.temp_token_iss,
         )
         email = payload.get("sub")
         tfa_pending = payload.get("tfa_pending", False)
@@ -163,7 +169,11 @@ def verify_login(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid temp token"
             )
-    except Exception:
+    except Exception as exc:
+        site_mode = os.getenv("SITE_MODE", "").strip().lower()
+        if settings.is_testing or site_mode in {"preview", "int", "stg"}:
+            reason = getattr(exc, "args", ["decode_error"])[0]
+            logger.info("2FA verify temp-token reject: %s", reason)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid temp token")
 
     user = auth_service.get_current_user(email=email)

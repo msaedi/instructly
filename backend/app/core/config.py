@@ -137,6 +137,21 @@ class Settings(BaseSettings):
         description="Fernet key for encrypting TOTP secrets (optional in dev)",
     )
     two_factor_trust_days: int = Field(default=30, description="Days to trust a browser for 2FA")
+    temp_token_secret: SecretStr | None = Field(
+        default=None,
+        alias="TEMP_TOKEN_SECRET",
+        description="Optional override secret for 2FA temp tokens (defaults to SECRET_KEY)",
+    )
+    temp_token_iss: str = Field(
+        default="instainstru-auth",
+        alias="TEMP_TOKEN_ISS",
+        description="Issuer claim for temporary 2FA tokens",
+    )
+    temp_token_aud: str = Field(
+        default="instainstru-2fa",
+        alias="TEMP_TOKEN_AUD",
+        description="Audience claim for temporary 2FA tokens",
+    )
 
     # Raw database URLs - DO NOT USE DIRECTLY! Use properties instead
     # Explicit env names (no backward compatibility):

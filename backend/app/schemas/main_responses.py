@@ -7,7 +7,7 @@ These models ensure consistent API responses for root, health check,
 and performance monitoring endpoints.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 from pydantic import ConfigDict, Field
 
@@ -46,3 +46,12 @@ class PerformanceMetricsResponse(StrictModel):
     """Response for performance metrics endpoint."""
 
     metrics: Dict[str, Any] = Field(description="Performance metrics data")
+
+
+class ReadyProbeResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    """Response body for /ready endpoint."""
+
+    status: Literal["ok", "db_not_ready", "cache_not_ready"] = Field(
+        description="Overall readiness status"
+    )

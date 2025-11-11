@@ -124,3 +124,36 @@ export const httpPut = <T = unknown>(url: string, body?: unknown, options?: Http
 export const httpPatch = <T = unknown>(url: string, body?: unknown, options?: HttpOptions) =>
   http<T>('PATCH', url, { ...(options || {}), body: body as BodyInit });
 export const httpDelete = <T = unknown>(url: string, options?: HttpOptions) => http<T>('DELETE', url, options);
+
+export async function postWithRetry(
+  url: string,
+  init: RequestInit = {},
+  attempts = 3,
+  baseDelayMs = 120
+): Promise<Response> {
+  const resolvedUrl = resolveUrl(url);
+  const makeRequest = () =>
+    fetch(resolvedUrl, {
+      credentials: init.credentials ?? 'include',
+      ...init,
+      method: init.method ?? 'POST',
+    });
+
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await makeRequest();
+      if (response.ok || (response.status >= 400 && response.status < 500)) {
+        return response;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    const jitter = Math.floor(Math.random() * 60);
+    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * (attempt + 1) + jitter));
+  }
+  if (lastError) {
+    throw lastError;
+  }
+  return makeRequest();
+}

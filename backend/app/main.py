@@ -11,16 +11,18 @@ import hmac
 from ipaddress import ip_address, ip_network
 import logging
 import os
+import re
 import threading
 from time import monotonic
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, Optional, Sequence, Tuple, cast
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy.orm import Session
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.status import (
     HTTP_401_UNAUTHORIZED,
@@ -110,6 +112,7 @@ from .routes import (
     privacy,
     prometheus,
     public,
+    ready,
     redis_monitor,
     referrals,
     reviews,
@@ -724,6 +727,43 @@ def _compute_allowed_origins() -> list[str]:
     return list(origins_set)
 
 
+class EnsureCorsOnErrorMiddleware(BaseHTTPMiddleware):
+    """Backfill Access-Control headers on internal error responses."""
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        allowed_origins: Sequence[str],
+        origin_regex: str | None = None,
+    ) -> None:
+        super().__init__(app)
+        self._allowed_origins = {origin.strip() for origin in allowed_origins if origin}
+        self._origin_regex = re.compile(origin_regex) if origin_regex else None
+
+    def _origin_allowed(self, origin: str | None) -> bool:
+        if not origin:
+            return False
+        if origin in self._allowed_origins:
+            return True
+        return bool(self._origin_regex and self._origin_regex.match(origin))
+
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        response = await call_next(request)
+        origin = request.headers.get("origin")
+        if (
+            origin
+            and "access-control-allow-origin" not in response.headers
+            and self._origin_allowed(origin)
+        ):
+            response.headers["access-control-allow-origin"] = origin
+            if "access-control-allow-credentials" not in response.headers:
+                response.headers["access-control-allow-credentials"] = "true"
+        return response
+
+
 _DYN_ALLOWED_ORIGINS = _compute_allowed_origins()
 assert (
     "*" not in _DYN_ALLOWED_ORIGINS
@@ -738,6 +778,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 logger.info("CORS allow_origins=%s allow_credentials=%s", _DYN_ALLOWED_ORIGINS, True)
+
+app.add_middleware(
+    EnsureCorsOnErrorMiddleware,
+    allowed_origins=_DYN_ALLOWED_ORIGINS,
+    origin_regex=CORS_ORIGIN_REGEX,
+)
 
 # Keep MonitoringMiddleware (pure ASGI-style) below CORS
 app.add_middleware(MonitoringMiddleware)
@@ -778,6 +824,7 @@ app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 PUBLIC_OPEN_PATHS = {
     "/",
     "/health",
+    "/ready",
     "/auth/login",
     "/auth/login-with-session",
     "/auth/register",
@@ -831,6 +878,7 @@ app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
 app.include_router(addresses.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(redis_monitor.router)
+app.include_router(ready.router)
 app.include_router(database_monitor.router)
 app.include_router(admin_config.router)
 app.include_router(admin_audit.router)

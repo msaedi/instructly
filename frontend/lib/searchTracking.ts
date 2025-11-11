@@ -12,7 +12,7 @@ import { SearchType } from '@/types/enums';
 import { captureDeviceContext, formatDeviceContextForAnalytics } from '@/lib/deviceContext';
 
 import { withApiBase } from '@/lib/apiBase';
-import { httpGet, httpPost } from '@/lib/http';
+import { httpGet, httpPost, postWithRetry } from '@/lib/http';
 import { env } from '@/lib/env';
 
 // Build URL using centralized API base resolver
@@ -66,7 +66,7 @@ export async function ensureGuestOnce(): Promise<void> {
   if (guestBootstrapDone || guestBootstrapInFlight) return;
   try {
     guestBootstrapInFlight = true;
-    await httpPost(withApiBase('/api/public/session/guest'));
+    await postWithRetry('/api/public/session/guest', { method: 'POST' });
     guestBootstrapDone = true;
     try { localStorage.setItem('guest_bootstrap_done', 'true'); } catch {}
     logger.info('Bootstrapped guest_id cookie');

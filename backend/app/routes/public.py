@@ -154,26 +154,42 @@ def public_logout(response_obj: Response, request: Request) -> Response:
         cookie_kwargs["domain"] = ".instainstru.com"
 
     resp = Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    def _delete_session_cookie(name: str, *, domain: str | None = None) -> None:
+        resp.delete_cookie(
+            key=name,
+            path="/",
+            domain=domain,
+            secure=(site_mode in {"preview", "prod", "production", "live", "beta"})
+            or name.startswith("__Host-"),
+            httponly=True,
+            samesite="lax",
+        )
+
     # Clear guest cookie
     resp.delete_cookie("guest_id", **cookie_kwargs)
     # Clear session cookies by env
     session_names = session_cookie_candidates(site_mode)
     if session_names:
-        resp.delete_cookie(session_names[0], path="/")
+        _delete_session_cookie(session_names[0])
 
     if site_mode in {"preview", "prod", "production", "live", "beta"} and len(session_names) > 1:
-        legacy_kwargs: Dict[str, Union[str, bool]] = {"path": "/", "domain": ".instainstru.com"}
-        legacy_kwargs["secure"] = True
-        resp.delete_cookie(session_names[-1], **legacy_kwargs)
+        for legacy_name in session_names[1:]:
+            resp.delete_cookie(
+                legacy_name,
+                path="/",
+                domain=".instainstru.com",
+                secure=True,
+                httponly=True,
+                samesite="lax",
+            )
         # Also clear any lingering preview/prod cookie variants for safety
-        for legacy_name in session_names[1:-1]:
-            resp.delete_cookie(legacy_name, **legacy_kwargs)
     elif (
         site_mode not in {"preview", "prod", "production", "live", "beta"}
         and len(session_names) > 1
     ):
         for legacy_name in session_names[1:]:
-            resp.delete_cookie(legacy_name, path="/")
+            _delete_session_cookie(legacy_name)
     return resp
 
 

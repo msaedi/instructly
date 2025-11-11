@@ -22,6 +22,13 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
+def _secret_value(secret_obj: Any) -> str:
+    getter = getattr(secret_obj, "get_secret_value", None)
+    if callable(getter):
+        return cast(str, getter())
+    return cast(str, secret_obj)
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     Verify a plain password against a hashed password.
@@ -113,12 +120,35 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
         str,
         jwt.encode(
             to_encode,
-            settings.secret_key.get_secret_value(),  # Changed this line
+            _secret_value(settings.secret_key),
             algorithm=settings.algorithm,
         ),
     )
 
     logger.info(f"Created access token for user: {data.get('sub')}")
+    return encoded_jwt
+
+
+def create_temp_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    """Create a short-lived temp token for 2FA challenges."""
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(seconds=60))
+    to_encode.update(
+        {
+            "exp": expire,
+            "iss": settings.temp_token_iss,
+            "aud": settings.temp_token_aud,
+        }
+    )
+    secret_source = settings.temp_token_secret or settings.secret_key
+    encoded_jwt = cast(
+        str,
+        jwt.encode(
+            to_encode,
+            _secret_value(secret_source),
+            algorithm=settings.algorithm,
+        ),
+    )
     return encoded_jwt
 
 
