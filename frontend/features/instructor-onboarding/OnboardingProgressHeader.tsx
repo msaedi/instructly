@@ -4,81 +4,92 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import type { StepKey, OnboardingStatusMap } from './stepStatus';
+import { STEP_KEYS } from './stepStatus';
 
-const STEP_DEFS = [
-  { key: 'account-setup', label: 'Account Setup', href: '/instructor/onboarding/account-setup' },
-  { key: 'skill-selection', label: 'Add Skills', href: '/instructor/onboarding/skill-selection' },
-  { key: 'verify-identity', label: 'Verify Identity', href: '/instructor/onboarding/verification' },
-  { key: 'payment-setup', label: 'Payment Setup', href: '/instructor/onboarding/payment-setup' },
-] as const;
-const STEP_ORDER = STEP_DEFS.map((step) => step.key);
-
-export type OnboardingStepKey = (typeof STEP_DEFS)[number]['key'];
-export type OnboardingStepStatus = 'pending' | 'done' | 'failed';
-
-type Props = {
-  activeStep: OnboardingStepKey;
-  stepStatus?: Partial<Record<OnboardingStepKey, OnboardingStepStatus>>;
-  completedSteps?: Partial<Record<OnboardingStepKey, boolean>>;
+const STEP_META: Record<
+  StepKey,
+  {
+    label: string;
+    href: string;
+  }
+> = {
+  'account-setup': { label: 'Account Setup', href: '/instructor/onboarding/account-setup' },
+  'skill-selection': { label: 'Add Skills', href: '/instructor/onboarding/skill-selection' },
+  'verify-identity': { label: 'Verify Identity', href: '/instructor/onboarding/verification' },
+  'payment-setup': { label: 'Payment Setup', href: '/instructor/onboarding/payment-setup' },
 };
 
-const defaultStatuses: Record<OnboardingStepKey, OnboardingStepStatus> = {
-  'account-setup': 'pending',
-  'skill-selection': 'pending',
-  'verify-identity': 'pending',
-  'payment-setup': 'pending',
+const STEP_DEFS = STEP_KEYS.map((key) => ({ key, ...STEP_META[key] }));
+
+type Props = {
+  activeStep: StepKey;
+  statusMap: OnboardingStatusMap;
 };
 
 type WalkerPath = {
-  start: OnboardingStepKey;
-  target: OnboardingStepKey;
+  start: StepKey;
+  target: StepKey;
   variant: 'walk' | 'bounce';
 };
 
-function computeWalkerPath(active: OnboardingStepKey, _completed: Partial<Record<OnboardingStepKey, boolean>>): WalkerPath {
+const computeWalkerPath = (active: StepKey): WalkerPath => {
   if (active === 'account-setup') {
     return { start: 'account-setup', target: 'account-setup', variant: 'bounce' };
   }
 
-  const activeIdx = Math.max(0, STEP_ORDER.indexOf(active));
-  const startIdx = Math.max(0, Math.min(activeIdx - 1, STEP_ORDER.length - 1));
-
-  const startStep = STEP_ORDER[startIdx] ?? 'account-setup';
-  const targetStep = STEP_ORDER[activeIdx] ?? startStep;
+  const activeIdx = Math.max(0, STEP_KEYS.indexOf(active));
+  const startIdx = Math.max(0, activeIdx - 1);
 
   return {
-    start: startStep,
-    target: targetStep,
+    start: STEP_KEYS[startIdx] ?? 'account-setup',
+    target: STEP_KEYS[activeIdx] ?? 'account-setup',
     variant: 'walk',
   };
-}
+};
 
-export function OnboardingProgressHeader({ activeStep, stepStatus, completedSteps }: Props) {
+const getLineClass = (state: { visited: boolean; completed: boolean }) => {
+  if (state.completed) return 'w-60 h-0.5 bg-[#7E22CE]';
+  if (state.visited) {
+    return 'w-60 h-0.5 bg-[repeating-linear-gradient(to_right,_#7E22CE_0,_#7E22CE_10px,_transparent_10px,_transparent_18px)]';
+  }
+  return 'w-60 h-0.5 bg-gray-300';
+};
+
+const CrossIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-3 h-3 text-[#7E22CE]" fill="none" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+  </svg>
+);
+
+export function OnboardingProgressHeader({ activeStep, statusMap }: Props) {
   const router = useRouter();
   const progressRef = useRef<HTMLDivElement | null>(null);
   const stepButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [walkerLeft, setWalkerLeft] = useState(24);
 
-  const resolvedStatuses = useMemo(() => ({ ...defaultStatuses, ...(stepStatus || {}) }), [stepStatus]);
-  const completionMap = useMemo(() => {
-    if (completedSteps) return completedSteps;
-    const derived: Partial<Record<OnboardingStepKey, boolean>> = {};
-    (Object.keys(resolvedStatuses) as OnboardingStepKey[]).forEach((key) => {
-      if (resolvedStatuses[key] === 'done') {
-        derived[key] = true;
-      }
+  const mergedStatus = useMemo<OnboardingStatusMap>(() => {
+    const next: OnboardingStatusMap = {} as OnboardingStatusMap;
+    STEP_KEYS.forEach((key) => {
+      next[key] = statusMap[key] ?? { visited: false, completed: false };
     });
-    return derived;
-  }, [completedSteps, resolvedStatuses]);
+    return next;
+  }, [statusMap]);
 
-  const walkerPath = useMemo(() => computeWalkerPath(activeStep, completionMap), [activeStep, completionMap]);
+  const walkerPath = useMemo(() => computeWalkerPath(activeStep), [activeStep]);
 
   const updateWalker = useCallback(() => {
     const container = progressRef.current;
     if (!container) return;
 
-    const resolveIndex = (key: OnboardingStepKey) => {
-      const idx = STEP_ORDER.indexOf(key);
+    const resolveIndex = (key: StepKey) => {
+      const idx = STEP_KEYS.indexOf(key);
       return idx >= 0 ? idx : 0;
     };
 
@@ -131,35 +142,29 @@ export function OnboardingProgressHeader({ activeStep, stepStatus, completedStep
 
           {STEP_DEFS.map((step, index) => {
             const isCurrent = step.key === activeStep;
-            const status = resolvedStatuses[step.key];
-            const baseClasses = 'w-6 h-6 rounded-full border-2 transition-colors cursor-pointer flex items-center justify-center';
-            const buttonClasses =
-              status === 'done'
-                ? `${baseClasses} border-[#7E22CE] bg-[#7E22CE] text-white`
-                : isCurrent
-                ? `${baseClasses} border-purple-300 bg-purple-100 text-[#7E22CE]`
-                : `${baseClasses} border-gray-300 bg-white text-[#7E22CE] hover:border-[#7E22CE]`;
-
-            const handleClick = () => {
-              if (isCurrent) return;
-              router.push(step.href);
-            };
+            const state = mergedStatus[step.key];
+            const baseClasses =
+              'w-6 h-6 rounded-full border-2 transition-colors cursor-pointer flex items-center justify-center';
+            let buttonClasses = `${baseClasses} border-gray-300 bg-white text-gray-400`;
+            if (isCurrent) {
+              buttonClasses = `${baseClasses} border-[#D8B4FE] bg-[#F3E8FF] text-[#7E22CE]`;
+            } else if (state.completed) {
+              buttonClasses = `${baseClasses} border-[#7E22CE] bg-[#7E22CE] text-white`;
+            } else if (state.visited) {
+              buttonClasses = `${baseClasses} border-[#C084FC] bg-[#F3E8FF] text-[#7E22CE]`;
+            }
 
             const nextStep = STEP_DEFS[index + 1];
-            const lineStatus = resolvedStatuses[step.key];
-            const lineClass =
-              nextStep === undefined
-                ? ''
-                : lineStatus === 'done'
-                ? 'w-60 h-0.5 bg-[#7E22CE]'
-                : lineStatus === 'failed'
-                ? 'w-60 h-0.5 bg-[repeating-linear-gradient(to_right,_#7E22CE_0,_#7E22CE_8px,_transparent_8px,_transparent_16px)]'
-                : 'w-60 h-0.5 bg-gray-300';
+            const lineClass = nextStep ? getLineClass(state) : '';
+
+            const handleClick = () => {
+              router.push(step.href);
+            };
 
             return (
               <div className="flex items-center" key={step.key}>
                 <div className="flex flex-col items-center relative">
-                  <button
+                <button
                     ref={(el) => {
                       stepButtonRefs.current[index] = el;
                     }}
@@ -169,29 +174,9 @@ export function OnboardingProgressHeader({ activeStep, stepStatus, completedStep
                     title={`Step ${index + 1}: ${step.label}`}
                     type="button"
                   >
-                    {step.key === 'account-setup' && (
-                      <>
-                        <svg
-                          className={`icon-check w-3 h-3 text-white ${status === 'done' ? '' : 'hidden'}`}
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <svg
-                          className={`icon-cross w-3 h-3 text-white ${status === 'failed' ? '' : 'hidden'}`}
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </>
-                    )}
-                  </button>
+                    {!isCurrent && state.completed && <CheckIcon />}
+                    {!isCurrent && !state.completed && state.visited && <CrossIcon />}
+                    </button>
                   <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">{step.label}</span>
                 </div>
                 {nextStep && <div id={`progress-line-${index + 1}`} className={lineClass} />}

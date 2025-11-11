@@ -1,16 +1,17 @@
 'use client';
 
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { BookOpen, CheckSquare, Lightbulb } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { usePricingConfig, usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
-import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 
@@ -40,15 +41,7 @@ function Step3SkillsPricingInner() {
   const [requestText, setRequestText] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
-  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(
-    () => ({ 'account-setup': 'pending', 'skill-selection': 'pending' })
-  );
-  const completedSteps = useMemo(
-    () => ({
-      'account-setup': stepStatus['account-setup'] === 'done',
-    }),
-    [stepStatus]
-  );
+  const { statusMap, markStepVisited } = useOnboardingProgress();
   const { floors: pricingFloors } = usePricingFloors();
   const { config: pricingConfig } = usePricingConfig();
   const defaultInstructorTierPct = useMemo(() => {
@@ -75,6 +68,10 @@ function Step3SkillsPricingInner() {
 
   const hasFloorViolations = floorViolationsByService.size > 0;
   const [skillsFilter, setSkillsFilter] = useState<string>('');
+
+  useEffect(() => {
+    markStepVisited('skill-selection');
+  }, [markStepVisited]);
 
   useEffect(() => {
     const load = async () => {
@@ -160,40 +157,6 @@ function Step3SkillsPricingInner() {
       cancelled = true;
     };
   }, [isAuthenticated, user]);
-
-  useEffect(() => {
-    const evaluateProfileStep = async () => {
-      try {
-        const [meRes, profRes, areasRes, addrsRes] = await Promise.all([
-          fetchWithAuth(API_ENDPOINTS.ME),
-          fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE),
-          fetchWithAuth('/api/addresses/service-areas/me'),
-          fetchWithAuth('/api/addresses/me'),
-        ]);
-        const me = meRes.ok ? await meRes.json() : {};
-        const prof = profRes.ok ? await profRes.json() : {};
-        const areas = areasRes.ok ? await areasRes.json() : { items: [] };
-        let defaultZip = '';
-        try {
-          if (addrsRes && addrsRes.ok) {
-            const list = await addrsRes.json();
-            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
-            defaultZip = String((def as Record<string, unknown>)?.['postal_code'] || '').trim();
-          }
-        } catch {}
-        const zipFromUser = String((me?.zip_code || me?.postal_code || '') as string).trim();
-        const zipFromProfile = String((prof?.postal_code || '') as string).trim();
-        const resolvedPostal = zipFromProfile || zipFromUser || defaultZip;
-        const hasPic = Boolean(me?.has_profile_picture) || Number.isFinite(me?.profile_picture_version);
-        const personalInfoFilled = Boolean((me?.first_name || '').trim()) && Boolean((me?.last_name || '').trim()) && Boolean(resolvedPostal);
-        const bioOk = (String(prof?.bio || '').trim().length) >= 400;
-        const hasServiceArea = Array.isArray(areas?.items) && areas.items.length > 0;
-        const ok = hasPic && personalInfoFilled && bioOk && hasServiceArea;
-        setStepStatus((prev) => ({ ...prev, 'account-setup': ok ? 'done' : 'failed' }));
-      } catch {}
-    };
-    void evaluateProfileStep();
-  }, []);
 
   useEffect(() => {
     if (selected.length === 0) return;
@@ -331,8 +294,6 @@ function Step3SkillsPricingInner() {
       }
       // Navigate to next step
       // Determine completion: at least one selected with required info (price)
-      const hasComplete = selected.some((s) => (s.hourly_rate || '').trim().length > 0);
-      setStepStatus((prev) => ({ ...prev, 'skill-selection': hasComplete ? 'done' : 'failed' }));
       window.location.href = nextUrl;
     } catch (e) {
       logger.error('Save services failed', e);
@@ -375,7 +336,7 @@ function Step3SkillsPricingInner() {
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="skill-selection" stepStatus={stepStatus} completedSteps={completedSteps} />
+      <OnboardingProgressHeader activeStep="skill-selection" statusMap={statusMap} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - mobile sections (white) with dividers; desktop card */}
@@ -840,8 +801,6 @@ function Step3SkillsPricingInner() {
         <button
           type="button"
           onClick={() => {
-            const hasComplete = selected.some((s) => (s.hourly_rate || '').trim().length > 0);
-            setStepStatus((prev) => ({ ...prev, 'skill-selection': hasComplete ? 'done' : 'failed' }));
             window.location.href = '/instructor/onboarding/verification';
           }}
           className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"

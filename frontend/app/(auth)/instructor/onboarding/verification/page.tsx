@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { toast } from 'sonner';
@@ -12,7 +12,8 @@ import { ShieldCheck } from 'lucide-react';
 import { BackgroundCheckDisclosureModal } from '@/components/consent/BackgroundCheckDisclosureModal';
 import { bgcConsent, type BGCConsentPayload } from '@/lib/api/bgc';
 import { DISCLOSURE_VERSION } from '@/config/constants';
-import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
 
 export default function Step4Verification() {
   const router = useRouter();
@@ -30,19 +31,11 @@ export default function Step4Verification() {
   const [consentSubmitting, setConsentSubmitting] = useState(false);
   const [hasRecentConsent, setHasRecentConsent] = useState(false);
   const consentResolverRef = useRef<((value: boolean) => void) | null>(null);
-  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(() => ({
-    'account-setup': 'done',
-    'skill-selection': 'done',
-    'verify-identity': 'pending',
-  }));
-  const completedSteps = useMemo(
-    () => ({
-      'account-setup': stepStatus['account-setup'] === 'done',
-      'skill-selection': stepStatus['skill-selection'] === 'done',
-      'verify-identity': stepStatus['verify-identity'] === 'done',
-    }),
-    [stepStatus]
-  );
+  const { statusMap, markStepVisited, refresh } = useOnboardingProgress();
+
+  useEffect(() => {
+    markStepVisited('verify-identity');
+  }, [markStepVisited]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -53,6 +46,7 @@ export default function Step4Verification() {
         if (profile?.id) setInstructorProfileId(String(profile.id));
         if (profile?.identity_verified_at || profile?.identity_verification_session_id) {
           setVerificationComplete(true);
+          refresh();
         }
       } catch (err) {
         logger.warn('Failed to load verification status', err instanceof Error ? err : undefined);
@@ -60,14 +54,7 @@ export default function Step4Verification() {
     };
 
     void loadProfile();
-  }, []);
-
-  useEffect(() => {
-    setStepStatus((prev) => ({
-      ...prev,
-      'verify-identity': verificationComplete ? 'done' : 'pending',
-    }));
-  }, [verificationComplete]);
+  }, [refresh]);
 
   const ensureConsent = useCallback(async () => {
     if (hasRecentConsent) {
@@ -137,6 +124,7 @@ export default function Step4Verification() {
           const data = await res.json();
           if (data?.verified) {
             setVerificationComplete(true);
+            refresh();
             toast.success('Identity check complete', {
               description: 'Next, start your background check.',
             });
@@ -165,7 +153,7 @@ export default function Step4Verification() {
     return () => {
       active = false;
     };
-  }, [identityReturn, router, searchParams]);
+  }, [identityReturn, refresh, router, searchParams]);
 
   const startIdentity = async () => {
     try {
@@ -208,7 +196,7 @@ export default function Step4Verification() {
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="verify-identity" stepStatus={stepStatus} completedSteps={completedSteps} />
+      <OnboardingProgressHeader activeStep="verify-identity" statusMap={statusMap} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         <div className="mb-4 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">

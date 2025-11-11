@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
-import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
 
 export default function Step3PaymentSetup() {
   const [connectLoading, setConnectLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [skillsSkipped, setSkillsSkipped] = useState<boolean>(false);
-  const [verificationComplete, setVerificationComplete] = useState(false);
   const [connectStatus, setConnectStatus] = useState<{
     has_account: boolean;
     onboarding_completed: boolean;
@@ -19,22 +19,11 @@ export default function Step3PaymentSetup() {
     details_submitted: boolean;
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(
-    () => ({
-      'account-setup': 'done',
-      'skill-selection': 'pending',
-      'verify-identity': 'pending',
-      'payment-setup': 'pending',
-    })
-  );
-  const completedSteps = useMemo(
-    () => ({
-      'account-setup': stepStatus['account-setup'] === 'done',
-      'skill-selection': stepStatus['skill-selection'] === 'done',
-      'verify-identity': stepStatus['verify-identity'] === 'done',
-    }),
-    [stepStatus]
-  );
+  const { statusMap, markStepVisited, refresh } = useOnboardingProgress();
+
+  useEffect(() => {
+    markStepVisited('payment-setup');
+  }, [markStepVisited]);
 
   useEffect(() => {
     const load = async () => {
@@ -63,9 +52,6 @@ export default function Step3PaymentSetup() {
               setSkillsSkipped(true);
             }
             // Check if verification is complete
-            if (profile.identity_verified_at || profile.identity_verification_session_id) {
-              setVerificationComplete(true);
-            }
           }
         } catch {
           // Ignore errors
@@ -116,21 +102,14 @@ export default function Step3PaymentSetup() {
   }, []);
 
   useEffect(() => {
-    setStepStatus({
-      'account-setup': 'done',
-      'skill-selection': skillsSkipped ? 'failed' : 'done',
-      'verify-identity': verificationComplete ? 'done' : 'pending',
-      'payment-setup': connectStatus?.onboarding_completed ? 'done' : 'pending',
-    });
-  }, [skillsSkipped, verificationComplete, connectStatus]);
+    if (connectStatus?.onboarding_completed) {
+      refresh();
+    }
+  }, [connectStatus, refresh]);
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader
-        activeStep="payment-setup"
-        stepStatus={stepStatus}
-        completedSteps={completedSteps}
-      />
+      <OnboardingProgressHeader activeStep="payment-setup" statusMap={statusMap} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - mobile sections with divider; desktop card */}

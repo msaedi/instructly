@@ -1,21 +1,20 @@
-'use client';
+"use client";
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import InstructorProfileForm, { type InstructorProfileFormHandle } from '@/features/instructor-profile/InstructorProfileForm';
-import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
 
 export default function AccountSetupPage() {
   const router = useRouter();
   const formRef = useRef<InstructorProfileFormHandle>(null);
   const [ctaPending, setCtaPending] = useState(false);
-  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(() => ({
-    'account-setup': 'pending',
-  }));
+  const { statusMap, markStepVisited } = useOnboardingProgress();
 
-  const handleProgressStatus = (status: 'done' | 'failed') => {
-    setStepStatus((prev) => ({ ...prev, 'account-setup': status }));
-  };
+  useEffect(() => {
+    markStepVisited('account-setup');
+  }, [markStepVisited]);
 
   const handleSaveContinue = async () => {
     if (!formRef.current) return;
@@ -34,7 +33,7 @@ export default function AccountSetupPage() {
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="account-setup" stepStatus={stepStatus} />
+      <OnboardingProgressHeader activeStep="account-setup" statusMap={statusMap} />
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         <div className="mb-4 sm:mb-6 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Tell students what to expect</h1>
@@ -44,7 +43,7 @@ export default function AccountSetupPage() {
         </div>
         <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
-        <InstructorProfileForm ref={formRef} context="onboarding" onStepStatusChange={handleProgressStatus} />
+        <InstructorProfileForm ref={formRef} context="onboarding" />
 
         <div className="mt-8 flex items-center justify-end gap-3">
           <button

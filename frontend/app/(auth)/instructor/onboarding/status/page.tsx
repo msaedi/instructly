@@ -1,34 +1,30 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { getConnectStatus, fetchWithAuth, API_ENDPOINTS, createStripeIdentitySession } from '@/lib/api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { fetchWithAuth, API_ENDPOINTS, createStripeIdentitySession } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { loadStripe } from '@stripe/stripe-js';
-import { useAuth } from '@/features/shared/hooks/useAuth';
-import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { BGCStep } from '@/components/instructor/BGCStep';
 import type { BGCStatus } from '@/lib/api/bgc';
 import { ShieldCheck } from 'lucide-react';
+import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
+import { STEP_KEYS, type StepKey, type StepState } from '@/features/instructor-onboarding/stepStatus';
+import { Button } from '@/components/ui/button';
+
+type PillState = 'not-started' | 'in-progress' | 'completed';
 
 export default function OnboardingStatusPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
-  const [connectStatus, setConnectStatus] = useState<{
-    has_account: boolean;
-    onboarding_completed: boolean;
-    charges_enabled: boolean;
-    payouts_enabled: boolean;
-    details_submitted: boolean;
-  } | null>(null);
-  const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
-  const [, setLoading] = useState(true);
+  const { statusMap, data, refresh } = useOnboardingProgress();
+  const profile = data.profile;
+  const accountState = statusMap['account-setup'];
+  const skillsState = statusMap['skill-selection'];
+  const verifyState = statusMap['verify-identity'];
+  const paymentState = statusMap['payment-setup'];
   const [saving, setSaving] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
-  const [skillsSkipped, setSkillsSkipped] = useState(false);
-  const [verificationSkipped, setVerificationSkipped] = useState(false);
-  const [instructorProfileId, setInstructorProfileId] = useState<string | null>(null);
   const [bgcSnapshot, setBgcSnapshot] = useState<{
     status: BGCStatus | null;
     completedAt: string | null;
@@ -57,64 +53,10 @@ export default function OnboardingStatusPage() {
     []
   );
 
-  useEffect(() => {
-    if (bgcSnapshot.status === null) return;
-    setVerificationSkipped(bgcSnapshot.status !== 'passed');
-  }, [bgcSnapshot.status]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const [s, me] = await Promise.all([
-          getConnectStatus().catch(() => null),
-          (async () => {
-            try {
-              const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-              if (!res.ok) return null;
-              return res.json();
-            } catch {
-              return null;
-            }
-          })(),
-        ]);
-        if (s) setConnectStatus(s);
-        if (me) {
-          setProfile(me);
-          try {
-            const profileIdValue = (me as Record<string, unknown>)?.['id'];
-            if (typeof profileIdValue === 'string') {
-              setInstructorProfileId(profileIdValue);
-            } else if (typeof profileIdValue === 'number') {
-              setInstructorProfileId(String(profileIdValue));
-            } else {
-              setInstructorProfileId(null);
-            }
-          } catch {
-            setInstructorProfileId(null);
-          }
-        }
-
-        // Check if skills were skipped
-        if (typeof window !== 'undefined' && sessionStorage.getItem('skillsSkipped') === 'true') {
-          setSkillsSkipped(true);
-        } else if (me && (!me['services'] || me['services'].length === 0)) {
-          setSkillsSkipped(true);
-        }
-
-        // Check if verification was skipped
-        if (typeof window !== 'undefined' && sessionStorage.getItem('verificationSkipped') === 'true') {
-          setVerificationSkipped(true);
-        } else if (me) {
-          const rawBgc = typeof me['bgc_status'] === 'string'
-            ? me['bgc_status']
-            : (typeof me['background_check_status'] === 'string' ? me['background_check_status'] : '');
-          setVerificationSkipped(rawBgc?.toLowerCase() !== 'passed');
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [isAuthenticated]);
+  const activeStep: StepKey = useMemo(() => {
+    const next = STEP_KEYS.find((step) => !statusMap[step]?.completed);
+    return next ?? 'payment-setup';
+  }, [statusMap]);
 
   // If already live, redirect to dashboard
   useEffect(() => {
@@ -123,18 +65,27 @@ export default function OnboardingStatusPage() {
     }
   }, [profile, router]);
 
-  const canGoLive = Boolean(
-    profile &&
-      (profile['skills_configured'] || (Array.isArray(profile['services']) && profile['services'].length > 0)) &&
-      connectStatus && connectStatus.onboarding_completed &&
-      (profile['identity_verified_at'] || profile['identity_verification_session_id']) &&
-      bgcSnapshot.status === 'passed'
-  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('stripe_onboarding_return') === 'true') {
+      refresh();
+    }
+  }, [refresh]);
 
-  const needsStripe = !(connectStatus && connectStatus.onboarding_completed);
-  const needsIdentity = !(profile && (profile['identity_verified_at'] || profile['identity_verification_session_id']));
-  const needsSkills = !(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)));
+  const instructorProfileId = useMemo(() => {
+    const idValue = profile?.['id'];
+    if (typeof idValue === 'string') return idValue;
+    if (typeof idValue === 'number') return String(idValue);
+    return null;
+  }, [profile]);
+
+  const needsSkills = !skillsState?.completed;
+  const needsIdentity = !verifyState?.completed;
+  const needsStripe = !paymentState?.completed;
   const needsBGC = bgcSnapshot.status !== 'passed';
+
+  const canGoLive = Boolean(!needsSkills && !needsIdentity && !needsBGC && !needsStripe);
 
   // Compute pending in canonical step order for display
   const pendingRequired: string[] = [];
@@ -144,18 +95,6 @@ export default function OnboardingStatusPage() {
   if (needsStripe) pendingRequired.push('Stripe Connect');
 
   // User-facing labels for the fun/actionable card in the desired order
-  const pendingLabels: string[] = [];
-  if (needsSkills) pendingLabels.push('Add skills');
-  if (needsIdentity) pendingLabels.push('Verify Identity');
-  if (needsBGC) pendingLabels.push('Start background check');
-  if (needsStripe) pendingLabels.push('Payment setup');
-
-  const formatList = (items: string[]) => {
-    if (items.length <= 1) return items.join('');
-    if (items.length === 2) return `${items[0]} and ${items[1]}`;
-    return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
-  };
-
   const goLive = async () => {
     try {
       setSaving(true);
@@ -181,12 +120,7 @@ export default function OnboardingStatusPage() {
           try {
             await fetchWithAuth(API_ENDPOINTS.STRIPE_IDENTITY_REFRESH, { method: 'POST' });
           } catch {}
-          const [s, me] = await Promise.all([
-            getConnectStatus().catch(() => null),
-            fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          ]);
-          if (s) setConnectStatus(s);
-          if (me) setProfile(me);
+          refresh();
         }
       } else {
         // Fallback: hosted link by opening in same tab
@@ -203,8 +137,7 @@ export default function OnboardingStatusPage() {
       redirectingRef.current = false;
       const resp = await paymentService.startOnboardingWithReturn('/instructor/onboarding/status');
       if (resp.already_onboarded) {
-        const s = await getConnectStatus().catch(() => null);
-        if (s) setConnectStatus(s);
+        refresh();
         return;
       }
       if (resp.onboarding_url) {
@@ -220,125 +153,21 @@ export default function OnboardingStatusPage() {
     }
   };
 
+  const handleAccountSetupNav = () => {
+    router.push('/instructor/onboarding/account-setup');
+  };
+  const handleSkillsNav = () => {
+    router.push('/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus');
+  };
+  const handleBackgroundNav = () => {
+    router.push('/instructor/onboarding/verification?from=status#bgc-step-card');
+  };
+
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between max-w-full relative">
-          <Link href="/instructor/dashboard" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
-          </Link>
+            <OnboardingProgressHeader activeStep={activeStep} statusMap={statusMap} />
 
-          {/* Progress Bar - 4 Steps - Absolutely centered (hide on smaller screens to avoid overlap) */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 items-center gap-0 hidden min-[1400px]:flex">
-
-            {/* Step 1 - Completed */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/account-setup'}
-                  className="w-6 h-6 rounded-full bg-[#7E22CE] flex items-center justify-center hover:bg-[#7E22CE] transition-colors cursor-pointer"
-                  title="Step 1: Account Created - Click to edit profile"
-                >
-                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
-              </div>
-              <div className="w-60 h-0.5 bg-purple-600"></div>
-            </div>
-
-            {/* Step 2 - Completed or Skipped */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/skill-selection'}
-                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                    skillsSkipped
-                      ? 'bg-purple-300 hover:bg-purple-400'
-                      : 'bg-[#7E22CE] hover:bg-[#7E22CE]'
-                  }`}
-                  title={skillsSkipped ? "Step 2: Skills & Pricing (Skipped)" : "Step 2: Skills & Pricing"}
-                >
-                  {skillsSkipped ? (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
-              </div>
-              <div
-                className={`w-60 h-0.5 ${skillsSkipped ? 'border-t-2 border-dashed border-gray-400' : 'bg-[#7E22CE]'}`}
-                style={skillsSkipped ? { borderTopStyle: 'dashed', backgroundColor: 'transparent' } : {}}
-              ></div>
-            </div>
-
-            {/* Step 3 - Completed or Skipped */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => window.location.href = '/instructor/onboarding/verification'}
-                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                    verificationSkipped
-                      ? 'bg-purple-300 hover:bg-purple-400'
-                      : 'bg-[#7E22CE] hover:bg-[#7E22CE]'
-                  }`}
-                  title={verificationSkipped ? "Step 3: Verification (Skipped)" : "Step 3: Verification"}
-                >
-                  {verificationSkipped ? (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
-              </div>
-              <div
-                className={`w-60 h-0.5 ${verificationSkipped ? 'border-t-2 border-dashed border-gray-400' : 'bg-[#7E22CE]'}`}
-                style={verificationSkipped ? { borderTopStyle: 'dashed', backgroundColor: 'transparent' } : {}}
-              ></div>
-            </div>
-
-            {/* Step 4 - Current (Status) */}
-            <div className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                <button
-                  onClick={() => {/* Already on this page */}}
-                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                    canGoLive ? 'bg-[#7E22CE] hover:bg-[#7E22CE]' : (pendingRequired.length === 0 ? 'bg-[#7E22CE]' : 'bg-purple-300 hover:bg-purple-400')
-                  }`}
-                  title="Step 4: Payment Setup / Status"
-                >
-                  {pendingRequired.length === 0 ? (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  )}
-                </button>
-                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Payment Setup</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pr-4">
-            <UserProfileDropdown />
-          </div>
-        </div>
-      </header>
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header */}
@@ -348,36 +177,10 @@ export default function OnboardingStatusPage() {
         </div>
 
         {pendingRequired.length > 0 && (
-          <div className="bg-white rounded-lg p-4 mb-6 border border-gray-200 blink-card text-center">
+          <div className="bg-white rounded-lg px-4 sm:px-6 py-3 sm:py-3.5 mb-6 border border-gray-200 blink-card text-center">
             <p className="text-sm text-gray-800 font-medium">
-              You&apos;re close! Finish {formatList(pendingLabels)} to go live.
+              You&apos;re close! Finish the steps below to go live.
             </p>
-            <div className="mt-3 flex flex-wrap gap-2 justify-center">
-              {needsSkills && (
-                <Link
-                  href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus"
-                  className="px-3 py-1.5 rounded-md bg-primary hover:bg-primary text-white shadow-sm text-xs"
-                >
-                  Add skills
-                </Link>
-              )}
-              {needsIdentity && (
-                <button
-                  onClick={startIdentity}
-                  className="px-3 py-1.5 rounded-md bg-primary hover:bg-primary text-white shadow-sm text-xs"
-                >
-                  Start ID check
-                </button>
-              )}
-              {needsStripe && (
-                <button
-                  onClick={enrollStripeConnect}
-                  className="px-3 py-1.5 rounded-md bg-primary hover:bg-primary text-white shadow-sm text-xs"
-                >
-                  Connect Stripe
-                </button>
-              )}
-            </div>
           </div>
         )}
 
@@ -397,29 +200,79 @@ export default function OnboardingStatusPage() {
         ) : null}
 
         <div className="mt-6 space-y-4">
-          {/* 1) Skills & pricing */}
-          <Row label="Skills & pricing" ok={Boolean(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-[#7E22CE] hover:underline">Edit</Link>} />
-          {/* 2) ID verification */}
-          <Row label="ID verification" ok={Boolean(profile?.['identity_verified_at'])} action={profile?.['identity_verified_at'] ? <span className="text-gray-400">Completed</span> : <button onClick={startIdentity} className="text-[#7E22CE] hover:underline">Start</button>} />
-          {/* 3) Background check */}
-          <Row
-            label="Background check"
-            ok={bgcSnapshot.status === 'passed'}
+          <StatusCardRow
+            data-testid="status-card-account-setup"
+            title="Account setup"
+            description="Complete your profile details so students can learn about you."
+            pillState={derivePillState(accountState)}
             action={
-              bgcSnapshot.status === 'passed'
-                ? <span className="text-gray-400 text-sm">Completed</span>
-                : (
-                  <button
-                    onClick={() => router.push('/instructor/onboarding/verification?from=status#bgc-step-card')}
-                    className="text-[#7E22CE] hover:underline text-sm"
-                  >
-                    Start
-                  </button>
-                )
+              <StatusActionButton
+                label={accountState?.visited ? 'Edit' : 'Start'}
+                ariaLabel={`${accountState?.visited ? 'Edit' : 'Start'} account setup`}
+                onClick={handleAccountSetupNav}
+                variant={accountState?.visited ? 'outline' : 'default'}
+              />
             }
           />
-          {/* 4) Stripe Connect */}
-          <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={<button onClick={enrollStripeConnect} className="text-[#7E22CE] hover:underline disabled:text-gray-400" disabled={!!connectStatus?.onboarding_completed || connectLoading}>{connectStatus?.onboarding_completed ? 'Completed' : (connectLoading ? 'Opening…' : 'Enroll')}</button>} />
+
+          <StatusCardRow
+            title="Skills & pricing"
+            description="Add at least one skill with a rate to unlock bookings."
+            pillState={derivePillState(skillsState)}
+            action={
+              <StatusActionButton
+                label={skillsState?.visited ? 'Edit' : 'Start'}
+                ariaLabel={`${skillsState?.visited ? 'Edit' : 'Start'} skills & pricing`}
+                onClick={handleSkillsNav}
+                variant={skillsState?.visited ? 'outline' : 'default'}
+              />
+            }
+          />
+
+          <StatusCardRow
+            title="ID verification"
+            description="Verify your identity through Stripe to build trust with students."
+            pillState={derivePillState(verifyState)}
+            action={
+              <StatusActionButton
+                label="Start"
+                ariaLabel="Start ID verification"
+                onClick={startIdentity}
+                disabled={!needsIdentity}
+                variant={needsIdentity ? 'default' : 'outline'}
+              />
+            }
+          />
+
+          <StatusCardRow
+            title="Background check"
+            description="Complete your background check to unlock your verified badge."
+            pillState={deriveBackgroundPillState(bgcSnapshot.status)}
+            action={
+              <StatusActionButton
+                label="Start"
+                ariaLabel="Start background check"
+                onClick={handleBackgroundNav}
+                disabled={bgcSnapshot.status === 'passed'}
+                variant={bgcSnapshot.status === 'passed' ? 'outline' : 'default'}
+              />
+            }
+          />
+
+          <StatusCardRow
+            title="Stripe Connect"
+            description="Connect Stripe to receive payouts for your lessons."
+            pillState={derivePillState(paymentState)}
+            action={
+              <StatusActionButton
+                label="Enroll"
+                ariaLabel="Enroll in Stripe Connect"
+                onClick={enrollStripeConnect}
+                disabled={!needsStripe || connectLoading}
+                variant={!needsStripe ? 'outline' : 'default'}
+              />
+            }
+          />
         </div>
 
         <div className="mt-8 flex justify-end">
@@ -441,12 +294,76 @@ export default function OnboardingStatusPage() {
   );
 }
 
-function Row({ label, ok, action }: { label: string; ok: boolean; action?: React.ReactNode }) {
+function derivePillState(state?: StepState): PillState {
+  if (state?.completed) return 'completed';
+  if (state?.visited) return 'in-progress';
+  return 'not-started';
+}
+
+function deriveBackgroundPillState(status: BGCStatus | null): PillState {
+  if (status === 'passed') return 'completed';
+  if (status) return 'in-progress';
+  return 'not-started';
+}
+
+type StatusCardRowProps = {
+  title: string;
+  description?: string;
+  pillState: PillState;
+  action: React.ReactNode;
+  'data-testid'?: string;
+};
+
+function StatusCardRow({ title, description, pillState, action, ...rest }: StatusCardRowProps) {
   return (
-    <div className="flex items-center justify-between border border-gray-100 rounded-md px-4 py-3 bg-white shadow-sm">
-      <div className="text-gray-800">{label}</div>
-      {ok ? <div className="text-green-600">✓</div> : null}
-      <div>{action}</div>
+    <div
+      className="flex flex-col gap-3 rounded-lg border border-gray-100 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+      {...rest}
+    >
+      <div>
+        <p className="text-base font-semibold text-gray-900">{title}</p>
+        {description && <p className="text-sm text-gray-500">{description}</p>}
+      </div>
+      <div className="flex items-center gap-3 sm:min-w-[240px] sm:justify-end">
+        <StatusPill state={pillState} />
+        {action}
+      </div>
     </div>
+  );
+}
+
+function StatusPill({ state }: { state: PillState }) {
+  const map: Record<PillState, { label: string; className: string }> = {
+    completed: { label: 'Completed', className: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+    'in-progress': { label: 'In progress', className: 'bg-purple-50 text-purple-700 border border-purple-200' },
+    'not-started': { label: 'Not started', className: 'bg-gray-100 text-gray-600 border border-gray-200' },
+  };
+  return (
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${map[state].className}`}>
+      {map[state].label}
+    </span>
+  );
+}
+
+type StatusActionButtonProps = {
+  label: string;
+  ariaLabel: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: 'default' | 'outline';
+};
+
+function StatusActionButton({ label, ariaLabel, onClick, disabled, variant = 'default' }: StatusActionButtonProps) {
+  return (
+    <Button
+      size="sm"
+      variant={variant}
+      onClick={onClick}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      className="min-w-[104px] justify-center"
+    >
+      {label}
+    </Button>
   );
 }

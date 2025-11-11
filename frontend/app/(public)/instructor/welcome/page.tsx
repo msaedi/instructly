@@ -74,12 +74,6 @@ function WelcomeInner() {
             <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               We’re thrilled to have you on iNSTAiNSTRU
             </p>
-            <p className="text-base">
-              Over 500 students searched for instructors in your area this week.
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Next up, create your profile so you’re launch-ready; we’ll alert you the moment booking goes live!
-            </p>
           </div>
 
           <div className="space-y-3 text-gray-900 dark:text-gray-100 text-left">
