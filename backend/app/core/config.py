@@ -648,6 +648,8 @@ class Settings(BaseSettings):
     prometheus_bearer_token: str = Field(
         default="", description="Optional bearer token for Prometheus API"
     )
+    email_provider: str = Field(default="resend", description="Email provider name")
+    email_enabled: bool = Field(default=True, description="Flag to enable/disable email sending")
 
     @property
     def webhook_secrets(self) -> list[str]:

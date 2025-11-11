@@ -128,6 +128,7 @@ jobs:
       E2E_CROSS_ORIGIN: "0"
       E2E_ENABLE_INVITES: "0"
       E2E_PROJECT: ${{ matrix.project }}
+      EMAIL_PROVIDER: console
 
     services:
       postgres:
@@ -556,12 +557,12 @@ jobs:
 
         # Count quarantined tests (informational)
         QUARANTINE_COUNT=$(grep -r '@quarantine' e2e/tests/ 2>/dev/null | wc -l || echo 0)
-        if [ "$QUARANTINE_COUNT" -gt "5" ]; then
+        if [ "${QUARANTINE_COUNT:-0}" -gt "5" ]; then
           echo ""
           echo "::warning::⚠️ $QUARANTINE_COUNT tests are quarantined (max recommended: 5)"
           echo "⚠️ Warning: $QUARANTINE_COUNT tests are quarantined (max recommended: 5)"
           echo "Please review and fix quarantined tests"
-        elif [ "$QUARANTINE_COUNT" -gt "0" ]; then
+        elif [ "${QUARANTINE_COUNT:-0}" -gt "0" ]; then
           echo ""
           echo "::notice::ℹ️ $QUARANTINE_COUNT test(s) currently quarantined"
           echo "ℹ️ Note: $QUARANTINE_COUNT test(s) currently quarantined"
