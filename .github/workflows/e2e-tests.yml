@@ -107,6 +107,7 @@ jobs:
       # Backend - Ensure tests bypass beta gates
       SITE_MODE: local
       is_testing: 'true'
+      TOTP_VALID_WINDOW: '1'
       CORS_ALLOW_ORIGINS: http://localhost:3100
       CORS_ALLOW_HEADERS: content-type,authorization,x-requested-with,x-csrf-token
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test

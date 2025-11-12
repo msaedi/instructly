@@ -1,6 +1,7 @@
 import { test, expect, request as pwRequest, chromium } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { normalizeCookiesForContext } from './support/cookies';
 
 const CROSS_ORIGIN_ENABLED = process.env.E2E_CROSS_ORIGIN === '1';
 
@@ -97,7 +98,7 @@ async function loginForOrigin(origin: string, apiBase: string, email: string, pa
   }
 
   const state = await api.storageState();
-  const cookies = (state.cookies ?? []).filter((cookie) => cookie.name && cookie.value);
+  const cookies = normalizeCookiesForContext(state.cookies ?? [], origin);
 
   const browser = await chromium.launch();
   const context = await browser.newContext({ baseURL: origin });

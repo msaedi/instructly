@@ -2,13 +2,13 @@ import type { FullConfig } from '@playwright/test';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { env } from '@/lib/env';
+import { buildSessionCookie } from './support/cookies';
 
 interface StorageState {
   cookies: Array<{
     name: string;
     value: string;
-    domain: string;
-    path: string;
+    url: string;
     expires: number;
     httpOnly: boolean;
     secure: boolean;
@@ -61,6 +61,7 @@ async function globalSetup(_config: FullConfig) {
   await ensureDir(storageDir);
 
   const token = await readEnvToken(projectRoot);
+  const baseURL = (process.env.BASE_URL || process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100').trim() || 'http://localhost:3100';
 
   const thirtyDaysFromNow = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30;
 
@@ -70,14 +71,13 @@ async function globalSetup(_config: FullConfig) {
   };
 
   if (token) {
+    const cookie = buildSessionCookie({
+      baseURL,
+      nameFromEnv: 'staff_access_token',
+      token,
+    });
     storageState.cookies.push({
-      name: 'staff_access_token',
-      value: token,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
+      ...cookie,
       expires: thirtyDaysFromNow,
     });
   }
