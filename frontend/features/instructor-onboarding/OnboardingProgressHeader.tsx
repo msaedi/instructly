@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import type { StepKey, OnboardingStatusMap } from './stepStatus';
-import { STEP_KEYS } from './stepStatus';
+import { STEP_KEYS, createEmptyStatusMap } from './stepStatus';
 
 const STEP_META: Record<
   StepKey,
@@ -25,6 +25,7 @@ const STEP_DEFS = STEP_KEYS.map((key) => ({ key, ...STEP_META[key] }));
 type Props = {
   activeStep: StepKey;
   statusMap: OnboardingStatusMap;
+  loading?: boolean;
 };
 
 type WalkerPath = {
@@ -68,19 +69,22 @@ const CheckIcon = () => (
   </svg>
 );
 
-export function OnboardingProgressHeader({ activeStep, statusMap }: Props) {
+export function OnboardingProgressHeader({ activeStep, statusMap, loading = false }: Props) {
   const router = useRouter();
   const progressRef = useRef<HTMLDivElement | null>(null);
   const stepButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [walkerLeft, setWalkerLeft] = useState(24);
 
   const mergedStatus = useMemo<OnboardingStatusMap>(() => {
+    if (loading) {
+      return createEmptyStatusMap();
+    }
     const next: OnboardingStatusMap = {} as OnboardingStatusMap;
     STEP_KEYS.forEach((key) => {
       next[key] = statusMap[key] ?? { visited: false, completed: false };
     });
     return next;
-  }, [statusMap]);
+  }, [statusMap, loading]);
 
   const walkerPath = useMemo(() => computeWalkerPath(activeStep), [activeStep]);
 

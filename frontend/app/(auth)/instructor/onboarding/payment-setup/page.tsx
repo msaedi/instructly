@@ -19,7 +19,7 @@ export default function Step3PaymentSetup() {
     details_submitted: boolean;
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const { statusMap, markStepVisited, refresh } = useOnboardingProgress();
+  const { statusMap, markStepVisited, refresh, loading: progressLoading } = useOnboardingProgress();
 
   useEffect(() => {
     markStepVisited('payment-setup');
@@ -109,7 +109,7 @@ export default function Step3PaymentSetup() {
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="payment-setup" statusMap={statusMap} />
+      <OnboardingProgressHeader activeStep="payment-setup" statusMap={statusMap} loading={progressLoading} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - mobile sections with divider; desktop card */}

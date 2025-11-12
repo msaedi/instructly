@@ -41,7 +41,7 @@ function Step3SkillsPricingInner() {
   const [requestText, setRequestText] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
-  const { statusMap, markStepVisited } = useOnboardingProgress();
+  const { statusMap, markStepVisited, loading: progressLoading } = useOnboardingProgress();
   const { floors: pricingFloors } = usePricingFloors();
   const { config: pricingConfig } = usePricingConfig();
   const defaultInstructorTierPct = useMemo(() => {
@@ -336,7 +336,7 @@ function Step3SkillsPricingInner() {
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="skill-selection" statusMap={statusMap} />
+        <OnboardingProgressHeader activeStep="skill-selection" statusMap={statusMap} loading={progressLoading} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - mobile sections (white) with dividers; desktop card */}

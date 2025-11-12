@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import {
+  createEmptyStatusMap,
   deriveStatusMap,
   persistVisitedSteps,
   readVisitedSteps,
@@ -23,6 +24,14 @@ type OnboardingData = {
   stripe?: OnboardingStatusResponse | null;
 };
 
+type DataReadiness = {
+  profileLoaded: boolean;
+  userLoaded: boolean;
+  serviceAreasLoaded: boolean;
+  addressesLoaded: boolean;
+  stripeLoaded: boolean;
+};
+
 const safeJson = async (res: Response | null) => {
   if (!res || !res.ok) return null;
   try {
@@ -35,31 +44,63 @@ const safeJson = async (res: Response | null) => {
 export function useOnboardingProgress() {
   const { user } = useAuth();
   const instructorId = user?.id ? String(user.id) : null;
-  const [visited, setVisited] = useState<VisitedMap>(() => readVisitedSteps(instructorId));
   const [data, setData] = useState<OnboardingData>({});
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [visited, setVisited] = useState<VisitedMap>({});
+  const [visitedLoaded, setVisitedLoaded] = useState(false);
+  const pendingVisitedRef = useRef<VisitedMap>({});
+
+  const readiness = useMemo<DataReadiness>(
+    () => ({
+      profileLoaded: typeof data.profile !== 'undefined',
+      userLoaded: typeof data.user !== 'undefined',
+      serviceAreasLoaded: typeof data.serviceAreas !== 'undefined',
+      addressesLoaded: typeof data.addresses !== 'undefined',
+      stripeLoaded: typeof data.stripe !== 'undefined',
+    }),
+    [data]
+  );
+
+  const allDataReady =
+    readiness.profileLoaded &&
+    readiness.userLoaded &&
+    readiness.serviceAreasLoaded &&
+    readiness.addressesLoaded &&
+    readiness.stripeLoaded;
+  const progressReady = Boolean(instructorId) && allDataReady;
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    setVisited((prev) => {
-      if (!instructorId) return prev;
-      const stored = readVisitedSteps(instructorId);
-      return { ...stored, ...prev };
-    });
+    pendingVisitedRef.current = {};
+    setVisited({});
+    setVisitedLoaded(false);
   }, [instructorId]);
 
   useEffect(() => {
+    if (!progressReady || !instructorId || visitedLoaded) return;
     if (typeof window === 'undefined') return;
-    if (!instructorId) return;
+    const stored = readVisitedSteps(instructorId);
+    setVisited((prev) => {
+      const merged = { ...stored, ...prev, ...pendingVisitedRef.current };
+      pendingVisitedRef.current = {};
+      return merged;
+    });
+    setVisitedLoaded(true);
+  }, [progressReady, instructorId, visitedLoaded]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!visitedLoaded || !instructorId) return;
     persistVisitedSteps(instructorId, visited);
-  }, [instructorId, visited]);
+  }, [instructorId, visited, visitedLoaded]);
 
   useEffect(() => {
     let active = true;
     const fetchData = async () => {
-      setLoading(true);
+      if (!instructorId) {
+        setData({});
+        return;
+      }
       setError(null);
       try {
         const [meRes, profileRes, serviceAreasRes, addressesRes] = await Promise.all([
@@ -76,7 +117,7 @@ export function useOnboardingProgress() {
           safeJson(addressesRes),
         ]);
 
-        let stripe = null;
+        let stripe: OnboardingStatusResponse | null = null;
         try {
           stripe = await paymentService.getOnboardingStatus();
         } catch {
@@ -94,9 +135,13 @@ export function useOnboardingProgress() {
       } catch {
         if (!active) return;
         setError('Failed to load onboarding progress');
-      } finally {
-        if (!active) return;
-        setLoading(false);
+        setData({
+          user: null,
+          profile: null,
+          serviceAreas: null,
+          addresses: null,
+          stripe: null,
+        });
       }
     };
 
@@ -106,25 +151,35 @@ export function useOnboardingProgress() {
     };
   }, [refreshToken, instructorId]);
 
-  const statusMap: OnboardingStatusMap = useMemo(
-    () => deriveStatusMap({ data, visited }),
-    [data, visited]
-  );
+  const statusMap: OnboardingStatusMap = useMemo(() => {
+    if (!progressReady) {
+      return createEmptyStatusMap();
+    }
+    return deriveStatusMap({ data, visited });
+  }, [data, visited, progressReady]);
 
+  const loading = !progressReady;
   const refresh = useCallback(() => setRefreshToken((token) => token + 1), []);
 
   const markStepVisited = useCallback(
     (step: StepKey) => {
-      setVisited((prev) => {
-        if (prev?.[step]) return prev;
-        const next = { ...prev, [step]: true };
-        if (instructorId) {
-          persistVisitedSteps(instructorId, next);
-        }
-        return next;
-      });
+      const visit = () => {
+        setVisited((prev) => {
+          if (prev?.[step]) return prev;
+          if (!visitedLoaded) {
+            pendingVisitedRef.current = { ...pendingVisitedRef.current, [step]: true };
+          }
+          return { ...prev, [step]: true };
+        });
+      };
+
+      if (typeof window !== 'undefined' && 'requestAnimationFrame' in window) {
+        window.requestAnimationFrame(visit);
+      } else {
+        visit();
+      }
     },
-    [instructorId]
+    [visitedLoaded]
   );
 
   return {
@@ -134,5 +189,6 @@ export function useOnboardingProgress() {
     refresh,
     markStepVisited,
     data,
+    readiness,
   };
 }

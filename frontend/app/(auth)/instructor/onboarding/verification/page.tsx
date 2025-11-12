@@ -31,7 +31,7 @@ export default function Step4Verification() {
   const [consentSubmitting, setConsentSubmitting] = useState(false);
   const [hasRecentConsent, setHasRecentConsent] = useState(false);
   const consentResolverRef = useRef<((value: boolean) => void) | null>(null);
-  const { statusMap, markStepVisited, refresh } = useOnboardingProgress();
+  const { statusMap, markStepVisited, refresh, loading: progressLoading } = useOnboardingProgress();
 
   useEffect(() => {
     markStepVisited('verify-identity');
@@ -196,7 +196,7 @@ export default function Step4Verification() {
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="verify-identity" statusMap={statusMap} />
+      <OnboardingProgressHeader activeStep="verify-identity" statusMap={statusMap} loading={progressLoading} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         <div className="mb-4 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">

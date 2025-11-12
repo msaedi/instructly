@@ -17,7 +17,7 @@ type PillState = 'not-started' | 'in-progress' | 'completed';
 
 export default function OnboardingStatusPage() {
   const router = useRouter();
-  const { statusMap, data, refresh } = useOnboardingProgress();
+  const { statusMap, data, refresh, loading } = useOnboardingProgress();
   const profile = data.profile;
   const accountState = statusMap['account-setup'];
   const skillsState = statusMap['skill-selection'];
@@ -54,9 +54,17 @@ export default function OnboardingStatusPage() {
   );
 
   const activeStep: StepKey = useMemo(() => {
+    if (loading) return 'account-setup';
     const next = STEP_KEYS.find((step) => !statusMap[step]?.completed);
     return next ?? 'payment-setup';
-  }, [statusMap]);
+  }, [loading, statusMap]);
+
+  const instructorProfileId = useMemo(() => {
+    const idValue = profile?.['id'];
+    if (typeof idValue === 'string') return idValue;
+    if (typeof idValue === 'number') return String(idValue);
+    return null;
+  }, [profile]);
 
   // If already live, redirect to dashboard
   useEffect(() => {
@@ -73,12 +81,17 @@ export default function OnboardingStatusPage() {
     }
   }, [refresh]);
 
-  const instructorProfileId = useMemo(() => {
-    const idValue = profile?.['id'];
-    if (typeof idValue === 'string') return idValue;
-    if (typeof idValue === 'number') return String(idValue);
-    return null;
-  }, [profile]);
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <OnboardingProgressHeader activeStep={activeStep} statusMap={statusMap} loading />
+        <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
+          <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200 animate-pulse h-36" />
+          <div className="bg-white rounded-lg border border-gray-200 p-6 animate-pulse h-48" />
+        </div>
+      </div>
+    );
+  }
 
   const needsSkills = !skillsState?.completed;
   const needsIdentity = !verifyState?.completed;
@@ -166,8 +179,7 @@ export default function OnboardingStatusPage() {
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-            <OnboardingProgressHeader activeStep={activeStep} statusMap={statusMap} />
-
+      <OnboardingProgressHeader activeStep={activeStep} statusMap={statusMap} loading={loading} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header */}

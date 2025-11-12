@@ -25,12 +25,13 @@ type DeriveStatusArgs = {
   visited?: VisitedMap;
 };
 
-const VISITED_STORAGE_PREFIX = 'onboarding.visited';
+const VISITED_STORAGE_PREFIX = 'onboarding.visited.v2';
 
-const emptyStatusMap = STEP_KEYS.reduce((acc, key) => {
-  acc[key] = { visited: false, completed: false };
-  return acc;
-}, {} as OnboardingStatusMap);
+export const createEmptyStatusMap = (): OnboardingStatusMap =>
+  STEP_KEYS.reduce((acc, key) => {
+    acc[key] = { visited: false, completed: false };
+    return acc;
+  }, {} as OnboardingStatusMap);
 
 const getLocalStorage = () => {
   if (typeof window === 'undefined') return null;
@@ -187,7 +188,7 @@ export function deriveStatusMap(args: DeriveStatusArgs): OnboardingStatusMap {
     const visited = completed || Boolean(visitedMap[key]);
     acc[key] = { completed, visited };
     return acc;
-  }, { ...emptyStatusMap });
+  }, createEmptyStatusMap());
 }
 
 export const getVisitedStorageKey = (instructorId?: string | null) =>
