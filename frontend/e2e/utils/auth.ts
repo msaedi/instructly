@@ -62,7 +62,7 @@ export async function ensureAdminStorageState(storagePath = 'e2e/.storage/admin.
     const page = await context.newPage();
     await uiLoginAsAdmin(page, '/login');
     const rawState = await context.storageState();
-    const normalizedState = normalizeStorageState(rawState, baseURL);
+    const normalizedState = normalizeStorageState(rawState, baseURL, { label: absolutePath });
     await fs.writeFile(absolutePath, JSON.stringify(normalizedState, null, 2), 'utf8');
     await context.close();
   } finally {

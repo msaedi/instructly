@@ -32,9 +32,24 @@ const parseUrl = (value?: string): URL => {
 
 const removePort = (domain: string): string => domain.replace(/:\d+$/, '');
 
+type NormalizeOptions = {
+  label?: string;
+};
+
+const createError = (
+  label: string | undefined,
+  message: string,
+  cookie?: Partial<StorageStateCookie> | { name?: string }
+): Error => {
+  const prefix = label ? `[storageState:${label}]` : '[storageState]';
+  const detail = cookie ? ` ${JSON.stringify(cookie)}` : '';
+  return new Error(`${prefix} ${message}${detail}`);
+};
+
 const toStorageStateCookie = (
   cookie: RawCookie,
-  fallbackBaseURL: string
+  fallbackBaseURL: string,
+  label?: string
 ): StorageStateCookie | null => {
   if (!cookie?.name || !cookie.value) {
     return null;
@@ -47,10 +62,7 @@ const toStorageStateCookie = (
   const parsed = parseUrl(baseCandidate);
 
   const domainSource = cookie.domain || parsed.hostname;
-  const domain = domainSource ? removePort(domainSource) : '';
-  if (!domain) {
-    return null;
-  }
+  const sanitizedDomain = domainSource ? removePort(domainSource) : '';
 
   const path = sanitizePath(cookie.path, parsed.pathname);
   const secure = typeof cookie.secure === 'boolean' ? cookie.secure : parsed.protocol === 'https:';
@@ -60,6 +72,13 @@ const toStorageStateCookie = (
     typeof cookie.expires === 'number'
       ? cookie.expires
       : Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30;
+
+  const domain =
+    cookie.name.startsWith('__Host-') && secure ? '' : sanitizedDomain || removePort(parsed.hostname);
+
+  if (!domain && !cookie.name.startsWith('__Host-')) {
+    throw createError(label, 'Unable to determine cookie domain', { name: cookie.name });
+  }
 
   return {
     name: cookie.name,
@@ -75,12 +94,63 @@ const toStorageStateCookie = (
 
 export const normalizeStorageState = (
   state: RawStorageState,
-  fallbackBaseURL: string
+  fallbackBaseURL: string,
+  options?: NormalizeOptions
 ): { cookies: StorageStateCookie[]; origins: unknown[] } => {
   const base = fallbackBaseURL?.trim() || DEFAULT_BASE;
+  const isHttpsBase = base.toLowerCase().startsWith('https://');
   const cookies = (state.cookies ?? [])
-    .map((cookie) => toStorageStateCookie(cookie, base))
+    .map((cookie) => toStorageStateCookie(cookie, base, options?.label))
     .filter((cookie): cookie is StorageStateCookie => Boolean(cookie));
+
+  cookies.forEach((cookie) => {
+    if (!isHttpsBase) {
+      if (cookie.name.startsWith('__Host-')) {
+        throw createError(options?.label, 'HTTP storage state cannot contain __Host-* cookies', cookie);
+      }
+      if (cookie.secure) {
+        throw createError(options?.label, 'HTTP storage state cookies must be secure=false', cookie);
+      }
+      if (cookie.sameSite !== 'Lax') {
+        throw createError(options?.label, 'HTTP storage state cookies must use SameSite=Lax', cookie);
+      }
+      if (!cookie.domain) {
+        throw createError(options?.label, 'HTTP storage state cookies require a domain', cookie);
+      }
+      if (cookie.path !== '/') {
+        throw createError(options?.label, 'HTTP storage state cookies must use path=/', cookie);
+      }
+    } else if (cookie.name.startsWith('__Host-')) {
+      if (!cookie.secure) {
+        throw createError(options?.label, '__Host-* cookies must be secure', cookie);
+      }
+      if (cookie.path !== '/') {
+        throw createError(options?.label, '__Host-* cookies must use path=/', cookie);
+      }
+      if (cookie.domain) {
+        throw createError(options?.label, '__Host-* cookies cannot specify domain in storageState', cookie);
+      }
+    }
+  });
+
+  if (process.env['CI_DEBUG_STORAGE'] === '1') {
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          label: options?.label ?? 'storageState',
+          cookies: cookies.map((cookie) => ({
+            name: cookie.name,
+            domain: cookie.domain,
+            path: cookie.path,
+            sameSite: cookie.sameSite,
+            secure: cookie.secure,
+          })),
+        },
+        null,
+        2
+      )}\n`
+    );
+  }
 
   return {
     cookies,

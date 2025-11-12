@@ -107,7 +107,7 @@ async function loginForOrigin(origin: string, apiBase: string, email: string, pa
     await context.addCookies(cookies);
   }
   const rawState = await context.storageState();
-  const normalizedState = normalizeStorageState(rawState, origin);
+  const normalizedState = normalizeStorageState(rawState, origin, { label: storagePath });
   await fs.writeFile(storagePath, JSON.stringify(normalizedState, null, 2), 'utf8');
   await context.close();
   await browser.close();

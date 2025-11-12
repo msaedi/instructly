@@ -103,6 +103,10 @@ jobs:
       NEXT_PUBLIC_APP_URL: http://localhost:3100
       PORT: 3100  # Ensure Next.js dev server binds to the right port
       PLAYWRIGHT_BASE_URL: http://localhost:3100
+      SESSION_COOKIE_NAME: ${{ vars.SESSION_COOKIE_NAME || 'sid' }}
+      SESSION_COOKIE_SAMESITE: ${{ vars.SESSION_COOKIE_SAMESITE || 'Lax' }}
+      SESSION_COOKIE_SECURE: ${{ vars.SESSION_COOKIE_SECURE || 'false' }}
+      CI_DEBUG_STORAGE: '1'
 
       # Backend - Ensure tests bypass beta gates
       SITE_MODE: local
@@ -196,6 +200,13 @@ jobs:
         echo "::add-mask::sk_live_"
         echo "::add-mask::sk_test_"
         echo "::add-mask::service_role"
+
+    - name: Print cookie env
+      run: |
+        echo "PLAYWRIGHT_BASE_URL=$PLAYWRIGHT_BASE_URL"
+        echo "SESSION_COOKIE_NAME=$SESSION_COOKIE_NAME"
+        echo "SESSION_COOKIE_SAMESITE=$SESSION_COOKIE_SAMESITE"
+        echo "SESSION_COOKIE_SECURE=$SESSION_COOKIE_SECURE"
 
     - name: Clean up existing processes
       run: |

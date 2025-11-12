@@ -1,5 +1,23 @@
 export type SameSiteOption = 'Strict' | 'Lax' | 'None';
 
+export const DEFAULT_SESSION_COOKIE = 'sid';
+
+export function resolveSessionCookieName(baseURL: string, envName?: string | null): string {
+  const normalizedBase = (baseURL || '').trim();
+  const isHttps = normalizedBase.toLowerCase().startsWith('https://');
+  const raw = (envName ?? process.env['SESSION_COOKIE_NAME'] ?? '').trim();
+
+  if (!isHttps) {
+    return DEFAULT_SESSION_COOKIE;
+  }
+
+  if (raw) {
+    return raw;
+  }
+
+  return '__Host-sid';
+}
+
 export type PlaywrightCookie = {
   name: string;
   value: string;
@@ -40,9 +58,7 @@ export const buildSessionCookie = ({
 }: BuildSessionCookieArgs): PlaywrightCookie => {
   const normalizedBase = trimBaseURL(baseURL);
   const isHttps = normalizedBase.startsWith('https://');
-  const fallbackName = process.env['SESSION_COOKIE_NAME'] ?? 'sid';
-  const rawName = (nameFromEnv ?? fallbackName).trim();
-  const cookieName = isHttps ? '__Host-sid' : rawName.replace(/^__Host-/, '') || 'sid';
+  const cookieName = resolveSessionCookieName(normalizedBase, nameFromEnv);
 
   return {
     name: cookieName,
