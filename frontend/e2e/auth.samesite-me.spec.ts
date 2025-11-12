@@ -2,6 +2,7 @@ import { test, expect, request as pwRequest, chromium } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { normalizeCookiesForContext } from './support/cookies';
+import { normalizeStorageState } from './support/storageState';
 
 const CROSS_ORIGIN_ENABLED = process.env.E2E_CROSS_ORIGIN === '1';
 
@@ -105,7 +106,9 @@ async function loginForOrigin(origin: string, apiBase: string, email: string, pa
   if (cookies.length) {
     await context.addCookies(cookies);
   }
-  await context.storageState({ path: storagePath });
+  const rawState = await context.storageState();
+  const normalizedState = normalizeStorageState(rawState, origin);
+  await fs.writeFile(storagePath, JSON.stringify(normalizedState, null, 2), 'utf8');
   await context.close();
   await browser.close();
   await api.dispose();

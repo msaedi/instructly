@@ -1,4 +1,4 @@
-type SameSiteOption = 'Strict' | 'Lax' | 'None';
+export type SameSiteOption = 'Strict' | 'Lax' | 'None';
 
 export type PlaywrightCookie = {
   name: string;
@@ -40,7 +40,8 @@ export const buildSessionCookie = ({
 }: BuildSessionCookieArgs): PlaywrightCookie => {
   const normalizedBase = trimBaseURL(baseURL);
   const isHttps = normalizedBase.startsWith('https://');
-  const rawName = (nameFromEnv ?? process.env.SESSION_COOKIE_NAME ?? 'sid').trim();
+  const fallbackName = process.env['SESSION_COOKIE_NAME'] ?? 'sid';
+  const rawName = (nameFromEnv ?? fallbackName).trim();
   const cookieName = isHttps ? '__Host-sid' : rawName.replace(/^__Host-/, '') || 'sid';
 
   return {
@@ -106,7 +107,7 @@ export const seedSessionCookie = async (
 ) => {
   const cookie = buildSessionCookie({
     baseURL,
-    nameFromEnv: nameFromEnv ?? process.env.SESSION_COOKIE_NAME,
+    nameFromEnv: nameFromEnv ?? process.env['SESSION_COOKIE_NAME'] ?? null,
     token,
   });
   await context.addCookies([cookie]);

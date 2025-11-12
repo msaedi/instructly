@@ -1,6 +1,7 @@
 import { chromium, expect, type Page } from '@playwright/test';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { normalizeStorageState } from '../support/storageState';
 
 export const ADMIN_EMAIL =
   process.env.E2E_ADMIN_EMAIL ?? process.env.ADMIN_EMAIL ?? 'admin@instainstru.com';
@@ -60,7 +61,9 @@ export async function ensureAdminStorageState(storagePath = 'e2e/.storage/admin.
     const context = await browser.newContext({ baseURL });
     const page = await context.newPage();
     await uiLoginAsAdmin(page, '/login');
-    await context.storageState({ path: absolutePath });
+    const rawState = await context.storageState();
+    const normalizedState = normalizeStorageState(rawState, baseURL);
+    await fs.writeFile(absolutePath, JSON.stringify(normalizedState, null, 2), 'utf8');
     await context.close();
   } finally {
     await browser.close();

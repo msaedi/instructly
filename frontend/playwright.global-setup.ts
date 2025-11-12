@@ -1,6 +1,7 @@
 import { request as pwRequest, type FullConfig } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { normalizeStorageState } from './e2e/support/storageState';
 
 const API_BASE_URL =
   process.env['E2E_API_BASE_URL'] ||
@@ -68,8 +69,10 @@ async function loginWithSession({ email, password, statePath }: StateConfig): Pr
     });
 
     if (response.status() === 200) {
+      const rawState = await ctx.storageState();
+      const normalized = normalizeStorageState(rawState, API_BASE_URL);
       await ensureDir(path.dirname(statePath));
-      await ctx.storageState({ path: statePath });
+      await fs.writeFile(statePath, JSON.stringify(normalized, null, 2), 'utf8');
       await ctx.dispose();
       return;
     }
