@@ -10,6 +10,17 @@ export type PlaywrightCookie = {
   expires?: number;
 };
 
+export type StorageStateCookie = {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: SameSiteOption;
+  expires?: number;
+};
+
 type BuildSessionCookieArgs = {
   baseURL: string;
   nameFromEnv?: string | null;
@@ -40,6 +51,65 @@ export const buildSessionCookie = ({
     secure: isHttps,
     sameSite: 'Lax',
   };
+};
+
+type BuildStorageStateCookieArgs = {
+  baseURL: string;
+  name: string;
+  value: string;
+  expires?: number;
+};
+
+// Storage-state cookie (for browser.newContext({ storageState }))
+export const buildStorageStateCookie = ({
+  baseURL,
+  name,
+  value,
+  expires,
+}: BuildStorageStateCookieArgs): StorageStateCookie | null => {
+  const input = (baseURL || 'http://localhost:3100').trim() || 'http://localhost:3100';
+  let parsed: URL;
+  try {
+    parsed = new URL(input);
+  } catch {
+    parsed = new URL('http://localhost:3100');
+  }
+  const host = parsed.hostname || 'localhost';
+  const isHttps = parsed.protocol === 'https:';
+
+  // __Host-* cookies cannot carry Domain; skip from storage state and seed via addCookies instead.
+  if (isHttps && name.startsWith('__Host-')) {
+    return null;
+  }
+
+  const cookie: StorageStateCookie = {
+    name,
+    value,
+    domain: host,
+    path: '/',
+    httpOnly: true,
+    secure: isHttps,
+    sameSite: 'Lax',
+  };
+  if (typeof expires === 'number') {
+    cookie.expires = expires;
+  }
+  return cookie;
+};
+
+// Seed a session cookie after context creation (works both HTTP and HTTPS, handles __Host-*)
+export const seedSessionCookie = async (
+  context: import('@playwright/test').BrowserContext,
+  baseURL: string,
+  token: string,
+  nameFromEnv?: string | null
+) => {
+  const cookie = buildSessionCookie({
+    baseURL,
+    nameFromEnv: nameFromEnv ?? process.env.SESSION_COOKIE_NAME,
+    token,
+  });
+  await context.addCookies([cookie]);
 };
 
 type PartialCookie = {

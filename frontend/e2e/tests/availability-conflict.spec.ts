@@ -1,7 +1,6 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
-import fs from 'node:fs/promises';
+import { test, expect, type Page } from '@playwright/test';
 import { isInstructor } from '../utils/projects';
-import { normalizeCookiesForContext, type CookieInput } from '../support/cookies';
+import { seedSessionCookie } from '../support/cookies';
 
 test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
@@ -23,14 +22,6 @@ type RouteState = {
   schedule: ScheduleSeed;
   etag: string;
   version: number;
-};
-
-type SerializedStorageState = {
-  cookies: CookieInput[];
-  origins: Array<{
-    origin: string;
-    localStorage: Array<{ name: string; value: string }>;
-  }>;
 };
 
 const formatISODate = (date: Date) => {
@@ -114,46 +105,8 @@ const alignCalendarToWeek = async (page: Page, mondayISO: string) => {
 };
 
 const STORAGE_STATE_PATH = process.env.PLAYWRIGHT_STORAGE_STATE || 'e2e/.storage/instructor.json';
-
-const loadStorageState = async (): Promise<SerializedStorageState> => {
-  const raw = JSON.parse(await fs.readFile(STORAGE_STATE_PATH, 'utf-8')) as Record<string, unknown>;
-  const cookiesRaw = Array.isArray(raw?.cookies) ? (raw.cookies as Array<Record<string, unknown>>) : [];
-  const cookies: CookieInput[] = cookiesRaw
-    .filter(
-      (cookie): cookie is CookieInput =>
-        typeof cookie?.name === 'string' && typeof cookie?.value === 'string',
-    )
-    .map((cookie) => ({
-      name: String(cookie.name),
-      value: String(cookie.value),
-      domain: typeof cookie.domain === 'string' ? cookie.domain : undefined,
-      path: typeof cookie.path === 'string' ? cookie.path : undefined,
-      url: typeof cookie.url === 'string' ? cookie.url : undefined,
-      expires: typeof cookie.expires === 'number' ? cookie.expires : undefined,
-      httpOnly: 'httpOnly' in cookie ? Boolean(cookie.httpOnly) : undefined,
-      secure: 'secure' in cookie ? Boolean(cookie.secure) : undefined,
-      sameSite: (cookie.sameSite as CookieInput['sameSite']) ?? undefined,
-    }));
-  const origins = Array.isArray(raw?.origins)
-    ? (raw.origins as SerializedStorageState['origins'])
-    : [];
-  return { cookies, origins };
-};
-
-const createContextWithState = async (baseURL: string, browser: Browser) => {
-  const storageState = await loadStorageState();
-  const context = await browser.newContext({
-    storageState: { origins: storageState.origins ?? [], cookies: [] },
-    baseURL,
-  });
-  if (storageState.cookies?.length) {
-    const cookies = normalizeCookiesForContext(storageState.cookies, baseURL);
-    if (cookies.length) {
-      await context.addCookies(cookies);
-    }
-  }
-  return context;
-};
+const SESSION_TOKEN = process.env.TEST_SESSION_TOKEN ?? 'fake.jwt.value';
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME;
 
 const setClientVersionOnPage = async (page: Page, version: string) => {
   await page.evaluate((etag) => {
@@ -379,8 +332,10 @@ test.describe('Availability 409 conflict flow', () => {
     const state = createRouteState({});
     const baseURL =
       test.info().project.use?.baseURL || process.env.PLAYWRIGHT_BASE_URL || process.env.E2E_BASE_URL || 'http://localhost:3100';
-    const contextA = await createContextWithState(baseURL, browser);
-    const contextB = await createContextWithState(baseURL, browser);
+    const contextA = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
+    const contextB = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
+    await seedSessionCookie(contextA, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
+    await seedSessionCookie(contextB, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
     await stubAuthMe(pageA);
@@ -431,8 +386,10 @@ test.describe('Availability 409 conflict flow', () => {
     const state = createRouteState({});
     const baseURL =
       test.info().project.use?.baseURL || process.env.PLAYWRIGHT_BASE_URL || process.env.E2E_BASE_URL || 'http://localhost:3100';
-    const contextA = await createContextWithState(baseURL, browser);
-    const contextB = await createContextWithState(baseURL, browser);
+    const contextA = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
+    const contextB = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
+    await seedSessionCookie(contextA, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
+    await seedSessionCookie(contextB, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
     await stubAuthMe(pageA);

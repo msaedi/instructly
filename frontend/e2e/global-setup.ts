@@ -2,18 +2,10 @@ import type { FullConfig } from '@playwright/test';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { env } from '@/lib/env';
-import { buildSessionCookie } from './support/cookies';
+import { buildStorageStateCookie, type StorageStateCookie } from './support/cookies';
 
 interface StorageState {
-  cookies: Array<{
-    name: string;
-    value: string;
-    url: string;
-    expires: number;
-    httpOnly: boolean;
-    secure: boolean;
-    sameSite: 'Strict' | 'Lax' | 'None';
-  }>;
+  cookies: StorageStateCookie[];
   origins: unknown[];
 }
 
@@ -56,8 +48,8 @@ async function ensureDir(dirPath: string) {
 
 async function globalSetup(_config: FullConfig) {
   const projectRoot = process.cwd();
-  const storageDir = path.join(projectRoot, 'e2e', '.auth');
-  const storageFile = path.join(storageDir, 'state.json');
+  const storageDir = path.join(projectRoot, 'e2e', '.storage');
+  const storageFile = path.join(storageDir, 'instructor.json');
   await ensureDir(storageDir);
 
   const token = await readEnvToken(projectRoot);
@@ -71,15 +63,15 @@ async function globalSetup(_config: FullConfig) {
   };
 
   if (token) {
-    const cookie = buildSessionCookie({
+    const ssCookie = buildStorageStateCookie({
       baseURL,
-      nameFromEnv: 'staff_access_token',
-      token,
-    });
-    storageState.cookies.push({
-      ...cookie,
+      name: 'staff_access_token',
+      value: token,
       expires: thirtyDaysFromNow,
     });
+    if (ssCookie) {
+      storageState.cookies.push(ssCookie);
+    }
   }
 
   await fs.writeFile(storageFile, JSON.stringify(storageState, null, 2), 'utf8');
