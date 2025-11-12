@@ -17,7 +17,7 @@ type PillState = 'not-started' | 'in-progress' | 'completed';
 
 export default function OnboardingStatusPage() {
   const router = useRouter();
-  const { statusMap, data, refresh, loading } = useOnboardingProgress();
+  const { statusMap, data, refresh, loading } = useOnboardingProgress({ activeStep: 'status' });
   const profile = data.profile;
   const accountState = statusMap['account-setup'];
   const skillsState = statusMap['skill-selection'];

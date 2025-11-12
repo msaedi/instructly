@@ -28,6 +28,7 @@ import { PersonalInfoCard } from '@/app/(auth)/instructor/onboarding/account-set
 import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/BioCard';
 import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
 import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
+import { setProfileCacheNormalized } from '@/features/instructor-onboarding/profileCache';
 
 function buildInstructorProfilePayload(profile: ProfileFormState): InstructorUpdatePayload {
   return {
@@ -183,6 +184,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
         logger.debug('Prefill: /instructors/me status', { status: res.status });
         const data = res.ok ? await res.json() : {};
+        setProfileCacheNormalized('InstructorProfileForm:GET', data);
         setInstructorMeta(data);
         if (!res.ok) {
           try {

@@ -14,6 +14,7 @@ import { bgcConsent, type BGCConsentPayload } from '@/lib/api/bgc';
 import { DISCLOSURE_VERSION } from '@/config/constants';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
+import { setProfileCacheNormalized } from '@/features/instructor-onboarding/profileCache';
 
 export default function Step4Verification() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function Step4Verification() {
   const [consentSubmitting, setConsentSubmitting] = useState(false);
   const [hasRecentConsent, setHasRecentConsent] = useState(false);
   const consentResolverRef = useRef<((value: boolean) => void) | null>(null);
-  const { statusMap, markStepVisited, refresh, loading: progressLoading } = useOnboardingProgress();
+  const { statusMap, markStepVisited, refresh, loading: progressLoading } = useOnboardingProgress({ activeStep: 'verify-identity' });
 
   useEffect(() => {
     markStepVisited('verify-identity');
@@ -43,6 +44,7 @@ export default function Step4Verification() {
         const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
         if (!res.ok) return;
         const profile = await res.json();
+        setProfileCacheNormalized('Verification:GET', profile);
         if (profile?.id) setInstructorProfileId(String(profile.id));
         if (profile?.identity_verified_at || profile?.identity_verification_session_id) {
           setVerificationComplete(true);

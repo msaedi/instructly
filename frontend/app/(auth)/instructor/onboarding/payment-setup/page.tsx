@@ -6,6 +6,7 @@ import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
+import { setProfileCacheNormalized } from '@/features/instructor-onboarding/profileCache';
 
 export default function Step3PaymentSetup() {
   const [connectLoading, setConnectLoading] = useState(false);
@@ -19,7 +20,7 @@ export default function Step3PaymentSetup() {
     details_submitted: boolean;
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const { statusMap, markStepVisited, refresh, loading: progressLoading } = useOnboardingProgress();
+  const { statusMap, markStepVisited, refresh, loading: progressLoading } = useOnboardingProgress({ activeStep: 'payment-setup' });
 
   useEffect(() => {
     markStepVisited('payment-setup');
@@ -48,6 +49,7 @@ export default function Step3PaymentSetup() {
           const profileRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
           if (profileRes.ok) {
             const profile = await profileRes.json();
+            setProfileCacheNormalized('PaymentSetup:GET', profile);
             if (!profile.services || profile.services.length === 0) {
               setSkillsSkipped(true);
             }

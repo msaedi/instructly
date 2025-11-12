@@ -10,7 +10,7 @@ export default function AccountSetupPage() {
   const router = useRouter();
   const formRef = useRef<InstructorProfileFormHandle>(null);
   const [ctaPending, setCtaPending] = useState(false);
-  const { statusMap, markStepVisited, loading } = useOnboardingProgress();
+  const { statusMap, markStepVisited, loading } = useOnboardingProgress({ activeStep: 'account-setup' });
 
   useEffect(() => {
     markStepVisited('account-setup');

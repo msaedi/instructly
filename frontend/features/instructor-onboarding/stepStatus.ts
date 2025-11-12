@@ -39,7 +39,7 @@ const getLocalStorage = () => {
   return storageHost['localStorage'] ?? null;
 };
 
-const getInstructorPostal = (
+export const getInstructorPostal = (
   user: Record<string, unknown> | null | undefined,
   profile: Partial<InstructorProfile> | null | undefined,
   addresses?: { items?: Array<Record<string, unknown>> } | null
@@ -63,7 +63,7 @@ const getInstructorPostal = (
   return String(defaultAddress?.['postal_code'] ?? '').trim();
 };
 
-const hasProfilePicture = (
+export const hasProfilePicture = (
   user: Record<string, unknown> | null | undefined,
   profile: Partial<InstructorProfile> | null | undefined
 ) => {
@@ -93,10 +93,10 @@ const hasProfilePicture = (
   });
 };
 
-const hasServiceAreasConfigured = (serviceAreas?: { items?: unknown[] } | null) =>
+export const hasServiceAreasConfigured = (serviceAreas?: { items?: unknown[] } | null) =>
   Array.isArray(serviceAreas?.items) && serviceAreas.items.length > 0;
 
-const hasProfileServiceAreas = (profile?: Partial<InstructorProfile> | null) =>
+export const hasProfileServiceAreas = (profile?: Partial<InstructorProfile> | null) =>
   Boolean(
     (Array.isArray(profile?.service_area_boroughs) && profile!.service_area_boroughs!.length > 0) ||
       (Array.isArray(profile?.service_area_neighborhoods) && profile!.service_area_neighborhoods!.length > 0) ||
@@ -104,17 +104,17 @@ const hasProfileServiceAreas = (profile?: Partial<InstructorProfile> | null) =>
         ((profile as Record<string, unknown> | undefined)?.['service_areas'] as unknown[])?.length > 0)
   );
 
-const hasSkillsConfigured = (profile?: Partial<InstructorProfile> | null) =>
+export const hasSkillsConfigured = (profile?: Partial<InstructorProfile> | null) =>
   Boolean(
     profile &&
       (profile['skills_configured'] === true ||
         (Array.isArray(profile['services']) && profile['services'].length > 0))
   );
 
-const hasCompletedIdentity = (profile?: Partial<InstructorProfile> | null) =>
+export const hasCompletedIdentity = (profile?: Partial<InstructorProfile> | null) =>
   Boolean(profile?.['identity_verified_at']);
 
-const hasCompletedPayments = (stripe?: OnboardingStatusResponse | null) =>
+export const hasCompletedPayments = (stripe?: OnboardingStatusResponse | null) =>
   Boolean(
     stripe &&
       stripe.onboarding_completed &&

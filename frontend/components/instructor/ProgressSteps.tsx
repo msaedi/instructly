@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+import { setProfileCacheNormalized } from '@/features/instructor-onboarding/profileCache';
 
 type StepState = {
   step1Complete: boolean;
@@ -25,6 +26,7 @@ export function ProgressSteps(_: { currentStep: 1 | 2 | 3 | 4 }) {
         ]);
         const me = meRes.ok ? await meRes.json() : {};
         const profile = profileRes.ok ? await profileRes.json() : {};
+        setProfileCacheNormalized('ProgressHeader:GET', profile);
         const areas = areasRes.ok ? await areasRes.json() : { items: [] };
 
         // Resolve a postal code from multiple sources for robustness

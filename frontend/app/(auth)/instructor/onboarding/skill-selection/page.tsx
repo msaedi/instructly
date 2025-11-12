@@ -12,6 +12,7 @@ import { usePricingConfig, usePricingFloors } from '@/lib/pricing/usePricingFloo
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
+import { setProfileCacheNormalized } from '@/features/instructor-onboarding/profileCache';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 
@@ -41,7 +42,7 @@ function Step3SkillsPricingInner() {
   const [requestText, setRequestText] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
-  const { statusMap, markStepVisited, loading: progressLoading } = useOnboardingProgress();
+  const { statusMap, markStepVisited, loading: progressLoading } = useOnboardingProgress({ activeStep: 'skill-selection' });
   const { floors: pricingFloors } = usePricingFloors();
   const { config: pricingConfig } = usePricingConfig();
   const defaultInstructorTierPct = useMemo(() => {
@@ -120,6 +121,7 @@ function Step3SkillsPricingInner() {
         const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
         if (!meRes.ok) return; // silently ignore 401/403/404
         const me = await meRes.json();
+        setProfileCacheNormalized('SkillSelection:GET', me);
         const mapped: SelectedService[] = (me.services || []).map((svc: unknown) => {
           if (typeof svc !== 'object' || svc === null) return null;
           const service = svc as Record<string, unknown>;

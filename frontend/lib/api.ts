@@ -126,6 +126,10 @@ export const fetchWithAuth = async (endpoint: string, options: FetchWithAuthOpti
     return response;
   } catch (error) {
     logger.timeEnd(timerLabel);
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      logger.debug(`API ${method} ${endpoint} aborted`, { endpoint, method });
+      throw error;
+    }
     logger.error(`API ${method} ${endpoint} network error`, error, {
       endpoint,
       method,
