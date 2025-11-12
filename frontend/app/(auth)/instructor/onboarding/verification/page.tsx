@@ -14,7 +14,7 @@ import { bgcConsent, type BGCConsentPayload } from '@/lib/api/bgc';
 import { DISCLOSURE_VERSION } from '@/config/constants';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
-import { setProfileCacheNormalized } from '@/features/instructor-onboarding/profileCache';
+import { setProfileCacheNormalized } from '@/features/shared/onboarding/profileCache';
 
 export default function Step4Verification() {
   const router = useRouter();

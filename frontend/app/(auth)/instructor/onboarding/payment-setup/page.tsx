@@ -6,7 +6,7 @@ import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
-import { setProfileCacheNormalized } from '@/features/instructor-onboarding/profileCache';
+import { setProfileCacheNormalized } from '@/features/shared/onboarding/profileCache';
 
 export default function Step3PaymentSetup() {
   const [connectLoading, setConnectLoading] = useState(false);

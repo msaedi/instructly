@@ -20,7 +20,7 @@ import {
   logProgressSnapshot,
   type ProgressDomainData,
 } from './progressLogging';
-import { getProfileCache, setProfileCacheNormalized } from './profileCache';
+import { getProfileCache, setProfileCacheNormalized } from '@/features/shared/onboarding/profileCache';
 import { logger } from '@/frontend/lib/logger';
 import type { InstructorProfile } from '@/types/instructor';
 

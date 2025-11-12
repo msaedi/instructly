@@ -28,7 +28,7 @@ import { PersonalInfoCard } from '@/app/(auth)/instructor/onboarding/account-set
 import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/BioCard';
 import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
 import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
-import { setProfileCacheNormalized } from '@/features/instructor-onboarding/profileCache';
+import { setProfileCacheNormalized } from '@/features/shared/onboarding/profileCache';
 
 function buildInstructorProfilePayload(profile: ProfileFormState): InstructorUpdatePayload {
   return {

@@ -12,7 +12,7 @@ import { usePricingConfig, usePricingFloors } from '@/lib/pricing/usePricingFloo
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
-import { setProfileCacheNormalized } from '@/features/instructor-onboarding/profileCache';
+import { setProfileCacheNormalized } from '@/features/shared/onboarding/profileCache';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 

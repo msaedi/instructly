@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
-import { setProfileCacheNormalized } from '@/features/instructor-onboarding/profileCache';
+import { setProfileCacheNormalized } from '@/features/shared/onboarding/profileCache';
 
 type StepState = {
   step1Complete: boolean;
