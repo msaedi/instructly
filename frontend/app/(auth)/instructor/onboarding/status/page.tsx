@@ -9,7 +9,7 @@ import type { BGCStatus } from '@/lib/api/bgc';
 import { bgcStatus } from '@/lib/api/bgc';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
-import { STEP_KEYS, type StepKey, type StepState } from '@/features/instructor-onboarding/stepStatus';
+import { STEP_KEYS, type StepKey, type StepState } from '@/lib/onboardingSteps';
 import { Button } from '@/components/ui/button';
 import { useOnboardingInlineProfileMenu } from '@/features/instructor-onboarding/useInlineProfileMenu';
 

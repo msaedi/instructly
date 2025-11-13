@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import type { StepKey, OnboardingStatusMap } from './stepStatus';
-import { STEP_KEYS, createEmptyStatusMap } from './stepStatus';
+import type { StepKey, OnboardingStatusMap } from '@/lib/onboardingSteps';
+import { STEP_KEYS, createEmptyStatusMap } from '@/lib/onboardingSteps';
 
 const STEP_META: Record<
   StepKey,

@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import { RoleName } from '@/types/enums';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
-import { STEP_KEYS } from '@/features/instructor-onboarding/stepStatus';
+import { STEP_KEYS } from '@/lib/onboardingSteps';
 
 const ONBOARDING_SHORTCUTS: Array<{
   key: keyof OnboardingStatusMap;
@@ -21,7 +21,7 @@ const ONBOARDING_SHORTCUTS: Array<{
   { key: 'verify-identity', label: 'Verify identity', href: '/instructor/onboarding/verification', testId: 'menu-onboarding-verify-identity' },
   { key: 'payment-setup', label: 'Payment setup', href: '/instructor/onboarding/payment-setup', testId: 'menu-onboarding-payment-setup' },
 ];
-import type { OnboardingStatusMap } from '@/features/instructor-onboarding/stepStatus';
+import type { OnboardingStatusMap } from '@/lib/onboardingSteps';
 
 interface UserProfileDropdownProps {
   hideDashboardItem?: boolean;

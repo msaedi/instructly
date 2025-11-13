@@ -1,16 +1,10 @@
 import type { InstructorProfile } from '@/types/instructor';
 import type { OnboardingStatusResponse } from '@/services/api/payments';
+import { STEP_KEYS, createEmptyStatusMap } from '@/lib/onboardingSteps';
+import type { OnboardingStatusMap, StepKey } from '@/lib/onboardingSteps';
 
-export type StepKey = 'account-setup' | 'skill-selection' | 'verify-identity' | 'payment-setup';
-
-export const STEP_KEYS: StepKey[] = ['account-setup', 'skill-selection', 'verify-identity', 'payment-setup'];
-
-export type StepState = {
-  visited: boolean;
-  completed: boolean;
-};
-
-export type OnboardingStatusMap = Record<StepKey, StepState>;
+export { STEP_KEYS, createEmptyStatusMap } from '@/lib/onboardingSteps';
+export type { StepKey, StepState, OnboardingStatusMap } from '@/lib/onboardingSteps';
 
 export type VisitedMap = Partial<Record<StepKey, boolean>>;
 
@@ -26,12 +20,6 @@ type DeriveStatusArgs = {
 };
 
 const VISITED_STORAGE_PREFIX = 'onboarding.visited.v2';
-
-export const createEmptyStatusMap = (): OnboardingStatusMap =>
-  STEP_KEYS.reduce((acc, key) => {
-    acc[key] = { visited: false, completed: false };
-    return acc;
-  }, {} as OnboardingStatusMap);
 
 const getLocalStorage = () => {
   if (typeof window === 'undefined') return null;
