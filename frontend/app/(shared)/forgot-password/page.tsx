@@ -1,14 +1,79 @@
 // frontend/app/(shared)/forgot-password/page.tsx
-'use client';
+"use client";
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { CheckCircle } from 'lucide-react';
 import { fetchAPI } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import type { PasswordResetRequest } from '@/types/user';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
+import { getAuthBackground } from '@/lib/services/assetService';
+
+const FORGOT_BACKGROUND_DESKTOP = getAuthBackground('default', 'desktop');
+const FORGOT_BACKGROUND_TABLET = getAuthBackground('default', 'tablet');
+const FORGOT_BACKGROUND_MOBILE = getAuthBackground('default', 'mobile');
+
+function ForgotBackgroundLayers() {
+  const desktopSrc = FORGOT_BACKGROUND_DESKTOP ?? FORGOT_BACKGROUND_TABLET ?? FORGOT_BACKGROUND_MOBILE;
+
+  if (!desktopSrc) return null;
+
+  return (
+    <>
+      <div className="hidden sm:block absolute inset-0 z-0 pointer-events-none" aria-hidden="true">
+        <Image
+          src={desktopSrc}
+          alt=""
+          width={1920}
+          height={1080}
+          sizes="100vw"
+          className="object-cover h-full w-full"
+          style={{ filter: 'blur(12px)', transform: 'scale(1.05)' }}
+          draggable={false}
+          priority
+          fetchPriority="high"
+        />
+      </div>
+      <div className="hidden sm:block absolute inset-0 z-[1] pointer-events-none" aria-hidden="true">
+        <Image
+          src={desktopSrc}
+          alt=""
+          width={1920}
+          height={1080}
+          sizes="100vw"
+          className="object-cover h-full w-full"
+          draggable={false}
+          priority
+          fetchPriority="high"
+        />
+        <div className="absolute inset-0 bg-white/40 dark:bg-black/60" />
+      </div>
+      {FORGOT_BACKGROUND_MOBILE && (
+        <div className="sm:hidden absolute inset-0 z-0 pointer-events-none" aria-hidden="true">
+          <Image
+            src={FORGOT_BACKGROUND_MOBILE}
+            alt=""
+            width={1200}
+            height={1600}
+            sizes="100vw"
+            className="object-cover h-full w-full"
+            draggable={false}
+            priority
+            fetchPriority="high"
+          />
+          <div className="absolute inset-0 bg-white/60 dark:bg-black/70" />
+        </div>
+      )}
+    </>
+  );
+}
+
+const cardWrapperClasses = 'w-full max-w-md mx-auto px-6 sm:max-w-lg sm:px-0';
+const cardClasses =
+  'bg-white/95 dark:bg-gray-900/80 py-8 px-5 shadow rounded-2xl border border-white/60 dark:border-gray-800/60 backdrop-blur-sm sm:px-12 transition-colors duration-200 min-h-[520px] flex flex-col';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -74,77 +139,120 @@ export default function ForgotPasswordPage() {
 
   const isLoading = requestStatus === RequestStatus.LOADING;
 
+  const CardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <div className="relative min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8" style={{ isolation: 'isolate' }}>
+      <ForgotBackgroundLayers />
+      <div className={`relative z-10 ${cardWrapperClasses}`}>
+        <div className={cardClasses}>{children}</div>
+      </div>
+    </div>
+  );
+
   if (isSubmitted && requestStatus === RequestStatus.SUCCESS) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+      <CardLayout>
+        <div className="text-center">
           <Link href="/" className="flex justify-center mb-6">
             <h1 className="text-4xl font-bold text-[#7E22CE] dark:text-purple-400">iNSTAiNSTRU</h1>
           </Link>
-          <div className="bg-white dark:bg-gray-800 p-8 shadow sm:rounded-lg">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 mb-4">
-                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" aria-hidden="true" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Check your email</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                We&apos;ve sent a password reset link to <strong className="text-gray-900 dark:text-white">{email}</strong>
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">The link will expire in 1 hour.</p>
-              <Link href="/login" className="text-[#7E22CE] hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 font-medium">
-                Back to login
-              </Link>
-            </div>
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 mb-4">
+            <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" aria-hidden="true" />
           </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Check your email</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            We&apos;ve sent a password reset link to{' '}
+            <strong className="text-gray-900 dark:text-white">{email}</strong>
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">The link will expire in 1 hour.</p>
+          <Link
+            href="/login"
+            className="text-[#7E22CE] hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 font-medium"
+          >
+            Back to login
+          </Link>
         </div>
-      </div>
+      </CardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link href="/" className="flex justify-center mb-6">
+    <CardLayout>
+      <div className="text-center mb-6">
+        <Link href="/" className="flex justify-center mb-4">
           <h1 className="text-4xl font-bold text-[#7E22CE] dark:text-purple-400">iNSTAiNSTRU</h1>
         </Link>
-        <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">Forgot your password?</h2>
-        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">Enter your email and we&apos;ll send you a reset link</p>
+        <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">Forgot your password?</h2>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          Enter your email and we&apos;ll send you a reset link
+        </p>
       </div>
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white dark:bg-gray-800 p-8 shadow sm:rounded-lg">
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-              <div className="mt-1">
-                <input id="email" name="email" type="email" autoComplete="email" required value={email} onChange={handleEmailChange} disabled={isLoading}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  placeholder="Enter your email" aria-invalid={!!error} aria-describedby={error ? 'email-error' : undefined} />
-              </div>
-            </div>
-            {error && (
-              <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4" role="alert">
-                <p id="email-error" className="text-sm text-red-800 dark:text-red-400">{error}</p>
-              </div>
-            )}
-            <div>
-              <button type="submit" disabled={isLoading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed dark:ring-offset-gray-800">
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Sending...
-                  </>
-                ) : (
-                  'Send reset link'
-                )}
-              </button>
-            </div>
-          </form>
+      <form className="space-y-6 flex-1" onSubmit={handleSubmit} noValidate>
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Email
+          </label>
+          <div className="mt-1">
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={handleEmailChange}
+              disabled={isLoading}
+              className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              placeholder="Enter your email"
+              aria-invalid={!!error}
+              aria-describedby={error ? 'email-error' : undefined}
+            />
+          </div>
         </div>
+        {error && (
+          <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4" role="alert">
+            <p id="email-error" className="text-sm text-red-800 dark:text-red-400">
+              {error}
+            </p>
+          </div>
+        )}
+        <div>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed dark:ring-offset-gray-800"
+          >
+            {isLoading ? (
+              <>
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Sending...
+              </>
+            ) : (
+              'Send reset link'
+            )}
+          </button>
+        </div>
+      </form>
+      <div className="mt-6 text-center">
+        <Link
+          href="/login"
+          className="text-sm font-medium text-[#7E22CE] hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 transition-colors"
+        >
+          Back to login
+        </Link>
       </div>
-    </div>
+    </CardLayout>
   );
 }

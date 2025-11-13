@@ -14,8 +14,11 @@ interface Props {
   fallbackTextColor?: string;
 }
 
+const avatarUrlCache = new Map<string, string | null>();
+
 export function UserAvatar({ user, size = 40, className, variant = 'thumb', fallbackBgColor, fallbackTextColor }: Props) {
-  const [url, setUrl] = useState<string | null>(null);
+  const cacheKey = user?.id ? `${user.id}:${variant}` : null;
+  const [url, setUrl] = useState<string | null>(() => (cacheKey ? avatarUrlCache.get(cacheKey) ?? null : null));
   const initials = useMemo(() => getUserInitials(user), [user]);
   // Use brand purple for fallback background
   const bgColor = fallbackBgColor ?? '#7E22CE';
@@ -27,6 +30,7 @@ export function UserAvatar({ user, size = 40, className, variant = 'thumb', fall
       // If no user id, cannot load. If has_profile_picture is explicitly false, skip.
       if (!user?.id || user.has_profile_picture === false) {
         setUrl(null);
+        if (cacheKey) avatarUrlCache.set(cacheKey, null);
         return;
       }
       try {
@@ -34,7 +38,9 @@ export function UserAvatar({ user, size = 40, className, variant = 'thumb', fall
         const res = await getProfilePictureUrl(safeUserId, variant);
         if (!mounted) return;
         if (res?.success && res.data?.url) {
-          setUrl(res.data.url);
+          const resolvedUrl = res.data.url;
+          if (cacheKey) avatarUrlCache.set(cacheKey, resolvedUrl);
+          setUrl(resolvedUrl);
         } else {
           setUrl(null);
         }
@@ -50,7 +56,7 @@ export function UserAvatar({ user, size = 40, className, variant = 'thumb', fall
       clearTimeout(t0);
       clearInterval(t);
     };
-  }, [user?.id, user?.has_profile_picture, user?.profile_picture_version, variant]);
+  }, [user?.id, user?.has_profile_picture, user?.profile_picture_version, variant, cacheKey]);
 
   return (
     <Avatar className={className} style={{ width: size, height: size }}>

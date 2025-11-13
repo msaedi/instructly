@@ -84,11 +84,19 @@ body {
   scrollbar-width: none;  /* Firefox */
 }
 
+.repeat-schedule-select {
+  margin-right: 4px;
+}
+
+.repeat-schedule-apply {
+  margin-left: 0 !important;
+}
+
 /*
  * Root CSS Custom Properties
  * Define global design tokens for consistent theming
  */
- :root {
+:root {
   /* Color Variables */
   --background: 0 0% 100%;
   --foreground: #171717;
@@ -152,6 +160,7 @@ body {
   --z-tooltip: 60;
   --z-notification: 70;
 }
+
 
 /* Remove @theme directive - not widely supported yet */
 /* Font variables are already available via CSS custom properties */

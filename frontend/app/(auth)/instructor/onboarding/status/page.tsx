@@ -5,18 +5,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchWithAuth, API_ENDPOINTS, createStripeIdentitySession } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { loadStripe } from '@stripe/stripe-js';
-import { BGCStep } from '@/components/instructor/BGCStep';
 import type { BGCStatus } from '@/lib/api/bgc';
-import { ShieldCheck } from 'lucide-react';
+import { bgcStatus } from '@/lib/api/bgc';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
 import { STEP_KEYS, type StepKey, type StepState } from '@/features/instructor-onboarding/stepStatus';
 import { Button } from '@/components/ui/button';
+import { useOnboardingInlineProfileMenu } from '@/features/instructor-onboarding/useInlineProfileMenu';
 
 type PillState = 'not-started' | 'in-progress' | 'completed';
 
 export default function OnboardingStatusPage() {
   const router = useRouter();
+  const preferInlineProfileMenu = useOnboardingInlineProfileMenu();
   const { statusMap, data, refresh, loading } = useOnboardingProgress({ activeStep: 'status' });
   const profile = data.profile;
   const accountState = statusMap['account-setup'];
@@ -81,10 +82,41 @@ export default function OnboardingStatusPage() {
     }
   }, [refresh]);
 
+  useEffect(() => {
+    if (!instructorProfileId) return;
+    let alive = true;
+    const loadBgcStatus = async () => {
+      try {
+        const res = await bgcStatus(instructorProfileId);
+        if (!alive) return;
+        handleBgcSnapshot({
+          status: res.status ?? null,
+          reportId: res.report_id ?? null,
+          completedAt: res.completed_at ?? null,
+          consentRecent: Boolean(res.consent_recent),
+          consentRecentAt: res.consent_recent_at ?? null,
+        });
+      } catch {
+        if (!alive) return;
+        handleBgcSnapshot({
+          status: null,
+          reportId: null,
+          completedAt: null,
+          consentRecent: false,
+          consentRecentAt: null,
+        });
+      }
+    };
+    void loadBgcStatus();
+    return () => {
+      alive = false;
+    };
+  }, [instructorProfileId, handleBgcSnapshot]);
+
   if (loading) {
     return (
       <div className="min-h-screen">
-        <OnboardingProgressHeader activeStep={activeStep} statusMap={statusMap} loading />
+        <OnboardingProgressHeader activeStep={activeStep} statusMap={statusMap} loading preferInlineProfileMenu={preferInlineProfileMenu} />
         <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
           <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200 animate-pulse h-36" />
           <div className="bg-white rounded-lg border border-gray-200 p-6 animate-pulse h-48" />
@@ -179,7 +211,12 @@ export default function OnboardingStatusPage() {
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-      <OnboardingProgressHeader activeStep={activeStep} statusMap={statusMap} loading={loading} />
+      <OnboardingProgressHeader
+        activeStep={activeStep}
+        statusMap={statusMap}
+        loading={loading}
+        preferInlineProfileMenu={preferInlineProfileMenu}
+      />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header */}
@@ -189,27 +226,12 @@ export default function OnboardingStatusPage() {
         </div>
 
         {pendingRequired.length > 0 && (
-          <div className="bg-white rounded-lg px-4 sm:px-6 py-3 sm:py-3.5 mb-6 border border-gray-200 blink-card text-center">
-            <p className="text-sm text-gray-800 font-medium">
+          <div className="rounded-lg px-5 sm:px-7 py-4 mb-6 border border-purple-200 bg-purple-50 text-purple-800 blink-card text-center">
+            <p className="text-base sm:text-lg font-bold leading-relaxed">
               You&apos;re close! Finish the steps below to go live.
             </p>
           </div>
         )}
-
-        {instructorProfileId ? (
-          <div id="bgc-step-card" className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
-                <ShieldCheck className="w-6 h-6 text-emerald-600" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Background check</h2>
-                <p className="text-sm text-muted-foreground">Invite yourself via Checkr to complete your screening.</p>
-              </div>
-            </div>
-            <BGCStep instructorId={instructorProfileId} onStatusUpdate={handleBgcSnapshot} />
-          </div>
-        ) : null}
 
         <div className="mt-6 space-y-4">
           <StatusCardRow

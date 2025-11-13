@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation';
 import InstructorProfileForm, { type InstructorProfileFormHandle } from '@/features/instructor-profile/InstructorProfileForm';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
+import { useOnboardingInlineProfileMenu } from '@/features/instructor-onboarding/useInlineProfileMenu';
 
 export default function AccountSetupPage() {
   const router = useRouter();
   const formRef = useRef<InstructorProfileFormHandle>(null);
   const [ctaPending, setCtaPending] = useState(false);
+  const preferInlineProfileMenu = useOnboardingInlineProfileMenu();
   const { statusMap, markStepVisited, loading } = useOnboardingProgress({ activeStep: 'account-setup' });
 
   useEffect(() => {
@@ -33,7 +35,12 @@ export default function AccountSetupPage() {
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="account-setup" statusMap={statusMap} loading={loading} />
+      <OnboardingProgressHeader
+        activeStep="account-setup"
+        statusMap={statusMap}
+        loading={loading}
+        preferInlineProfileMenu={preferInlineProfileMenu}
+      />
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         <div className="mb-4 sm:mb-6 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Tell students what to expect</h1>

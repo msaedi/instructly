@@ -100,8 +100,8 @@ function JoinInner() {
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative transition-colors duration-200">
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white/95 dark:bg-gray-900/80 py-8 px-4 shadow-[0_20px_40px_rgba(126,34,206,0.12)] rounded-[28px] border border-white/60 dark:border-gray-800/60 backdrop-blur-sm sm:px-10 transition-colors duration-200">
+      <div className="mt-8 w-full max-w-md mx-auto px-6 sm:max-w-lg sm:px-0">
+        <div className="bg-white/95 dark:bg-gray-900/80 py-8 px-5 shadow-[0_20px_40px_rgba(126,34,206,0.12)] rounded-2xl border border-white/60 dark:border-gray-800/60 backdrop-blur-sm sm:px-12 transition-colors duration-200">
           <div className="text-center mb-6">
             <h1 className="text-4xl font-bold text-[#7E22CE] transition-colors">
               {BRAND.name}
@@ -161,7 +161,7 @@ function JoinInner() {
             </button>
           </form>
           <div className="mt-8">
-            <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 px-4 py-5 text-center text-xs text-gray-600 space-y-3">
+            <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 px-4 py-5 text-center text-sm text-gray-600 dark:text-gray-400 space-y-3">
               <p>
                 By clicking Join, you agree to iNSTAiNSTRU&apos;s{' '}
                 <a href="/legal#terms" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
@@ -185,7 +185,7 @@ function JoinInner() {
               </p>
             </div>
           </div>
-          <p className="mt-6 text-xs text-gray-500 text-center">
+          <p className="mt-6 text-sm text-gray-600 dark:text-gray-400 text-center">
             Already have an account?{' '}
             <a href="/login" className="focus-link text-[#7E22CE] hover:underline">Sign in</a>
           </p>

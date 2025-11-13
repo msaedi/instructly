@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
 import { setProfileCacheNormalized } from '@/features/shared/onboarding/profileCache';
+import { useOnboardingInlineProfileMenu } from '@/features/instructor-onboarding/useInlineProfileMenu';
 
 export default function Step3PaymentSetup() {
   const [connectLoading, setConnectLoading] = useState(false);
@@ -21,6 +22,7 @@ export default function Step3PaymentSetup() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const { statusMap, markStepVisited, refresh, loading: progressLoading } = useOnboardingProgress({ activeStep: 'payment-setup' });
+  const preferInlineProfileMenu = useOnboardingInlineProfileMenu();
 
   useEffect(() => {
     markStepVisited('payment-setup');
@@ -111,7 +113,12 @@ export default function Step3PaymentSetup() {
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="payment-setup" statusMap={statusMap} loading={progressLoading} />
+      <OnboardingProgressHeader
+        activeStep="payment-setup"
+        statusMap={statusMap}
+        loading={progressLoading}
+        preferInlineProfileMenu={preferInlineProfileMenu}
+      />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - mobile sections with divider; desktop card */}

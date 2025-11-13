@@ -18,12 +18,13 @@ export const SelectValue = SelectPrimitive.Value;
 
 type SelectTriggerProps = React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> & {
   error?: boolean;
+  hideIconOnMobile?: boolean;
 };
 
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
   SelectTriggerProps
->(({ className, children, error, ...props }, ref) => (
+>(({ className, children, error, hideIconOnMobile, ...props }, ref) => (
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
@@ -37,7 +38,7 @@ const SelectTrigger = React.forwardRef<
   >
     {children}
     <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 text-gray-500" />
+      <ChevronDown className={cn('h-4 w-4 text-gray-500', hideIconOnMobile && 'hidden sm:block')} />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ));
@@ -129,14 +130,14 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none',
+      'relative flex w/full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none whitespace-nowrap',
       'focus:bg-gray-100 data-[state=checked]:bg-purple-50 data-[state=checked]:text-[#7E22CE]',
       'text-gray-800',
       className
     )}
     {...props}
   >
-    <span className="absolute right-2 flex h-4 w-4 items-center justify-center">
+    <span className="absolute right-2 flex h-4 w-4 items-center justify-center hidden sm:flex">
       <SelectPrimitive.ItemIndicator>
         <Check className="h-4 w-4 text-[#7E22CE]" />
       </SelectPrimitive.ItemIndicator>

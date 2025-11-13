@@ -374,65 +374,73 @@ function AvailabilityPageImpl() {
       <div className="mb-3 rounded-md border border-purple-100 bg-purple-50 px-3 py-2 relative">
         <p className="text-sm font-medium text-gray-800">Tip: Click any cell to mark yourself available</p>
         <p className="text-xs text-gray-700">Most instructors start with 10–15 hours/week</p>
-        <p className="absolute bottom-2 right-3 text-[11px] text-gray-500">Last updated: <span>{lastUpdatedLocal || '—'}</span></p>
+        <p className="hidden sm:block absolute bottom-2 right-3 text-[11px] text-gray-500">
+          Last updated: <span>{lastUpdatedLocal || '—'}</span>
+        </p>
       </div>
 
-      {/* Quick nav */}
-      <div className="-mt-1 mb-2 flex items-center">
+      {/* Actions (top of grid) */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => {
             goToCurrentWeek();
           }}
-          className="px-3 py-1 rounded-md border border-purple-200 bg-purple-50 text-[#7E22CE] text-sm hover:bg-purple-100"
+          className="hidden sm:inline-flex px-3 py-1 rounded-md border border-purple-200 bg-purple-50 text-[#7E22CE] text-sm hover:bg-purple-100"
         >
           Today
         </button>
-      </div>
-
-      {/* Actions (top of grid) */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
         {/* Repeat dropdown */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-700">Repeat this schedule:</span>
-          <div className="relative inline-flex items-center">
-            <Select value={String(repeatWeeks)} onValueChange={(v) => setRepeatWeeks(parseInt(v, 10))}>
-              <SelectTrigger className="h-8 w-24 sm:w-28">
-                <SelectValue placeholder="Repeat" />
-              </SelectTrigger>
-              <SelectContent>
-                {[1,2,3,4,6,8,12].map((w) => (
-                  <SelectItem key={w} value={String(w)}>{w} weeks</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap overflow-x-auto">
+          <span className="text-xs sm:text-sm text-gray-700 whitespace-nowrap flex-shrink-0">Repeat this schedule:</span>
+          <div className="flex items-center flex-nowrap">
+            <div className="repeat-schedule-select relative inline-flex items-center flex-shrink-0 min-w-[120px] w-auto sm:w-28">
+              <Select value={String(repeatWeeks)} onValueChange={(v) => setRepeatWeeks(parseInt(v, 10))}>
+                <SelectTrigger className="h-7 sm:h-9 w-auto px-2 sm:px-3 text-xs sm:text-sm" hideIconOnMobile>
+                  <SelectValue placeholder="Repeat" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1,2,3,4,6,8,12].map((w) => (
+                    <SelectItem key={w} value={String(w)}>{w} weeks</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <button
+              className="repeat-schedule-apply inline-flex flex-shrink-0 items-center justify-center px-3 py-1 rounded-md text-white bg-[#7E22CE] hover:!bg-[#7E22CE] text-sm whitespace-nowrap"
+              onClick={async () => {
+                const end = new Date(currentWeekStart);
+                end.setDate(end.getDate() + repeatWeeks * 7);
+                const endISO = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
+                const res = await applyToFutureWeeks(endISO);
+                if (!res.success) {
+                  toast.error(res.message || 'Failed to apply to future weeks');
+                  return;
+                }
+                toast.success(`Applied through ${endISO}`);
+                const persisted = await persistWeek();
+                if (!persisted) return;
+              }}
+            >
+              Apply
+            </button>
           </div>
         </div>
 
-        <button
-          onClick={async () => {
-            const end = new Date(currentWeekStart);
-            end.setDate(end.getDate() + repeatWeeks * 7);
-            const endISO = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
-            const res = await applyToFutureWeeks(endISO);
-            if (!res.success) {
-              toast.error(res.message || 'Failed to apply to future weeks');
-              return;
-            }
-            toast.success(`Applied through ${endISO}`);
-            const persisted = await persistWeek();
-            if (!persisted) return;
-          }}
-          className="inline-flex items-center justify-center px-3 py-1 rounded-md text-white bg-[#7E22CE] hover:!bg-[#7E22CE] text-sm whitespace-nowrap"
-        >
-          Apply
-        </button>
-
         {/* Hour range controls */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2 justify-end w-full sm:w-auto sm:flex-nowrap">
+          <button
+            type="button"
+            onClick={() => {
+              goToCurrentWeek();
+            }}
+            className="px-3 py-1 rounded-md border border-purple-200 bg-purple-50 text-[#7E22CE] text-sm hover:bg-purple-100 sm:hidden mr-auto"
+          >
+            Today
+          </button>
           <div className="flex flex-col leading-tight mr-1">
-            <span className="text-sm text-gray-700">Teaching window</span>
-            <span className="text-[11px] text-gray-500 -mt-0.5">Business Hours</span>
+            <span className="text-xs sm:text-sm text-gray-700">Teaching window</span>
+            <span className="text-[11px] text-gray-500 -mt-0.5 hidden sm:block">Business Hours</span>
           </div>
           <div className="relative inline-flex items-center">
             <Select value={String(startHour)} onValueChange={(v) => {
@@ -440,7 +448,9 @@ function AvailabilityPageImpl() {
               setStartHour(sv);
               if (sv >= endHour) setEndHour(Math.min(sv + 1, 24));
             }}>
-              <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-7 sm:h-9 w-20 sm:w-28 px-1.5 sm:px-3 text-xs sm:text-sm" hideIconOnMobile>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 24 }, (_, h) => h).map((h) => (
                   <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
@@ -455,7 +465,9 @@ function AvailabilityPageImpl() {
               setEndHour(ev);
               if (ev <= startHour) setStartHour(Math.max(ev - 1, 0));
             }}>
-              <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-7 sm:h-9 w-20 sm:w-28 px-1.5 sm:px-3 text-xs sm:text-sm" hideIconOnMobile>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => (
                   <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
@@ -480,12 +492,14 @@ function AvailabilityPageImpl() {
 
       {/* Mobile day chips */}
       {isMobile && (
-        <div className="mb-3 flex gap-2 overflow-x-auto">
+        <div className="mb-3 grid grid-cols-7 gap-1 w-full">
           {weekDateInfo.map((d, i) => (
             <button
               key={d.fullDate}
               onClick={() => setActiveDay(i)}
-              className={`px-3 py-2 rounded-full text-sm border ${i === activeDay ? 'bg-[#7E22CE] text-white border-[#7E22CE]' : 'bg-white text-gray-700 border-gray-300'}`}
+              className={`w-full px-1.5 py-2 rounded-full text-xs font-medium border text-center ${
+                i === activeDay ? 'bg-[#7E22CE] text-white border-[#7E22CE]' : 'bg-white text-gray-700 border-gray-300'
+              }`}
             >
               {d.date.toLocaleDateString('en-US', { weekday: 'short' })}
             </button>

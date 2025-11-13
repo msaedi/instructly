@@ -241,8 +241,8 @@ function LoginForm({ redirect }: { redirect: string }) {
   const resolvedRedirect = redirect || '/';
 
   return (
-    <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-      <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
+    <div className="mt-8 w-full max-w-md mx-auto px-6 sm:max-w-lg sm:px-0">
+      <div className="bg-white/95 dark:bg-gray-900/80 py-8 px-5 shadow rounded-2xl border border-white/60 dark:border-gray-800/60 backdrop-blur-sm sm:px-12 min-h-[520px] flex flex-col transition-colors duration-200">
         <div className="text-center mb-6">
           <Link href="/" onClick={() => logger.debug('Navigating to home from login inside box')}>
             <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors">
@@ -251,7 +251,7 @@ function LoginForm({ redirect }: { redirect: string }) {
           </Link>
         </div>
         {!requires2FA ? (
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+          <form className="space-y-6 flex-1" onSubmit={handleSubmit} noValidate>
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Email</label>

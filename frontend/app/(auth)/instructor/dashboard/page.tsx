@@ -31,6 +31,7 @@ import { normalizeInstructorServices } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { httpPut } from '@/features/shared/api/http';
 import { messageService } from '@/services/messageService';
+import { useOnboardingInlineProfileMenu } from '@/features/instructor-onboarding/useInlineProfileMenu';
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
@@ -62,6 +63,16 @@ const MOBILE_NAV_SECONDARY: Array<{ key: DashboardPanel; label: string }> = [
   { key: 'earnings', label: 'Earnings' },
   { key: 'reviews', label: 'Reviews' },
   { key: 'account', label: 'Account' },
+];
+
+const MOBILE_NAV_INLINE_ORDER: Array<{ key: DashboardPanel; label: string }> = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'account', label: 'Account' },
+  { key: 'profile', label: 'Instructor profile' },
+  { key: 'bookings', label: 'Bookings' },
+  { key: 'earnings', label: 'Earnings' },
+  { key: 'availability', label: 'Availability' },
+  { key: 'reviews', label: 'Reviews' },
 ];
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
@@ -190,6 +201,53 @@ export default function InstructorDashboardNew() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showMoreMobile, setShowMoreMobile] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState<number>(0);
+  const preferInlineProfileMenu = useOnboardingInlineProfileMenu();
+  const inlinePanelHostRef = useRef<HTMLDivElement | null>(null);
+  const [inlinePanelHost, setInlinePanelHost] = useState<HTMLDivElement | null>(null);
+  const inlinePanelCallback = useCallback((node: HTMLDivElement | null) => {
+    inlinePanelHostRef.current = node;
+    setInlinePanelHost(node);
+  }, []);
+  useEffect(() => {
+    if (!preferInlineProfileMenu) {
+      inlinePanelHostRef.current = null;
+      setInlinePanelHost(null);
+    }
+  }, [preferInlineProfileMenu]);
+  useEffect(() => {
+    if (preferInlineProfileMenu) {
+      setIsMobileMenuOpen(false);
+      setShowMoreMobile(false);
+    }
+  }, [preferInlineProfileMenu]);
+  const inlineMobileNavContent = useCallback(
+    (closeMenu: () => void) => {
+      if (!preferInlineProfileMenu) return null;
+      const handleNavClick = (panel: DashboardPanel) => {
+        handlePanelChange(panel);
+        closeMenu();
+        setShowMessages(false);
+        setShowNotifications(false);
+      };
+      const renderButton = (item: { key: DashboardPanel; label: string }) => (
+        <button
+          key={item.key}
+          type="button"
+          onClick={() => handleNavClick(item.key)}
+          className="w-full text-left px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-purple-50 hover:text-[#7E22CE] transition-colors"
+          aria-current={activePanel === item.key ? 'page' : undefined}
+        >
+          {item.label}
+        </button>
+      );
+      return (
+        <div className="space-y-4 text-left">
+          <div className="flex flex-col gap-1">{MOBILE_NAV_INLINE_ORDER.map(renderButton)}</div>
+        </div>
+      );
+    },
+    [preferInlineProfileMenu, handlePanelChange, activePanel]
+  );
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -330,7 +388,6 @@ export default function InstructorDashboardNew() {
   const [preferredPublicSpaces, setPreferredPublicSpaces] = useState<PreferredPublicSpace[]>([]);
   const [bookedMinutes, setBookedMinutes] = useState(0);
   const [hasUpcomingBookings, setHasUpcomingBookings] = useState<boolean | null>(null);
-  const [upcomingBookingsCount, setUpcomingBookingsCount] = useState<number>(0);
   const [completedBookingsCount, setCompletedBookingsCount] = useState<number>(0);
   // Suggestions state removed; no longer used
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -537,13 +594,11 @@ export default function InstructorDashboardNew() {
         withinWeek.forEach((b) => { mins += diffMinutes(b.start_time, b.end_time); });
         if (!ignore) {
           setBookedMinutes(mins);
-          setUpcomingBookingsCount(withinWeek.length);
           setHasUpcomingBookings(withinWeek.length > 0);
         }
       } catch {
         if (!ignore) {
           setBookedMinutes(0);
-          setUpcomingBookingsCount(0);
           setHasUpcomingBookings(false);
         }
       }
@@ -628,10 +683,22 @@ export default function InstructorDashboardNew() {
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
-              <UserProfileDropdown hideDashboardItem />
+              <UserProfileDropdown
+                hideDashboardItem
+                inlineMode={preferInlineProfileMenu}
+                {...(preferInlineProfileMenu
+                  ? {
+                      inlinePanelContainer: inlinePanelHost,
+                      inlineExtraContent: inlineMobileNavContent,
+                    }
+                  : {})}
+              />
             </div>
           </div>
         </header>
+        {preferInlineProfileMenu && (
+          <div className="sm:hidden px-4 flex justify-end" ref={inlinePanelCallback} aria-hidden="true" />
+        )}
         <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
           <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
             <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
@@ -715,7 +782,7 @@ export default function InstructorDashboardNew() {
                 setIsMobileMenuOpen(false);
               }}
               containerRef={notifRef}
-              badgeCount={upcomingBookingsCount}
+              badgeCount={0}
             >
               <ul className="max-h-80 overflow-auto p-2 space-y-2">
                 <li className="text-sm text-gray-600 px-2 py-2">
@@ -734,26 +801,37 @@ export default function InstructorDashboardNew() {
                 </li>
               </ul>
             </DashboardPopover>
-            <UserProfileDropdown hideDashboardItem />
-            <button
-              type="button"
-              className="md:hidden p-2 rounded-lg text-[#7E22CE] border border-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 hover:bg-transparent active:bg-transparent"
-              aria-label={isMobileMenuOpen ? 'Close dashboard navigation menu' : 'Open dashboard navigation menu'}
-              aria-expanded={isMobileMenuOpen}
-              onClick={() => {
-                setIsMobileMenuOpen((prev) => {
-                  const next = !prev;
-                  if (!next) setShowMoreMobile(false);
-                  return next;
-                });
-              }}
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
+            <UserProfileDropdown
+              hideDashboardItem
+              inlineMode={preferInlineProfileMenu}
+              {...(preferInlineProfileMenu
+                ? {
+                    inlinePanelContainer: inlinePanelHost,
+                    inlineExtraContent: inlineMobileNavContent,
+                  }
+                : {})}
+            />
+            {!preferInlineProfileMenu && (
+              <button
+                type="button"
+                className="md:hidden p-2 rounded-lg text-[#7E22CE] border border-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 hover:bg-transparent active:bg-transparent"
+                aria-label={isMobileMenuOpen ? 'Close dashboard navigation menu' : 'Open dashboard navigation menu'}
+                aria-expanded={isMobileMenuOpen}
+                onClick={() => {
+                  setIsMobileMenuOpen((prev) => {
+                    const next = !prev;
+                    if (!next) setShowMoreMobile(false);
+                    return next;
+                  });
+                }}
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
+            )}
           </div>
         </div>
-        {isMobileMenuOpen && (
+        {!preferInlineProfileMenu && isMobileMenuOpen && (
           <nav className="mt-4 border-t border-gray-200 pt-4 md:hidden" aria-label="Instructor navigation">
             <div className="space-y-4">
               <div>
@@ -821,6 +899,9 @@ export default function InstructorDashboardNew() {
           </nav>
         )}
       </header>
+      {preferInlineProfileMenu && (
+        <div className="sm:hidden px-4 flex justify-end" ref={inlinePanelCallback} aria-hidden="true" />
+      )}
 
       {/* Sidebar placed inline next to title card, matching student layout */}
       {/* Removed duplicate standalone sidebar to avoid layout duplication */}

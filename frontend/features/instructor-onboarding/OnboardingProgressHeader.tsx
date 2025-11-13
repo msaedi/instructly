@@ -26,6 +26,8 @@ type Props = {
   activeStep: StepKey;
   statusMap: OnboardingStatusMap;
   loading?: boolean;
+  onProfileMenuToggle?: (open: boolean) => void;
+  preferInlineProfileMenu?: boolean;
 };
 
 type WalkerPath = {
@@ -69,11 +71,23 @@ const CheckIcon = () => (
   </svg>
 );
 
-export function OnboardingProgressHeader({ activeStep, statusMap, loading = false }: Props) {
+export function OnboardingProgressHeader({
+  activeStep,
+  statusMap,
+  loading = false,
+  onProfileMenuToggle,
+  preferInlineProfileMenu = false,
+}: Props) {
   const router = useRouter();
   const progressRef = useRef<HTMLDivElement | null>(null);
   const stepButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [walkerLeft, setWalkerLeft] = useState(24);
+  const inlinePanelHostRef = useRef<HTMLDivElement | null>(null);
+  const [inlinePanelHost, setInlinePanelHost] = useState<HTMLDivElement | null>(null);
+  const inlinePanelCallback = useCallback((node: HTMLDivElement | null) => {
+    inlinePanelHostRef.current = node;
+    setInlinePanelHost(node);
+  }, []);
 
   const mergedStatus = useMemo<OnboardingStatusMap>(() => {
     if (loading) {
@@ -118,6 +132,13 @@ export function OnboardingProgressHeader({ activeStep, statusMap, loading = fals
   const armRightClass = walkerPath.variant === 'bounce' ? 'inst-anim-rightArm-fast' : 'inst-anim-rightArm';
   const legLeftClass = walkerPath.variant === 'bounce' ? 'inst-anim-leftLeg-fast' : 'inst-anim-leftLeg';
   const legRightClass = walkerPath.variant === 'bounce' ? 'inst-anim-rightLeg-fast' : 'inst-anim-rightLeg';
+
+  useEffect(() => {
+    if (!preferInlineProfileMenu) {
+      inlinePanelHostRef.current = null;
+      setInlinePanelHost(null);
+    }
+  }, [preferInlineProfileMenu]);
 
   return (
     <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4" data-testid="onboarding-header">
@@ -190,9 +211,17 @@ export function OnboardingProgressHeader({ activeStep, statusMap, loading = fals
         </div>
 
         <div className="pr-4">
-          <UserProfileDropdown />
+          <UserProfileDropdown
+            {...(onProfileMenuToggle ? { onToggle: onProfileMenuToggle } : {})}
+            inlineMode={preferInlineProfileMenu}
+            {...(preferInlineProfileMenu ? { inlinePanelContainer: inlinePanelHost } : {})}
+            onboardingStatusMap={statusMap}
+          />
         </div>
       </div>
+      {preferInlineProfileMenu && (
+        <div className="sm:hidden px-4 flex justify-end" ref={inlinePanelCallback} aria-hidden="true" />
+      )}
     </header>
   );
 }

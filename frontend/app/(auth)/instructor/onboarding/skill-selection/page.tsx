@@ -13,6 +13,7 @@ import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
 import { setProfileCacheNormalized } from '@/features/shared/onboarding/profileCache';
+import { useOnboardingInlineProfileMenu } from '@/features/instructor-onboarding/useInlineProfileMenu';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 
@@ -43,6 +44,7 @@ function Step3SkillsPricingInner() {
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
   const { statusMap, markStepVisited, loading: progressLoading } = useOnboardingProgress({ activeStep: 'skill-selection' });
+  const preferInlineProfileMenu = useOnboardingInlineProfileMenu();
   const { floors: pricingFloors } = usePricingFloors();
   const { config: pricingConfig } = usePricingConfig();
   const defaultInstructorTierPct = useMemo(() => {
@@ -338,7 +340,12 @@ function Step3SkillsPricingInner() {
 
   return (
     <div className="min-h-screen">
-        <OnboardingProgressHeader activeStep="skill-selection" statusMap={statusMap} loading={progressLoading} />
+        <OnboardingProgressHeader
+          activeStep="skill-selection"
+          statusMap={statusMap}
+          loading={progressLoading}
+          preferInlineProfileMenu={preferInlineProfileMenu}
+        />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - mobile sections (white) with dividers; desktop card */}
