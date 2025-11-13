@@ -87,6 +87,10 @@ export const queryKeys = {
     upcoming: (limit?: number) => ['bookings', 'upcoming', { limit }] as const,
     history: (page?: number) => ['bookings', 'history', { page }] as const,
     detail: (id: string) => ['bookings', id] as const,
+    instructor: {
+      upcoming: ['bookings', 'instructor', 'upcoming'] as const,
+      past: ['bookings', 'instructor', 'past'] as const,
+    },
   },
 
   // Instructor queries

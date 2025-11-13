@@ -31,6 +31,7 @@ import { normalizeInstructorServices } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { httpPut } from '@/features/shared/api/http';
 import { messageService } from '@/services/messageService';
+import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
@@ -332,6 +333,17 @@ export default function InstructorDashboardNew() {
   const [hasUpcomingBookings, setHasUpcomingBookings] = useState<boolean | null>(null);
   const [upcomingBookingsCount, setUpcomingBookingsCount] = useState<number>(0);
   const [completedBookingsCount, setCompletedBookingsCount] = useState<number>(0);
+  const { data: ratingsData } = useInstructorRatingsQuery(profile?.user_id ?? '');
+  const reviewCount = ratingsData?.overall?.total_reviews ?? 0;
+  const reviewAverageDisplay =
+    ratingsData?.overall?.display_rating ??
+    (typeof ratingsData?.overall?.rating === 'number'
+      ? ratingsData.overall.rating.toFixed(1)
+      : null);
+  const reviewSubtitle =
+    reviewCount > 0 ? `${reviewCount} review${reviewCount === 1 ? '' : 's'}` : 'Not yet available';
+  const reviewAverageText =
+    reviewCount > 0 && reviewAverageDisplay ? `${reviewAverageDisplay} ★` : '–';
   // Suggestions state removed; no longer used
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
@@ -978,10 +990,10 @@ export default function InstructorDashboardNew() {
 
         {/* Snapshot Cards directly under header */}
         <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-8">
-          {/* Bookings card - clickable with outline icon */}
-          <button
-            onClick={() => handlePanelChange('bookings')}
-            className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+          {/* Bookings card - clickable link */}
+          <Link
+            href="/instructor/bookings?tab=past"
+            className="group block h-32 w-full rounded-md border border-gray-200 bg-white p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
             aria-label="Open bookings"
           >
             <div className="flex items-start justify-between h-full">
@@ -996,7 +1008,7 @@ export default function InstructorDashboardNew() {
                 <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
               </div>
             </div>
-          </button>
+          </Link>
 
           {/* Earnings card - clickable with outline icon */}
           <button
@@ -1023,8 +1035,12 @@ export default function InstructorDashboardNew() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Reviews</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900">-</p>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1">Not yet available</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900" data-testid="reviews-avg">
+                  {reviewAverageText}
+                </p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1" data-testid="reviews-count">
+                  {reviewSubtitle}
+                </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">

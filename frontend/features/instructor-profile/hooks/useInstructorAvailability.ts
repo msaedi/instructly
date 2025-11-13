@@ -29,35 +29,48 @@ interface AvailabilityResponse {
  * Uses 5-minute cache as availability changes frequently
  */
 export function useInstructorAvailability(instructorId: string, startDate?: string) {
-  // Always use a date - either the provided one or today
   const now = new Date();
-  const todayStr = format(now, 'yyyy-MM-dd');
+  const todayIso = format(now, 'yyyy-MM-dd');
+  const parsedStartDate = (() => {
+    if (!startDate) return todayIso;
+    const parsed = new Date(`${startDate}T00:00:00`);
+    if (Number.isNaN(parsed.valueOf())) {
+      logger.warn('Invalid start date for availability, using today instead', { startDate });
+      return todayIso;
+    }
+    return format(parsed, 'yyyy-MM-dd');
+  })();
 
-  // Clamp past dates to today for production UX clarity (tests should mock future dates)
-  let actualStartDate = startDate || todayStr;
-  if (startDate && new Date(startDate) < new Date(todayStr)) {
-    actualStartDate = todayStr;
-    logger.debug('Start date was in the past, using today instead', {
-      requested: startDate,
-      using: actualStartDate
-    });
-  }
+  const sanitizedStartDate = (() => {
+    const parsedProvided = new Date(`${parsedStartDate}T00:00:00`);
+    const parsedToday = new Date(`${todayIso}T00:00:00`);
+    if (parsedProvided < parsedToday) {
+      logger.info('Requested start date is in the past; using today instead', {
+        requested: parsedStartDate,
+        today: todayIso,
+      });
+      return todayIso;
+    }
+    return parsedStartDate;
+  })();
 
-  const endDate = format(addDays(new Date(actualStartDate), 6), 'yyyy-MM-dd');
+  const startDateObj = new Date(`${sanitizedStartDate}T00:00:00`);
+  const endDate = format(addDays(startDateObj, 6), 'yyyy-MM-dd');
 
   logger.debug('useInstructorAvailability called', {
     instructorId,
-    startDate: actualStartDate,
-    endDate
+    requestedStartDate: parsedStartDate,
+    startDate: sanitizedStartDate,
+    endDate,
   });
 
   return useQuery<AvailabilityResponse>({
-    queryKey: queryKeys.availability.week(instructorId, actualStartDate),
+    queryKey: queryKeys.availability.week(instructorId, sanitizedStartDate),
     queryFn: async () => {
-      logger.info('Fetching availability', { instructorId, start_date: actualStartDate, end_date: endDate });
+      logger.info('Fetching availability', { instructorId, start_date: sanitizedStartDate, end_date: endDate });
 
       const response = await publicApi.getInstructorAvailability(instructorId, {
-        start_date: actualStartDate,
+        start_date: sanitizedStartDate,
         end_date: endDate,
       });
 
@@ -66,7 +79,7 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
       if (response.status === 429 && rateLimitResponse.retryAfterSeconds) {
         await new Promise((r) => setTimeout(r, (rateLimitResponse.retryAfterSeconds || 1) * 1000));
         const retry = await publicApi.getInstructorAvailability(instructorId, {
-          start_date: actualStartDate,
+          start_date: sanitizedStartDate,
           end_date: endDate,
         });
         if (retry.error) {
@@ -89,8 +102,8 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
 
       return response.data!;
     },
-    staleTime: CACHE_TIMES.FREQUENT, // 5 minutes
-    refetchInterval: CACHE_TIMES.FREQUENT, // Background refresh every 5 minutes
-    enabled: !!instructorId, // Only need instructorId now, date always has a default
+    staleTime: CACHE_TIMES.FREQUENT,
+    refetchInterval: CACHE_TIMES.FREQUENT,
+    enabled: Boolean(instructorId && sanitizedStartDate),
   });
 }

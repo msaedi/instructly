@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+import { useAvailabilityWeekInvalidation } from '@/features/instructor-profile/hooks/useAvailabilityWeekInvalidation';
 
 const CalendarSkeleton = () => (
   <div className="space-y-2" aria-hidden="true">
@@ -76,6 +77,8 @@ function AvailabilityPageImpl() {
     goToCurrentWeek,
     allowPastEdits,
   } = useAvailability();
+  const currentWeekStartIso = currentWeekStart ? currentWeekStart.toISOString().split('T')[0] : undefined;
+  const invalidateWeekSnapshot = useAvailabilityWeekInvalidation(userData?.id, currentWeekStartIso);
 
   const serializeBits = useCallback((bits: WeekBits) => {
     return Object.fromEntries(
@@ -255,12 +258,17 @@ function AvailabilityPageImpl() {
         }
 
         setConflictState(null);
+        try {
+          await invalidateWeekSnapshot();
+        } catch (error) {
+          logger.warn('Failed to invalidate availability snapshot after save', error as Error);
+        }
         return true;
       } finally {
         setIsSaving(false);
       }
     },
-    [saveWeek, refreshSchedule, setMessage]
+    [saveWeek, refreshSchedule, setMessage, invalidateWeekSnapshot]
   );
 
   const handleSaveWeek = useCallback(() => {
