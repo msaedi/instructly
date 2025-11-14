@@ -1,12 +1,14 @@
 import { httpGet, httpPost } from '@/features/shared/api/http';
 
-export type BGCStatus = 'pending' | 'review' | 'passed' | 'failed';
+export type BGCStatus = 'pending' | 'review' | 'consider' | 'passed' | 'failed';
 export type BGCEnv = 'sandbox' | 'production';
 
 export interface BGCInviteResponse {
   ok: boolean;
   status: BGCStatus;
   report_id?: string | null;
+  candidate_id?: string | null;
+  invitation_id?: string | null;
   already_in_progress?: boolean;
 }
 

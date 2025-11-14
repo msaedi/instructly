@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 
 from app.api.dependencies.auth import get_current_user
@@ -50,8 +52,21 @@ def override_background_check_service(db):
             async def create_candidate(self, **payload):  # type: ignore[override]
                 return {"id": "cand_test"}
 
-            async def create_invitation(self, *, candidate_id: str, package: str):  # type: ignore[override]
-                return {"id": "inv_test", "report_id": "rpt_integration"}
+            async def create_invitation(  # type: ignore[override]
+                self,
+                *,
+                candidate_id: str,
+                package: str,
+                workflow: str | None = None,
+                **_kwargs,
+            ):
+                return {
+                    "id": "inv_test",
+                    "report_id": "rpt_integration",
+                    "candidate_id": candidate_id,
+                    "package": package,
+                    "workflow": workflow,
+                }
 
         client = DummyCheckr(api_key="sk_test", base_url="https://api.checkr.com/v1")
         return BackgroundCheckService(

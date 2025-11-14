@@ -87,8 +87,12 @@ def override_background_check_service(db):
             async def create_candidate(self, **payload):  # type: ignore[override]
                 return {"id": "cand_test"}
 
-            async def create_invitation(self, *, candidate_id: str, package: str):  # type: ignore[override]
-                return {"id": "inv_test", "report_id": "rpt_123"}
+            async def create_invitation(self, **payload):  # type: ignore[override]
+                return {
+                    "id": "inv_test",
+                    "report_id": "rpt_123",
+                    **payload,
+                }
 
         client = DummyCheckr(api_key="sk_test", base_url="https://api.checkr.com/v1")
         return BackgroundCheckService(

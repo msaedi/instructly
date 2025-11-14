@@ -29,7 +29,15 @@ except Exception:  # pragma: no cover - optional on CI
         return False
 
 
-from pydantic import Field, PrivateAttr, SecretStr, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    Field,
+    PrivateAttr,
+    SecretStr,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .constants import BRAND_NAME
@@ -289,7 +297,8 @@ class Settings(BaseSettings):
         description="Checkr API key for background check operations",
     )
     checkr_package: str = Field(
-        default="essential",
+        default="basic_plus",
+        validation_alias=AliasChoices("CHECKR_DEFAULT_PACKAGE", "CHECKR_PACKAGE"),
         description="Default Checkr package to request for instructor background checks",
     )
     checkr_api_base: str = Field(
@@ -299,6 +308,20 @@ class Settings(BaseSettings):
     checkr_webhook_secret: SecretStr = Field(
         default=SecretStr(""),
         description="Shared secret for verifying Checkr webhook signatures",
+    )
+    checkr_webhook_user: SecretStr | None = Field(
+        default=None,
+        alias="CHECKR_WEBHOOK_USER",
+        description="Optional basic-auth username expected on Checkr webhook requests",
+    )
+    checkr_webhook_pass: SecretStr | None = Field(
+        default=None,
+        alias="CHECKR_WEBHOOK_PASS",
+        description="Optional basic-auth password expected on Checkr webhook requests",
+    )
+    checkr_hosted_workflow: str | None = Field(
+        default=None,
+        description="Optional workflow parameter for Checkr invitations (e.g., checkr_hosted)",
     )
     checkr_applicant_portal_url: str = Field(
         default="https://applicant.checkr.com/",
@@ -883,6 +906,22 @@ class Settings(BaseSettings):
                 self.checkr_fake = True
             elif is_prod:
                 self.checkr_fake = False
+        return self
+
+    @model_validator(mode="after")
+    def _default_checkr_base(self) -> "Settings":
+        """Align Checkr base URL with the configured environment when unset."""
+
+        fields_set = cast(Set[str], getattr(self, "model_fields_set", set()))
+        env_override = "CHECKR_API_BASE" in os.environ or "checkr_api_base" in fields_set
+        if env_override:
+            return self
+
+        normalized_env = (self.checkr_env or "sandbox").strip().lower()
+        if normalized_env == "sandbox":
+            self.checkr_api_base = "https://api.checkr-staging.com/v1"
+        else:
+            self.checkr_api_base = "https://api.checkr.com/v1"
         return self
 
     @model_validator(mode="after")

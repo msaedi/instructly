@@ -373,11 +373,27 @@ def upgrade() -> None:
         "instructor_profiles",
         sa.Column("bgc_final_adverse_sent_at", sa.DateTime(timezone=True), nullable=True),
     )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_report_result", sa.String(length=32), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("checkr_candidate_id", sa.String(length=64), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("checkr_invitation_id", sa.String(length=64), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_note", sa.Text(), nullable=True),
+    )
 
     op.create_check_constraint(
         "ck_instructor_profiles_bgc_status",
         "instructor_profiles",
-        "bgc_status IN ('pending','passed','review','failed')",
+        "bgc_status IN ('pending','passed','review','failed','consider')",
     )
     op.create_check_constraint(
         "ck_instructor_profiles_bgc_env",
@@ -388,6 +404,58 @@ def upgrade() -> None:
         "ck_live_requires_bgc_passed",
         "instructor_profiles",
         "(is_live = FALSE) OR (bgc_status = 'passed')",
+    )
+    op.create_index(
+        "ix_instructor_profiles_checkr_candidate_id",
+        "instructor_profiles",
+        ["checkr_candidate_id"],
+    )
+    op.create_index(
+        "ix_instructor_profiles_checkr_invitation_id",
+        "instructor_profiles",
+        ["checkr_invitation_id"],
+    )
+    op.create_index(
+        "ix_instructor_profiles_bgc_report_id",
+        "instructor_profiles",
+        ["bgc_report_id"],
+    )
+
+    print("Creating bgc_webhook_log table...")
+    op.create_table(
+        "bgc_webhook_log",
+        sa.Column("id", sa.String(length=26), primary_key=True, nullable=False),
+        sa.Column("event_type", sa.String(length=64), nullable=False),
+        sa.Column("delivery_id", sa.String(length=80), nullable=True),
+        sa.Column("resource_id", sa.String(length=64), nullable=True),
+        sa.Column("http_status", sa.Integer(), nullable=True),
+        sa.Column(
+            "payload_json",
+            json_type,
+            nullable=False,
+        ),
+        sa.Column("signature", sa.String(length=128), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+    )
+    op.create_index(
+        "ix_bgc_webhook_log_event_type_created_at",
+        "bgc_webhook_log",
+        ["event_type", "created_at"],
+    )
+    op.create_index(
+        "ix_bgc_webhook_log_delivery_id",
+        "bgc_webhook_log",
+        ["delivery_id"],
+    )
+    op.create_index(
+        "ix_bgc_webhook_log_http_status",
+        "bgc_webhook_log",
+        ["http_status", "created_at"],
     )
 
     print("Creating background_checks history table...")
@@ -1192,6 +1260,12 @@ def downgrade() -> None:
     op.drop_index("ix_messages_booking_created", "messages")
     op.drop_table("messages")
 
+    print("Dropping bgc_webhook_log table...")
+    op.drop_index("ix_bgc_webhook_log_http_status", table_name="bgc_webhook_log")
+    op.drop_index("ix_bgc_webhook_log_delivery_id", table_name="bgc_webhook_log")
+    op.drop_index("ix_bgc_webhook_log_event_type_created_at", table_name="bgc_webhook_log")
+    op.drop_table("bgc_webhook_log")
+
     print("Dropping bgc_adverse_action_events table...")
     op.drop_index("ix_bgc_adverse_action_events_profile", "bgc_adverse_action_events")
     op.drop_constraint(
@@ -1236,6 +1310,10 @@ def downgrade() -> None:
     print("Dropping bgc_consent table and background check columns...")
     op.drop_index("ix_bgc_consent_instructor_id", table_name="bgc_consent")
     op.drop_table("bgc_consent")
+
+    op.drop_index("ix_instructor_profiles_checkr_candidate_id", table_name="instructor_profiles")
+    op.drop_index("ix_instructor_profiles_checkr_invitation_id", table_name="instructor_profiles")
+    op.drop_index("ix_instructor_profiles_bgc_report_id", table_name="instructor_profiles")
 
     if is_postgres:
         op.execute(
@@ -1286,6 +1364,18 @@ def downgrade() -> None:
         op.execute(
             "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_status"
         )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_report_result"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS checkr_candidate_id"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS checkr_invitation_id"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_note"
+        )
     else:
         op.drop_constraint("ck_instructor_profiles_bgc_env", "instructor_profiles", type_="check")
         op.drop_constraint("ck_instructor_profiles_bgc_status", "instructor_profiles", type_="check")
@@ -1303,6 +1393,10 @@ def downgrade() -> None:
         op.drop_column("instructor_profiles", "bgc_pre_adverse_sent_at")
         op.drop_column("instructor_profiles", "bgc_pre_adverse_notice_id")
         op.drop_column("instructor_profiles", "bgc_status")
+        op.drop_column("instructor_profiles", "bgc_report_result")
+        op.drop_column("instructor_profiles", "checkr_candidate_id")
+        op.drop_column("instructor_profiles", "checkr_invitation_id")
+        op.drop_column("instructor_profiles", "bgc_note")
 
     # Drop alert history table
     print("Dropping alert_history table...")

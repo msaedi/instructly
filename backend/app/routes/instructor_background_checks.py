@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from fastapi.params import Path
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -22,6 +22,7 @@ from ..models.instructor import InstructorProfile
 from ..models.user import User
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas.bgc import (
+    BackgroundCheckInviteRequest,
     BackgroundCheckInviteResponse,
     BackgroundCheckStatusLiteral,
     BackgroundCheckStatusResponse,
@@ -71,13 +72,17 @@ def _ensure_owner_or_admin(user: User, instructor_user_id: str) -> None:
 
 def _status_literal(raw_status: str | None) -> BackgroundCheckStatusLiteral:
     status_value = (raw_status or "failed").lower().strip()
-    if status_value not in {"pending", "review", "passed", "failed"}:
+    if status_value not in {"pending", "review", "consider", "passed", "failed"}:
         return "failed"
     return cast(BackgroundCheckStatusLiteral, status_value)
 
 
 @router.post("/invite", response_model=BackgroundCheckInviteResponse)
 async def trigger_background_check_invite(
+    payload: BackgroundCheckInviteRequest = Body(
+        default_factory=BackgroundCheckInviteRequest,
+        description="Optional configuration for the Checkr invitation",
+    ),
     instructor_id: str = Path(..., description="Instructor profile ULID"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -111,7 +116,7 @@ async def trigger_background_check_invite(
 
     current_status = _status_literal(getattr(profile, "bgc_status", None))
 
-    if current_status in {"pending", "review", "passed"}:
+    if current_status in {"pending", "review", "consider", "passed"}:
         response = BackgroundCheckInviteResponse(
             status=current_status,
             report_id=getattr(profile, "bgc_report_id", None),
@@ -175,7 +180,10 @@ async def trigger_background_check_invite(
         )
 
     try:
-        invite_result = await background_check_service.invite(instructor_id)
+        invite_result = await background_check_service.invite(
+            instructor_id,
+            package_override=payload.package_slug,
+        )
     except ServiceException as exc:
         root_cause = exc.__cause__
         if (
@@ -230,6 +238,8 @@ async def trigger_background_check_invite(
     return BackgroundCheckInviteResponse(
         status=invite_result["status"],
         report_id=invite_result.get("report_id"),
+        candidate_id=invite_result.get("candidate_id"),
+        invitation_id=invite_result.get("invitation_id"),
     )
 
 
@@ -317,7 +327,7 @@ async def trigger_background_check_recheck(
         )
 
     current_status = _status_literal(getattr(profile, "bgc_status", None))
-    if current_status in {"pending", "review"}:
+    if current_status in {"pending", "review", "consider"}:
         logger.info(
             "Background check re-check skipped; already in progress",
             extra={

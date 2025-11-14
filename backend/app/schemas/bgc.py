@@ -1,11 +1,24 @@
-from ._strict_base import StrictModel
-
-"""Background check API response models."""
+"""Background check API request/response models."""
 
 from datetime import datetime
 from typing import Literal
 
-BackgroundCheckStatusLiteral = Literal["pending", "review", "passed", "failed"]
+from pydantic import Field
+
+from ._strict_base import StrictModel, StrictRequestModel
+
+BackgroundCheckStatusLiteral = Literal["pending", "review", "consider", "passed", "failed"]
+
+
+class BackgroundCheckInviteRequest(StrictRequestModel):
+    """Payload accepted by the background check invite endpoint."""
+
+    package_slug: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        description="Optional Checkr package slug override",
+    )
 
 
 class BackgroundCheckInviteResponse(StrictModel):
@@ -14,6 +27,8 @@ class BackgroundCheckInviteResponse(StrictModel):
     ok: bool = True
     status: BackgroundCheckStatusLiteral
     report_id: str | None = None
+    candidate_id: str | None = None
+    invitation_id: str | None = None
     already_in_progress: bool = False
 
 
@@ -32,6 +47,7 @@ class BackgroundCheckStatusResponse(StrictModel):
 
 
 __all__ = [
+    "BackgroundCheckInviteRequest",
     "BackgroundCheckInviteResponse",
     "BackgroundCheckStatusResponse",
     "BackgroundCheckStatusLiteral",

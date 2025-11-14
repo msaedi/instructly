@@ -23,6 +23,7 @@ import {
   useBGCDisputeOpen,
   useBGCDisputeResolve,
   useBGCRecheck,
+  useBGCInvite,
   type AdminInstructorDetail,
   type BGCCaseItem,
 } from './hooks';
@@ -49,6 +50,7 @@ export default function AdminBGCReviewPage() {
   const [disputeNoteDraft, setDisputeNoteDraft] = useState('');
   const previewDetail = useAdminInstructorDetail(isPreviewOpen ? previewId : null);
   const recheckMutation = useBGCRecheck();
+  const inviteMutation = useBGCInvite();
   const [recheckBlockedCode, setRecheckBlockedCode] = useState<'consent' | 'rate_limited' | null>(null);
 
   const countsQuery = useBGCCounts();
@@ -165,6 +167,29 @@ export default function AdminBGCReviewPage() {
       const message =
         error instanceof Error ? error.message : 'Unable to update background check status';
       toast.error(message);
+    } finally {
+      setActiveActionId(null);
+    }
+  };
+
+  const handleInvite = async (item: BGCCaseItem) => {
+    setActiveActionId(item.instructor_id);
+    try {
+      const response = await inviteMutation.mutateAsync({ id: item.instructor_id });
+      if (response.already_in_progress) {
+        toast.info('An invitation is already in progress for this instructor.');
+      } else {
+        toast.success('Background check invitation sent');
+      }
+    } catch (error) {
+      if (error instanceof ApiProblemError) {
+        const detail = error.problem.detail;
+        toast.error('Unable to send background check invitation', {
+          description: typeof detail === 'string' && detail.length > 0 ? detail : undefined,
+        });
+      } else {
+        toast.error('Unable to send background check invitation');
+      }
     } finally {
       setActiveActionId(null);
     }
@@ -363,9 +388,9 @@ export default function AdminBGCReviewPage() {
                       const updatedAt = item.updated_at || item.bgc_completed_at || item.created_at;
                       const isLive = item.is_live;
                       const statusValue = (item.bgc_status ?? '').toLowerCase();
-                      const showActions = statusValue === 'review';
+                      const showActions = statusValue === 'review' || statusValue === 'consider';
                       const inDispute = item.in_dispute;
-                      const badgeTone = statusValue === 'review'
+                      const badgeTone = statusValue === 'review' || statusValue === 'consider'
                         ? 'bg-amber-50 text-amber-800 border-amber-200'
                         : statusValue === 'pending'
                         ? 'bg-sky-50 text-sky-700 border-sky-200'
@@ -480,6 +505,17 @@ export default function AdminBGCReviewPage() {
                                   </Button>
                                 </>
                               ) : null}
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleInvite(item)}
+                                disabled={inviteMutation.isPending && activeActionId === item.instructor_id}
+                              >
+                                {inviteMutation.isPending && activeActionId === item.instructor_id
+                                  ? 'Inviting…'
+                                  : 'Invite'}
+                              </Button>
                               <Button
                                 type="button"
                                 size="sm"
@@ -617,7 +653,8 @@ function PreviewContent({
     recheckPending ||
     recheckBlockedCode !== null ||
     normalizedStatus === 'pending' ||
-    normalizedStatus === 'review';
+    normalizedStatus === 'review' ||
+    normalizedStatus === 'consider';
 
   return (
     <dl className="space-y-3">

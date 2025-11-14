@@ -24,6 +24,10 @@ const STATUS_META: Record<BGCStatus, { label: string; className: string }> = {
     label: 'Under review',
     className: 'bg-orange-100 text-orange-800 border border-orange-200',
   },
+  consider: {
+    label: 'Needs attention',
+    className: 'bg-orange-100 text-orange-800 border border-orange-200',
+  },
   failed: {
     label: 'Not started',
     className: 'bg-slate-100 text-slate-700 border border-slate-200',
@@ -223,7 +227,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       pollTimerRef.current = null;
       await loadStatus();
       const currentStatus = statusRef.current;
-      if (currentStatus === 'pending' || currentStatus === 'review') {
+      if (currentStatus === 'pending' || currentStatus === 'review' || currentStatus === 'consider') {
         backoffIdxRef.current += 1;
         scheduleNextPoll();
       }
@@ -236,7 +240,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       pollTimerRef.current = null;
     }
     backoffIdxRef.current = 0;
-    if (status === 'pending' || status === 'review') {
+    if (status === 'pending' || status === 'review' || status === 'consider') {
       scheduleNextPoll();
     }
     return () => {
@@ -254,6 +258,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
     cooldownActive ||
     status === 'pending' ||
     status === 'review' ||
+    status === 'consider' ||
     status === 'passed';
 
   const handleStart = async (afterConsent = false): Promise<void> => {
@@ -422,7 +427,8 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
     inviteLoading ||
     loading ||
     status === 'pending' ||
-    status === 'review';
+    status === 'review' ||
+    status === 'consider';
 
   return (
     <div className="space-y-4" data-testid="bgc-step">

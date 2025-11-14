@@ -158,6 +158,17 @@ export function useBGCRecheck() {
   });
 }
 
+export function useBGCInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, packageSlug }: { id: string; packageSlug?: string | null }) =>
+      httpPost<BGCInviteResponse>(`/api/instructors/${id}/bgc/invite`, packageSlug ? { package_slug: packageSlug } : {}),
+    onSuccess: (_, variables) => {
+      invalidateBackgroundCheckQueries(queryClient, variables.id);
+    },
+  });
+}
+
 export function useAdminInstructorDetail(instructorId: string | null) {
   const isClient = typeof window !== 'undefined';
   return useQuery<AdminInstructorDetail | null, Error>({

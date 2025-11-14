@@ -20,11 +20,13 @@ def configure_checkr_settings():
     original_package = settings.checkr_package
     original_base = settings.checkr_api_base
     original_env = settings.checkr_env
+    original_workflow = settings.checkr_hosted_workflow
 
     settings.checkr_api_key = SecretStr("sk_test_key")
     settings.checkr_package = "essential"
     settings.checkr_api_base = "https://api.checkr.com/v1"
     settings.checkr_env = "sandbox"
+    settings.checkr_hosted_workflow = "checkr_hosted"
 
     try:
         yield
@@ -33,6 +35,7 @@ def configure_checkr_settings():
         settings.checkr_package = original_package
         settings.checkr_api_base = original_base
         settings.checkr_env = original_env
+        settings.checkr_hosted_workflow = original_workflow
 
 
 def _create_instructor(db, *, status: str = "pending") -> InstructorProfile:
@@ -72,7 +75,7 @@ def _service_factory(db, transport: MockTransport) -> BackgroundCheckService:
 
 
 @pytest.mark.asyncio
-async def test_invite_creates_candidate_and_updates_profile(db):
+async def test_invite_returns_candidate_and_invitation_ids(db):
     captured_requests: dict[str, dict] = {}
 
     def handler(request):
@@ -92,17 +95,23 @@ async def test_invite_creates_candidate_and_updates_profile(db):
 
     assert result["report_id"] == "rpt_123"
     assert result["status"] == "pending"
+    assert result["candidate_id"] == "cand_123"
+    assert result["invitation_id"] == "inv_123"
     assert captured_requests["candidate"]["email"] == "instructor@example.com"
     assert "ssn" not in captured_requests["candidate"]
-    assert captured_requests["invitation"] == {
-        "candidate_id": "cand_123",
-        "package": settings.checkr_package,
-    }
+    invitation_payload = captured_requests["invitation"]
+    assert invitation_payload["candidate_id"] == "cand_123"
+    assert invitation_payload["package"] == settings.checkr_package
+    assert invitation_payload["workflow"] == "checkr_hosted"
+    assert invitation_payload["candidate"]["email"] == "instructor@example.com"
+    assert invitation_payload["redirect_url"].endswith("/instructor/onboarding/status")
 
     db.refresh(profile)
     assert profile.bgc_status == "pending"
     assert profile.bgc_report_id == "rpt_123"
     assert profile.bgc_env == settings.checkr_env
+    assert profile.checkr_candidate_id == "cand_123"
+    assert profile.checkr_invitation_id == "inv_123"
 
 
 @pytest.mark.asyncio

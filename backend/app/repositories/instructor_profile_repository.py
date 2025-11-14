@@ -11,7 +11,7 @@ for commonly accessed relationships.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, List, Optional, Sequence, cast
+from typing import Any, Iterable, List, Optional, Sequence, cast
 
 from sqlalchemy import desc, func, or_
 from sqlalchemy.exc import SQLAlchemyError
@@ -32,6 +32,8 @@ from ..models.user import User
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
+
+_UNSET = object()
 
 
 class InstructorProfileRepository(BaseRepository[InstructorProfile]):
@@ -300,23 +302,32 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             raise RepositoryException(f"Failed to count profiles: {str(e)}")
 
     def count_by_bgc_status(self, status: str) -> int:
-        """Return total profiles matching a given background-check status."""
+        """Return total profiles matching a single background-check status."""
+
+        return self.count_by_bgc_statuses([status])
+
+    def count_by_bgc_statuses(self, statuses: Iterable[str]) -> int:
+        """Return total profiles matching any of the provided statuses."""
+
+        normalized = [(value or "").strip().lower() for value in statuses if (value or "").strip()]
+        if not normalized:
+            return 0
 
         try:
             total = (
                 self.db.query(func.count(InstructorProfile.id))
-                .filter(InstructorProfile.bgc_status == status)
+                .filter(InstructorProfile.bgc_status.in_(normalized))
                 .scalar()
             )
             return int(total or 0)
         except SQLAlchemyError as exc:
             self.logger.error(
-                "Failed to count instructor profiles by bgc_status=%s: %s",
-                status,
+                "Failed to count instructor profiles by bgc_status IN %s: %s",
+                normalized,
                 str(exc),
             )
             raise RepositoryException(
-                "Failed to count profiles by background check status"
+                "Failed to count profiles by background check statuses"
             ) from exc
 
     def get_by_id_join_user(self, instructor_id: str) -> Optional[InstructorProfile]:
@@ -356,6 +367,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         status: str,
         report_id: str | None,
         env: str,
+        report_result: str | None = None,
+        candidate_id: str | None = None,
+        invitation_id: str | None = None,
+        note: Any = _UNSET,
     ) -> None:
         """Persist background check metadata for a specific instructor profile."""
 
@@ -367,6 +382,13 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             profile.bgc_status = status
             profile.bgc_report_id = report_id
             profile.bgc_env = env
+            profile.bgc_report_result = report_result
+            if candidate_id is not None:
+                profile.checkr_candidate_id = candidate_id
+            if invitation_id is not None:
+                profile.checkr_invitation_id = invitation_id
+            if note is not _UNSET:
+                profile.bgc_note = cast(Optional[str], note)
 
             self.db.flush()
         except SQLAlchemyError as exc:
@@ -384,8 +406,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         self,
         report_id: str,
         *,
-        status: str,
+        status: str | None = None,
         completed_at: datetime | None = None,
+        result: Any = _UNSET,
+        note: Any = _UNSET,
     ) -> int:
         """Update background check fields based on a Checkr report identifier."""
 
@@ -398,9 +422,14 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             if not profile:
                 return 0
 
-            profile.bgc_status = status
+            if status is not None:
+                profile.bgc_status = status
             if completed_at is not None:
                 profile.bgc_completed_at = completed_at
+            if result is not _UNSET:
+                profile.bgc_report_result = cast(Optional[str], result)
+            if note is not _UNSET:
+                profile.bgc_note = cast(Optional[str], note)
 
             self.db.flush()
             return 1
@@ -437,6 +466,126 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 str(exc),
             )
             raise RepositoryException("Failed to load instructor profile by report id") from exc
+
+    def get_by_invitation_id(self, invitation_id: str) -> Optional[InstructorProfile]:
+        """Return the instructor profile associated with a Checkr invitation."""
+
+        if not invitation_id:
+            return None
+
+        try:
+            return cast(
+                Optional[InstructorProfile],
+                self.db.query(self.model)
+                .filter(self.model.checkr_invitation_id == invitation_id)
+                .first(),
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to load instructor profile by invitation %s: %s",
+                invitation_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to load instructor profile by invitation id") from exc
+
+    def get_by_candidate_id(self, candidate_id: str) -> Optional[InstructorProfile]:
+        """Return the instructor profile associated with a Checkr candidate."""
+
+        if not candidate_id:
+            return None
+
+        try:
+            return cast(
+                Optional[InstructorProfile],
+                self.db.query(self.model)
+                .filter(self.model.checkr_candidate_id == candidate_id)
+                .first(),
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to load instructor profile by candidate %s: %s",
+                candidate_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to load instructor profile by candidate id") from exc
+
+    def update_bgc_by_invitation(
+        self,
+        invitation_id: str,
+        *,
+        status: str | None = None,
+        note: Any = _UNSET,
+    ) -> Optional[InstructorProfile]:
+        """Update status metadata for the profile matching a Checkr invitation."""
+
+        if not invitation_id:
+            return None
+
+        try:
+            profile = cast(
+                Optional[InstructorProfile],
+                self.db.query(self.model)
+                .filter(self.model.checkr_invitation_id == invitation_id)
+                .first(),
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to load instructor profile by invitation %s: %s",
+                invitation_id,
+                str(exc),
+            )
+            raise RepositoryException(
+                "Failed to update background check invitation metadata"
+            ) from exc
+
+        if profile is None:
+            return None
+
+        if status is not None:
+            profile.bgc_status = status
+        if note is not _UNSET:
+            profile.bgc_note = cast(Optional[str], note)
+        self.db.flush()
+        return profile
+
+    def update_bgc_by_candidate(
+        self,
+        candidate_id: str,
+        *,
+        status: str | None = None,
+        note: Any = _UNSET,
+    ) -> Optional[InstructorProfile]:
+        """Update status metadata for the profile matching a Checkr candidate id."""
+
+        if not candidate_id:
+            return None
+
+        try:
+            profile = cast(
+                Optional[InstructorProfile],
+                self.db.query(self.model)
+                .filter(self.model.checkr_candidate_id == candidate_id)
+                .first(),
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to load instructor profile by candidate %s: %s",
+                candidate_id,
+                str(exc),
+            )
+            raise RepositoryException(
+                "Failed to update background check candidate metadata"
+            ) from exc
+
+        if profile is None:
+            return None
+
+        if status is not None:
+            profile.bgc_status = status
+        if note is not _UNSET:
+            profile.bgc_note = cast(Optional[str], note)
+        self.db.flush()
+        return profile
 
     def update_valid_until(self, instructor_id: str, valid_until: datetime | None) -> None:
         """Persist the background check validity window for an instructor."""

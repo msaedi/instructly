@@ -16,9 +16,18 @@ logger = logging.getLogger(__name__)
 class CheckrError(RuntimeError):
     """Raised when the Checkr API responds with an error."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        *,
+        error_type: str | None = None,
+        error_body: Any | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
+        self.error_type = error_type
+        self.error_body = error_body
 
 
 class CheckrClient:
@@ -45,41 +54,81 @@ class CheckrClient:
         """Create a new candidate in Checkr."""
 
         body: Dict[str, Any] = {key: value for key, value in payload.items() if value is not None}
-        return await self._post("/candidates", json_body=body)
+        return await self.request("POST", "/candidates", json_body=body)
 
-    async def create_invitation(self, *, candidate_id: str, package: str) -> Dict[str, Any]:
+    async def create_invitation(self, **payload: Any) -> Dict[str, Any]:
         """Create a hosted invitation for a candidate."""
 
-        json_body = {"candidate_id": candidate_id, "package": package}
-        return await self._post("/invitations", json_body=json_body)
+        body: Dict[str, Any] = {key: value for key, value in payload.items() if value is not None}
+        return await self.request("POST", "/invitations", json_body=body)
 
-    async def _post(self, path: str, *, json_body: Dict[str, Any]) -> Dict[str, Any]:
+    async def get_report(self, report_id: str) -> Dict[str, Any]:
+        """Fetch a Checkr report by identifier."""
+
+        if not report_id:
+            raise ValueError("report_id must be provided")
+        return await self.request("GET", f"/reports/{report_id}")
+
+    async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_body: Dict[str, Any] | None = None,
+        params: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        """Perform a raw Checkr API request and return the parsed JSON payload."""
+
         url = f"{self._base_url}{path}"
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Accept": "application/json",
+        }
 
         async with httpx.AsyncClient(
             timeout=self._timeout,
-            auth=(self._api_key, ""),
             transport=self._transport,
+            headers=headers,
         ) as client:
             try:
-                response = await client.post(url, json=json_body)
+                response = await client.request(method, url, json=json_body, params=params)
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
                 status = exc.response.status_code
-                snippet = exc.response.text[:500]
-                logger.error("Checkr API error %s for %s: %s", status, path, snippet)
+                error_payload: Any | None = None
+                error_type: str | None = None
+                try:
+                    error_payload = exc.response.json()
+                    if isinstance(error_payload, dict):
+                        error_type = (
+                            error_payload.get("error")
+                            or error_payload.get("name")
+                            or error_payload.get("type")
+                        )
+                except json.JSONDecodeError:
+                    error_payload = exc.response.text
+
+                logger.error(
+                    "Checkr API error %s for %s %s: %s",
+                    status,
+                    method,
+                    path,
+                    exc.response.text[:500],
+                )
                 raise CheckrError(
                     message=f"Checkr API responded with status {status}",
                     status_code=status,
+                    error_type=error_type,
+                    error_body=error_payload,
                 ) from exc
             except httpx.RequestError as exc:
-                logger.error("Checkr request failure for %s: %s", path, str(exc))
+                logger.error("Checkr request failure for %s %s: %s", method, path, str(exc))
                 raise CheckrError("Failed to reach Checkr API") from exc
 
         try:
             return cast(Dict[str, Any], response.json())
         except json.JSONDecodeError as exc:
-            logger.error("Invalid JSON from Checkr for %s: %s", path, response.text)
+            logger.error("Invalid JSON from Checkr for %s %s: %s", method, path, response.text)
             raise CheckrError("Received malformed JSON from Checkr") from exc
 
 
@@ -99,7 +148,9 @@ class FakeCheckrClient(CheckrClient):
             **{k: v for k, v in payload.items() if v is not None},
         }
 
-    async def create_invitation(self, *, candidate_id: str, package: str) -> Dict[str, Any]:
+    async def create_invitation(self, **payload: Any) -> Dict[str, Any]:
+        candidate_id = payload.get("candidate_id") or f"fake-candidate-{uuid4().hex}"
+        package = payload.get("package", "basic_plus")
         report_id = f"rpt_fake_{uuid4().hex}"
         invitation_id = f"inv_fake_{uuid4().hex}"
         self._logger.debug(
@@ -112,4 +163,14 @@ class FakeCheckrClient(CheckrClient):
             "candidate_id": candidate_id,
             "package": package,
             "report_id": report_id,
+            **{k: v for k, v in payload.items() if v is not None},
+        }
+
+    async def get_report(self, report_id: str) -> Dict[str, Any]:
+        resolved_id = report_id or f"rpt_fake_{uuid4().hex}"
+        return {
+            "id": resolved_id,
+            "object": "report",
+            "result": "clear",
+            "status": "complete",
         }
