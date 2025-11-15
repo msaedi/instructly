@@ -340,8 +340,10 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           });
           return;
         } else if (code === 'invalid_work_location') {
-          toast.error("We couldn't verify your ZIP code.", {
-            description: detailMessage ?? 'Please update your ZIP code and try again.',
+          toast.error('Your primary teaching ZIP code is missing or invalid.', {
+            description: detailMessage
+              ? `${detailMessage} Please update your ZIP code and try again.`
+              : 'Please update your ZIP code and try again.',
           });
           return;
         } else if (code === 'geocoding_provider_error') {
@@ -452,8 +454,10 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           });
           return;
         } else if (code === 'invalid_work_location') {
-          toast.error("We couldn't verify your ZIP code.", {
-            description: detailMessage ?? 'Please update your ZIP code and try again.',
+          toast.error('Your primary teaching ZIP code is missing or invalid.', {
+            description: detailMessage
+              ? `${detailMessage} Please update your ZIP code and try again.`
+              : 'Please update your ZIP code and try again.',
           });
           return;
         } else if (code === 'geocoding_provider_error') {
