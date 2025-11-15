@@ -347,6 +347,10 @@ class Settings(BaseSettings):
         default=True,
         description="When true, suppress background-check expiry reminder emails",
     )
+    bgc_expiry_enabled: bool = Field(
+        default=False,
+        description="Enable automated background-check expiry sweeps and demotions",
+    )
     bgc_encryption_key: str | None = Field(
         default=None,
         description="Base64-encoded 32-byte key for encrypting background check data",

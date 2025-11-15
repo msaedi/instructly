@@ -375,7 +375,8 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error(f"Failed to start message notification service: {str(e)}")
         # Continue without real-time messaging if it fails
 
-    _ensure_expiry_job_scheduled()
+    if getattr(settings, "bgc_expiry_enabled", False):
+        _ensure_expiry_job_scheduled()
 
     job_worker_task: asyncio.Task[None] | None = None
     if getattr(settings, "scheduler_enabled", True) and not getattr(settings, "is_testing", False):
@@ -529,65 +530,74 @@ async def _background_jobs_worker() -> None:
                                 profile_id, notice_id, scheduled_at
                             )
                         elif job.type == "bgc.expiry_sweep":
-                            days = int(payload.get("days", 30))
-
-                            pending_over_7d = repo.count_pending_older_than(7)
-                            BGC_PENDING_7D.set(pending_over_7d)
-
-                            now_utc = datetime.now(timezone.utc)
-                            recheck_url = _expiry_recheck_url()
-
-                            expiring = repo.list_expiring_within(days)
-                            for expiring_profile in expiring:
-                                expiry_dt = getattr(expiring_profile, "bgc_valid_until", None)
-                                expiry_dt_utc = (
-                                    expiry_dt.astimezone(timezone.utc)
-                                    if expiry_dt and expiry_dt.tzinfo
-                                    else (
-                                        expiry_dt.replace(tzinfo=timezone.utc)
-                                        if expiry_dt
-                                        else None
-                                    )
+                            if not getattr(settings, "bgc_expiry_enabled", False):
+                                logger.info(
+                                    "Skipping bgc.expiry_sweep job because expiry is disabled"
                                 )
-                                context: dict[str, object] = {
-                                    "candidate_name": workflow.candidate_name(expiring_profile)
-                                    or "",
-                                    "expiry_date": workflow.format_date(expiry_dt_utc or now_utc),
-                                    "is_past_due": False,
-                                    "recheck_url": recheck_url,
-                                    "support_email": settings.bgc_support_email,
-                                }
-                                workflow.send_expiry_recheck_email(expiring_profile, context)
+                            else:
+                                days = int(payload.get("days", 30))
 
-                            expired_profiles = repo.list_expired()
-                            for expired_profile in expired_profiles:
-                                repo.set_live(expired_profile.id, False)
-                                expiry_dt = getattr(expired_profile, "bgc_valid_until", None)
-                                expiry_dt_utc = (
-                                    expiry_dt.astimezone(timezone.utc)
-                                    if expiry_dt and expiry_dt.tzinfo
-                                    else (
-                                        expiry_dt.replace(tzinfo=timezone.utc)
-                                        if expiry_dt
-                                        else None
+                                pending_over_7d = repo.count_pending_older_than(7)
+                                BGC_PENDING_7D.set(pending_over_7d)
+
+                                now_utc = datetime.now(timezone.utc)
+                                recheck_url = _expiry_recheck_url()
+
+                                expiring = repo.list_expiring_within(days)
+                                for expiring_profile in expiring:
+                                    expiry_dt = getattr(expiring_profile, "bgc_valid_until", None)
+                                    expiry_dt_utc = (
+                                        expiry_dt.astimezone(timezone.utc)
+                                        if expiry_dt and expiry_dt.tzinfo
+                                        else (
+                                            expiry_dt.replace(tzinfo=timezone.utc)
+                                            if expiry_dt
+                                            else None
+                                        )
                                     )
-                                )
-                                context = {
-                                    "candidate_name": workflow.candidate_name(expired_profile)
-                                    or "",
-                                    "expiry_date": workflow.format_date(expiry_dt_utc or now_utc),
-                                    "is_past_due": True,
-                                    "recheck_url": recheck_url,
-                                    "support_email": settings.bgc_support_email,
-                                }
-                                workflow.send_expiry_recheck_email(expired_profile, context)
+                                    context: dict[str, object] = {
+                                        "candidate_name": workflow.candidate_name(expiring_profile)
+                                        or "",
+                                        "expiry_date": workflow.format_date(
+                                            expiry_dt_utc or now_utc
+                                        ),
+                                        "is_past_due": False,
+                                        "recheck_url": recheck_url,
+                                        "support_email": settings.bgc_support_email,
+                                    }
+                                    workflow.send_expiry_recheck_email(expiring_profile, context)
 
-                            next_available = _next_expiry_run()
-                            job_repo.enqueue(
-                                type="bgc.expiry_sweep",
-                                payload={"days": days},
-                                available_at=next_available,
-                            )
+                                expired_profiles = repo.list_expired()
+                                for expired_profile in expired_profiles:
+                                    repo.set_live(expired_profile.id, False)
+                                    expiry_dt = getattr(expired_profile, "bgc_valid_until", None)
+                                    expiry_dt_utc = (
+                                        expiry_dt.astimezone(timezone.utc)
+                                        if expiry_dt and expiry_dt.tzinfo
+                                        else (
+                                            expiry_dt.replace(tzinfo=timezone.utc)
+                                            if expiry_dt
+                                            else None
+                                        )
+                                    )
+                                    context = {
+                                        "candidate_name": workflow.candidate_name(expired_profile)
+                                        or "",
+                                        "expiry_date": workflow.format_date(
+                                            expiry_dt_utc or now_utc
+                                        ),
+                                        "is_past_due": True,
+                                        "recheck_url": recheck_url,
+                                        "support_email": settings.bgc_support_email,
+                                    }
+                                    workflow.send_expiry_recheck_email(expired_profile, context)
+
+                                next_available = _next_expiry_run()
+                                job_repo.enqueue(
+                                    type="bgc.expiry_sweep",
+                                    payload={"days": days},
+                                    available_at=next_available,
+                                )
                         else:
                             logger.warning(
                                 "Unknown background job type encountered",
@@ -637,6 +647,10 @@ async def _background_jobs_worker() -> None:
 
 def _ensure_expiry_job_scheduled() -> None:
     """Seed the background check expiry sweep job if missing."""
+
+    if not getattr(settings, "bgc_expiry_enabled", False):
+        logger.info("Skipping expiry job seed because bgc_expiry_enabled is False")
+        return
 
     session = SessionLocal()
     try:

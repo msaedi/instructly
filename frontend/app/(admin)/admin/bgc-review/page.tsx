@@ -53,12 +53,17 @@ export default function AdminBGCReviewPage() {
   const inviteMutation = useBGCInvite();
   const [recheckBlockedCode, setRecheckBlockedCode] = useState<'consent' | 'rate_limited' | null>(null);
 
-  const countsQuery = useBGCCounts();
+  const countsQuery = useBGCCounts(isAdmin && !authLoading);
   const counts = countsQuery.data ?? { review: 0, pending: 0 };
   const totalCases = counts.review + counts.pending;
 
   const queryTerm = searchTerm.trim();
-  const { data, isLoading, isFetching } = useBGCCases(statusFilter, queryTerm, 50);
+  const { data, isLoading, isFetching } = useBGCCases(
+    statusFilter,
+    queryTerm,
+    50,
+    isAdmin && !authLoading,
+  );
 
   const overrideMutation = useBGCOverride();
   const openDisputeMutation = useBGCDisputeOpen();
