@@ -8,6 +8,7 @@ import { bgcInvite, bgcRecheck, bgcStatus, type BGCStatus } from '@/lib/api/bgc'
 import { toast } from 'sonner';
 import { IS_NON_PROD } from '@/lib/env';
 import { ApiProblemError } from '@/lib/api/fetch';
+import { logger } from '@/lib/logger';
 
 const POLL_BACKOFF_MS = [15000, 60000, 300000] as const;
 
@@ -33,6 +34,9 @@ const STATUS_META: Record<BGCStatus, { label: string; className: string }> = {
     className: 'bg-slate-100 text-slate-700 border border-slate-200',
   },
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
 interface StatusChipProps {
   status: BGCStatus | null;
@@ -313,6 +317,11 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           detailObject && typeof detailObject['code'] === 'string' ? (detailObject['code'] as string) : undefined;
         const topLevelCode = typeof error.problem?.code === 'string' ? error.problem.code : undefined;
         const code = detailCode ?? topLevelCode;
+        const problemExtras = isRecord(error.problem) ? (error.problem as Record<string, unknown>) : undefined;
+        const providerErrorRaw = problemExtras ? (problemExtras['provider_error'] as unknown) : undefined;
+        const debugRaw = problemExtras ? (problemExtras['debug'] as unknown) : undefined;
+        const providerErrorInfo = isRecord(providerErrorRaw) ? providerErrorRaw : undefined;
+        const debugInfo = isRecord(debugRaw) ? debugRaw : undefined;
         description = detailMessage ?? description;
         if (error.response.status === 403) {
           setIsForbidden(true);
@@ -331,8 +340,14 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           });
           return;
         } else if (code === 'invalid_work_location') {
-          toast.error('Your primary teaching ZIP code is missing or invalid.', {
-            description: 'Please update your ZIP code and try again.',
+          toast.error("We couldn't verify your ZIP code.", {
+            description: detailMessage ?? 'Please update your ZIP code and try again.',
+          });
+          return;
+        } else if (code === 'geocoding_provider_error') {
+          logger.error('Geocoding provider error', providerErrorInfo ?? debugInfo ?? error.problem);
+          toast.error('Our location verification service is having trouble.', {
+            description: 'Please try again later.',
           });
           return;
         } else if (code === 'checkr_work_location_error') {
@@ -408,7 +423,15 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       if (error instanceof ApiProblemError) {
         const statusCode = error.response.status;
         const code = error.problem.code;
-        const detailMessage = error.problem.detail;
+        const detailMessage =
+          typeof error.problem.detail === 'string' && error.problem.detail.length > 0
+            ? error.problem.detail
+            : undefined;
+        const problemExtras = isRecord(error.problem) ? (error.problem as Record<string, unknown>) : undefined;
+        const providerErrorRaw = problemExtras ? (problemExtras['provider_error'] as unknown) : undefined;
+        const debugRaw = problemExtras ? (problemExtras['debug'] as unknown) : undefined;
+        const providerErrorInfo = isRecord(providerErrorRaw) ? providerErrorRaw : undefined;
+        const debugInfo = isRecord(debugRaw) ? debugRaw : undefined;
         if (code === 'bgc_consent_required' && ensureConsent && !afterConsent) {
           const consentOk = await ensureConsent();
           if (consentOk) {
@@ -429,8 +452,14 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           });
           return;
         } else if (code === 'invalid_work_location') {
-          toast.error('Your primary teaching ZIP code is missing or invalid.', {
-            description: 'Please update your ZIP code and try again.',
+          toast.error("We couldn't verify your ZIP code.", {
+            description: detailMessage ?? 'Please update your ZIP code and try again.',
+          });
+          return;
+        } else if (code === 'geocoding_provider_error') {
+          logger.error('Geocoding provider error', providerErrorInfo ?? debugInfo ?? error.problem);
+          toast.error('Our location verification service is having trouble.', {
+            description: 'Please try again later.',
           });
           return;
         } else if (code === 'checkr_work_location_error') {

@@ -82,14 +82,58 @@ def _checkr_auth_problem(detail: str | None = None) -> dict[str, Any]:
     }
 
 
-def _invalid_work_location_problem() -> dict[str, Any]:
-    return {
+def _invalid_work_location_problem(
+    *,
+    zip_code: str | None = None,
+    reason: str | None = None,
+    provider: str | None = None,
+    provider_status: str | None = None,
+) -> dict[str, Any]:
+    detail = "We couldn't verify your primary teaching ZIP code. Please check it and try again."
+    if zip_code:
+        detail = (
+            f"We couldn't verify your primary teaching ZIP code ({zip_code}). "
+            "Please check it and try again."
+        )
+    debug: dict[str, Any] = {}
+    if zip_code:
+        debug["zip"] = zip_code
+    if reason:
+        debug["reason"] = reason
+    if provider:
+        debug["provider"] = provider
+    if provider_status:
+        debug["provider_status"] = provider_status
+    payload = {
         "type": "about:blank",
         "title": "Invalid work location",
         "status": status.HTTP_400_BAD_REQUEST,
-        "detail": "Your primary teaching ZIP code is missing or invalid. Please update your ZIP code and try again.",
+        "detail": detail,
         "code": "invalid_work_location",
     }
+    if debug:
+        payload["debug"] = debug
+    return payload
+
+
+def _geocoding_provider_problem(provider_error: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "type": "about:blank",
+        "title": "Location lookup unavailable",
+        "status": status.HTTP_400_BAD_REQUEST,
+        "detail": "We couldn't reach our address verification service. Please try again later.",
+        "code": "geocoding_provider_error",
+    }
+    if provider_error:
+        payload["provider_error"] = {k: v for k, v in provider_error.items() if v is not None}
+    return payload
+
+
+def _clean_str(value: Any) -> str | None:
+    if isinstance(value, str):
+        cleaned = value.strip()
+        return cleaned or None
+    return None
 
 
 def _checkr_work_location_problem() -> dict[str, Any]:
@@ -299,7 +343,27 @@ async def trigger_background_check_invite(
         )
     except ServiceException as exc:
         if exc.code == "invalid_work_location":
-            problem = _invalid_work_location_problem()
+            details = exc.details if isinstance(exc.details, dict) else {}
+            problem = _invalid_work_location_problem(
+                zip_code=_clean_str(details.get("zip_code")),
+                reason=_clean_str(details.get("reason")),
+                provider=_clean_str(details.get("provider")),
+                provider_status=_clean_str(details.get("provider_status")),
+            )
+            problem["instance"] = f"/api/instructors/{instructor_id}/bgc/invite"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=problem,
+            )
+        if exc.code == "geocoding_provider_error":
+            details = exc.details if isinstance(exc.details, dict) else {}
+            provider_error = {
+                "provider": _clean_str(details.get("provider")),
+                "status": _clean_str(details.get("provider_status")),
+                "zip": _clean_str(details.get("zip_code")),
+                "error_message": _clean_str(details.get("error_message")),
+            }
+            problem = _geocoding_provider_problem(provider_error)
             problem["instance"] = f"/api/instructors/{instructor_id}/bgc/invite"
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -558,9 +622,17 @@ async def trigger_background_check_recheck(
         invite_result = await background_check_service.invite(instructor_id)
     except ServiceException as exc:
         if exc.code == "invalid_work_location":
+            details = exc.details if isinstance(exc.details, dict) else {}
+            problem = _invalid_work_location_problem(
+                zip_code=_clean_str(details.get("zip_code")),
+                reason=_clean_str(details.get("reason")),
+                provider=_clean_str(details.get("provider")),
+                provider_status=_clean_str(details.get("provider_status")),
+            )
+            problem["instance"] = f"/api/instructors/{instructor_id}/bgc/recheck"
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=_invalid_work_location_problem(),
+                detail=problem,
             )
         root_cause = exc.__cause__
         if (
@@ -600,9 +672,9 @@ async def trigger_background_check_recheck(
                     },
                 )
                 BGC_INVITES_TOTAL.labels(outcome="error").inc()
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail=_checkr_auth_problem()
-                )
+                problem = _checkr_auth_problem()
+                problem["instance"] = f"/api/instructors/{instructor_id}/bgc/recheck"
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=problem)
 
             if _is_package_not_found_error(root_cause):
                 logger.error(
@@ -615,9 +687,11 @@ async def trigger_background_check_recheck(
                     },
                 )
                 BGC_INVITES_TOTAL.labels(outcome="error").inc()
+                problem = _checkr_package_problem()
+                problem["instance"] = f"/api/instructors/{instructor_id}/bgc/recheck"
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=_checkr_package_problem(),
+                    detail=problem,
                 )
 
             if _is_work_location_error(root_cause):
@@ -631,9 +705,11 @@ async def trigger_background_check_recheck(
                     },
                 )
                 BGC_INVITES_TOTAL.labels(outcome="error").inc()
+                problem = _checkr_work_location_problem()
+                problem["instance"] = f"/api/instructors/{instructor_id}/bgc/recheck"
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=_checkr_work_location_problem(),
+                    detail=problem,
                 )
 
             checkr_payload = {
@@ -659,6 +735,20 @@ async def trigger_background_check_recheck(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     checkr_error=checkr_payload,
                 ),
+            )
+        if exc.code == "geocoding_provider_error":
+            details = exc.details if isinstance(exc.details, dict) else {}
+            provider_error = {
+                "provider": _clean_str(details.get("provider")),
+                "status": _clean_str(details.get("provider_status")),
+                "zip": _clean_str(details.get("zip_code")),
+                "error_message": _clean_str(details.get("error_message")),
+            }
+            problem = _geocoding_provider_problem(provider_error)
+            problem["instance"] = f"/api/instructors/{instructor_id}/bgc/recheck"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=problem,
             )
 
         logger.error(

@@ -13,6 +13,7 @@ from ..core.exceptions import NotFoundException, ServiceException
 from ..integrations.checkr_client import CheckrClient, CheckrError
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas.bgc import BackgroundCheckStatusLiteral
+from ..services.geocoding.base import GeocodingProviderError
 from ..services.geocoding.factory import create_geocoding_provider
 from .base import BaseService
 
@@ -246,25 +247,46 @@ class BackgroundCheckService(BaseService):
         raise ServiceException(
             "Invalid ZIP code format",
             code="invalid_work_location",
-            details={"zip_code": zip_code},
+            details={"zip_code": zip_code, "reason": "invalid_format"},
         )
 
     async def _resolve_work_location(self, zip_code: str) -> dict[str, str]:
         provider = create_geocoding_provider()
+        provider_name = getattr(provider, "provider_name", provider.__class__.__name__.lower())
         try:
             geocoded = await provider.geocode(zip_code)
+        except GeocodingProviderError as exc:
+            raise ServiceException(
+                "Geocoding provider unavailable",
+                code="geocoding_provider_error",
+                details={
+                    "zip_code": zip_code,
+                    "provider": exc.provider or provider_name,
+                    "provider_status": exc.status,
+                    "error_message": exc.error_message,
+                },
+            ) from exc
         except Exception as exc:  # pragma: no cover - provider failures
             raise ServiceException(
-                "Unable to resolve work location",
-                code="invalid_work_location",
-                details={"zip_code": zip_code},
+                "Geocoding provider unavailable",
+                code="geocoding_provider_error",
+                details={
+                    "zip_code": zip_code,
+                    "provider": provider_name,
+                    "provider_status": None,
+                    "error_message": str(exc),
+                },
             ) from exc
 
         if geocoded is None:
             raise ServiceException(
                 "Unable to resolve work location",
                 code="invalid_work_location",
-                details={"zip_code": zip_code},
+                details={
+                    "zip_code": zip_code,
+                    "reason": "zero_results",
+                    "provider": provider_name,
+                },
             )
 
         state_value = self._normalize_state(getattr(geocoded, "state", None))
@@ -277,7 +299,11 @@ class BackgroundCheckService(BaseService):
             raise ServiceException(
                 "Unable to resolve work location",
                 code="invalid_work_location",
-                details={"zip_code": zip_code},
+                details={
+                    "zip_code": zip_code,
+                    "reason": "missing_location_components",
+                    "provider": provider_name,
+                },
             )
 
         return {

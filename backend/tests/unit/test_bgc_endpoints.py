@@ -15,6 +15,7 @@ from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.background_check_service import BackgroundCheckService
+from app.services.geocoding.base import GeocodingProvider, GeocodingProviderError
 
 CSRF_COOKIE = "csrftoken"
 CSRF_HEADER = "X-CSRFToken"
@@ -415,6 +416,10 @@ def test_invite_returns_error_when_zip_missing(client, db, owner_auth_override):
     payload = response.json()
     assert payload["code"] == "invalid_work_location"
     assert payload["title"] == "Invalid work location"
+    assert (
+        payload["detail"]
+        == "We couldn't verify your primary teaching ZIP code. Please check it and try again."
+    )
 
 
 def test_invite_returns_specific_error_on_checkr_work_location_failure(client, db, owner_auth_override):
@@ -458,6 +463,96 @@ def test_invite_returns_specific_error_on_checkr_work_location_failure(client, d
     )
 
     assert valid_response.status_code == 200
+
+
+def test_invite_returns_provider_error_when_geocoder_unavailable(client, db, owner_auth_override, monkeypatch):
+    owner, profile = _create_instructor(db, status="failed")
+    owner.zip_code = "10036"
+    db.add(owner)
+    db.commit()
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    class ProviderStub(GeocodingProvider):
+        async def geocode(self, address: str):
+            raise GeocodingProviderError(
+                provider="google_geocode",
+                status="REQUEST_DENIED",
+                message="API key disabled",
+                payload={"zip": address},
+            )
+
+        async def reverse_geocode(self, lat: float, lng: float):
+            return None
+
+        async def autocomplete(self, *args, **kwargs):
+            return []
+
+        async def get_place_details(self, place_id: str):
+            return None
+
+    monkeypatch.setattr(
+        "app.services.background_check_service.create_geocoding_provider",
+        lambda: ProviderStub(),
+    )
+
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "geocoding_provider_error"
+    assert payload["title"] == "Location lookup unavailable"
+    provider_error = payload.get("provider_error") or {}
+    assert provider_error.get("status") == "REQUEST_DENIED"
+    assert provider_error.get("zip") == "10036"
+
+
+def test_invite_returns_invalid_work_location_for_unresolvable_zip(
+    client, db, owner_auth_override, monkeypatch
+):
+    owner, profile = _create_instructor(db, status="failed")
+    owner.zip_code = "99999"
+    db.add(owner)
+    db.commit()
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    class ZeroResultProvider(GeocodingProvider):
+        async def geocode(self, address: str):
+            return None
+
+        async def reverse_geocode(self, lat: float, lng: float):
+            return None
+
+        async def autocomplete(self, *args, **kwargs):
+            return []
+
+        async def get_place_details(self, place_id: str):
+            return None
+
+    monkeypatch.setattr(
+        "app.services.background_check_service.create_geocoding_provider",
+        lambda: ZeroResultProvider(),
+    )
+
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "invalid_work_location"
+    assert payload["title"] == "Invalid work location"
+    assert "99999" in payload["detail"]
+    debug_info = payload.get("debug") or {}
+    assert debug_info.get("reason") == "zero_results"
+    assert debug_info.get("zip") == "99999"
 
 
 def test_invite_forbidden_for_other_users(client, db):

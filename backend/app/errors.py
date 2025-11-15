@@ -90,6 +90,21 @@ def register_error_handlers(app: FastAPI) -> None:
             checkr_error = exc.detail.get("checkr_error")
             if checkr_error is not None:
                 extras["checkr_error"] = jsonable_encoder(checkr_error)
+            provider_error = exc.detail.get("provider_error")
+            if provider_error is not None:
+                extras["provider_error"] = jsonable_encoder(provider_error)
+            debug_info = exc.detail.get("debug")
+            if debug_info is not None:
+                extras["debug"] = jsonable_encoder(debug_info)
+            provider_error = exc.detail.get("provider_error")
+            if provider_error is not None:
+                extras["provider_error"] = jsonable_encoder(provider_error)
+            debug_info = exc.detail.get("debug")
+            if debug_info is not None:
+                extras["debug"] = jsonable_encoder(debug_info)
+            debug_info = exc.detail.get("debug")
+            if debug_info is not None:
+                extras["debug"] = jsonable_encoder(debug_info)
         problem = _problem(
             status=exc.status_code,
             title=override_title,
@@ -127,6 +142,12 @@ def register_error_handlers(app: FastAPI) -> None:
             checkr_error = exc.detail.get("checkr_error")
             if checkr_error is not None:
                 extras["checkr_error"] = jsonable_encoder(checkr_error)
+            provider_error = exc.detail.get("provider_error")
+            if provider_error is not None:
+                extras["provider_error"] = jsonable_encoder(provider_error)
+            debug_info = exc.detail.get("debug")
+            if debug_info is not None:
+                extras["debug"] = jsonable_encoder(debug_info)
         problem = _problem(
             status=exc.status_code,
             title=override_title,

@@ -6,7 +6,12 @@ from typing import Any, List, Optional
 import httpx
 
 from ...core.config import settings
-from .base import AutocompleteResult, GeocodedAddress, GeocodingProvider
+from .base import (
+    AutocompleteResult,
+    GeocodedAddress,
+    GeocodingProvider,
+    GeocodingProviderError,
+)
 from .mapbox_provider import MapboxProvider
 
 logger = logging.getLogger(__name__)
@@ -16,6 +21,7 @@ class GoogleMapsProvider(GeocodingProvider):
     def __init__(self) -> None:
         self.api_key = settings.google_maps_api_key
         self.base_url = "https://maps.googleapis.com/maps/api"
+        self.provider_name = "google_geocode"
 
     async def geocode(self, address: str) -> Optional[GeocodedAddress]:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -23,11 +29,27 @@ class GoogleMapsProvider(GeocodingProvider):
                 f"{self.base_url}/geocode/json", params={"address": address, "key": self.api_key}
             )
             if resp.status_code != 200:
-                return None
+                raise GeocodingProviderError(
+                    provider=self.provider_name,
+                    status=f"HTTP_{resp.status_code}",
+                    message="Non-200 response from Google Geocoding API",
+                    payload={"zip": address},
+                )
             data = resp.json()
-            if not data.get("results"):
+            status = data.get("status", "")
+            if status == "OK":
+                results = data.get("results") or []
+                if not results:
+                    return None
+                return self._parse_result(results[0])
+            if status == "ZERO_RESULTS":
                 return None
-            return self._parse_result(data["results"][0])
+            raise GeocodingProviderError(
+                provider=self.provider_name,
+                status=status or "UNKNOWN_STATUS",
+                message=data.get("error_message"),
+                payload={"zip": address},
+            )
 
     async def reverse_geocode(self, lat: float, lng: float) -> Optional[GeocodedAddress]:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -36,11 +58,27 @@ class GoogleMapsProvider(GeocodingProvider):
                 params={"latlng": f"{lat},{lng}", "key": self.api_key},
             )
             if resp.status_code != 200:
-                return None
+                raise GeocodingProviderError(
+                    provider=self.provider_name,
+                    status=f"HTTP_{resp.status_code}",
+                    message="Non-200 response from Google Geocoding API",
+                    payload={"lat": lat, "lng": lng},
+                )
             data = resp.json()
-            if not data.get("results"):
+            status = data.get("status", "")
+            if status == "OK":
+                results = data.get("results") or []
+                if not results:
+                    return None
+                return self._parse_result(results[0])
+            if status == "ZERO_RESULTS":
                 return None
-            return self._parse_result(data["results"][0])
+            raise GeocodingProviderError(
+                provider=self.provider_name,
+                status=status or "UNKNOWN_STATUS",
+                message=data.get("error_message"),
+                payload={"lat": lat, "lng": lng},
+            )
 
     async def autocomplete(
         self,
