@@ -354,7 +354,8 @@ export default function AdminBGCReviewPage() {
             </div>
 
             <div className="overflow-hidden rounded-xl border border-gray-200/80 dark:border-gray-700/60 bg-white/70 dark:bg-gray-900/40 backdrop-blur">
-              <table className="min-w-full divide-y divide-gray-200/80 dark:divide-gray-700/60 text-sm">
+              <div className="overflow-x-auto">
+                <table className="min-w-[1100px] divide-y divide-gray-200/80 dark:divide-gray-700/60 text-sm">
                 <thead className="bg-gray-50/80 dark:bg-gray-800/60 text-gray-600 dark:text-gray-300">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Instructor</th>
@@ -397,7 +398,7 @@ export default function AdminBGCReviewPage() {
                         : 'bg-gray-50 text-gray-600 border-gray-200';
                       return (
                         <tr key={item.instructor_id} className="bg-white/40 dark:bg-transparent">
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex flex-col">
                               {isLive ? (
                                 <Link
@@ -434,7 +435,9 @@ export default function AdminBGCReviewPage() {
                                   </Tooltip.Content>
                                 </Tooltip.Root>
                               )}
-                              <span className="text-xs text-gray-400">{item.instructor_id}</span>
+                              <span className="text-xs text-gray-400 font-mono whitespace-nowrap">
+                                {item.instructor_id}
+                              </span>
                               {inDispute ? (
                                 <Badge className="mt-1 w-fit border border-rose-200 bg-rose-50 text-rose-700">
                                   In dispute
@@ -442,8 +445,10 @@ export default function AdminBGCReviewPage() {
                               ) : null}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{item.email || '—'}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap dark:text-gray-300">
+                            {item.email || '—'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
                             {item.bgc_report_id ? (
                               <Link
                                 href={item.checkr_report_url ?? '#'}
@@ -451,7 +456,7 @@ export default function AdminBGCReviewPage() {
                                 className="text-indigo-600 hover:underline dark:text-indigo-300"
                                 rel="noreferrer"
                               >
-                                {item.bgc_report_id}
+                                <span className="font-mono text-xs">{item.bgc_report_id}</span>
                               </Link>
                             ) : (
                               '—'
@@ -473,13 +478,13 @@ export default function AdminBGCReviewPage() {
                               </div>
                             ) : null}
                           </td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap dark:text-gray-300">
                             {updatedAt
                               ? `${formatDistanceToNow(new Date(updatedAt), { addSuffix: true })}`
                               : '—'}
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap items-center gap-2">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex flex-wrap items-center gap-2 min-w-[240px]">
                               <Badge variant="outline" className={`${badgeTone} capitalize`}>
                                 {statusValue || 'unknown'}
                               </Badge>
@@ -531,7 +536,8 @@ export default function AdminBGCReviewPage() {
                     })
                   )}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
 
             {isPreviewOpen && (

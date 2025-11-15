@@ -231,7 +231,8 @@ export default function BGCWebhookLogPage() {
 
             <Card className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white/80 shadow-sm dark:border-gray-800/60 dark:bg-gray-900/40 backdrop-blur">
               <CardContent className="p-0">
-                <table className="min-w-full divide-y divide-gray-200/70 text-sm dark:divide-gray-800/60">
+                <div className="overflow-x-auto">
+                  <table className="min-w-[1100px] divide-y divide-gray-200/70 text-sm dark:divide-gray-800/60">
                   <thead className="bg-gray-50/90 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold">Time</th>
@@ -252,7 +253,7 @@ export default function BGCWebhookLogPage() {
                     )}
                     {logs.map((log) => (
                       <tr key={log.id} className="bg-white/70 dark:bg-gray-900/40">
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap dark:text-gray-300">
                           <div className="font-medium text-gray-900 dark:text-gray-100">
                             {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
                           </div>
@@ -260,7 +261,7 @@ export default function BGCWebhookLogPage() {
                             {new Date(log.created_at).toLocaleString()}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
+                        <td className="px-4 py-3 text-sm text-gray-800 whitespace-nowrap dark:text-gray-200">
                           <Badge variant="outline" className="font-mono uppercase tracking-wide">
                             {log.event_type}
                           </Badge>
@@ -268,7 +269,7 @@ export default function BGCWebhookLogPage() {
                             <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">result: {log.result}</div>
                           ) : null}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <Badge variant="outline" className={statusBadgeTone(log.http_status)}>
                             {log.http_status ?? '—'}
                           </Badge>
@@ -291,7 +292,7 @@ export default function BGCWebhookLogPage() {
                             </button>
                           ) : null}
                         </td>
-                        <td className="px-4 py-3 text-sm">
+                        <td className="px-4 py-3 text-sm whitespace-nowrap">
                           {log.instructor_id ? (
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-xs text-gray-700 dark:text-gray-100">
@@ -309,7 +310,7 @@ export default function BGCWebhookLogPage() {
                             <span className="text-gray-400">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm">
+                        <td className="px-4 py-3 text-sm whitespace-nowrap">
                           <div className="flex flex-wrap gap-2">
                             <button
                               type="button"
@@ -328,7 +329,8 @@ export default function BGCWebhookLogPage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                  </table>
+                </div>
               </CardContent>
               {hasNextPage ? (
                 <CardFooter className="border-t border-gray-200/70 bg-gray-50/70 px-4 py-4 text-center dark:border-gray-800/60 dark:bg-gray-900/40">
