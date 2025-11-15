@@ -14,7 +14,7 @@ from app.api.dependencies.services import get_background_check_workflow_service
 from app.auth import get_password_hash
 from app.core.config import settings
 from app.main import fastapi_app as app
-from app.models.instructor import BGCWebhookLog, InstructorProfile
+from app.models.instructor import BackgroundCheck, BackgroundJob, BGCWebhookLog, InstructorProfile
 from app.models.user import User
 from app.repositories.bgc_webhook_log_repository import BGCWebhookLogRepository
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
@@ -41,6 +41,29 @@ def _create_instructor_with_report(
     db.flush()
     persisted = db.query(InstructorProfile).filter_by(id=profile.id).one()
     assert persisted.bgc_report_id == report_id
+    db.refresh(profile)
+    return profile
+
+
+def _create_instructor_with_candidate(
+    db: Session, candidate_id: str, *, status: str = "pending", invitation_id: str | None = None
+) -> InstructorProfile:
+    user = User(
+        email=f"{candidate_id}@example.com",
+        hashed_password=get_password_hash("WebhookPass123!"),
+        first_name="Candidate",
+        last_name="Test",
+        zip_code="11201",
+    )
+    db.add(user)
+    db.flush()
+
+    profile = InstructorProfile(user_id=user.id)
+    profile.bgc_status = status
+    profile.checkr_candidate_id = candidate_id
+    profile.checkr_invitation_id = invitation_id
+    db.add(profile)
+    db.flush()
     db.refresh(profile)
     return profile
 
@@ -114,6 +137,85 @@ def test_report_completed_clear_updates_profile(client, db: Session) -> None:
     updated_retry = db.query(InstructorProfile).filter_by(id=profile.id).one()
     assert updated_retry.bgc_status == "passed"
     assert updated_retry.bgc_completed_at is not None
+
+
+def test_report_completed_without_report_binding_uses_candidate(client, db: Session) -> None:
+    profile = _create_instructor_with_candidate(db, candidate_id="cand_missing_report")
+
+    payload = {
+        "type": "report.completed",
+        "data": {
+            "object": {
+                "id": "rpt_missing_report",
+                "result": "clear",
+                "candidate_id": "cand_missing_report",
+                "completed_at": "2024-01-01T02:03:04Z",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_auth_headers())
+
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_report_id == "rpt_missing_report"
+    assert profile.bgc_status == "passed"
+    assert profile.bgc_report_result == "clear"
+    assert profile.bgc_completed_at is not None
+    assert profile.bgc_valid_until is not None
+
+    history = (
+        db.query(BackgroundCheck)
+        .filter(BackgroundCheck.instructor_id == profile.id)
+        .all()
+    )
+    assert len(history) == 1
+    assert history[0].result == "clear"
+
+
+def test_report_created_binds_report_to_candidate(client, db: Session) -> None:
+    profile = _create_instructor_with_candidate(db, candidate_id="cand_report_created")
+    payload = {
+        "type": "report.created",
+        "data": {
+            "object": {
+                "id": "rpt_created_binding",
+                "status": "pending",
+                "candidate_id": "cand_report_created",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_auth_headers())
+
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_report_id == "rpt_created_binding"
+    assert profile.bgc_status == "pending"
+
+
+def test_report_completed_unknown_candidate_enqueues_job(client, db: Session) -> None:
+    _create_instructor_with_candidate(db, candidate_id="cand_existing_bound")
+    db.query(BackgroundJob).delete()
+    db.commit()
+
+    payload = {
+        "type": "report.completed",
+        "data": {
+            "object": {
+                "id": "rpt_unknown_candidate",
+                "result": "clear",
+                "candidate_id": "cand_does_not_exist",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_auth_headers())
+
+    assert response.status_code == 200
+    jobs = db.query(BackgroundJob).filter(BackgroundJob.type == "webhook.report_completed").all()
+    assert len(jobs) == 1
+    assert jobs[0].payload.get("candidate_id") == "cand_does_not_exist"
 
 
 def test_maps_completed_and_logs_delivery(client, db: Session) -> None:

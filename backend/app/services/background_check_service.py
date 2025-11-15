@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 from typing import Any, Dict, Optional, TypedDict, cast
 
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from ..core.exceptions import NotFoundException, ServiceException
 from ..integrations.checkr_client import CheckrClient, CheckrError
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas.bgc import BackgroundCheckStatusLiteral
+from ..services.geocoding.factory import create_geocoding_provider
 from .base import BaseService
 
 
@@ -22,8 +24,66 @@ class InviteResult(TypedDict, total=False):
     invitation_id: Optional[str]
 
 
+US_STATE_ABBREVIATIONS = {
+    "ALABAMA": "AL",
+    "ALASKA": "AK",
+    "ARIZONA": "AZ",
+    "ARKANSAS": "AR",
+    "CALIFORNIA": "CA",
+    "COLORADO": "CO",
+    "CONNECTICUT": "CT",
+    "DELAWARE": "DE",
+    "DISTRICT OF COLUMBIA": "DC",
+    "FLORIDA": "FL",
+    "GEORGIA": "GA",
+    "HAWAII": "HI",
+    "IDAHO": "ID",
+    "ILLINOIS": "IL",
+    "INDIANA": "IN",
+    "IOWA": "IA",
+    "KANSAS": "KS",
+    "KENTUCKY": "KY",
+    "LOUISIANA": "LA",
+    "MAINE": "ME",
+    "MARYLAND": "MD",
+    "MASSACHUSETTS": "MA",
+    "MICHIGAN": "MI",
+    "MINNESOTA": "MN",
+    "MISSISSIPPI": "MS",
+    "MISSOURI": "MO",
+    "MONTANA": "MT",
+    "NEBRASKA": "NE",
+    "NEVADA": "NV",
+    "NEW HAMPSHIRE": "NH",
+    "NEW JERSEY": "NJ",
+    "NEW MEXICO": "NM",
+    "NEW YORK": "NY",
+    "NORTH CAROLINA": "NC",
+    "NORTH DAKOTA": "ND",
+    "OHIO": "OH",
+    "OKLAHOMA": "OK",
+    "OREGON": "OR",
+    "PENNSYLVANIA": "PA",
+    "RHODE ISLAND": "RI",
+    "SOUTH CAROLINA": "SC",
+    "SOUTH DAKOTA": "SD",
+    "TENNESSEE": "TN",
+    "TEXAS": "TX",
+    "UTAH": "UT",
+    "VERMONT": "VT",
+    "VIRGINIA": "VA",
+    "WASHINGTON": "WA",
+    "WEST VIRGINIA": "WV",
+    "WISCONSIN": "WI",
+    "WYOMING": "WY",
+    "PUERTO RICO": "PR",
+}
+
+
 class BackgroundCheckService(BaseService):
     """Coordinates Checkr interactions and instructor profile updates."""
+
+    logger = logging.getLogger(__name__)
 
     def __init__(
         self,
@@ -62,6 +122,16 @@ class BackgroundCheckService(BaseService):
         if not user:
             raise ServiceException("Instructor profile missing associated user")
 
+        zip_code_value = getattr(user, "zip_code", None)
+        if not zip_code_value:
+            raise ServiceException(
+                "Primary teaching ZIP code missing",
+                code="invalid_work_location",
+                details={"instructor_id": instructor_id},
+            )
+        normalized_zip = self._normalize_zip(zip_code_value)
+        work_location = await self._resolve_work_location(normalized_zip)
+
         candidate_payload: Dict[str, Any] = {
             "first_name": user.first_name,
             "last_name": user.last_name,
@@ -70,12 +140,15 @@ class BackgroundCheckService(BaseService):
 
         optional_fields: Dict[str, Optional[str]] = {
             "phone": getattr(user, "phone", None),
-            "zipcode": getattr(user, "zip_code", None),
+            "zipcode": normalized_zip,
         }
 
         # Safely include optional fields supported by hosted invitations
         candidate_payload.update({key: value for key, value in optional_fields.items() if value})
+        candidate_payload["work_location"] = work_location
 
+        # Package slug comes from the request override or defaults to settings.checkr_package,
+        # which maps to CHECKR_DEFAULT_PACKAGE / CHECKR_PACKAGE env vars.
         resolved_package = (package_override or self.package or "").strip()
         if not resolved_package:
             raise ServiceException("Checkr package slug is required")
@@ -93,11 +166,21 @@ class BackgroundCheckService(BaseService):
                 "package": resolved_package,
                 "redirect_url": redirect_url,
                 "candidate": candidate_payload,
+                "work_locations": [work_location],
             }
             workflow_value = getattr(settings, "checkr_hosted_workflow", None)
             if workflow_value:
                 invite_kwargs["workflow"] = workflow_value
 
+            self.logger.debug(
+                "Checkr invite payload",
+                extra={
+                    "evt": "bgc_invite_payload",
+                    "candidate_id": candidate_id,
+                    "package": resolved_package,
+                    "workflow": workflow_value,
+                },
+            )
             invitation = await self.client.create_invitation(**invite_kwargs)
         except CheckrError as exc:
             details = {"status_code": exc.status_code} if exc.status_code else {}
@@ -154,3 +237,63 @@ class BackgroundCheckService(BaseService):
             )
 
         return updated > 0
+
+    @staticmethod
+    def _normalize_zip(zip_code: str) -> str:
+        cleaned = (zip_code or "").strip().replace("-", "")
+        if len(cleaned) >= 5 and cleaned[:5].isdigit():
+            return cleaned[:5]
+        raise ServiceException(
+            "Invalid ZIP code format",
+            code="invalid_work_location",
+            details={"zip_code": zip_code},
+        )
+
+    async def _resolve_work_location(self, zip_code: str) -> dict[str, str]:
+        provider = create_geocoding_provider()
+        try:
+            geocoded = await provider.geocode(zip_code)
+        except Exception as exc:  # pragma: no cover - provider failures
+            raise ServiceException(
+                "Unable to resolve work location",
+                code="invalid_work_location",
+                details={"zip_code": zip_code},
+            ) from exc
+
+        if geocoded is None:
+            raise ServiceException(
+                "Unable to resolve work location",
+                code="invalid_work_location",
+                details={"zip_code": zip_code},
+            )
+
+        state_value = self._normalize_state(getattr(geocoded, "state", None))
+        city_value = (getattr(geocoded, "city", None) or "").strip()
+        country_value = (getattr(geocoded, "country", None) or "US").strip().upper()
+        if len(country_value) > 3:
+            country_value = "US"
+
+        if not state_value or not city_value:
+            raise ServiceException(
+                "Unable to resolve work location",
+                code="invalid_work_location",
+                details={"zip_code": zip_code},
+            )
+
+        return {
+            "country": country_value or "US",
+            "state": state_value,
+            "city": city_value,
+        }
+
+    @staticmethod
+    def _normalize_state(raw_state: Optional[str]) -> str:
+        if not raw_state:
+            return ""
+        cleaned = raw_state.strip()
+        if not cleaned:
+            return ""
+        if len(cleaned) == 2 and cleaned.isalpha():
+            return cleaned.upper()
+        upper = cleaned.upper()
+        return US_STATE_ABBREVIATIONS.get(upper, upper[:2])

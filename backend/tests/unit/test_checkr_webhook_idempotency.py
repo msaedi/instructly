@@ -12,10 +12,18 @@ from app.main import fastapi_app as app
 from app.routes.webhooks_checkr import _delivery_cache
 
 
+class _StubRepo:
+    def bind_report_to_candidate(self, *_args, **_kwargs):
+        return None
+
+    def bind_report_to_invitation(self, *_args, **_kwargs):
+        return None
+
+
 class StubWorkflow:
     def __init__(self) -> None:
         self.report_completed_calls = 0
-        self.repo = object()
+        self.repo = _StubRepo()
 
     def handle_report_completed(
         self,
@@ -25,6 +33,8 @@ class StubWorkflow:
         package: str | None,
         env: str,
         completed_at,
+        candidate_id: str | None = None,
+        invitation_id: str | None = None,
     ):
         self.report_completed_calls += 1
         return result, None, False

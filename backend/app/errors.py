@@ -75,23 +75,31 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
         detail_text, code, errors = _parse_detail(exc.detail)
-        problem = _problem(
-            status=exc.status_code,
-            detail=detail_text,
-            instance=request.url.path,
-            code=code,
-            errors=jsonable_encoder(errors) if errors is not None else None,
-        )
+        override_title: Optional[str] = None
+        extras: Dict[str, Any] = {}
         if isinstance(exc.detail, dict):
-            extras = {}
+            maybe_title = exc.detail.get("title")
+            if isinstance(maybe_title, str) and maybe_title.strip():
+                override_title = maybe_title
             error_value = exc.detail.get("error")
             if isinstance(error_value, str):
                 extras["error"] = error_value
             current_version = exc.detail.get("current_version")
             if isinstance(current_version, str):
                 extras["current_version"] = current_version
-            if extras:
-                problem.update(extras)
+            checkr_error = exc.detail.get("checkr_error")
+            if checkr_error is not None:
+                extras["checkr_error"] = jsonable_encoder(checkr_error)
+        problem = _problem(
+            status=exc.status_code,
+            title=override_title,
+            detail=detail_text,
+            instance=request.url.path,
+            code=code,
+            errors=jsonable_encoder(errors) if errors is not None else None,
+        )
+        if extras:
+            problem.update(extras)
         return JSONResponse(
             problem,
             status_code=exc.status_code,
@@ -104,23 +112,31 @@ def register_error_handlers(app: FastAPI) -> None:
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
         detail_text, code, errors = _parse_detail(exc.detail)
-        problem = _problem(
-            status=exc.status_code,
-            detail=detail_text,
-            instance=request.url.path,
-            code=code,
-            errors=jsonable_encoder(errors) if errors is not None else None,
-        )
+        override_title: Optional[str] = None
+        extras: Dict[str, Any] = {}
         if isinstance(exc.detail, dict):
-            extras = {}
+            maybe_title = exc.detail.get("title")
+            if isinstance(maybe_title, str) and maybe_title.strip():
+                override_title = maybe_title
             error_value = exc.detail.get("error")
             if isinstance(error_value, str):
                 extras["error"] = error_value
             current_version = exc.detail.get("current_version")
             if isinstance(current_version, str):
                 extras["current_version"] = current_version
-            if extras:
-                problem.update(extras)
+            checkr_error = exc.detail.get("checkr_error")
+            if checkr_error is not None:
+                extras["checkr_error"] = jsonable_encoder(checkr_error)
+        problem = _problem(
+            status=exc.status_code,
+            title=override_title,
+            detail=detail_text,
+            instance=request.url.path,
+            code=code,
+            errors=jsonable_encoder(errors) if errors is not None else None,
+        )
+        if extras:
+            problem.update(extras)
         return JSONResponse(
             problem,
             status_code=exc.status_code,

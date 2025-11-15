@@ -587,6 +587,86 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         self.db.flush()
         return profile
 
+    def bind_report_to_candidate(
+        self,
+        candidate_id: str | None,
+        report_id: str,
+        *,
+        env: str | None = None,
+    ) -> str | None:
+        """Ensure the candidate-linked profile stores the provided report id."""
+
+        if not candidate_id or not report_id:
+            return None
+
+        try:
+            profile = cast(
+                Optional[InstructorProfile],
+                self.db.query(self.model)
+                .filter(self.model.checkr_candidate_id == candidate_id)
+                .first(),
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to bind report %s via candidate %s: %s",
+                report_id,
+                candidate_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to bind report to candidate") from exc
+
+        if profile is None:
+            return None
+
+        current_report = getattr(profile, "bgc_report_id", None)
+        if current_report != report_id:
+            profile.bgc_report_id = report_id
+        if env and getattr(profile, "bgc_env", None) != env:
+            profile.bgc_env = env
+
+        self.db.flush()
+        return str(profile.id)
+
+    def bind_report_to_invitation(
+        self,
+        invitation_id: str | None,
+        report_id: str,
+        *,
+        env: str | None = None,
+    ) -> str | None:
+        """Bind a Checkr report to the instructor tracked by an invitation id."""
+
+        if not invitation_id or not report_id:
+            return None
+
+        try:
+            profile = cast(
+                Optional[InstructorProfile],
+                self.db.query(self.model)
+                .filter(self.model.checkr_invitation_id == invitation_id)
+                .first(),
+            )
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to bind report %s via invitation %s: %s",
+                report_id,
+                invitation_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to bind report to invitation") from exc
+
+        if profile is None:
+            return None
+
+        current_report = getattr(profile, "bgc_report_id", None)
+        if current_report != report_id:
+            profile.bgc_report_id = report_id
+        if env and getattr(profile, "bgc_env", None) != env:
+            profile.bgc_env = env
+
+        self.db.flush()
+        return str(profile.id)
+
     def update_valid_until(self, instructor_id: str, valid_until: datetime | None) -> None:
         """Persist the background check validity window for an instructor."""
 

@@ -500,6 +500,8 @@ async def _background_jobs_worker() -> None:
                             result = payload.get("result", "unknown")
                             package = payload.get("package")
                             env = payload.get("env", settings.checkr_env)
+                            candidate_id = payload.get("candidate_id")
+                            invitation_id = payload.get("invitation_id")
 
                             status_value, profile, follow_up = workflow.handle_report_completed(
                                 report_id=report_id,
@@ -507,6 +509,8 @@ async def _background_jobs_worker() -> None:
                                 package=package,
                                 env=env,
                                 completed_at=completed_at,
+                                candidate_id=candidate_id,
+                                invitation_id=invitation_id,
                             )
                         elif job.type == "webhook.report_suspended":
                             report_id = payload.get("report_id")
@@ -727,6 +731,41 @@ def _compute_allowed_origins() -> list[str]:
     return list(origins_set)
 
 
+_BGC_ENV_LOGGED = False
+
+
+def _log_bgc_config_summary(allow_origins: Sequence[str]) -> None:
+    """Emit a single startup log summarizing key Checkr/CORS settings."""
+
+    global _BGC_ENV_LOGGED
+    if _BGC_ENV_LOGGED:
+        return
+
+    try:
+        api_key_value = ""
+        secret = getattr(settings, "checkr_api_key", None)
+        if secret:
+            api_key_value = (
+                secret.get_secret_value() if hasattr(secret, "get_secret_value") else str(secret)
+            )
+        key_len = len(api_key_value or "")
+        logger.info(
+            "BGC config summary site_mode=%s cors_allow_origins=%s checkr_env=%s "
+            "checkr_api_base=%s checkr_api_key_len=%s checkr_hosted_workflow=%s "
+            "checkr_default_package=%s",
+            getattr(settings, "site_mode", "local"),
+            list(allow_origins),
+            getattr(settings, "checkr_env", "sandbox"),
+            getattr(settings, "checkr_api_base", ""),
+            key_len,
+            getattr(settings, "checkr_hosted_workflow", None),
+            getattr(settings, "checkr_package", getattr(settings, "checkr_default_package", None)),
+        )
+        _BGC_ENV_LOGGED = True
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("Unable to log BGC config summary: %s", exc)
+
+
 class EnsureCorsOnErrorMiddleware(BaseHTTPMiddleware):
     """Backfill Access-Control headers on internal error responses."""
 
@@ -768,6 +807,7 @@ _DYN_ALLOWED_ORIGINS = _compute_allowed_origins()
 assert (
     "*" not in _DYN_ALLOWED_ORIGINS
 ), "CORS allow_origins cannot include * when allow_credentials=True"
+_log_bgc_config_summary(_DYN_ALLOWED_ORIGINS)
 
 app.add_middleware(
     CORSMiddleware,

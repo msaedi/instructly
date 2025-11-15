@@ -201,8 +201,17 @@ class BackgroundCheckWorkflowService:
         package: Optional[str],
         env: str,
         completed_at: datetime,
+        candidate_id: str | None = None,
+        invitation_id: str | None = None,
     ) -> Tuple[str, Optional[InstructorProfile], bool]:
-        """Process a report.completed webhook event."""
+        """
+        Process a report.completed webhook event.
+
+        Operators: if an instructor remains stuck in ``pending`` even though
+        Checkr shows a clear result, confirm the profile has ``bgc_report_id``
+        set and then re-run the persisted ``webhook.report_completed`` job so
+        this workflow can resume.
+        """
 
         normalized_result = (result or "").lower() or "unknown"
         status_value = "passed" if normalized_result == "clear" else "review"
@@ -214,6 +223,19 @@ class BackgroundCheckWorkflowService:
             completed_at=completed_at,
             result=normalized_result,
         )
+        if updated == 0:
+            bound_profile_id = self.repo.bind_report_to_candidate(candidate_id, report_id, env=env)
+            if not bound_profile_id:
+                bound_profile_id = self.repo.bind_report_to_invitation(
+                    invitation_id, report_id, env=env
+                )
+            if bound_profile_id:
+                updated = self.repo.update_bgc_by_report_id(
+                    report_id,
+                    status=status_value,
+                    completed_at=completed_at,
+                    result=normalized_result,
+                )
         if updated == 0:
             raise RepositoryException(
                 f"No instructor profile linked to report {report_id}; will retry later"

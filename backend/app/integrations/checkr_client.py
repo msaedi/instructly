@@ -49,6 +49,9 @@ class CheckrClient:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._transport = transport
+        # Checkr uses HTTP Basic auth where the API key is the username and the password is blank.
+        # Keeping a BasicAuth instance ensures every request carries the correct Authorization header.
+        self._auth = httpx.BasicAuth(self._api_key, "")
 
     async def create_candidate(self, **payload: Any) -> Dict[str, Any]:
         """Create a new candidate in Checkr."""
@@ -80,18 +83,27 @@ class CheckrClient:
         """Perform a raw Checkr API request and return the parsed JSON payload."""
 
         url = f"{self._base_url}{path}"
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Accept": "application/json",
-        }
-
         async with httpx.AsyncClient(
             timeout=self._timeout,
             transport=self._transport,
-            headers=headers,
+            auth=self._auth,
+            headers={"Accept": "application/json"},
         ) as client:
+            request = client.build_request(method, url, json=json_body, params=params)
+            if logger.isEnabledFor(logging.DEBUG):
+                auth_header = request.headers.get("Authorization", "") or ""
+                auth_scheme = auth_header.split(" ")[0] if auth_header else "missing"
+                logger.debug(
+                    "CheckrClient request",
+                    extra={
+                        "evt": "checkr_request",
+                        "method": request.method,
+                        "path": path,
+                        "auth_scheme": auth_scheme,
+                    },
+                )
             try:
-                response = await client.request(method, url, json=json_body, params=params)
+                response = await client.send(request)
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
                 status = exc.response.status_code

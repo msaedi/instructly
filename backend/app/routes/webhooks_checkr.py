@@ -196,6 +196,53 @@ def _extract_reason(data_object: dict[str, Any]) -> str | None:
     return None
 
 
+def _extract_candidate_id(data_object: dict[str, Any]) -> str | None:
+    candidate_id = data_object.get("candidate_id")
+    if isinstance(candidate_id, str):
+        cleaned = candidate_id.strip()
+        if cleaned:
+            return cleaned
+    candidate_obj = data_object.get("candidate")
+    if isinstance(candidate_obj, dict):
+        nested = candidate_obj.get("id")
+        if isinstance(nested, str) and nested.strip():
+            return nested.strip()
+    return None
+
+
+def _extract_invitation_id(data_object: dict[str, Any]) -> str | None:
+    invitation_id = data_object.get("invitation_id")
+    if isinstance(invitation_id, str):
+        cleaned = invitation_id.strip()
+        if cleaned:
+            return cleaned
+    invitation_obj = data_object.get("invitation")
+    if isinstance(invitation_obj, dict):
+        nested = invitation_obj.get("id")
+        if isinstance(nested, str) and nested.strip():
+            return nested.strip()
+    return None
+
+
+def _bind_report_to_profile(
+    repo: InstructorProfileRepository,
+    *,
+    report_id: str | None,
+    candidate_id: str | None,
+    invitation_id: str | None,
+    env: str,
+) -> str | None:
+    """Attach a Checkr report identifier to a known instructor profile."""
+
+    if not report_id:
+        return None
+
+    profile_id = repo.bind_report_to_candidate(candidate_id, report_id, env=env)
+    if profile_id:
+        return profile_id
+    return repo.bind_report_to_invitation(invitation_id, report_id, env=env)
+
+
 @router.post("/", response_model=WebhookAckResponse)
 async def handle_checkr_webhook(
     request: Request,
@@ -276,6 +323,16 @@ async def handle_checkr_webhook(
         if not report_id:
             return WebhookAckResponse(ok=True)
 
+        candidate_id = _extract_candidate_id(data_object)
+        invitation_id = _extract_invitation_id(data_object)
+        _bind_report_to_profile(
+            repo,
+            report_id=report_id,
+            candidate_id=candidate_id,
+            invitation_id=invitation_id,
+            env=settings.checkr_env,
+        )
+
         raw_result = (data_object.get("result") or data_object.get("adjudication") or "").lower()
         normalized_result = {
             "clear": "clear",
@@ -294,6 +351,8 @@ async def handle_checkr_webhook(
                 package=package_value,
                 env=settings.checkr_env,
                 completed_at=completed_at,
+                candidate_id=candidate_id,
+                invitation_id=invitation_id,
             )
             if requires_follow_up and profile is not None:
                 logger.info(
@@ -335,6 +394,8 @@ async def handle_checkr_webhook(
                     "package": package_value,
                     "env": settings.checkr_env,
                     "completed_at": completed_at.isoformat(),
+                    "candidate_id": candidate_id,
+                    "invitation_id": invitation_id,
                 },
             )
         except Exception:  # pragma: no cover - safety fallback
@@ -357,6 +418,8 @@ async def handle_checkr_webhook(
                     "package": package_value,
                     "env": settings.checkr_env,
                     "completed_at": completed_at.isoformat(),
+                    "candidate_id": candidate_id,
+                    "invitation_id": invitation_id,
                 },
             )
 
@@ -409,6 +472,16 @@ async def handle_checkr_webhook(
         report_id = resource_id
         if not report_id:
             return WebhookAckResponse(ok=True)
+
+        candidate_id = _extract_candidate_id(data_object)
+        invitation_id = _extract_invitation_id(data_object)
+        _bind_report_to_profile(
+            repo,
+            report_id=report_id,
+            candidate_id=candidate_id,
+            invitation_id=invitation_id,
+            env=settings.checkr_env,
+        )
 
         details = report_status_events[event_type]
         note = details["note"]

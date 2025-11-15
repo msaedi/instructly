@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import cast
+from typing import Any, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from fastapi.params import Path
@@ -53,6 +53,103 @@ router = APIRouter(
 )
 
 
+def _bgc_invite_problem(
+    detail: str,
+    *,
+    status_code: int,
+    checkr_error: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "type": "about:blank",
+        "title": "Unable to start background check",
+        "status": status_code,
+        "detail": detail,
+        "code": "bgc_invite_failed",
+    }
+    if checkr_error:
+        payload["checkr_error"] = {k: v for k, v in checkr_error.items() if v is not None}
+    return payload
+
+
+def _checkr_auth_problem(detail: str | None = None) -> dict[str, Any]:
+    return {
+        "type": "about:blank",
+        "title": "Checkr authentication failed",
+        "status": status.HTTP_400_BAD_REQUEST,
+        "detail": detail
+        or "Checkr API key is invalid or not authorized for the configured environment.",
+        "code": "checkr_auth_error",
+    }
+
+
+def _invalid_work_location_problem() -> dict[str, Any]:
+    return {
+        "type": "about:blank",
+        "title": "Invalid work location",
+        "status": status.HTTP_400_BAD_REQUEST,
+        "detail": "Your primary teaching ZIP code is missing or invalid. Please update your ZIP code and try again.",
+        "code": "invalid_work_location",
+    }
+
+
+def _checkr_work_location_problem() -> dict[str, Any]:
+    return {
+        "type": "about:blank",
+        "title": "Checkr work location error",
+        "status": status.HTTP_400_BAD_REQUEST,
+        "detail": (
+            "Background check configuration error: work location could not be accepted by our provider. "
+            "Please contact support."
+        ),
+        "code": "checkr_work_location_error",
+    }
+
+
+def _checkr_package_problem() -> dict[str, Any]:
+    return {
+        "type": "about:blank",
+        "title": "Checkr package misconfigured",
+        "status": status.HTTP_400_BAD_REQUEST,
+        "detail": (
+            "The configured Checkr package slug does not exist in the current Checkr environment. "
+            "Please update CHECKR_DEFAULT_PACKAGE (or equivalent) to a valid slug from /v1/packages."
+        ),
+        "code": "checkr_package_not_found",
+    }
+
+
+def _is_package_not_found_error(err: CheckrError) -> bool:
+    if err.status_code != status.HTTP_404_NOT_FOUND:
+        return False
+    body = getattr(err, "error_body", None)
+    if isinstance(body, dict):
+        for key in ("error", "message", "detail"):
+            value = body.get(key)
+            if isinstance(value, str) and "package not found" in value.lower():
+                return True
+    if isinstance(body, str) and "package not found" in body.lower():
+        return True
+    if "package not found" in str(err).lower():
+        return True
+    return False
+
+
+def _is_work_location_error(err: CheckrError) -> bool:
+    if err.status_code not in {status.HTTP_400_BAD_REQUEST, status.HTTP_422_UNPROCESSABLE_ENTITY}:
+        return False
+    body = getattr(err, "error_body", None)
+    needles = ("work_location", "work_locations")
+    if isinstance(body, dict):
+        for value in body.values():
+            if isinstance(value, str) and any(token in value.lower() for token in needles):
+                return True
+    if isinstance(body, str) and any(token in body.lower() for token in needles):
+        return True
+    if any(token in str(err).lower() for token in needles):
+        return True
+    return False
+
+
 def _get_instructor_profile(
     instructor_id: str,
     repo: InstructorProfileRepository,
@@ -91,6 +188,12 @@ async def trigger_background_check_invite(
     repo = InstructorProfileRepository(db)
     profile = _get_instructor_profile(instructor_id, repo)
     _ensure_owner_or_admin(current_user, profile.user_id)
+    hosted_workflow = getattr(settings, "checkr_hosted_workflow", None)
+    package_slug = (
+        payload.package_slug
+        or getattr(background_check_service, "package", None)
+        or getattr(settings, "checkr_package", None)
+    )
 
     if background_check_service.config_error and settings.site_mode != "prod":
         logger.error(
@@ -178,6 +281,16 @@ async def trigger_background_check_invite(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Invite rate-limited; try again later",
         )
+    logger.info(
+        "Background check invite begin",
+        extra={
+            "evt": "bgc_invite",
+            "marker": "invite:begin",
+            "instructor_id": instructor_id,
+            "package": package_slug,
+            "hosted_workflow": hosted_workflow,
+        },
+    )
 
     try:
         invite_result = await background_check_service.invite(
@@ -185,6 +298,13 @@ async def trigger_background_check_invite(
             package_override=payload.package_slug,
         )
     except ServiceException as exc:
+        if exc.code == "invalid_work_location":
+            problem = _invalid_work_location_problem()
+            problem["instance"] = f"/api/instructors/{instructor_id}/bgc/invite"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=problem,
+            )
         root_cause = exc.__cause__
         if (
             isinstance(root_cause, CheckrError)
@@ -211,20 +331,109 @@ async def trigger_background_check_invite(
                 },
             ) from exc
 
-        logger.error(
-            "Background check invite failed",
+        if isinstance(root_cause, CheckrError):
+            if root_cause.status_code == status.HTTP_401_UNAUTHORIZED:
+                logger.error(
+                    "Background check invite failed due to Checkr authentication",
+                    extra={
+                        "evt": "bgc_invite",
+                        "instructor_id": instructor_id,
+                        "outcome": "error",
+                        "error": root_cause.error_type or str(root_cause),
+                    },
+                )
+                BGC_INVITES_TOTAL.labels(outcome="error").inc()
+                problem = _checkr_auth_problem()
+                problem["instance"] = f"/api/instructors/{instructor_id}/bgc/invite"
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=problem)
+
+            if _is_package_not_found_error(root_cause):
+                logger.error(
+                    "Background check invite failed due to missing package",
+                    extra={
+                        "evt": "bgc_invite",
+                        "instructor_id": instructor_id,
+                        "outcome": "error",
+                        "error": root_cause.error_type or str(root_cause),
+                    },
+                )
+                BGC_INVITES_TOTAL.labels(outcome="error").inc()
+                problem = _checkr_package_problem()
+                problem["instance"] = f"/api/instructors/{instructor_id}/bgc/invite"
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=problem)
+
+            if _is_work_location_error(root_cause):
+                logger.error(
+                    "Background check invite failed due to Checkr work location error",
+                    extra={
+                        "evt": "bgc_invite",
+                        "instructor_id": instructor_id,
+                        "outcome": "error",
+                        "error": root_cause.error_type or str(root_cause),
+                    },
+                )
+                BGC_INVITES_TOTAL.labels(outcome="error").inc()
+                problem = _checkr_work_location_problem()
+                problem["instance"] = f"/api/instructors/{instructor_id}/bgc/invite"
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=problem)
+
+            checkr_payload = {
+                "http_status": root_cause.status_code,
+                "type": root_cause.error_type,
+                "message": str(root_cause),
+            }
+            logger.warning(
+                "Background check invite failed: Checkr error",
+                extra={
+                    "evt": "bgc_invite",
+                    "marker": "invite:error",
+                    "instructor_id": instructor_id,
+                    "package": package_slug,
+                    "checkr_status": root_cause.status_code,
+                    "checkr_type": root_cause.error_type,
+                },
+            )
+            BGC_INVITES_TOTAL.labels(outcome="error").inc()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=_bgc_invite_problem(
+                    "Checkr invitation failed",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    checkr_error=checkr_payload,
+                )
+                | {"instance": f"/api/instructors/{instructor_id}/bgc/invite"},
+            )
+
+        logger.exception(
+            "Background check invite failed unexpectedly",
             extra={
                 "evt": "bgc_invite",
+                "marker": "invite:error",
                 "instructor_id": instructor_id,
-                "outcome": "error",
-                "error": str(exc),
+                "package": package_slug,
             },
         )
         BGC_INVITES_TOTAL.labels(outcome="error").inc()
-        raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=_bgc_invite_problem(
+                "Unable to start background check",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            | {"instance": f"/api/instructors/{instructor_id}/bgc/invite"},
+        )
 
     repo.set_bgc_invited_at(instructor_id, invite_time)
-
+    logger.info(
+        "Background check invite success",
+        extra={
+            "evt": "bgc_invite",
+            "marker": "invite:success",
+            "instructor_id": instructor_id,
+            "package": package_slug,
+            "hosted_workflow": hosted_workflow,
+        },
+    )
     logger.info(
         "Background check invite sent",
         extra={
@@ -348,6 +557,11 @@ async def trigger_background_check_recheck(
     try:
         invite_result = await background_check_service.invite(instructor_id)
     except ServiceException as exc:
+        if exc.code == "invalid_work_location":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=_invalid_work_location_problem(),
+            )
         root_cause = exc.__cause__
         if (
             isinstance(root_cause, CheckrError)
@@ -373,6 +587,79 @@ async def trigger_background_check_recheck(
                     ),
                 },
             ) from exc
+
+        if isinstance(root_cause, CheckrError):
+            if root_cause.status_code == status.HTTP_401_UNAUTHORIZED:
+                logger.error(
+                    "Background check re-check failed due to Checkr authentication",
+                    extra={
+                        "evt": "bgc_recheck",
+                        "instructor_id": instructor_id,
+                        "outcome": "error",
+                        "error": root_cause.error_type or str(root_cause),
+                    },
+                )
+                BGC_INVITES_TOTAL.labels(outcome="error").inc()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=_checkr_auth_problem()
+                )
+
+            if _is_package_not_found_error(root_cause):
+                logger.error(
+                    "Background check re-check failed due to missing package",
+                    extra={
+                        "evt": "bgc_recheck",
+                        "instructor_id": instructor_id,
+                        "outcome": "error",
+                        "error": root_cause.error_type or str(root_cause),
+                    },
+                )
+                BGC_INVITES_TOTAL.labels(outcome="error").inc()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_checkr_package_problem(),
+                )
+
+            if _is_work_location_error(root_cause):
+                logger.error(
+                    "Background check re-check failed due to Checkr work location error",
+                    extra={
+                        "evt": "bgc_recheck",
+                        "instructor_id": instructor_id,
+                        "outcome": "error",
+                        "error": root_cause.error_type or str(root_cause),
+                    },
+                )
+                BGC_INVITES_TOTAL.labels(outcome="error").inc()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_checkr_work_location_problem(),
+                )
+
+            checkr_payload = {
+                "http_status": root_cause.status_code,
+                "type": root_cause.error_type,
+                "message": str(root_cause),
+            }
+            logger.warning(
+                "Background check re-check failed: Checkr error",
+                extra={
+                    "evt": "bgc_recheck",
+                    "instructor_id": instructor_id,
+                    "outcome": "error",
+                    "checkr_status": root_cause.status_code,
+                    "checkr_type": root_cause.error_type,
+                },
+            )
+            BGC_INVITES_TOTAL.labels(outcome="error").inc()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=_bgc_invite_problem(
+                    "Checkr invitation failed",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    checkr_error=checkr_payload,
+                ),
+            )
 
         logger.error(
             "Background check re-check failed",
