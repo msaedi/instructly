@@ -1,19 +1,15 @@
 # .github/workflows/deploy.yml
 name: Deploy to Vercel
 on:
-  pull_request:
-    paths:
-      - 'frontend/**'
-      - 'package.json'
-      - 'frontend/package.json'
-      - 'frontend/package-lock.json'
   push:
-    branches: [ main ]
+    branches:
+      - main
     paths:
       - 'frontend/**'
       - 'package.json'
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
+  workflow_dispatch:
 
 concurrency:
   group: vercel-${{ github.workflow }}-${{ github.ref }}
@@ -23,6 +19,7 @@ jobs:
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
@@ -66,7 +63,7 @@ jobs:
           echo "VERCEL_PROJECT_ID=${{ secrets.VERCEL_PRODUCTION_PROJECT_ID }}"
           echo "VERCEL_ORG_ID=${{ secrets.VERCEL_ORG_ID }}"
 
-      - name: Deploy prebuilt (production)
+      - name: Deploy to Vercel (production)
         working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -74,7 +71,7 @@ jobs:
           set -eo pipefail
           LOG=../vercel.log
           rm -f "$LOG"
-          npx vercel deploy --prebuilt --prod --yes --token "$VERCEL_TOKEN" 2>&1 | tee "$LOG"
+          npx vercel deploy --prod --yes --token "$VERCEL_TOKEN" 2>&1 | tee "$LOG"
 
       - name: Soft warn on Vercel rate-limit
         if: always()
@@ -94,6 +91,7 @@ jobs:
   deploy-preview:
     name: Deploy to Preview
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
@@ -137,7 +135,7 @@ jobs:
           echo "VERCEL_PROJECT_ID=${{ secrets.VERCEL_PREVIEW_PROJECT_ID }}"
           echo "VERCEL_ORG_ID=${{ secrets.VERCEL_ORG_ID }}"
 
-      - name: Deploy prebuilt (preview)
+      - name: Deploy to Vercel (preview)
         working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -145,7 +143,7 @@ jobs:
           set -eo pipefail
           LOG=../vercel.log
           rm -f "$LOG"
-          npx vercel deploy --prebuilt --yes --token "$VERCEL_TOKEN" 2>&1 | tee "$LOG"
+          npx vercel deploy --yes --token "$VERCEL_TOKEN" 2>&1 | tee "$LOG"
 
       - name: Soft warn on Vercel rate-limit
         if: always()

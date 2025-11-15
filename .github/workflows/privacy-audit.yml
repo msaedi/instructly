@@ -47,11 +47,21 @@ jobs:
           python-version-file: ./.python-version
           cache: 'pip'
 
+      - name: Check disk usage (before backend deps)
+        run: df -h
+
       - name: Install backend dependencies
+        env:
+          PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
+          PIP_EXTRA_INDEX_URL: https://pypi.org/simple
         run: |
           cd backend
-          pip install -r requirements.txt
-          pip install httpx pyyaml
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir httpx pyyaml
+
+      - name: Check disk usage (after backend deps)
+        run: df -h
 
       - name: Login to GHCR (actor + GITHUB_TOKEN)
         uses: docker/login-action@v3

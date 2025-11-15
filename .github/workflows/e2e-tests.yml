@@ -254,14 +254,23 @@ jobs:
         cache: 'pip'
         cache-dependency-path: backend/requirements.txt
 
+    - name: Check disk usage (before backend deps)
+      run: df -h
+
     - name: Install backend dependencies
       working-directory: ./backend
+      env:
+        PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
+        PIP_EXTRA_INDEX_URL: https://pypi.org/simple
       run: |
         pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install --no-cache-dir -r requirements.txt
         echo "=== Key Python packages ==="
         pip freeze | grep -E 'fastapi|uvicorn|psycopg2|sqlalchemy|pydantic|redis' || true
         echo "==========================="
+
+    - name: Check disk usage (after backend deps)
+      run: df -h
 
     - name: Setup and seed test database
       working-directory: ./backend
@@ -721,11 +730,20 @@ jobs:
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
 
+      - name: Check disk usage (before backend deps)
+        run: df -h
+
       - name: Install backend dependencies
         working-directory: backend
+        env:
+          PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
+          PIP_EXTRA_INDEX_URL: https://pypi.org/simple
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Check disk usage (after backend deps)
+        run: df -h
 
       - name: Prepare database
         working-directory: backend
@@ -909,11 +927,20 @@ jobs:
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
 
+      - name: Check disk usage (before backend deps)
+        run: df -h
+
       - name: Install backend dependencies
         working-directory: backend
+        env:
+          PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
+          PIP_EXTRA_INDEX_URL: https://pypi.org/simple
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Check disk usage (after backend deps)
+        run: df -h
 
       - name: Prepare database
         working-directory: backend
