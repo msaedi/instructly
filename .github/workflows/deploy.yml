@@ -42,7 +42,6 @@ jobs:
           test -f .next/routes-manifest.json || { echo "::error::Missing .next/routes-manifest.json. Build likely failed."; exit 1; }
 
       - name: Pull Vercel project/env (production)
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -53,7 +52,6 @@ jobs:
           npx vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
 
       - name: Debug Vercel link (production)
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -64,7 +62,6 @@ jobs:
           echo "VERCEL_ORG_ID=${{ secrets.VERCEL_ORG_ID }}"
 
       - name: Deploy to Vercel (production)
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -114,7 +111,6 @@ jobs:
           test -f .next/routes-manifest.json || { echo "::error::Missing .next/routes-manifest.json. Build likely failed."; exit 1; }
 
       - name: Pull Vercel project/env (preview)
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -125,7 +121,6 @@ jobs:
           npx vercel pull --yes --environment=preview --token "$VERCEL_TOKEN"
 
       - name: Debug Vercel link (preview)
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -136,7 +131,6 @@ jobs:
           echo "VERCEL_ORG_ID=${{ secrets.VERCEL_ORG_ID }}"
 
       - name: Deploy to Vercel (preview)
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
