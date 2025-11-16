@@ -37,9 +37,8 @@ jobs:
           npm run build
 
       - name: Verify Next build artifacts
-        working-directory: frontend
         run: |
-          test -f .next/routes-manifest.json || { echo "::error::Missing .next/routes-manifest.json. Build likely failed."; exit 1; }
+          test -f frontend/.next/routes-manifest.json || { echo "::error::Missing frontend/.next/routes-manifest.json. Build likely failed."; exit 1; }
 
       - name: Pull Vercel project/env (production)
         working-directory: frontend
@@ -109,9 +108,8 @@ jobs:
           npm run build
 
       - name: Verify Next build artifacts
-        working-directory: frontend
         run: |
-          test -f .next/routes-manifest.json || { echo "::error::Missing .next/routes-manifest.json. Build likely failed."; exit 1; }
+          test -f frontend/.next/routes-manifest.json || { echo "::error::Missing frontend/.next/routes-manifest.json. Build likely failed."; exit 1; }
 
       - name: Pull Vercel project/env (preview)
         working-directory: frontend
