@@ -81,13 +81,22 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
+    - name: Check disk usage (before backend deps)
+      run: df -h
+
     - name: Install dependencies
       working-directory: backend
+      env:
+        PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
+        PIP_EXTRA_INDEX_URL: https://pypi.org/simple
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-dev.txt || true
-        pip install ruff mypy pytest-cov
+        pip install --no-cache-dir -r requirements.txt
+        pip install --no-cache-dir -r requirements-dev.txt || true
+        pip install --no-cache-dir ruff mypy pytest-cov
+
+    - name: Check disk usage (after backend deps)
+      run: df -h
 
     - name: Ruff
       run: ruff check backend

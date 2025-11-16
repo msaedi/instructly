@@ -8,6 +8,7 @@ import { bgcInvite, bgcRecheck, bgcStatus, type BGCStatus } from '@/lib/api/bgc'
 import { toast } from 'sonner';
 import { IS_NON_PROD } from '@/lib/env';
 import { ApiProblemError } from '@/lib/api/fetch';
+import { logger } from '@/lib/logger';
 
 const POLL_BACKOFF_MS = [15000, 60000, 300000] as const;
 
@@ -24,11 +25,18 @@ const STATUS_META: Record<BGCStatus, { label: string; className: string }> = {
     label: 'Under review',
     className: 'bg-orange-100 text-orange-800 border border-orange-200',
   },
+  consider: {
+    label: 'Needs attention',
+    className: 'bg-orange-100 text-orange-800 border border-orange-200',
+  },
   failed: {
     label: 'Not started',
     className: 'bg-slate-100 text-slate-700 border border-slate-200',
   },
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
 interface StatusChipProps {
   status: BGCStatus | null;
@@ -223,7 +231,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       pollTimerRef.current = null;
       await loadStatus();
       const currentStatus = statusRef.current;
-      if (currentStatus === 'pending' || currentStatus === 'review') {
+      if (currentStatus === 'pending' || currentStatus === 'review' || currentStatus === 'consider') {
         backoffIdxRef.current += 1;
         scheduleNextPoll();
       }
@@ -236,7 +244,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       pollTimerRef.current = null;
     }
     backoffIdxRef.current = 0;
-    if (status === 'pending' || status === 'review') {
+    if (status === 'pending' || status === 'review' || status === 'consider') {
       scheduleNextPoll();
     }
     return () => {
@@ -254,6 +262,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
     cooldownActive ||
     status === 'pending' ||
     status === 'review' ||
+    status === 'consider' ||
     status === 'passed';
 
   const handleStart = async (afterConsent = false): Promise<void> => {
@@ -304,7 +313,15 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
             : detailObject && typeof detailObject['message'] === 'string'
               ? (detailObject['message'] as string)
               : undefined;
-        const code = detailObject && typeof detailObject['code'] === 'string' ? (detailObject['code'] as string) : undefined;
+        const detailCode =
+          detailObject && typeof detailObject['code'] === 'string' ? (detailObject['code'] as string) : undefined;
+        const topLevelCode = typeof error.problem?.code === 'string' ? error.problem.code : undefined;
+        const code = detailCode ?? topLevelCode;
+        const problemExtras = isRecord(error.problem) ? (error.problem as Record<string, unknown>) : undefined;
+        const providerErrorRaw = problemExtras ? (problemExtras['provider_error'] as unknown) : undefined;
+        const debugRaw = problemExtras ? (problemExtras['debug'] as unknown) : undefined;
+        const providerErrorInfo = isRecord(providerErrorRaw) ? providerErrorRaw : undefined;
+        const debugInfo = isRecord(debugRaw) ? debugRaw : undefined;
         description = detailMessage ?? description;
         if (error.response.status === 403) {
           setIsForbidden(true);
@@ -312,6 +329,34 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
             description,
           });
           forbiddenError = true;
+        } else if (code === 'checkr_auth_error') {
+          toast.error('Background check provider authentication failed', {
+            description: 'Please verify the Checkr API key configuration.',
+          });
+          return;
+        } else if (code === 'checkr_package_not_found') {
+          toast.error('Background check configuration error: Checkr package slug is invalid.', {
+            description: 'Please update the Checkr package configuration.',
+          });
+          return;
+        } else if (code === 'invalid_work_location') {
+          toast.error('Your primary teaching ZIP code is missing or invalid.', {
+            description: detailMessage
+              ? `${detailMessage} Please update your ZIP code and try again.`
+              : 'Please update your ZIP code and try again.',
+          });
+          return;
+        } else if (code === 'geocoding_provider_error') {
+          logger.error('Geocoding provider error', providerErrorInfo ?? debugInfo ?? error.problem);
+          toast.error('Our location verification service is having trouble.', {
+            description: 'Please try again later.',
+          });
+          return;
+        } else if (code === 'checkr_work_location_error') {
+          toast.error('Background check configuration error: work location rejected.', {
+            description: 'Please contact support to resolve the work location issue.',
+          });
+          return;
         } else if (code === 'bgc_consent_required' && ensureConsent && !afterConsent) {
           const consentOk = await ensureConsent();
           if (consentOk) {
@@ -380,7 +425,15 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       if (error instanceof ApiProblemError) {
         const statusCode = error.response.status;
         const code = error.problem.code;
-        const detailMessage = error.problem.detail;
+        const detailMessage =
+          typeof error.problem.detail === 'string' && error.problem.detail.length > 0
+            ? error.problem.detail
+            : undefined;
+        const problemExtras = isRecord(error.problem) ? (error.problem as Record<string, unknown>) : undefined;
+        const providerErrorRaw = problemExtras ? (problemExtras['provider_error'] as unknown) : undefined;
+        const debugRaw = problemExtras ? (problemExtras['debug'] as unknown) : undefined;
+        const providerErrorInfo = isRecord(providerErrorRaw) ? providerErrorRaw : undefined;
+        const debugInfo = isRecord(debugRaw) ? debugRaw : undefined;
         if (code === 'bgc_consent_required' && ensureConsent && !afterConsent) {
           const consentOk = await ensureConsent();
           if (consentOk) {
@@ -390,6 +443,34 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
             await handleRecheck(true);
             return;
           }
+        } else if (code === 'checkr_auth_error') {
+          toast.error('Background check provider authentication failed', {
+            description: 'Please verify the Checkr API key configuration.',
+          });
+          return;
+        } else if (code === 'checkr_package_not_found') {
+          toast.error('Background check configuration error: Checkr package slug is invalid.', {
+            description: 'Please update the Checkr package configuration.',
+          });
+          return;
+        } else if (code === 'invalid_work_location') {
+          toast.error('Your primary teaching ZIP code is missing or invalid.', {
+            description: detailMessage
+              ? `${detailMessage} Please update your ZIP code and try again.`
+              : 'Please update your ZIP code and try again.',
+          });
+          return;
+        } else if (code === 'geocoding_provider_error') {
+          logger.error('Geocoding provider error', providerErrorInfo ?? debugInfo ?? error.problem);
+          toast.error('Our location verification service is having trouble.', {
+            description: 'Please try again later.',
+          });
+          return;
+        } else if (code === 'checkr_work_location_error') {
+          toast.error('Background check configuration error: work location rejected.', {
+            description: 'Please contact support to resolve the work location issue.',
+          });
+          return;
         } else if (statusCode === 429) {
           toast.info('You can try again later.');
         } else {
@@ -422,7 +503,8 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
     inviteLoading ||
     loading ||
     status === 'pending' ||
-    status === 'review';
+    status === 'review' ||
+    status === 'consider';
 
   return (
     <div className="space-y-4" data-testid="bgc-step">

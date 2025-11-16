@@ -12,11 +12,15 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import selectinload
 
 from ..api.dependencies.auth import require_admin
-from ..api.dependencies.repositories import get_instructor_repo
+from ..api.dependencies.repositories import (
+    get_bgc_webhook_log_repo,
+    get_instructor_repo,
+)
 from ..core.config import settings
 from ..core.exceptions import RepositoryException
 from ..models.instructor import InstructorProfile
 from ..models.user import User
+from ..repositories.bgc_webhook_log_repository import BGCWebhookLogRepository
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas.admin_background_checks import (
     BGCCaseCountsResponse,
@@ -30,6 +34,9 @@ from ..schemas.admin_background_checks import (
     BGCOverrideResponse,
     BGCReviewCountResponse,
     BGCReviewListResponse,
+    BGCWebhookLogEntry,
+    BGCWebhookLogListResponse,
+    BGCWebhookStatsResponse,
 )
 from ..services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
@@ -43,6 +50,63 @@ router = APIRouter(prefix="/api/admin/bgc", tags=["admin-bgc"])
 CONSENT_WINDOW = timedelta(hours=24)
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
+
+_WEBHOOK_EVENT_MAP: dict[str, dict[str, list[str]]] = {
+    "invitation.": {"prefixes": ["invitation."]},
+    "report.": {"prefixes": ["report."]},
+    "deferred": {"exact": ["report.deferred"]},
+    "canceled": {"exact": ["report.canceled"]},
+    "completed": {"exact": ["report.completed"]},
+    "error": {"exact": ["report.upgrade_failed", "report.suspended"]},
+}
+
+
+def _parse_event_filters(raw_values: list[str]) -> tuple[list[str], list[str]]:
+    exact: list[str] = []
+    prefixes: list[str] = []
+    for raw in raw_values:
+        token = (raw or "").strip().lower()
+        if not token:
+            continue
+        mapping = _WEBHOOK_EVENT_MAP.get(token)
+        if mapping:
+            exact.extend(mapping.get("exact", []))
+            prefixes.extend(mapping.get("prefixes", []))
+            continue
+        if token.endswith("."):
+            prefixes.append(token)
+        else:
+            exact.append(token)
+    return list(dict.fromkeys(exact)), list(dict.fromkeys(prefixes))
+
+
+def _parse_status_filters(raw_values: list[str]) -> list[int]:
+    codes: set[int] = set()
+    for raw in raw_values:
+        token = (raw or "").strip().lower()
+        if not token:
+            continue
+        if token.endswith("xx") and len(token) == 3 and token[0].isdigit():
+            base = int(token[0]) * 100
+            codes.update(range(base, base + 100))
+            continue
+        if token in {"error", "errors"}:
+            codes.update(range(400, 600))
+            continue
+        try:
+            codes.add(int(token))
+        except ValueError:
+            continue
+    return sorted(codes)
+
+
+def _extract_payload_object(payload: dict[str, Any]) -> dict[str, Any]:
+    data = payload.get("data")
+    if isinstance(data, dict):
+        obj = data.get("object")
+        if isinstance(obj, dict):
+            return obj
+    return {}
 
 
 def _build_checkr_report_url(report_id: str | None) -> str | None:
@@ -130,8 +194,10 @@ def _get_bgc_cases(
         .order_by(repo.model.id.asc())
     )
 
-    if status in {"review", "pending"}:
-        query = query.filter(repo.model.bgc_status == status)
+    if status == "pending":
+        query = query.filter(repo.model.bgc_status == "pending")
+    elif status == "review":
+        query = query.filter(repo.model.bgc_status.in_(["review", "consider"]))
 
     if cursor:
         query = query.filter(repo.model.id > cursor)
@@ -183,7 +249,7 @@ async def bgc_review_count(
 ) -> BGCReviewCountResponse:
     """Return total instructors currently in review state."""
 
-    payload = {"count": repo.count_by_bgc_status("review")}
+    payload = {"count": repo.count_by_bgc_statuses(["review", "consider"])}
     return BGCReviewCountResponse(**model_filter(BGCReviewCountResponse, payload))
 
 
@@ -217,7 +283,7 @@ async def bgc_counts(
     """Return total counts for review and pending background check queues."""
 
     payload = {
-        "review": repo.count_by_bgc_status("review"),
+        "review": repo.count_by_bgc_statuses(["review", "consider"]),
         "pending": repo.count_by_bgc_status("pending"),
     }
     return BGCCaseCountsResponse(**model_filter(BGCCaseCountsResponse, payload))
@@ -315,6 +381,134 @@ async def bgc_expiring(
         }
         results.append(BGCExpiringItem(**model_filter(BGCExpiringItem, item_payload)))
     return results
+
+
+@router.get("/webhooks", response_model=BGCWebhookLogListResponse)
+async def bgc_webhook_logs(
+    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    cursor: str | None = Query(None, description="Opaque cursor for pagination"),
+    event: list[str] = Query(default_factory=list),
+    status_param: list[str] = Query(default_factory=list, alias="status"),
+    q: str | None = Query(None, description="Search delivery id or signature"),
+    log_repo: BGCWebhookLogRepository = Depends(get_bgc_webhook_log_repo),
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    _: None = Depends(require_admin),
+) -> BGCWebhookLogListResponse:
+    """Return recent Checkr webhook deliveries for troubleshooting."""
+
+    exact_events, event_prefixes = _parse_event_filters(event)
+    status_codes = _parse_status_filters(status_param)
+    search_value = (q or "").strip() or None
+
+    entries, next_cursor = log_repo.list_filtered(
+        limit=limit,
+        cursor=cursor,
+        events=exact_events or None,
+        event_prefixes=event_prefixes or None,
+        status_codes=status_codes or None,
+        search=search_value,
+    )
+
+    report_cache: dict[str, str | None] = {}
+    candidate_cache: dict[str, str | None] = {}
+    invitation_cache: dict[str, str | None] = {}
+
+    def _resolve_by_report(report_id: str | None) -> str | None:
+        if not report_id:
+            return None
+        if report_id not in report_cache:
+            profile = repo.get_by_report_id(report_id)
+            report_cache[report_id] = getattr(profile, "id", None) if profile else None
+        return report_cache[report_id]
+
+    def _resolve_by_invitation(invitation_id: str | None) -> str | None:
+        if not invitation_id:
+            return None
+        if invitation_id not in invitation_cache:
+            profile = repo.get_by_invitation_id(invitation_id)
+            invitation_cache[invitation_id] = getattr(profile, "id", None) if profile else None
+        return invitation_cache[invitation_id]
+
+    def _resolve_by_candidate(candidate_id: str | None) -> str | None:
+        if not candidate_id:
+            return None
+        if candidate_id not in candidate_cache:
+            profile = repo.get_by_candidate_id(candidate_id)
+            candidate_cache[candidate_id] = getattr(profile, "id", None) if profile else None
+        return candidate_cache[candidate_id]
+
+    items: list[BGCWebhookLogEntry] = []
+    for entry in entries:
+        payload = entry.payload_json if isinstance(entry.payload_json, dict) else {}
+        data_object = _extract_payload_object(payload) if isinstance(payload, dict) else {}
+
+        raw_result = None
+        if isinstance(data_object, dict):
+            raw_result = (
+                data_object.get("result")
+                or data_object.get("status")
+                or data_object.get("adjudication")
+            )
+
+        candidate_id = data_object.get("candidate_id")
+        if not isinstance(candidate_id, str):
+            candidate_id = None
+        invitation_id = data_object.get("invitation_id")
+        if not isinstance(invitation_id, str):
+            invitation_id = None
+        report_id: str | None = None
+        if isinstance(data_object.get("object"), str) and data_object.get("object") == "report":
+            report_id = data_object.get("id") if isinstance(data_object.get("id"), str) else None
+        if report_id is None:
+            potential = data_object.get("report_id")
+            report_id = potential if isinstance(potential, str) else None
+
+        instructor_id = (
+            _resolve_by_report(report_id)
+            or _resolve_by_invitation(invitation_id)
+            or _resolve_by_candidate(candidate_id)
+        )
+
+        item_payload = {
+            "id": entry.id,
+            "event_type": entry.event_type,
+            "delivery_id": entry.delivery_id,
+            "resource_id": entry.resource_id,
+            "result": raw_result if isinstance(raw_result, str) else None,
+            "http_status": entry.http_status,
+            "signature": entry.signature,
+            "created_at": entry.created_at,
+            "payload": payload if isinstance(payload, dict) else {},
+            "instructor_id": instructor_id,
+            "report_id": report_id,
+            "candidate_id": candidate_id,
+            "invitation_id": invitation_id,
+        }
+        items.append(BGCWebhookLogEntry(**model_filter(BGCWebhookLogEntry, item_payload)))
+
+    error_count = log_repo.count_errors_since(
+        since=datetime.now(timezone.utc) - timedelta(hours=24)
+    )
+
+    response_payload = {
+        "items": items,
+        "next_cursor": next_cursor,
+        "error_count_24h": error_count,
+    }
+    return BGCWebhookLogListResponse(**model_filter(BGCWebhookLogListResponse, response_payload))
+
+
+@router.get("/webhooks/stats", response_model=BGCWebhookStatsResponse)
+async def bgc_webhook_stats(
+    log_repo: BGCWebhookLogRepository = Depends(get_bgc_webhook_log_repo),
+    _: None = Depends(require_admin),
+) -> BGCWebhookStatsResponse:
+    """Return summary stats for Checkr webhooks."""
+
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    count = log_repo.count_errors_since(since=since)
+    payload = {"error_count_24h": count}
+    return BGCWebhookStatsResponse(**model_filter(BGCWebhookStatsResponse, payload))
 
 
 @router.post("/{instructor_id}/override", response_model=BGCOverrideResponse)

@@ -60,18 +60,23 @@ export interface AdminInstructorDetail {
 const COUNTS_QUERY_KEY: QueryKey = ['admin', 'bgc', 'counts'];
 const CASES_QUERY_KEY_PREFIX: QueryKey = ['admin', 'bgc', 'cases'];
 
-export function useBGCCounts() {
+export function useBGCCounts(enabled = true) {
   const isClient = typeof window !== 'undefined';
   return useQuery({
     queryKey: COUNTS_QUERY_KEY,
     queryFn: async () => httpGet<BGCCounts>('/api/admin/bgc/counts'),
     refetchOnWindowFocus: false,
     retry: 1,
-    enabled: isClient,
+    enabled: isClient && enabled,
   });
 }
 
-export function useBGCCases(status: 'review' | 'pending' | 'all', q = '', limit = 50) {
+export function useBGCCases(
+  status: 'review' | 'pending' | 'all',
+  q = '',
+  limit = 50,
+  enabled = true,
+) {
   const isClient = typeof window !== 'undefined';
   return useQuery({
     queryKey: [...CASES_QUERY_KEY_PREFIX, status, q, limit],
@@ -84,7 +89,7 @@ export function useBGCCases(status: 'review' | 'pending' | 'all', q = '', limit 
     },
     refetchOnWindowFocus: false,
     retry: 1,
-    enabled: isClient,
+    enabled: isClient && enabled,
   });
 }
 
@@ -152,6 +157,17 @@ export function useBGCRecheck() {
   return useMutation({
     mutationFn: ({ id }: { id: string }) =>
       httpPost<BGCInviteResponse>(`/api/instructors/${id}/bgc/recheck`, {}),
+    onSuccess: (_, variables) => {
+      invalidateBackgroundCheckQueries(queryClient, variables.id);
+    },
+  });
+}
+
+export function useBGCInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, packageSlug }: { id: string; packageSlug?: string | null }) =>
+      httpPost<BGCInviteResponse>(`/api/instructors/${id}/bgc/invite`, packageSlug ? { package_slug: packageSlug } : {}),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },

@@ -295,6 +295,9 @@ async def go_live(
     if not profile_record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
+    # BGC guardrail: instructors may only go live when their latest Checkr result is "passed".
+    # Listing/booking code paths and the DB check constraint enforce the same rule, so this
+    # gate keeps the frontend contract (and admin overrides) aligned with production policy.
     bgc_ok = (getattr(profile_record, "bgc_status", "") or "").lower() == "passed"
 
     missing: list[str] = []

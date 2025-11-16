@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from ..utils.strict import model_filter
 from ._strict_base import StrictModel
@@ -139,6 +139,32 @@ class BGCLatestConsentResponse(StrictModel):
     ip_address: str | None = None
 
 
+class BGCWebhookLogEntry(StrictModel):
+    id: str
+    event_type: str
+    delivery_id: str | None = None
+    resource_id: str | None = None
+    result: str | None = None
+    http_status: int | None = None
+    signature: str | None = None
+    created_at: datetime
+    payload: dict[str, Any]
+    instructor_id: str | None = None
+    report_id: str | None = None
+    candidate_id: str | None = None
+    invitation_id: str | None = None
+
+
+class BGCWebhookLogListResponse(StrictModel):
+    items: list[BGCWebhookLogEntry]
+    next_cursor: str | None = None
+    error_count_24h: int
+
+
+class BGCWebhookStatsResponse(StrictModel):
+    error_count_24h: int
+
+
 __all__ = [
     "BGCReviewCountResponse",
     "BGCReviewItemModel",
@@ -152,4 +178,7 @@ __all__ = [
     "BGCExpiringItem",
     "BGCOverrideResponse",
     "BGCLatestConsentResponse",
+    "BGCWebhookLogEntry",
+    "BGCWebhookLogListResponse",
+    "BGCWebhookStatsResponse",
 ]

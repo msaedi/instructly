@@ -1,17 +1,29 @@
+import base64
 import json
 
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 import pytest
 
 from app.api.dependencies.repositories import get_background_job_repo
 from app.api.dependencies.services import get_background_check_workflow_service
+from app.core.config import settings
 from app.main import fastapi_app as app
 from app.routes.webhooks_checkr import _delivery_cache
+
+
+class _StubRepo:
+    def bind_report_to_candidate(self, *_args, **_kwargs):
+        return None
+
+    def bind_report_to_invitation(self, *_args, **_kwargs):
+        return None
 
 
 class StubWorkflow:
     def __init__(self) -> None:
         self.report_completed_calls = 0
+        self.repo = _StubRepo()
 
     def handle_report_completed(
         self,
@@ -21,6 +33,8 @@ class StubWorkflow:
         package: str | None,
         env: str,
         completed_at,
+        candidate_id: str | None = None,
+        invitation_id: str | None = None,
     ):
         self.report_completed_calls += 1
         return result, None, False
@@ -39,16 +53,32 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def configure_webhook_basic_auth():
+    original_user = settings.checkr_webhook_user
+    original_pass = settings.checkr_webhook_pass
+    settings.checkr_webhook_user = SecretStr("hookuser")
+    settings.checkr_webhook_pass = SecretStr("hookpass")
+    try:
+        yield
+    finally:
+        settings.checkr_webhook_user = original_user
+        settings.checkr_webhook_pass = original_pass
+
+
+def _auth_headers():
+    token = base64.b64encode(b"hookuser:hookpass").decode("utf-8")
+    return {
+        "Authorization": f"Basic {token}",
+        "Content-Type": "application/json",
+    }
+
+
 def test_duplicate_delivery_is_ignored(monkeypatch, client):
     workflow = StubWorkflow()
 
     app.dependency_overrides[get_background_check_workflow_service] = lambda: workflow
     app.dependency_overrides[get_background_job_repo] = lambda: StubJobRepository()
-
-    monkeypatch.setattr(
-        "app.routes.webhooks_checkr._verify_signature",
-        lambda payload, signature: None,
-    )
 
     try:
         _delivery_cache.clear()
@@ -59,10 +89,7 @@ def test_duplicate_delivery_is_ignored(monkeypatch, client):
         }
         body = json.dumps(payload)
 
-        headers = {
-            "X-Checkr-Delivery-Id": "delivery-1",
-            "Content-Type": "application/json",
-        }
+        headers = {"X-Checkr-Delivery-Id": "delivery-1", **_auth_headers()}
 
         first = client.post("/webhooks/checkr/", content=body, headers=headers)
         assert first.status_code == 200

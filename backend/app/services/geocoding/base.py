@@ -29,6 +29,24 @@ class AutocompleteResult(BaseModel):
     types: list[str] = []
 
 
+class GeocodingProviderError(Exception):
+    """Raised when a third-party geocoding provider fails or rejects a request."""
+
+    def __init__(
+        self,
+        *,
+        provider: str,
+        status: Optional[str] = None,
+        message: Optional[str] = None,
+        payload: Optional[dict[str, Any]] = None,
+    ) -> None:
+        self.provider = provider
+        self.status = status
+        self.error_message = message
+        self.payload = payload or {}
+        super().__init__(message or status or "Geocoding provider error")
+
+
 class GeocodingProvider(ABC):
     @abstractmethod
     async def geocode(self, address: str) -> Optional[GeocodedAddress]:

@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from ...repositories.background_job_repository import BackgroundJobRepository
+from ...repositories.bgc_webhook_log_repository import BGCWebhookLogRepository
 from ...repositories.instructor_profile_repository import InstructorProfileRepository
 from .database import get_db
 
@@ -18,3 +19,9 @@ def get_background_job_repo(db: Session = Depends(get_db)) -> BackgroundJobRepos
     """Provide a BackgroundJobRepository instance."""
 
     return BackgroundJobRepository(db)
+
+
+def get_bgc_webhook_log_repo(db: Session = Depends(get_db)) -> BGCWebhookLogRepository:
+    """Provide a repository for background check webhook logs."""
+
+    return BGCWebhookLogRepository(db)

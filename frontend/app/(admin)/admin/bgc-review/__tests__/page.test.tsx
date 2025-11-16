@@ -10,17 +10,19 @@ import type { BGCInviteResponse } from '@/lib/api/bgc';
 import { ApiProblemError } from '@/lib/api/fetch';
 import type { UseMutationResult } from '@tanstack/react-query';
 import type { BGCCaseItem, AdminInstructorDetail } from '../hooks';
-import { useBGCRecheck } from '../hooks';
+import { useBGCRecheck, useBGCInvite } from '../hooks';
 
 jest.mock('../hooks', () => {
   const actual = jest.requireActual('../hooks');
   return {
     ...actual,
     useBGCRecheck: jest.fn(),
+    useBGCInvite: jest.fn(),
   };
 });
 
 const mockedUseBGCRecheck = useBGCRecheck as jest.MockedFunction<typeof useBGCRecheck>;
+const mockedUseBGCInvite = useBGCInvite as jest.MockedFunction<typeof useBGCInvite>;
 
 function makeRecheckMutation(
   overrides: Partial<UseMutationResult<BGCInviteResponse, Error, { id: string }, unknown>> = {},
@@ -31,6 +33,28 @@ function makeRecheckMutation(
     isPending: false,
     reset: jest.fn(),
   } satisfies Partial<UseMutationResult<BGCInviteResponse, Error, { id: string }, unknown>>;
+  return { ...base, ...overrides } as unknown as UseMutationResult<
+    BGCInviteResponse,
+    Error,
+    { id: string },
+    unknown
+  >;
+}
+
+function makeInviteMutation(
+  overrides: Partial<UseMutationResult<BGCInviteResponse, Error, { id: string }, unknown>> = {},
+): UseMutationResult<BGCInviteResponse, Error, { id: string }, unknown> {
+  const base = {
+    mutate: jest.fn(),
+    mutateAsync: jest.fn(async () => ({
+      ok: true,
+      status: 'pending',
+      report_id: 'rpt_invite',
+      already_in_progress: false,
+    })),
+    isPending: false,
+    reset: jest.fn(),
+  };
   return { ...base, ...overrides } as unknown as UseMutationResult<
     BGCInviteResponse,
     Error,
@@ -104,6 +128,7 @@ describe('AdminBGCReviewPage', () => {
         } as BGCInviteResponse)),
       }),
     );
+    mockedUseBGCInvite.mockReturnValue(makeInviteMutation());
     reviewItems = [
       {
         instructor_id: '01TEST0INSTRUCTOR',

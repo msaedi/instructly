@@ -6,7 +6,7 @@ from typing import Literal, Optional, cast
 
 from .config import settings
 
-BGCStatus = Literal["pending", "review", "passed", "failed"]
+BGCStatus = Literal["pending", "review", "consider", "passed", "failed"]
 
 
 def must_be_verified_for_public() -> bool:

@@ -201,10 +201,19 @@ class BackgroundCheckWorkflowService:
         package: Optional[str],
         env: str,
         completed_at: datetime,
+        candidate_id: str | None = None,
+        invitation_id: str | None = None,
     ) -> Tuple[str, Optional[InstructorProfile], bool]:
-        """Process a report.completed webhook event."""
+        """
+        Process a report.completed webhook event.
 
-        normalized_result = result.lower() if result else "unknown"
+        Operators: if an instructor remains stuck in ``pending`` even though
+        Checkr shows a clear result, confirm the profile has ``bgc_report_id``
+        set and then re-run the persisted ``webhook.report_completed`` job so
+        this workflow can resume.
+        """
+
+        normalized_result = (result or "").lower() or "unknown"
         status_value = "passed" if normalized_result == "clear" else "review"
         completed_at = _ensure_utc(completed_at)
 
@@ -212,7 +221,21 @@ class BackgroundCheckWorkflowService:
             report_id,
             status=status_value,
             completed_at=completed_at,
+            result=normalized_result,
         )
+        if updated == 0:
+            bound_profile_id = self.repo.bind_report_to_candidate(candidate_id, report_id, env=env)
+            if not bound_profile_id:
+                bound_profile_id = self.repo.bind_report_to_invitation(
+                    invitation_id, report_id, env=env
+                )
+            if bound_profile_id:
+                updated = self.repo.update_bgc_by_report_id(
+                    report_id,
+                    status=status_value,
+                    completed_at=completed_at,
+                    result=normalized_result,
+                )
         if updated == 0:
             raise RepositoryException(
                 f"No instructor profile linked to report {report_id}; will retry later"
@@ -249,13 +272,14 @@ class BackgroundCheckWorkflowService:
 
         return status_value, profile, requires_follow_up
 
-    def handle_report_suspended(self, report_id: str) -> None:
+    def handle_report_suspended(self, report_id: str, note: str | None = None) -> None:
         """Process a report.suspended webhook event."""
 
         updated = self.repo.update_bgc_by_report_id(
             report_id,
-            status="review",
+            status="pending",
             completed_at=None,
+            note=note if note is not None else "report.suspended",
         )
         if updated == 0:
             raise RepositoryException(
@@ -303,7 +327,7 @@ class BackgroundCheckWorkflowService:
             return False, None
 
         status = (getattr(profile, "bgc_status", "") or "").lower()
-        if status != "review":
+        if status not in {"review", "consider"}:
             self.repo.set_dispute_resolved(instructor_id, note)
             return False, None
 
@@ -510,6 +534,14 @@ class BackgroundCheckWorkflowService:
                 BGC_FINAL_ADVERSE_EXECUTED_TOTAL.labels(outcome="skipped_status").inc()
                 return False
 
+            if getattr(profile, "bgc_in_dispute", False):
+                logger.info(
+                    "Final adverse action skipped; dispute flag set",
+                    extra={"profile_id": profile_id},
+                )
+                BGC_FINAL_ADVERSE_EXECUTED_TOTAL.labels(outcome="skipped_dispute").inc()
+                return False
+
             current_notice_id = getattr(profile, "bgc_pre_adverse_notice_id", None)
             pre_sent_at = getattr(profile, "bgc_pre_adverse_sent_at", None)
 
@@ -544,7 +576,7 @@ class BackgroundCheckWorkflowService:
                 return False
 
             current_status = (getattr(profile, "bgc_status", "") or "").lower()
-            if current_status != "review":
+            if current_status not in {"review", "consider"}:
                 logger.info(
                     "Final adverse action skipped; status changed",
                     extra={"profile_id": profile_id, "status": current_status},
