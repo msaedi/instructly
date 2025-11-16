@@ -66,13 +66,6 @@ def upgrade() -> None:
         ["instructor_id", "status", "booking_date"],
     )
 
-    # Index for time-based conflict checking
-    op.create_index(
-        "idx_bookings_time_conflicts",
-        "bookings",
-        ["instructor_id", "booking_date", "start_time", "end_time"],
-    )
-
     # Note: Availability overlap queries now use availability_days bitmap table
     # No index needed here - bitmap queries use availability_days indexes from migration 006
 
@@ -158,25 +151,7 @@ def upgrade() -> None:
     # - idx_search_history_guest_session
     # - idx_search_history_normalized_query
 
-    # Index for blackout dates lookup
-    op.create_index(
-        "idx_blackout_dates_instructor",
-        "blackout_dates",
-        ["instructor_id", "date"],
-    )
-
-    # Index for service catalog search terms (GIN index for array search)
-    try:
-        op.execute(
-            """
-            CREATE INDEX idx_service_catalog_search_terms_gin
-            ON service_catalog
-            USING gin(search_terms)
-        """
-        )
-        print("- Created GIN index for search_terms array (PostgreSQL)")
-    except Exception:
-        print("- Skipped search_terms GIN index (non-PostgreSQL)")
+    # search_terms GIN index defined with service_catalog base table (002 migration)
 
     # Index for instructor services by catalog ID (for filtering)
     op.create_index(

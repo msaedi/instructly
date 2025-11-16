@@ -259,8 +259,6 @@ def upgrade() -> None:
     )
 
     # Create indexes for RBAC tables
-    op.create_index("idx_roles_name", "roles", ["name"], unique=True)
-    op.create_index("idx_permissions_name", "permissions", ["name"], unique=True)
     op.create_index("idx_permissions_resource_action", "permissions", ["resource", "action"])
     op.create_index("idx_user_roles_user_id", "user_roles", ["user_id"])
     op.create_index("idx_user_roles_role_id", "user_roles", ["role_id"])

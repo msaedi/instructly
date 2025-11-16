@@ -102,6 +102,41 @@ def _drop_permissive_policy_and_disable_rls(table_name: str) -> None:
         """
     )
 
+
+def _create_extension_prefer_extensions_schema(extension_name: str) -> None:
+    """Create extension using extensions schema when available."""
+
+    bind = op.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return
+
+    op.execute(
+        f"""
+        DO $$
+        DECLARE
+            extensions_schema_exists BOOLEAN;
+            extension_installed BOOLEAN;
+        BEGIN
+            SELECT EXISTS (
+                SELECT 1 FROM pg_namespace WHERE nspname = 'extensions'
+            ) INTO extensions_schema_exists;
+
+            SELECT EXISTS (
+                SELECT 1 FROM pg_extension WHERE extname = '{extension_name}'
+            ) INTO extension_installed;
+
+            IF NOT extension_installed THEN
+                IF extensions_schema_exists THEN
+                    EXECUTE 'CREATE EXTENSION IF NOT EXISTS {extension_name} WITH SCHEMA extensions';
+                ELSE
+                    EXECUTE 'CREATE EXTENSION IF NOT EXISTS {extension_name}';
+                END IF;
+            END IF;
+        END
+        $$;
+        """
+    )
+
 # revision identifiers, used by Alembic.
 revision: str = "006_final_constraints"
 down_revision: Union[str, None] = "005_performance_indexes"
@@ -129,7 +164,7 @@ def upgrade() -> None:
             already_installed = False
         if not already_installed:
             try:
-                op.execute("CREATE EXTENSION IF NOT EXISTS postgis;")
+                _create_extension_prefer_extensions_schema("postgis")
                 print("PostGIS extension created")
             except Exception as e:
                 # Provide a clear, actionable error for local setups
@@ -632,8 +667,10 @@ def upgrade() -> None:
         print("Creating PostgreSQL NOTIFY function for real-time messaging (PostgreSQL only)...")
         op.execute(
             """
-            CREATE OR REPLACE FUNCTION notify_new_message()
-            RETURNS TRIGGER AS $$
+            CREATE OR REPLACE FUNCTION public.notify_new_message()
+            RETURNS TRIGGER
+            SET search_path = public
+            AS $$
             DECLARE
                 payload json;
                 sender_first_name TEXT;
@@ -664,15 +701,17 @@ def upgrade() -> None:
             CREATE TRIGGER message_insert_notify
             AFTER INSERT ON messages
             FOR EACH ROW
-            EXECUTE FUNCTION notify_new_message();
+            EXECUTE FUNCTION public.notify_new_message();
         """
         )
 
         # Read receipt trigger: when a notification is marked read, update messages.read_by and notify
         op.execute(
             """
-            CREATE OR REPLACE FUNCTION handle_message_read_receipt()
-            RETURNS TRIGGER AS $$
+            CREATE OR REPLACE FUNCTION public.handle_message_read_receipt()
+            RETURNS TRIGGER
+            SET search_path = public
+            AS $$
             DECLARE
                 payload json;
                 booking_id VARCHAR(26);
@@ -707,7 +746,7 @@ def upgrade() -> None:
             CREATE TRIGGER message_read_receipt_notify
             AFTER UPDATE ON message_notifications
             FOR EACH ROW
-            EXECUTE FUNCTION handle_message_read_receipt();
+            EXECUTE FUNCTION public.handle_message_read_receipt();
             """
         )
 
@@ -845,6 +884,11 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("instructor_id", "neighborhood_id"),
     )
     op.create_index(
+        "ix_instructor_service_areas_neighborhood_id",
+        "instructor_service_areas",
+        ["neighborhood_id"],
+    )
+    op.create_index(
         "ix_instructor_service_areas_instructor",
         "instructor_service_areas",
         ["instructor_id", "is_active"],
@@ -898,13 +942,15 @@ def upgrade() -> None:
     if is_postgres:
         op.execute(
             """
-            CREATE OR REPLACE FUNCTION update_updated_at_column()
-            RETURNS TRIGGER AS $$
+            CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+            RETURNS TRIGGER
+            SET search_path = public
+            AS $$
             BEGIN
                 NEW.updated_at = NOW();
                 RETURN NEW;
             END;
-            $$ language 'plpgsql';
+            $$ LANGUAGE plpgsql;
             """
         )
         op.execute(
@@ -912,7 +958,7 @@ def upgrade() -> None:
             CREATE TRIGGER instructor_preferred_places_set_updated_at
             BEFORE UPDATE ON instructor_preferred_places
             FOR EACH ROW
-            EXECUTE FUNCTION update_updated_at_column();
+            EXECUTE FUNCTION public.update_updated_at_column();
             """
         )
 
@@ -1177,7 +1223,7 @@ def downgrade() -> None:
         op.execute(
             "DROP TRIGGER IF EXISTS instructor_preferred_places_set_updated_at ON instructor_preferred_places;"
         )
-        op.execute("DROP FUNCTION IF EXISTS update_updated_at_column();")
+        op.execute("DROP FUNCTION IF EXISTS public.update_updated_at_column();")
     op.drop_index(
         "ix_instructor_preferred_places_instructor_kind_position",
         table_name="instructor_preferred_places",
@@ -1186,6 +1232,10 @@ def downgrade() -> None:
 
     # Drop service area tables and spatial indexes first (to avoid dependency issues)
     print("Dropping instructor service area and neighborhoods tables...")
+    op.drop_index(
+        "ix_instructor_service_areas_neighborhood_id",
+        table_name="instructor_service_areas",
+    )
     op.drop_index("ix_instructor_service_areas_instructor", table_name="instructor_service_areas")
     op.drop_table("instructor_service_areas")
     # Legacy nyc_neighborhoods not created in this migration anymore
@@ -1234,13 +1284,13 @@ def downgrade() -> None:
     if is_postgres:
         print("Dropping message notification trigger and function (PostgreSQL only)...")
         op.execute("DROP TRIGGER IF EXISTS message_insert_notify ON messages;")
-        op.execute("DROP FUNCTION IF EXISTS notify_new_message();")
+        op.execute("DROP FUNCTION IF EXISTS public.notify_new_message();")
 
     # Drop read receipt trigger and function (Phase 2 additions)
     if is_postgres:
         print("Dropping read receipt trigger and function (PostgreSQL only)...")
         op.execute("DROP TRIGGER IF EXISTS message_read_receipt_notify ON message_notifications;")
-        op.execute("DROP FUNCTION IF EXISTS handle_message_read_receipt();")
+        op.execute("DROP FUNCTION IF EXISTS public.handle_message_read_receipt();")
 
     # Drop Phase 2 tables that depend on messages first
     print("Dropping message_reactions and message_edits tables...")
