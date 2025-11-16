@@ -1,4 +1,3 @@
-import path from 'path';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
@@ -52,7 +51,6 @@ const nextConfig: NextConfig = {
       ...immutableCacheHeaders,
     ];
   },
-  outputFileTracingRoot: path.join(__dirname, '..'),
 };
 
 export default nextConfig;
