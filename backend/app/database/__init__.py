@@ -4,12 +4,16 @@ Database engine, session factory, and metadata shared across the application.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 import logging
-from typing import Any, Generator
+import random
+import time
+from typing import Any, Awaitable, Callable, Generator, TypeVar
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import DeclarativeMeta, Session, declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool
 
@@ -24,25 +28,68 @@ else:
 
 logger = logging.getLogger(__name__)
 
-# Create engine with connection pooling
-if DATABASE_POOL_CONFIG:
-    # Use production-optimized settings
-    engine: Engine = create_engine(
-        settings.get_database_url(), poolclass=QueuePool, **DATABASE_POOL_CONFIG
-    )
-else:
-    # Use default development settings
-    engine = create_engine(
-        settings.get_database_url(),
-        poolclass=QueuePool,
-        pool_size=20,  # Number of persistent connections
-        max_overflow=10,  # Maximum overflow connections
-        pool_timeout=30,  # Timeout for getting connection
-        pool_recycle=3600,  # Recycle connections after 1 hour
-        pool_pre_ping=True,  # Test connections before using
-        echo_pool=False,  # Set to True for pool debugging
-        connect_args={"connect_timeout": 10, "application_name": "instainstru_backend"},
-    )
+# Engine tuning for Supabase/Supavisor:
+# - All traffic goes through the pooled (pgbouncer) endpoint on port 6543.
+# - pool_pre_ping + pool_recycle keep stale pooled connections from hanging around
+#   after Supavisor restarts a pod.
+# - keepalives ensure idle sockets stay registered with Supabase's load balancer.
+# - statement_timeout caps runaway queries so the API layer recovers quickly.
+_DEFAULT_CONNECT_ARGS: dict[str, Any] = {
+    "sslmode": "require",
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 5,
+    "options": "-c statement_timeout=30000",
+    "connect_timeout": 10,
+    "application_name": "instainstru_backend",
+}
+
+_DEFAULT_POOL_KWARGS: dict[str, Any] = {
+    "pool_size": 10,
+    "max_overflow": 20,
+    "pool_timeout": 10,
+    "pool_recycle": 300,
+    "pool_pre_ping": True,
+    "pool_use_lifo": True,
+    "future": True,
+}
+
+
+def _should_require_ssl(url: str) -> bool:
+    try:
+        from urllib.parse import urlparse
+
+        hostname = urlparse(url).hostname or ""
+    except Exception:
+        hostname = ""
+    normalized = hostname.lower()
+    return "supabase" in normalized or normalized.endswith(".supabase.net")
+
+
+def _build_engine_kwargs(db_url: str) -> dict[str, Any]:
+    """Merge runtime + production overrides for the SQLAlchemy engine."""
+
+    kwargs = dict(_DEFAULT_POOL_KWARGS)
+    connect_args = dict(_DEFAULT_CONNECT_ARGS)
+
+    if DATABASE_POOL_CONFIG:
+        config = dict(DATABASE_POOL_CONFIG)
+        supplied_connect_args = config.pop("connect_args", {})
+        kwargs.update(config)
+        connect_args.update(supplied_connect_args or {})
+
+    if not _should_require_ssl(db_url):
+        connect_args.pop("sslmode", None)
+
+    kwargs["connect_args"] = connect_args
+    return kwargs
+
+
+db_url = settings.get_database_url()
+# DatabaseConfig resolves to the Supabase pooled endpoint (Supavisor/pgbouncer on 6543),
+# so every connection here is multiplexed through Supabase's pooler.
+engine: Engine = create_engine(db_url, poolclass=QueuePool, **_build_engine_kwargs(db_url))
 
 
 @event.listens_for(Engine, "after_cursor_execute", retval=False)
@@ -105,10 +152,88 @@ def get_db_pool_status() -> dict[str, int]:
     }
 
 
+T = TypeVar("T")
+# Only target the transient disconnect errors Supavisor emits when pgbouncer restarts.
+_RETRYABLE_ERROR_SNIPPETS = (
+    "server closed the connection",
+    "ssl connection has been closed unexpectedly",
+)
+
+
+def _is_retryable_db_error(exc: OperationalError) -> bool:
+    message = str(exc).lower()
+    return any(snippet in message for snippet in _RETRYABLE_ERROR_SNIPPETS)
+
+
+def _retry_delay(attempt: int) -> float:
+    base = 0.1 * (2 ** (attempt - 1))
+    return base + random.uniform(0, 0.05 * attempt)
+
+
+def with_db_retry(op_name: str, func: Callable[[], T], *, max_attempts: int = 3) -> T:
+    """
+    Execute a DB operation with retries for transient Supabase/pooler disconnects.
+    """
+
+    attempt = 1
+    while True:
+        try:
+            return func()
+        except OperationalError as exc:
+            if attempt >= max_attempts or not _is_retryable_db_error(exc):
+                raise
+
+            delay = _retry_delay(attempt)
+            logger.warning(
+                "Transient DB failure detected, retrying",
+                extra={
+                    "event": "db_retry",
+                    "op": op_name,
+                    "attempt": attempt,
+                    "delay": delay,
+                    "error": str(exc),
+                },
+            )
+            time.sleep(delay)
+            attempt += 1
+
+
+async def with_db_retry_async(
+    op_name: str,
+    func: Callable[[], Awaitable[T]],
+    *,
+    max_attempts: int = 3,
+) -> T:
+    """Async variant of with_db_retry for coroutine-based DB interactions."""
+
+    attempt = 1
+    while True:
+        try:
+            return await func()
+        except OperationalError as exc:
+            if attempt >= max_attempts or not _is_retryable_db_error(exc):
+                raise
+            delay = _retry_delay(attempt)
+            logger.warning(
+                "Transient DB failure detected, retrying",
+                extra={
+                    "event": "db_retry",
+                    "op": op_name,
+                    "attempt": attempt,
+                    "delay": delay,
+                    "error": str(exc),
+                },
+            )
+            await asyncio.sleep(delay)
+            attempt += 1
+
+
 __all__ = [
     "Base",
     "SessionLocal",
     "engine",
     "get_db",
     "get_db_pool_status",
+    "with_db_retry",
+    "with_db_retry_async",
 ]

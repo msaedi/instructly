@@ -10,8 +10,10 @@ from datetime import datetime
 import logging
 from typing import Any, Optional, Sequence, cast
 
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session, joinedload
 
+from ..database import with_db_retry
 from ..models.rbac import Role
 from ..models.user import User
 from .base_repository import BaseRepository
@@ -35,28 +37,50 @@ class UserRepository(BaseRepository[User]):
         super().__init__(db, User)
         self.logger = logging.getLogger(__name__)
 
+    def _apply_short_statement_timeout(self) -> None:
+        try:
+            self.db.execute(text("SET LOCAL statement_timeout = '5s'"))
+        except Exception:
+            pass
+
     # ==========================================
     # Basic Lookups (10+ violations fixed)
     # ==========================================
 
-    def get_by_id(self, id: Any, load_relationships: bool = True) -> Optional[User]:
+    def get_by_id(
+        self,
+        id: Any,
+        load_relationships: bool = True,
+        *,
+        use_retry: bool = True,
+        short_timeout: bool = False,
+    ) -> Optional[User]:
         """
         Get user by ID.
 
         Used by: PermissionService, PrivacyService, ConflictChecker, timezone_utils
         Fixes: 10+ violations across services
         """
-        try:
-            if id is None:
+
+        def _query() -> Optional[User]:
+            try:
+                if id is None:
+                    return None
+                user_id = str(id)
+                if short_timeout:
+                    self._apply_short_statement_timeout()
+                stmt = select(User).where(User.id == user_id)
+                if load_relationships:
+                    stmt = stmt.options(joinedload(User.roles))
+                result = self.db.execute(stmt).scalars().first()
+                return cast(Optional[User], result)
+            except Exception as e:
+                self.logger.error(f"Error getting user by ID {id}: {str(e)}")
                 return None
-            user_id = str(id)
-            return cast(
-                Optional[User],
-                self.db.query(User).filter(User.id == user_id).first(),
-            )
-        except Exception as e:
-            self.logger.error(f"Error getting user by ID {id}: {str(e)}")
-            return None
+
+        if not use_retry:
+            return _query()
+        return with_db_retry("get_user", _query)
 
     def get_by_email(self, email: str) -> Optional[User]:
         """
@@ -206,6 +230,21 @@ class UserRepository(BaseRepository[User]):
         except Exception as e:
             self.logger.error(f"Error counting active users: {str(e)}")
             return 0
+
+    def get_profile_picture_versions(self, user_ids: Sequence[str]) -> dict[str, Optional[int]]:
+        """Return profile_picture_version values for the given user IDs."""
+
+        if not user_ids:
+            return {}
+
+        try:
+            self._apply_short_statement_timeout()
+            stmt = select(User.id, User.profile_picture_version).where(User.id.in_(list(user_ids)))
+            rows = self.db.execute(stmt).all()
+            return {row[0]: row[1] for row in rows}
+        except Exception as e:
+            self.logger.error(f"Error loading profile picture versions: {str(e)}")
+            return {}
 
     # ==========================================
     # Update Operations

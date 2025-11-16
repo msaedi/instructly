@@ -29,6 +29,10 @@ class FinalizeProfilePicturePayload(BaseModel):
     object_key: str
 
 
+class ProfilePictureUrlsResponse(BaseModel):
+    urls: dict[str, Optional[str]]
+
+
 @router.post("/me/profile-picture", response_model=SuccessResponse)
 @rate_limit(
     "1/minute",
@@ -73,6 +77,58 @@ def get_profile_picture_url(
         message="OK",
         data={"url": view.url, "expires_at": view.expires_at},
     )
+
+
+@router.get("/profile-picture-urls", response_model=ProfilePictureUrlsResponse)
+def get_profile_picture_urls_batch(
+    response: Response,
+    ids: list[str] = Query(
+        default=[],
+        description="Comma-separated list of user IDs (ids=1,2,3) or repeated ids parameters.",
+    ),
+    variant: Optional[Literal["original", "display", "thumb"]] = Query("display"),
+    asset_service: PersonalAssetService = Depends(get_personal_asset_service),
+) -> ProfilePictureUrlsResponse:
+    """
+    Batch avatar URL lookup.
+
+    Accepts up to 50 user IDs via comma-separated `ids` query param or repeated keys.
+    """
+
+    parsed_ids: list[str] = []
+    for raw in ids:
+        if not raw:
+            continue
+        parsed_ids.extend([part.strip() for part in raw.split(",") if part.strip()])
+
+    ordered_unique: list[str] = []
+    seen: set[str] = set()
+    for candidate in parsed_ids:
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            ordered_unique.append(candidate)
+
+    if len(ordered_unique) > 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A maximum of 50 user IDs is supported per request.",
+        )
+
+    response.headers["Cache-Control"] = "public, max-age=600"
+    response.headers["CDN-Cache-Control"] = "public, max-age=600"
+
+    if not ordered_unique:
+        return ProfilePictureUrlsResponse(urls={})
+
+    views = asset_service.get_profile_picture_urls(
+        ordered_unique,
+        variant=variant or "display",
+    )
+    payload: dict[str, Optional[str]] = {}
+    for requested in ordered_unique:
+        view = views.get(requested)
+        payload[requested] = view.url if view else None
+    return ProfilePictureUrlsResponse(urls=payload)
 
 
 @router.delete("/me/profile-picture", response_model=DeleteResponse)

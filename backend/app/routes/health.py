@@ -11,7 +11,8 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,19 @@ from ..services.cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["health"])
+
+
+class LiveHealthResponse(BaseModel):
+    ok: bool
+
+
+@router.get("/live", response_model=LiveHealthResponse)
+def live_probe(response: Response) -> LiveHealthResponse:
+    """Liveness probe that avoids touching external dependencies."""
+
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["CDN-Cache-Control"] = "no-store"
+    return LiveHealthResponse(ok=True)
 
 
 @router.get("/health", response_model=HealthCheckResponse)

@@ -1,9 +1,11 @@
+from contextlib import contextmanager
 import io
 
 from PIL import Image
 from pydantic import SecretStr
 
 from app.core.config import settings
+from app.models.user import User
 
 
 def _make_png_bytes(size=(20, 10), color=(255, 0, 0, 255)) -> bytes:
@@ -13,22 +15,14 @@ def _make_png_bytes(size=(20, 10), color=(255, 0, 0, 255)) -> bytes:
     return buf.getvalue()
 
 
-def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
-    # Configure dummy R2 settings for the signed URL route
-    settings.r2_bucket_name = "test-bucket"
-    settings.r2_access_key_id = "test-access"
-    settings.r2_secret_access_key = SecretStr("test-secret")
-    settings.r2_account_id = "test-account"
-    # Step 1: request signed upload for profile picture
-    # Inject stubbed PersonalAssetService so dependency that builds R2 client doesn't require config
-    from app.main import fastapi_app as app
+@contextmanager
+def _stub_personal_asset_service(db, app):
     from app.services.dependencies import get_personal_asset_service
     from app.services.personal_asset_service import PersonalAssetService
 
-    # Build service with injected stubbed storage to avoid requiring R2 config
     class _StubStorage:
         def generate_presigned_put(self, key, content_type, expires_seconds=300):
-            class P:  # simple struct-like
+            class P:
                 def __init__(self):
                     self.url = "https://example.com/put"
                     self.headers = {"Content-Type": content_type}
@@ -36,7 +30,7 @@ def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
 
             return P()
 
-        def generate_presigned_get(self, key, expires_seconds=3600):
+        def generate_presigned_get(self, key, expires_seconds=3600, extra_query_params=None):
             class P:
                 def __init__(self):
                     self.url = "https://example.com/get"
@@ -54,32 +48,48 @@ def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
         def delete_object(self, key):
             return True
 
+    previous_override = app.dependency_overrides.get(get_personal_asset_service)
     svc = PersonalAssetService(db, storage=_StubStorage())
     app.dependency_overrides[get_personal_asset_service] = lambda: svc
-
-    resp = client.post(
-        "/api/uploads/r2/signed-url",
-        json={
-            "filename": "avatar.png",
-            "content_type": "image/png",
-            "size_bytes": 1024,
-            "purpose": "profile_picture",
-        },
-        headers=auth_headers,
-    )
-    assert resp.status_code == 200, resp.text
-    data = resp.json()
-    assert "object_key" in data and "upload_url" in data
-
-    # Step 2: instead of PUT to R2, directly call finalize using our temp key
-    # and monkeypatch storage download to return a valid PNG
-    # Create a small valid test image
-    png_bytes = _make_png_bytes()
-
-    # storage already stubbed above; ensure download returns our bytes
-    svc.storage.download_bytes = lambda key: png_bytes
-
     try:
+        yield svc
+    finally:
+        if previous_override is None:
+            app.dependency_overrides.pop(get_personal_asset_service, None)
+        else:
+            app.dependency_overrides[get_personal_asset_service] = previous_override
+
+
+def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
+    # Configure dummy R2 settings for the signed URL route
+    settings.r2_bucket_name = "test-bucket"
+    settings.r2_access_key_id = "test-access"
+    settings.r2_secret_access_key = SecretStr("test-secret")
+    settings.r2_account_id = "test-account"
+    # Step 1: request signed upload for profile picture via stubbed storage service
+    with _stub_personal_asset_service(db, client.app) as svc:
+        resp = client.post(
+            "/api/uploads/r2/signed-url",
+            json={
+                "filename": "avatar.png",
+                "content_type": "image/png",
+                "size_bytes": 1024,
+                "purpose": "profile_picture",
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert "object_key" in data and "upload_url" in data
+
+        # Step 2: instead of PUT to R2, directly call finalize using our temp key
+        # and monkeypatch storage download to return a valid PNG
+        # Create a small valid test image
+        png_bytes = _make_png_bytes()
+
+        # storage already stubbed above; ensure download returns our bytes
+        svc.storage.download_bytes = lambda key: png_bytes
+
         resp2 = client.post(
             "/api/users/me/profile-picture",
             json={"object_key": data["object_key"]},
@@ -105,8 +115,6 @@ def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
         resp4 = client.delete("/api/users/me/profile-picture", headers=auth_headers)
         assert resp4.status_code == 200
         assert resp4.json().get("success") in (True, False)
-    finally:
-        app.dependency_overrides.clear()
 
 
 def test_reject_invalid_content_type_for_signed_upload(client, auth_headers):
@@ -126,3 +134,53 @@ def test_reject_invalid_content_type_for_signed_upload(client, auth_headers):
         headers=auth_headers,
     )
     assert resp.status_code == 400
+
+
+def test_profile_picture_urls_batch_empty(client, db, auth_headers):
+    with _stub_personal_asset_service(db, client.app):
+        resp = client.get("/api/users/profile-picture-urls", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json() == {"urls": {}}
+
+
+def test_profile_picture_urls_batch_mixed_ids(client, db, auth_headers):
+    user_with = User(
+        id="usr_avatar_batch",
+        email="avatar-batch@example.com",
+        hashed_password="x",
+        first_name="Ava",
+        last_name="Tar",
+        zip_code="10001",
+        profile_picture_key="private/personal-assets/profile-pictures/usr_avatar_batch/v1/original.jpg",
+        profile_picture_version=1,
+    )
+    user_without = User(
+        id="usr_nopicture",
+        email="no-pic@example.com",
+        hashed_password="x",
+        first_name="No",
+        last_name="Pic",
+        zip_code="10001",
+    )
+    db.add(user_with)
+    db.add(user_without)
+    db.commit()
+
+    with _stub_personal_asset_service(db, client.app):
+        resp = client.get(
+            f"/api/users/profile-picture-urls?ids={user_with.id},{user_without.id},missing",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()["urls"]
+        assert data[user_with.id] == "https://example.com/get"
+        assert data[user_without.id] is None
+        assert data["missing"] is None
+
+
+def test_profile_picture_urls_batch_limit(client, db, auth_headers):
+    with _stub_personal_asset_service(db, client.app):
+        ids = ",".join(f"user{i}" for i in range(0, 51))
+        resp = client.get(f"/api/users/profile-picture-urls?ids={ids}", headers=auth_headers)
+        assert resp.status_code == 400
+        assert "maximum of 50" in resp.text.lower()

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from .r2_storage_client import PresignedUrl
 
@@ -19,7 +19,12 @@ class NullStorageClient:
     ) -> PresignedUrl:
         return self._placeholder_presigned()
 
-    def generate_presigned_get(self, object_key: str, expires_seconds: int = 3600) -> PresignedUrl:
+    def generate_presigned_get(
+        self,
+        object_key: str,
+        expires_seconds: int = 3600,
+        extra_query_params: Optional[Dict[str, str]] = None,
+    ) -> PresignedUrl:
         return self._placeholder_presigned()
 
     def generate_presigned_delete(

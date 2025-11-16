@@ -159,6 +159,12 @@ def upgrade() -> None:
         "instructor_services",
         ["service_catalog_id", "is_active"],
     )
+    op.create_index("ix_reviews_booking_id", "reviews", ["booking_id"])
+    op.create_index(
+        "ix_reviews_instructor_id_created_at",
+        "reviews",
+        ["instructor_id", "created_at"],
+    )
 
     print("- Created search history and analytics indexes")
 
@@ -207,6 +213,8 @@ def downgrade() -> None:
 
     # Drop search and analytics indexes
     print("Dropping search and analytics indexes...")
+    op.drop_index("ix_reviews_instructor_id_created_at", table_name="reviews")
+    op.drop_index("ix_reviews_booking_id", table_name="reviews")
 
     # Use DROP INDEX IF EXISTS for all indexes to handle cases where they don't exist
     try:
