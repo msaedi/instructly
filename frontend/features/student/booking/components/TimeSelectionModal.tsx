@@ -12,10 +12,10 @@ import {
   type PricingPreviewResponse,
 } from '@/lib/api/pricing';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
-import Calendar from './TimeSelectionModal/Calendar';
-import TimeDropdown from './TimeSelectionModal/TimeDropdown';
-import DurationButtons from './TimeSelectionModal/DurationButtons';
-import SummarySection from './TimeSelectionModal/SummarySection';
+import Calendar from '@/features/shared/booking/ui/Calendar';
+import TimeDropdown from '@/features/shared/booking/ui/TimeDropdown';
+import DurationButtons from '@/features/shared/booking/ui/DurationButtons';
+import SummarySection from '@/features/shared/booking/ui/SummarySection';
 import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import {
   computeBasePriceCents,

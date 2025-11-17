@@ -9,10 +9,10 @@ import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { UserAvatar } from '@/components/user/UserAvatar';
-import Calendar from '@/features/student/booking/components/TimeSelectionModal/Calendar';
-import TimeDropdown from '@/features/student/booking/components/TimeSelectionModal/TimeDropdown';
-import DurationButtons from '@/features/student/booking/components/TimeSelectionModal/DurationButtons';
-import SummarySection from '@/features/student/booking/components/TimeSelectionModal/SummarySection';
+import Calendar from '@/features/shared/booking/ui/Calendar';
+import TimeDropdown from '@/features/shared/booking/ui/TimeDropdown';
+import DurationButtons from '@/features/shared/booking/ui/DurationButtons';
+import SummarySection from '@/features/shared/booking/ui/SummarySection';
 
 // Type for availability slots
 interface AvailabilitySlot {
