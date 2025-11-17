@@ -26,11 +26,10 @@ import logging
 from typing import Optional, cast
 
 from fastapi import Depends, HTTPException, Query, Request, status
-import jwt
-from jwt import PyJWTError
+from jwt import InvalidIssuerError, PyJWTError
 from sqlalchemy.orm import Session
 
-from .auth import oauth2_scheme_optional
+from .auth import decode_access_token, oauth2_scheme_optional
 from .core.config import settings
 from .database import get_db
 from .models.user import User
@@ -96,18 +95,13 @@ async def get_current_user_sse(
     )
 
     try:
-        # Decode the JWT token
-        payload = jwt.decode(
-            token,
-            settings.secret_key.get_secret_value(),
-            algorithms=[settings.algorithm],
-        )
+        payload = decode_access_token(token)
         user_email = payload.get("sub")
 
         if not isinstance(user_email, str):
             raise credentials_exception
 
-    except PyJWTError as e:
+    except (PyJWTError, InvalidIssuerError) as e:
         logger.error(f"JWT decode error: {str(e)}")
         raise credentials_exception
 

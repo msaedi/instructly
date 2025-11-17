@@ -50,6 +50,7 @@ def _create_user(unit_db: Session, email: str = "chat@example.com") -> User:
 
 @pytest.mark.asyncio
 async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "preview")
     monkeypatch.setattr(settings, "session_cookie_name", "sid", raising=False)
 
     user = _create_user(unit_db)
@@ -69,6 +70,7 @@ async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, m
 
 @pytest.mark.asyncio
 async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "preview")
 
     user = _create_user(unit_db, email="query@example.com")
     token = create_access_token({"sub": user.email})
@@ -88,6 +90,7 @@ async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypat
 
 @pytest.mark.asyncio
 async def test_get_current_user_sse_requires_credentials(unit_db, monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "preview")
 
     request = _build_request()
 
