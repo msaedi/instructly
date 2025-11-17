@@ -96,6 +96,11 @@ export function Chat({
     }
   }, [historyData]);
 
+  // Mutations
+  const sendMessage = useSendMessage();
+  const markAsRead = useMarkAsRead();
+  const lastMarkedUnreadByBookingRef = useRef<Record<string, string | null>>({});
+
   // Real-time messages via SSE
   const {
     messages: realtimeMessages,
@@ -114,10 +119,6 @@ export function Chat({
       }
     },
   });
-
-  // Mutations
-  const sendMessage = useSendMessage();
-  const markAsRead = useMarkAsRead();
 
   // State for optimistically added messages (sent by current user)
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
@@ -167,6 +168,27 @@ export function Chat({
     return map;
   }, [allMessages, readReceipts]);
 
+  const latestUnreadMessageId = React.useMemo(() => {
+    let latest: { id: string; ts: number } | null = null;
+
+    for (const message of allMessages) {
+      if (message.sender_id === currentUserId) continue;
+
+      const receipts = mergedReadReceipts[message.id] || [];
+      const wasRead = receipts.some(receipt => receipt.user_id === currentUserId && !!receipt.read_at);
+      if (wasRead) continue;
+
+      const createdAt = new Date(message.created_at).getTime();
+      if (Number.isNaN(createdAt)) continue;
+
+      if (!latest || createdAt > latest.ts) {
+        latest = { id: message.id, ts: createdAt };
+      }
+    }
+
+    return latest?.id ?? null;
+  }, [allMessages, mergedReadReceipts, currentUserId]);
+
   // Determine the latest own message that has a read receipt (global, not per-day group)
   const lastOwnReadMessageId = React.useMemo(() => {
     let latest: { id: string; ts: number } | null = null;
@@ -203,12 +225,25 @@ export function Chat({
     }
   }, [allMessages.length, isAtBottom, scrollToBottom]);
 
-  // Mark messages as read when component mounts
+  // Mark unread messages exactly once per newest unread message per booking
   useEffect(() => {
-    if (bookingId) {
-      markAsRead.mutate({ booking_id: bookingId });
+    if (!bookingId) {
+      return;
     }
-  }, [bookingId, markAsRead]);
+
+    if (!latestUnreadMessageId) {
+      delete lastMarkedUnreadByBookingRef.current[bookingId];
+      return;
+    }
+
+    const lastMarked = lastMarkedUnreadByBookingRef.current[bookingId];
+    if (lastMarked === latestUnreadMessageId) {
+      return;
+    }
+
+    lastMarkedUnreadByBookingRef.current[bookingId] = latestUnreadMessageId;
+    markAsRead.mutate({ booking_id: bookingId });
+  }, [bookingId, latestUnreadMessageId, markAsRead]);
 
   // Handle send message with optimistic update
   const handleSendMessage = async () => {

@@ -25,8 +25,7 @@ than regular REST endpoints due to browser API constraints.
 import logging
 from typing import Optional, cast
 
-from fastapi import Depends, HTTPException, Query, status
-from fastapi.params import Cookie
+from fastapi import Depends, HTTPException, Query, Request, status
 import jwt
 from jwt import PyJWTError
 from sqlalchemy.orm import Session
@@ -35,14 +34,15 @@ from .auth import oauth2_scheme_optional
 from .core.config import settings
 from .database import get_db
 from .models.user import User
+from .utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
 
 
 async def get_current_user_sse(
+    request: Request,
     token_header: Optional[str] = Depends(oauth2_scheme_optional),
     token_query: Optional[str] = Query(None, alias="token"),
-    token_cookie: Optional[str] = Cookie(None, alias="access_token"),
     db: Session = Depends(get_db),
 ) -> User:
     """
@@ -66,6 +66,20 @@ async def get_current_user_sse(
         HTTPException: If no valid authentication found
     """
     # Try to get token from any source
+    token_cookie: Optional[str] = None
+    if hasattr(request, "cookies"):
+        try:
+            site_mode = settings.site_mode
+        except Exception:
+            site_mode = "local"
+
+        for cookie_name in session_cookie_candidates(site_mode):
+            cookie_token = request.cookies.get(cookie_name)
+            if cookie_token:
+                token_cookie = cookie_token
+                logger.debug("Using %s cookie for SSE authentication", cookie_name)
+                break
+
     token = token_header or token_query or token_cookie
 
     if not token:
