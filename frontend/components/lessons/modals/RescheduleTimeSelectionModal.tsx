@@ -8,7 +8,11 @@ import { logger } from '@/lib/logger';
 import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { Calendar, TimeDropdown, DurationButtons } from '@/features/shared/booking/ui';
+import { UserAvatar } from '@/components/user/UserAvatar';
+import Calendar from '@/features/student/booking/components/TimeSelectionModal/Calendar';
+import TimeDropdown from '@/features/student/booking/components/TimeSelectionModal/TimeDropdown';
+import DurationButtons from '@/features/student/booking/components/TimeSelectionModal/DurationButtons';
+import SummarySection from '@/features/student/booking/components/TimeSelectionModal/SummarySection';
 
 // Type for availability slots
 interface AvailabilitySlot {
@@ -27,12 +31,13 @@ type State = {
   timeSlots: string[];
   availableDates: string[];
   availabilityData: AvailabilityByDate | null;
+  availabilityError: string | null;
 };
 
 type Action =
   | { type: 'AVAILABILITY_LOAD_START' }
   | { type: 'AVAILABILITY_LOAD_SUCCESS'; payload: { availabilityData: AvailabilityByDate; availableDates: string[]; selectedDate: string | null; timeSlots: string[]; selectedTime: string | null; showTimeDropdown: boolean } }
-  | { type: 'AVAILABILITY_LOAD_FAIL' }
+  | { type: 'AVAILABILITY_LOAD_FAIL'; payload?: { error?: string } }
   | { type: 'DATE_SELECT_START'; payload: { selectedDate: string } }
   | { type: 'DATE_SELECT_SUCCESS'; payload: { timeSlots: string[]; selectedTime: string | null } }
   | { type: 'DATE_SELECT_FAIL' }
@@ -41,7 +46,7 @@ type Action =
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'AVAILABILITY_LOAD_START':
-      return { ...state, loadingAvailability: true };
+      return { ...state, loadingAvailability: true, availabilityError: null };
     case 'AVAILABILITY_LOAD_SUCCESS':
       return {
         ...state,
@@ -52,9 +57,14 @@ function reducer(state: State, action: Action): State {
         timeSlots: action.payload.timeSlots,
         selectedTime: action.payload.selectedTime,
         showTimeDropdown: action.payload.showTimeDropdown,
+        availabilityError: null,
       };
     case 'AVAILABILITY_LOAD_FAIL':
-      return { ...state, loadingAvailability: false };
+      return {
+        ...state,
+        loadingAvailability: false,
+        availabilityError: action.payload?.error || 'Couldn’t load availability. Please try again.',
+      };
     case 'DATE_SELECT_START':
       return {
         ...state,
@@ -62,6 +72,7 @@ function reducer(state: State, action: Action): State {
         selectedDate: action.payload.selectedDate,
         showTimeDropdown: true,
         selectedTime: null,
+        timeSlots: [], // Clear stale slots from previous date
       };
     case 'DATE_SELECT_SUCCESS':
       return {
@@ -71,7 +82,12 @@ function reducer(state: State, action: Action): State {
         selectedTime: action.payload.selectedTime,
       };
     case 'DATE_SELECT_FAIL':
-      return { ...state, loadingTimeSlots: false };
+      return {
+        ...state,
+        loadingTimeSlots: false,
+        timeSlots: [], // Clear any stale slots
+        selectedTime: null, // Clear any stale selection
+      };
     case 'SET_SELECTED_TIME':
       return { ...state, selectedTime: action.payload.selectedTime };
     default:
@@ -104,35 +120,6 @@ interface RescheduleTimeSelectionModalProps {
   };
 }
 
-function SummarySection(props: { selectedDate: string | null; selectedTime: string | null; selectedDuration: number; price: number; onContinue: () => void; isComplete: boolean }) {
-  const { selectedDate, selectedTime, selectedDuration, price, onContinue, isComplete } = props;
-  if (!selectedDate && !selectedTime) return null;
-  return (
-    <div className="w-full">
-      <div className="text-center">
-        <p className="text-sm mb-1" style={{ color: '#666666' }}>Request for:</p>
-        {selectedDate && selectedTime && (
-          <p className="text-lg font-bold mb-1" style={{ color: '#333333', fontSize: '18px' }}>
-            {selectedDate} {selectedTime}
-          </p>
-        )}
-        {selectedDuration && price > 0 && (
-          <p className="text-base mb-4" style={{ color: '#333333', fontSize: '16px' }}>
-            {selectedDuration} min · ${price}
-          </p>
-        )}
-        <button
-          onClick={onContinue}
-          disabled={!isComplete}
-          className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors ${isComplete ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
-        >
-          Select and continue
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function RescheduleTimeSelectionModal({
   isOpen,
   onClose,
@@ -163,6 +150,15 @@ export default function RescheduleTimeSelectionModal({
     } as const).format(d);
   };
 
+  // Prepare instructor avatar user object
+  const instructorAvatarUser = useMemo(
+    () => ({
+      id: instructor.user_id,
+      first_name: instructor.user.first_name,
+      last_name: `${instructor.user.last_initial}.`,
+    }),
+    [instructor.user_id, instructor.user.first_name, instructor.user.last_initial]
+  );
 
   // Get duration options from the service
   const getDurationOptions = useCallback(() => {
@@ -184,6 +180,10 @@ export default function RescheduleTimeSelectionModal({
       ? Math.min(...durationOptions.map((o) => o.duration))
       : 60
   );
+  const selectedDurationRef = useRef(selectedDuration);
+  useEffect(() => {
+    selectedDurationRef.current = selectedDuration;
+  }, [selectedDuration]);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [disabledDurations] = useState<number[]>([]);
   const [state, dispatch] = useReducer(reducer, {
@@ -195,8 +195,9 @@ export default function RescheduleTimeSelectionModal({
     timeSlots: [],
     availableDates: [],
     availabilityData: null,
+    availabilityError: null,
   });
-  const { selectedDate, selectedTime, showTimeDropdown, timeSlots, availableDates, loadingAvailability, loadingTimeSlots, availabilityData } = state;
+  const { selectedDate, selectedTime, showTimeDropdown, timeSlots, availableDates, loadingAvailability, loadingTimeSlots, availabilityData, availabilityError } = state;
 
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
@@ -210,10 +211,12 @@ export default function RescheduleTimeSelectionModal({
 
   const isMountedRef = useRef(true);
   useEffect(() => {
+    isMountedRef.current = true; // Set to true on mount (handles React StrictMode remounts)
     return () => {
-      isMountedRef.current = false;
+      isMountedRef.current = false; // Set to false on unmount
     };
   }, []);
+
 
   const fetchAvailability = useCallback(async () => {
     dispatch({ type: 'AVAILABILITY_LOAD_START' });
@@ -229,6 +232,22 @@ export default function RescheduleTimeSelectionModal({
         start_date: localDateStr,
         end_date: localEndStr,
       });
+
+      if (response.error || !response.data?.availability_by_date) {
+        const errorMessage =
+          response.error && typeof response.error === 'string'
+            ? response.error
+            : response.status === 304
+              ? 'Availability is up to date. Please close and reopen the modal.'
+              : undefined;
+        logger.error('Failed to fetch availability', {
+          status: response.status,
+          error: response.error,
+        });
+        if (!isMountedRef.current) return;
+        dispatch({ type: 'AVAILABILITY_LOAD_FAIL', payload: errorMessage ? { error: errorMessage } : {} });
+        return;
+      }
 
       if (response.data?.availability_by_date) {
         const availabilityByDate = response.data.availability_by_date as AvailabilityByDate;
@@ -265,7 +284,7 @@ export default function RescheduleTimeSelectionModal({
         if (datesWithSlots.length > 0) {
           const firstDate = at(datesWithSlots, 0);
           if (!firstDate) {
-            if (!isMountedRef.current) return;
+            // Always dispatch success to clear loading state
             dispatch({
               type: 'AVAILABILITY_LOAD_SUCCESS',
               payload: {
@@ -281,7 +300,7 @@ export default function RescheduleTimeSelectionModal({
           }
           const firstDateData = availabilityByDate[firstDate];
           if (!firstDateData) {
-            if (!isMountedRef.current) return;
+            // Always dispatch success to clear loading state
             dispatch({
               type: 'AVAILABILITY_LOAD_SUCCESS',
               payload: {
@@ -322,8 +341,9 @@ export default function RescheduleTimeSelectionModal({
             return times;
           };
 
+          const requiredMinutes = selectedDurationRef.current ?? 60;
           const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
-            expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
+            expandDiscreteStarts(slot.start_time, slot.end_time, 60, requiredMinutes)
           );
 
           nextSelectedDate = firstDate;
@@ -335,7 +355,8 @@ export default function RescheduleTimeSelectionModal({
           }
         }
 
-        if (!isMountedRef.current) return;
+        // Always dispatch success to clear loading state, even if component unmounts
+        // The reducer will handle the state update safely
         flushSync(() => {
           dispatch({
             type: 'AVAILABILITY_LOAD_SUCCESS',
@@ -349,13 +370,19 @@ export default function RescheduleTimeSelectionModal({
             },
           });
         });
+        if (isMountedRef.current) {
+          logger.info('Loaded availability for reschedule', {
+            instructorId: instructor.user_id,
+            dateCount: Object.keys(availabilityByDate).length,
+          });
+        }
       }
     } catch (error) {
       logger.error('Failed to fetch availability', error);
       if (!isMountedRef.current) return;
       dispatch({ type: 'AVAILABILITY_LOAD_FAIL' });
     }
-  }, [instructor.user_id, studentTimezone, selectedDuration]);
+  }, [instructor.user_id, studentTimezone]);
 
   // Fetch availability data when modal opens
   useEffect(() => {
@@ -404,14 +431,21 @@ export default function RescheduleTimeSelectionModal({
         );
 
         if (!isMountedRef.current) return;
+
         dispatch({
           type: 'DATE_SELECT_SUCCESS',
           payload: { timeSlots: formattedSlots, selectedTime: at(formattedSlots, 0) || null },
         });
+
+        logger.info('Reschedule: recomputed times for date', {
+          date,
+          optionsCount: formattedSlots.length,
+        });
+      } else {
+        // If there was no availability data for the selected date, just stop loading
+        if (!isMountedRef.current) return;
+        dispatch({ type: 'DATE_SELECT_FAIL' });
       }
-      // If there was no availability data for the selected date, just stop loading
-      if (!isMountedRef.current) return;
-      dispatch({ type: 'DATE_SELECT_FAIL' });
     },
     [availabilityData, selectedDuration]
   );
@@ -480,6 +514,29 @@ export default function RescheduleTimeSelectionModal({
     return Math.round((hourlyRate * selectedDuration) / 60);
   };
 
+  const loadingView = (
+    <div className="text-center py-8">
+      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE]" />
+      <p className="mt-2 text-gray-600">Loading availability...</p>
+    </div>
+  );
+
+  const errorView = (
+    <div className="text-center py-8">
+      <p className="text-gray-600 mb-4">{availabilityError || 'Couldn’t load availability. Please try again.'}</p>
+      <button
+        className="px-4 py-2 rounded-lg bg-[#7E22CE] text-white hover:bg-[#6b1cb0] transition-colors"
+        onClick={() => {
+          if (!loadingAvailability) {
+            void fetchAvailability();
+          }
+        }}
+      >
+        Try again
+      </button>
+    </div>
+  );
+
   if (!isOpen) return null;
 
   // If cannot reschedule, show error message
@@ -520,66 +577,49 @@ export default function RescheduleTimeSelectionModal({
     );
   }
 
-  // Copy the exact structure from TimeSelectionModal
   return (
     <>
-      {/* Mobile Full Screen View */}
+      {/* Mobile Layout */}
       <div className="md:hidden fixed inset-0 z-50 bg-white dark:bg-gray-900">
         <div className="h-full flex flex-col">
-          {/* Mobile Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <button
               onClick={onClose}
               className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-              aria-label="Go back"
+              aria-label="Close"
             >
               <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-gray-400" />
             </button>
-            <h2 className="text-2xl font-medium text-gray-900 dark:text-white">
-              Need to reschedule?
-            </h2>
+            <h2 className="text-2xl font-medium text-gray-900 dark:text-white">Need to reschedule?</h2>
             <div className="w-10" />
           </div>
-
-          {/* Subtext */}
-          <div className="px-4 pt-4 pb-2">
-            <p className="text-gray-600">
-              Choose a new lesson date & time below.
-            </p>
-          </div>
-
-          {/* Instructor Name */}
-          <div className="px-4 pb-2">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-full overflow-hidden">
-                {/* Use avatar component if available in this module scope */}
-                {/* We avoid importing heavy components into this modal; placeholder kept minimal */}
-                <div className="w-8 h-8 bg-gray-200" />
-              </div>
-              <p className="text-base font-bold text-black">
-                {getInstructorDisplayName()}&apos;s availability
-              </p>
+          <div className="px-4 pt-4 pb-2 space-y-3">
+            <p className="text-sm text-gray-600">Choose a new lesson date & time below.</p>
+            <div className="flex items-center gap-2">
+              <UserAvatar
+                user={instructorAvatarUser}
+                size={32}
+                className="w-8 h-8 rounded-full ring-1 ring-gray-200"
+                fallbackBgColor="#F3E8FF"
+                fallbackTextColor="#7E22CE"
+              />
+              <p className="text-base font-bold text-black">{getInstructorDisplayName()}&apos;s availability</p>
             </div>
             {currentLesson && (
-              <div className="p-2 bg-yellow-50 rounded-lg">
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Current lesson:</span>{' '}
-                  {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'EEE MMM d')} at{' '}
-                  {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'h:mm a')}
-                </p>
+              <div data-testid="current-lesson-banner" className="p-2 bg-yellow-50 rounded-lg text-sm text-gray-700">
+                <span className="font-medium">Current lesson:</span>{' '}
+                {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'EEE MMM d')} at{' '}
+                {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'h:mm a')} • {currentLesson.service}
               </div>
             )}
           </div>
-
-          {/* Mobile Content */}
           <div className="flex-1 overflow-y-auto px-4 pb-20">
             {loadingAvailability ? (
-              <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE]"></div>
-                <p className="mt-2 text-gray-600">Loading availability...</p>
-              </div>
+              loadingView
+            ) : availabilityError ? (
+              errorView
             ) : (
-              <div className="space-y-6">
+              <>
                 <Calendar
                   currentMonth={currentMonth}
                   selectedDate={selectedDate}
@@ -587,18 +627,18 @@ export default function RescheduleTimeSelectionModal({
                   onDateSelect={handleDateSelect}
                   onMonthChange={setCurrentMonth}
                 />
-
                 {showTimeDropdown && selectedDate && (
-                  <TimeDropdown
-                    selectedTime={selectedTime}
-                    timeSlots={timeSlots}
-                    isVisible={showTimeDropdown}
-                    onTimeSelect={handleTimeSelect}
-                    disabled={false}
-                    isLoading={loadingTimeSlots}
-                  />
+                  <div className="mb-4">
+                    <TimeDropdown
+                      selectedTime={selectedTime}
+                      timeSlots={timeSlots}
+                      isVisible={showTimeDropdown}
+                      onTimeSelect={handleTimeSelect}
+                      disabled={false}
+                      isLoading={loadingTimeSlots}
+                    />
+                  </div>
                 )}
-
                 {durationOptions.length > 1 && (
                   <DurationButtons
                     durationOptions={durationOptions}
@@ -607,185 +647,155 @@ export default function RescheduleTimeSelectionModal({
                     disabledDurations={disabledDurations}
                   />
                 )}
-              </div>
+                <SummarySection
+                  selectedDate={selectedDate}
+                  selectedTime={selectedTime}
+                  selectedDuration={selectedDuration}
+                  price={getCurrentPrice()}
+                  onContinue={handleContinue}
+                  isComplete={!!selectedDate && !!selectedTime}
+                />
+              </>
             )}
           </div>
-
-          {/* Mobile Footer */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4">
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600 text-center">
-                Prefer to discuss?{' '}
-                <button
-                  onClick={() => {
-                    if (onOpenChat) {
-                      onOpenChat();
-                    }
-                  }}
-                  className="text-[#7E22CE] hover:underline"
-                >
+          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
+            <SummarySection
+              selectedDate={selectedDate}
+              selectedTime={selectedTime}
+              selectedDuration={selectedDuration}
+              price={getCurrentPrice()}
+              onContinue={handleContinue}
+              isComplete={!!selectedDate && !!selectedTime}
+            />
+            <p className="text-sm text-gray-600 text-center">
+              Prefer to discuss?{' '}
+              {onOpenChat ? (
+                <button type="button" onClick={onOpenChat} className="text-[#7E22CE] font-medium hover:underline">
                   Chat to reschedule
                 </button>
-              </p>
-              <button
-                onClick={handleContinue}
-                disabled={!selectedDate || !selectedTime}
-                className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                  selectedDate && selectedTime
-                    ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                Select and continue
-              </button>
-            </div>
+              ) : (
+                <span className="text-[#7E22CE] font-medium">Chat to reschedule</span>
+              )}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Desktop Modal View */}
-      <div
-        className="hidden md:block fixed inset-0 z-50 overflow-y-auto"
-        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-        onClick={handleBackdropClick}
-        aria-modal="true"
-        role="dialog"
-      >
+      {/* Desktop Layout */}
+      <div className="hidden md:block fixed inset-0 z-50" onClick={handleBackdropClick}>
         <div className="flex min-h-screen items-center justify-center p-4">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 transition-opacity"
-            style={{ backgroundColor: 'var(--modal-backdrop, rgba(0, 0, 0, 0.5))' }}
-          />
-
-          {/* Modal */}
+          <div className="fixed inset-0 bg-black/50" />
           <div
             ref={modalRef}
             tabIndex={-1}
             className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-[720px] max-h-[90vh] flex flex-col animate-slideUp"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Desktop Header */}
-            <div className="flex items-center justify-between p-8 pb-0">
-              <h2
-                className="text-2xl font-medium text-gray-900 dark:text-white"
-                style={{ color: '#333333' }}
-              >
-                Need to reschedule?
-              </h2>
+            <div className="flex items-start justify-between p-6 border-b border-gray-100">
+              <div>
+                <p className="text-sm font-medium text-[#7E22CE] uppercase tracking-wide">Manage booking</p>
+                <h2 className="text-2xl font-semibold text-gray-900 mt-1">Need to reschedule?</h2>
+                <p className="text-sm text-gray-600 mt-1">Choose a new lesson date & time below.</p>
+              </div>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="text-gray-400 hover:text-gray-600 transition-colors"
                 aria-label="Close modal"
               >
-                <X className="h-6 w-6" aria-hidden="true" />
+                <X className="h-6 w-6" />
               </button>
             </div>
 
-            {/* Subtext */}
-            <div className="px-8 pt-2 pb-2">
-              <p className="text-gray-600">
-                Choose a new lesson date & time below.
-              </p>
-            </div>
-
-            {/* Instructor Name */}
-            <div className="px-8 pb-6 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full overflow-hidden">
-                <div className="w-8 h-8 bg-gray-200" />
+            <div className="px-6 pt-4">
+              <div className="flex items-center gap-3">
+                <UserAvatar
+                  user={instructorAvatarUser}
+                  size={40}
+                  className="w-10 h-10 rounded-full ring-1 ring-gray-200"
+                  fallbackBgColor="#F3E8FF"
+                  fallbackTextColor="#7E22CE"
+                />
+                <p className="text-base font-semibold text-gray-900">{getInstructorDisplayName()}&apos;s availability</p>
               </div>
-              <p className="text-base font-bold text-black">
-                {getInstructorDisplayName()}&apos;s availability
-              </p>
             </div>
 
-            {/* Current lesson info bar */}
             {currentLesson && (
-              <div className="mx-8 mb-4 p-3 bg-yellow-50 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <span className="font-medium">Current lesson:</span>{' '}
-                  {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'EEE MMM d')} at{' '}
-                  {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'h:mm a')}
-                  {' • '}{currentLesson.service}
-                </p>
+              <div data-testid="current-lesson-banner" className="mx-6 mt-3 rounded-lg bg-yellow-50 p-3 text-sm text-gray-700">
+                <span className="font-medium">Current lesson:</span>{' '}
+                {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'EEE MMM d')} at{' '}
+                {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'h:mm a')} • {currentLesson.service}
               </div>
             )}
 
-            {/* Desktop Content - Split Layout */}
             <div className="flex-1 overflow-y-auto px-8 pb-8">
               {loadingAvailability ? (
-                <div className="text-center py-8">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE]"></div>
-                  <p className="mt-2 text-gray-600">Loading availability...</p>
-                </div>
+                loadingView
+              ) : availabilityError ? (
+                errorView
               ) : (
-                <div className="flex gap-8">
-                  {/* Left Section - Calendar and Controls */}
-                  <div className="flex-1">
-                    {/* Calendar Component */}
-                    <Calendar
+                <>
+                  <div className="flex gap-8">
+                    <div className="flex-1">
+                      <Calendar
                         currentMonth={currentMonth}
                         selectedDate={selectedDate}
                         availableDates={availableDates}
                         onDateSelect={handleDateSelect}
                         onMonthChange={setCurrentMonth}
-                    />
-
-                    {showTimeDropdown && selectedDate && (
-                      <div className="mb-4">
-                        <TimeDropdown
-                          selectedTime={selectedTime}
-                          timeSlots={timeSlots}
-                          isVisible={showTimeDropdown}
-                          onTimeSelect={handleTimeSelect}
-                          disabled={false}
-                          isLoading={loadingTimeSlots}
-                        />
-                      </div>
-                    )}
-
-                    {durationOptions.length > 1 && (
-                      <div className="mb-4">
+                      />
+                      {showTimeDropdown && selectedDate && (
+                        <div className="mb-4">
+                          <TimeDropdown
+                            selectedTime={selectedTime}
+                            timeSlots={timeSlots}
+                            isVisible={showTimeDropdown}
+                            onTimeSelect={handleTimeSelect}
+                            disabled={false}
+                            isLoading={loadingTimeSlots}
+                          />
+                        </div>
+                      )}
+                      {durationOptions.length > 1 && (
                         <DurationButtons
                           durationOptions={durationOptions}
                           selectedDuration={selectedDuration}
                           onDurationSelect={setSelectedDuration}
                           disabledDurations={disabledDurations}
                         />
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
 
-                  {/* Right Section - Summary and CTA */}
-                  <div className="w-[200px] flex-shrink-0 pt-12">
-                    <SummarySection
-                      selectedDate={selectedDate}
-                      selectedTime={selectedTime}
-                      selectedDuration={selectedDuration}
-                      price={getCurrentPrice()}
-                      onContinue={handleContinue}
-                      isComplete={!!selectedDate && !!selectedTime}
+                    {/* Vertical Divider */}
+                    <div
+                      className="w-px bg-gray-200 dark:bg-gray-700"
+                      style={{ backgroundColor: '#E8E8E8' }}
                     />
-                  </div>
-                </div>
-              )}
-            </div>
 
-            {/* Chat to reschedule link */}
-            <div className="px-8 pb-4 text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Prefer to discuss?{' '}
-                <button
-                  onClick={() => {
-                    if (onOpenChat) {
-                      onOpenChat();
-                    }
-                  }}
-                  className="text-[#7E22CE] hover:underline"
-                >
-                  Chat to reschedule
-                </button>
-              </p>
+                    <div className="w-[200px] flex-shrink-0 pt-12">
+                      <SummarySection
+                        selectedDate={selectedDate}
+                        selectedTime={selectedTime}
+                        selectedDuration={selectedDuration}
+                        price={getCurrentPrice()}
+                        onContinue={handleContinue}
+                        isComplete={!!selectedDate && !!selectedTime}
+                      />
+
+                      {/* Chat to reschedule CTA */}
+                      <div className="mt-4 text-sm text-gray-600">
+                        Prefer to discuss?{' '}
+                        {onOpenChat ? (
+                          <button type="button" onClick={onOpenChat} className="text-[#7E22CE] font-medium hover:underline">
+                            Chat to reschedule
+                          </button>
+                        ) : (
+                          <span className="text-[#7E22CE] font-medium">Chat to reschedule</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

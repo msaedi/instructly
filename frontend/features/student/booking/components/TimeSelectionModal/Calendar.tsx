@@ -144,6 +144,7 @@ export default function Calendar({
           return (
             <button
               key={index}
+              data-testid={`cal-day-${dateStr}`}
               onClick={() => isAvailable && !isPast && onDateSelect(dateStr)}
               disabled={!isAvailable || isPast}
               aria-pressed={isSelected}

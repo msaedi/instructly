@@ -121,7 +121,7 @@ export default function TimeDropdown({
           boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
         }}
       >
-        <div className="py-2">
+        <div className="py-2 max-h-60 overflow-y-auto">
           {timeSlots.map((time, index) => (
             <button
               key={time}

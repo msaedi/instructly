@@ -93,7 +93,45 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
           return;
         }
 
-        // Handle known conflict messages for clearer UX
+        // Handle payment-related errors (400)
+        if (resp.status === 400) {
+          const errorDetail = (resp as unknown as Record<string, unknown>)?.['error'];
+          let errorCode: string | undefined;
+          let errorMessage: string | undefined;
+
+          // Check if error is structured with code/message
+          if (errorDetail && typeof errorDetail === 'object') {
+            const detail = errorDetail as Record<string, unknown>;
+            errorCode = detail['code'] as string | undefined;
+            errorMessage = detail['message'] as string | undefined;
+          } else if (typeof errorDetail === 'string') {
+            errorMessage = errorDetail;
+          }
+
+          if (errorCode === 'payment_method_required_for_reschedule') {
+            toast.error(
+              errorMessage ||
+              'A payment method is required to reschedule this lesson. Please add a payment method in Settings and try again.'
+            );
+            onClose(); // Close modal so user can add payment method
+            router.push('/student/settings?tab=payment'); // Navigate to payment settings
+            return;
+          }
+
+          if (errorCode === 'payment_confirmation_failed') {
+            toast.error(
+              errorMessage ||
+              "We couldn't process your payment method. Please update your payment method and try again."
+            );
+            return; // Keep modal open for retry
+          }
+
+          // Generic 400 error
+          toast.error(errorMessage || 'Unable to reschedule. Please try again.');
+          return;
+        }
+
+        // Handle known conflict messages for clearer UX (409)
         const msg = ((resp as unknown as Record<string, unknown>)?.['error'] as string)?.toLowerCase?.() || '';
         if (resp.status === 409) {
           if (msg.includes('student') || msg.includes('already have a booking')) {

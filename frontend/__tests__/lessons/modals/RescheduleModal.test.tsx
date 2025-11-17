@@ -255,14 +255,23 @@ describe('RescheduleModal', () => {
     expect(confirmButtons.length).toBeGreaterThan(0);
   });
 
-  it('shows current booking date highlighted', () => {
+  it('shows current booking date highlighted', async () => {
     renderWithProviders(
       <RescheduleModal isOpen={true} onClose={mockOnClose} lesson={mockBooking} />
     );
 
-    expect(screen.getByText(/Mathematics/)).toBeInTheDocument();
-    const dateEls = screen.getAllByText(/Dec 25/);
-    expect(dateEls.length).toBeGreaterThan(0);
+    await act(async () => { await Promise.resolve(); });
+
+    // Use getAllByTestId to query the current lesson banners (mobile + desktop)
+    const currentLessonBanners = screen.getAllByTestId('current-lesson-banner');
+    expect(currentLessonBanners.length).toBeGreaterThan(0);
+
+    // Verify the banner contains the service name and date
+    const firstBanner = currentLessonBanners[0];
+    if (firstBanner) {
+      expect(firstBanner.textContent).toContain('Mathematics');
+      expect(firstBanner.textContent).toContain('Dec 25');
+    }
   });
 
   it('handles reschedule mutation', async () => {
