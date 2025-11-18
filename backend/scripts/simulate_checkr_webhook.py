@@ -123,6 +123,15 @@ def _bootstrap_env(env: Optional[str], env_file: Optional[str]) -> str:
     if secret_from_env:
         os.environ["CHECKR_WEBHOOK_SECRET"] = secret_from_env
     os.environ.setdefault("CHECKR_WEBHOOK_SECRET", "whsec_test")
+
+    api_key_from_env = None
+    for key in ("CHECKR_API_KEY", "checkr_api_key"):
+        value = env_map.get(key)
+        if value:
+            api_key_from_env = value.strip()
+            break
+    if api_key_from_env and api_key_from_env.strip():
+        os.environ.setdefault("CHECKR_API_KEY", api_key_from_env.strip())
     if env_name in {"local", "stg", "int"}:
         os.environ.setdefault("CHECKR_WEBHOOK_URL", "http://localhost:8000/webhooks/checkr/")
     else:
@@ -201,6 +210,26 @@ def _secret_value(secret: object | None) -> str:
     if callable(getter):
         return str(getter())
     return str(secret)
+
+
+def _resolve_signing_secret(
+    explicit: Optional[str],
+    current_settings,
+) -> str:
+    if explicit:
+        return explicit
+
+    candidates = [
+        (os.getenv("CHECKR_API_KEY") or "").strip(),
+        (_secret_value(getattr(current_settings, "checkr_api_key", None)) or "").strip(),
+        (os.getenv("CHECKR_WEBHOOK_SECRET") or "").strip(),
+        (_secret_value(getattr(current_settings, "checkr_webhook_secret", None)) or "").strip(),
+        "whsec_test",
+    ]
+    for candidate in candidates:
+        if candidate:
+            return candidate
+    return "whsec_test"
 
 
 def _post_webhook_via_asgi(target_url: str, body: bytes, headers: dict[str, str]) -> tuple[int, str]:
@@ -339,7 +368,7 @@ def main() -> None:
     parser.add_argument(
         "--secret",
         default=None,
-        help="Override webhook signing secret",
+        help="Override webhook signing key (defaults to Checkr API key)",
     )
     parser.add_argument(
         "--reset",
@@ -470,12 +499,7 @@ def main() -> None:
         }
 
         raw_body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-        secret_value = (
-            args.secret
-            or os.getenv("CHECKR_WEBHOOK_SECRET")
-            or _secret_value(getattr(settings, "checkr_webhook_secret", None))
-            or "whsec_test"
-        )
+        secret_value = _resolve_signing_secret(args.secret, settings)
         secret_bytes = str(secret_value).encode("utf-8")
         signature = hmac.new(secret_bytes, raw_body, hashlib.sha256).hexdigest()
         header_signature = signature if args.sig_format == "raw" else f"sha256={signature}"

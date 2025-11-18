@@ -283,6 +283,67 @@ def test_requests_post_uses_raw_body(monkeypatch, tmp_path):
     assert captured["signature"] == expected_sig
 
 
+def test_api_key_preferred_over_webhook_secret(monkeypatch, tmp_path):
+    env_path = _write_env(
+        tmp_path,
+        "\n".join(
+            [
+                "prod_database_url=postgresql://prod-user@host/prod",
+                "prod_service_database_url=postgresql://service-user@host/prod",
+                "CHECKR_WEBHOOK_SECRET=secret-val",
+                "CHECKR_API_KEY=api-key-env",
+            ]
+        ),
+    )
+
+    monkeypatch.setattr("app.database.SessionLocal", lambda: _make_dummy_session("report-api"))
+    monkeypatch.setattr(
+        "app.repositories.instructor_profile_repository.InstructorProfileRepository",
+        lambda *_: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_check_service.BackgroundCheckService",
+        lambda *_, **__: types.SimpleNamespace(
+            invite=lambda *_: types.SimpleNamespace(__await__=lambda self: iter(["report-api"])),
+            update_status_from_report=lambda *a, **k: None,
+        ),
+    )
+    monkeypatch.setattr(sim.asyncio, "run", lambda _: "report-api")
+
+    sent: dict[str, bytes | str] = {}
+
+    def fake_dispatch(url, body, signature):
+        sent["body"] = body
+        sent["signature"] = signature
+        return 200, "{}"
+
+    monkeypatch.setattr(sim, "_dispatch_webhook", fake_dispatch)
+    monkeypatch.setattr(sim, "_post_webhook_via_asgi", lambda *a, **k: (200, "{}"))
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "simulate_checkr_webhook.py",
+            "--env",
+            "beta",
+            "--env-file",
+            str(env_path),
+            "--email",
+            "johnsmith@example.com",
+            "--result",
+            "clear",
+            "--force-prod",
+            "--yes",
+        ],
+    )
+
+    sim.main()
+
+    expected_sig = _compute_signature("api-key-env", sent["body"])
+    assert sent["signature"] == expected_sig
+
+
 def test_sig_format_sha256(monkeypatch, tmp_path):
     env_path = _write_env(
         tmp_path,

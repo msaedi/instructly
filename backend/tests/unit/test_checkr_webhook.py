@@ -18,6 +18,7 @@ from app.models.instructor import BackgroundCheck, BackgroundJob, BGCWebhookLog,
 from app.models.user import User
 from app.repositories.bgc_webhook_log_repository import BGCWebhookLogRepository
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
+from app.routes.webhooks_checkr import _compute_signature
 from app.services.background_check_workflow_service import BackgroundCheckWorkflowService
 
 
@@ -109,6 +110,21 @@ def _auth_headers(username: str = "hookuser", password: str = "hookpass") -> dic
     }
 
 
+def _webhook_headers(
+    body: bytes | str,
+    *,
+    username: str = "hookuser",
+    password: str = "hookpass",
+    signature: str | None = None,
+) -> dict[str, str]:
+    headers = _auth_headers(username, password)
+    secret_value = settings.checkr_api_key.get_secret_value()
+    assert secret_value, "CHECKR_API_KEY must be configured for webhook tests"
+    body_bytes = body.encode("utf-8") if isinstance(body, str) else body
+    headers["X-Checkr-Signature"] = signature or _compute_signature(secret_value, body_bytes)
+    return headers
+
+
 def test_report_completed_clear_updates_profile(client, db: Session) -> None:
     profile = _create_instructor_with_report(db, report_id="rpt_clear")
 
@@ -120,7 +136,7 @@ def test_report_completed_clear_updates_profile(client, db: Session) -> None:
     response = client.post(
         "/webhooks/checkr/",
         content=body,
-        headers=_auth_headers(),
+        headers=_webhook_headers(body),
     )
 
     assert response.status_code == 200
@@ -131,7 +147,7 @@ def test_report_completed_clear_updates_profile(client, db: Session) -> None:
     assert updated.bgc_completed_at is not None
 
     # Idempotent retry
-    response_retry = client.post("/webhooks/checkr/", content=body, headers=_auth_headers())
+    response_retry = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
     assert response_retry.status_code == 200
 
     updated_retry = db.query(InstructorProfile).filter_by(id=profile.id).one()
@@ -154,7 +170,7 @@ def test_report_completed_without_report_binding_uses_candidate(client, db: Sess
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_auth_headers())
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     db.refresh(profile)
@@ -186,7 +202,7 @@ def test_report_created_binds_report_to_candidate(client, db: Session) -> None:
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_auth_headers())
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     db.refresh(profile)
@@ -210,7 +226,7 @@ def test_report_completed_unknown_candidate_enqueues_job(client, db: Session) ->
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_auth_headers())
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     jobs = db.query(BackgroundJob).filter(BackgroundJob.type == "webhook.report_completed").all()
@@ -227,9 +243,9 @@ def test_maps_completed_and_logs_delivery(client, db: Session) -> None:
         "data": {"object": {"id": "rpt_log", "result": "clear", "object": "report"}},
     }
     body = json.dumps(payload).encode("utf-8")
-    headers = _auth_headers()
+    headers = _webhook_headers(body)
     headers["X-Checkr-Delivery-Id"] = "delivery-log-1"
-    headers["X-Checkr-Signature"] = "sig-log"
+    signature_value = headers["X-Checkr-Signature"]
 
     response = client.post("/webhooks/checkr/", content=body, headers=headers)
 
@@ -241,7 +257,7 @@ def test_maps_completed_and_logs_delivery(client, db: Session) -> None:
     assert entry.event_type == "report.completed"
     assert entry.delivery_id == "delivery-log-1"
     assert entry.http_status == 200
-    assert entry.signature == "sig-log"
+    assert entry.signature == signature_value
     assert entry.payload_json.get("type") == "report.completed"
 
 
@@ -266,7 +282,7 @@ def test_report_completed_consider_marks_review(client, db: Session) -> None:
         }
         body = json.dumps(payload).encode("utf-8")
 
-        response = client.post("/webhooks/checkr/", content=body, headers=_auth_headers())
+        response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
 
         assert response.status_code == 200
         updated = db.query(InstructorProfile).filter_by(id=profile.id).one()
@@ -315,7 +331,7 @@ def test_unknown_report_id_is_noop(client, db: Session) -> None:
     response = client.post(
         "/webhooks/checkr/",
         content=body,
-        headers=_auth_headers(),
+        headers=_webhook_headers(body),
     )
 
     assert response.status_code == 200

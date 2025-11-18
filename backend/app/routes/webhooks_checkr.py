@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 from collections import OrderedDict
 from datetime import datetime, timezone
+import hashlib
+import hmac
 import json
 import logging
 from time import monotonic
@@ -35,6 +37,7 @@ router = APIRouter(prefix="/webhooks/checkr", tags=["webhooks"])
 _WEBHOOK_CACHE_TTL_SECONDS = 300
 _WEBHOOK_CACHE_MAX_SIZE = 1000
 _delivery_cache: OrderedDict[str, float] = OrderedDict()
+_SIGNATURE_PLACEHOLDER = "Please create an API key to check the authenticity of our webhooks."
 
 
 def _result_label(result: str) -> str:
@@ -73,6 +76,48 @@ def _require_basic_auth(request: Request) -> None:
     expected = f"{username_secret.get_secret_value()}:{password_secret.get_secret_value()}"
     if provided != expected:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+
+def _compute_signature(secret: str, raw_body: bytes) -> str:
+    return hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+
+
+def _verify_checkr_signature(request: Request, raw_body: bytes) -> None:
+    provided_sig = request.headers.get("X-Checkr-Signature")
+    if not provided_sig:
+        logger.warning("Missing Checkr webhook signature header")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    normalized_sig = provided_sig.strip()
+    if normalized_sig == _SIGNATURE_PLACEHOLDER:
+        logger.warning("Rejected Checkr webhook with placeholder signature header")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    if normalized_sig.lower().startswith("sha256="):
+        normalized_sig = normalized_sig.split("=", 1)[1].strip()
+
+    if not normalized_sig:
+        logger.warning("Empty Checkr webhook signature header")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    api_key = settings.checkr_api_key.get_secret_value()
+    if not api_key:
+        logger.error("Checkr API key is not configured for signature verification")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Webhook authentication not configured",
+        )
+
+    computed_sig = _compute_signature(api_key, raw_body)
+    if not hmac.compare_digest(normalized_sig, computed_sig):
+        logger.warning(
+            "Checkr webhook signature mismatch",
+            extra={
+                "evt": "webhook_invalid_sig",
+                "delivery_id": request.headers.get("X-Checkr-Delivery-Id"),
+            },
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
 
 def _delivery_seen(delivery_key: str | None) -> bool:
@@ -256,6 +301,7 @@ async def handle_checkr_webhook(
 
     _require_basic_auth(request)
     raw_body = await request.body()
+    _verify_checkr_signature(request, raw_body)
 
     try:
         payload = json.loads(raw_body.decode("utf-8"))

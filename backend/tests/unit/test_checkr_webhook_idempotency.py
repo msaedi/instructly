@@ -9,7 +9,7 @@ from app.api.dependencies.repositories import get_background_job_repo
 from app.api.dependencies.services import get_background_check_workflow_service
 from app.core.config import settings
 from app.main import fastapi_app as app
-from app.routes.webhooks_checkr import _delivery_cache
+from app.routes.webhooks_checkr import _compute_signature, _delivery_cache
 
 
 class _StubRepo:
@@ -57,13 +57,16 @@ def client():
 def configure_webhook_basic_auth():
     original_user = settings.checkr_webhook_user
     original_pass = settings.checkr_webhook_pass
+    original_api_key = settings.checkr_api_key
     settings.checkr_webhook_user = SecretStr("hookuser")
     settings.checkr_webhook_pass = SecretStr("hookpass")
+    settings.checkr_api_key = SecretStr("sk_test_webhook")
     try:
         yield
     finally:
         settings.checkr_webhook_user = original_user
         settings.checkr_webhook_pass = original_pass
+        settings.checkr_api_key = original_api_key
 
 
 def _auth_headers():
@@ -72,6 +75,14 @@ def _auth_headers():
         "Authorization": f"Basic {token}",
         "Content-Type": "application/json",
     }
+
+
+def _webhook_headers(body: bytes | str):
+    headers = _auth_headers()
+    secret_value = settings.checkr_api_key.get_secret_value()
+    body_bytes = body.encode("utf-8") if isinstance(body, str) else body
+    headers["X-Checkr-Signature"] = _compute_signature(secret_value, body_bytes)
+    return headers
 
 
 def test_duplicate_delivery_is_ignored(monkeypatch, client):
@@ -87,9 +98,10 @@ def test_duplicate_delivery_is_ignored(monkeypatch, client):
             "type": "report.completed",
             "data": {"object": {"id": "rpt_abc", "result": "clear", "package": "standard"}},
         }
-        body = json.dumps(payload)
+        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
 
-        headers = {"X-Checkr-Delivery-Id": "delivery-1", **_auth_headers()}
+        headers = _webhook_headers(body)
+        headers["X-Checkr-Delivery-Id"] = "delivery-1"
 
         first = client.post("/webhooks/checkr/", content=body, headers=headers)
         assert first.status_code == 200
