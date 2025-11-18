@@ -21,11 +21,21 @@ jobs:
             backend/requirements.txt
             backend/requirements-dev.txt
 
+      - name: Check disk usage (before backend deps)
+        run: df -h
+
       - name: Install backend dependencies
         working-directory: backend
+        env:
+          PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
+          PIP_EXTRA_INDEX_URL: https://pypi.org/simple
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir -r requirements-dev.txt
+
+      - name: Check disk usage (after backend deps)
+        run: df -h
 
       - name: Run mypy --strict (non-blocking)
         working-directory: backend
