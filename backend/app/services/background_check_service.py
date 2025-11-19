@@ -156,8 +156,15 @@ class BackgroundCheckService(BaseService):
 
         redirect_url = f"{settings.frontend_url.rstrip('/')}/instructor/onboarding/status"
 
+        site_mode = str(getattr(settings, "site_mode", "") or "local").strip() or "local"
+        idempotency_key = f"candidate-{site_mode}-{profile.id}"
+        # Deterministic key avoids duplicate candidates if we retry within 24 hours.
+
         try:
-            candidate = await self.client.create_candidate(**candidate_payload)
+            candidate = await self.client.create_candidate(
+                idempotency_key=idempotency_key,
+                **candidate_payload,
+            )
             candidate_id = candidate.get("id")
             if not candidate_id:
                 raise ServiceException("Checkr candidate response missing identifier")

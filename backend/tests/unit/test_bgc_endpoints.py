@@ -88,7 +88,12 @@ def override_background_check_service(db):
         repository = InstructorProfileRepository(db)
 
         class DummyCheckr(CheckrClient):
-            async def create_candidate(self, **payload):  # type: ignore[override]
+            async def create_candidate(  # type: ignore[override]
+                self,
+                *,
+                idempotency_key: str | None = None,
+                **payload,
+            ):
                 return {"id": "cand_test"}
 
             async def create_invitation(self, **payload):  # type: ignore[override]
@@ -360,7 +365,12 @@ def test_invite_includes_work_location_payloads(client, db, owner_auth_override)
         repository = InstructorProfileRepository(db)
 
         class CaptureCheckr(CheckrClient):
-            async def create_candidate(self, **payload):  # type: ignore[override]
+            async def create_candidate(  # type: ignore[override]
+                self,
+                *,
+                idempotency_key: str | None = None,
+                **payload,
+            ):
                 captured["candidate"] = payload
                 return {"id": "cand_cap"}
 

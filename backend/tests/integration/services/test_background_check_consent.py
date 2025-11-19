@@ -49,7 +49,12 @@ def override_background_check_service(db):
         repository = InstructorProfileRepository(db)
 
         class DummyCheckr(CheckrClient):
-            async def create_candidate(self, **payload):  # type: ignore[override]
+            async def create_candidate(  # type: ignore[override]
+                self,
+                *,
+                idempotency_key: str | None = None,
+                **payload,
+            ):
                 return {"id": "cand_test"}
 
             async def create_invitation(  # type: ignore[override]

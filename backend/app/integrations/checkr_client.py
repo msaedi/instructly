@@ -53,11 +53,17 @@ class CheckrClient:
         # Keeping a BasicAuth instance ensures every request carries the correct Authorization header.
         self._auth = httpx.BasicAuth(self._api_key, "")
 
-    async def create_candidate(self, **payload: Any) -> Dict[str, Any]:
+    async def create_candidate(
+        self,
+        *,
+        idempotency_key: str | None = None,
+        **payload: Any,
+    ) -> Dict[str, Any]:
         """Create a new candidate in Checkr."""
 
         body: Dict[str, Any] = {key: value for key, value in payload.items() if value is not None}
-        return await self.request("POST", "/candidates", json_body=body)
+        headers = {"Idempotency-Key": idempotency_key} if idempotency_key else None
+        return await self.request("POST", "/candidates", json_body=body, headers=headers)
 
     async def create_invitation(self, **payload: Any) -> Dict[str, Any]:
         """Create a hosted invitation for a candidate."""
@@ -79,6 +85,7 @@ class CheckrClient:
         *,
         json_body: Dict[str, Any] | None = None,
         params: Dict[str, Any] | None = None,
+        headers: Dict[str, str] | None = None,
     ) -> Dict[str, Any]:
         """Perform a raw Checkr API request and return the parsed JSON payload."""
 
@@ -89,7 +96,13 @@ class CheckrClient:
             auth=self._auth,
             headers={"Accept": "application/json"},
         ) as client:
-            request = client.build_request(method, url, json=json_body, params=params)
+            request = client.build_request(
+                method,
+                url,
+                json=json_body,
+                params=params,
+                headers=headers,
+            )
             if logger.isEnabledFor(logging.DEBUG):
                 auth_header = request.headers.get("Authorization", "") or ""
                 auth_scheme = auth_header.split(" ")[0] if auth_header else "missing"
@@ -151,7 +164,12 @@ class FakeCheckrClient(CheckrClient):
         super().__init__(api_key="fake-checkr-key", base_url="https://api.checkr.com/v1")
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def create_candidate(self, **payload: Any) -> Dict[str, Any]:
+    async def create_candidate(
+        self,
+        *,
+        idempotency_key: str | None = None,
+        **payload: Any,
+    ) -> Dict[str, Any]:
         candidate_id = f"fake-candidate-{uuid4().hex}"
         self._logger.debug("Fake candidate created", extra={"candidate_id": candidate_id})
         return {
