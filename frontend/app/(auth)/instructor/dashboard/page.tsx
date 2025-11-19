@@ -270,6 +270,11 @@ export default function InstructorDashboardNew() {
     }
   }, [activePanel, isOffsetFrozen]);
 
+  const computeSidebarOffsetRef = useRef(computeSidebarOffset);
+  useEffect(() => {
+    computeSidebarOffsetRef.current = computeSidebarOffset;
+  }, [computeSidebarOffset]);
+
   useEffect(() => {
     computeSidebarOffset();
     const onResize = () => computeSidebarOffset();
@@ -299,23 +304,27 @@ export default function InstructorDashboardNew() {
   // Freeze sidebar offset briefly when switching to embedded panels to avoid visible reflow
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    if (
+    const shouldFreeze =
       activePanel === 'profile' ||
       activePanel === 'bookings' ||
       activePanel === 'earnings' ||
       activePanel === 'reviews' ||
-      activePanel === 'availability'
-    ) {
+      activePanel === 'availability';
+
+    if (shouldFreeze) {
       setIsOffsetFrozen(true);
       timeoutId = setTimeout(() => {
         setIsOffsetFrozen(false);
-        computeSidebarOffset();
+        computeSidebarOffsetRef.current();
       }, 280);
+    } else {
+      setIsOffsetFrozen(false);
     }
+
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [activePanel, computeSidebarOffset]);
+  }, [activePanel]);
 
   // No overlay animations; keep load simple and stable
   const [connectStatus, setConnectStatus] = useState<{
